@@ -152,7 +152,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         let callee = self.codegen_operand(builder, op);
 
         let instance = self.ctx.ir_ctx().map_ty(callee.info.ty, |ty| match ty {
-            IrTy::Fn { instance, .. } => *instance,
+            IrTy::FnDef { instance, .. } => *instance,
             _ => panic!("item is not callable"),
         });
 

@@ -173,7 +173,7 @@ impl<'tcx> Builder<'tcx> {
 
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
-            if self.ctx.map_ty(ty_id, |ty| matches!(ty, IrTy::Fn { .. })) {
+            if self.ctx.map_ty(ty_id, |ty| matches!(ty, IrTy::FnDef { .. })) {
                 return block.and(Operand::Const(Const::Zero(ty_id).into()));
             }
 

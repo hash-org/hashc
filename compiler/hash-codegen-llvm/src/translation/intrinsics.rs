@@ -315,7 +315,7 @@ impl<'b, 'm> IntrinsicBuilderMethods<'b> for Builder<'_, 'b, 'm> {
         // However, since we haven't formally defined any "special" intrinsics yet, we
         // don't expect for the resolution to fail.
 
-        let IrTy::Fn { instance, .. } = self.ir_ctx.tys().get(ty) else {
+        let IrTy::FnDef { instance, .. } = self.ir_ctx.tys().get(ty) else {
             panic!("unable to resolve intrinsic function type");
         };
         let name = self.ir_ctx.instances().name_of(instance);

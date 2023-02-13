@@ -223,6 +223,7 @@ impl LoweringCtxQuery for CompilerSession {
     fn data(&mut self) -> LoweringCtx {
         let output_stream = self.output_stream();
         LoweringCtx {
+            semantic_storage: &self.semantic_storage,
             workspace: &mut self.workspace,
             ty_storage: &self.ty_storage,
             settings: &self.settings,

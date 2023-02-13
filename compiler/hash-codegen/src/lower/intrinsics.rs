@@ -20,7 +20,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
         // Get function pointer from the specified instance
         let instance = self.ctx.ir_ctx().map_ty(ty, |ty| match ty {
-            IrTy::Fn { instance, .. } => *instance,
+            IrTy::FnDef { instance, .. } => *instance,
             _ => panic!("expected function type when resolving intrinsic item"),
         });
 

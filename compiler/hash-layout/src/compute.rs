@@ -317,8 +317,7 @@ impl<'l> LayoutComputer<'l> {
                 }
             }),
 
-            // @@Todo: this should be a function pointer...
-            IrTy::Fn { .. } => {
+            IrTy::FnDef { .. } => {
                 let layout = self
                     .compute_layout_of_univariant(
                         VariantIdx::new(0),
@@ -329,6 +328,13 @@ impl<'l> LayoutComputer<'l> {
                     .ok_or(LayoutError::Overflow)?;
 
                 Ok(self.layouts().create(layout))
+            }
+            IrTy::Fn { .. } => {
+                // Create a function pointer and specify that it cannot be null.
+                let mut data_ptr = scalar_unit(ScalarKind::Pointer);
+                data_ptr.valid_range_mut().start = 1;
+
+                Ok(self.layouts().create(Layout::scalar(dl, data_ptr)))
             }
         })?;
 

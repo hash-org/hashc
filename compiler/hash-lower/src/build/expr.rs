@@ -36,7 +36,7 @@ impl<'tcx> Builder<'tcx> {
                 // function call.
                 let subject_ty = self.ty_of_node(subject.id());
 
-                if let IrTy::Fn { .. } = subject_ty {
+                if let IrTy::FnDef { .. } = subject_ty {
                     self.fn_call_into_dest(
                         destination,
                         block,

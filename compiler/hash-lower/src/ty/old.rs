@@ -181,7 +181,7 @@ impl<'ir> TyLoweringCtx<'ir> {
                         return_ty,
                     ));
 
-                    IrTy::Fn { params, return_ty, instance }
+                    IrTy::FnDef { instance }
                 }
                 Level1Term::ModDef(_) => unreachable!(),
             },

@@ -4,8 +4,7 @@
 
 use hash_ir::{
     ty::{
-        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
-        Mutability,
+        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, IrTy, IrTyId, Mutability,
     },
     IrCtx,
 };
@@ -122,16 +121,7 @@ impl<'ir> TyLoweringCtx<'ir> {
                 });
 
                 let return_ty = self.ty_id_from_tir_ty(*return_ty);
-
-                // @@Todo: functions should have a name if possible, otherwise they default
-                // to an underscore.
-                let name = IDENTS.underscore;
-                let source = None;
-
-                let instance = Instance::new(name, source, params, return_ty);
-                let id = self.lcx.instances().create(instance);
-
-                IrTy::Fn { instance: id, params, return_ty }
+                IrTy::Fn { params, return_ty }
             }
             Ty::Ref(RefTy { kind, mutable, ty }) => {
                 let ty = self.ty_id_from_tir_ty(*ty);
@@ -199,8 +189,7 @@ impl<'ir> TyLoweringCtx<'ir> {
                                             .get_symbol(field.name)
                                             .name
                                             .unwrap_or(IDENTS.underscore);
-                                        // @@Verify: do we need to store default parameter
-                                        // information here?
+
                                         AdtField { name, ty }
                                     })
                                     .collect::<Vec<_>>();

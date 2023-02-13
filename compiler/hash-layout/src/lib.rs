@@ -228,6 +228,7 @@ impl TyInfo {
             | IrTy::Char
             | IrTy::Never
             | IrTy::Ref(_, _, _)
+            | IrTy::FnDef { .. }
             | IrTy::Fn { .. } => panic!("TyInfo::field on a type that does not contain fields"),
 
             IrTy::Str if field_index == 0 => ctx.ir_ctx().tys().common_tys.ptr,

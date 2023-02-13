@@ -245,17 +245,22 @@ pub enum IrTy {
     /// which has additional information about the function type, such as the
     /// name of the function, any function attributes, etc.
     Fn {
-        /// An [Instance] refers to the function that this type refers to. The
-        /// instance records information about the function instance,
-        /// like the name, the specified function attributes (i.e.
-        /// linkage), etc.
-        instance: InstanceId,
-
         /// The parameter types of the function.
         params: IrTyListId,
 
         /// The return type of the function.
         return_ty: IrTyId,
+    },
+
+    /// A function definition, it has an associated instance which denotes
+    /// information about the function, such as the name, defining module,
+    /// ABI, etc.
+    FnDef {
+        /// An [Instance] refers to the function that this type refers to. The
+        /// instance records information about the function instance,
+        /// like the name, the specified function attributes (i.e.
+        /// linkage), etc.
+        instance: InstanceId,
     },
 }
 
@@ -443,6 +448,7 @@ impl IrTy {
             | IrTy::Ref(_, _, _)
             | IrTy::Slice(_)
             | IrTy::Array { .. }
+            | IrTy::FnDef { .. }
             | IrTy::Fn { .. } => ctx.tys().common_tys.u8,
         }
     }
@@ -930,11 +936,21 @@ impl fmt::Display for ForFormatting<'_, &IrTy> {
             }
             IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.ctx)),
 
-            IrTy::Fn { instance, params, return_ty, .. } if self.verbose => {
-                let name = self.ctx.instances.map_fast(*instance, |instance| instance.name);
-                write!(f, "{name}({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
+            IrTy::Fn { params, return_ty, .. } => {
+                write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
-            IrTy::Fn { instance, .. } => {
+            IrTy::FnDef { instance } if self.verbose => {
+                self.ctx.instances.map_fast(*instance, |instance| {
+                    write!(
+                        f,
+                        "{}({}) -> {}",
+                        instance.name,
+                        instance.params.for_fmt(self.ctx),
+                        instance.ret_ty.for_fmt(self.ctx)
+                    )
+                })
+            }
+            IrTy::FnDef { instance } => {
                 let name = self.ctx.instances.map_fast(*instance, |instance| instance.name);
                 write!(f, "{name}")
             }

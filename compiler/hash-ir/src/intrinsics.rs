@@ -90,9 +90,7 @@ impl Intrinsics {
                 instance.attributes.add(Attribute::word(IDENTS.no_mangle));
                 let instance = instances.create(instance);
 
-                intrinsics[Intrinsic::from_str_name($name) as usize] = Some(tys.create(IrTy::Fn {
-                    params,
-                    return_ty: $ret,
+                intrinsics[Intrinsic::from_str_name($name) as usize] = Some(tys.create(IrTy::FnDef {
                     instance
                 }));
             );
