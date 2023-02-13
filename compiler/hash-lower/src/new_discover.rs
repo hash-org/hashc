@@ -1,3 +1,7 @@
+//! This module contains functionality to discover functions in the TIR tree in
+//! order to lower them to IR.
+//!
+//! For now, non-pure functions are always queued for lowering.
 use std::ops::ControlFlow;
 
 use derive_more::{Constructor, Deref};
@@ -91,6 +95,7 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
                 Atom::Term(_) => Ok(ControlFlow::Continue(())),
                 Atom::Ty(_) => Ok(ControlFlow::Break(())),
                 Atom::FnDef(f) => {
+                    // @@Todo: this doesn't deal with captures.
                     let f_val = self.get_fn_def(f);
                     if !f_val.ty.pure {
                         fns.add_fn(f);
