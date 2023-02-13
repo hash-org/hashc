@@ -5,10 +5,11 @@
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_tir::{
+    directives::AppliedDirectives,
     environment::{context::ScopeKind, env::AccessToEnv},
     mods::{ModDefId, ModMemberValue},
 };
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{PartialStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::{scoping::ContextKind, ResolutionPass};
 use crate::{
@@ -138,7 +139,7 @@ impl<'tc> ResolutionPass<'tc> {
                         )
                     }
                 }
-                _ => unreachable!(),
+                _ => unreachable!("Expected a data definition node"),
             }
 
             if found_error {
@@ -147,6 +148,37 @@ impl<'tc> ResolutionPass<'tc> {
                 Ok(())
             }
         })
+    }
+
+    /// Use the given expression as the declaration of a module definition for
+    /// the given member.
+    ///
+    /// This registers any directives and returns the RHS of the declaration.
+    fn use_expr_as_mod_def_declaration_and_get_rhs<'a>(
+        &self,
+        member: ModMemberValue,
+        member_expr: ast::AstNodeRef<'a, ast::Expr>,
+    ) -> ast::AstNodeRef<'a, ast::Expr> {
+        // By this point, all members should be declarations (caught at pre-TC)
+        match member_expr.body() {
+            ast::Expr::Declaration(decl) => decl.value.as_ref().unwrap().ast_ref(),
+            ast::Expr::Directive(directive) => {
+                // Add all directives to the target
+                self.stores().directives().insert(
+                    member.into(),
+                    AppliedDirectives {
+                        directives: directive.directives.iter().map(|d| d.ident).collect(),
+                    },
+                );
+
+                // Recurse to the inner declaration
+                self.use_expr_as_mod_def_declaration_and_get_rhs(
+                    member,
+                    directive.subject.ast_ref(),
+                )
+            }
+            _ => unreachable!("Found non-declaration in module definition"),
+        }
     }
 
     /// Resolve the inner terms of the given module definition, by calling
@@ -167,12 +199,8 @@ impl<'tc> ResolutionPass<'tc> {
             for (i, member_expr) in members.to_index_range().zip(member_exprs) {
                 let member_value =
                     self.stores().mod_members().map_fast(members, |members| members[i].value);
-
-                // By this point, all members should be declarations (caught at pre-TC)
-                let member_rhs_expr = match member_expr.body() {
-                    ast::Expr::Declaration(decl) => decl.value.as_ref().unwrap().ast_ref(),
-                    _ => unreachable!(),
-                };
+                let member_rhs_expr =
+                    self.use_expr_as_mod_def_declaration_and_get_rhs(member_value, member_expr);
 
                 match member_value {
                     ModMemberValue::Data(_) => {

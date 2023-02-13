@@ -10,6 +10,7 @@ pub mod casting;
 pub mod control;
 pub mod data;
 pub mod defs;
+pub mod directives;
 pub mod environment;
 pub mod fns;
 pub mod holes;
