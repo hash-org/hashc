@@ -13,7 +13,9 @@ use hash_tir::{
     tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store};
+use hash_utils::store::{
+    DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store,
+};
 use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -86,6 +88,7 @@ defined_intrinsics! {
     abort,
     user_error,
     debug_print,
+    print_fn_directives,
 }
 
 impl Debug for DefinedIntrinsics {
@@ -667,6 +670,31 @@ impl DefinedIntrinsics {
             )
         };
 
+        let print_fn_directives = {
+            let t_sym = env.new_symbol("T");
+            let a_sym = env.new_symbol("a");
+            let params = env.param_utils().create_params(
+                [
+                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
+                ]
+                .into_iter(),
+            );
+            let ret = env.new_void_ty();
+            add(
+                "print_fn_directives",
+                FnTy::builder().params(params).return_ty(ret).build(),
+                |env, args| {
+                    if let Term::FnRef(fn_def_id) = env.get_term(args[1]) {
+                        let directives =
+                            env.stores().directives().get(fn_def_id.into()).unwrap_or_default();
+                        println!("{:?}", directives.directives);
+                    }
+                    Ok(env.new_void_term())
+                },
+            )
+        };
+
         // Primitive type equality
         let prim_type_eq_op = Self::add_prim_type_eq_op(env, &implementations);
 
@@ -681,6 +709,7 @@ impl DefinedIntrinsics {
 
         DefinedIntrinsics {
             implementations,
+            print_fn_directives,
             prim_type_eq_op,
             bool_bin_op,
             endo_bin_op,

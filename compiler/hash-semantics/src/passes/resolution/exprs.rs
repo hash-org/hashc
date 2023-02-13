@@ -20,6 +20,7 @@ use hash_tir::{
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
+    directives::AppliedDirectives,
     environment::{context::ScopeKind, env::AccessToEnv},
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
@@ -34,7 +35,7 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 use super::{
@@ -433,8 +434,15 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::DirectiveExpr>,
     ) -> SemanticResult<TermId> {
         // Pass to the inner expression
-        // @@Future: keep directive in term structure
-        self.make_term_from_ast_expr(node.subject.ast_ref())
+        let inner = self.make_term_from_ast_expr(node.subject.ast_ref())?;
+
+        // Register directives:
+        self.stores().directives().insert(
+            inner.into(),
+            AppliedDirectives { directives: node.directives.iter().map(|d| d.ident).collect() },
+        );
+
+        Ok(inner)
     }
 
     /// Make a term from an [`ast::Declaration`] in non-constant scope.
