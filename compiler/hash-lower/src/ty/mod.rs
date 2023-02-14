@@ -172,7 +172,7 @@ impl<'ir> TyLoweringCtx<'ir> {
                     _ => flags |= AdtFlags::ENUM,
                 }
 
-                // @@Todo: Deal with performing generics on the types here...
+                // @@TodoTIR: Deal with performing generics on the types here...
 
                 // Lower each variant as a constructor.
                 let variants = self.stores().ctor_defs().map_fast(ctor_defs, |defs| {

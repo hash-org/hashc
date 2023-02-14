@@ -1,9 +1,9 @@
 //! Defines a category of AST expressions which can be used to determine how to
 //! lower them throughout the lowering stage.
 
-use hash_tir::{fns::FnCallTerm, lits::PrimTerm, terms::Term};
+use hash_tir::{lits::PrimTerm, terms::Term};
 
-use super::Builder;
+use super::{ty::FnCallTermKind, Builder};
 
 /// A [Category] represents what category [ast::Expr]s belong to
 /// when they are being lowered. Depending on the category, we
@@ -34,9 +34,10 @@ impl<'tcx> Builder<'tcx> {
             // RValues.
             Term::Prim(PrimTerm::Lit { .. }) => Category::Constant,
 
-            Term::FnCall(FnCallTerm { subject, .. }) if self.tir_fn_call_is_index(*subject) => {
-                Category::Place
-            }
+            Term::FnCall(ref term) => match self.classify_fn_call_term(term) {
+                FnCallTermKind::Index(..) => Category::Place,
+                _ => Category::RValue,
+            },
             Term::Access(..) | Term::Ref(..) | Term::Deref(..) | Term::Var(..) => Category::Place,
 
             // Everything else is considered as an RValue of some kind.

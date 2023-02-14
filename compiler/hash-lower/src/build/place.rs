@@ -16,7 +16,7 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore};
 
-use super::{unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
 
 /// A builder interface for building a [Place] with a base [Local]
 /// and a collection of projections that are applied as the
@@ -106,6 +106,13 @@ impl<'tcx> Builder<'tcx> {
     ) -> BlockAnd<PlaceBuilder> {
         let term = self.stores().term().get(term_id);
 
+        let mut temp = |this: &mut Self| {
+            // These expressions are not places, so we need to create a temporary
+            // and then deal with it.
+            let temp = unpack!(block = this.term_into_temp(block, term_id, mutability));
+            block.and(PlaceBuilder::from(temp))
+        };
+
         match term {
             Term::Var(variable) => {
                 // Get the current scope, and resolve the variable within the scope. This will
@@ -128,22 +135,25 @@ impl<'tcx> Builder<'tcx> {
                 let index = self.lookup_field_index(subject_ty, field);
                 block.and(place_builder.field(index))
             }
-
-            // ast::Expr::Access(ast::AccessExpr { subject, .. }) => {
-            // @@Todo: we need to check here if the type of the subject is
-            // an enum, and if so then we perform a *downcast* to the correct
-            // variant of the enum.
-
-            // Otherwise, if this is a namespace access, we only need to look at the subject
-            // of the access
-            // self.as_place_builder(block, subject.ast_ref(), mutability)
-            // }
             Term::Deref(DerefTerm { subject }) => {
                 let place_builder =
                     unpack!(block = self.as_place_builder(block, subject, mutability));
                 block.and(place_builder.deref())
             }
-            Term::FnCall(_) => todo!(),
+            Term::FnCall(ref fn_call) => match self.classify_fn_call_term(fn_call) {
+                FnCallTermKind::Index(subject, index) => {
+                    let base_place =
+                        unpack!(block = self.as_place_builder(block, subject, mutability));
+
+                    // Create a temporary for the index expression.
+                    let index = unpack!(block = self.term_into_temp(block, index, mutability));
+
+                    // @@Todo: depending on the configuration, we may need to insert a bounds check
+                    // here.
+                    block.and(base_place.index(index))
+                }
+                _ => temp(self),
+            },
 
             Term::Tuple(_)
             | Term::Prim(_)
@@ -161,39 +171,13 @@ impl<'tcx> Builder<'tcx> {
             | Term::TypeOf(_)
             | Term::Ty(_)
             | Term::Ref(_)
-            | Term::Hole(_) => {
-                // These expressions are not places, so we need to create a temporary
-                // and then deal with it.
-                let temp = unpack!(block = self.term_into_temp(block, term_id, mutability));
-                block.and(PlaceBuilder::from(temp))
-            } /* ast::Expr::Index(ast::IndexExpr { subject, index_expr }) => {
-               *     let base_place =
-               *         unpack!(block = self.as_place_builder(block, subject.ast_ref(),
-               * mutability)); */
-
-               /*     // Create a temporary for the index expression.
-               *     let index =
-               *         unpack!(block = self.expr_into_temp(block, index_expr.ast_ref(),
-               * mutability)); */
-
-              /*     // @@Todo: depending on the configuration, we may need to insert a bounds
-               * check     // here. */
-
-               /*     block.and(base_place.index(index))
-               * } */
-
-              /* _ => {
-               *     // These expressions are not places, so we need to create a temporary
-               *     // and then deal with it.
-               *     let temp = unpack!(block = self.expr_into_temp(block, term, mutability));
-               *     block.and(PlaceBuilder::from(temp))
-               * } */
+            | Term::Hole(_) => temp(self),
         }
     }
 
-    /// Function to lookup the index of a particular field within a [IrTy] using
-    /// a [ast::PropertyKind]. This function assumes that the underlying type is
-    /// a [IrTy::Adt].
+    /// Function to lookup the index of a particular field within a [IrTyId]
+    /// using a [ParamIndex]. This function assumes that the underlying type
+    /// is a [IrTy::Adt].
     fn lookup_field_index(&mut self, ty: IrTyId, field: ParamIndex) -> usize {
         self.ctx.map_ty_as_adt(ty, |adt, _| {
             // @@Todo: deal with unions here.

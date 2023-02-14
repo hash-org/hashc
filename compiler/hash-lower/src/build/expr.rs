@@ -3,12 +3,10 @@
 //! `strategies` can be found in [`crate::build::rvalue`] and
 //! [crate::build::temp].
 
-use hash_intrinsics::intrinsics::BoolBinOp;
-// use hash_ast::ast;
 use hash_ir::{
     ir::{
-        self, AggregateKind, BasicBlock, Const, ConstKind, Place, RValue, Statement, StatementKind,
-        TerminatorKind, UnevaluatedConst,
+        self, AggregateKind, BasicBlock, Const, ConstKind, LogicalBinOp, Place, RValue, Statement,
+        StatementKind, TerminatorKind, UnevaluatedConst,
     },
     ty::{AdtId, IrTy, Mutability, RefKind, VariantIdx},
 };
@@ -33,7 +31,9 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
-use super::{unpack, BlockAnd, BlockAndExtend, Builder, LocalKey, LoopBlockInfo};
+use super::{
+    ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder, LocalKey, LoopBlockInfo,
+};
 
 impl<'tcx> Builder<'tcx> {
     /// Compile the given [Term] and place the value of the [Term]
@@ -118,11 +118,18 @@ impl<'tcx> Builder<'tcx> {
                 // This is a constructor call, so we need to handle it as such.
                 self.constructor_into_dest(destination, block, ctor, adt, span)
             }
-            Term::FnCall(FnCallTerm { subject, args, .. }) => {
-                let ty = self.ty_from_tir_term(*subject);
+            Term::FnCall(term @ FnCallTerm { subject, args, .. }) => {
+                match self.classify_fn_call_term(term) {
+                    FnCallTermKind::Call(_) => {
+                        let ty = self.ty_from_tir_term(*subject);
+                        self.fn_call_into_dest(destination, block, *subject, ty, *args, span)
+                    }
+                    FnCallTermKind::UnaryOp(_, _) | FnCallTermKind::BinaryOp(_, _, _) => {
+                        let rvalue = unpack!(block = self.as_rvalue(block, term_id));
+                        self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                        block.unit()
+                    }
 
-                if self.tir_fn_call_is_bool_binary_op(*subject) &&
-                    let Some(op) = self.tir_term_as_bool_op(*subject) {
                     // We deal with logical
                     // binary expressions differently than other binary operators.
                     // In order to preserve the short-circuiting behaviour of
@@ -154,8 +161,7 @@ impl<'tcx> Builder<'tcx> {
                     //  | dest = true  |----------------+-->| join |
                     //  +--------------+                    +------+
                     // ```
-
-                    if op == BoolBinOp::And || op == BoolBinOp::Or {
+                    FnCallTermKind::LogicalBinOp(op, _, _) => {
                         let (short_circuiting_block, mut else_block, join_block) = (
                             self.control_flow_graph.start_new_block(),
                             self.control_flow_graph.start_new_block(),
@@ -169,9 +175,8 @@ impl<'tcx> Builder<'tcx> {
                             unpack!(block = self.as_operand(block, lhs_term, Mutability::Mutable));
 
                         let blocks = match op {
-                            BoolBinOp::And => (else_block, short_circuiting_block),
-                            BoolBinOp::Or => (short_circuiting_block, else_block),
-                            _ => unreachable!(),
+                            LogicalBinOp::And => (else_block, short_circuiting_block),
+                            LogicalBinOp::Or => (short_circuiting_block, else_block),
                         };
 
                         let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx);
@@ -180,9 +185,8 @@ impl<'tcx> Builder<'tcx> {
                         // Create the constant that we will assign in the `short_circuiting` block.
                         // let constant =
                         let constant = match op {
-                            BoolBinOp::And => Const::Bool(false),
-                            BoolBinOp::Or => Const::Bool(true),
-                            _ => unreachable!(),
+                            LogicalBinOp::And => Const::Bool(false),
+                            LogicalBinOp::Or => Const::Bool(true),
                         };
 
                         self.control_flow_graph.push_assign(
@@ -200,21 +204,23 @@ impl<'tcx> Builder<'tcx> {
                             else_block = self.as_operand(else_block, rhs_term, Mutability::Mutable)
                         );
 
-                        self.control_flow_graph.push_assign(else_block, destination, rhs.into(), span);
+                        self.control_flow_graph.push_assign(
+                            else_block,
+                            destination,
+                            rhs.into(),
+                            span,
+                        );
                         self.control_flow_graph.goto(else_block, join_block, span);
 
                         join_block.unit()
-                    } else {
-                        let rvalue = unpack!(block = self.as_rvalue(block, term_id));
-                        self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                    }
+                    FnCallTermKind::Index(_, _) => {
+                        let place =
+                            unpack!(block = self.as_place(block, term_id, Mutability::Immutable));
+                        self.control_flow_graph.push_assign(block, destination, place.into(), span);
+
                         block.unit()
                     }
-                } else if self.tir_fn_call_is_endo_binary_op(*subject) {
-                    let rvalue = unpack!(block = self.as_rvalue(block, term_id));
-                    self.control_flow_graph.push_assign(block, destination, rvalue, span);
-                    block.unit()
-                } else {
-                    self.fn_call_into_dest(destination, block, *subject, ty, *args, span)
                 }
             }
             Term::Var(symbol) => {
@@ -357,7 +363,7 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
 
-            // @@Todo: implement this when operators work properly
+            // @@TodoTIR: implement this when operators work properly
             _ => block.unit(),
         }
     }
@@ -381,12 +387,6 @@ impl<'tcx> Builder<'tcx> {
         // @@Todo: we need to deal with default arguments here, we compute the missing
         // arguments, and then insert a lowered copy of the default value for
         // the argument.
-        //
-        // @@Future: this means we would have to have a way of referencing
-        // the default value of an argument, which is not currently possible in
-        // the AST. One way could be to build a map when traversing the AST that
-        // can map between the argument and the default value, later being fetched
-        // when we need to **fill** in the missing argument.
         if let IrTy::Fn { params, .. } = fn_ty {
             if args.len() != params.len() {
                 panic_on_span!(

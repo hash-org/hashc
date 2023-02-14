@@ -132,12 +132,11 @@ impl<'tcx> Builder<'tcx> {
                     let pats = self.stores().pat_list().get_vec(pats);
 
                         let prefix_fields = pats.iter().take(index);
-
                         for field in prefix_fields {
                             self.visit_primary_pattern_bindings(field.assert_pat(), f);
                         }
 
-                        //@@Todo: we need to get the type of the spread.
+                        //@@TodoTIR: we need to get the type of the spread.
                         let ty = self.ty_id_from_tir_pat(pat_id);
 
                         f(

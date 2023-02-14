@@ -13,7 +13,10 @@ mod temp;
 mod ty;
 mod utils;
 
-use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
+use hash_intrinsics::{
+    intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
+    primitives::{AccessToPrimitives, DefinedPrimitives},
+};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
@@ -23,6 +26,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_pipeline::settings::CompilerSettings;
+use hash_semantics::SemanticStorage;
 use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId,
@@ -158,18 +162,6 @@ pub macro unpack {
     }}
 }
 
-impl<'ctx> AccessToEnv for Builder<'ctx> {
-    fn env(&self) -> &Env {
-        self.tcx.env
-    }
-}
-
-impl<'ctx> AccessToPrimitives for Builder<'ctx> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        &self.tcx.primitives
-    }
-}
-
 /// Information about the current `loop` context that is being lowered. When
 /// the [Builder] is lowering a loop, it will store the current loop body
 /// block, and the `next` block that the loop will jump to after the loop
@@ -191,8 +183,30 @@ pub(crate) struct Tcx<'tcx> {
     pub env: &'tcx Env<'tcx>,
 
     /// The primitive definitions that are needed for creating and comparing
-    /// primitive types.
+    /// primitive types with the TIR.
     pub primitives: &'tcx DefinedPrimitives,
+
+    /// The intrinsic definitions that are needed for
+    /// dealing with intrinsic functions within the TIR.
+    pub intrinsics: &'tcx DefinedIntrinsics,
+}
+
+impl<'tcx> Tcx<'tcx> {
+    /// Create a new [Tcx] from the given [Env] and
+    /// [SemanticStorage].
+    pub fn new(env: &'tcx Env<'tcx>, storage: &'tcx SemanticStorage) -> Self {
+        let primitives = match storage.primitives_or_unset.get() {
+            Some(primitives) => primitives,
+            None => panic!("Tried to get primitives but they are not set yet"),
+        };
+
+        let intrinsics = match storage.intrinsics_or_unset.get() {
+            Some(intrinsics) => intrinsics,
+            None => panic!("Tried to get intrinsics but they are not set yet"),
+        };
+
+        Self { env, primitives, intrinsics }
+    }
 }
 
 /// The builder is responsible for lowering a body into the associated IR.
@@ -250,6 +264,24 @@ pub(crate) struct Builder<'tcx> {
     /// `tmp_place` is [None], then we create a new temporary place and store
     /// it in the field for later use.
     tmp_place: Option<Place>,
+}
+
+impl<'ctx> AccessToEnv for Builder<'ctx> {
+    fn env(&self) -> &Env {
+        self.tcx.env
+    }
+}
+
+impl<'ctx> AccessToPrimitives for Builder<'ctx> {
+    fn primitives(&self) -> &DefinedPrimitives {
+        self.tcx.primitives
+    }
+}
+
+impl<'ctx> AccessToIntrinsics for Builder<'ctx> {
+    fn intrinsics(&self) -> &DefinedIntrinsics {
+        self.tcx.intrinsics
+    }
 }
 
 impl<'ctx> Builder<'ctx> {

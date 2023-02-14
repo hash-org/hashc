@@ -59,7 +59,7 @@ impl<'tcx> Builder<'tcx> {
                 })
             }
             Term::Match(MatchTerm { subject, cases }) => {
-                // @@Todo: we should be able to get the origin from the
+                // @@TodoTIR: we should be able to get the origin from the
                 // match term.
                 let origin = MatchOrigin::Match;
                 self.lower_match_term(place, block, span, *subject, *cases, origin)

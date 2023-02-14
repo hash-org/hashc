@@ -11,14 +11,13 @@ use hash_source::{
 };
 use hash_tir::{
     environment::env::AccessToEnv,
-    fns::FnCallTerm,
     lits::{ArrayCtor, PrimTerm},
     terms::{Term, TermId},
     utils::common::CommonUtils,
 };
 use hash_utils::store::{CloneStore, Store};
 
-use super::{category::Category, unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
 
 impl<'tcx> Builder<'tcx> {
     /// Construct an [RValue] from the given [ast::Expr].
@@ -46,77 +45,57 @@ impl<'tcx> Builder<'tcx> {
             Term::Prim(PrimTerm::Array(ArrayCtor { .. })) => {
                 todo!()
             }
-            Term::FnCall(fn_call @ FnCallTerm { subject, .. })
-                if self.tir_term_is_un_op(subject) =>
-            {
-                let (op, subject) = self.tir_fn_call_as_un_op(&fn_call);
+            Term::FnCall(fn_call) => {
+                match self.classify_fn_call_term(&fn_call) {
+                    FnCallTermKind::BinaryOp(op, lhs, rhs) => {
+                        let lhs = unpack!(block = self.as_operand(block, lhs, Mutability::Mutable));
+                        let rhs = unpack!(block = self.as_operand(block, rhs, Mutability::Mutable));
 
-                let arg = unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
+                        let ty = self.ty_from_tir_term(term_id);
+                        self.build_binary_op(block, ty, span, op, lhs, rhs)
+                    }
+                    FnCallTermKind::UnaryOp(op, subject) => {
+                        let arg =
+                            unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
 
-                // If the operator is a negation, and the operand is signed, we can have a
-                // case of overflow. This occurs when the operand is the minimum value for
-                // the type, and a negation occurs. This causes the value to overflow. We
-                // check for this case here, and emit an assertion check for this (assuming
-                // checked operations are enabled).
-                let ty = self.ty_from_tir_term(term_id);
+                        // If the operator is a negation, and the operand is signed, we can have a
+                        // case of overflow. This occurs when the operand is the minimum value for
+                        // the type, and a negation occurs. This causes the value to overflow. We
+                        // check for this case here, and emit an assertion check for this (assuming
+                        // checked operations are enabled).
+                        let ty = self.ty_from_tir_term(term_id);
 
-                if self.settings.lowering_settings().checked_operations
-                    && matches!(op, UnaryOp::Neg)
-                    && ty.is_signed()
-                {
-                    let min_value = self.min_value_of_ty(ty);
-                    let is_min = self.temp_place(self.ctx.tys().common_tys.bool);
+                        if self.settings.lowering_settings().checked_operations
+                            && matches!(op, UnaryOp::Neg)
+                            && ty.is_signed()
+                        {
+                            let min_value = self.min_value_of_ty(ty);
+                            let is_min = self.temp_place(self.ctx.tys().common_tys.bool);
 
-                    self.control_flow_graph.push_assign(
-                        block,
-                        is_min,
-                        RValue::BinaryOp(BinOp::Eq, Box::new((arg, min_value))),
-                        span,
-                    );
+                            self.control_flow_graph.push_assign(
+                                block,
+                                is_min,
+                                RValue::BinaryOp(BinOp::Eq, Box::new((arg, min_value))),
+                                span,
+                            );
 
-                    block = self.assert(
-                        block,
-                        is_min.into(),
-                        false,
-                        AssertKind::NegativeOverflow { operand: arg },
-                        span,
-                    );
+                            block = self.assert(
+                                block,
+                                is_min.into(),
+                                false,
+                                AssertKind::NegativeOverflow { operand: arg },
+                                span,
+                            );
+                        }
+
+                        block.and(RValue::UnaryOp(op, arg))
+                    }
+                    _ => as_operand(self),
                 }
-
-                block.and(RValue::UnaryOp(op, arg))
-            }
-
-            Term::FnCall(fn_call @ FnCallTerm { subject, .. })
-                if self.tir_fn_call_is_endo_binary_op(subject) =>
-            {
-                let (operator, lhs_term, rhs_term) = self.tir_fn_call_as_endo_binary_op(&fn_call);
-                let lhs = unpack!(block = self.as_operand(block, lhs_term, Mutability::Mutable));
-                let rhs = unpack!(block = self.as_operand(block, rhs_term, Mutability::Mutable));
-
-                let ty = self.ty_from_tir_term(term_id);
-                self.build_binary_op(block, ty, span, operator, lhs, rhs)
-            }
-            // @@Note: short-circuiting binary operations are handled down below,
-            // they aren't treated as a function call.
-            Term::FnCall(fn_call @ FnCallTerm { subject, .. })
-                if self.tir_fn_call_is_bool_binary_op(subject) =>
-            {
-                // If we have a binary operator that is short-circuiting, we need to
-                // handle it outside of this function...
-                let Some((operator, lhs_term, rhs_term)) = self.tir_fn_call_as_bool_binary_op(&fn_call) else {
-                    return as_operand(self);
-                };
-
-                let lhs = unpack!(block = self.as_operand(block, lhs_term, Mutability::Mutable));
-                let rhs = unpack!(block = self.as_operand(block, rhs_term, Mutability::Mutable));
-
-                let ty = self.ty_from_tir_term(term_id);
-                self.build_binary_op(block, ty, span, operator, lhs, rhs)
             }
 
             Term::Tuple(_)
             | Term::Ctor(_)
-            | Term::FnCall(_)
             | Term::FnRef(_)
             | Term::Block(_)
             | Term::Var(_)

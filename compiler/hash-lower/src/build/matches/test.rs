@@ -218,7 +218,7 @@ impl<'tcx> Builder<'tcx> {
                 }
             }
             Pat::Range(range_pat) => Test {
-                kind: TestKind::Range { range: ConstRange::from_range(&range_pat, self) },
+                kind: TestKind::Range { range: ConstRange::from_range(range_pat, self) },
                 span,
             },
             Pat::Array(array_pat) => {

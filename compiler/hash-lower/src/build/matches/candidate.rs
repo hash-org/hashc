@@ -4,18 +4,12 @@
 //! to jump to next.
 //!
 //! @@Todo: This implementation is not fully complete and doesn't handle the
-//!         full range of patterns (most of this will go away with the new
-//! pattern         representation). Notably, the following problems persist:
+//! full range of patterns (most of this will go away with the new
+//! pattern representation). Notably, the following problems persist:
 //!
 //! 1. `if-guards` that are located on sub-patterns are not properly
 //! handled, it is assumed there is an outermost 'if-guard' that is
 //! used to determine the control flow, amongst other things.
-//!
-//! 2. spread patterns (`...`) are not properly handled because they
-//! aren't associated with a particular parent pattern, which makes it
-//! hard to reason about them. When we switch to the new pattern
-//! representation, it will be significantly easier to deal with `...`
-//! patterns (specifically, when they are binding).
 
 use std::{borrow::Borrow, mem};
 
@@ -170,7 +164,12 @@ pub(super) struct Binding {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum BindingMode {
+    /// The binding is by value.
     ByValue,
+
+    /// The binding is by reference.
+    #[allow(dead_code)] // @@Temporary: remove this when spread patterns can
+    // be used in match pairs.
     ByRef,
 }
 

@@ -12,7 +12,7 @@ use std::mem;
 
 use hash_ast::ast;
 use hash_ir::{
-    ir::{self, BasicBlock, Place, RValue, TerminatorKind},
+    ir::{self, BasicBlock, LogicalBinOp, Place, RValue, TerminatorKind},
     ty::{Mutability, RefKind},
 };
 use hash_source::location::Span;
@@ -20,7 +20,7 @@ use hash_tir::{
     control::{IfPat, MatchCasesId},
     environment::env::AccessToEnv,
     pats::{Pat, PatId},
-    terms::TermId,
+    terms::{Term, TermId},
 };
 use hash_utils::{
     itertools::Itertools,
@@ -32,7 +32,7 @@ use self::{
     candidate::{traverse_candidate, Binding, Candidate, Candidates},
     test::TestKind,
 };
-use super::{place::PlaceBuilder, unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{place::PlaceBuilder, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
 
 impl<'tcx> Builder<'tcx> {
     /// This is the entry point of matching an expression. Firstly, we deal with
@@ -108,28 +108,25 @@ impl<'tcx> Builder<'tcx> {
         let span = self.span_of_term(expr);
         let term = self.stores().term().get(expr);
 
-        match term {
-            // ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator })
-            //     if *operator.body() == ast::BinOp::And =>
-            // {
-            //     let lhs_then_block =
-            //         unpack!(self.then_else_break(block, else_block, lhs.ast_ref()));
-            //     let rhs_then_block =
-            //         unpack!(self.then_else_break(lhs_then_block, else_block, rhs.ast_ref()));
-
-            //     rhs_then_block.unit()
-            // }
-            _ => {
-                let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
-                let then_block = self.control_flow_graph.start_new_block();
-
-                let terminator =
-                    TerminatorKind::make_if(place.into(), then_block, else_block, self.ctx);
-                self.control_flow_graph.terminate(block, span, terminator);
-
-                then_block.unit()
+        // If this is a `&&`, we can create a `then-else` block sequence
+        // that respects the short-circuiting behaviour of `&&`.
+        if let Term::FnCall(ref fn_call) = term {
+            if let FnCallTermKind::LogicalBinOp(LogicalBinOp::And, lhs, rhs) =
+                self.classify_fn_call_term(fn_call)
+            {
+                let lhs_then_block = unpack!(self.then_else_break(block, else_block, lhs));
+                let rhs_then_block = unpack!(self.then_else_break(lhs_then_block, else_block, rhs));
+                return rhs_then_block.unit();
             }
         }
+
+        let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
+        let then_block = self.control_flow_graph.start_new_block();
+
+        let terminator = TerminatorKind::make_if(place.into(), then_block, else_block, self.ctx);
+        self.control_flow_graph.terminate(block, span, terminator);
+
+        then_block.unit()
     }
 
     /// Create a decision tree for the match expression using all of the created

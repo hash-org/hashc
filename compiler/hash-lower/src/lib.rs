@@ -7,12 +7,13 @@
 
 mod build;
 mod cfg;
-// mod discover;
-mod new_discover;
+
+mod discover;
 mod optimise;
 mod ty;
 
 use build::{Builder, Tcx};
+use discover::FnDiscoverer;
 use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
@@ -34,7 +35,6 @@ use hash_tir::{
     utils::common::CommonUtils,
 };
 use hash_utils::{store::Store, stream_writeln};
-use new_discover::FnDiscoverer;
 use optimise::Optimiser;
 use ty::TyLoweringCtx;
 
@@ -123,22 +123,17 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
                 panic!("function has no defined source location");
             };
 
-            let primitives = match semantic_storage.primitives_or_unset.get() {
-                Some(primitives) => primitives,
-                None => panic!("Tried to get primitives but they are not set yet"),
-            };
-
-            let tcx = Tcx { env: &env, primitives };
+            let tcx = Tcx::new(&env, semantic_storage);
             let mut builder =
                 Builder::new(name, (*func).into(), id, tcx, &mut ir_storage.ctx, settings);
             builder.build();
 
             // add the body to the lowered bodies
             lowered_bodies.push(builder.finish());
-            //@@Todo: we need to check if this item is marked to be dumped...
+            //@@TodoTIR: we need to check if this item is marked to be dumped...
         }
 
-        // @@Todo: deal with the entry point here.
+        // @@TodoTIR: deal with the entry point here.
 
         //     if let Some(instance) = discoverer.entry_point_instance() {
         //         let kind = ty_storage.entry_point_state.kind().unwrap();
@@ -168,7 +163,6 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &env);
 
-        // @@Todo: use terms instead of ast-nodes...?
         for (index, type_def) in self.layouts_to_generate.iter().enumerate() {
             // fetch or compute the type of the type definition.
             let ty = ty_lowerer.ty_id_from_tir_data(*type_def);

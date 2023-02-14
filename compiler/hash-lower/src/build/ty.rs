@@ -6,17 +6,23 @@
 //! types into the [IrTy] which is then used for the lowering process.
 
 use hash_intrinsics::{
-    intrinsics::{BoolBinOp, EndoBinOp, UnOp},
+    intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
     utils::PrimitiveUtils,
 };
 use hash_ir::{
-    ir::{BinOp, Const, UnaryOp},
+    ir::{self, Const},
     ty::{IrTy, IrTyId},
 };
 use hash_source::constant::CONSTANT_MAP;
 use hash_tir::{
-    atom_info::ItemInAtomInfo, data::DataTy, environment::env::AccessToEnv, fns::FnCallTerm,
-    lits::LitPat, pats::PatId, terms::TermId, tys::TyId,
+    atom_info::ItemInAtomInfo,
+    environment::env::AccessToEnv,
+    fns::FnCallTerm,
+    lits::LitPat,
+    pats::PatId,
+    terms::{Term, TermId},
+    tys::TyId,
+    utils::common::CommonUtils,
 };
 use hash_utils::store::{SequenceStore, Store};
 
@@ -30,6 +36,35 @@ pub(super) fn constify_lit_pat(term: &LitPat) -> Const {
         LitPat::Str(lit) => Const::Str(lit.interned_value()),
         LitPat::Char(lit) => Const::Char(lit.value()),
     }
+}
+
+/// An auxiliary data structure that represents the underlying [FnCallTerm]
+/// as either being a function call, a binary operation (of various kinds), or
+/// a an index operation.
+///
+/// The [FnCallTermKind] is used beyond the semantic stage of the compiler to
+/// help the lowering stage distinguish between these cases.
+pub enum FnCallTermKind {
+    /// A function call, the term doesn't change and should just be
+    /// handled as a function call.
+    Call(FnCallTerm),
+
+    /// A "boolean" binary operation which takes two terms and yields a boolean
+    /// term as a result.
+    BinaryOp(ir::BinOp, TermId, TermId),
+
+    /// A short-circuiting boolean binary operation, the term should be lowered
+    /// into the equivalent of `a && b` or `a || b`.
+    LogicalBinOp(ir::LogicalBinOp, TermId, TermId),
+
+    /// An index operation, the term should be lowered into the equivalent of
+    /// `a[b]`.
+    #[allow(dead_code)] // @@TodoTIR: remove when index operations are represented in TIR.
+    Index(TermId, TermId),
+
+    /// An "unary" operation, the term should be lowered into the equivalent
+    /// unary operation.    
+    UnaryOp(ir::UnaryOp, TermId),
 }
 
 impl<'tcx> Builder<'tcx> {
@@ -70,104 +105,69 @@ impl<'tcx> Builder<'tcx> {
         self.ty_id_from_tir_ty(ty)
     }
 
-    /// Get the [IrTy] for a give [PatId].
-    pub(super) fn ty_from_tir_pat(&self, pat: PatId) -> IrTy {
-        let ty = self.get_inferred_ty(pat);
-        self.ty_from_tir_ty(ty)
-    }
+    /// Function which is used to classify a [FnCallTerm] into a
+    /// [FnCallTermKind].
+    pub(crate) fn classify_fn_call_term(&self, term: &FnCallTerm) -> FnCallTermKind {
+        let FnCallTerm { subject, args, .. } = term;
 
-    /// Get the [IrTyId] from the given [DataTy].
-    pub(super) fn lower_nominal_as_id(&self, data: DataTy) -> IrTyId {
-        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx };
-        ctx.ty_id_from_tir_data(data)
-    }
+        match self.get_term(*subject) {
+            Term::FnRef(fn_def) => {
+                // Check if the fn_def is a `un_op` intrinsic
+                if fn_def == self.intrinsics().un_op() {
+                    let (op, subject) = (
+                        self.stores().args().get_at_index(*args, 0).value,
+                        self.stores().args().get_at_index(*args, 1).value,
+                    );
 
-    /// Check whether a given function call is a intrinsic indexing operation.
-    pub(super) fn tir_fn_call_is_index(&self, subject: TermId) -> bool {
-        todo!()
-    }
+                    // Parse the operator from the starting term as defined in `hash-intrinsics`
+                    let parsed_op =
+                        UnOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
+                            .unwrap();
 
-    /// Check whether a given term is a intrinsic unary operation.
-    pub(super) fn tir_term_is_un_op(&self, subject: TermId) -> bool {
-        todo!()
-    }
+                    FnCallTermKind::UnaryOp(parsed_op.into(), subject)
+                } else if fn_def == self.intrinsics().short_circuiting_op() {
+                    let (op, lhs, rhs) = (
+                        self.stores().args().get_at_index(*args, 0).value,
+                        self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
+                    );
 
-    /// Convert a [FnCallTerm] into an intrinsic unary operation.
-    pub(super) fn tir_fn_call_as_un_op(&self, fn_call: &FnCallTerm) -> (UnaryOp, TermId) {
-        let (op, arg) = (
-            self.stores().args().get_at_index(fn_call.args, 0).value,
-            self.stores().args().get_at_index(fn_call.args, 1).value,
-        );
+                    let op = ShortCircuitBinOp::try_from(
+                        self.try_use_term_as_integer_lit::<u8>(op).unwrap(),
+                    )
+                    .unwrap();
 
-        // Parse the operator from the starting term as defined in `hash-intrinsics`
-        let parsed_op =
-            UnOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap()).unwrap();
-        (parsed_op.into(), arg)
-    }
+                    FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
+                } else if fn_def == self.intrinsics().endo_bin_op() {
+                    let (op, lhs, rhs) = (
+                        self.stores().args().get_at_index(*args, 0).value,
+                        self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
+                    );
 
-    /// Check whether a given term is a intrinsic binary operation.
-    ///
-    /// N.B. This does nothing for binary operations that involve the `&&` and
-    /// the `||`
-    pub(super) fn tir_fn_call_is_bool_binary_op(&self, subject: TermId) -> bool {
-        todo!()
-    }
+                    let op =
+                        EndoBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
+                            .unwrap();
+                    FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
+                } else if fn_def == self.intrinsics().bool_bin_op() {
+                    let (op, lhs, rhs) = (
+                        self.stores().args().get_at_index(*args, 0).value,
+                        self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
+                    );
 
-    pub(super) fn tir_term_as_bool_op(&self, term: TermId) -> Option<BoolBinOp> {
-        BoolBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(term).unwrap()).ok()
-    }
+                    let op =
+                        BoolBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
+                            .unwrap();
+                    FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
 
-    /// Convert a [FnCallTerm] into an intrinsic binary operation which
-    /// is not an "bool" binary operation.
-    ///
-    /// N.B. This does nothing for binary operations that involve the `&&` and
-    /// the `||`
-    pub(super) fn tir_fn_call_as_bool_binary_op(
-        &self,
-        fn_call: &FnCallTerm,
-    ) -> Option<(BinOp, TermId, TermId)> {
-        let (op, lhs, rhs) = (
-            self.stores().args().get_at_index(fn_call.args, 0).value,
-            self.stores().args().get_at_index(fn_call.args, 1).value,
-            self.stores().args().get_at_index(fn_call.args, 2).value,
-        );
-
-        // Parse the operator from the starting term as defined in `hash-intrinsics`
-        let value = self.try_use_term_as_integer_lit::<u8>(op).unwrap();
-
-        let parsed_op = self.tir_term_as_bool_op(op).unwrap();
-
-        // This is of been handled outside of this function.
-        if parsed_op == BoolBinOp::And || parsed_op == BoolBinOp::Or {
-            None
-        } else {
-            Some((parsed_op.into(), lhs, rhs))
+                // @@TodoTIR: deal with the `index` intrinsic
+                } else {
+                    FnCallTermKind::Call(FnCallTerm { ..*term })
+                }
+            }
+            _ => unreachable!(),
         }
-    }
-
-    /// Check whether a given term is a intrinsic binary operation.
-    pub(super) fn tir_fn_call_is_endo_binary_op(&self, subject: TermId) -> bool {
-        todo!()
-    }
-
-    /// Convert a [FnCallTerm] into an intrinsic binary operation which
-    /// is not an "endo" binary operation.
-    pub(super) fn tir_fn_call_as_endo_binary_op(
-        &self,
-        fn_call: &FnCallTerm,
-    ) -> (BinOp, TermId, TermId) {
-        let (op, lhs, rhs) = (
-            self.stores().args().get_at_index(fn_call.args, 0).value,
-            self.stores().args().get_at_index(fn_call.args, 1).value,
-            self.stores().args().get_at_index(fn_call.args, 2).value,
-        );
-
-        // Parse the operator from the starting term as defined in `hash-intrinsics`
-        let value = self.try_use_term_as_integer_lit::<u8>(op).unwrap();
-
-        let parsed_op =
-            EndoBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap()).unwrap();
-        (parsed_op.into(), lhs, rhs)
     }
 
     /// Assuming that the provided [TermId] is a literal term, we essentially

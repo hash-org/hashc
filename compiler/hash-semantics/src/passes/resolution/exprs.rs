@@ -8,7 +8,7 @@ use std::collections::HashSet;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, UnOp},
+    intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
     primitives::AccessToPrimitives,
     utils::PrimitiveUtils,
 };
@@ -917,9 +917,13 @@ impl<'tc> ResolutionPass<'tc> {
             ast::BinOp::EqEq => (self.intrinsics().bool_bin_op(), BoolBinOp::EqEq.into()),
             ast::BinOp::NotEq => (self.intrinsics().bool_bin_op(), BoolBinOp::NotEq.into()),
             ast::BinOp::BitOr => (self.intrinsics().endo_bin_op(), EndoBinOp::BitOr.into()),
-            ast::BinOp::Or => (self.intrinsics().bool_bin_op(), BoolBinOp::Or.into()),
+            ast::BinOp::Or => {
+                (self.intrinsics().short_circuiting_op(), ShortCircuitBinOp::Or.into())
+            }
             ast::BinOp::BitAnd => (self.intrinsics().endo_bin_op(), EndoBinOp::BitAnd.into()),
-            ast::BinOp::And => (self.intrinsics().bool_bin_op(), BoolBinOp::And.into()),
+            ast::BinOp::And => {
+                (self.intrinsics().short_circuiting_op(), ShortCircuitBinOp::And.into())
+            }
             ast::BinOp::BitXor => (self.intrinsics().endo_bin_op(), EndoBinOp::BitXor.into()),
             ast::BinOp::Exp => (self.intrinsics().endo_bin_op(), EndoBinOp::Exp.into()),
             ast::BinOp::Gt => (self.intrinsics().bool_bin_op(), BoolBinOp::Gt.into()),

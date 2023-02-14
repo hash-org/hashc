@@ -7,7 +7,7 @@ use std::{
     iter::{self, once},
 };
 
-use hash_intrinsics::intrinsics::{BoolBinOp, EndoBinOp, UnOp};
+use hash_intrinsics::intrinsics;
 use hash_source::{
     constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
@@ -223,12 +223,34 @@ pub enum UnaryOp {
     Neg,
 }
 
-impl From<UnOp> for UnaryOp {
-    fn from(value: UnOp) -> Self {
+impl From<intrinsics::UnOp> for UnaryOp {
+    fn from(value: intrinsics::UnOp) -> Self {
+        use intrinsics::UnOp::*;
         match value {
-            UnOp::BitNot => Self::BitNot,
-            UnOp::Not => Self::Not,
-            UnOp::Neg => Self::Neg,
+            BitNot => Self::BitNot,
+            Not => Self::Not,
+            Neg => Self::Neg,
+        }
+    }
+}
+
+/// Represents a binary operation that is short-circuiting. These
+/// operations are only valid on boolean values.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum LogicalBinOp {
+    /// '||'
+    Or,
+    /// '&&'
+    And,
+}
+
+impl From<intrinsics::ShortCircuitBinOp> for LogicalBinOp {
+    fn from(value: intrinsics::ShortCircuitBinOp) -> Self {
+        use intrinsics::ShortCircuitBinOp::*;
+
+        match value {
+            And => Self::And,
+            Or => Self::Or,
         }
     }
 }
@@ -339,38 +361,37 @@ impl fmt::Display for BinOp {
     }
 }
 
-impl From<EndoBinOp> for BinOp {
-    fn from(value: EndoBinOp) -> Self {
+impl From<intrinsics::EndoBinOp> for BinOp {
+    fn from(value: intrinsics::EndoBinOp) -> Self {
+        use intrinsics::EndoBinOp::*;
+
         match value {
-            EndoBinOp::BitOr => Self::BitOr,
-            EndoBinOp::BitAnd => Self::BitAnd,
-            EndoBinOp::BitXor => Self::BitXor,
-            EndoBinOp::Exp => Self::Exp,
-            EndoBinOp::Shr => Self::Shr,
-            EndoBinOp::Shl => Self::Shl,
-            EndoBinOp::Add => Self::Add,
-            EndoBinOp::Sub => Self::Sub,
-            EndoBinOp::Mul => Self::Mul,
-            EndoBinOp::Div => Self::Div,
-            EndoBinOp::Mod => Self::Mod,
+            BitOr => Self::BitOr,
+            BitAnd => Self::BitAnd,
+            BitXor => Self::BitXor,
+            Exp => Self::Exp,
+            Shr => Self::Shr,
+            Shl => Self::Shl,
+            Add => Self::Add,
+            Sub => Self::Sub,
+            Mul => Self::Mul,
+            Div => Self::Div,
+            Mod => Self::Mod,
         }
     }
 }
 
-impl From<BoolBinOp> for BinOp {
-    fn from(value: BoolBinOp) -> Self {
-        match value {
-            BoolBinOp::EqEq => Self::Eq,
-            BoolBinOp::NotEq => Self::Neq,
-            BoolBinOp::Gt => Self::Gt,
-            BoolBinOp::GtEq => Self::GtEq,
-            BoolBinOp::Lt => Self::Lt,
-            BoolBinOp::LtEq => Self::LtEq,
+impl From<intrinsics::BoolBinOp> for BinOp {
+    fn from(value: intrinsics::BoolBinOp) -> Self {
+        use intrinsics::BoolBinOp::*;
 
-            // These are converted into a control flow
-            // statements such that they respect shortcircuiting
-            // behaviour.
-            BoolBinOp::Or | BoolBinOp::And => unreachable!(),
+        match value {
+            EqEq => Self::Eq,
+            NotEq => Self::Neq,
+            Gt => Self::Gt,
+            GtEq => Self::GtEq,
+            Lt => Self::Lt,
+            LtEq => Self::LtEq,
         }
     }
 }
