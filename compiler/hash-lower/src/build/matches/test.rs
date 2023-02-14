@@ -18,18 +18,23 @@ use hash_source::{
     constant::{IntConstant, IntConstantValue, CONSTANT_MAP},
     location::Span,
 };
-use hash_tir::old::{
-    fmt::PrepareForFormatting,
-    pats::{AccessPat, ConstPat, ConstructorPat, IfPat, Pat, PatArgsId, PatId, RangePat},
+use hash_tir::{
+    args::PatArgsId,
+    atom_info::ItemInAtomInfo,
+    control::IfPat,
+    data::CtorPat,
+    environment::env::AccessToEnv,
+    params::ParamIndex,
+    pats::{Pat, PatId, RangePat, Spread},
 };
-use hash_utils::store::Store;
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 use indexmap::IndexMap;
 
 use super::{
     candidate::{Candidate, MatchPair},
     const_range::ConstRange,
 };
-use crate::build::{place::PlaceBuilder, ty::constify_lit_term, Builder};
+use crate::build::{place::PlaceBuilder, ty::constify_lit_pat, Builder};
 
 #[derive(PartialEq, Eq, Debug)]
 pub(super) enum TestKind {
@@ -135,7 +140,7 @@ impl<'tcx> Builder<'tcx> {
             .map(|pat| {
                 let span = self.span_of_pat(*pat);
 
-                self.tcx.pat_store.map_fast(*pat, |pattern| {
+                self.stores().pat().map_fast(*pat, |pattern| {
                     Candidate::new(
                         span,
                         *pat,
@@ -170,95 +175,77 @@ impl<'tcx> Builder<'tcx> {
     /// on a un-simplified pattern, then this breaks an invariant and the
     /// function will panic.
     pub(super) fn test_match_pair(&mut self, pair: &MatchPair) -> Test {
-        self.tcx.pat_store.map_fast(pair.pat, |pat| {
-            // get the location of the pattern
-            let span = self.span_of_pat(pair.pat);
+        let pat = self.stores().pat().get(pair.pat);
 
-            match pat {
-                Pat::Access(AccessPat { .. }) => {
-                    let ty = self.ty_of_pat(pair.pat);
-                    let (variant_count, adt) =
-                        self.ctx.map_ty_as_adt(ty, |adt, id| (adt.variants.len(), id));
+        // get the location of the pattern
+        let span = self.span_of_pat(pair.pat);
 
-                    Test {
-                        kind: TestKind::Switch {
-                            adt,
-                            options: FixedBitSet::with_capacity(variant_count),
-                        },
-                        span,
+        match &pat {
+            Pat::Ctor(_) => {
+                let ty = self.ty_id_from_tir_pat(pair.pat);
+                let (variant_count, adt) = self.ctx.map_ty_as_adt(ty, |adt, id| {
+                    // Structs can be simplified...
+                    if adt.flags.is_struct() {
+                        panic_on_span!(
+                            span.into_location(self.source_id),
+                            self.source_map(),
+                            "attempt to test simplify-able pattern, `{}`",
+                            self.env().with(pair.pat)
+                        )
                     }
-                }
-                // @@Todo: remove this when the new pattern representation is used
-                Pat::Const(ConstPat { term }) => {
-                    let ty_id = self.ty_id_from_tir_term(*term);
 
-                    self.ctx.map_ty(ty_id, |ty| match ty {
-                        ty if ty.is_switchable() => Test {
-                            kind: TestKind::SwitchInt { ty: ty_id, options: Default::default() },
-                            span,
-                        },
-                        IrTy::Adt(adt_id) => {
-                            let variant_count =
-                                self.ctx.map_adt(*adt_id, |_, adt| adt.variants.len());
+                    (adt.variants.len(), id)
+                });
 
-                            Test {
-                                kind: TestKind::Switch {
-                                    adt: *adt_id,
-                                    options: FixedBitSet::with_capacity(variant_count),
-                                },
-                                span,
-                            }
-                        }
-                        _ => unreachable!(),
-                    })
-                }
-                Pat::Lit(term) => {
-                    let ty = self.ty_id_from_tir_term(*term);
-                    let value = constify_lit_term(*term, self.tcx);
-
-                    // If it is not an integral constant, we use an `Eq` test. This will
-                    // happen when the constant is either a float or a string.
-                    if value.is_switchable() {
-                        Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, span }
-                    } else {
-                        Test { kind: TestKind::Eq { ty, value }, span }
-                    }
-                }
-                Pat::Range(range_pat) => Test {
-                    kind: TestKind::Range { range: ConstRange::from_range(range_pat, self) },
+                Test {
+                    kind: TestKind::Switch {
+                        adt,
+                        options: FixedBitSet::with_capacity(variant_count),
+                    },
                     span,
-                },
-                Pat::Array(list_pat) => {
-                    let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
-
-                    let len = (prefix.len() + suffix.len()) as u64;
-                    let op = if rest.is_some() { BinOp::GtEq } else { BinOp::Eq };
-
-                    Test { kind: TestKind::Len { len, op }, span }
-                }
-                Pat::If(IfPat { pat, .. }) => {
-                    self.test_match_pair(&MatchPair { pat: *pat, place: pair.place.clone() })
-                }
-                Pat::Or(_) => panic_on_span!(
-                    span.into_location(self.source_id),
-                    self.source_map,
-                    "or patterns should be handled by `test_or_pat`"
-                ),
-                Pat::Constructor(_)
-                | Pat::Wild
-                | Pat::Spread(_)
-                | Pat::Tuple(_)
-                | Pat::Mod(_)
-                | Pat::Binding(_) => {
-                    panic_on_span!(
-                        span.into_location(self.source_id),
-                        self.source_map,
-                        "attempt to test simplify-able pattern, `{}`",
-                        pair.pat.for_formatting(self.tcx)
-                    )
                 }
             }
-        })
+            Pat::Lit(lit) => {
+                let value = constify_lit_pat(lit);
+                let ty = self.ty_id_from_tir_ty(self.get_inferred_ty(pair.pat));
+
+                // If it is not an integral constant, we use an `Eq` test. This will
+                // happen when the constant is either a float or a string.
+                if value.is_switchable() {
+                    Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, span }
+                } else {
+                    Test { kind: TestKind::Eq { ty, value }, span }
+                }
+            }
+            Pat::Range(range_pat) => Test {
+                kind: TestKind::Range { range: ConstRange::from_range(&range_pat, self) },
+                span,
+            },
+            Pat::Array(array_pat) => {
+                let (prefix, suffix, rest) = array_pat.into_parts(self);
+
+                let len = (prefix.len() + suffix.len()) as u64;
+                let op = if rest.is_some() { BinOp::GtEq } else { BinOp::Eq };
+
+                Test { kind: TestKind::Len { len, op }, span }
+            }
+            Pat::If(IfPat { pat, .. }) => {
+                self.test_match_pair(&MatchPair { pat: *pat, place: pair.place.clone() })
+            }
+            Pat::Or(_) => panic_on_span!(
+                span.into_location(self.source_id),
+                self.source_map(),
+                "or patterns should be handled by `test_or_pat`"
+            ),
+            Pat::Tuple(_) | Pat::Binding(_) => {
+                panic_on_span!(
+                    span.into_location(self.source_id),
+                    self.source_map(),
+                    "attempt to test simplify-able pattern, `{}`",
+                    self.env().with(pair.pat)
+                )
+            }
+        }
     }
 
     /// The `Test` is a specification of a specific test that we are performing
@@ -284,11 +271,14 @@ impl<'tcx> Builder<'tcx> {
                 .map(|(index, item)| (index, item.clone()))?
         };
 
-        self.tcx.pat_store.map_fast(pair.pat, |pat| match (&test.kind, pat) {
-            (TestKind::Switch { adt, .. }, Pat::Constructor(ConstructorPat { subject, args })) => {
+        let pat_ty = self.get_inferred_ty(pair.pat);
+        let pat = self.stores().pat().get(pair.pat);
+
+        match (&test.kind, pat) {
+            (TestKind::Switch { adt, .. }, Pat::Ctor(CtorPat { ctor, ctor_pat_args, .. })) => {
                 // If we are performing a variant switch, then this informs
                 // variant patterns, bu nothing else.
-                let test_adt = self.ty_id_from_tir_term(*subject);
+                let test_adt = self.ty_id_from_tir_ty(pat_ty);
 
                 let variant_index = self.ctx.map_ty_as_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything
@@ -297,41 +287,14 @@ impl<'tcx> Builder<'tcx> {
                         return None;
                     }
 
-                    Some(self.evaluate_enum_variant_as_index(*subject))
+                    Some(VariantIdx::from_usize(ctor.1))
                 })?;
 
                 self.candidate_after_variant_switch(
                     pair_index,
                     *adt,
                     variant_index,
-                    Some(*args),
-                    candidate,
-                );
-
-                Some(variant_index.index())
-            }
-            // @@Todo: remove this branch since this is just for handling enumerations.
-            (TestKind::Switch { adt, .. }, Pat::Access(..) | Pat::Const(..)) => {
-                // If we are performing a variant switch, then this informs
-                // variant patterns, bu nothing else.
-                let test_adt = self.ty_of_pat(pair.pat);
-
-                let variant_index = self.ctx.map_ty_as_adt(test_adt, |adt, _| {
-                    // If this is a struct, then we don't do anything
-                    // since we're expecting an enum. Although, this case shouldn't happen?
-                    if adt.flags.is_struct() {
-                        return None;
-                    }
-
-                    let pat_term = self.term_of_pat(pair.pat);
-                    Some(self.evaluate_enum_variant_as_index(pat_term))
-                })?;
-
-                self.candidate_after_variant_switch(
-                    pair_index,
-                    *adt,
-                    variant_index,
-                    None,
+                    Some(ctor_pat_args),
                     candidate,
                 );
 
@@ -343,10 +306,7 @@ impl<'tcx> Builder<'tcx> {
             // When we are performing a switch over integers, then this informs integer
             // equality, but nothing else, @@Improve: we could use the Pat::Range to rule
             // some things out.
-            (
-                TestKind::SwitchInt { ty, ref options },
-                Pat::Lit(term) | Pat::Const(ConstPat { term }),
-            ) => {
+            (TestKind::SwitchInt { ty, ref options }, Pat::Lit(term)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
                 if !self.ctx.map_ty(*ty, |ty| ty.is_switchable()) {
@@ -356,14 +316,14 @@ impl<'tcx> Builder<'tcx> {
                 // @@Todo: when we switch to new patterns, we can look this up without
                 // the additional evaluation. However, we might need to modify the `Eq`
                 // on `ir::Const` to actually check if integer values are equal.
-                let value = self.evaluate_const_pat_term(*term).0;
+                let value = self.evaluate_const_pat(term).0;
                 let index = options.get_index_of(&value).unwrap();
 
                 // remove the candidate from the pairs
                 candidate.pairs.remove(pair_index);
                 Some(index)
             }
-            (TestKind::SwitchInt { ty: _, ref options }, Pat::Range(range_pat)) => {
+            (TestKind::SwitchInt { ty: _, ref options }, Pat::Range(ref range_pat)) => {
                 let not_contained =
                     self.values_not_contained_in_range(range_pat, options).unwrap_or(false);
 
@@ -374,9 +334,9 @@ impl<'tcx> Builder<'tcx> {
             (TestKind::SwitchInt { .. }, _) => None,
 
             (TestKind::Len { len: test_len, op: BinOp::Eq }, Pat::Array(list_pat)) => {
-                let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
+                let (prefix, suffix, rest) = list_pat.into_parts(self);
                 let pat_len = (prefix.len() + suffix.len()) as u64;
-                let ty = self.ty_of_pat(pair.pat);
+                let ty = self.ty_id_from_tir_pat(pair.pat);
 
                 match (pat_len.cmp(test_len), rest) {
                     (Ordering::Equal, None) => {
@@ -400,10 +360,10 @@ impl<'tcx> Builder<'tcx> {
                 }
             }
             (TestKind::Len { len: test_len, op: BinOp::GtEq }, Pat::Array(list_pat)) => {
-                let (prefix, suffix, rest) = list_pat.into_parts(self.tcx);
+                let (prefix, suffix, rest) = list_pat.into_parts(self);
                 let pat_len = (prefix.len() + suffix.len()) as u64;
 
-                let ty = self.ty_of_pat(pair.pat);
+                let ty = self.ty_id_from_tir_pat(pair.pat);
 
                 match (pat_len.cmp(test_len), rest) {
                     (Ordering::Equal, Some(_)) => {
@@ -428,7 +388,7 @@ impl<'tcx> Builder<'tcx> {
                 }
             }
 
-            (TestKind::Range { range }, Pat::Range(range_pat)) => {
+            (TestKind::Range { range }, Pat::Range(ref range_pat)) => {
                 let actual_range = ConstRange::from_range(range_pat, self);
 
                 if actual_range == *range {
@@ -447,7 +407,7 @@ impl<'tcx> Builder<'tcx> {
                 }
             }
             (TestKind::Range { ref range }, Pat::Lit(lit_pat)) => {
-                let (value, _) = self.evaluate_const_pat_term(*lit_pat);
+                let (value, _) = self.evaluate_const_pat(lit_pat);
 
                 // If the `value` is not contained in the testing range, so the `value` can be
                 // matched only if the test fails.
@@ -480,7 +440,7 @@ impl<'tcx> Builder<'tcx> {
                     None
                 }
             }
-        })
+        }
     }
 
     /// This function is responsible for adjusting the [Candidate] after a
@@ -493,7 +453,7 @@ impl<'tcx> Builder<'tcx> {
         pair_index: usize,
         candidate: &mut Candidate,
         prefix: &[PatId],
-        rest: Option<PatId>,
+        rest: Option<Spread>,
         suffix: &[PatId],
     ) {
         let removed_place = candidate.pairs.remove(pair_index).place;
@@ -530,19 +490,17 @@ impl<'tcx> Builder<'tcx> {
             let consequent_pairs: Vec<_> = self.ctx.adts().map_fast(adt, |adt| {
                 let variant = &adt.variants[variant_index];
 
-                self.tcx.pat_args_store.map_as_param_list_fast(sub_pats, |pats| {
-                    pats.positional()
-                        .iter()
-                        .enumerate()
-                        .map(|(index, arg)| {
-                            let field_index = match arg.name {
-                                Some(name) => variant.field_idx(name).unwrap(),
-                                _ => index,
+                self.stores().pat_args().map_fast(sub_pats, |pats| {
+                    pats.iter()
+                        .map(|arg| {
+                            let field_index = match arg.target {
+                                ParamIndex::Name(name) => variant.field_idx(name).unwrap(),
+                                ParamIndex::Position(index) => index,
                             };
 
                             let place =
                                 downcast_place.clone_project(PlaceProjection::Field(field_index));
-                            MatchPair { place, pat: arg.pat }
+                            MatchPair { place, pat: arg.pat.assert_pat() }
                         })
                         .collect()
                 })
@@ -811,21 +769,11 @@ impl<'tcx> Builder<'tcx> {
 
         // See if the underlying pattern is a variant, and if so add it to
         // the variants...
-        self.tcx.pat_store.map_fast(match_pair.pat, |pat| {
+        self.stores().pat().map_fast(match_pair.pat, |pat| {
             match pat {
-                // @@Todo: when we switch over to the knew pattern representation, it
-                //         should be a lot easier to deduce which variant is being specified
-                //         here.
-                Pat::Access(AccessPat { property, .. }) => {
-                    // Get the type of the subject, and then compute the
-                    // variant index of the property.
-                    let ty = self.ty_of_pat(match_pair.pat);
-
-                    self.ctx.map_ty_as_adt(ty, |adt, _| {
-                        let variant_index = adt.variant_idx(property).unwrap();
-                        variants.insert(variant_index.index());
-                        true
-                    })
+                Pat::Ctor(CtorPat { ctor, .. }) => {
+                    variants.insert(ctor.1);
+                    true
                 }
 
                 // We don't know how to map anything else.
@@ -846,36 +794,29 @@ impl<'tcx> Builder<'tcx> {
             return false;
         };
 
-        self.tcx.pat_store.map_fast(match_pair.pat, |pat| {
-            match pat {
-                // @@Hack: for "const" patterns which represent booleans, we
-                //        need to map them to the correct integer value.
-                Pat::Lit(term) | Pat::Const(ConstPat { term }) => {
-                    let (constant, value) = self.evaluate_const_pat_term(*term);
+        let pat = self.stores().pat().get(match_pair.pat);
+        match pat {
+            Pat::Lit(term) => {
+                let (constant, value) = self.evaluate_const_pat(term);
 
-                    options.entry(constant).or_insert(value);
-                    true
-                }
-                Pat::Range(pat) => {
-                    // Check if there is at least one value that is not
-                    // contained within the r
-                    self.values_not_contained_in_range(pat, options).unwrap_or(false)
-                }
-
-                // We either don't know how to map these, or they should of been mapped
-                // by `add_variants_to_switch`.
-                Pat::Binding(_)
-                | Pat::Access(_)
-                | Pat::Tuple(_)
-                | Pat::Mod(_)
-                | Pat::Constructor(_)
-                | Pat::Array(_)
-                | Pat::Spread(_)
-                | Pat::Or(_)
-                | Pat::If(_)
-                | Pat::Wild => false,
+                options.entry(constant).or_insert(value);
+                true
             }
-        })
+            Pat::Range(ref pat) => {
+                // Check if there is at least one value that is not
+                // contained within the r
+                self.values_not_contained_in_range(pat, options).unwrap_or(false)
+            }
+
+            // We either don't know how to map these, or they should of been mapped
+            // by `add_variants_to_switch`.
+            Pat::Binding(_)
+            | Pat::Tuple(_)
+            | Pat::Ctor(_)
+            | Pat::Array(_)
+            | Pat::Or(_)
+            | Pat::If(_) => false,
+        }
     }
 
     /// Check if there is at least one value that is not contained within the

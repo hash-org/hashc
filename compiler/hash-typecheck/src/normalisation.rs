@@ -12,7 +12,7 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     environment::context::{Binding, BindingKind, ScopeKind},
     fns::{FnBody, FnCallTerm},
-    lits::{ListCtor, Lit, LitPat, PrimTerm},
+    lits::{ArrayCtor, Lit, LitPat, PrimTerm},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, Spread},
     refs::DerefTerm,
@@ -844,7 +844,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                     list_pat.spread,
                     |_| {
                         // Lists can have spreads, which return sublists
-                        self.new_term(PrimTerm::Array(ListCtor {
+                        self.new_term(PrimTerm::Array(ArrayCtor {
                             elements: self.extract_spread_list(list_term.elements, list_pat.pats),
                         }))
                     },

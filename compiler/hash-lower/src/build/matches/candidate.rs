@@ -24,12 +24,24 @@ use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
 };
-use hash_source::{identifier::Identifier, location::Span};
+use hash_source::location::Span;
 use hash_target::size::Size;
-use hash_tir::old::pats::{
-    BindingPat, ConstructorPat, IfPat, Pat, PatArgsId, PatId, RangePat, SpreadPat,
+use hash_tir::{
+    args::PatArgsId,
+    atom_info::ItemInAtomInfo,
+    control::{IfPat, MatchCase},
+    data::CtorPat,
+    environment::env::AccessToEnv,
+    params::ParamIndex,
+    pats::{Pat, PatId, RangePat},
+    scopes::BindingPat,
+    symbols::Symbol,
+    tuples::TuplePat,
 };
-use hash_utils::store::Store;
+use hash_utils::{
+    itertools::Itertools,
+    store::{CloneStore, SequenceStore, Store},
+};
 use smallvec::{smallvec, SmallVec};
 
 use crate::build::{place::PlaceBuilder, Builder};
@@ -84,7 +96,7 @@ pub(super) struct MatchPair {
     pub place: PlaceBuilder,
 }
 
-pub(super) type Candidates<'tcx> = (ast::AstNodeRef<'tcx, ast::MatchCase>, Candidate);
+pub(super) type Candidates<'tcx> = (MatchCase, Candidate);
 
 impl Candidate {
     /// Create a new [Candidate].
@@ -147,7 +159,7 @@ pub(super) struct Binding {
     pub source: Place,
 
     /// The identifier that is used as the binding.
-    pub name: Identifier,
+    pub name: Symbol,
 
     /// The mutability of the binding
     pub mutability: Mutability,
@@ -187,22 +199,29 @@ impl<'tcx> Builder<'tcx> {
 
             // Check if the bindings has a single or-pattern
             if let [pair] = &*match_pairs {
-                if self.tcx.pat_store.map_fast(pair.pat, Pat::is_or) {
+                if self.stores().pat().map_fast(pair.pat, Pat::is_or) {
                     // append all the new bindings, and then swap the two vectors around
                     existing_bindings.extend_from_slice(&new_bindings);
                     mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                     // Now we need to create sub-candidates for each of the or-patterns
-                    return self.tcx.pat_store.map_fast(pair.pat, |pat| {
-                        let Pat::Or(sub_pats) = pat else {
+                    let Pat::Or(sub_pats) = self.stores().pat().get(pair.pat) else {
                             unreachable!()
                         };
 
-                        candidate.sub_candidates =
-                            self.create_sub_candidates(&pair.place, candidate, sub_pats);
+                    // @@Temporary: We need to load in the alternatives for the or pat...
+                    let sub_pats = self
+                        .stores()
+                        .pat_list()
+                        .get_vec(sub_pats.alternatives)
+                        .into_iter()
+                        .map(|pat| pat.assert_pat())
+                        .collect_vec();
 
-                        true
-                    });
+                    candidate.sub_candidates =
+                        self.create_sub_candidates(&pair.place, candidate, &sub_pats);
+
+                    return true;
                 }
             }
 
@@ -234,7 +253,7 @@ impl<'tcx> Builder<'tcx> {
                 // sort all of the pats in the candidate by `or-pat` last
                 candidate
                     .pairs
-                    .sort_by_key(|pair| self.tcx.pat_store.map_fast(pair.pat, Pat::is_or));
+                    .sort_by_key(|pair| self.stores().pat().map_fast(pair.pat, Pat::is_or));
 
                 // We weren't able to perform any further simplifications, so return false
                 return false;
@@ -252,176 +271,147 @@ impl<'tcx> Builder<'tcx> {
         pair: MatchPair,
         candidate: &mut Candidate,
     ) -> Result<(), MatchPair> {
-        self.tcx.pat_store.map_fast(pair.pat, |pat| {
-            // Get the span of this particular pattern...
-            let span = self.tcx.location_store.get_span(pair.pat).unwrap();
+        let pat = self.stores().pat().get(pair.pat);
+        // Get the span of this particular pattern...
+        let span = self.span_of_pat(pair.pat);
 
-            match pat {
-                Pat::Binding(BindingPat { mutability, name, .. }) => {
-                    candidate.bindings.push(Binding {
-                        span,
-                        mutability: (*mutability).into(),
-                        source: pair.place.into_place(self.ctx),
-                        name: *name,
-
-                        // @@Todo: introduce a way of specifying what the binding
-                        // mode of a particular binding is, but for now we assume that
-                        // it is always by value.
-                        mode: BindingMode::ByValue,
-                    });
-
-                    // @@SubPatterns: we don't currently support sub-patterns in bindings, i.e.
-                    // when a pattern binds a sub-pattern: `x @ (y, z)` where `(y, z)` is the
-                    // sub patterns. When this is added, we need to push all of the
-                    // sub-patterns into the `pats` of the candidate so that they can be dealt with.
-
-                    Ok(())
-                }
-                Pat::Range(RangePat { lo, hi, end }) => {
-                    // get the range and bias of this range pattern from
-                    // the `lo`
-                    let lo_ty = self.ty_from_tir_term(*lo);
-                    // let lo_ty_id = self.storage.ty_store().create(lo_ty);
-
-                    // The range is the minimum value, maximum value, and the size of
-                    // the item that is being compared.
-                    //
-                    // @@Todo: deal with big-ints
-                    let (range, bias) = match lo_ty {
-                        IrTy::Char => (
-                            Some(('\u{0000}' as u128, '\u{10FFFF}' as u128, Size::from_bytes(4))),
-                            0,
-                        ),
-                        IrTy::Int(int_ty) => {
-                            let size = int_ty.size(self.tcx.pointer_width).unwrap();
-                            let max = size.truncate(u128::MAX);
-                            let bias = 1u128 << (size.bits() - 1);
-                            (Some((0, max, size)), bias)
-                        }
-                        IrTy::UInt(uint_ty) => {
-                            let size = uint_ty.size(self.tcx.pointer_width).unwrap();
-                            let max = size.truncate(u128::MAX);
-                            (Some((0, max, size)), 0)
-                        }
-                        _ => (None, 0),
-                    };
-
-                    // We want to compare ranges numerically, but the order of the bitwise
-                    // representation of signed integers does not match their numeric order. Thus,
-                    // to correct the ordering, we need to shift the range of signed integers to
-                    // correct the comparison. This is achieved by XORing with a bias.
-                    if let Some((min, max, _)) = range {
-                        // we have to convert the `lo` term into the actual value, by getting
-                        // the literal term from this term, and then converting the stored value
-                        // into a u128...
-                        let lo_val = self.evaluate_const_pat_term(*lo).1 ^ bias;
-
-                        if lo_val <= min {
-                            let hi_val = self.evaluate_const_pat_term(*hi).1 ^ bias;
-
-                            // In this situation, we have an irrefutable pattern, so we can
-                            // always go down this path
-                            if hi_val > max || hi_val == max && *end == ast::RangeEnd::Excluded {
-                                return Ok(());
-                            }
-                        }
-                    }
-
-                    Err(pair)
-                }
-                Pat::Tuple(pat_args) => {
-                    // get the type of the tuple so that we can read all of the
-                    // fields
-                    let ty = self.ty_of_pat(pair.pat);
-                    let adt = self.ctx.map_ty(ty, IrTy::as_adt);
-
-                    candidate.pairs.extend(self.match_pat_fields(*pat_args, adt, pair.place));
-                    Ok(())
-                }
-                Pat::Constructor(ConstructorPat { subject, args }) => {
-                    let ty = self.ty_id_from_tir_term(*subject);
-                    let adt =
-                        self.ctx.map_ty_as_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
-
-                    // If this is a struct then we need to match on the fields of
-                    // the struct since it is an *irrefutable* pattern.
-                    if let Some(adt_id) = adt {
-                        candidate.pairs.extend(self.match_pat_fields(*args, adt_id, pair.place));
-                        return Ok(());
-                    }
-
-                    Err(pair)
-                }
-                Pat::Access(_) | Pat::Const(_) => {
-                    // @@Todo: when we switch to the new pattern representation, we can
-                    //         remove this branch entirely, for now ignore it.
-                    Err(pair)
-                }
-                // The simplification that can occur here is if both the prefix and the
-                // suffix are empty, then we can perform some simplifications.
-                Pat::Array(array_pat) => {
-                    let (prefix, suffix, rest) = array_pat.into_parts(self.tcx);
-
-                    if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
-                        let ty = self.ty_of_pat(pair.pat);
-
-                        // This means that this is irrefutable since we will always match this
-                        // pattern.
-                        self.adjust_list_pat_candidates(
-                            ty,
-                            &mut candidate.pairs,
-                            &pair.place,
-                            &prefix,
-                            rest,
-                            &suffix,
-                        );
-
-                        Ok(())
+        match pat {
+            Pat::Binding(BindingPat { is_mutable, name, .. }) => {
+                candidate.bindings.push(Binding {
+                    span,
+                    mutability: if is_mutable {
+                        Mutability::Mutable
                     } else {
-                        Err(pair)
+                        Mutability::Immutable
+                    },
+                    source: pair.place.into_place(self.ctx),
+                    name,
+
+                    // @@Todo: introduce a way of specifying what the binding
+                    // mode of a particular binding is, but for now we assume that
+                    // it is always by value.
+                    mode: BindingMode::ByValue,
+                });
+
+                // @@SubPatterns: we don't currently support sub-patterns in bindings, i.e.
+                // when a pattern binds a sub-pattern: `x @ (y, z)` where `(y, z)` is the
+                // sub patterns. When this is added, we need to push all of the
+                // sub-patterns into the `pats` of the candidate so that they can be dealt with.
+
+                Ok(())
+            }
+            Pat::Range(RangePat { start, end, range_end }) => {
+                let ptr_width = self.settings.target().pointer_bit_width / 8;
+
+                // get the range and bias of this range pattern from
+                // the `lo`
+                let lo_ty = self.ty_from_tir_ty(self.get_inferred_ty(pair.pat));
+
+                // The range is the minimum value, maximum value, and the size of
+                // the item that is being compared.
+                //
+                // @@Todo: deal with big-ints
+                let (range, bias) = match lo_ty {
+                    IrTy::Char => {
+                        (Some(('\u{0000}' as u128, '\u{10FFFF}' as u128, Size::from_bytes(4))), 0)
+                    }
+                    IrTy::Int(int_ty) => {
+                        let size = int_ty.size(ptr_width).unwrap();
+                        let max = size.truncate(u128::MAX);
+                        let bias = 1u128 << (size.bits() - 1);
+                        (Some((0, max, size)), bias)
+                    }
+                    IrTy::UInt(uint_ty) => {
+                        let size = uint_ty.size(ptr_width).unwrap();
+                        let max = size.truncate(u128::MAX);
+                        (Some((0, max, size)), 0)
+                    }
+                    _ => (None, 0),
+                };
+
+                // We want to compare ranges numerically, but the order of the bitwise
+                // representation of signed integers does not match their numeric order. Thus,
+                // to correct the ordering, we need to shift the range of signed integers to
+                // correct the comparison. This is achieved by XORing with a bias.
+                if let Some((min, max, _)) = range {
+                    // we have to convert the `lo` term into the actual value, by getting
+                    // the literal term from this term, and then converting the stored value
+                    // into a u128...
+                    let lo_val = self.evaluate_const_pat(start).1 ^ bias;
+
+                    if lo_val <= min {
+                        let hi_val = self.evaluate_const_pat(end).1 ^ bias;
+
+                        // In this situation, we have an irrefutable pattern, so we can
+                        // always go down this path
+                        if hi_val > max || hi_val == max && range_end == ast::RangeEnd::Excluded {
+                            return Ok(());
+                        }
                     }
                 }
 
-                // We essentially create a new bind for the tuple here
-                // that captures all of the members. We create a new bind
-                // with the type of this `spread` type which is derived
-                // during typechecking...
-                Pat::Spread(SpreadPat { name: Some(name) }) => {
-                    candidate.bindings.push(Binding {
-                        span,
-                        // @@FixMe: allow for spread patterns to be declared as `mut`
-                        mutability: Mutability::Immutable,
-                        name: *name,
+                Err(pair)
+            }
+            Pat::Tuple(TuplePat { data, .. }) => {
+                // get the type of the tuple so that we can read all of the
+                // fields
+                let ty = self.ty_id_from_tir_pat(pair.pat);
+                let adt = self.ctx.map_ty(ty, IrTy::as_adt);
 
-                        // @@FixMe: this is not the correct place to use, since we might encounter
-                        //           a spread pattern in various locations which means we might
-                        //           affect the actual place that is being referenced. This process
-                        //           should be a lot simpler to do we switch to the new pattern
-                        //           representation. This is because, the spreads are now on each
-                        //           specific pattern, which means that we can more precisely
-                        // determine           the place that we are
-                        // referencing.
-                        source: pair.place.into_place(self.ctx),
-                        mode: BindingMode::ByRef,
-                    });
+                candidate.pairs.extend(self.match_pat_fields(data, adt, pair.place));
+                Ok(())
+            }
+            Pat::Ctor(CtorPat { ctor_pat_args, .. }) => {
+                let ty = self.ty_id_from_tir_pat(pair.pat);
+                let adt = self.ctx.map_ty_as_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
 
-                    Ok(())
+                // If this is a struct then we need to match on the fields of
+                // the struct since it is an *irrefutable* pattern.
+                if let Some(adt_id) = adt {
+                    candidate.pairs.extend(self.match_pat_fields(
+                        ctor_pat_args,
+                        adt_id,
+                        pair.place,
+                    ));
+                    return Ok(());
                 }
 
-                // We don't need to do anything with this pattern here.
-                Pat::Spread(_) | Pat::Mod(_) | Pat::Wild => Ok(()),
-
-                // Look at the pattern located within the if-pat
-                Pat::If(IfPat { pat, .. }) => self.simplify_match_pair(
-                    MatchPair { pat: *pat, place: pair.place.clone() },
-                    candidate,
-                ),
-
-                // We have to deal with these outside of this function
-                Pat::Lit(_) => Err(pair),
-                Pat::Or(_) => Err(pair),
+                Err(pair)
             }
-        })
+            // The simplification that can occur here is if both the prefix and the
+            // suffix are empty, then we can perform some simplifications.
+            Pat::Array(array_pat) => {
+                let (prefix, suffix, rest) = array_pat.into_parts(self);
+
+                if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
+                    let ty = self.ty_id_from_tir_pat(pair.pat);
+
+                    // This means that this is irrefutable since we will always match this
+                    // pattern.
+                    self.adjust_list_pat_candidates(
+                        ty,
+                        &mut candidate.pairs,
+                        &pair.place,
+                        &prefix,
+                        rest,
+                        &suffix,
+                    );
+
+                    Ok(())
+                } else {
+                    Err(pair)
+                }
+            }
+
+            // Look at the pattern located within the if-pat
+            Pat::If(IfPat { pat, .. }) => {
+                self.simplify_match_pair(MatchPair { pat, place: pair.place.clone() }, candidate)
+            }
+
+            // We have to deal with these outside of this function
+            Pat::Lit(_) => Err(pair),
+            Pat::Or(_) => Err(pair),
+        }
     }
 
     /// Iterate over a list of patterns, and extract the pattern from
@@ -440,21 +430,19 @@ impl<'tcx> Builder<'tcx> {
 
             let variant = adt.variants.first().unwrap();
 
-            self.tcx.pat_args_store.map_as_param_list_fast(pat, |pats| {
-                pats.positional()
-                    .iter()
-                    .enumerate()
-                    .map(|(index, arg)| {
+            self.stores().pat_args().map_fast(pat, |pats| {
+                pats.iter()
+                    .map(|arg| {
                         // Compute the index we should use to access the field. If
                         // no name is provided, we assume that the type is positional,
                         // and thus we use the index of the pattern in the argument.
-                        let index = match arg.name {
-                            Some(name) => variant.field_idx(name).unwrap(),
-                            None => index,
+                        let index = match arg.target {
+                            ParamIndex::Name(name) => variant.field_idx(name).unwrap(),
+                            ParamIndex::Position(index) => index,
                         };
 
                         let place = place.clone_project(PlaceProjection::Field(index));
-                        MatchPair { pat: arg.pat, place }
+                        MatchPair { pat: arg.pat.assert_pat(), place }
                     })
                     .collect()
             })
@@ -475,7 +463,7 @@ impl<'tcx> Builder<'tcx> {
             .iter()
             .copied()
             .map(|pat_id| {
-                let pat_has_guard = self.tcx.pat_store.map_fast(pat_id, Pat::is_or);
+                let pat_has_guard = self.stores().pat().map_fast(pat_id, Pat::is_or);
                 let mut sub_candidate = Candidate::new(
                     candidate.span,
                     pat_id,

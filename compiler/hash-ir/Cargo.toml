@@ -16,3 +16,4 @@ hash-source = { path = "../hash-source" }
 hash-target = { path = "../hash-target" }
 hash-tir = { path = "../hash-tir" }
 hash-utils = { path = "../hash-utils" }
+hash-intrinsics = { path = "../hash-intrinsics" }

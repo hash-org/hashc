@@ -4,18 +4,52 @@
 //! types.
 
 use hash_ir::{
-    ir::{AssertKind, BasicBlock, LocalDecl, Operand, Place, TerminatorKind},
+    ir::{AssertKind, BasicBlock, Local, LocalDecl, Operand, Place, TerminatorKind},
     ty::Mutability,
 };
-use hash_source::location::Span;
-use hash_tir::{pats::PatId, utils::common::CommonUtils};
+use hash_source::{
+    identifier::{Identifier, IDENTS},
+    location::Span,
+};
+use hash_tir::{
+    environment::env::AccessToEnv, pats::PatId, symbols::Symbol, terms::TermId,
+    utils::common::CommonUtils,
+};
 
-use super::Builder;
+use super::{Builder, LocalKey};
 
 impl<'tcx> Builder<'tcx> {
     /// Get the [Span] of a given [PatId].
     pub(crate) fn span_of_pat(&self, id: PatId) -> Span {
         self.get_location(id).map(|loc| loc.span).unwrap()
+    }
+
+    /// Get the [Span] of a given [TermId].
+    pub(crate) fn span_of_term(&self, id: TermId) -> Span {
+        self.get_location(id).map(|loc| loc.span).unwrap()
+    }
+
+    /// Create a [LocalKey] from a [Symbol].
+    pub(crate) fn local_key_from_symbol(&self, symbol: Symbol) -> LocalKey {
+        self.context().get_binding(symbol).kind.into()
+    }
+
+    /// Lookup a local by its [LocalKey].
+    pub(crate) fn lookup_local(&self, key: &LocalKey) -> Option<Local> {
+        self.declaration_map.get(key).copied()
+    }
+
+    /// Lookup a [Local] by a specified [Symbol].
+    pub(crate) fn lookup_local_symbol(&self, symbol: Symbol) -> Option<Local> {
+        let key = self.context().get_binding(symbol).kind.into();
+        self.lookup_local(&key)
+    }
+
+    /// Get the underlying name for a [Symbol], if the symbol
+    /// has no name, then the name is set as `_`.
+    pub(crate) fn symbol_name(&self, symbol: Symbol) -> Identifier {
+        let data = self.get_symbol(symbol);
+        data.name.unwrap_or(IDENTS.underscore)
     }
 
     /// Function to create a new [Place] that is used to ignore

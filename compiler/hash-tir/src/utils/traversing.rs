@@ -15,7 +15,7 @@ use crate::{
     environment::env::{AccessToEnv, Env, WithEnv},
     fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
     impl_access_to_env,
-    lits::{ArrayPat, ListCtor, PrimTerm},
+    lits::{ArrayCtor, ArrayPat, PrimTerm},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     params::{ParamData, ParamsId},
     pats::{Pat, PatId, PatListId},
@@ -102,7 +102,7 @@ impl<'env> TraversingUtils<'env> {
                     PrimTerm::Lit(lit) => Ok(self.new_term(Term::Prim(PrimTerm::Lit(lit)))),
                     PrimTerm::Array(list_ctor) => {
                         let elements = self.fmap_term_list(list_ctor.elements, f)?;
-                        Ok(self.new_term(Term::Prim(PrimTerm::Array(ListCtor { elements }))))
+                        Ok(self.new_term(Term::Prim(PrimTerm::Array(ArrayCtor { elements }))))
                     }
                 },
                 Term::Ctor(ctor_term) => {

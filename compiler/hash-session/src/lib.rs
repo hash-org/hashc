@@ -240,7 +240,6 @@ impl LoweringCtxQuery for CompilerSession {
         LoweringCtx {
             semantic_storage: &self.semantic_storage,
             workspace: &mut self.workspace,
-            ty_storage: &self.ty_storage,
             settings: &self.settings,
             layout_storage: &self.layout_storage,
             ir_storage: &mut self.ir_storage,

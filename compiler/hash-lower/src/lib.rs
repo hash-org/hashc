@@ -23,8 +23,7 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
-
-use hash_semantics::new::environment::tc_env::SemanticStorage;
+use hash_semantics::SemanticStorage;
 use hash_source::{identifier::IDENTS, location::SourceLocation, SourceId};
 use hash_tir::{
     data::DataTy,
@@ -37,7 +36,7 @@ use hash_tir::{
 use hash_utils::{store::Store, stream_writeln};
 use new_discover::FnDiscoverer;
 use optimise::Optimiser;
-use ty::new::TyLoweringCtx;
+use ty::TyLoweringCtx;
 
 /// The Hash IR builder compiler stage. This will walk the AST, and
 /// lower all items within a particular module.
@@ -97,18 +96,18 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     /// optimisations on the IR (if specified via the [CompilerSettings]).
     fn run(&mut self, entry: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let LoweringCtx { semantic_storage, workspace, ir_storage, settings, .. } = ctx.data();
-        let source_map = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
         let mut lowered_bodies = Vec::new();
 
-        let env = Env {
-            stores: &semantic_storage.stores,
-            context: &semantic_storage.context,
-            node_map: &workspace.node_map,
-            source_map: &workspace.source_map,
-            current_source_info: &CurrentSourceInfo { source_id: entry },
-        };
+        let source_info = CurrentSourceInfo { source_id: entry };
+        let env = Env::new(
+            &semantic_storage.stores,
+            &semantic_storage.context,
+            &workspace.node_map,
+            &workspace.source_map,
+            &source_info,
+        );
         let discoverer = FnDiscoverer::new(&env);
 
         for func in discoverer.discover_fns().iter() {
@@ -154,17 +153,18 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         Ok(())
     }
 
-    fn cleanup(&mut self, entry_point: SourceId, stage_data: &mut Ctx) {
+    fn cleanup(&mut self, entry: SourceId, stage_data: &mut Ctx) {
         let LoweringCtx {
             semantic_storage, ir_storage, layout_storage, workspace, mut stdout, ..
         } = stage_data.data();
-        let env = Env {
-            stores: &semantic_storage.stores,
-            context: &semantic_storage.context,
-            node_map: &workspace.node_map,
-            source_map: &workspace.source_map,
-            current_source_info: &CurrentSourceInfo { source_id: entry_point },
-        };
+        let source_info = CurrentSourceInfo { source_id: entry };
+        let env = Env::new(
+            &semantic_storage.stores,
+            &semantic_storage.context,
+            &workspace.node_map,
+            &workspace.source_map,
+            &source_info,
+        );
 
         let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &env);
 

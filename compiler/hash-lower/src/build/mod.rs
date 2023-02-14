@@ -13,22 +13,18 @@ mod temp;
 mod ty;
 mod utils;
 
-use std::collections::HashSet;
-
-use hash_ast::ast;
 use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
         UnevaluatedConst, START_BLOCK,
     },
-    ty::{IrTy, IrTyListId, Mutability},
+    ty::{IrTy, Mutability},
     IrCtx,
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::{
     identifier::{Identifier, IDENTS},
-    location::Span,
     SourceId,
 };
 use hash_tir::{
@@ -36,14 +32,12 @@ use hash_tir::{
         context::{BindingKind, ScopeKind},
         env::{AccessToEnv, Env},
     },
-    fns::{FnBody, FnDef, FnDefData, FnDefId, FnTy},
+    fns::{FnBody, FnDef, FnDefId, FnTy},
     params::ParamsId,
     scopes::StackMemberId,
     terms::TermId,
-    tys::Ty,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::{common::CommonUtils, context::ContextUtils},
 };
-
 use hash_utils::{
     index_vec::IndexVec,
     store::{FxHashMap, SequenceStore, SequenceStoreKey, Store},
@@ -305,12 +299,20 @@ impl<'ctx> Builder<'ctx> {
             }
         }
 
+        // Compute the span of the item that was just lowered.
+        let span = match self.item {
+            BuildItem::FnDef(def) => self.get_location(def),
+            BuildItem::Const(term) => self.get_location(term),
+        }
+        .unwrap()
+        .span;
+
         Body::new(
             self.control_flow_graph.basic_blocks,
             self.declarations,
             self.info,
             self.arg_count,
-            self.item.span(),
+            span,
             self.source_id,
         )
     }
@@ -323,11 +325,11 @@ impl<'ctx> Builder<'ctx> {
         // If it is a function type, then we use the return type of the
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
-        let (return_ty, params) = self.ctx.map_ty(ty, |item_ty| match item_ty {
-            IrTy::FnDef { instance } => self
-                .ctx
-                .map_instance(*instance, |instance| (instance.ret_ty, Some(instance.params))),
-            _ => (ty, None),
+        let return_ty = self.ctx.map_ty(ty, |item_ty| match item_ty {
+            IrTy::FnDef { instance } => {
+                self.ctx.map_instance(*instance, |instance| instance.ret_ty)
+            }
+            _ => ty,
         });
 
         // The first local declaration is used as the return type. The return local
@@ -339,36 +341,27 @@ impl<'ctx> Builder<'ctx> {
         match self.item {
             BuildItem::FnDef(_) => self.build_fn(),
             BuildItem::Const(_) => self.build_const(),
-            _ => unreachable!(),
         }
     }
 
     /// This is the entry point for lowering functions into Hash IR.
     fn build_fn(&mut self) {
         let fn_def = self.item.as_fn_def();
-        let FnDef { name, ty, body, .. } = self.get_fn_def(fn_def);
+        let FnDef { ty, body, .. } = self.get_fn_def(fn_def);
 
-        self.context_utils().enter_resolved_scope_mut(ScopeKind::Fn(fn_def), || {
+        ContextUtils::<'_>::enter_resolved_scope_mut(self, ScopeKind::Fn(fn_def), |this| {
             // The type must be a function type...
-            let FnTy { params, return_ty, .. } = ty;
+            let FnTy { params, .. } = ty;
 
-            self.stores().params().map_fast(params, |params| {
-                for (index, param) in params.iter().enumerate() {
-                    let ir_ty = self.ty_id_from_tir_ty(param.ty);
+            this.stores().params().get_vec(params).iter().for_each(|param| {
+                let ir_ty = this.ty_id_from_tir_ty(param.ty);
 
-                    let symbol = self.get_symbol(param.name);
-                    let param_name = symbol.name.unwrap_or(IDENTS.underscore);
-                    let binding = self.context().get_binding(symbol.symbol);
+                let symbol = this.get_symbol(param.name);
+                let param_name = symbol.name.unwrap_or(IDENTS.underscore);
+                let binding = this.context().get_binding(symbol.symbol);
 
-                    let stack_id = match binding.kind {
-                        BindingKind::Param(_, params) => params.0.into(),
-                        BindingKind::StackMember(stack_id, _) => stack_id.into(),
-                        _ => unreachable!(),
-                    };
-
-                    // @@Future: deal with parameter attributes that are mutable?
-                    self.push_local(LocalDecl::new_immutable(param_name, ir_ty), stack_id);
-                }
+                // @@Future: deal with parameter attributes that are mutable?
+                this.push_local(LocalDecl::new_immutable(param_name, ir_ty), binding.kind.into());
             });
 
             // Axioms and Intrinsics are not lowered into IR
@@ -376,7 +369,7 @@ impl<'ctx> Builder<'ctx> {
                 panic!("defined function body was expected, but got `{body:?}`")
             };
 
-            self.build_body(body)
+            this.build_body(body)
         })
     }
 
@@ -405,9 +398,7 @@ impl<'ctx> Builder<'ctx> {
 
         // Now that we have built the inner body block, we then need to terminate
         // the current basis block with a return terminator.
-        let term = self.get_term(body);
-        let return_block =
-            unpack!(self.term_into_dest(Place::return_place(self.ctx), start, &body));
+        let return_block = unpack!(self.term_into_dest(Place::return_place(self.ctx), start, body));
         let span = self.get_location(body).unwrap().span;
 
         self.control_flow_graph.terminate(return_block, span, TerminatorKind::Return);

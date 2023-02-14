@@ -2,7 +2,7 @@
 use std::fmt::{self, Display};
 
 use hash_ast::ast;
-use hash_source::constant::{InternedInt, CONSTANT_MAP};
+use hash_source::constant::{InternedFloat, InternedInt, InternedStr, CONSTANT_MAP};
 use hash_utils::store::SequenceStore;
 use num_bigint::BigInt;
 
@@ -11,6 +11,7 @@ use super::{
     pats::{PatListId, Spread},
     terms::TermListId,
 };
+use crate::pats::PatId;
 
 /// An integer literal.
 ///
@@ -41,6 +42,11 @@ pub struct StrLit {
 }
 
 impl StrLit {
+    /// Get the interned value of the literal.
+    pub fn interned_value(&self) -> InternedStr {
+        self.underlying.data
+    }
+
     /// Return the value of the string literal.
     pub fn value(&self) -> &'static str {
         CONSTANT_MAP.lookup_string(self.underlying.data)
@@ -56,6 +62,11 @@ pub struct FloatLit {
 }
 
 impl FloatLit {
+    /// Get the interned value of the literal.
+    pub fn interned_value(&self) -> InternedFloat {
+        self.underlying.value
+    }
+
     /// Return the value of the float literal.
     pub fn value(&self) -> f64 {
         CONSTANT_MAP.lookup_float_constant(self.underlying.value).as_f64()
@@ -81,7 +92,7 @@ impl CharLit {
 ///
 /// Contains a sequence of terms.
 #[derive(Copy, Clone, Debug)]
-pub struct ListCtor {
+pub struct ArrayCtor {
     pub elements: TermListId,
 }
 
@@ -119,7 +130,7 @@ impl From<LitPat> for Lit {
 #[derive(Copy, Clone, Debug)]
 pub enum PrimTerm {
     Lit(Lit),
-    Array(ListCtor),
+    Array(ArrayCtor),
 }
 
 /// A list pattern.
@@ -132,6 +143,29 @@ pub struct ArrayPat {
     pub pats: PatListId,
     /// The spread pattern, if any.
     pub spread: Option<Spread>,
+}
+
+impl ArrayPat {
+    /// Split the pattern into the `prefix`, `suffix` and an optional;
+    /// `rest` pattern.
+    pub fn into_parts<T>(&self, tcx: &T) -> (Vec<PatId>, Vec<PatId>, Option<Spread>)
+    where
+        T: AccessToEnv,
+    {
+        let mut prefix = vec![];
+        let mut suffix = vec![];
+
+        tcx.stores().pat_list().map_fast(self.pats, |args| {
+            if let Some(pos) = self.spread.map(|s| s.index) {
+                prefix.extend(args[..pos].iter().copied().map(|p| p.assert_pat()));
+                suffix.extend(args[pos..].iter().copied().map(|p| p.assert_pat()));
+            } else {
+                prefix.extend(args.iter().copied().map(|p| p.assert_pat()));
+            }
+        });
+
+        (prefix, suffix, self.spread)
+    }
 }
 
 impl Display for IntLit {
@@ -191,7 +225,7 @@ impl fmt::Display for WithEnv<'_, &ArrayPat> {
     }
 }
 
-impl Display for WithEnv<'_, &ListCtor> {
+impl Display for WithEnv<'_, &ArrayCtor> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}]", self.env().with(self.value.elements))
     }

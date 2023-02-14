@@ -63,6 +63,31 @@ pub enum Pat {
     If(IfPat),
 }
 
+impl Pat {
+    /// Check if the pattern is a [`Pat::Or`].
+    pub fn is_or(&self) -> bool {
+        matches!(self, Pat::Or(_))
+    }
+
+    /// Check if the pattern is of the [`Pat::Binding`] variant.
+    pub fn is_bind(&self) -> bool {
+        matches!(self, Pat::Binding(_))
+    }
+
+    /// Check if the pattern is wrapped with an `if` guard.
+    pub fn is_if(&self) -> bool {
+        matches!(self, Pat::If(_))
+    }
+
+    /// Convert the pattern into a binding pattern, if it is one.
+    pub fn into_bind(self) -> Option<BindingPat> {
+        match self {
+            Pat::Binding(pat) => Some(pat),
+            _ => None,
+        }
+    }
+}
+
 new_store_key!(pub PatId);
 new_store!(pub PatStore<PatId, Pat>);
 

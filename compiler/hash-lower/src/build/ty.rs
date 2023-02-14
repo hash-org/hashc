@@ -5,42 +5,38 @@
 //! the lowering process. This is why this builder is used to `lower` the [Term]
 //! types into the [IrTy] which is then used for the lowering process.
 
-use hash_intrinsics::utils::PrimitiveUtils;
+use hash_intrinsics::{
+    intrinsics::{BoolBinOp, EndoBinOp, UnOp},
+    utils::PrimitiveUtils,
+};
 use hash_ir::{
-    ir::Const,
-    ty::{IrTy, IrTyId, VariantIdx},
+    ir::{BinOp, Const, UnaryOp},
+    ty::{IrTy, IrTyId},
 };
 use hash_source::constant::CONSTANT_MAP;
 use hash_tir::{
-    atom_info::ItemInAtomInfo,
-    data::DataTy,
-    environment::env::{AccessToEnv, Env},
-    lits::{Lit, PrimTerm},
-    terms::{Term, TermId},
-    tys::TyId,
+    atom_info::ItemInAtomInfo, data::DataTy, environment::env::AccessToEnv, fns::FnCallTerm,
+    lits::LitPat, pats::PatId, terms::TermId, tys::TyId,
 };
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, Store};
 
 use super::Builder;
-use crate::ty::new::TyLoweringCtx;
+use crate::ty::TyLoweringCtx;
 
 /// Convert a [LitTerm] into a [Const] value.
-pub(super) fn constify_lit_term(term: TermId, tcx: &Env) -> Const {
-    // tcx.term_store.map_fast(term, |term| match term {
-    //     Term::Level0(Level0Term::Lit(LitTerm::Int { value })) =>
-    // Const::Int(*value),
-    //     Term::Level0(Level0Term::Lit(LitTerm::Char(char))) => Const::Char(*char),
-    //     Term::Level0(Level0Term::Lit(LitTerm::Str(str))) => Const::Str(*str),
-    //     _ => unreachable!(),
-    // })
-    todo!()
+pub(super) fn constify_lit_pat(term: &LitPat) -> Const {
+    match term {
+        LitPat::Int(lit) => Const::Int(lit.interned_value()),
+        LitPat::Str(lit) => Const::Str(lit.interned_value()),
+        LitPat::Char(lit) => Const::Char(lit.value()),
+    }
 }
 
 impl<'tcx> Builder<'tcx> {
     /// Get the [IrTyId] from a given [TermId]. This function will internally
     /// cache results of lowering a [TermId] into an [IrTyId] to avoid
     /// duplicate work.
-    pub(crate) fn ty_id_from_tir_term(&mut self, term: TermId) -> IrTyId {
+    pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> IrTyId {
         let ty = self.get_inferred_ty(term);
 
         let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx };
@@ -68,52 +64,129 @@ impl<'tcx> Builder<'tcx> {
         })
     }
 
+    /// Get the [IrTyId] for a give [PatId].
+    pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> IrTyId {
+        let ty = self.get_inferred_ty(pat);
+        self.ty_id_from_tir_ty(ty)
+    }
+
+    /// Get the [IrTy] for a give [PatId].
+    pub(super) fn ty_from_tir_pat(&self, pat: PatId) -> IrTy {
+        let ty = self.get_inferred_ty(pat);
+        self.ty_from_tir_ty(ty)
+    }
+
     /// Get the [IrTyId] from the given [DataTy].
     pub(super) fn lower_nominal_as_id(&self, data: DataTy) -> IrTyId {
         let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx };
         ctx.ty_id_from_tir_data(data)
     }
 
+    /// Check whether a given function call is a intrinsic indexing operation.
+    pub(super) fn tir_fn_call_is_index(&self, subject: TermId) -> bool {
+        todo!()
+    }
+
+    /// Check whether a given term is a intrinsic unary operation.
+    pub(super) fn tir_term_is_un_op(&self, subject: TermId) -> bool {
+        todo!()
+    }
+
+    /// Convert a [FnCallTerm] into an intrinsic unary operation.
+    pub(super) fn tir_fn_call_as_un_op(&self, fn_call: &FnCallTerm) -> (UnaryOp, TermId) {
+        let (op, arg) = (
+            self.stores().args().get_at_index(fn_call.args, 0).value,
+            self.stores().args().get_at_index(fn_call.args, 1).value,
+        );
+
+        // Parse the operator from the starting term as defined in `hash-intrinsics`
+        let parsed_op =
+            UnOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap()).unwrap();
+        (parsed_op.into(), arg)
+    }
+
+    /// Check whether a given term is a intrinsic binary operation.
+    ///
+    /// N.B. This does nothing for binary operations that involve the `&&` and
+    /// the `||`
+    pub(super) fn tir_fn_call_is_bool_binary_op(&self, subject: TermId) -> bool {
+        todo!()
+    }
+
+    pub(super) fn tir_term_as_bool_op(&self, term: TermId) -> Option<BoolBinOp> {
+        BoolBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(term).unwrap()).ok()
+    }
+
+    /// Convert a [FnCallTerm] into an intrinsic binary operation which
+    /// is not an "bool" binary operation.
+    ///
+    /// N.B. This does nothing for binary operations that involve the `&&` and
+    /// the `||`
+    pub(super) fn tir_fn_call_as_bool_binary_op(
+        &self,
+        fn_call: &FnCallTerm,
+    ) -> Option<(BinOp, TermId, TermId)> {
+        let (op, lhs, rhs) = (
+            self.stores().args().get_at_index(fn_call.args, 0).value,
+            self.stores().args().get_at_index(fn_call.args, 1).value,
+            self.stores().args().get_at_index(fn_call.args, 2).value,
+        );
+
+        // Parse the operator from the starting term as defined in `hash-intrinsics`
+        let value = self.try_use_term_as_integer_lit::<u8>(op).unwrap();
+
+        let parsed_op = self.tir_term_as_bool_op(op).unwrap();
+
+        // This is of been handled outside of this function.
+        if parsed_op == BoolBinOp::And || parsed_op == BoolBinOp::Or {
+            None
+        } else {
+            Some((parsed_op.into(), lhs, rhs))
+        }
+    }
+
+    /// Check whether a given term is a intrinsic binary operation.
+    pub(super) fn tir_fn_call_is_endo_binary_op(&self, subject: TermId) -> bool {
+        todo!()
+    }
+
+    /// Convert a [FnCallTerm] into an intrinsic binary operation which
+    /// is not an "endo" binary operation.
+    pub(super) fn tir_fn_call_as_endo_binary_op(
+        &self,
+        fn_call: &FnCallTerm,
+    ) -> (BinOp, TermId, TermId) {
+        let (op, lhs, rhs) = (
+            self.stores().args().get_at_index(fn_call.args, 0).value,
+            self.stores().args().get_at_index(fn_call.args, 1).value,
+            self.stores().args().get_at_index(fn_call.args, 2).value,
+        );
+
+        // Parse the operator from the starting term as defined in `hash-intrinsics`
+        let value = self.try_use_term_as_integer_lit::<u8>(op).unwrap();
+
+        let parsed_op =
+            EndoBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap()).unwrap();
+        (parsed_op.into(), lhs, rhs)
+    }
+
     /// Assuming that the provided [TermId] is a literal term, we essentially
     /// convert the term into a [Const] and return the value of the constant
     /// as a [u128]. This literal term must be an integral type.
-    pub(crate) fn evaluate_const_pat_term(&self, term: TermId) -> (Const, u128) {
-        self.stores().term().map_fast(term, |term| match term {
-            Term::Prim(PrimTerm::Lit(Lit::Int(lit))) => {
+    pub(crate) fn evaluate_const_pat(&self, pat: LitPat) -> (Const, u128) {
+        match pat {
+            LitPat::Int(lit) => {
                 let value = lit.interned_value();
 
                 CONSTANT_MAP.map_int_constant(value, |constant| {
                     (Const::Int(value), constant.value.as_u128().unwrap())
                 })
             }
-            Term::Prim(PrimTerm::Lit(Lit::Char(lit))) => {
+            LitPat::Char(lit) => {
                 let value = lit.value();
                 (Const::Char(value), u128::from(value))
             }
-            Term::Ctor(ctor_term) => {
-                let bool_value = ctor_term.ctor == self.get_bool_ctor(true);
-                (Const::Bool(bool_value), u128::from(bool_value))
-            }
             _ => unreachable!(),
-        })
-    }
-
-    /// This function will attempt to lower a provided [TermId] into a
-    /// [VariantIdx]. This function assumed that the specified term is
-    /// a [Term::Level0] enum variant which belongs to the specified adt,
-    /// otherwise the function will panic.
-    pub(crate) fn evaluate_enum_variant_as_index(&self, term: TermId) -> VariantIdx {
-        self.stores().term().map_fast(term, |term| {
-            match term {
-                Term::Ctor(ctor_term) => {
-                    // @@Verify: this seems a bit hacky to rely that all ctordefs will
-                    // have the same variant indices as the ADT, but it should hold since
-                    // they are lowered in the same order, and booleans also will have the
-                    // same variant indices as the ADT.
-                    VariantIdx::from_usize(ctor_term.ctor.1)
-                }
-                _ => unreachable!(),
-            }
-        })
+        }
     }
 }

@@ -7,14 +7,13 @@ use std::{
     iter::{self, once},
 };
 
-use hash_ast::ast;
+use hash_intrinsics::intrinsics::{BoolBinOp, EndoBinOp, UnOp};
 use hash_source::{
     constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
 };
-
 use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},
@@ -224,13 +223,12 @@ pub enum UnaryOp {
     Neg,
 }
 
-impl From<ast::UnOp> for UnaryOp {
-    fn from(value: ast::UnOp) -> Self {
+impl From<UnOp> for UnaryOp {
+    fn from(value: UnOp) -> Self {
         match value {
-            ast::UnOp::BitNot => Self::BitNot,
-            ast::UnOp::Not => Self::Not,
-            ast::UnOp::Neg => Self::Neg,
-            _ => unreachable!(),
+            UnOp::BitNot => Self::BitNot,
+            UnOp::Not => Self::Not,
+            UnOp::Neg => Self::Neg,
         }
     }
 }
@@ -341,29 +339,38 @@ impl fmt::Display for BinOp {
     }
 }
 
-impl From<ast::BinOp> for BinOp {
-    fn from(value: ast::BinOp) -> Self {
+impl From<EndoBinOp> for BinOp {
+    fn from(value: EndoBinOp) -> Self {
         match value {
-            ast::BinOp::EqEq => Self::Eq,
-            ast::BinOp::NotEq => Self::Neq,
-            ast::BinOp::BitOr => Self::BitOr,
-            ast::BinOp::BitAnd => Self::BitAnd,
-            ast::BinOp::BitXor => Self::BitXor,
-            ast::BinOp::Exp => Self::Exp,
-            ast::BinOp::Gt => Self::Gt,
-            ast::BinOp::GtEq => Self::GtEq,
-            ast::BinOp::Lt => Self::Lt,
-            ast::BinOp::LtEq => Self::LtEq,
-            ast::BinOp::Shr => Self::Shr,
-            ast::BinOp::Shl => Self::Shl,
-            ast::BinOp::Add => Self::Add,
-            ast::BinOp::Sub => Self::Sub,
-            ast::BinOp::Mul => Self::Mul,
-            ast::BinOp::Div => Self::Div,
-            ast::BinOp::Mod => Self::Mod,
-            // `As` and `Merge` are dealt with before this ever reached
-            // this point.
-            _ => unreachable!(),
+            EndoBinOp::BitOr => Self::BitOr,
+            EndoBinOp::BitAnd => Self::BitAnd,
+            EndoBinOp::BitXor => Self::BitXor,
+            EndoBinOp::Exp => Self::Exp,
+            EndoBinOp::Shr => Self::Shr,
+            EndoBinOp::Shl => Self::Shl,
+            EndoBinOp::Add => Self::Add,
+            EndoBinOp::Sub => Self::Sub,
+            EndoBinOp::Mul => Self::Mul,
+            EndoBinOp::Div => Self::Div,
+            EndoBinOp::Mod => Self::Mod,
+        }
+    }
+}
+
+impl From<BoolBinOp> for BinOp {
+    fn from(value: BoolBinOp) -> Self {
+        match value {
+            BoolBinOp::EqEq => Self::Eq,
+            BoolBinOp::NotEq => Self::Neq,
+            BoolBinOp::Gt => Self::Gt,
+            BoolBinOp::GtEq => Self::GtEq,
+            BoolBinOp::Lt => Self::Lt,
+            BoolBinOp::LtEq => Self::LtEq,
+
+            // These are converted into a control flow
+            // statements such that they respect shortcircuiting
+            // behaviour.
+            BoolBinOp::Or | BoolBinOp::And => unreachable!(),
         }
     }
 }

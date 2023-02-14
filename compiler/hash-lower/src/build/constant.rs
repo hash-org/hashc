@@ -4,43 +4,39 @@
 
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 
-use hash_ast::ast;
 use hash_ir::ir::{self, BinOp, Const, ConstKind};
 use hash_reporting::macros::panic_on_span;
-use hash_source::constant::{FloatConstant, FloatConstantValue, IntConstant, CONSTANT_MAP};
+use hash_source::{
+    constant::{FloatConstant, FloatConstantValue, IntConstant, CONSTANT_MAP},
+    location::Span,
+};
+use hash_tir::{
+    environment::env::AccessToEnv,
+    lits::{Lit, PrimTerm},
+    terms::Term,
+};
 
 use super::Builder;
 
 impl<'tcx> Builder<'tcx> {
     /// Lower a simple literal into an [ir::Const], this does not deal
     /// with literals that are arrays or other compound data structures.
-    pub(crate) fn as_constant(&mut self, lit: ast::AstNodeRef<'tcx, ast::Lit>) -> ConstKind {
-        ConstKind::Value(match lit.body {
-            ast::Lit::Str(literal) => ir::Const::Str(literal.data),
-            ast::Lit::Char(literal) => ir::Const::Char(literal.data),
-            ast::Lit::Int(literal) => ir::Const::Int(literal.value),
-            ast::Lit::Float(literal) => ir::Const::Float(literal.value),
-            ast::Lit::Bool(literal) => ir::Const::Bool(literal.data),
-            ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
-                panic_on_span!(
-                    lit.span().into_location(self.source_id),
-                    self.source_map,
-                    "cannot lower non-primitive literal into constant"
-                )
-            }
+    pub(crate) fn as_constant(&mut self, lit: &Lit) -> ConstKind {
+        ConstKind::Value(match lit {
+            Lit::Int(lit) => ir::Const::Int(lit.interned_value()),
+            Lit::Str(lit) => ir::Const::Str(lit.interned_value()),
+            Lit::Char(lit) => ir::Const::Char(lit.value()),
+            Lit::Float(lit) => ir::Const::Float(lit.interned_value()),
         })
     }
 
     /// Lower a constant expression, i.e. a literal value.
-    pub(crate) fn lower_constant_expr(
-        &mut self,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
-    ) -> ConstKind {
-        match expr.body {
-            ast::Expr::Lit(ast::LitExpr { data }) => self.as_constant(data.ast_ref()),
+    pub(crate) fn lower_constant_expr(&mut self, term: &Term, span: Span) -> ConstKind {
+        match term {
+            Term::Prim(PrimTerm::Lit(lit)) => self.as_constant(lit),
             _ => panic_on_span!(
-                expr.span().into_location(self.source_id),
-                self.source_map,
+                span.into_location(self.source_id),
+                self.source_map(),
                 "cannot lower non-literal expression into constant"
             ),
         }

@@ -534,6 +534,7 @@ dependencies = [
  "fixedbitset",
  "hash-alloc",
  "hash-ast",
+ "hash-intrinsics",
  "hash-source",
  "hash-target",
  "hash-tir",

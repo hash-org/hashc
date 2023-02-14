@@ -16,7 +16,7 @@ use hash_tir::{
     },
     environment::context::{BindingKind, ParamOrigin, ScopeKind},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
-    lits::{ArrayPat, ListCtor, Lit, PrimTerm},
+    lits::{ArrayCtor, ArrayPat, Lit, PrimTerm},
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
     params::{Param, ParamData, ParamsId},
@@ -504,7 +504,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     data_def: self.primitives().list(),
                     args: self.new_args(&[self.new_term(inferred_list_inner_ty)]),
                 });
-                Ok((PrimTerm::Array(ListCtor { elements: inferred_list }), list_ty))
+                Ok((PrimTerm::Array(ArrayCtor { elements: inferred_list }), list_ty))
             }
         }
     }

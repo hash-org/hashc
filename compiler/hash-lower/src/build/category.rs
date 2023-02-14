@@ -1,7 +1,9 @@
 //! Defines a category of AST expressions which can be used to determine how to
 //! lower them throughout the lowering stage.
 
-use hash_ast::ast;
+use hash_tir::{fns::FnCallTerm, lits::PrimTerm, terms::Term};
+
+use super::Builder;
 
 /// A [Category] represents what category [ast::Expr]s belong to
 /// when they are being lowered. Depending on the category, we
@@ -24,21 +26,21 @@ pub(crate) enum Category {
 
 /// Determines the category for a given expression. Note that scope
 /// and paren expressions have no category.
-impl Category {
-    pub(crate) fn of(expr: ast::AstNodeRef<'_, ast::Expr>) -> Self {
-        match expr.body() {
+impl<'tcx> Builder<'tcx> {
+    /// Compute the [Category of a given term].
+    pub(crate) fn category_of_term(&self, term: &Term) -> Category {
+        match term {
             // Constants that are not primitive are dealt with as
             // RValues.
-            ast::Expr::Lit(ast::LitExpr { data }) if data.is_primitive() => Self::Constant,
+            Term::Prim(PrimTerm::Lit { .. }) => Category::Constant,
 
-            ast::Expr::Access(..)
-            | ast::Expr::Index(..)
-            | ast::Expr::Ref(..)
-            | ast::Expr::Deref(..)
-            | ast::Expr::Variable(..) => Self::Place,
+            Term::FnCall(FnCallTerm { subject, .. }) if self.tir_fn_call_is_index(*subject) => {
+                Category::Place
+            }
+            Term::Access(..) | Term::Ref(..) | Term::Deref(..) | Term::Var(..) => Category::Place,
 
             // Everything else is considered as an RValue of some kind.
-            _ => Self::RValue,
+            _ => Category::RValue,
         }
     }
 }

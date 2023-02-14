@@ -1,61 +1,67 @@
 //! Module that contains logic for handling and creating [RValue]s from
-//! [ast::Expr]s.
+//! [Term]s.
 
-use hash_ast::ast;
 use hash_ir::{
-    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnevaluatedConst},
+    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
     ty::{IrTy, Mutability},
 };
 use hash_source::{
     constant::{IntConstant, IntTy, CONSTANT_MAP},
     location::Span,
 };
-use hash_tir::old::scope::ScopeKind;
-use hash_utils::store::Store;
+use hash_tir::{
+    environment::env::AccessToEnv,
+    fns::FnCallTerm,
+    lits::{ArrayCtor, PrimTerm},
+    terms::{Term, TermId},
+    utils::common::CommonUtils,
+};
+use hash_utils::store::{CloneStore, Store};
 
 use super::{category::Category, unpack, BlockAnd, BlockAndExtend, Builder};
 
 impl<'tcx> Builder<'tcx> {
     /// Construct an [RValue] from the given [ast::Expr].
-    pub(crate) fn as_rvalue(
-        &mut self,
-        mut block: BasicBlock,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
-    ) -> BlockAnd<RValue> {
-        match expr.body {
-            ast::Expr::Lit(lit) => {
-                let value = self.as_constant(lit.data.ast_ref()).into();
+    pub(crate) fn as_rvalue(&mut self, mut block: BasicBlock, term_id: TermId) -> BlockAnd<RValue> {
+        // @@Temporary: replace with get_ref();
+        let term = self.stores().term().get(term_id);
+        let span = self.get_location(term_id).unwrap().span;
+
+        let mut as_operand = |this: &mut Self| {
+            // Verify that this is an actual RValue...
+            debug_assert!(!matches!(
+                this.category_of_term(&term),
+                Category::RValue | Category::Constant
+            ));
+
+            let operand = unpack!(block = this.as_operand(block, term_id, Mutability::Mutable));
+            block.and(RValue::Use(operand))
+        };
+
+        match term {
+            Term::Prim(PrimTerm::Lit(lit)) => {
+                let value = self.as_constant(&lit).into();
                 block.and(value)
             }
-
-            // @@SpecialCase: if this is a variable, and it is not in scope,
-            // then we essentially assume that it is a zero-sized constant type.
-            ast::Expr::Variable(variable) if self.lookup_local(variable.name.ident).is_none() => {
-                let ty = self.ty_id_of_node(expr.id());
-                let value = Const::Zero(ty).into();
-
-                block.and(value)
+            Term::Prim(PrimTerm::Array(ArrayCtor { .. })) => {
+                todo!()
             }
+            Term::FnCall(fn_call @ FnCallTerm { subject, .. })
+                if self.tir_term_is_un_op(subject) =>
+            {
+                let (op, subject) = self.tir_fn_call_as_un_op(&fn_call);
 
-            ast::Expr::UnaryExpr(ast::UnaryExpr { operator, expr }) => {
-                // If the unary operator is a typeof, we should have already dealt with
-                // this...
-                if matches!(operator.body(), ast::UnOp::TypeOf) {
-                    panic!("`typeof` should have been handled already");
-                }
-
-                let arg =
-                    unpack!(block = self.as_operand(block, expr.ast_ref(), Mutability::Mutable));
+                let arg = unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
 
                 // If the operator is a negation, and the operand is signed, we can have a
                 // case of overflow. This occurs when the operand is the minimum value for
                 // the type, and a negation occurs. This causes the value to overflow. We
                 // check for this case here, and emit an assertion check for this (assuming
                 // checked operations are enabled).
-                let ty = self.ty_of_node(expr.id());
+                let ty = self.ty_from_tir_term(term_id);
 
                 if self.settings.lowering_settings().checked_operations
-                    && matches!(operator.body(), ast::UnOp::Neg)
+                    && matches!(op, UnaryOp::Neg)
                     && ty.is_signed()
                 {
                     let min_value = self.min_value_of_ty(ty);
@@ -65,7 +71,7 @@ impl<'tcx> Builder<'tcx> {
                         block,
                         is_min,
                         RValue::BinaryOp(BinOp::Eq, Box::new((arg, min_value))),
-                        expr.span(),
+                        span,
                     );
 
                     block = self.assert(
@@ -73,60 +79,61 @@ impl<'tcx> Builder<'tcx> {
                         is_min.into(),
                         false,
                         AssertKind::NegativeOverflow { operand: arg },
-                        expr.span(),
+                        span,
                     );
                 }
 
-                block.and(RValue::UnaryOp((*operator.body()).into(), arg))
+                block.and(RValue::UnaryOp(op, arg))
             }
-            ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator }) => {
-                let lhs =
-                    unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Mutable));
-                let rhs =
-                    unpack!(block = self.as_operand(block, rhs.ast_ref(), Mutability::Mutable));
 
-                return self.build_binary_op(
-                    block,
-                    self.ty_of_node(expr.id()),
-                    expr.span,
-                    (*operator.body()).into(),
-                    lhs,
-                    rhs,
-                );
-            }
-            ast::Expr::Variable(_)
-            | ast::Expr::ConstructorCall(_)
-            | ast::Expr::Directive(_)
-            | ast::Expr::Declaration(_)
-            | ast::Expr::Access(_)
-            | ast::Expr::Ref(_)
-            | ast::Expr::Deref(_)
-            | ast::Expr::Unsafe(_)
-            | ast::Expr::Cast(_)
-            | ast::Expr::Block(_)
-            | ast::Expr::Import(_)
-            | ast::Expr::StructDef(_)
-            | ast::Expr::EnumDef(_)
-            | ast::Expr::TyFnDef(_)
-            | ast::Expr::TraitDef(_)
-            | ast::Expr::ImplDef(_)
-            | ast::Expr::ModDef(_)
-            | ast::Expr::FnDef(_)
-            | ast::Expr::Ty(_)
-            | ast::Expr::Return(_)
-            | ast::Expr::Break(_)
-            | ast::Expr::Continue(_)
-            | ast::Expr::Index(_)
-            | ast::Expr::Assign(_)
-            | ast::Expr::AssignOp(_)
-            | ast::Expr::MergeDeclaration(_)
-            | ast::Expr::TraitImpl(_) => {
-                // Verify that this is an actual RValue...
-                debug_assert!(!matches!(Category::of(expr), Category::RValue | Category::Constant));
+            Term::FnCall(fn_call @ FnCallTerm { subject, .. })
+                if self.tir_fn_call_is_endo_binary_op(subject) =>
+            {
+                let (operator, lhs_term, rhs_term) = self.tir_fn_call_as_endo_binary_op(&fn_call);
+                let lhs = unpack!(block = self.as_operand(block, lhs_term, Mutability::Mutable));
+                let rhs = unpack!(block = self.as_operand(block, rhs_term, Mutability::Mutable));
 
-                let operand = unpack!(block = self.as_operand(block, expr, Mutability::Mutable));
-                block.and(RValue::Use(operand))
+                let ty = self.ty_from_tir_term(term_id);
+                self.build_binary_op(block, ty, span, operator, lhs, rhs)
             }
+            // @@Note: short-circuiting binary operations are handled down below,
+            // they aren't treated as a function call.
+            Term::FnCall(fn_call @ FnCallTerm { subject, .. })
+                if self.tir_fn_call_is_bool_binary_op(subject) =>
+            {
+                // If we have a binary operator that is short-circuiting, we need to
+                // handle it outside of this function...
+                let Some((operator, lhs_term, rhs_term)) = self.tir_fn_call_as_bool_binary_op(&fn_call) else {
+                    return as_operand(self);
+                };
+
+                let lhs = unpack!(block = self.as_operand(block, lhs_term, Mutability::Mutable));
+                let rhs = unpack!(block = self.as_operand(block, rhs_term, Mutability::Mutable));
+
+                let ty = self.ty_from_tir_term(term_id);
+                self.build_binary_op(block, ty, span, operator, lhs, rhs)
+            }
+
+            Term::Tuple(_)
+            | Term::Ctor(_)
+            | Term::FnCall(_)
+            | Term::FnRef(_)
+            | Term::Block(_)
+            | Term::Var(_)
+            | Term::Loop(_)
+            | Term::LoopControl(_)
+            | Term::Match(_)
+            | Term::Return(_)
+            | Term::Decl(_)
+            | Term::Assign(_)
+            | Term::Unsafe(_)
+            | Term::Access(_)
+            | Term::Cast(_)
+            | Term::TypeOf(_)
+            | Term::Ty(_)
+            | Term::Ref(_)
+            | Term::Deref(_)
+            | Term::Hole(_) => as_operand(self),
         }
     }
 
@@ -134,7 +141,8 @@ impl<'tcx> Builder<'tcx> {
     /// signed integer type.
     fn min_value_of_ty(&self, ty: IrTy) -> Operand {
         let value = if let IrTy::Int(signed_ty) = ty {
-            let size = signed_ty.size(self.tcx.pointer_width).unwrap().bits();
+            let ptr_width = self.settings.target().pointer_bit_width / 8;
+            let size = signed_ty.size(ptr_width).unwrap().bits();
             let n = 1 << (size - 1);
 
             // Create and intern the constant
@@ -155,9 +163,12 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn as_operand(
         &mut self,
         mut block: BasicBlock,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
+        term_id: TermId,
         mutability: Mutability,
     ) -> BlockAnd<Operand> {
+        let term = self.stores().term().get(term_id);
+        let span = self.span_of_term(term_id);
+
         // We want to deal with variables in a special way since they might
         // be referencing values that are outside of the the body, i.e. un-evaluated
         // constants. In this case, we want to just create a constant value that is
@@ -166,32 +177,21 @@ impl<'tcx> Builder<'tcx> {
         // @@Future: would be nice to remove this particular check and somehow deal with
         // these differently, possibly some kind of additional syntax or a flag to
         // denote when some variable refers to a constant value.
-        if let ast::Expr::Variable(variable) = expr.body {
-            let name = variable.name.ident;
-
-            let ty_id = self.ty_id_of_node(expr.id());
+        if let Term::Var(_) = term {
+            let ty_id = self.ty_id_from_tir_term(term_id);
 
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
             if self.ctx.map_ty(ty_id, |ty| matches!(ty, IrTy::FnDef { .. })) {
                 return block.and(Operand::Const(Const::Zero(ty_id).into()));
             }
-
-            if let Some((scope, _, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
-                let unevaluated_const = UnevaluatedConst { scope, name };
-
-                // record that this constant is used in this function
-                self.needed_constants.push(unevaluated_const);
-
-                return block.and(ConstKind::Unevaluated(unevaluated_const).into());
-            }
         }
 
-        match Category::of(expr) {
+        match self.category_of_term(&term) {
             // Just directly recurse and create the constant.
-            Category::Constant => block.and(self.lower_constant_expr(expr).into()),
+            Category::Constant => block.and(self.lower_constant_expr(&term, span).into()),
             Category::Place | Category::RValue => {
-                let place = unpack!(block = self.as_place(block, expr, mutability));
+                let place = unpack!(block = self.as_place(block, term_id, mutability));
                 block.and(place.into())
             }
         }
