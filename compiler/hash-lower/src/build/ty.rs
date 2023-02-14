@@ -11,13 +11,13 @@ use hash_intrinsics::{
 };
 use hash_ir::{
     ir::{self, Const},
-    ty::{IrTy, IrTyId},
+    ty::{Instance, IrTy, IrTyId},
 };
 use hash_source::constant::CONSTANT_MAP;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     environment::env::AccessToEnv,
-    fns::FnCallTerm,
+    fns::{FnCallTerm, FnDefId, FnTy},
     lits::LitPat,
     pats::PatId,
     terms::{Term, TermId},
@@ -81,6 +81,28 @@ impl<'tcx> Builder<'tcx> {
     /// Get the [IrTy] from a given [TermId].
     pub(super) fn ty_from_tir_term(&mut self, term: TermId) -> IrTy {
         self.ty_from_tir_ty(self.get_inferred_ty(term))
+    }
+
+    /// Create an [`IrTy::FnDef`] from the given [FnDefId].
+    pub(super) fn ty_id_from_tir_fn_def(&mut self, def: FnDefId) -> IrTyId {
+        let (symbol, ty) = self.stores().fn_def().map_fast(def, |fn_def| (fn_def.name, fn_def.ty));
+
+        let name = self.symbol_name(symbol);
+        let source = self.get_location(def).map(|location| location.id);
+        let FnTy { params, return_ty, .. } = ty;
+
+        // Lower the parameters and the return type
+        let param_tys = self.stores().params().get_vec(params);
+
+        let params = self
+            .ctx
+            .tls()
+            .create_from_iter(param_tys.iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
+        let ret_ty = self.ty_id_from_tir_ty(return_ty);
+
+        let instance = self.ctx.instances().create(Instance::new(name, source, params, ret_ty));
+
+        self.ctx.tys().create(IrTy::FnDef { instance })
     }
 
     /// Get the [IrTyId] from a given [TyId]. This function will internally

@@ -207,7 +207,7 @@ impl<'tcx> Builder<'tcx> {
             }
             Pat::Lit(lit) => {
                 let value = constify_lit_pat(lit);
-                let ty = self.ty_id_from_tir_ty(self.get_inferred_ty(pair.pat));
+                let ty = self.ty_id_from_tir_pat(pair.pat);
 
                 // If it is not an integral constant, we use an `Eq` test. This will
                 // happen when the constant is either a float or a string.

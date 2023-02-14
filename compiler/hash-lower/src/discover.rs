@@ -68,10 +68,10 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
                             continue;
                         }
 
-                        fns.add_fn(fn_def_id);
-
                         match fn_def.body {
                             FnBody::Defined(body) => {
+                                fns.add_fn(fn_def_id);
+
                                 // Add all nested functions too
                                 let inferred_body = self.get_inferred_value(body);
                                 self.add_all_child_fns(inferred_body, &mut fns);

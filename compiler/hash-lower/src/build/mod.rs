@@ -333,11 +333,9 @@ impl<'ctx> Builder<'ctx> {
 
         // Compute the span of the item that was just lowered.
         let span = match self.item {
-            BuildItem::FnDef(def) => self.get_location(def),
-            BuildItem::Const(term) => self.get_location(term),
-        }
-        .unwrap()
-        .span;
+            BuildItem::FnDef(def) => self.span_of_def(def),
+            BuildItem::Const(term) => self.span_of_term(term),
+        };
 
         Body::new(
             self.control_flow_graph.basic_blocks,
@@ -351,7 +349,10 @@ impl<'ctx> Builder<'ctx> {
 
     pub(crate) fn build(&mut self) {
         // lower the initial type and the create a
-        let ty = self.ty_id_from_tir_term(self.item.as_const());
+        let ty = match self.item {
+            BuildItem::FnDef(fn_def) => self.ty_id_from_tir_fn_def(fn_def),
+            BuildItem::Const(item) => self.ty_id_from_tir_term(item),
+        };
         self.info.set_ty(ty);
 
         // If it is a function type, then we use the return type of the
@@ -431,7 +432,7 @@ impl<'ctx> Builder<'ctx> {
         // Now that we have built the inner body block, we then need to terminate
         // the current basis block with a return terminator.
         let return_block = unpack!(self.term_into_dest(Place::return_place(self.ctx), start, body));
-        let span = self.get_location(body).unwrap().span;
+        let span = self.span_of_term(body);
 
         self.control_flow_graph.terminate(return_block, span, TerminatorKind::Return);
     }

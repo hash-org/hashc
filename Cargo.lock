@@ -597,6 +597,7 @@ dependencies = [
  "hash-tree-def",
  "hash-utils",
  "indexmap",
+ "log",
  "num-traits",
  "rayon",
  "smallvec",

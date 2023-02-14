@@ -44,8 +44,8 @@ impl<'tcx> Builder<'tcx> {
         mut block: BasicBlock,
         term_id: TermId,
     ) -> BlockAnd<()> {
-        let span = self.get_location(term_id).unwrap().span;
         let term = self.stores().term().get(term_id);
+        let span = self.span_of_term(term_id);
 
         let block_and = match &term {
             // // This includes `loop { ... } `, `{ ... }`, `match { ... }`

@@ -13,7 +13,6 @@ use hash_tir::{
     environment::env::AccessToEnv,
     lits::{ArrayCtor, PrimTerm},
     terms::{Term, TermId},
-    utils::common::CommonUtils,
 };
 use hash_utils::store::{CloneStore, Store};
 
@@ -24,7 +23,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn as_rvalue(&mut self, mut block: BasicBlock, term_id: TermId) -> BlockAnd<RValue> {
         // @@Temporary: replace with get_ref();
         let term = self.stores().term().get(term_id);
-        let span = self.get_location(term_id).unwrap().span;
+        let span = self.span_of_term(term_id);
 
         let mut as_operand = |this: &mut Self| {
             // Verify that this is an actual RValue...

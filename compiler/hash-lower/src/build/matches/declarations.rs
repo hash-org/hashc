@@ -17,7 +17,6 @@ use hash_tir::{
     symbols::Symbol,
     terms::TermId,
     tuples::TuplePat,
-    utils::common::CommonUtils,
 };
 use hash_utils::store::{CloneStore, SequenceStore};
 
@@ -89,7 +88,7 @@ impl<'tcx> Builder<'tcx> {
         pat_id: PatId,
         f: &mut impl FnMut(&mut Self, Mutability, Symbol, Span, IrTyId),
     ) {
-        let span = self.get_location(pat_id).unwrap().span;
+        let span = self.span_of_pat(pat_id);
         let pat = self.stores().pat().get(pat_id);
 
         match pat {

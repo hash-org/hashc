@@ -12,21 +12,38 @@ use hash_source::{
     location::Span,
 };
 use hash_tir::{
-    environment::env::AccessToEnv, pats::PatId, symbols::Symbol, terms::TermId,
+    environment::env::AccessToEnv, fns::FnDefId, pats::PatId, symbols::Symbol, terms::TermId,
     utils::common::CommonUtils,
 };
 
 use super::{Builder, LocalKey};
 
+// @@Temporary: use this for terms that don't have a location
+const DUMMY_SPAN: Span = Span::new(0, 0);
+
 impl<'tcx> Builder<'tcx> {
     /// Get the [Span] of a given [PatId].
     pub(crate) fn span_of_pat(&self, id: PatId) -> Span {
-        self.get_location(id).map(|loc| loc.span).unwrap()
+        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+            log::info!("expected pattern `{}` to have a location", self.env().with(id));
+            DUMMY_SPAN
+        })
+    }
+
+    /// Get the [Span] of a [FnDefId].
+    pub(crate) fn span_of_def(&self, id: FnDefId) -> Span {
+        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+            log::info!("expected function definition `{}` to have a location", self.env().with(id));
+            DUMMY_SPAN
+        })
     }
 
     /// Get the [Span] of a given [TermId].
     pub(crate) fn span_of_term(&self, id: TermId) -> Span {
-        self.get_location(id).map(|loc| loc.span).unwrap()
+        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+            log::info!("expected term `{:?}` to have a location", self.env().with(id));
+            DUMMY_SPAN
+        })
     }
 
     /// Create a [LocalKey] from a [Symbol].

@@ -17,13 +17,13 @@ pub struct Span(u32, u32);
 
 impl Span {
     /// Create a [Span] by providing a start and end byte position.
-    pub fn new(start: usize, end: usize) -> Self {
+    pub const fn new(start: usize, end: usize) -> Self {
         debug_assert!(
             end >= start,
             "Got invalid span for Span::new. Start needs to be smaller than end."
         );
 
-        Span(start.try_into().unwrap(), end.try_into().unwrap())
+        Span(start as u32, end as u32)
     }
 
     /// This function is used to join a [Span] to another [Span]. The assumption

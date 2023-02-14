@@ -119,8 +119,8 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
             // Get the source of the symbol therefore that way
             // we can get the source id of the function.
-            let Some(SourceLocation { id, .. }) = discoverer.get_location(symbol) else {
-                panic!("function has no defined source location");
+            let Some(SourceLocation { id, .. }) = discoverer.get_location(func) else {
+                panic!("function `{name}` has no defined source location");
             };
 
             let tcx = Tcx::new(&env, semantic_storage);

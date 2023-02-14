@@ -180,3 +180,9 @@ impl fmt::Display for WithEnv<'_, TermListId> {
         })
     }
 }
+
+impl fmt::Debug for WithEnv<'_, TermId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.env().stores().term().get(self.value))
+    }
+}

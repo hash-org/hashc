@@ -18,9 +18,10 @@ use hash_ir::{
 use hash_source::location::Span;
 use hash_tir::{
     control::{IfPat, MatchCasesId},
-    environment::env::AccessToEnv,
+    environment::{context::ScopeKind, env::AccessToEnv},
     pats::{Pat, PatId},
     terms::{Term, TermId},
+    utils::context::ContextUtils,
 };
 use hash_utils::{
     itertools::Itertools,
@@ -188,8 +189,15 @@ impl<'tcx> Builder<'tcx> {
         let mut lowered_arms_edges: Vec<_> = Vec::with_capacity(arm_candidates.len());
 
         for (arm, candidate) in arm_candidates {
-            let arm_block = self.bind_pat(subject_span, arm.bind_pat, candidate);
-            lowered_arms_edges.push(self.term_into_dest(destination, arm_block, arm.value));
+            // Each match-case creates its own scope, so we need to enter it here...
+            ContextUtils::<'_>::enter_resolved_scope_mut(
+                self,
+                ScopeKind::Stack(arm.stack_id),
+                |this| {
+                    let arm_block = this.bind_pat(subject_span, arm.bind_pat, candidate);
+                    lowered_arms_edges.push(this.term_into_dest(destination, arm_block, arm.value));
+                },
+            )
         }
 
         // After the execution of the match, all branches end up here...
