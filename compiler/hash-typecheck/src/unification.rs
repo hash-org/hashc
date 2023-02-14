@@ -104,7 +104,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
         let src = self.get_ty(src_id);
         let target = self.get_ty(target_id);
 
-        match (src, target) {
+        let result = match (src, target) {
             (Ty::Data(data_ty), _) if data_ty.data_def == self.primitives().never() => {
                 Uni::ok(target_id)
             }
@@ -203,7 +203,10 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             (Ty::Universe(u1), Ty::Universe(u2)) => {
                 Uni::ok_iff_types_match(u1.size == u2.size, src_id, target_id)
             }
-        }
+        }?;
+
+        self.stores().location().copy_location(src_id, result.result);
+        Ok(result)
     }
 
     /// Unify two terms.
@@ -225,7 +228,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
 
-        match (self.try_use_term_as_ty(src_id), self.try_use_term_as_ty(target_id)) {
+        let result = match (self.try_use_term_as_ty(src_id), self.try_use_term_as_ty(target_id)) {
             (Some(src_ty), Some(target_ty)) => {
                 let uni = self.unify_tys(src_ty, target_ty)?;
                 Ok(uni.map_result(|t| self.new_term(t)))
@@ -318,7 +321,9 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 }
                 _ => Uni::mismatch_terms(src_id, target_id),
             },
-        }
+        }?;
+        self.stores().location().copy_location(src_id, result.result);
+        Ok(result)
     }
 
     /// Reduce an iterator of unifications into a single unification.

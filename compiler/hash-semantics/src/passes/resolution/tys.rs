@@ -387,6 +387,7 @@ impl<'tc> ResolutionPass<'tc> {
         };
 
         self.ast_info().tys().insert(node.id(), ty_id);
+        self.stores().location().add_location_to_target(ty_id, self.node_location(node));
         Ok(ty_id)
     }
 }

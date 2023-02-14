@@ -30,7 +30,7 @@ use hash_utils::{
 
 use crate::{
     errors::{TcError, TcResult},
-    AccessToTypechecking,
+    AccessToTypechecking, IntrinsicAbilitiesWrapper,
 };
 
 #[derive(Constructor, Deref)]
@@ -102,7 +102,11 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Evaluate an atom.
     fn eval(&self, atom: Atom) -> Result<Atom, Signal> {
-        self.traversing_utils().fmap_atom(atom, |atom| self.eval_once(atom))
+        let mut traversal = self.traversing_utils();
+        traversal.set_visit_fns_once(false);
+        let result = traversal.fmap_atom(atom, |atom| self.eval_once(atom))?;
+        self.stores().location().copy_location(atom, result);
+        Ok(result)
     }
 
     /// Evaluate a block term.
@@ -250,7 +254,14 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
         // Infer the type of the term:
         match self.try_get_inferred_ty(type_of_term.term) {
             Some(ty) => Ok(ty.into()),
-            None => Ok(self.new_term(type_of_term).into()),
+            None => {
+                // Ask the type checker to infer the type:
+                let (inferred_term, inferred_ty) =
+                    self.inference_ops().infer_term(type_of_term.term, self.new_ty_hole())?;
+                self.register_atom_inference(type_of_term.term, inferred_term, inferred_ty);
+
+                Ok(inferred_ty.into())
+            }
         }
     }
 
@@ -479,7 +490,10 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                             .implementations
                             .map_fast(intrinsic_id, |intrinsic| {
                                 let intrinsic = intrinsic.unwrap();
-                                (intrinsic.implementation)(self.0, &args_as_terms)
+                                (intrinsic.implementation)(
+                                    &IntrinsicAbilitiesWrapper { tc: self.0 },
+                                    &args_as_terms,
+                                )
                             })
                             .map_err(TcError::Intrinsic)?;
 

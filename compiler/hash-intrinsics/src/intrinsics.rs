@@ -20,7 +20,7 @@ use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
-    primitives::AccessToPrimitives,
+    primitives::{AccessToPrimitives, DefinedPrimitives},
     utils::{LitTy, PrimitiveUtils},
 };
 
@@ -42,7 +42,30 @@ pub struct Intrinsic {
     pub implementation: IntrinsicImpl,
 }
 
-pub type IntrinsicImpl = fn(&(dyn AccessToPrimitives), &[TermId]) -> Result<TermId, String>;
+pub trait IntrinsicAbilities {
+    /// Normalise a term fully.
+    fn normalise_term(&self, term: TermId) -> Result<TermId, String>;
+
+    /// Get the current environment.
+    fn env(&self) -> &Env;
+
+    /// Get the current primitives.
+    fn primitives(&self) -> &DefinedPrimitives;
+}
+
+impl AccessToEnv for dyn IntrinsicAbilities + '_ {
+    fn env(&self) -> &Env {
+        <Self as IntrinsicAbilities>::env(self)
+    }
+}
+
+impl AccessToPrimitives for dyn IntrinsicAbilities + '_ {
+    fn primitives(&self) -> &DefinedPrimitives {
+        <Self as IntrinsicAbilities>::primitives(self)
+    }
+}
+
+pub type IntrinsicImpl = fn(&(dyn IntrinsicAbilities), &[TermId]) -> Result<TermId, String>;
 
 macro_rules! defined_intrinsics {
     ($($name:ident),* $(,)?) => {
@@ -87,6 +110,7 @@ defined_intrinsics! {
     un_op,
     abort,
     user_error,
+    eval,
     debug_print,
     print_fn_directives,
 }
@@ -194,7 +218,7 @@ impl DefinedIntrinsics {
             implementations,
             "un_op",
             FnTy::builder().params(params).return_ty(ret).build(),
-            |env, args| {
+            move |env, args| {
                 const INVALID_OP: &str = "Invalid unary operation parameters";
 
                 // Parse the arguments
@@ -695,6 +719,23 @@ impl DefinedIntrinsics {
             )
         };
 
+        let eval = {
+            let t_sym = env.new_symbol("T");
+            let a_sym = env.new_symbol("a");
+            let params = env.param_utils().create_params(
+                [
+                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
+                ]
+                .into_iter(),
+            );
+            let ret = env.new_ty(t_sym);
+            add("eval", FnTy::builder().params(params).return_ty(ret).build(), |env, args| {
+                let evaluated = env.normalise_term(args[1])?;
+                Ok(evaluated)
+            })
+        };
+
         // Primitive type equality
         let prim_type_eq_op = Self::add_prim_type_eq_op(env, &implementations);
 
@@ -708,6 +749,7 @@ impl DefinedIntrinsics {
         let un_op = Self::add_un_op_intrinsic(env, &implementations);
 
         DefinedIntrinsics {
+            eval,
             implementations,
             print_fn_directives,
             prim_type_eq_op,

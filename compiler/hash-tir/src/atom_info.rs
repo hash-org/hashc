@@ -12,6 +12,10 @@ use super::{
     terms::TermId,
     tys::TyId,
 };
+use crate::{
+    fns::{FnDefId, FnTy},
+    locations::{IndexedLocationTarget, LocationTarget},
+};
 
 /// Information about an atom in the program.
 ///
@@ -59,6 +63,11 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
         self.data().insert(value, AtomInfo::with_original_ty(value, ty));
     }
 
+    /// Whether the given value is already registered.
+    fn atom_is_registered(&self, value: Item) -> bool {
+        self.data().has(value)
+    }
+
     /// Get the atom info for the given value, if it exists.
     fn try_get_atom_info(&self, value: Item) -> Option<AtomInfo<Item, ItemTy>> {
         self.data().get(value)
@@ -96,7 +105,12 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
     }
 
     /// Register the inferred value and type, for the given value.
-    fn register_atom_inference(&self, key: Item, inferred: Item, inferred_ty: ItemTy) {
+    fn register_atom_inference_without_location(
+        &self,
+        key: Item,
+        inferred: Item,
+        inferred_ty: ItemTy,
+    ) {
         let is_present = self.data().modify_fast(key, |info| match info {
             Some(info) => {
                 info.inferred = Some((inferred, inferred_ty));
@@ -112,6 +126,34 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
                 AtomInfo { original: (key, None), inferred: Some((inferred, inferred_ty)) },
             );
         }
+
+        if key != inferred {
+            // Set the mapping from the inferred value to itself too.
+            self.register_atom_inference_without_location(inferred, inferred, inferred_ty)
+        }
+    }
+
+    /// Register the inferred value and type, for the given value.
+    fn register_atom_inference_indexed(&self, key: Item, inferred: Item, inferred_ty: ItemTy)
+    where
+        Item: Into<IndexedLocationTarget>,
+    {
+        self.register_atom_inference_without_location(key, inferred, inferred_ty);
+        self.stores().location().copy_locations(key.into(), inferred.into());
+
+        if key != inferred {
+            // Set the mapping from the inferred value to itself too.
+            self.register_atom_inference_indexed(inferred, inferred, inferred_ty)
+        }
+    }
+
+    /// Register the inferred value and type, for the given value.
+    fn register_atom_inference(&self, key: Item, inferred: Item, inferred_ty: ItemTy)
+    where
+        Item: Into<LocationTarget>,
+    {
+        self.register_atom_inference_without_location(key, inferred, inferred_ty);
+        self.stores().location().copy_location(key.into(), inferred.into());
 
         if key != inferred {
             // Set the mapping from the inferred value to itself too.
@@ -168,4 +210,5 @@ atom_info! {
     pats: <PatId, TyId>,
     args: <ArgsId, ParamsId>,
     pat_args: <PatArgsId, ParamsId>,
+    fns: <FnDefId, FnTy>
 }
