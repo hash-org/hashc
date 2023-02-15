@@ -1,6 +1,5 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashMap};
 
-use bimap::BiMap;
 use hash_source::location::{SourceLocation, Span};
 use hash_utils::store::SequenceStoreKey;
 
@@ -133,7 +132,7 @@ location_targets! {
 /// since the inner map is behind an [Rc<T>].
 #[derive(Debug, Default)]
 pub struct LocationStore {
-    data: RefCell<BiMap<LocationTarget, SourceLocation>>,
+    data: RefCell<HashMap<LocationTarget, SourceLocation>>,
 }
 
 impl LocationStore {
@@ -167,7 +166,7 @@ impl LocationStore {
 
     /// Get a [SourceLocation] from a specified [LocationTarget]
     pub fn get_location(&self, target: impl Into<LocationTarget>) -> Option<SourceLocation> {
-        self.data.borrow().get_by_left(&target.into()).copied()
+        self.data.borrow().get(&target.into()).copied()
     }
 
     /// Get the associated [Span] with from the specified [LocationTarget]
