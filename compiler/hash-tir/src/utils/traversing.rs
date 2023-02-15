@@ -426,24 +426,25 @@ impl<'env> TraversingUtils<'env> {
             ControlFlow::Break(fn_def_id) => Ok(FnDefId::try_from(fn_def_id).unwrap()),
             ControlFlow::Continue(()) => {
                 let fn_def = self.get_fn_def(fn_def_id);
-                Ok(self.fn_utils().create_fn_def(FnDefData {
-                    name: fn_def.name,
 
-                    ty: {
-                        let fn_ty = fn_def.ty;
-                        FnTy {
-                            params: self.fmap_params(fn_ty.params, f)?,
-                            return_ty: self.fmap_ty(fn_ty.return_ty, f)?,
-                            implicit: fn_ty.implicit,
-                            is_unsafe: fn_ty.is_unsafe,
-                            pure: fn_ty.pure,
-                        }
-                    },
-                    body: match fn_def.body {
-                        FnBody::Defined(defined) => FnBody::Defined(self.fmap_term(defined, f)?),
-                        FnBody::Intrinsic(_) | FnBody::Axiom => fn_def.body, // no-op
-                    },
-                }))
+                match fn_def.body {
+                    FnBody::Defined(defined) => Ok(self.fn_utils().create_fn_def(FnDefData {
+                        name: fn_def.name,
+
+                        ty: {
+                            let fn_ty = fn_def.ty;
+                            FnTy {
+                                params: self.fmap_params(fn_ty.params, f)?,
+                                return_ty: self.fmap_ty(fn_ty.return_ty, f)?,
+                                implicit: fn_ty.implicit,
+                                is_unsafe: fn_ty.is_unsafe,
+                                pure: fn_ty.pure,
+                            }
+                        },
+                        body: FnBody::Defined(self.fmap_term(defined, f)?),
+                    })),
+                    FnBody::Intrinsic(_) | FnBody::Axiom => Ok(fn_def_id),
+                }
             }
         }?;
 
