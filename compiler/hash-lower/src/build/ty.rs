@@ -162,9 +162,9 @@ impl<'tcx> Builder<'tcx> {
                     FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().endo_bin_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 0).value,
                         self.stores().args().get_at_index(*args, 1).value,
                         self.stores().args().get_at_index(*args, 2).value,
+                        self.stores().args().get_at_index(*args, 3).value,
                     );
 
                     let op =
@@ -173,9 +173,9 @@ impl<'tcx> Builder<'tcx> {
                     FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().bool_bin_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 0).value,
                         self.stores().args().get_at_index(*args, 1).value,
                         self.stores().args().get_at_index(*args, 2).value,
+                        self.stores().args().get_at_index(*args, 3).value,
                     );
 
                     let op =
