@@ -340,6 +340,7 @@ impl ResolutionPass<'_> {
         };
 
         self.ast_info().pats().insert(node.id(), pat_id);
+        self.stores().location().add_location_to_target(pat_id, self.node_location(node));
         Ok(pat_id)
     }
 }

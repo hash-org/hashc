@@ -9,7 +9,8 @@
     option_result_contains,
     let_chains,
     if_let_guard,
-    cell_update
+    cell_update,
+    try_blocks
 )]
 
 use diagnostics::error::SemanticError;
