@@ -14,7 +14,7 @@ use hash_tir::{
     params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
     terms::TermId,
     tys::TyId,
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, traversing::Atom},
 };
 use hash_utils::store::SequenceStoreKey;
 
@@ -105,7 +105,7 @@ pub enum TcError {
     Compound { errors: Vec<TcError> },
 
     /// More type annotations are needed to infer the type of the given term.
-    NeedMoreTypeAnnotationsToInfer { term: LocationTarget },
+    NeedMoreTypeAnnotationsToInfer { atom: Atom },
 
     /// The given arguments do not match the length of the target parameters.
     WrongArgLength { params_id: ParamsId, args_id: SomeParamsOrArgsId },
@@ -178,13 +178,13 @@ impl<'tc> TcErrorReporter<'tc> {
                     error.add_span(location);
                 }
             }
-            TcError::NeedMoreTypeAnnotationsToInfer { term } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::UnresolvedType)
-                    .title("cannot infer the type of this term".to_string());
+            TcError::NeedMoreTypeAnnotationsToInfer { atom } => {
+                let error = reporter.error().code(HashErrorCode::UnresolvedType).title(format!(
+                    "cannot infer the type of this term: `{}`",
+                    self.env().with(*atom)
+                ));
 
-                if let Some(location) = self.get_location(term) {
+                if let Some(location) = self.get_location(atom) {
                     error
                         .add_span(location)
                         .add_help("consider adding more type annotations to this expression");

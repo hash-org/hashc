@@ -1,9 +1,15 @@
 #![feature(unwrap_infallible, never_type, try_trait_v2, try_blocks, control_flow_enum, let_chains)]
 
 use errors::{TcError, TcErrorState, TcResult};
-use hash_intrinsics::{intrinsics::AccessToIntrinsics, primitives::AccessToPrimitives};
+use hash_intrinsics::{
+    intrinsics::{AccessToIntrinsics, IntrinsicAbilities},
+    primitives::{AccessToPrimitives, DefinedPrimitives},
+};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
-use hash_tir::environment::env::AccessToEnv;
+use hash_tir::{
+    environment::env::{AccessToEnv, Env},
+    terms::TermId,
+};
 use inference::InferenceOps;
 use substitution::SubstitutionOps;
 use unification::UnificationOps;
@@ -64,5 +70,28 @@ pub trait AccessToTypechecking:
 
     fn param_ops(&self) -> params::ParamOps<Self> {
         params::ParamOps::new(self)
+    }
+}
+
+pub struct IntrinsicAbilitiesWrapper<'tc, T: AccessToTypechecking> {
+    tc: &'tc T,
+}
+
+impl<T: AccessToTypechecking> IntrinsicAbilities for IntrinsicAbilitiesWrapper<'_, T> {
+    fn normalise_term(&self, term: TermId) -> Result<TermId, String> {
+        let norm = self.tc.normalisation_ops();
+
+        norm.normalise(term.into()).map(|result| norm.to_term(result)).map_err(|e| {
+            self.tc.diagnostics().add_error(self.tc.convert_tc_error(e));
+            "normalisation error".to_string()
+        })
+    }
+
+    fn env(&self) -> &Env {
+        self.tc.env()
+    }
+
+    fn primitives(&self) -> &DefinedPrimitives {
+        self.tc.primitives()
     }
 }

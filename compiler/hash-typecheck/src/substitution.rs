@@ -58,11 +58,48 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         }
     }
 
+    /// Whether the given substitution can be appliedto the given atom,
+    ///
+    /// i.e. if the atom contains a variable or hole that is in the
+    /// substitution.
+    pub fn can_apply_sub_to_atom_once(
+        &self,
+        atom: Atom,
+        sub: &Sub,
+        can_apply: &mut bool,
+    ) -> ControlFlow<()> {
+        if *can_apply {
+            return ControlFlow::Break(());
+        }
+        match atom {
+            Atom::Ty(ty) => match self.get_ty(ty) {
+                Ty::Hole(Hole(symbol)) | Ty::Var(symbol) if sub.get_sub_for(symbol).is_some() => {
+                    *can_apply = true;
+                    ControlFlow::Break(())
+                }
+                _ => ControlFlow::Continue(()),
+            },
+            Atom::Term(term) => match self.get_term(term) {
+                Term::Hole(Hole(symbol)) | Term::Var(symbol)
+                    if sub.get_sub_for(symbol).is_some() =>
+                {
+                    *can_apply = true;
+                    ControlFlow::Break(())
+                }
+                _ => ControlFlow::Continue(()),
+            },
+            Atom::FnDef(_) | Atom::Pat(_) => ControlFlow::Continue(()),
+        }
+    }
+
     /// Apply the given substitution to the given atom,
     ///
     /// Returns `ControlFlow::Break(a)` with a new atom, or
     /// `ControlFlow::Continue(())` otherwise to recurse deeper.
     pub fn apply_sub_to_atom_once(&self, atom: Atom, sub: &Sub) -> ControlFlow<Atom> {
+        if !self.can_apply_sub_to_atom(atom, sub) {
+            return ControlFlow::Break(atom);
+        }
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => match sub.get_sub_for(symbol) {
@@ -83,6 +120,15 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     }
 
     /// Below are convenience methods for specific atoms:
+    pub fn can_apply_sub_to_atom(&self, atom: Atom, sub: &Sub) -> bool {
+        let mut can_apply = false;
+        self.traversing_utils()
+            .visit_atom::<!, _>(atom, &mut |atom| {
+                Ok(self.can_apply_sub_to_atom_once(atom, sub, &mut can_apply))
+            })
+            .into_ok();
+        can_apply
+    }
 
     pub fn apply_sub_to_atom(&self, atom: Atom, sub: &Sub) -> Atom {
         self.traversing_utils()
@@ -158,18 +204,18 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     /// If a hole is found, `ControlFlow::Break(())` is returned. Otherwise,
     /// `ControlFlow::Continue(())` is returned. `has_holes` is updated
     /// accordingly.
-    pub fn has_holes_once(&self, atom: Atom, has_holes: &mut bool) -> ControlFlow<()> {
+    pub fn has_holes_once(&self, atom: Atom, has_holes: &mut Option<Atom>) -> ControlFlow<()> {
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Hole(_) => {
-                    *has_holes = true;
+                    *has_holes = Some(atom);
                     ControlFlow::Break(())
                 }
                 _ => ControlFlow::Continue(()),
             },
             Atom::Term(term) => match self.get_term(term) {
                 Term::Hole(_) => {
-                    *has_holes = true;
+                    *has_holes = Some(atom);
                     ControlFlow::Break(())
                 }
                 _ => ControlFlow::Continue(()),
@@ -179,8 +225,8 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     }
 
     /// Determines whether the given atom contains one or more holes.
-    pub fn atom_has_holes(&self, atom: impl Into<Atom>) -> bool {
-        let mut has_holes = false;
+    pub fn atom_has_holes(&self, atom: impl Into<Atom>) -> Option<Atom> {
+        let mut has_holes = None;
         self.traversing_utils()
             .visit_atom::<!, _>(atom.into(), &mut |atom| {
                 Ok(self.has_holes_once(atom, &mut has_holes))
@@ -191,8 +237,8 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
 
     /// Determines whether the given module definition contains one or more
     /// holes.
-    pub fn mod_def_has_holes(&self, mod_def_id: ModDefId) -> bool {
-        let mut has_holes = false;
+    pub fn mod_def_has_holes(&self, mod_def_id: ModDefId) -> Option<Atom> {
+        let mut has_holes = None;
         self.traversing_utils()
             .visit_mod_def::<!, _>(mod_def_id, &mut |atom| {
                 Ok(self.has_holes_once(atom, &mut has_holes))
@@ -203,8 +249,8 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
 
     /// Determines whether the given set of arguments contains one or more
     /// holes.
-    pub fn args_have_holes(&self, args_id: ArgsId) -> bool {
-        let mut has_holes = false;
+    pub fn args_have_holes(&self, args_id: ArgsId) -> Option<Atom> {
+        let mut has_holes = None;
         self.traversing_utils()
             .visit_args::<!, _>(args_id, &mut |atom| Ok(self.has_holes_once(atom, &mut has_holes)))
             .into_ok();
@@ -213,8 +259,8 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
 
     /// Determines whether the given set of parameters contains one or more
     /// holes.
-    pub fn params_have_holes(&self, params_id: ParamsId) -> bool {
-        let mut has_holes = false;
+    pub fn params_have_holes(&self, params_id: ParamsId) -> Option<Atom> {
+        let mut has_holes = None;
         self.traversing_utils()
             .visit_params::<!, _>(params_id, &mut |atom| {
                 Ok(self.has_holes_once(atom, &mut has_holes))

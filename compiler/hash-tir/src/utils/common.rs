@@ -236,11 +236,37 @@ pub trait CommonUtils: AccessToEnv {
 
     /// Create a new type.
     fn new_ty(&self, ty: impl Into<Ty>) -> TyId {
-        self.stores().ty().create(ty.into())
+        let ty = ty.into();
+        let location = match ty {
+            Ty::Eval(term) => self.get_location(term),
+            Ty::Var(v) => self.get_location(v),
+            _ => None,
+        };
+        let created = self.stores().ty().create(ty);
+        if let Some(location) = location {
+            self.stores().location().add_location_to_target(created, location);
+        }
+        created
     }
 
     /// Create a new term.
     fn new_term(&self, term: impl Into<Term>) -> TermId {
+        let term = term.into();
+        let location = match term {
+            Term::Ty(ty) => self.get_location(ty),
+            Term::FnRef(f) => self.get_location(f),
+            Term::Var(v) => self.get_location(v),
+            _ => None,
+        };
+        let created = self.stores().term().create(term);
+        if let Some(location) = location {
+            self.stores().location().add_location_to_target(created, location);
+        }
+        created
+    }
+
+    /// Create a new term.
+    fn new_term_from(&self, term: impl Into<Term>) -> TermId {
         self.stores().term().create(term.into())
     }
 
