@@ -13,15 +13,16 @@ use super::{
     casting::CastTerm,
     environment::env::{AccessToEnv, WithEnv},
     holes::Hole,
-    lits::PrimTerm,
     symbols::Symbol,
     tys::TypeOfTerm,
 };
 use crate::{
     access::AccessTerm,
+    arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
     fns::{FnCallTerm, FnDefId},
+    lits::Lit,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     tuples::TupleTerm,
@@ -32,12 +33,6 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct UnsafeTerm {
     pub inner: TermId,
-}
-
-/// A term whose value is only known at runtime.
-#[derive(Debug, Clone, Copy)]
-pub struct RuntimeTerm {
-    pub term_ty: TyId,
 }
 
 /// A term in a Hash program.
@@ -53,7 +48,7 @@ pub struct RuntimeTerm {
 pub enum Term {
     // Primitives
     Tuple(TupleTerm),
-    Prim(PrimTerm),
+    Lit(Lit),
 
     // Constructors
     Ctor(CtorTerm),
@@ -83,8 +78,12 @@ pub enum Term {
     // Unsafe
     Unsafe(UnsafeTerm),
 
-    // Access
+    // Access and indexing
     Access(AccessTerm),
+
+    // Arrays
+    Array(ArrayTerm),
+    Index(IndexTerm),
 
     // Casting
     Cast(CastTerm),
@@ -113,17 +112,11 @@ impl fmt::Display for WithEnv<'_, &UnsafeTerm> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &RuntimeTerm> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{runtime {}}}", self.env().with(self.value.term_ty))
-    }
-}
-
 impl fmt::Display for WithEnv<'_, &Term> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
             Term::Tuple(tuple_term) => write!(f, "{}", self.env().with(tuple_term)),
-            Term::Prim(lit_term) => write!(f, "{}", self.env().with(lit_term)),
+            Term::Lit(lit) => write!(f, "{}", *lit),
             Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
             Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
             Term::FnRef(fn_def_id) => write!(
@@ -157,6 +150,12 @@ impl fmt::Display for WithEnv<'_, &Term> {
             Term::Ref(ref_term) => write!(f, "{}", self.env().with(ref_term)),
             Term::Deref(deref_term) => write!(f, "{}", self.env().with(deref_term)),
             Term::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
+            Term::Index(index) => {
+                write!(f, "{}", self.env().with(index))
+            }
+            Term::Array(array) => {
+                write!(f, "{}", self.env().with(array))
+            }
         }
     }
 }

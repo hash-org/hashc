@@ -23,7 +23,7 @@ use hash_tir::{
     directives::AppliedDirectives,
     environment::{context::ScopeKind, env::AccessToEnv},
     fns::{FnBody, FnCallTerm, FnDefId},
-    lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
+    lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
@@ -539,9 +539,7 @@ impl<'tc> ResolutionPass<'tc> {
         // Macro to make a literal primitive term
         macro_rules! lit_prim {
             ($name:ident,$lit_name:ident, $contents:expr) => {
-                self.new_term(Term::Prim(PrimTerm::Lit(Lit::$name($lit_name {
-                    underlying: $contents,
-                }))))
+                self.new_term(Term::Lit(Lit::$name($lit_name { underlying: $contents })))
             };
         }
 
@@ -614,13 +612,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         match (lhs, rhs) {
             (Some(lhs), Some(rhs)) => {
-                // Handle access assignments
-                let (lhs, index) = match self.get_term(lhs) {
-                    Term::Access(access) => (access.subject, Some(access.field)),
-                    _ => (lhs, None),
-                };
-
-                Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs, index })))
+                Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs })))
             }
             _ => Err(SemanticError::Signal),
         }

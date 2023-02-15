@@ -10,11 +10,7 @@ use hash_source::{
     constant::{FloatConstant, FloatConstantValue, IntConstant, CONSTANT_MAP},
     location::Span,
 };
-use hash_tir::{
-    environment::env::AccessToEnv,
-    lits::{Lit, PrimTerm},
-    terms::Term,
-};
+use hash_tir::{environment::env::AccessToEnv, lits::Lit, terms::Term};
 
 use super::Builder;
 
@@ -33,7 +29,7 @@ impl<'tcx> Builder<'tcx> {
     /// Lower a constant expression, i.e. a literal value.
     pub(crate) fn lower_constant_expr(&mut self, term: &Term, span: Span) -> ConstKind {
         match term {
-            Term::Prim(PrimTerm::Lit(lit)) => self.as_constant(lit),
+            Term::Lit(lit) => self.as_constant(lit),
             _ => panic_on_span!(
                 span.into_location(self.source_id),
                 self.source_map(),
@@ -55,7 +51,7 @@ impl<'tcx> Builder<'tcx> {
             let lhs_const = CONSTANT_MAP.lookup_int_constant(interned_lhs);
             let rhs_const = CONSTANT_MAP.lookup_int_constant(interned_rhs);
 
-            // First we need to coerce the types into the same primitive integer type, we do this 
+            // First we need to coerce the types into the same primitive integer type, we do this
             // by checking the `suffix` and then coercing both ints into that value
             fold_int_const(op, lhs_const, rhs_const)
         }

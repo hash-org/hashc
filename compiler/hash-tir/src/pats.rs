@@ -14,11 +14,12 @@ use super::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
-    lits::{ArrayPat, LitPat},
+    lits::LitPat,
     scopes::{BindingPat, StackMemberId},
     symbols::Symbol,
     tuples::TuplePat,
 };
+use crate::arrays::ArrayPat;
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.

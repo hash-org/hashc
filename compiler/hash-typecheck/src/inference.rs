@@ -7,6 +7,7 @@ use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgId, ArgsId, PatArgData, PatArgsId, PatOrCapture},
+    arrays::{ArrayPat, ArrayTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
     control::{IfPat, LoopControlTerm, LoopTerm, OrPat, ReturnTerm},
@@ -16,7 +17,7 @@ use hash_tir::{
     },
     environment::context::{BindingKind, ParamOrigin, ScopeKind},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
-    lits::{ArrayCtor, ArrayPat, Lit, PrimTerm},
+    lits::Lit,
     mods::{ModDefId, ModMemberId, ModMemberValue},
     params::{Param, ParamData, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
@@ -474,47 +475,42 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a primitive term.
-    pub fn infer_prim_term(
+    pub fn infer_array_term(
         &self,
-        term: &PrimTerm,
+        array_term: &ArrayTerm,
         annotation_ty: TyId,
         original_term_id: TermId,
-    ) -> TcResult<(PrimTerm, TyId)> {
-        match term {
-            PrimTerm::Lit(lit_term) => Ok((*term, self.infer_lit(lit_term, annotation_ty)?.1)),
-            PrimTerm::Array(list_term) => {
-                let normalised_ty = self.normalise_and_check_ty(annotation_ty)?;
-                let list_annotation_inner_ty = match self.get_ty(normalised_ty) {
-                    Ty::Data(data) if data.data_def == self.primitives().list() => {
-                        // Type is already checked
-                        assert!(data.args.len() == 1);
-                        let inner_term = self.stores().args().get_element((data.args, 0)).value;
-                        term_as_variant!(self, self.get_term(inner_term), Ty)
-                    }
-                    Ty::Hole(_) => self.new_ty_hole(),
-                    _ => {
-                        return Err(TcError::MismatchingTypes {
-                            expected: annotation_ty,
-                            actual: {
-                                self.new_ty(DataTy {
-                                    data_def: self.primitives().list(),
-                                    args: self.new_args(&[self.new_term(self.new_ty_hole())]),
-                                })
-                            },
-                            inferred_from: Some(original_term_id.into()),
-                        })
-                    }
-                };
-
-                let (inferred_list, inferred_list_inner_ty) =
-                    self.infer_unified_term_list(list_term.elements, list_annotation_inner_ty)?;
-                let list_ty = self.new_ty(DataTy {
-                    data_def: self.primitives().list(),
-                    args: self.new_args(&[self.new_term(inferred_list_inner_ty)]),
-                });
-                Ok((PrimTerm::Array(ArrayCtor { elements: inferred_list }), list_ty))
+    ) -> TcResult<(ArrayTerm, TyId)> {
+        let normalised_ty = self.normalise_and_check_ty(annotation_ty)?;
+        let list_annotation_inner_ty = match self.get_ty(normalised_ty) {
+            Ty::Data(data) if data.data_def == self.primitives().list() => {
+                // Type is already checked
+                assert!(data.args.len() == 1);
+                let inner_term = self.stores().args().get_element((data.args, 0)).value;
+                term_as_variant!(self, self.get_term(inner_term), Ty)
             }
-        }
+            Ty::Hole(_) => self.new_ty_hole(),
+            _ => {
+                return Err(TcError::MismatchingTypes {
+                    expected: annotation_ty,
+                    actual: {
+                        self.new_ty(DataTy {
+                            data_def: self.primitives().list(),
+                            args: self.new_args(&[self.new_term(self.new_ty_hole())]),
+                        })
+                    },
+                    inferred_from: Some(original_term_id.into()),
+                })
+            }
+        };
+
+        let (inferred_list, inferred_list_inner_ty) =
+            self.infer_unified_term_list(array_term.elements, list_annotation_inner_ty)?;
+        let list_ty = self.new_ty(DataTy {
+            data_def: self.primitives().list(),
+            args: self.new_args(&[self.new_term(inferred_list_inner_ty)]),
+        });
+        Ok((ArrayTerm { elements: inferred_list }, list_ty))
     }
 
     /// Infer a constructor term.
@@ -1305,8 +1301,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Tuple(tuple_term) => self
                 .infer_tuple_term(tuple_term, annotation_ty, term_id)
                 .map(|i| self.generalise_term_and_ty_inference(i)),
-            Term::Prim(prim_term) => self
-                .infer_prim_term(prim_term, annotation_ty, term_id)
+            Term::Lit(lit_term) => {
+                self.infer_lit(lit_term, annotation_ty).map(|i| self.generalise_term_inference(i))
+            }
+            Term::Array(prim_term) => self
+                .infer_array_term(prim_term, annotation_ty, term_id)
                 .map(|i| self.generalise_term_inference(i)),
             Term::Ctor(ctor_term) => self
                 .infer_ctor_term(ctor_term, annotation_ty, term_id)
@@ -1363,7 +1362,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .map(|i| self.generalise_term_inference(i)),
 
             // @@Todo:
-            Term::Match(_) | Term::Assign(_) => {
+            Term::Index(_) | Term::Match(_) | Term::Assign(_) => {
                 // @@Todo
                 Ok((term_id, annotation_ty))
             }
@@ -1418,7 +1417,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer a list pattern
-    pub fn infer_list_pat(
+    pub fn infer_array_pat(
         &self,
         list_pat: &ArrayPat,
         annotation_ty: TyId,
@@ -1538,7 +1537,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     self.infer_tuple_pat(&tuple_pat, annotation_ty, pat_id)?,
                 ),
                 Pat::Array(list_term) => self.generalise_pat_and_ty_inference(
-                    self.infer_list_pat(&list_term, annotation_ty, pat_id)?,
+                    self.infer_array_pat(&list_term, annotation_ty, pat_id)?,
                 ),
                 Pat::Ctor(ctor_pat) => self.generalise_pat_and_ty_inference(self.infer_ctor_pat(
                     &ctor_pat,
