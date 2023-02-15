@@ -63,7 +63,7 @@ pub enum FnCallTermKind {
     Index(TermId, TermId),
 
     /// An "unary" operation, the term should be lowered into the equivalent
-    /// unary operation.    
+    /// unary operation.
     UnaryOp(ir::UnaryOp, TermId),
 }
 
@@ -137,8 +137,8 @@ impl<'tcx> Builder<'tcx> {
                 // Check if the fn_def is a `un_op` intrinsic
                 if fn_def == self.intrinsics().un_op() {
                     let (op, subject) = (
-                        self.stores().args().get_at_index(*args, 0).value,
                         self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
                     );
 
                     // Parse the operator from the starting term as defined in `hash-intrinsics`
@@ -149,9 +149,9 @@ impl<'tcx> Builder<'tcx> {
                     FnCallTermKind::UnaryOp(parsed_op.into(), subject)
                 } else if fn_def == self.intrinsics().short_circuiting_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 0).value,
                         self.stores().args().get_at_index(*args, 1).value,
                         self.stores().args().get_at_index(*args, 2).value,
+                        self.stores().args().get_at_index(*args, 3).value,
                     );
 
                     let op = ShortCircuitBinOp::try_from(
@@ -162,9 +162,9 @@ impl<'tcx> Builder<'tcx> {
                     FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().endo_bin_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 0).value,
                         self.stores().args().get_at_index(*args, 1).value,
                         self.stores().args().get_at_index(*args, 2).value,
+                        self.stores().args().get_at_index(*args, 3).value,
                     );
 
                     let op =
@@ -173,9 +173,9 @@ impl<'tcx> Builder<'tcx> {
                     FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().bool_bin_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 0).value,
                         self.stores().args().get_at_index(*args, 1).value,
                         self.stores().args().get_at_index(*args, 2).value,
+                        self.stores().args().get_at_index(*args, 3).value,
                     );
 
                     let op =
