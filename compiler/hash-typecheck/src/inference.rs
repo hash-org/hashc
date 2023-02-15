@@ -44,9 +44,9 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FnInferMode {
     /// Infer the type of a function but do not look at its body.
-    FirstPass,
+    Header,
     /// Infer the type of a function and its body.
-    Normal,
+    Body,
 }
 
 #[derive(Constructor, Deref)]
@@ -517,28 +517,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         }
     }
 
-    /// Infer the given subject, until it no longer contains any holes.
-    // pub fn infer_until_no_holes<U: Copy>(
-    //     &self,
-    //     initial: U,
-    //     infer: impl Fn(U) -> TcResult<U>,
-    //     has_holes: impl Fn(U) -> bool,
-    //     location: impl Fn(U) -> LocationTarget,
-    // ) -> TcResult<U> {
-    //     let mut current = initial;
-    //     const MAX_INFER_ITERATIONS: usize = 5;
-
-    //     for _ in 0..MAX_INFER_ITERATIONS {
-    //         current = infer(current)?;
-
-    //         if !has_holes(current) {
-    //             return Ok(current);
-    //         }
-    //     }
-
-    //     Err(TcError::NeedMoreTypeAnnotationsToInfer { atom: location(current) })
-    // }
-
     /// Infer a constructor term.
     pub fn infer_ctor_term(
         &self,
@@ -783,7 +761,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             return Ok((fn_def_id, fn_def.ty));
         }
 
-        if fn_mode == FnInferMode::Normal {
+        if fn_mode == FnInferMode::Body {
             self.register_new_atom(fn_def_id, fn_def.ty);
         }
 
@@ -838,13 +816,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     // In the first pass, we just infer the function type (and potential curried
                     // functions). In the second pass, we infer the body too.
                     let infer_body_if_not_first_pass = |body: TermId, ty: TyId| match fn_mode {
-                        FnInferMode::FirstPass => match self.get_term(body) {
+                        FnInferMode::Header => match self.get_term(body) {
                             Term::FnRef(immediate_body_fn) => self
                                 .infer_fn_def(
                                     immediate_body_fn,
                                     annotation_ty,
                                     body,
-                                    FnInferMode::FirstPass,
+                                    FnInferMode::Header,
                                 )
                                 .map(|i| self.generalise_term_and_ty_inference(i)),
                             _ => Ok((body, ty)),
@@ -884,7 +862,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         def.ty = inferred_fn_ty;
                     });
 
-                    if fn_mode == FnInferMode::Normal {
+                    if fn_mode == FnInferMode::Body {
                         self.register_atom_inference(fn_def_id, fn_def_id, inferred_fn_ty);
                     }
 
@@ -892,7 +870,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 })
             }
             FnBody::Intrinsic(_) | FnBody::Axiom => {
-                if fn_mode == FnInferMode::Normal {
+                if fn_mode == FnInferMode::Body {
                     self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
                 }
                 Ok((fn_def_id, fn_def.ty))
@@ -1337,7 +1315,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .infer_fn_call_term(fn_call_term, annotation_ty, term_id)
                 .map(|i| self.generalise_term_inference(i)),
             Term::FnRef(fn_def_id) => self
-                .infer_fn_def(*fn_def_id, annotation_ty, term_id, FnInferMode::Normal)
+                .infer_fn_def(*fn_def_id, annotation_ty, term_id, FnInferMode::Body)
                 .map(|i| self.generalise_term_and_ty_inference(i)),
             Term::Var(var_term) => Ok((term_id, self.infer_var(*var_term, annotation_ty)?)),
             Term::Return(return_term) => self
@@ -1683,7 +1661,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // Infer each member signature
                 for member_idx in members.to_index_range() {
                     let _ = error_state.try_or_add_error(
-                        self.infer_mod_member((members, member_idx), FnInferMode::FirstPass),
+                        self.infer_mod_member((members, member_idx), FnInferMode::Header),
                     );
                 }
                 // Here we can simply ignore the errors, as they will be
@@ -1694,7 +1672,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // Infer each member body
             for member_idx in members.to_index_range() {
                 let _ = error_state.try_or_add_error(
-                    self.infer_mod_member((members, member_idx), FnInferMode::Normal),
+                    self.infer_mod_member((members, member_idx), FnInferMode::Body),
                 );
             }
 
