@@ -102,7 +102,7 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
                 Atom::FnDef(f) => {
                     // @@Todo: this doesn't deal with captures.
                     let f_val = self.get_fn_def(f);
-                    if !f_val.ty.pure {
+                    if !f_val.ty.pure && matches!(f_val.body, FnBody::Defined(_)) {
                         fns.add_fn(f);
                     }
                     Ok(ControlFlow::Continue(()))
