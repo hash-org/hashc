@@ -181,6 +181,7 @@ pub type DataDefStore = DefaultStore<DataDefId, DataDef>;
 pub struct DataTy {
     /// The data-type definition of this type.
     pub data_def: DataDefId,
+
     /// The arguments to the data-type definition.
     pub args: ArgsId,
 }

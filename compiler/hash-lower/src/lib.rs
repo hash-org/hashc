@@ -28,26 +28,23 @@ use hash_semantics::SemanticStorage;
 use hash_source::{identifier::IDENTS, location::SourceLocation, SourceId};
 use hash_tir::{
     data::DataTy,
+    directives::DirectiveTarget,
     environment::{
         env::{AccessToEnv, Env},
         source_info::CurrentSourceInfo,
     },
     utils::common::CommonUtils,
 };
-use hash_utils::{store::Store, stream_writeln};
+use hash_utils::{
+    store::{PartialStore, SequenceStore, Store},
+    stream_writeln,
+};
 use optimise::Optimiser;
 use ty::TyLoweringCtx;
 
-/// The Hash IR builder compiler stage. This will walk the AST, and
-/// lower all items within a particular module.
+/// The Hash IR builder compiler stage.
 #[derive(Default)]
-pub struct IrGen {
-    /// When the visitor is walking modules, it looks for `#layout_of`
-    /// directives on type declarations. This is a collection of all of the
-    /// type definitions that were found and require a layout to be
-    /// generated.
-    layouts_to_generate: Vec<DataTy>,
-}
+pub struct IrGen;
 
 /// The [LoweringCtx] represents all of the required information
 /// that the [IrGen] stage needs to query from the pipeline
@@ -131,7 +128,6 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
             // add the body to the lowered bodies
             lowered_bodies.push(builder.finish());
-            //@@TodoTIR: we need to check if this item is marked to be dumped...
         }
 
         // @@TodoTIR: deal with the entry point here.
@@ -164,31 +160,26 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &env);
 
-        for (index, type_def) in self.layouts_to_generate.iter().enumerate() {
-            // fetch or compute the type of the type definition.
-            let ty = ty_lowerer.ty_id_from_tir_data(*type_def);
-            let layout_computer = LayoutComputer::new(layout_storage, &ir_storage.ctx);
+        // @@Future: support generic substitutions here.
+        let empty_args = semantic_storage.stores.args().create_empty();
 
-            // @@ErrorHandling: propagate this error if it occurs.
-            let layout = layout_computer.layout_of_ty(ty).unwrap();
+        semantic_storage.stores.directives().internal_data().borrow().iter().for_each(|(id, _)| {
+            if let DirectiveTarget::DataDefId(data_def) = *id {
+                let ty = ty_lowerer.ty_id_from_tir_data(DataTy { args: empty_args, data_def });
+                let layout_computer = LayoutComputer::new(layout_storage, &ir_storage.ctx);
 
-            // Print the layout and add spacing between all of the specified layouts
-            // that were requested.
-            stream_writeln!(
-                stdout,
-                "{}",
-                LayoutWriter::new(TyInfo { ty, layout }, layout_computer)
-            );
-
-            if index < self.layouts_to_generate.len() - 1 {
-                stream_writeln!(stdout);
+                // @@ErrorHandling: propagate this error if it occurs.
+                if let Ok(layout) = layout_computer.layout_of_ty(ty) {
+                    // Print the layout and add spacing between all of the specified layouts
+                    // that were requested.
+                    stream_writeln!(
+                        stdout,
+                        "{}",
+                        LayoutWriter::new(TyInfo { ty, layout }, layout_computer)
+                    );
+                }
             }
-        }
-
-        // Now that we have generated and printed all of the requested
-        // layouts for the current session, we can clear the list of
-        // layouts to generate.
-        self.layouts_to_generate.clear();
+        });
     }
 }
 
