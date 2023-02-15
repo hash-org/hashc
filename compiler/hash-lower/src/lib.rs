@@ -98,8 +98,6 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let LoweringCtx { semantic_storage, workspace, ir_storage, settings, .. } = ctx.data();
         let source_stage_info = &mut workspace.source_stage_info;
 
-        let mut lowered_bodies = Vec::new();
-
         let source_info = CurrentSourceInfo { source_id: entry };
         let env = Env::new(
             &semantic_storage.stores,
@@ -109,8 +107,11 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             &source_info,
         );
         let discoverer = FnDiscoverer::new(&env);
+        let items = discoverer.discover_fns();
 
-        for func in discoverer.discover_fns().iter() {
+        let mut lowered_bodies = Vec::with_capacity(items.fns.len());
+
+        for func in items.iter() {
             let symbol = discoverer.stores().fn_def().map_fast(*func, |func| func.name);
             let name = discoverer
                 .stores()

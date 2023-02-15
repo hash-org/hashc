@@ -32,6 +32,7 @@ use hash_source::{
     SourceId,
 };
 use hash_tir::{
+    directives::DirectiveTarget,
     environment::{
         context::{BindingKind, ScopeKind},
         env::{AccessToEnv, Env},
@@ -44,7 +45,7 @@ use hash_tir::{
 };
 use hash_utils::{
     index_vec::IndexVec,
-    store::{FxHashMap, SequenceStore, SequenceStoreKey, Store},
+    store::{FxHashMap, PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 use crate::cfg::ControlFlowGraph;
@@ -331,20 +332,36 @@ impl<'ctx> Builder<'ctx> {
             }
         }
 
-        // Compute the span of the item that was just lowered.
-        let span = match self.item {
-            BuildItem::FnDef(def) => self.span_of_def(def),
-            BuildItem::Const(term) => self.span_of_term(term),
+        // check if this fn_def has the `#dump_ir` directive applied onto it...
+        let needs_dumping = |item: DirectiveTarget| {
+            if let Some(applied_directives) = self.stores().directives().get(item) {
+                applied_directives.directives.contains(&IDENTS.dump_ir)
+            } else {
+                false
+            }
         };
 
-        Body::new(
+        // Compute the span of the item that was just lowered.
+        let (span, needs_dumping) = match self.item {
+            BuildItem::FnDef(def) => (self.span_of_def(def), needs_dumping(def.into())),
+            BuildItem::Const(term) => (self.span_of_term(term), needs_dumping(term.into())),
+        };
+
+        let mut body = Body::new(
             self.control_flow_graph.basic_blocks,
             self.declarations,
             self.info,
             self.arg_count,
             span,
             self.source_id,
-        )
+        );
+
+        // If the body needs to be dumped, then we mark it as such.
+        if needs_dumping {
+            body.mark_to_dump()
+        }
+
+        body
     }
 
     pub(crate) fn build(&mut self) {
