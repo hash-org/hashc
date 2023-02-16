@@ -115,11 +115,11 @@ impl<'tcx> Builder<'tcx> {
     }
 
     /// Get the [IrTy] from a given [TyId].
-    pub(super) fn ty_from_tir_ty(&self, ty: TyId) -> IrTy {
-        self.stores().ty().map_fast(ty, |ty| {
+    pub(super) fn ty_from_tir_ty(&self, ty_id: TyId) -> IrTy {
+        self.stores().ty().map_fast(ty_id, |ty| {
             let ctx =
                 TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
-            ctx.ty_from_tir_ty(ty)
+            ctx.ty_from_tir_ty(ty_id, ty)
         })
     }
 

@@ -12,6 +12,7 @@ use hash_ir::{
     },
     IrCtx,
 };
+use hash_reporting::macros::panic_on_span;
 use hash_source::{
     constant::{FloatTy, SIntTy, UIntTy},
     identifier::IDENTS,
@@ -66,19 +67,19 @@ impl<'ir> TyLoweringCtx<'ir> {
     /// Get the [IrTyId] from a given [TyId]. This function will internally
     /// cache results of lowering a [TyId] into an [IrTyId] to avoid
     /// duplicate work.
-    pub(crate) fn ty_id_from_tir_ty(&self, term: TyId) -> IrTyId {
+    pub(crate) fn ty_id_from_tir_ty(&self, id: TyId) -> IrTyId {
         // Check if the term is present within the cache, and if so, return the
         // cached value.
-        if let Some(ty) = self.lcx.semantic_cache().borrow().get(&term.into()) {
+        if let Some(ty) = self.lcx.semantic_cache().borrow().get(&id.into()) {
             return *ty;
         }
 
         // Lower the type into ir type.
-        let ty = self.map_ty(term, |ty| self.ty_from_tir_ty(ty));
+        let ty = self.map_ty(id, |ty| self.ty_from_tir_ty(id, ty));
 
         // @@Hack: avoid re-creating "commonly" used types in order
         // to allow for type_id equality to work
-        let id = match ty {
+        let ir_ty = match ty {
             IrTy::Char => self.lcx.tys().common_tys.char,
             IrTy::UInt(UIntTy::U8) => self.lcx.tys().common_tys.u8,
             IrTy::UInt(UIntTy::U16) => self.lcx.tys().common_tys.u16,
@@ -98,12 +99,12 @@ impl<'ir> TyLoweringCtx<'ir> {
         };
 
         // Add an entry into the cache for this term
-        self.lcx.semantic_cache().borrow_mut().insert(term.into(), id);
-        id
+        self.lcx.semantic_cache().borrow_mut().insert(id.into(), ir_ty);
+        ir_ty
     }
 
     /// Get the [IrTy] from the given [TyId].
-    pub(crate) fn ty_from_tir_ty(&self, ty: &Ty) -> IrTy {
+    pub(crate) fn ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> IrTy {
         match ty {
             Ty::Tuple(TupleTy { data }) => {
                 let mut flags = AdtFlags::empty();
@@ -149,7 +150,18 @@ impl<'ir> TyLoweringCtx<'ir> {
             }
             Ty::Data(data_ty) => self.ty_from_tir_data(*data_ty),
             Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
-            Ty::Hole(_) | Ty::Var(_) => panic!("all types should be monomorphised before lowering"),
+            ty @ (Ty::Hole(_) | Ty::Var(_)) => {
+                let message = format!(
+                    "all types should be monomorphised before lowering, type: `{}`",
+                    self.env().with(ty)
+                );
+
+                if let Some(location) = self.get_location(id) {
+                    panic_on_span!(location, self.source_map(), "{message}")
+                } else {
+                    panic!("{message}")
+                }
+            }
         }
     }
 

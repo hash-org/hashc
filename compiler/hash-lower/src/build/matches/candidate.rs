@@ -31,6 +31,7 @@ use hash_tir::{
     scopes::BindingPat,
     symbols::Symbol,
     tuples::TuplePat,
+    utils::common::CommonUtils,
 };
 use hash_utils::{
     itertools::Itertools,
@@ -276,6 +277,12 @@ impl<'tcx> Builder<'tcx> {
 
         match pat {
             Pat::Binding(BindingPat { is_mutable, name, .. }) => {
+                // @@Ugly: it would be nice to just have a "wildcard" variant, for
+                // wildcards we have nothing else left to do.
+                if self.get_symbol(name).name.is_none() {
+                    return Ok(());
+                }
+
                 candidate.bindings.push(Binding {
                     span,
                     mutability: if is_mutable {

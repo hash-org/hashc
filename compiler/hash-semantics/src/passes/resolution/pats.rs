@@ -329,7 +329,7 @@ impl ResolutionPass<'_> {
                 pat: self.make_pat_from_ast_pat(if_pat.pat.ast_ref())?,
             })),
             ast::Pat::Wild(_) => self.new_pat(Pat::Binding(BindingPat {
-                name: self.new_symbol("_"),
+                name: self.new_fresh_symbol(),
                 is_mutable: false,
                 stack_member: None,
             })),

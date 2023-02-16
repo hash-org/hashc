@@ -17,6 +17,7 @@ use hash_tir::{
     symbols::Symbol,
     terms::TermId,
     tuples::TuplePat,
+    utils::common::CommonUtils,
 };
 use hash_utils::store::{CloneStore, SequenceStore};
 
@@ -93,6 +94,12 @@ impl<'tcx> Builder<'tcx> {
 
         match pat {
             Pat::Binding(BindingPat { name, is_mutable, .. }) => {
+                // If the symbol has no associated name, then it is not binding
+                // anything...
+                if self.get_symbol(name).name.is_none() {
+                    return;
+                }
+
                 // @@Todo: when we support `k @ ...` patterns, we need to know
                 // when this is a primary pattern or not.
                 let ty = self.ty_id_from_tir_pat(pat_id);
@@ -187,23 +194,29 @@ impl<'tcx> Builder<'tcx> {
     ) -> BlockAnd<()> {
         let pat = self.stores().pat().get(pat_id);
 
+        let mut place_into_pat = |this: &mut Self| {
+            let place_builder =
+                unpack!(block = this.as_place_builder(block, term, Mutability::Mutable));
+            this.place_into_pat(block, pat_id, place_builder)
+        };
+
         match pat {
             Pat::Binding(BindingPat { name, .. }) => {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.
-                let local = self.lookup_local_symbol(name).unwrap();
-                let place = Place::from_local(local, self.ctx);
+                if let Some(local) = self.lookup_local_symbol(name) {
+                    let place = Place::from_local(local, self.ctx);
 
-                unpack!(block = self.term_into_dest(place, block, term));
-                block.unit()
+                    unpack!(block = self.term_into_dest(place, block, term));
+                    block.unit()
+                } else {
+                    // If the bind has no local, this must be a wildcard
+                    place_into_pat(self)
+                }
             }
             // The long path, we go through creating candidates and then
             // automatically building places for each candidate, etc.
-            _ => {
-                let place_builder =
-                    unpack!(block = self.as_place_builder(block, term, Mutability::Mutable));
-                self.place_into_pat(block, pat_id, place_builder)
-            }
+            _ => place_into_pat(self),
         }
     }
 
