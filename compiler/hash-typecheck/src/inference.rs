@@ -7,10 +7,10 @@ use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgId, ArgsId, PatArgData, PatArgsId, PatOrCapture},
-    arrays::{ArrayPat, ArrayTerm},
+    arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
-    control::{IfPat, LoopControlTerm, LoopTerm, OrPat, ReturnTerm},
+    control::{IfPat, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{
         ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy,
         PrimitiveCtorInfo,
@@ -22,7 +22,7 @@ use hash_tir::{
     params::{Param, ParamData, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::{DerefTerm, RefTerm, RefTy},
-    scopes::{BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockTerm, DeclTerm},
     sub::Sub,
     symbols::Symbol,
     term_as_variant,
@@ -1324,6 +1324,112 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         }
     }
 
+    /// Infer an index term.
+    pub fn infer_index_term(
+        &self,
+        index_term: &IndexTerm,
+        annotation_ty: TyId,
+        original_term_id: TermId,
+    ) -> TcResult<(IndexTerm, TyId)> {
+        let (inferred_subject, inferred_subject_ty) =
+            self.infer_term(index_term.subject, self.new_ty_hole())?;
+        let normalised_subject_ty = self.normalise_and_check_ty(inferred_subject_ty)?;
+
+        // Ensure the index is a usize
+        let (inferred_index, _) =
+            self.infer_term(index_term.index, self.new_data_ty(self.primitives().usize()))?;
+
+        let wrong_ty = || {
+            Err(TcError::WrongTy {
+                term: original_term_id,
+                inferred_term_ty: normalised_subject_ty,
+                kind: WrongTermKind::NotAnArray,
+            })
+        };
+
+        // Ensure that the subject is array-like
+        let inferred_ty = match self.get_ty(normalised_subject_ty) {
+            Ty::Data(data_ty) => {
+                let data_def = self.get_data_def(data_ty.data_def);
+                if let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array_primitive)) =
+                    data_def.ctors
+                {
+                    let sub = self
+                        .substitution_ops()
+                        .create_sub_from_args_of_params(data_ty.args, data_def.params);
+                    let array_ty =
+                        self.substitution_ops().apply_sub_to_ty(array_primitive.element_ty, &sub);
+                    Ok(array_ty)
+                } else {
+                    wrong_ty()
+                }
+            }
+            _ => wrong_ty(),
+        }?;
+
+        let unified_ty = self.check_by_unify(inferred_ty, annotation_ty)?;
+        Ok((IndexTerm { subject: inferred_subject, index: inferred_index }, unified_ty))
+    }
+
+    /// Infer an assign term.
+    pub fn infer_assign_term(
+        &self,
+        assign_term: &AssignTerm,
+        annotation_ty: TyId,
+    ) -> TcResult<(AssignTerm, TyId)> {
+        let (inferred_lhs, inferred_lhs_ty) =
+            self.infer_term(assign_term.subject, self.new_ty_hole())?;
+        let (inferred_rhs, _inferred_rhs_ty) =
+            self.infer_term(assign_term.value, inferred_lhs_ty)?;
+
+        Ok((
+            AssignTerm { subject: inferred_lhs, value: inferred_rhs },
+            self.check_by_unify(annotation_ty, self.new_void_ty())?,
+        ))
+    }
+
+    /// Infer a match term.
+    pub fn infer_match_term(
+        &self,
+        match_term: &MatchTerm,
+        annotation_ty: TyId,
+    ) -> TcResult<(MatchTerm, TyId)> {
+        let (inferred_subject, inferred_subject_ty) =
+            self.infer_term(match_term.subject, self.new_ty_hole())?;
+        let normalised_subject_ty = self.normalise_and_check_ty(inferred_subject_ty)?;
+        let normalised_annotation_ty = self.normalise_and_check_ty(annotation_ty)?;
+
+        let mut unified_ty = normalised_annotation_ty;
+        let mut inferred_arms = Vec::new();
+
+        for case in match_term.cases.iter() {
+            // @@Todo: dependent
+            let case_data = self.stores().match_cases().get_element(case);
+
+            let (inferred_pat, _) = self.infer_pat(case_data.bind_pat, normalised_subject_ty)?;
+
+            let (inferred_body, inferred_body_ty) =
+                self.infer_term(case_data.value, normalised_annotation_ty)?;
+
+            unified_ty = self.check_by_unify(inferred_body_ty, unified_ty)?;
+
+            inferred_arms.push(MatchCase {
+                bind_pat: inferred_pat,
+                value: inferred_body,
+                stack_id: case_data.stack_id,
+                stack_indices: case_data.stack_indices,
+            });
+        }
+
+        Ok((
+            MatchTerm {
+                cases: self.stores().match_cases().create_from_iter(inferred_arms),
+                subject: inferred_subject,
+            },
+            unified_ty,
+        ))
+    }
+
     pub fn generalise_term_inference(&self, inference: (impl Into<Term>, TyId)) -> (TermId, TyId) {
         let (term, ty) = inference;
         let term_id = self.new_term(term);
@@ -1428,11 +1534,17 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .infer_access_term(access_term, annotation_ty, term_id)
                 .map(|i| self.generalise_term_inference(i)),
 
-            // @@Todo:
-            Term::Index(_) | Term::Match(_) | Term::Assign(_) => {
-                // @@Todo
-                Ok((term_id, annotation_ty))
-            }
+            Term::Index(index_term) => self
+                .infer_index_term(index_term, annotation_ty, term_id)
+                .map(|i| self.generalise_term_inference(i)),
+
+            Term::Match(match_term) => self
+                .infer_match_term(match_term, annotation_ty)
+                .map(|i| self.generalise_term_inference(i)),
+
+            Term::Assign(assign_term) => self
+                .infer_assign_term(assign_term, annotation_ty)
+                .map(|i| self.generalise_term_inference(i)),
 
             Term::Hole(_) => Ok((term_id, annotation_ty)),
         })?;

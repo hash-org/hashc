@@ -87,6 +87,8 @@ pub enum WrongTermKind {
     ///
     /// Records are tuples, single constructor data types.
     NotARecord,
+    /// Cannot index because the term is not an array.
+    NotAnArray,
     /// Cannot use the given term because it is not of the correct type.
     NotOfType { correct_ty: TyId },
 }
@@ -442,6 +444,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let kind_name = match kind {
                     WrongTermKind::NotAFunction => "function".to_string(),
                     WrongTermKind::NotARecord => "record".to_string(),
+                    WrongTermKind::NotAnArray => "array".to_string(),
                     WrongTermKind::NotOfType { correct_ty } => {
                         format!("value of type `{}`", self.env().with(*correct_ty))
                     }
