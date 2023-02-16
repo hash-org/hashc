@@ -10,8 +10,8 @@ use hash_source::{
     location::Span,
 };
 use hash_tir::{
+    arrays::ArrayTerm,
     environment::env::AccessToEnv,
-    lits::{ArrayCtor, PrimTerm},
     terms::{Term, TermId},
 };
 use hash_utils::store::{CloneStore, Store};
@@ -37,11 +37,11 @@ impl<'tcx> Builder<'tcx> {
         };
 
         match term {
-            Term::Prim(PrimTerm::Lit(lit)) => {
+            Term::Lit(lit) => {
                 let value = self.as_constant(&lit).into();
                 block.and(value)
             }
-            Term::Prim(PrimTerm::Array(ArrayCtor { .. })) => {
+            Term::Array(ArrayTerm { .. }) => {
                 todo!()
             }
             Term::FnCall(fn_call) => {
@@ -106,6 +106,7 @@ impl<'tcx> Builder<'tcx> {
             | Term::Assign(_)
             | Term::Unsafe(_)
             | Term::Access(_)
+            | Term::Index(_)
             | Term::Cast(_)
             | Term::TypeOf(_)
             | Term::Ty(_)

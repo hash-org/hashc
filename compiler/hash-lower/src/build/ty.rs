@@ -7,6 +7,7 @@
 
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
+    primitives::AccessToPrimitives,
     utils::PrimitiveUtils,
 };
 use hash_ir::{
@@ -74,7 +75,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> IrTyId {
         let ty = self.get_inferred_ty(term);
 
-        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx };
+        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
         ctx.ty_id_from_tir_ty(ty)
     }
 
@@ -109,14 +110,15 @@ impl<'tcx> Builder<'tcx> {
     /// cache results of lowering a [TyId] into an [IrTyId] to avoid
     /// duplicate work.
     pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> IrTyId {
-        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx };
+        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
         ctx.ty_id_from_tir_ty(ty)
     }
 
     /// Get the [IrTy] from a given [TyId].
     pub(super) fn ty_from_tir_ty(&self, ty: TyId) -> IrTy {
         self.stores().ty().map_fast(ty, |ty| {
-            let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx };
+            let ctx =
+                TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
             ctx.ty_from_tir_ty(ty)
         })
     }

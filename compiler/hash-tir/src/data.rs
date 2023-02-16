@@ -16,7 +16,7 @@ use super::{
     pats::Spread,
     tys::TyId,
 };
-use crate::{params::ParamsId, symbols::Symbol};
+use crate::{params::ParamsId, symbols::Symbol, terms::TermId};
 
 /// A constructor of a data-type definition.
 ///
@@ -117,7 +117,7 @@ pub struct ArrayCtorInfo {
     pub element_ty: TyId,
 
     /// The number of elements in the array.
-    pub length: usize,
+    pub length: Option<TermId>,
 }
 
 /// A primitive constructor definition.

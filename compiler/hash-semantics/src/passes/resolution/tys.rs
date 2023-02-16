@@ -241,14 +241,24 @@ impl<'tc> ResolutionPass<'tc> {
 
     /// Make a type from the given [`ast::ArrayTy`].
     fn make_ty_from_ast_array_ty(&self, node: AstNodeRef<ast::ArrayTy>) -> SemanticResult<TyId> {
-        // @@Todo: deal with sized array types
         let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
-
-        let list_def = self.primitives().list();
-        Ok(self.new_ty(Ty::Data(DataTy {
-            data_def: list_def,
-            args: self.param_utils().create_positional_args(once(self.use_ty_as_term(inner_ty))),
-        })))
+        match node.len.as_ref() {
+            Some(len) => {
+                let length_term = self.make_term_from_ast_expr(len.ast_ref())?;
+                Ok(self.new_ty(Ty::Data(DataTy {
+                    data_def: self.primitives().array(),
+                    args: self
+                        .param_utils()
+                        .create_positional_args([self.use_ty_as_term(inner_ty), length_term]),
+                })))
+            }
+            None => Ok(self.new_ty(Ty::Data(DataTy {
+                data_def: self.primitives().list(),
+                args: self
+                    .param_utils()
+                    .create_positional_args(once(self.use_ty_as_term(inner_ty))),
+            }))),
+        }
     }
 
     /// Make a type from the given [`ast::RefTy`].

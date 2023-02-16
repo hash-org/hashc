@@ -6,7 +6,7 @@ use hash_tir::{
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
-    lits::{Lit, PrimTerm},
+    lits::Lit,
     mods::{ModMemberData, ModMemberValue},
     params::ParamData,
     terms::{Term, TermId},
@@ -732,7 +732,7 @@ impl DefinedIntrinsics {
                 .return_ty(env.new_never_ty())
                 .build(),
             |env, args| match env.get_term(args[0]) {
-                Term::Prim(PrimTerm::Lit(Lit::Str(str_lit))) => Err(str_lit.value().to_string()),
+                Term::Lit(Lit::Str(str_lit)) => Err(str_lit.value().to_string()),
                 _ => Err("`user_error` expects a string literal as argument".to_string())?,
             },
         );

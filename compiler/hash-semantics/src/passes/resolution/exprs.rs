@@ -17,13 +17,14 @@ use hash_source::location::Span;
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgsId},
+    arrays::{ArrayTerm, IndexTerm},
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
     directives::AppliedDirectives,
     environment::{context::ScopeKind, env::AccessToEnv},
     fns::{FnBody, FnCallTerm, FnDefId},
-    lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm, StrLit},
+    lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
@@ -92,7 +93,6 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                // @@Todo: add to ctx if named
                 Ok(ArgData {
                     target: arg
                         .name
@@ -539,9 +539,7 @@ impl<'tc> ResolutionPass<'tc> {
         // Macro to make a literal primitive term
         macro_rules! lit_prim {
             ($name:ident,$lit_name:ident, $contents:expr) => {
-                self.new_term(Term::Prim(PrimTerm::Lit(Lit::$name($lit_name {
-                    underlying: $contents,
-                }))))
+                self.new_term(Term::Lit(Lit::$name($lit_name { underlying: $contents })))
             };
         }
 
@@ -555,8 +553,14 @@ impl<'tc> ResolutionPass<'tc> {
                 let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
                 Ok(self.new_term(Term::Tuple(TupleTerm { data: args })))
             }
-            ast::Lit::Array(_) => {
-                unimplemented!("Array literals are not yet implemented")
+            ast::Lit::Array(array_lit) => {
+                let element_vec: Vec<_> = array_lit
+                    .elements
+                    .ast_ref_iter()
+                    .map(|element| self.make_term_from_ast_expr(element))
+                    .collect::<SemanticResult<_>>()?;
+                let elements = self.new_term_list(element_vec);
+                Ok(self.new_term(Term::Array(ArrayTerm { elements })))
             }
         }
     }
@@ -614,13 +618,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         match (lhs, rhs) {
             (Some(lhs), Some(rhs)) => {
-                // Handle access assignments
-                let (lhs, index) = match self.get_term(lhs) {
-                    Term::Access(access) => (access.subject, Some(access.field)),
-                    _ => (lhs, None),
-                };
-
-                Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs, index })))
+                Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs })))
             }
             _ => Err(SemanticError::Signal),
         }
@@ -896,10 +894,11 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::IndexExpr`].
     fn make_term_from_ast_index_expr(
         &self,
-        _node: AstNodeRef<ast::IndexExpr>,
+        node: AstNodeRef<ast::IndexExpr>,
     ) -> SemanticResult<TermId> {
-        // @@Todo: deal with indexing
-        todo!()
+        let subject = self.make_term_from_ast_expr(node.subject.ast_ref())?;
+        let index = self.make_term_from_ast_expr(node.index_expr.ast_ref())?;
+        Ok(self.new_term(IndexTerm { subject, index }))
     }
 
     /// Make a term from an [`ast::BinaryExpr`].

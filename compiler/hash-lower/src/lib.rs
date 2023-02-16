@@ -158,7 +158,11 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             &source_info,
         );
 
-        let ty_lowerer = TyLoweringCtx::new(&ir_storage.ctx, &env);
+        let ty_lowerer = TyLoweringCtx::new(
+            &ir_storage.ctx,
+            &env,
+            semantic_storage.primitives_or_unset.get().unwrap(),
+        );
 
         // @@Future: support generic substitutions here.
         let empty_args = semantic_storage.stores.args().create_empty();
