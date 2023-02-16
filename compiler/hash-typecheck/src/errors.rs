@@ -119,6 +119,9 @@ pub enum TcError {
     /// Types don't match
     MismatchingTypes { expected: TyId, actual: TyId, inferred_from: Option<LocationTarget> },
 
+    /// Types don't match
+    MismatchingArrayLengths { expected_len: TermId, got_len: TermId },
+
     /// Wrong call kind
     WrongCallKind { site: TermId, expected_implicit: bool, actual_implicit: bool },
 
@@ -524,6 +527,20 @@ impl<'tc> TcErrorReporter<'tc> {
             }
             TcError::Intrinsic(msg) => {
                 let _error = reporter.error().code(HashErrorCode::TypeMismatch).title(msg);
+            }
+            TcError::MismatchingArrayLengths { expected_len, got_len } => {
+                let error =
+                    reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
+                        "expected array of length {} but got array of length {}",
+                        self.env().with(*expected_len),
+                        self.env().with(*got_len)
+                    ));
+                if let Some(location) = locations.get_location(expected_len) {
+                    error.add_labelled_span(location, "expected array length");
+                }
+                if let Some(location) = locations.get_location(got_len) {
+                    error.add_labelled_span(location, "got array length");
+                }
             }
         }
     }

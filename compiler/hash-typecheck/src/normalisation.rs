@@ -198,28 +198,11 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     }
 
     /// Get the term at the given index in the given term list.
-    fn _get_index_in_list(&self, list: TermListId, target: ParamIndex) -> Atom {
-        match target {
-            ParamIndex::Name(_) => {
-                panic!("Trying to index a list with a name")
-            }
-            ParamIndex::Position(pos) => {
-                self.stores().term_list().map_fast(list, |list| list[pos].into())
-            }
-        }
-    }
-
-    /// Set the term at the given index in the given term list.
-    fn _set_index_in_list(&self, list: TermListId, target: ParamIndex, value: Atom) {
-        match target {
-            ParamIndex::Name(_) => {
-                panic!("Trying to index a list with a name")
-            }
-            ParamIndex::Position(pos) => {
-                let value = self.to_term(value);
-                self.stores().term_list().modify_fast(list, |list| list[pos] = value);
-            }
-        }
+    ///
+    /// Assumes that the index is normalised.
+    fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
+        self.try_use_term_as_integer_lit::<usize>(index)
+            .map(|idx| self.stores().term_list().get_at_index(elements, idx).into())
     }
 
     /// Evaluate an access term.
@@ -239,8 +222,17 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     }
 
     /// Evaluate an index term.
-    fn eval_index(&self, _index_term: IndexTerm) -> Result<Atom, Signal> {
-        todo!()
+    fn eval_index(&self, mut index_term: IndexTerm) -> Result<Atom, Signal> {
+        index_term.subject = self.to_term(self.eval(index_term.subject.into())?);
+
+        if let Term::Array(arr) = self.get_term(index_term.subject) &&
+           let Some(result) = self.get_index_in_array(arr.elements, index_term.index)
+        {
+            return Ok(result);
+        }
+
+        // Couldn't reduce
+        Ok(self.new_term(index_term).into())
     }
 
     /// Evaluate an unsafe term.
@@ -291,11 +283,6 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                         access_term.field,
                         assign_term.value.into(),
                     ),
-                    // Term::Prim(PrimTerm::Array(list)) => self.set_index_in_list(
-                    //     list.elements,
-                    //     access_term.field,
-                    //     assign_term.value.into(),
-                    // ),
                     _ => panic!("Invalid access"),
                 }
             }

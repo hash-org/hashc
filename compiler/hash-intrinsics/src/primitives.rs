@@ -69,6 +69,7 @@ defined_primitives! {
     option,
     result,
     list,
+    array,
     equal,
 }
 
@@ -90,6 +91,8 @@ impl DefinedPrimitives {
                 }),
             )
         };
+
+        let usize = numeric("usize", 64, false, false);
 
         DefinedPrimitives {
             // Never
@@ -124,7 +127,7 @@ impl DefinedPrimitives {
             u64: numeric("u64", 64, false, false),
             u128: numeric("u128", 128, false, false),
             ubig: numeric("ubig", 0, false, false),
-            usize: numeric("usize", 64, false, false),
+            usize,
 
             f32: numeric("f32", 32, false, true),
             f64: numeric("f64", 64, false, true),
@@ -150,6 +153,24 @@ impl DefinedPrimitives {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
                         element_ty: env.new_var_ty(t_sym),
                         length: None,
+                    })
+                })
+            },
+            array: {
+                let list_sym = env.new_symbol("Array");
+                let t_sym = env.new_symbol("T");
+                let n_sym = env.new_symbol("n");
+                let params = env.param_utils().create_params(
+                    [
+                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
+                        ParamData { name: n_sym, ty: env.new_data_ty(usize), default: None },
+                    ]
+                    .into_iter(),
+                );
+                env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
+                    PrimitiveCtorInfo::Array(ArrayCtorInfo {
+                        element_ty: env.new_var_ty(t_sym),
+                        length: Some(env.new_term(n_sym)),
                     })
                 })
             },

@@ -5,7 +5,7 @@ use hash_ast::ast;
 use hash_source::constant::{InternedFloat, InternedInt, InternedStr, CONSTANT_MAP};
 use num_bigint::BigInt;
 
-use super::{environment::env::WithEnv, terms::TermListId};
+use super::environment::env::WithEnv;
 
 /// An integer literal.
 ///
@@ -80,14 +80,6 @@ impl CharLit {
     pub fn value(&self) -> char {
         self.underlying.data
     }
-}
-
-/// A list constructor
-///
-/// Contains a sequence of terms.
-#[derive(Copy, Clone, Debug)]
-pub struct ArrayCtor {
-    pub elements: TermListId,
 }
 
 /// A literal
