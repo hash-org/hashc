@@ -147,16 +147,10 @@ impl<'tcx> Builder<'tcx> {
         let term = self.stores().term().get(term_id);
         let span = self.span_of_term(term_id);
 
-        // We want to deal with variables in a special way since they might
-        // be referencing values that are outside of the the body, i.e. un-evaluated
-        // constants. In this case, we want to just create a constant value that is
-        // yet to be evaluated.
-        //
-        // @@Future: would be nice to remove this particular check and somehow deal with
-        // these differently, possibly some kind of additional syntax or a flag to
-        // denote when some variable refers to a constant value.
-        if let Term::Var(_) = term {
-            let ty_id = self.ty_id_from_tir_term(term_id);
+        // If the item is a reference to a function, i.e. the subject of a call, then
+        // we emit a constant that refers to the function.
+        if let Term::FnRef(def_id) = term {
+            let ty_id = self.ty_id_from_tir_fn_def(def_id);
 
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
