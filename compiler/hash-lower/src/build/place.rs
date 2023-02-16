@@ -140,6 +140,10 @@ impl<'tcx> Builder<'tcx> {
                     unpack!(block = self.as_place_builder(block, subject, mutability));
                 block.and(place_builder.deref())
             }
+            Term::Index(_) => {
+                // @@Todo: lower indexing
+                temp(self)
+            }
             Term::FnCall(ref fn_call) => match self.classify_fn_call_term(fn_call) {
                 FnCallTermKind::Index(subject, index) => {
                     let base_place =
@@ -156,7 +160,8 @@ impl<'tcx> Builder<'tcx> {
             },
 
             Term::Tuple(_)
-            | Term::Prim(_)
+            | Term::Lit(_)
+            | Term::Array(_)
             | Term::Ctor(_)
             | Term::FnRef(_)
             | Term::Block(_)

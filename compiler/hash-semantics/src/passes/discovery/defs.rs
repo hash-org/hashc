@@ -127,7 +127,6 @@ impl<'tc> DiscoveryPass<'tc> {
 
     /// Add the given definition to the AST info of the given node.
     pub(super) fn add_def_to_ast_info<U>(&self, item_id: ItemId, node: AstNodeRef<U>) {
-        // @@Todo: add locations of params from somewhere
         let ast_info = self.ast_info();
         match item_id {
             ItemId::Def(def_id) => match def_id {

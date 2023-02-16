@@ -8,10 +8,10 @@ use hash_ir::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_tir::{
+    arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::AccessToEnv,
-    lits::ArrayPat,
     pats::{Pat, PatId},
     scopes::{BindingPat, DeclTerm},
     symbols::Symbol,

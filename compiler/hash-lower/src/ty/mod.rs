@@ -2,6 +2,10 @@
 //! to convert types and [Ty]s into [IrTy]s.
 #![allow(dead_code)] // @@Temporary.
 
+use hash_intrinsics::{
+    primitives::{AccessToPrimitives, DefinedPrimitives},
+    utils::PrimitiveUtils,
+};
 use hash_ir::{
     ty::{
         self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, IrTy, IrTyId, Mutability,
@@ -36,6 +40,9 @@ pub(crate) struct TyLoweringCtx<'ir> {
 
     /// The type storage from the semantic analysis stage.
     pub tcx: &'ir Env<'ir>,
+
+    /// The primitive storage from the semantic analysis stage.
+    pub primitives: &'ir DefinedPrimitives,
 }
 
 impl<'ir> AccessToEnv for TyLoweringCtx<'ir> {
@@ -44,10 +51,16 @@ impl<'ir> AccessToEnv for TyLoweringCtx<'ir> {
     }
 }
 
+impl AccessToPrimitives for TyLoweringCtx<'_> {
+    fn primitives(&self) -> &DefinedPrimitives {
+        self.primitives
+    }
+}
+
 impl<'ir> TyLoweringCtx<'ir> {
     /// Create a new [TyLoweringCtx] from the given [IrCtx] and [GlobalStorage].
-    pub fn new(lcx: &'ir IrCtx, tcx: &'ir Env<'ir>) -> Self {
-        Self { lcx, tcx }
+    pub fn new(lcx: &'ir IrCtx, tcx: &'ir Env<'ir>, primitives: &'ir DefinedPrimitives) -> Self {
+        Self { lcx, tcx, primitives }
     }
 
     /// Get the [IrTyId] from a given [TyId]. This function will internally
@@ -243,7 +256,12 @@ impl<'ir> TyLoweringCtx<'ir> {
                     PrimitiveCtorInfo::Str => IrTy::Str,
                     PrimitiveCtorInfo::Char => IrTy::Char,
                     PrimitiveCtorInfo::Array(ArrayCtorInfo { element_ty, length }) => {
-                        IrTy::Array { ty: self.ty_id_from_tir_ty(element_ty), length }
+                        match length.and_then(|l| self.try_use_term_as_integer_lit(l)) {
+                            Some(length) => {
+                                IrTy::Array { ty: self.ty_id_from_tir_ty(element_ty), length }
+                            }
+                            None => IrTy::Slice(self.ty_id_from_tir_ty(element_ty)),
+                        }
                     }
                 }
             }

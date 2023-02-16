@@ -11,10 +11,11 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
+    arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::{context::BindingKind, env::AccessToEnv},
-    lits::{ArrayPat, CharLit, IntLit, LitPat, StrLit},
+    lits::{CharLit, IntLit, LitPat, StrLit},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,

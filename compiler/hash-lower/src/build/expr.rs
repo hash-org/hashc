@@ -17,11 +17,11 @@ use hash_source::{
 };
 use hash_tir::{
     args::ArgsId,
+    arrays::ArrayTerm,
     control::{LoopControlTerm, ReturnTerm},
     data::CtorTerm,
     environment::{context::BindingKind, env::AccessToEnv},
     fns::FnCallTerm,
-    lits::{ArrayCtor, PrimTerm},
     params::ParamIndex,
     refs::{self, RefTerm},
     scopes::AssignTerm,
@@ -73,42 +73,33 @@ impl<'tcx> Builder<'tcx> {
 
                 self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
             }
-            Term::Prim(prim) => {
-                // We lower primitive (integrals, strings, etc) literals as constants, and
-                // other literal arrays and tuples as aggregates.
-                match prim {
-                    PrimTerm::Array(ArrayCtor { elements }) => {
-                        let ty = self.ty_id_from_tir_term(term_id);
-                        let el_ty = self.ctx.map_ty(ty, |ty| match ty {
-                            IrTy::Slice(ty) | IrTy::Array { ty, .. } => *ty,
-                            _ => unreachable!(),
-                        });
+            Term::Lit(ref lit) => {
+                // We lower primitive (integrals, strings, etc) literals as constants
+                let constant = self.as_constant(lit);
+                self.control_flow_graph.push_assign(block, destination, constant.into(), span);
 
-                        let aggregate_kind = AggregateKind::Array(el_ty);
-                        let args = self.stores().term_list().map_fast(*elements, |elements| {
-                            elements
-                                .iter()
-                                .enumerate()
-                                .map(|(index, element)| (index.into(), *element))
-                                .collect::<Vec<_>>()
-                        });
-
-                        self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
-                    }
-
-                    PrimTerm::Lit(ref lit) => {
-                        let constant = self.as_constant(lit);
-                        self.control_flow_graph.push_assign(
-                            block,
-                            destination,
-                            constant.into(),
-                            span,
-                        );
-
-                        block.unit()
-                    }
-                }
+                block.unit()
             }
+            Term::Array(ArrayTerm { elements }) => {
+                // We lower literal arrays and tuples as aggregates.
+                let ty = self.ty_id_from_tir_term(term_id);
+                let el_ty = self.ctx.map_ty(ty, |ty| match ty {
+                    IrTy::Slice(ty) | IrTy::Array { ty, .. } => *ty,
+                    _ => unreachable!(),
+                });
+
+                let aggregate_kind = AggregateKind::Array(el_ty);
+                let args = self.stores().term_list().map_fast(*elements, |elements| {
+                    elements
+                        .iter()
+                        .enumerate()
+                        .map(|(index, element)| (index.into(), *element))
+                        .collect::<Vec<_>>()
+                });
+
+                self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
+            }
+
             Term::Ctor(ref ctor) => {
                 // @@todo: handle booleans
                 let IrTy::Adt(adt) = self.ty_from_tir_term(term_id) else {
@@ -332,6 +323,10 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
 
+            Term::Index(_) => {
+                // @@Todo lower indexing
+                todo!()
+            }
             Term::Deref(_) | Term::Access(_) => {
                 let place = unpack!(block = self.as_place(block, term_id, Mutability::Immutable));
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);

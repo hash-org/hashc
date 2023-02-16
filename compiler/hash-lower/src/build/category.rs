@@ -1,7 +1,7 @@
 //! Defines a category of AST expressions which can be used to determine how to
 //! lower them throughout the lowering stage.
 
-use hash_tir::{lits::PrimTerm, terms::Term};
+use hash_tir::terms::Term;
 
 use super::{ty::FnCallTermKind, Builder};
 
@@ -32,7 +32,7 @@ impl<'tcx> Builder<'tcx> {
         match term {
             // Constants that are not primitive are dealt with as
             // RValues.
-            Term::Prim(PrimTerm::Lit { .. }) => Category::Constant,
+            Term::Lit(_) => Category::Constant,
 
             Term::FnCall(ref term) => match self.classify_fn_call_term(term) {
                 FnCallTermKind::Index(..) => Category::Place,
