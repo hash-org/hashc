@@ -405,7 +405,7 @@ impl<'tc> DiscoveryPass<'tc> {
              buf: &mut SmallVec<[(AstNodeId, StackMemberData); 3]>| {
                 if let Some(name) = &spread.name {
                     buf.push((
-                        node.id(),
+                        name.id(),
                         StackMemberData {
                             name: self.new_symbol(name.ident),
                             is_mutable: false,
@@ -436,29 +436,27 @@ impl<'tc> DiscoveryPass<'tc> {
                 )
             }
             ast::Pat::Tuple(ast::TuplePat { fields, spread }) => {
-                for (index, field) in fields.ast_ref_iter().enumerate() {
-                    if let Some(spread_node) = &spread && spread_node.position == index {
-                        register_spread_pat(spread_node, buf);
-                    }
-
+                if let Some(spread_node) = &spread {
+                    register_spread_pat(spread_node, buf);
+                }
+                for field in fields.ast_ref_iter() {
                     self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
             }
             ast::Pat::Constructor(ast::ConstructorPat { fields, spread, .. }) => {
-                for (index, field) in fields.ast_ref_iter().enumerate() {
-                    if let Some(spread_node) = &spread && spread_node.position == index {
-                        register_spread_pat(spread_node, buf);
-                    }
-
+                if let Some(spread_node) = &spread {
+                    register_spread_pat(spread_node, buf);
+                }
+                for field in fields.ast_ref_iter() {
                     self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
             }
             ast::Pat::Array(ast::ArrayPat { fields, spread }) => {
-                for (index, field) in fields.ast_ref_iter().enumerate() {
-                    if let Some(spread_node) = &spread && spread_node.position == index {
-                        register_spread_pat(spread_node, buf);
-                    }
+                if let Some(spread_node) = &spread {
+                    register_spread_pat(spread_node, buf);
+                }
 
+                for field in fields.ast_ref_iter() {
                     self.add_stack_members_in_pat_to_buf(field, buf);
                 }
             }

@@ -305,6 +305,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let inferred_pat_args_id =
             self.param_utils().create_pat_args(inferred_pat_args.into_iter());
 
+        // @@Fix: add back spread to inferred pat args
         self.register_atom_inference_indexed(pat_args, inferred_pat_args_id, inferred_params_id);
         Ok((inferred_pat_args_id, inferred_params_id))
     }
@@ -748,13 +749,19 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         // @@Todo: implicit check
                         let uni = self.unification_ops().unify_tys(return_ty, annotation_ty)?;
 
+                        let subject = self.substitution_ops().apply_sub_to_term(
+                            self.substitution_ops().apply_sub_to_term(subject_term, &param_uni.sub),
+                            &uni.sub,
+                        );
+                        let subject_ty = self.substitution_ops().apply_sub_to_ty(
+                            self.substitution_ops().apply_sub_to_ty(subject_ty, &param_uni.sub),
+                            &uni.sub,
+                        );
+                        self.register_atom_inference(fn_call_term.subject, subject, subject_ty);
+
                         Ok((
                             FnCallTerm {
-                                subject: self.substitution_ops().apply_sub_to_term(
-                                    self.substitution_ops()
-                                        .apply_sub_to_term(subject_term, &param_uni.sub),
-                                    &uni.sub,
-                                ),
+                                subject,
                                 args: inferred_fn_call_args,
                                 implicit: fn_call_term.implicit,
                             },
@@ -820,7 +827,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Atom is already registered but not inferred, it means we are in a
         // recursive call.
-        if self.atom_is_registered(fn_def_id) {
+        if self.atom_is_registered(fn_def_id) && fn_mode == FnInferMode::Body {
             return Ok((fn_def_id, fn_def.ty));
         }
 
