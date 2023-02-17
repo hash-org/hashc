@@ -759,33 +759,32 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::LoopBlock>,
     ) -> SemanticResult<TermId> {
-        let inner = self.make_term_from_ast_body_block(match node.contents.body() {
-            ast::Block::Body(body_block) => node.contents.with_body(body_block),
-            _ => panic_on_span!(
-                self.node_location(node),
-                self.source_map(),
-                "Found non-body block in loop contents"
-            ),
-        })?;
+        let inner = match node.contents.body() {
+            ast::Block::Body(body_block) => {
+                self.make_term_from_ast_body_block(node.contents.with_body(body_block))?
+            }
+            inner => self.new_term(BlockTerm {
+                return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
+                statements: self.stores().term_list().create_from_slice(&[]),
+                stack_id: self.stack_utils().create_stack(),
+            }),
+        };
 
         let block = term_as_variant!(self, self.get_term(inner), Block);
         Ok(self.new_term(Term::Loop(LoopTerm { block })))
     }
 
-    /// Make a term from an [`ast::BlockExpr`].
-    fn make_term_from_ast_block_expr(
-        &self,
-        node: AstNodeRef<ast::BlockExpr>,
-    ) -> SemanticResult<TermId> {
-        match node.data.body() {
+    /// Make a term from an [`ast::Block`].
+    fn make_term_from_ast_block(&self, node: AstNodeRef<ast::Block>) -> SemanticResult<TermId> {
+        match node.body() {
             ast::Block::Match(match_block) => {
-                self.make_term_from_ast_match_block(node.data.with_body(match_block))
+                self.make_term_from_ast_match_block(node.with_body(match_block))
             }
             ast::Block::Loop(loop_block) => {
-                self.make_term_from_ast_loop_block(node.data.with_body(loop_block))
+                self.make_term_from_ast_loop_block(node.with_body(loop_block))
             }
             ast::Block::Body(body_block) => {
-                self.make_term_from_ast_body_block(node.data.with_body(body_block))
+                self.make_term_from_ast_body_block(node.with_body(body_block))
             }
 
             // Others done during de-sugaring:
@@ -797,6 +796,14 @@ impl<'tc> ResolutionPass<'tc> {
                 )
             }
         }
+    }
+
+    /// Make a term from an [`ast::BlockExpr`].
+    fn make_term_from_ast_block_expr(
+        &self,
+        node: AstNodeRef<ast::BlockExpr>,
+    ) -> SemanticResult<TermId> {
+        self.make_term_from_ast_block(node.data.ast_ref())
     }
 
     /// Make a function term from an AST function definition, which is either a

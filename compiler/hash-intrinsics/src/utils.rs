@@ -63,7 +63,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     }
 
     /// Create a boolean pattern of the given value.
-    fn bool_pat(&self, value: bool) -> PatId {
+    fn new_bool_pat(&self, value: bool) -> PatId {
         self.new_pat(Pat::Ctor(CtorPat {
             ctor: self.get_bool_ctor(value),
             ctor_pat_args: self.new_empty_pat_args(),
