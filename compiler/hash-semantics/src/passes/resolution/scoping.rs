@@ -269,26 +269,26 @@ impl<'tc> Scoping<'tc> {
                 }
             }
             ast::Pat::Tuple(tuple_pat) => {
-                for (index, entry) in tuple_pat.fields.ast_ref_iter().enumerate() {
-                    if let Some(spread_node) = &tuple_pat.spread && spread_node.position == index {
-                        for_spread_pat!(spread_node);
-                    }
+                if let Some(spread_node) = &tuple_pat.spread {
+                    for_spread_pat!(spread_node);
+                }
+                for entry in tuple_pat.fields.ast_ref_iter() {
                     self.for_each_stack_member_of_pat(entry.pat.ast_ref(), f);
                 }
             }
             ast::Pat::Constructor(constructor_pat) => {
-                for (index, field) in constructor_pat.fields.ast_ref_iter().enumerate() {
-                    if let Some(spread_node) = &constructor_pat.spread && spread_node.position == index {
-                        for_spread_pat!(spread_node);
-                    }
+                if let Some(spread_node) = &constructor_pat.spread {
+                    for_spread_pat!(spread_node);
+                }
+                for field in constructor_pat.fields.ast_ref_iter() {
                     self.for_each_stack_member_of_pat(field.pat.ast_ref(), f);
                 }
             }
             ast::Pat::Array(array_pat) => {
-                for (index, pat) in array_pat.fields.ast_ref_iter().enumerate() {
-                    if let Some(spread_node) = &array_pat.spread && spread_node.position == index {
-                        for_spread_pat!(spread_node);
-                    }
+                if let Some(spread_node) = &array_pat.spread {
+                    for_spread_pat!(spread_node);
+                }
+                for pat in array_pat.fields.ast_ref_iter() {
                     self.for_each_stack_member_of_pat(pat, f);
                 }
             }

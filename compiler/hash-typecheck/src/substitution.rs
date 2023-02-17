@@ -29,6 +29,9 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     /// Returns `ControlFlow::Break(())` if the atom was modified, and
     /// `ControlFlow::Continue(())` otherwise to recurse deeper.
     pub fn apply_sub_to_atom_in_place_once(&self, atom: Atom, sub: &Sub) -> ControlFlow<()> {
+        if !self.can_apply_sub_to_atom(atom, sub) {
+            return ControlFlow::Break(());
+        }
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
@@ -331,7 +334,9 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         for (src, target) in (src_params.iter()).zip(target_params.iter()) {
             let src = self.stores().params().get_element(src);
             let target = self.stores().params().get_element(target);
-            sub.insert(src.name, self.new_term(target.name));
+            if src.name != target.name {
+                sub.insert(src.name, self.new_term(target.name));
+            }
         }
         sub
     }
