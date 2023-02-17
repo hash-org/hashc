@@ -205,13 +205,6 @@ impl<'tcx> Builder<'tcx> {
 
                         join_block.unit()
                     }
-                    FnCallTermKind::Index(_, _) => {
-                        let place =
-                            unpack!(block = self.as_place(block, term_id, Mutability::Immutable));
-                        self.control_flow_graph.push_assign(block, destination, place.into(), span);
-
-                        block.unit()
-                    }
                 }
             }
             Term::Var(symbol) => {
@@ -322,12 +315,7 @@ impl<'tcx> Builder<'tcx> {
                 self.control_flow_graph.push_assign(block, destination, addr_of, span);
                 block.unit()
             }
-
-            Term::Index(_) => {
-                // @@Todo lower indexing
-                todo!()
-            }
-            Term::Deref(_) | Term::Access(_) => {
+            Term::Index(_) | Term::Deref(_) | Term::Access(_) => {
                 let place = unpack!(block = self.as_place(block, term_id, Mutability::Immutable));
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);
 
@@ -349,7 +337,7 @@ impl<'tcx> Builder<'tcx> {
         span: Span,
     ) -> BlockAnd<()> {
         match statement {
-            Term::Assign(AssignTerm { subject, value, .. }) => {
+            Term::Assign(AssignTerm { subject, value }) => {
                 // Lower the subject and the value of the assignment...
                 let place = unpack!(block = self.as_place(block, *subject, Mutability::Mutable));
                 let value = unpack!(block = self.as_rvalue(block, *value));
@@ -359,7 +347,7 @@ impl<'tcx> Builder<'tcx> {
             }
 
             // @@TodoTIR: implement this when operators work properly
-            _ => block.unit(),
+            _ => todo!(),
         }
     }
 

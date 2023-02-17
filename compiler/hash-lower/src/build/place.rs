@@ -8,6 +8,7 @@ use hash_ir::{
 use hash_source::identifier::IDENTS;
 use hash_tir::{
     access::AccessTerm,
+    arrays::IndexTerm,
     environment::env::AccessToEnv,
     params::ParamIndex,
     refs::DerefTerm,
@@ -16,7 +17,7 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore};
 
-use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 
 /// A builder interface for building a [Place] with a base [Local]
 /// and a collection of projections that are applied as the
@@ -106,13 +107,6 @@ impl<'tcx> Builder<'tcx> {
     ) -> BlockAnd<PlaceBuilder> {
         let term = self.stores().term().get(term_id);
 
-        let mut temp = |this: &mut Self| {
-            // These expressions are not places, so we need to create a temporary
-            // and then deal with it.
-            let temp = unpack!(block = this.term_into_temp(block, term_id, mutability));
-            block.and(PlaceBuilder::from(temp))
-        };
-
         match term {
             Term::Var(variable) => {
                 // Get the current scope, and resolve the variable within the scope. This will
@@ -140,28 +134,20 @@ impl<'tcx> Builder<'tcx> {
                     unpack!(block = self.as_place_builder(block, subject, mutability));
                 block.and(place_builder.deref())
             }
-            Term::Index(_) => {
-                // @@Todo: lower indexing
-                temp(self)
+            Term::Index(IndexTerm { subject, index }) => {
+                let base_place = unpack!(block = self.as_place_builder(block, subject, mutability));
+
+                // Create a temporary for the index expression.
+                let index = unpack!(block = self.term_into_temp(block, index, mutability));
+
+                // @@Todo: depending on the configuration, we may need to insert a bounds check
+                // here.
+                block.and(base_place.index(index))
             }
-            Term::FnCall(ref fn_call) => match self.classify_fn_call_term(fn_call) {
-                FnCallTermKind::Index(subject, index) => {
-                    let base_place =
-                        unpack!(block = self.as_place_builder(block, subject, mutability));
-
-                    // Create a temporary for the index expression.
-                    let index = unpack!(block = self.term_into_temp(block, index, mutability));
-
-                    // @@Todo: depending on the configuration, we may need to insert a bounds check
-                    // here.
-                    block.and(base_place.index(index))
-                }
-                _ => temp(self),
-            },
-
             Term::Tuple(_)
             | Term::Lit(_)
             | Term::Array(_)
+            | Term::FnCall(_)
             | Term::Ctor(_)
             | Term::FnRef(_)
             | Term::Block(_)
@@ -176,7 +162,12 @@ impl<'tcx> Builder<'tcx> {
             | Term::TypeOf(_)
             | Term::Ty(_)
             | Term::Ref(_)
-            | Term::Hole(_) => temp(self),
+            | Term::Hole(_) => {
+                // These expressions are not places, so we need to create a temporary
+                // and then deal with it.
+                let temp = unpack!(block = self.term_into_temp(block, term_id, mutability));
+                block.and(PlaceBuilder::from(temp))
+            }
         }
     }
 

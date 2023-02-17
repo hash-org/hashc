@@ -58,11 +58,6 @@ pub enum FnCallTermKind {
     /// into the equivalent of `a && b` or `a || b`.
     LogicalBinOp(ir::LogicalBinOp, TermId, TermId),
 
-    /// An index operation, the term should be lowered into the equivalent of
-    /// `a[b]`.
-    #[allow(dead_code)] // @@TodoTIR: remove when index operations are represented in TIR.
-    Index(TermId, TermId),
-
     /// An "unary" operation, the term should be lowered into the equivalent
     /// unary operation.
     UnaryOp(ir::UnaryOp, TermId),
@@ -184,8 +179,6 @@ impl<'tcx> Builder<'tcx> {
                         BoolBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
                             .unwrap();
                     FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
-
-                // @@TodoTIR: deal with the `index` intrinsic
                 } else {
                     FnCallTermKind::Call(FnCallTerm { ..*term })
                 }
