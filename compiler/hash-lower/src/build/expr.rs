@@ -286,7 +286,7 @@ impl<'tcx> Builder<'tcx> {
             Term::Decl(ref decl) => self.lower_declaration(block, decl, span),
             Term::Assign(_) => {
                 // Deal with the actual assignment
-                block = unpack!(self.handle_statement_expr(block, &term, span));
+                block = unpack!(self.lower_assign_term(block, &term, span));
 
                 // Assign the `value` of the assignment into the `tmp_place`
                 let const_value = ir::Const::zero(self.ctx);
@@ -330,25 +330,25 @@ impl<'tcx> Builder<'tcx> {
         block_and
     }
 
-    pub(crate) fn handle_statement_expr(
+    /// Convert a [`Term::Assign`] into IR by first lowering the right-hand side
+    /// and then the left.
+    pub(crate) fn lower_assign_term(
         &mut self,
         mut block: BasicBlock,
         statement: &Term,
         span: Span,
     ) -> BlockAnd<()> {
-        match statement {
-            Term::Assign(AssignTerm { subject, value }) => {
-                // Lower the subject and the value of the assignment...
-                let place = unpack!(block = self.as_place(block, *subject, Mutability::Mutable));
-                let value = unpack!(block = self.as_rvalue(block, *value));
+        let Term::Assign(AssignTerm { subject, value }) = statement else {
+            unreachable!()
+        };
 
-                self.control_flow_graph.push_assign(block, place, value, span);
-                block.unit()
-            }
+        // Lower the subject and the value of the assignment in RTL
+        // and then assign the value into the subject
+        let value = unpack!(block = self.as_rvalue(block, *value));
+        let place = unpack!(block = self.as_place(block, *subject, Mutability::Mutable));
 
-            // @@TodoTIR: implement this when operators work properly
-            _ => todo!(),
-        }
+        self.control_flow_graph.push_assign(block, place, value, span);
+        block.unit()
     }
 
     /// Lower a function call and place the result into the provided
