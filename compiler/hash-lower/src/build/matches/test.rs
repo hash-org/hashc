@@ -176,34 +176,56 @@ impl<'tcx> Builder<'tcx> {
     /// function will panic.
     pub(super) fn test_match_pair(&mut self, pair: &MatchPair) -> Test {
         let pat = self.stores().pat().get(pair.pat);
-
-        // get the location of the pattern
         let span = self.span_of_pat(pair.pat);
 
+        // Emit a test for a literal kind of pattern, here we also consider
+        // constants as being literals.
+        let emit_const_test = |value: Const, ty: IrTyId| {
+            // If it is not an integral constant, we use an `Eq` test. This will
+            // happen when the constant is either a float or a string.
+            if value.is_switchable() {
+                Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, span }
+            } else {
+                Test { kind: TestKind::Eq { ty, value }, span }
+            }
+        };
+
         match &pat {
-            Pat::Ctor(_) => {
-                let ty = self.ty_id_from_tir_pat(pair.pat);
-                let (variant_count, adt) = self.ctx.map_ty_as_adt(ty, |adt, id| {
-                    // Structs can be simplified...
-                    if adt.flags.is_struct() {
-                        panic_on_span!(
-                            span.into_location(self.source_id),
-                            self.source_map(),
-                            "attempt to test simplify-able pattern, `{}`",
-                            self.env().with(pair.pat)
-                        )
+            Pat::Ctor(pat) => {
+                let ty_id = self.ty_id_from_tir_pat(pair.pat);
+
+                self.ctx.map_ty(ty_id, |ty| match ty {
+                    IrTy::Bool => {
+                        // Constify the bool literal
+                        let value =
+                            if pat.ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
+                        emit_const_test(value, ty_id)
                     }
+                    IrTy::Adt(id) => {
+                        let (variant_count, adt) = self.ctx.map_adt(*id, |id, adt| {
+                            // Structs can be simplified...
+                            if adt.flags.is_struct() {
+                                panic_on_span!(
+                                    span.into_location(self.source_id),
+                                    self.source_map(),
+                                    "attempt to test simplify-able pattern, `{}`",
+                                    self.env().with(pair.pat)
+                                )
+                            }
 
-                    (adt.variants.len(), id)
-                });
+                            (adt.variants.len(), id)
+                        });
 
-                Test {
-                    kind: TestKind::Switch {
-                        adt,
-                        options: FixedBitSet::with_capacity(variant_count),
-                    },
-                    span,
-                }
+                        Test {
+                            kind: TestKind::Switch {
+                                adt,
+                                options: FixedBitSet::with_capacity(variant_count),
+                            },
+                            span,
+                        }
+                    }
+                    _ => unreachable!("non-bool, non-adt type in test_match_pair"),
+                })
             }
             Pat::Lit(lit) => {
                 let value = constify_lit_pat(lit);
@@ -302,6 +324,23 @@ impl<'tcx> Builder<'tcx> {
             }
 
             (TestKind::Switch { .. }, _) => None,
+
+            // The `bool` case
+            (TestKind::SwitchInt { ty, ref options }, Pat::Ctor(CtorPat { ctor, .. })) => {
+                // We can't really do anything here since we can't compare them with
+                // the switch.
+                if !self.ctx.map_ty(*ty, |ty| ty.is_switchable()) {
+                    unreachable!("switch_int test for constructor pat with non-switchable type");
+                }
+
+                println!("variants: {:#?}", options);
+                let value = if ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
+                let index = options.get_index_of(&value).unwrap();
+
+                // remove the candidate from the pairs
+                candidate.pairs.remove(pair_index);
+                Some(index)
+            }
 
             // When we are performing a switch over integers, then this informs integer
             // equality, but nothing else, @@Improve: we could use the Pat::Range to rule
@@ -808,14 +847,23 @@ impl<'tcx> Builder<'tcx> {
                 self.values_not_contained_in_range(pat, options).unwrap_or(false)
             }
 
+            // Boolean type...
+            Pat::Ctor(ctor_pat) => {
+                // If the constructor is `1` then we know that it is `true`, this is defined
+                // in: compiler/hash-intrinsics/src/primitives.rs
+                let (constant, value) = if ctor_pat.ctor.1 == 0 {
+                    (Const::Bool(true), 1)
+                } else {
+                    (Const::Bool(false), 0)
+                };
+
+                options.entry(constant).or_insert(value);
+                true
+            }
+
             // We either don't know how to map these, or they should of been mapped
             // by `add_variants_to_switch`.
-            Pat::Binding(_)
-            | Pat::Tuple(_)
-            | Pat::Ctor(_)
-            | Pat::Array(_)
-            | Pat::Or(_)
-            | Pat::If(_) => false,
+            Pat::Binding(_) | Pat::Tuple(_) | Pat::Array(_) | Pat::Or(_) | Pat::If(_) => false,
         }
     }
 

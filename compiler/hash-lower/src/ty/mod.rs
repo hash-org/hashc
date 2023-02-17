@@ -81,6 +81,7 @@ impl<'ir> TyLoweringCtx<'ir> {
         // to allow for type_id equality to work
         let ir_ty = match ty {
             IrTy::Char => self.lcx.tys().common_tys.char,
+            IrTy::Bool => self.lcx.tys().common_tys.bool,
             IrTy::UInt(UIntTy::U8) => self.lcx.tys().common_tys.u8,
             IrTy::UInt(UIntTy::U16) => self.lcx.tys().common_tys.u16,
             IrTy::UInt(UIntTy::U32) => self.lcx.tys().common_tys.u32,
@@ -184,6 +185,11 @@ impl<'ir> TyLoweringCtx<'ir> {
     /// Convert the [DataDefType] into an [`IrTy::Adt`].
     fn ty_from_tir_data(&self, DataTy { data_def, args: _ }: DataTy) -> IrTy {
         let data_ty = self.get_data_def(data_def);
+
+        // If the data type is a primitive boolean, then return the boolean type.
+        if data_def == self.primitives().bool() {
+            return IrTy::Bool;
+        }
 
         match data_ty.ctors {
             DataDefCtors::Defined(ctor_defs) => {

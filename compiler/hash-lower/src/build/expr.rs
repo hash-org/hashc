@@ -101,13 +101,30 @@ impl<'tcx> Builder<'tcx> {
             }
 
             Term::Ctor(ref ctor) => {
-                // @@todo: handle booleans
-                let IrTy::Adt(adt) = self.ty_from_tir_term(term_id) else {
-                    panic!("Expected an ADT type for the constructor");
-                };
+                match self.ty_from_tir_term(term_id) {
+                    IrTy::Adt(adt) => {
+                        // This is a constructor call, so we need to handle it as such.
+                        self.constructor_into_dest(destination, block, ctor, adt, span)
+                    }
+                    IrTy::Bool => {
+                        // @@Hack: check which constructor is being called to determine whether
+                        // it is a `true` or `false` value.
+                        let constant =
+                            if ctor.ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
 
-                // This is a constructor call, so we need to handle it as such.
-                self.constructor_into_dest(destination, block, ctor, adt, span)
+                        self.control_flow_graph.push_assign(
+                            block,
+                            destination,
+                            constant.into(),
+                            span,
+                        );
+
+                        block.unit()
+                    }
+                    _ => {
+                        panic!("Expected an ADT type for the constructor");
+                    }
+                }
             }
             Term::FnCall(term @ FnCallTerm { subject, args, .. }) => {
                 match self.classify_fn_call_term(term) {

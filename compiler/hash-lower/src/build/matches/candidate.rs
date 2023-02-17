@@ -369,7 +369,15 @@ impl<'tcx> Builder<'tcx> {
             }
             Pat::Ctor(CtorPat { ctor_pat_args, .. }) => {
                 let ty = self.ty_id_from_tir_pat(pair.pat);
-                let adt = self.ctx.map_ty_as_adt(ty, |adt, id| adt.flags.is_struct().then_some(id));
+
+                // If the type is a boolean, then we can't simplify this pattern any further...
+                let adt = self.ctx.map_ty(ty, |ty| match ty {
+                    IrTy::Bool => None,
+                    IrTy::Adt(id) => {
+                        self.ctx.map_adt(*id, |id, adt| adt.flags.is_struct().then_some(id))
+                    }
+                    ty => panic!("unexpected type: {:?}", ty),
+                });
 
                 // If this is a struct then we need to match on the fields of
                 // the struct since it is an *irrefutable* pattern.
