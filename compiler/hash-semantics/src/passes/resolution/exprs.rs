@@ -892,10 +892,30 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::AssignOpExpr`].
     fn make_term_from_ast_assign_op_expr(
         &self,
-        _node: AstNodeRef<ast::AssignOpExpr>,
+        node: AstNodeRef<ast::AssignOpExpr>,
     ) -> SemanticResult<TermId> {
-        // @@Todo: deal with operators
-        todo!()
+        // @@Fixme: deal with edge case where LHS has side-effects.
+        // We would need to extract the non-projection bit of LHS, assign it to a
+        // temporary, and then modify the temporary.
+        let subject = self.make_term_from_ast_expr(node.lhs.ast_ref())?;
+        let value = self.make_term_from_ast_binary(
+            *node.operator.body(),
+            node.lhs.ast_ref(),
+            node.rhs.ast_ref(),
+        )?;
+        Ok(self.new_term(AssignTerm { subject, value }))
+    }
+
+    /// Make a term from an [`ast::BinaryExpr`].
+    fn make_term_from_ast_binary_expr(
+        &self,
+        node: AstNodeRef<ast::BinaryExpr>,
+    ) -> SemanticResult<TermId> {
+        self.make_term_from_ast_binary(
+            *node.operator.body(),
+            node.lhs.ast_ref(),
+            node.rhs.ast_ref(),
+        )
     }
 
     /// Make a term from an [`ast::IndexExpr`].
@@ -908,19 +928,21 @@ impl<'tc> ResolutionPass<'tc> {
         Ok(self.new_term(IndexTerm { subject, index }))
     }
 
-    /// Make a term from an [`ast::BinaryExpr`].
-    fn make_term_from_ast_binary_expr(
+    /// Make a term from a binary expression.
+    fn make_term_from_ast_binary(
         &self,
-        node: AstNodeRef<ast::BinaryExpr>,
+        op: ast::BinOp,
+        lhs: AstNodeRef<ast::Expr>,
+        rhs: AstNodeRef<ast::Expr>,
     ) -> SemanticResult<TermId> {
-        let lhs = self.make_term_from_ast_expr(node.lhs.ast_ref())?;
-        let rhs = self.make_term_from_ast_expr(node.rhs.ast_ref())?;
+        let lhs = self.make_term_from_ast_expr(lhs)?;
+        let rhs = self.make_term_from_ast_expr(rhs)?;
 
         // For the type, we use the type of the lhs
         let typeof_lhs = self.new_term(TypeOfTerm { term: lhs });
 
         // Pick the right intrinsic function and binary operator number
-        let (intrinsic_fn_def, bin_op_num): (FnDefId, u8) = match node.operator.body() {
+        let (intrinsic_fn_def, bin_op_num): (FnDefId, u8) = match op {
             ast::BinOp::EqEq => (self.intrinsics().bool_bin_op(), BoolBinOp::EqEq.into()),
             ast::BinOp::NotEq => (self.intrinsics().bool_bin_op(), BoolBinOp::NotEq.into()),
             ast::BinOp::BitOr => (self.intrinsics().endo_bin_op(), EndoBinOp::BitOr.into()),
