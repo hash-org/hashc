@@ -13,8 +13,9 @@ use hash_tir::{
     tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{
-    DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store,
+use hash_utils::{
+    store::{DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store},
+    stream_less_writeln,
 };
 use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -752,7 +753,7 @@ impl DefinedIntrinsics {
                 "debug_print",
                 FnTy::builder().params(params).return_ty(ret).build(),
                 |env, args| {
-                    println!("{}", env.env().with(args[1]));
+                    stream_less_writeln!("{}", env.env().with(args[1]));
                     Ok(env.new_void_term())
                 },
             )
@@ -776,7 +777,7 @@ impl DefinedIntrinsics {
                     if let Term::FnRef(fn_def_id) = env.get_term(args[1]) {
                         let directives =
                             env.stores().directives().get(fn_def_id.into()).unwrap_or_default();
-                        println!("{:?}", directives.directives);
+                        stream_less_writeln!("{:?}", directives.directives);
                     }
                     Ok(env.new_void_term())
                 },

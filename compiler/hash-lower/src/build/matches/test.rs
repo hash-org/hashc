@@ -333,7 +333,6 @@ impl<'tcx> Builder<'tcx> {
                     unreachable!("switch_int test for constructor pat with non-switchable type");
                 }
 
-                println!("variants: {:#?}", options);
                 let value = if ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
                 let index = options.get_index_of(&value).unwrap();
 

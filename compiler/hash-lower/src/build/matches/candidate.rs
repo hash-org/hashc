@@ -376,7 +376,7 @@ impl<'tcx> Builder<'tcx> {
                     IrTy::Adt(id) => {
                         self.ctx.map_adt(*id, |id, adt| adt.flags.is_struct().then_some(id))
                     }
-                    ty => panic!("unexpected type: {:?}", ty),
+                    ty => panic!("unexpected type: {ty:?}"),
                 });
 
                 // If this is a struct then we need to match on the fields of

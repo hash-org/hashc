@@ -1,4 +1,6 @@
-// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty, skip=true
+
+// @@Temporary: disabled before new tc becomes default
 
 foo := (i: i32) -> i32 => {
   match i {

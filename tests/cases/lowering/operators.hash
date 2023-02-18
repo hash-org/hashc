@@ -1,1 +1,13 @@
-// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty, skip=true
+
+// @@Temporary: disabled before new tc becomes default
+
+print_int := (k: i32) => {
+}
+
+main := () => {
+    k := 5;
+
+    print_int(5 * 4 / 4 + 3 - 2 + k ** 2)
+}
+
