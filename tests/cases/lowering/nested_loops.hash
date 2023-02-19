@@ -1,7 +1,6 @@
-// stage=ir, skip=true, args=-C dump=ir -C ir-dump-mode=pretty
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty, skip=true
 
-// @@BrokenTest: old tc has problems with the `continue` in the match case
-
+// @@Temporary: disabled before new tc becomes default
 
 main := () => {
     mut t := 0;
@@ -18,11 +17,13 @@ main := () => {
             match m {
                 0..3 => {
                     continue;
-                };
+                },
                 4 => {
                     break;
-                };
-                _ => m - 1;
+                },
+                _ => {
+                    m - 1;
+                }
             }
         }
     }

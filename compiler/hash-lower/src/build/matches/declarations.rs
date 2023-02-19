@@ -1,112 +1,65 @@
 //! This deals with lowering declarations,assigning them to a [Local],
 //! and later resolving references to the locals with the current [Builder].
 
-use hash_ast::ast;
 use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
     ty::{IrTyId, Mutability},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::Identifier, location::Span};
-use hash_tir::old::scope::{Member, ScopeId, ScopeKind};
-use hash_utils::store::Store;
+use hash_source::location::Span;
+use hash_tir::{
+    arrays::ArrayPat,
+    control::{IfPat, OrPat},
+    data::CtorPat,
+    environment::env::AccessToEnv,
+    pats::{Pat, PatId},
+    scopes::{BindingPat, DeclTerm},
+    symbols::Symbol,
+    terms::TermId,
+    tuples::TuplePat,
+    utils::common::CommonUtils,
+};
+use hash_utils::store::{CloneStore, SequenceStore};
 
 use super::{candidate::Candidate, BlockAnd, Builder};
-use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend};
+use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend, LocalKey};
 
 impl<'tcx> Builder<'tcx> {
-    /// Get the current [ScopeId] that is being used within the builder.
-    pub(crate) fn current_scope(&self) -> ScopeId {
-        *self.scope_stack.last().unwrap()
-    }
-
     /// Push a [LocalDecl] in the current [Builder] with the associated
-    /// [ScopeId]. This will put the [LocalDecl] into the declarations, and
+    /// [LocalKey]. This will put the [LocalDecl] into the declarations, and
     /// create an entry in the lookup map so that the [Local] can be looked up
     /// via the name of the local and the scope that it is in.
-    pub(crate) fn push_local(&mut self, decl: LocalDecl, scope: ScopeId) -> Local {
-        let decl_name = decl.name;
+    pub(crate) fn push_local(&mut self, decl: LocalDecl, key: LocalKey) -> Local {
+        let is_named = decl.name.is_some();
         let index = self.declarations.push(decl);
 
         // If the declaration has a name i.e. not an auxiliary local, then
         // we can push it into the `declaration_map`.
-        if let Some(name) = decl_name {
-            self.declaration_map.insert((scope, name), index);
+        if is_named {
+            self.declaration_map.insert(key, index);
         }
 
         index
     }
 
-    /// Get the [Local] associated with the provided [ScopeId] and [Identifier].
-    pub(crate) fn lookup_local(&self, name: Identifier) -> Option<Local> {
-        self.lookup_item_scope(name)
-            .and_then(|(scope_id, _, _)| self.lookup_local_from_scope(scope_id, name))
-    }
-
-    /// Lookup a [Local] from a [ScopeId] and a [Identifier].
-    pub(crate) fn lookup_local_from_scope(
-        &self,
-        scope: ScopeId,
-        name: Identifier,
-    ) -> Option<Local> {
-        self.declaration_map.get(&(scope, name)).copied()
-    }
-
-    /// Get the [ScopeId] and [Member] of a [Identifier] that is within the
-    /// current scope stack.
-    pub(crate) fn lookup_item_scope(
-        &self,
-        name: Identifier,
-    ) -> Option<(ScopeId, Member, ScopeKind)> {
-        for scope_id in self.scope_stack.iter().rev() {
-            // We need to walk up the scopes, and then find the first scope
-            // that contains this variable
-            match self.tcx.scope_store.map_fast(*scope_id, |scope| (scope.get(name), scope.kind)) {
-                // Found in this scope, return the member.
-                (Some((member, _)), kind) => return Some((*scope_id, member, kind)),
-                // Continue to the next (higher) scope:
-                _ => continue,
-            }
-        }
-
-        None
-    }
-
-    /// This function handles the lowering of an expression declaration.
-    /// Internally, we check if this declaration needs to be lowered since
-    /// this might be declaring a free function within the current function
-    /// body, and thus we should not lower it.
-    ///
-    /// @@Todo: deal with non-trivial dead-ends, i.e. compound patterns that
-    /// have dead ends...
+    /// This function handles the lowering of an declaration term.
     pub(crate) fn lower_declaration(
         &mut self,
         mut block: BasicBlock,
-        decl: &'tcx ast::Declaration,
+        decl: &DeclTerm,
         decl_span: Span,
     ) -> BlockAnd<()> {
-        // The dead-ends are provided by discovery and indicate items
-        // that the lower should just skip over. As the above @@Todo mentions,
-        // this might not entirely work for compound patterns that may have a
-        // a single member that is a dead-end, but the rest should be lowered.
-        // In this situation, the lowerer will avoid lowering the parts that don't
-        // need to be lowered, and later optimised out by the `remove_dead_locals`
-        // pass.
-        if self.dead_ends.contains(&decl.pat.id()) {
-            return block.unit();
-        }
-
         if let Some(value) = &decl.value {
             // First, we declare all of the bindings that are present
             // in the pattern, and then we place the expression into
             // the pattern using `expr_into_pat`.
-            self.declare_bindings(decl.pat.ast_ref());
+            self.declare_bindings(decl.bind_pat);
 
-            unpack!(block = self.expr_into_pat(block, decl.pat.ast_ref(), value.ast_ref()));
+            unpack!(block = self.tir_term_into_pat(block, decl.bind_pat, *value));
         } else {
             panic_on_span!(
                 decl_span.into_location(self.source_id),
-                self.source_map,
+                self.source_map(),
                 "expected initialisation value, declaration are expected to have values (for now)."
             );
         };
@@ -121,134 +74,149 @@ impl<'tcx> Builder<'tcx> {
     /// bound within the pattern since we have already checked that all pattern
     /// variants declare the same binds of the same type, on the same
     /// pattern level.
-    fn declare_bindings(&mut self, pat: ast::AstNodeRef<'tcx, ast::Pat>) {
+    fn declare_bindings(&mut self, pat: PatId) {
         self.visit_primary_pattern_bindings(pat, &mut |this, mutability, name, _span, ty| {
+            let key = this.local_key_from_symbol(name);
+            let name = this.symbol_name(name);
             let local = LocalDecl::new(name, mutability, ty);
-            let scope = this.current_scope();
 
-            this.push_local(local, scope);
+            this.push_local(local, key);
         })
     }
 
     fn visit_primary_pattern_bindings(
         &mut self,
-        pat: ast::AstNodeRef<'tcx, ast::Pat>,
-        f: &mut impl FnMut(&mut Self, Mutability, Identifier, Span, IrTyId),
+        pat_id: PatId,
+        f: &mut impl FnMut(&mut Self, Mutability, Symbol, Span, IrTyId),
     ) {
-        match &pat.body {
-            ast::Pat::Binding(ast::BindingPat { name, mutability, .. }) => {
+        let span = self.span_of_pat(pat_id);
+        let pat = self.stores().pat().get(pat_id);
+
+        match pat {
+            Pat::Binding(BindingPat { name, is_mutable, .. }) => {
+                // If the symbol has no associated name, then it is not binding
+                // anything...
+                if self.get_symbol(name).name.is_none() {
+                    return;
+                }
+
                 // @@Todo: when we support `k @ ...` patterns, we need to know
                 // when this is a primary pattern or not.
-                let ty = self.ty_of_pat(self.pat_id_of_node(pat.id()));
+                let ty = self.ty_id_from_tir_pat(pat_id);
+                let mutability =
+                    if is_mutable { Mutability::Mutable } else { Mutability::Immutable };
 
-                f(
-                    self,
-                    mutability
-                        .as_ref()
-                        .map(|m| (*m.body()).into())
-                        .unwrap_or(Mutability::Immutable),
-                    name.ident,
-                    pat.span(),
-                    ty,
-                );
+                f(self, mutability, name, span, ty);
             }
-            ast::Pat::Constructor(ast::ConstructorPat { fields, spread, .. })
-            | ast::Pat::Tuple(ast::TuplePat { fields, spread }) => {
-                for field in fields.iter() {
-                    self.visit_primary_pattern_bindings(field.pat.ast_ref(), f);
-                }
+            Pat::Ctor(CtorPat { ctor_pat_args: fields, ctor_pat_args_spread: spread, .. })
+            | Pat::Tuple(TuplePat { data: fields, data_spread: spread }) => {
+                self.stores().pat_args().get_vec(fields).iter().for_each(|field| {
+                    self.visit_primary_pattern_bindings(field.pat.assert_pat(), f);
+                });
 
-                if let Some(spread_pat) = spread && let Some(name) = &spread_pat.name {
-                    f(
-                        self,
-                        // @@Todo: it should be possible to make this a mutable
-                        // pattern reference, for now we assume it is always immutable.
-                        Mutability::Immutable,
-                        name.ident,
-                        pat.span(),
-                        self.ty_of_pat(self.pat_id_of_node(pat.id())),
-                    )
-                }
+                if let Some(spread_pat) = spread && spread_pat.stack_member.is_some() {
+                        //@@Todo: we need to get the type of the spread.
+                        let ty = self.ty_id_from_tir_pat(pat_id);
+
+                        f(
+                            self,
+                            // @@Todo: it should be possible to make this a mutable
+                            // pattern reference, for now we assume it is always immutable.
+                            Mutability::Immutable,
+                            spread_pat.name,
+                            span,
+                            ty
+                        )
+                    }
             }
-            ast::Pat::Array(ast::ArrayPat { fields, spread }) => {
-                if let Some(spread_pat) = spread && let Some(name) = &spread_pat.name {
-                    let index = spread_pat.position;
+            Pat::Array(ArrayPat { pats, spread }) => {
+                if let Some(spread_pat) = spread && spread_pat.stack_member.is_some() {
+                    let index = spread_pat.index;
 
                     // Create the fields into an iterator, and only take the `prefix`
                     // amount of fields to iterate
-                    let prefix_fields = fields.iter().take(index);
+                    let pats = self.stores().pat_list().get_vec(pats);
 
-                    for field in prefix_fields {
-                        self.visit_primary_pattern_bindings(field.ast_ref(), f);
-                    }
+                        let prefix_fields = pats.iter().take(index);
+                        for field in prefix_fields {
+                            self.visit_primary_pattern_bindings(field.assert_pat(), f);
+                        }
 
-                    f(
-                        self,
-                        // @@Todo: it should be possible to make this a mutable
-                        // pattern reference, for now we assume it is always immutable.
-                        Mutability::Immutable,
-                        name.ident,
-                        pat.span(),
-                        self.ty_of_pat(self.pat_id_of_node(pat.id())),
-                    );
+                        //@@TodoTIR: we need to get the type of the spread.
+                        let ty = self.ty_id_from_tir_pat(pat_id);
 
-                    // Now deal with the suffix fields.
-                    let suffix_fields = fields.iter().skip(index);
+                        f(
+                            self,
+                            // @@Todo: it should be possible to make this a mutable
+                            // pattern reference, for now we assume it is always immutable.
+                            Mutability::Immutable,
+                            spread_pat.name,
+                            span,
+                            ty
+                        );
 
-                    for field in suffix_fields {
-                        self.visit_primary_pattern_bindings(field.ast_ref(), f);
-                    }
+                        // Now deal with the suffix fields.
+                        let suffix_fields = pats.iter().skip(index);
+
+                        for field in suffix_fields {
+                            self.visit_primary_pattern_bindings(field.assert_pat(), f);
+                        }
                 } else {
-                    for field in fields.iter() {
-                        self.visit_primary_pattern_bindings(field.ast_ref(), f);
-                    }
+                    self.stores().pat_list().get_vec(pats).iter()
+                        .for_each(|pat| {
+                            self.visit_primary_pattern_bindings(pat.assert_pat(), f);
+                        });
                 }
             }
-            ast::Pat::Or(ast::OrPat { ref variants }) => {
+            Pat::Or(OrPat { alternatives }) => {
                 // We only need to visit the first variant since we already
                 // check that the variant bindings are all the same.
-                if let Some(pat) = variants.get(0) {
-                    self.visit_primary_pattern_bindings(pat.ast_ref(), f);
+                if let Some(pat) = self.stores().pat_list().try_get_at_index(alternatives, 0) {
+                    self.visit_primary_pattern_bindings(pat.assert_pat(), f);
                 }
             }
-            ast::Pat::If(ast::IfPat { pat, .. }) => {
-                self.visit_primary_pattern_bindings(pat.ast_ref(), f);
+            Pat::If(IfPat { pat, .. }) => {
+                self.visit_primary_pattern_bindings(pat, f);
             }
             // These patterns never have any bindings.
-            ast::Pat::Module(_)
-            | ast::Pat::Range(_)
-            | ast::Pat::Access(_)
-            | ast::Pat::Lit(_)
-            | ast::Pat::Wild(_) => {}
+            Pat::Range(_) | Pat::Lit(_) => {}
         }
     }
 
-    /// Lower a given [ast::Expr] into the provided [ast::Pat]. It is expected
+    /// Lower a given [Term] into the provided [Pat]. It is expected
     /// that the pattern is irrefutable, since this is verified during
     /// typechecking via exhaustiveness.
-    fn expr_into_pat(
+    fn tir_term_into_pat(
         &mut self,
         mut block: BasicBlock,
-        pat: ast::AstNodeRef<'tcx, ast::Pat>,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
+        pat_id: PatId,
+        term: TermId,
     ) -> BlockAnd<()> {
-        match &pat.body {
-            ast::Pat::Binding(ast::BindingPat { name, .. }) => {
+        let pat = self.stores().pat().get(pat_id);
+
+        let mut place_into_pat = |this: &mut Self| {
+            let place_builder =
+                unpack!(block = this.as_place_builder(block, term, Mutability::Mutable));
+            this.place_into_pat(block, pat_id, place_builder)
+        };
+
+        match pat {
+            Pat::Binding(BindingPat { name, .. }) => {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.
-                let local = self.lookup_local(name.ident).unwrap();
-                let place = Place::from_local(local, self.ctx);
+                if let Some(local) = self.lookup_local_symbol(name) {
+                    let place = Place::from_local(local, self.ctx);
 
-                unpack!(block = self.expr_into_dest(place, block, expr));
-                block.unit()
+                    unpack!(block = self.term_into_dest(place, block, term));
+                    block.unit()
+                } else {
+                    // If the bind has no local, this must be a wildcard
+                    place_into_pat(self)
+                }
             }
             // The long path, we go through creating candidates and then
             // automatically building places for each candidate, etc.
-            _ => {
-                let place_builder =
-                    unpack!(block = self.as_place_builder(block, expr, Mutability::Mutable));
-                self.place_into_pat(block, pat, place_builder)
-            }
+            _ => place_into_pat(self),
         }
     }
 
@@ -258,13 +226,12 @@ impl<'tcx> Builder<'tcx> {
     fn place_into_pat(
         &mut self,
         block: BasicBlock,
-        pat: ast::AstNodeRef<'tcx, ast::Pat>,
+        pat: PatId,
         place: PlaceBuilder,
     ) -> BlockAnd<()> {
-        let pat_id = self.pat_id_of_node(pat.id());
-        let pat_span = pat.span();
+        let pat_span = self.span_of_pat(pat);
 
-        let mut candidate = Candidate::new(pat_span, pat_id, &place, false);
+        let mut candidate = Candidate::new(pat_span, pat, &place, false);
         self.lower_match_tree(block, pat_span, pat_span, &mut [&mut candidate]);
 
         self.bind_pat(pat_span, pat, candidate).unit()

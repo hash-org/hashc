@@ -87,6 +87,8 @@ pub enum WrongTermKind {
     ///
     /// Records are tuples, single constructor data types.
     NotARecord,
+    /// Cannot index because the term is not an array.
+    NotAnArray,
     /// Cannot use the given term because it is not of the correct type.
     NotOfType { correct_ty: TyId },
 }
@@ -118,6 +120,9 @@ pub enum TcError {
 
     /// Types don't match
     MismatchingTypes { expected: TyId, actual: TyId, inferred_from: Option<LocationTarget> },
+
+    /// Types don't match
+    MismatchingArrayLengths { expected_len: TermId, got_len: TermId },
 
     /// Wrong call kind
     WrongCallKind { site: TermId, expected_implicit: bool, actual_implicit: bool },
@@ -439,6 +444,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let kind_name = match kind {
                     WrongTermKind::NotAFunction => "function".to_string(),
                     WrongTermKind::NotARecord => "record".to_string(),
+                    WrongTermKind::NotAnArray => "array".to_string(),
                     WrongTermKind::NotOfType { correct_ty } => {
                         format!("value of type `{}`", self.env().with(*correct_ty))
                     }
@@ -524,6 +530,20 @@ impl<'tc> TcErrorReporter<'tc> {
             }
             TcError::Intrinsic(msg) => {
                 let _error = reporter.error().code(HashErrorCode::TypeMismatch).title(msg);
+            }
+            TcError::MismatchingArrayLengths { expected_len, got_len } => {
+                let error =
+                    reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
+                        "expected array of length {} but got array of length {}",
+                        self.env().with(*expected_len),
+                        self.env().with(*got_len)
+                    ));
+                if let Some(location) = locations.get_location(expected_len) {
+                    error.add_labelled_span(location, "expected array length");
+                }
+                if let Some(location) = locations.get_location(got_len) {
+                    error.add_labelled_span(location, "got array length");
+                }
             }
         }
     }

@@ -6,15 +6,16 @@ use hash_tir::{
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
-    lits::{Lit, PrimTerm},
+    lits::Lit,
     mods::{ModMemberData, ModMemberValue},
     params::ParamData,
     terms::{Term, TermId},
     tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{
-    DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store,
+use hash_utils::{
+    store::{DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store},
+    stream_less_writeln,
 };
 use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -105,6 +106,7 @@ macro_rules! defined_intrinsics {
 // Contains all the defined intrinsics
 defined_intrinsics! {
     bool_bin_op,
+    short_circuiting_op,
     endo_bin_op,
     prim_type_eq_op,
     un_op,
@@ -137,10 +139,6 @@ pub enum UnOp {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum BoolBinOp {
-    /// '||'
-    Or,
-    /// '&&'
-    And,
     /// '=='
     EqEq,
     /// '!='
@@ -153,6 +151,17 @@ pub enum BoolBinOp {
     Lt,
     /// '<='
     LtEq,
+}
+
+/// This represents the result of a short-circuiting binary operators
+/// that can occur as intrinsics.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
+pub enum ShortCircuitBinOp {
+    /// '||'
+    Or,
+    /// '&&'
+    And,
 }
 
 /// A binary operator whose result is the same type as its arguments.
@@ -300,6 +309,67 @@ impl DefinedIntrinsics {
         )
     }
 
+    /// Add the `short_circuiting_bin_op` intrinsics.
+    ///
+    /// This intrinsic has the signature:
+    /// ```ignore
+    /// short_circuiting_bin_op: (op: u8, a: bool, b: bool) -> bool
+    /// ```
+    fn add_short_circuiting_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(
+        env: T,
+        implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
+    ) -> FnDefId {
+        let op_sym = env.new_symbol("op");
+        let a_sym = env.new_symbol("a");
+        let b_sym = env.new_symbol("b");
+        let ty = env.new_data_ty(env.primitives().bool());
+        let params = env.param_utils().create_params(
+            [
+                ParamData {
+                    default: None,
+                    name: op_sym,
+                    ty: env.new_data_ty(env.primitives().u8()),
+                },
+                ParamData { default: None, name: a_sym, ty },
+                ParamData { default: None, name: b_sym, ty },
+            ]
+            .into_iter(),
+        );
+
+        Self::add_intrinsic(
+            env,
+            implementations,
+            "bool_bin_op",
+            FnTy::builder().params(params).return_ty(ty).build(),
+            |env, args| {
+                const INVALID_OP: &str = "Invalid cond-binary operation parameters";
+
+                // Parse the arguments
+                let (op, lhs, rhs) = (args[0], args[1], args[2]);
+
+                // Parse the operator.
+                let parsed_op = ShortCircuitBinOp::try_from(
+                    env.try_use_term_as_integer_lit::<u8>(op).ok_or(INVALID_OP)?,
+                )
+                .map_err(|_| INVALID_OP)?;
+
+                // Valid operations on big-ints
+                macro_rules! operate_bool {
+                    ($op:expr, $lhs:expr, $rhs:expr) => {
+                        match $op {
+                            ShortCircuitBinOp::And => $lhs && $rhs,
+                            ShortCircuitBinOp::Or => $lhs || $rhs,
+                        }
+                    };
+                }
+
+                let lhs: bool = env.try_use_term_as_bool(lhs).unwrap();
+                let rhs: bool = env.try_use_term_as_bool(rhs).unwrap();
+                Ok(env.new_bool_term(operate_bool!(parsed_op, lhs, rhs)))
+            },
+        )
+    }
+
     /// Add the `bool_bin_op` intrinsic.
     ///
     /// This intrinsic has signature
@@ -353,8 +423,6 @@ impl DefinedIntrinsics {
                 macro_rules! operate_bool {
                     ($op:expr, $lhs:expr, $rhs:expr) => {
                         match $op {
-                            BoolBinOp::Or => $lhs || $rhs,
-                            BoolBinOp::And => $lhs && $rhs,
                             BoolBinOp::EqEq => $lhs == $rhs,
                             BoolBinOp::NotEq => $lhs != $rhs,
                             _ => return Err(INVALID_OP.to_string()),
@@ -372,7 +440,6 @@ impl DefinedIntrinsics {
                             BoolBinOp::GtEq => $lhs >= $rhs,
                             BoolBinOp::Lt => $lhs < $rhs,
                             BoolBinOp::LtEq => $lhs <= $rhs,
-                            _ => return Err(INVALID_OP.to_string()),
                         }
                     };
                 }
@@ -387,7 +454,6 @@ impl DefinedIntrinsics {
                             BoolBinOp::GtEq => $lhs >= $rhs,
                             BoolBinOp::Lt => $lhs < $rhs,
                             BoolBinOp::LtEq => $lhs <= $rhs,
-                            _ => return Err(INVALID_OP.to_string()),
                         }
                     };
                 }
@@ -402,7 +468,6 @@ impl DefinedIntrinsics {
                             BoolBinOp::GtEq => $lhs >= $rhs,
                             BoolBinOp::Lt => $lhs < $rhs,
                             BoolBinOp::LtEq => $lhs <= $rhs,
-                            _ => return Err(INVALID_OP.to_string()),
                         }
                     };
                 }
@@ -668,7 +733,7 @@ impl DefinedIntrinsics {
                 .return_ty(env.new_never_ty())
                 .build(),
             |env, args| match env.get_term(args[0]) {
-                Term::Prim(PrimTerm::Lit(Lit::Str(str_lit))) => Err(str_lit.value().to_string()),
+                Term::Lit(Lit::Str(str_lit)) => Err(str_lit.value().to_string()),
                 _ => Err("`user_error` expects a string literal as argument".to_string())?,
             },
         );
@@ -688,7 +753,7 @@ impl DefinedIntrinsics {
                 "debug_print",
                 FnTy::builder().params(params).return_ty(ret).build(),
                 |env, args| {
-                    println!("{}", env.env().with(args[1]));
+                    stream_less_writeln!("{}", env.env().with(args[1]));
                     Ok(env.new_void_term())
                 },
             )
@@ -712,7 +777,7 @@ impl DefinedIntrinsics {
                     if let Term::FnRef(fn_def_id) = env.get_term(args[1]) {
                         let directives =
                             env.stores().directives().get(fn_def_id.into()).unwrap_or_default();
-                        println!("{:?}", directives.directives);
+                        stream_less_writeln!("{:?}", directives.directives);
                     }
                     Ok(env.new_void_term())
                 },
@@ -745,6 +810,9 @@ impl DefinedIntrinsics {
         // Bool bin ops
         let bool_bin_op = Self::add_bool_bin_op_intrinsic(env, &implementations);
 
+        // Short circuiting ops
+        let short_circuiting_op = Self::add_short_circuiting_op_intrinsic(env, &implementations);
+
         // Unary ops
         let un_op = Self::add_un_op_intrinsic(env, &implementations);
 
@@ -753,6 +821,7 @@ impl DefinedIntrinsics {
             implementations,
             print_fn_directives,
             prim_type_eq_op,
+            short_circuiting_op,
             bool_bin_op,
             endo_bin_op,
             un_op,

@@ -7,12 +7,13 @@ use hash_intrinsics::utils::PrimitiveUtils;
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
+    arrays::{ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     environment::context::{Binding, BindingKind, ScopeKind},
     fns::{FnBody, FnCallTerm},
-    lits::{ListCtor, Lit, LitPat, PrimTerm},
+    lits::{Lit, LitPat},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, Spread},
     refs::DerefTerm,
@@ -197,28 +198,11 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     }
 
     /// Get the term at the given index in the given term list.
-    fn get_index_in_list(&self, list: TermListId, target: ParamIndex) -> Atom {
-        match target {
-            ParamIndex::Name(_) => {
-                panic!("Trying to index a list with a name")
-            }
-            ParamIndex::Position(pos) => {
-                self.stores().term_list().map_fast(list, |list| list[pos].into())
-            }
-        }
-    }
-
-    /// Set the term at the given index in the given term list.
-    fn set_index_in_list(&self, list: TermListId, target: ParamIndex, value: Atom) {
-        match target {
-            ParamIndex::Name(_) => {
-                panic!("Trying to index a list with a name")
-            }
-            ParamIndex::Position(pos) => {
-                let value = self.to_term(value);
-                self.stores().term_list().modify_fast(list, |list| list[pos] = value);
-            }
-        }
+    ///
+    /// Assumes that the index is normalised.
+    fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
+        self.try_use_term_as_integer_lit::<usize>(index)
+            .map(|idx| self.stores().term_list().get_at_index(elements, idx).into())
     }
 
     /// Evaluate an access term.
@@ -230,17 +214,25 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             Term::Ctor(ctor) => {
                 return Ok(self.get_param_in_args(ctor.ctor_args, access_term.field))
             }
-            Term::Prim(prim) => match prim {
-                PrimTerm::Array(list) => {
-                    return Ok(self.get_index_in_list(list.elements, access_term.field))
-                }
-                PrimTerm::Lit(_) => {}
-            },
             _ => {}
         }
 
         // Couldn't reduce
         Ok(self.new_term(access_term).into())
+    }
+
+    /// Evaluate an index term.
+    fn eval_index(&self, mut index_term: IndexTerm) -> Result<Atom, Signal> {
+        index_term.subject = self.to_term(self.eval(index_term.subject.into())?);
+
+        if let Term::Array(arr) = self.get_term(index_term.subject) &&
+           let Some(result) = self.get_index_in_array(arr.elements, index_term.index)
+        {
+            return Ok(result);
+        }
+
+        // Couldn't reduce
+        Ok(self.new_term(index_term).into())
     }
 
     /// Evaluate an unsafe term.
@@ -277,30 +269,29 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
     fn eval_assign(&self, mut assign_term: AssignTerm) -> Result<Atom, Signal> {
         assign_term.value = self.to_term(self.eval(assign_term.value.into())?);
 
-        match assign_term.index {
-            Some(field) => {
-                assign_term.subject = self.to_term(self.eval(assign_term.subject.into())?);
-                match self.get_term(assign_term.subject) {
-                    Term::Tuple(tuple) => {
-                        self.set_param_in_args(tuple.data, field, assign_term.value.into())
-                    }
-                    Term::Ctor(ctor) => {
-                        self.set_param_in_args(ctor.ctor_args, field, assign_term.value.into())
-                    }
-                    Term::Prim(PrimTerm::Array(list)) => {
-                        self.set_index_in_list(list.elements, field, assign_term.value.into())
-                    }
+        match self.get_term(assign_term.subject) {
+            Term::Access(mut access_term) => {
+                access_term.subject = self.to_term(self.eval(access_term.subject.into())?);
+                match self.get_term(access_term.subject) {
+                    Term::Tuple(tuple) => self.set_param_in_args(
+                        tuple.data,
+                        access_term.field,
+                        assign_term.value.into(),
+                    ),
+                    Term::Ctor(ctor) => self.set_param_in_args(
+                        ctor.ctor_args,
+                        access_term.field,
+                        assign_term.value.into(),
+                    ),
                     _ => panic!("Invalid access"),
                 }
             }
-            None => match self.get_term(assign_term.subject) {
-                // @@Todo: deref
-                Term::Var(var) => {
-                    let (member, _) = self.context_utils().get_stack_binding(var);
-                    self.set_stack_member(member, assign_term.value);
-                }
-                _ => panic!("Invalid assign {}", self.env().with(&assign_term)),
-            },
+            // @@Todo: deref
+            Term::Var(var) => {
+                let (member, _) = self.context_utils().get_stack_binding(var);
+                self.set_stack_member(member, assign_term.value);
+            }
+            _ => panic!("Invalid assign {}", self.env().with(&assign_term)),
         }
 
         Ok(self.new_void_term().into())
@@ -523,7 +514,8 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 | Term::Hole(_)
                 | Term::FnRef(_)
                 | Term::Ctor(_)
-                | Term::Prim(_) => Ok(ControlFlow::Continue(())),
+                | Term::Lit(_)
+                | Term::Array(_) => Ok(ControlFlow::Continue(())),
 
                 // Potentially reducible forms:
                 Term::TypeOf(term) => Ok(ControlFlow::Break(self.eval_type_of(term)?)),
@@ -534,6 +526,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                 Term::Var(var) => Ok(ControlFlow::Break(self.eval_var(var)?)),
                 Term::Deref(deref_term) => self.eval_deref(deref_term),
                 Term::Access(access_term) => Ok(ControlFlow::Break(self.eval_access(access_term)?)),
+                Term::Index(index_term) => Ok(ControlFlow::Break(self.eval_index(index_term)?)),
 
                 // Imperative:
                 Term::LoopControl(loop_control) => Err(self.eval_loop_control(loop_control)),
@@ -806,8 +799,8 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             (_, Pat::Ctor(_)) => Ok(MatchResult::Stuck),
 
             // Ranges
-            (Term::Prim(prim_term), Pat::Range(range_pat)) => match prim_term {
-                PrimTerm::Lit(lit_term) => match (lit_term, range_pat.start, range_pat.end) {
+            (Term::Lit(lit_term), Pat::Range(range_pat)) => {
+                match (lit_term, range_pat.start, range_pat.end) {
                     (Lit::Int(value), LitPat::Int(start), LitPat::Int(end)) => Ok(self
                         .match_literal_to_range(
                             value.value(),
@@ -830,44 +823,37 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                             range_pat.range_end,
                         )),
                     _ => Ok(MatchResult::Stuck),
-                },
-                PrimTerm::Array(_) => Ok(MatchResult::Stuck),
-            },
+                }
+            }
             (_, Pat::Range(_)) => Ok(MatchResult::Stuck),
 
             // Literals
-            (Term::Prim(prim_term), Pat::Lit(lit_pat)) => match prim_term {
-                PrimTerm::Lit(lit_term) => match (lit_term, lit_pat) {
-                    (Lit::Int(a), LitPat::Int(b)) => {
-                        Ok(self.match_literal_to_literal(a.value(), b.value()))
-                    }
-                    (Lit::Str(a), LitPat::Str(b)) => {
-                        Ok(self.match_literal_to_literal(a.value(), b.value()))
-                    }
-                    (Lit::Char(a), LitPat::Char(b)) => {
-                        Ok(self.match_literal_to_literal(a.value(), b.value()))
-                    }
-                    _ => Ok(MatchResult::Stuck),
-                },
-                PrimTerm::Array(_) => Ok(MatchResult::Stuck),
+            (Term::Lit(lit_term), Pat::Lit(lit_pat)) => match (lit_term, lit_pat) {
+                (Lit::Int(a), LitPat::Int(b)) => {
+                    Ok(self.match_literal_to_literal(a.value(), b.value()))
+                }
+                (Lit::Str(a), LitPat::Str(b)) => {
+                    Ok(self.match_literal_to_literal(a.value(), b.value()))
+                }
+                (Lit::Char(a), LitPat::Char(b)) => {
+                    Ok(self.match_literal_to_literal(a.value(), b.value()))
+                }
+                _ => Ok(MatchResult::Stuck),
             },
             // Lists
-            (Term::Prim(prim_term), Pat::Array(list_pat)) => match prim_term {
-                PrimTerm::Array(list_term) => self.match_some_list_and_get_binds(
-                    list_term.elements.len(),
-                    list_pat.spread,
-                    |_| {
-                        // Lists can have spreads, which return sublists
-                        self.new_term(PrimTerm::Array(ListCtor {
-                            elements: self.extract_spread_list(list_term.elements, list_pat.pats),
-                        }))
-                    },
-                    |i| self.stores().pat_list().get_at_index(list_pat.pats, i),
-                    |i| self.stores().term_list().get_at_index(list_term.elements, i),
-                    f,
-                ),
-                PrimTerm::Lit(_) => Ok(MatchResult::Stuck),
-            },
+            (Term::Array(array_term), Pat::Array(list_pat)) => self.match_some_list_and_get_binds(
+                array_term.elements.len(),
+                list_pat.spread,
+                |_| {
+                    // Lists can have spreads, which return sublists
+                    self.new_term(Term::Array(ArrayTerm {
+                        elements: self.extract_spread_list(array_term.elements, list_pat.pats),
+                    }))
+                },
+                |i| self.stores().pat_list().get_at_index(list_pat.pats, i),
+                |i| self.stores().term_list().get_at_index(array_term.elements, i),
+                f,
+            ),
             (_, Pat::Lit(_)) => Ok(MatchResult::Stuck),
             (_, Pat::Array(_)) => Ok(MatchResult::Stuck),
         }

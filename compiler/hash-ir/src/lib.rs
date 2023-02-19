@@ -17,14 +17,10 @@ pub mod ty;
 pub mod visitor;
 pub mod write;
 
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 
 use hash_source::entry_point::EntryPointState;
-use hash_tir::{
-    data::DataTy,
-    old::{nominals::NominalDefId, terms::TermId},
-    tys::TyId,
-};
+use hash_tir::{data::DataTy, tys::TyId};
 use hash_utils::store::{FxHashMap, SequenceStore, Store};
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
@@ -67,37 +63,12 @@ impl IrStorage {
     }
 }
 
-/// A [TyCacheEntry] is used to store the [IrTyId] that is created from
-/// a [TermId] or a [NominalDefId]. It is then used by program logic
-/// to avoid re-computing the same type again by using this key to lookup
-/// the [IrTyId] in the [IrCtx].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TyCacheEntry {
-    /// The key is a term ID.
-    Term(TermId),
-
-    /// The key is a nominal definition ID.
-    Nominal(NominalDefId),
-}
-
-impl From<TermId> for TyCacheEntry {
-    fn from(term: TermId) -> Self {
-        Self::Term(term)
-    }
-}
-
-impl From<NominalDefId> for TyCacheEntry {
-    fn from(nominal: NominalDefId) -> Self {
-        Self::Nominal(nominal)
-    }
-}
-
 /// A [SemanticCacheEntry] is used to store the [IrTyId] that is created from
 /// a [TyId] or a [DataDefId]. It is then used by program logic
 /// to avoid re-computing the same type again by using this key to lookup
 /// the [IrTyId] in the [IrCtx].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SemanticCacheEntry {
+pub enum TyCacheEntry {
     /// The key is a type ID.
     Ty(TyId),
 
@@ -105,19 +76,22 @@ pub enum SemanticCacheEntry {
     Data(DataTy),
 }
 
-impl From<TyId> for SemanticCacheEntry {
+impl From<TyId> for TyCacheEntry {
     fn from(ty: TyId) -> Self {
         Self::Ty(ty)
     }
 }
 
-impl From<DataTy> for SemanticCacheEntry {
+impl From<DataTy> for TyCacheEntry {
     fn from(data: DataTy) -> Self {
         Self::Data(data)
     }
 }
 
-pub type SemanticCache = RefCell<FxHashMap<SemanticCacheEntry, IrTyId>>;
+/// The type cache is used to store all of the [IrTyId]s that are created
+/// from [TyId]s or [DataTy]s. This is used to avoid re-computing the
+/// same type again.
+pub type TyCache = RefCell<FxHashMap<TyCacheEntry, IrTyId>>;
 
 /// The [IrCtx] is used to store all interned information that
 /// IR [Body]s might use or reference. This includes IR types, place
@@ -138,11 +112,8 @@ pub struct IrCtx {
     /// lowering stage.
     instances: ty::InstanceStore,
 
-    /// Cache for the [IrTyId]s that are created from [TermId]s.
-    ty_cache: RefCell<FxHashMap<TyCacheEntry, IrTyId>>,
-
     /// Cache for the [IrTyId]s that are created from [TyId]s.
-    semantic_cache: SemanticCache,
+    semantic_cache: TyCache,
 
     /// A map of all "language" intrinsics that might need to be
     /// generated during the lowering process.
@@ -162,7 +133,6 @@ impl IrCtx {
             ty_store,
             instances,
             adt_store: AdtStore::new(),
-            ty_cache: RefCell::new(FxHashMap::default()),
             semantic_cache: RefCell::new(FxHashMap::default()),
         }
     }
@@ -178,23 +148,8 @@ impl IrCtx {
     }
 
     /// Get a reference to the semantic types conversion cache.
-    pub fn semantic_cache(&self) -> &SemanticCache {
+    pub fn semantic_cache(&self) -> &TyCache {
         &self.semantic_cache
-    }
-
-    /// Get a reference to the [IrTyId] cache.
-    pub fn ty_cache(&self) -> Ref<FxHashMap<TyCacheEntry, IrTyId>> {
-        self.ty_cache.borrow()
-    }
-
-    /// Add an entry to the type cache.
-    pub fn add_ty_cache_entry(&self, term: TermId, ty: IrTyId) {
-        self.ty_cache.borrow_mut().insert(term.into(), ty);
-    }
-
-    /// Add an "nominal" definition entry into the type cache.
-    pub fn add_nominal_ty_cache_entry(&self, nominal: NominalDefId, ty: IrTyId) {
-        self.ty_cache.borrow_mut().insert(nominal.into(), ty);
     }
 
     /// Get a reference to the [TyListStore]

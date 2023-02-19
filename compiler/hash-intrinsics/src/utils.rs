@@ -3,7 +3,7 @@ use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
 use hash_tir::{
     data::{CtorDefId, CtorPat, CtorTerm, DataTy},
     environment::env::AccessToEnv,
-    lits::{CharLit, FloatLit, IntLit, Lit, PrimTerm},
+    lits::{CharLit, FloatLit, IntLit, Lit},
     pats::{Pat, PatId},
     terms::{Term, TermId},
     tys::{Ty, TyId},
@@ -63,7 +63,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     }
 
     /// Create a boolean pattern of the given value.
-    fn bool_pat(&self, value: bool) -> PatId {
+    fn new_bool_pat(&self, value: bool) -> PatId {
         self.new_pat(Pat::Ctor(CtorPat {
             ctor: self.get_bool_ctor(value),
             ctor_pat_args: self.new_empty_pat_args(),
@@ -105,25 +105,25 @@ pub trait PrimitiveUtils: AccessToPrimitives {
 
     /// Get the given term as a float literal if possible.
     fn create_term_from_float_lit<L: Into<f64>>(&self, lit: L) -> TermId {
-        self.new_term(Term::Prim(PrimTerm::Lit(Lit::Float(FloatLit {
+        self.new_term(Term::Lit(Lit::Float(FloatLit {
             underlying: ast::FloatLit {
                 kind: ast::FloatLitKind::Unsuffixed,
                 value: CONSTANT_MAP.create_f64_float_constant(lit.into(), None),
             },
-        }))))
+        })))
     }
 
     /// Get the given term as a float literal if possible.
     fn try_use_term_as_float_lit<L: From<f64>>(&self, term: TermId) -> Option<L> {
         match self.get_term(term) {
-            Term::Prim(PrimTerm::Lit(Lit::Float(i))) => i.value().try_into().ok(),
+            Term::Lit(Lit::Float(i)) => i.value().try_into().ok(),
             _ => None,
         }
     }
 
     /// Get the given term as a float literal if possible.
     fn create_term_from_integer_lit<L: Into<BigInt>>(&self, lit: L) -> TermId {
-        self.new_term(Term::Prim(PrimTerm::Lit(Lit::Int(IntLit {
+        self.new_term(Term::Lit(Lit::Int(IntLit {
             underlying: ast::IntLit {
                 kind: ast::IntLitKind::Unsuffixed,
                 value: CONSTANT_MAP.create_int_constant(IntConstant::new(
@@ -131,28 +131,26 @@ pub trait PrimitiveUtils: AccessToPrimitives {
                     None,
                 )),
             },
-        }))))
+        })))
     }
 
     /// Get the given term as a float literal if possible.
     fn try_use_term_as_char_lit(&self, term: TermId) -> Option<char> {
         match self.get_term(term) {
-            Term::Prim(PrimTerm::Lit(Lit::Char(c))) => Some(c.underlying.data),
+            Term::Lit(Lit::Char(c)) => Some(c.underlying.data),
             _ => None,
         }
     }
 
     /// Get the given term as a character literal if possible.
     fn create_term_from_char_lit(&self, lit: char) -> TermId {
-        self.new_term(Term::Prim(PrimTerm::Lit(Lit::Char(CharLit {
-            underlying: ast::CharLit { data: lit },
-        }))))
+        self.new_term(Term::Lit(Lit::Char(CharLit { underlying: ast::CharLit { data: lit } })))
     }
 
     /// Get the given term as an integer literal if possible.
     fn try_use_term_as_integer_lit<L: TryFrom<BigInt>>(&self, term: TermId) -> Option<L> {
         match self.get_term(term) {
-            Term::Prim(PrimTerm::Lit(Lit::Int(i))) => i.value().try_into().ok(),
+            Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),
             _ => None,
         }
     }

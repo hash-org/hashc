@@ -1,12 +1,21 @@
 //! Utilities for dealing with [Place]s when building up Hash IR.
 
-use hash_ast::ast;
 use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection},
     ty::{IrTyId, Mutability, VariantIdx},
     IrCtx,
 };
-use hash_utils::store::SequenceStore;
+use hash_source::identifier::IDENTS;
+use hash_tir::{
+    access::AccessTerm,
+    arrays::IndexTerm,
+    environment::env::AccessToEnv,
+    params::ParamIndex,
+    refs::DerefTerm,
+    terms::{Term, TermId},
+    utils::common::CommonUtils,
+};
+use hash_utils::store::{CloneStore, SequenceStore};
 
 use super::{unpack, BlockAnd, BlockAndExtend, Builder};
 
@@ -83,116 +92,89 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn as_place(
         &mut self,
         mut block: BasicBlock,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
+        term: TermId,
         mutability: Mutability,
     ) -> BlockAnd<Place> {
-        let place_builder = unpack!(block = self.as_place_builder(block, expr, mutability));
+        let place_builder = unpack!(block = self.as_place_builder(block, term, mutability));
         block.and(place_builder.into_place(self.ctx))
     }
 
     pub(crate) fn as_place_builder(
         &mut self,
         mut block: BasicBlock,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
+        term_id: TermId,
         mutability: Mutability,
     ) -> BlockAnd<PlaceBuilder> {
-        match expr.body {
-            ast::Expr::Variable(variable) => {
+        let term = self.stores().term().get(term_id);
+
+        match term {
+            Term::Var(variable) => {
                 // Get the current scope, and resolve the variable within the scope. This will
                 // get us the scope that this variable comes from. Using the id and the name, we
                 // can then lookup the local that this variable is bound to.
-                let name = variable.name.ident;
+                let name = self.get_symbol(variable).name;
+                let local_key = self.local_key_from_symbol(variable);
 
-                let local = self
-                    .lookup_local(name)
-                    .unwrap_or_else(|| panic!("failed to lookup local `{name}`"));
+                let local = self.lookup_local(&local_key).unwrap_or_else(|| {
+                    panic!("failed to lookup local `{}`", name.unwrap_or(IDENTS.underscore))
+                });
                 block.and(PlaceBuilder::from(local))
             }
-            ast::Expr::Access(ast::AccessExpr {
-                subject,
-                property,
-                kind: ast::AccessKind::Property,
-            }) => {
+            Term::Access(AccessTerm { subject, field }) => {
                 let place_builder =
-                    unpack!(block = self.as_place_builder(block, subject.ast_ref(), mutability));
+                    unpack!(block = self.as_place_builder(block, subject, mutability));
 
-                let subject_ty = self.ty_id_of_node(subject.id());
+                let subject_ty = self.ty_id_from_tir_term(subject);
 
-                let index = self.lookup_field_index(subject_ty, *property.body());
+                let index = self.lookup_field_index(subject_ty, field);
                 block.and(place_builder.field(index))
             }
-            ast::Expr::Access(ast::AccessExpr { subject, .. }) => {
-                // @@Todo: we need to check here if the type of the subject is
-                // an enum, and if so then we perform a *downcast* to the correct
-                // variant of the enum.
-
-                // Otherwise, if this is a namespace access, we only need to look at the subject
-                // of the access
-                self.as_place_builder(block, subject.ast_ref(), mutability)
-            }
-            ast::Expr::Deref(ast::DerefExpr { data }) => {
+            Term::Deref(DerefTerm { subject }) => {
                 let place_builder =
-                    unpack!(block = self.as_place_builder(block, data.ast_ref(), mutability));
+                    unpack!(block = self.as_place_builder(block, subject, mutability));
                 block.and(place_builder.deref())
             }
-            ast::Expr::Index(ast::IndexExpr { subject, index_expr }) => {
-                let base_place =
-                    unpack!(block = self.as_place_builder(block, subject.ast_ref(), mutability));
+            Term::Index(IndexTerm { subject, index }) => {
+                let base_place = unpack!(block = self.as_place_builder(block, subject, mutability));
 
                 // Create a temporary for the index expression.
-                let index =
-                    unpack!(block = self.expr_into_temp(block, index_expr.ast_ref(), mutability));
+                let index = unpack!(block = self.term_into_temp(block, index, mutability));
 
                 // @@Todo: depending on the configuration, we may need to insert a bounds check
                 // here.
-
                 block.and(base_place.index(index))
             }
-
-            ast::Expr::Import(_)
-            | ast::Expr::StructDef(_)
-            | ast::Expr::EnumDef(_)
-            | ast::Expr::TyFnDef(_)
-            | ast::Expr::TraitDef(_)
-            | ast::Expr::ImplDef(_)
-            | ast::Expr::ModDef(_)
-            | ast::Expr::FnDef(_)
-            | ast::Expr::MergeDeclaration(_)
-            | ast::Expr::TraitImpl(_)
-            | ast::Expr::Directive(_) => {
-                // We should never encounter these expressions when we are building
-                // a place, this means that someone passed an expression that shouldn't
-                // be put into a place.
-                unreachable!()
-            }
-
-            ast::Expr::Ref(_)
-            | ast::Expr::ConstructorCall(_)
-            | ast::Expr::Declaration(_)
-            | ast::Expr::Unsafe(_)
-            | ast::Expr::Lit(_)
-            | ast::Expr::Cast(_)
-            | ast::Expr::Block(_)
-            | ast::Expr::Ty(_)
-            | ast::Expr::Return(_)
-            | ast::Expr::Break(_)
-            | ast::Expr::Continue(_)
-            | ast::Expr::Assign(_)
-            | ast::Expr::AssignOp(_)
-            | ast::Expr::BinaryExpr(_)
-            | ast::Expr::UnaryExpr(_) => {
+            Term::Tuple(_)
+            | Term::Lit(_)
+            | Term::Array(_)
+            | Term::FnCall(_)
+            | Term::Ctor(_)
+            | Term::FnRef(_)
+            | Term::Block(_)
+            | Term::Loop(_)
+            | Term::LoopControl(_)
+            | Term::Match(_)
+            | Term::Return(_)
+            | Term::Decl(_)
+            | Term::Assign(_)
+            | Term::Unsafe(_)
+            | Term::Cast(_)
+            | Term::TypeOf(_)
+            | Term::Ty(_)
+            | Term::Ref(_)
+            | Term::Hole(_) => {
                 // These expressions are not places, so we need to create a temporary
                 // and then deal with it.
-                let temp = unpack!(block = self.expr_into_temp(block, expr, mutability));
+                let temp = unpack!(block = self.term_into_temp(block, term_id, mutability));
                 block.and(PlaceBuilder::from(temp))
             }
         }
     }
 
-    /// Function to lookup the index of a particular field within a [IrTy] using
-    /// a [ast::PropertyKind]. This function assumes that the underlying type is
-    /// a [IrTy::Adt].
-    fn lookup_field_index(&mut self, ty: IrTyId, field: ast::PropertyKind) -> usize {
+    /// Function to lookup the index of a particular field within a [IrTyId]
+    /// using a [ParamIndex]. This function assumes that the underlying type
+    /// is a [IrTy::Adt].
+    fn lookup_field_index(&mut self, ty: IrTyId, field: ParamIndex) -> usize {
         self.ctx.map_ty_as_adt(ty, |adt, _| {
             // @@Todo: deal with unions here.
             if adt.flags.is_struct() || adt.flags.is_tuple() {
@@ -201,13 +183,13 @@ impl<'tcx> Builder<'tcx> {
                 let variant = adt.variants.first().unwrap();
 
                 match field {
-                    ast::PropertyKind::NamedField(name) => {
+                    ParamIndex::Name(name) => {
                         // @@Optimisation: we could use a lookup table for `AdtField` to
                         // immediately lookup the field rather than looping through the
                         // whole vector trying to find the field with the same name.
                         variant.fields.iter().position(|field| field.name == name).unwrap()
                     }
-                    ast::PropertyKind::NumericField(index) => index,
+                    ParamIndex::Position(index) => index,
                 }
             } else {
                 unreachable!("attempt to access a field of a non-struct or tuple type")

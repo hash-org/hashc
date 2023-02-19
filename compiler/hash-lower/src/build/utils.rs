@@ -3,64 +3,70 @@
 //! provided mappings between nodes to locations, patterns, and
 //! types.
 
-use hash_ast::ast;
 use hash_ir::{
-    ir::{AssertKind, BasicBlock, LocalDecl, Operand, Place, TerminatorKind},
-    ty::{IrTy, IrTyId, Mutability},
+    ir::{AssertKind, BasicBlock, Local, LocalDecl, Operand, Place, TerminatorKind},
+    ty::Mutability,
 };
-use hash_source::location::Span;
-use hash_tir::old::{pats::PatId, terms::TermId};
+use hash_source::{
+    identifier::{Identifier, IDENTS},
+    location::Span,
+};
+use hash_tir::{
+    environment::env::AccessToEnv, fns::FnDefId, pats::PatId, symbols::Symbol, terms::TermId,
+    utils::common::CommonUtils,
+};
 
-use super::Builder;
+use super::{Builder, LocalKey};
+
+// @@Temporary: use this for terms that don't have a location
+const DUMMY_SPAN: Span = Span::new(0, 0);
 
 impl<'tcx> Builder<'tcx> {
-    /// Function to get the associated [TermId] with the
-    /// provided [ast::AstNodeId].
-    #[inline]
-    pub(crate) fn ty_id_of_node(&self, id: ast::AstNodeId) -> IrTyId {
-        // We need to try and look up the type within the cache, if not
-        // present then we create the type by converting the term into
-        // the type.
-        self.lower_term_as_id(self.term_of_node(id))
-    }
-
-    /// Function to get the associated [IrTy] with the
-    /// provided [ast::AstNodeId]. This does not attempt to cache the
-    /// type.
-    #[inline]
-    pub(crate) fn ty_of_node(&self, id: ast::AstNodeId) -> IrTy {
-        self.lower_term(self.term_of_node(id))
-    }
-
-    /// Function to get the associated [PatId] with the
-    /// provided [ast::AstNodeId].
-    #[inline]
-    pub(crate) fn pat_id_of_node(&self, id: ast::AstNodeId) -> PatId {
-        self.tcx.node_info_store.node_info(id).map(|f| f.pat_id()).unwrap()
-    }
-
-    /// Lookup the corresponding [ast::AstNodeId] of [PatId], and then compute
-    /// the type associated with this [ast::AstNodeId].
-    pub(crate) fn ty_of_pat(&self, id: PatId) -> IrTyId {
-        self.tcx.node_info_store.pat_to_node_id(id).map(|id| self.ty_id_of_node(id)).unwrap()
-    }
-
-    /// Lookup the corresponding [TermId] of [PatId] and return it.
-    pub(crate) fn term_of_pat(&self, id: PatId) -> TermId {
-        self.tcx
-            .node_info_store
-            .pat_to_node_id(id)
-            .map(|id| self.tcx.node_info_store.node_info(id).unwrap().term_id())
-            .unwrap()
-    }
-
-    /// Lookup the corresponding [TermId] of a [ast::AstNodeId] and return it.
-    pub(crate) fn term_of_node(&self, id: ast::AstNodeId) -> TermId {
-        self.tcx.node_info_store.node_info(id).unwrap().term_id()
-    }
-
+    /// Get the [Span] of a given [PatId].
     pub(crate) fn span_of_pat(&self, id: PatId) -> Span {
-        self.tcx.location_store.get_span(id).unwrap()
+        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+            log::info!("expected pattern `{}` to have a location", self.env().with(id));
+            DUMMY_SPAN
+        })
+    }
+
+    /// Get the [Span] of a [FnDefId].
+    pub(crate) fn span_of_def(&self, id: FnDefId) -> Span {
+        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+            log::info!("expected function definition `{}` to have a location", self.env().with(id));
+            DUMMY_SPAN
+        })
+    }
+
+    /// Get the [Span] of a given [TermId].
+    pub(crate) fn span_of_term(&self, id: TermId) -> Span {
+        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+            log::info!("expected term `{:?}` to have a location", self.env().with(id));
+            DUMMY_SPAN
+        })
+    }
+
+    /// Create a [LocalKey] from a [Symbol].
+    pub(crate) fn local_key_from_symbol(&self, symbol: Symbol) -> LocalKey {
+        self.context().get_binding(symbol).kind.into()
+    }
+
+    /// Lookup a local by its [LocalKey].
+    pub(crate) fn lookup_local(&self, key: &LocalKey) -> Option<Local> {
+        self.declaration_map.get(key).copied()
+    }
+
+    /// Lookup a [Local] by a specified [Symbol].
+    pub(crate) fn lookup_local_symbol(&self, symbol: Symbol) -> Option<Local> {
+        let key = self.context().get_binding(symbol).kind.into();
+        self.lookup_local(&key)
+    }
+
+    /// Get the underlying name for a [Symbol], if the symbol
+    /// has no name, then the name is set as `_`.
+    pub(crate) fn symbol_name(&self, symbol: Symbol) -> Identifier {
+        let data = self.get_symbol(symbol);
+        data.name.unwrap_or(IDENTS.underscore)
     }
 
     /// Function to create a new [Place] that is used to ignore
@@ -98,25 +104,5 @@ impl<'tcx> Builder<'tcx> {
         );
 
         success_block
-    }
-
-    /// Run a lowering operation whilst entering a new scope which is derived
-    /// from the provided [ast::AstNodeRef<ast::Expr>].
-    ///
-    /// N.B. It is assumed that the related expression has an associated scope.
-    pub(crate) fn with_scope<T, U>(
-        &mut self,
-        expr: ast::AstNodeRef<U>,
-        f: impl FnOnce(&mut Self) -> T,
-    ) -> T {
-        let scope_id = self.tcx.node_info_store.node_info(expr.id()).map(|f| f.scope_id()).unwrap();
-        self.scope_stack.push(scope_id);
-
-        let result = f(self);
-
-        let popped = self.scope_stack.pop();
-        debug_assert!(popped.is_some() && matches!(popped, Some(id) if id == scope_id));
-
-        result
     }
 }

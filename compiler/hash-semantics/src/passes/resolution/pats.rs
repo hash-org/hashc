@@ -7,14 +7,16 @@
 use std::iter::empty;
 
 use hash_ast::ast::{self, AstNodeRef};
+use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
+    arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::{context::BindingKind, env::AccessToEnv},
-    lits::{ArrayPat, CharLit, IntLit, LitPat, StrLit},
+    lits::{CharLit, IntLit, LitPat, StrLit},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
@@ -257,16 +259,30 @@ impl ResolutionPass<'_> {
     /// Create a literal pattern from the given [`ast::Lit`].
     ///
     /// This panics if the given literal is not a valid literal pattern.
-    fn make_lit_pat_from_ast_lit(&self, lit_pat: AstNodeRef<ast::Lit>) -> LitPat {
+    fn make_pat_from_ast_lit(&self, lit_pat: AstNodeRef<ast::Lit>) -> PatId {
+        match lit_pat.body() {
+            ast::Lit::Str(str_lit) => self.new_pat(LitPat::Str(StrLit { underlying: *str_lit })),
+            ast::Lit::Char(char_lit) => {
+                self.new_pat(LitPat::Char(CharLit { underlying: *char_lit }))
+            }
+            ast::Lit::Int(int_lit) => self.new_pat(LitPat::Int(IntLit { underlying: *int_lit })),
+            ast::Lit::Bool(bool_lit) => self.new_bool_pat(bool_lit.data),
+            ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
+                panic!("Found invalid literal in pattern")
+            }
+        }
+    }
+
+    /// Create a pattern from the given [`ast::Lit`].
+    ///
+    /// This panics if the given literal is not a valid literal pattern or if it
+    /// is a boolean.
+    fn make_lit_pat_from_non_bool_ast_lit(&self, lit_pat: AstNodeRef<ast::Lit>) -> LitPat {
         match lit_pat.body() {
             ast::Lit::Str(str_lit) => LitPat::Str(StrLit { underlying: *str_lit }),
             ast::Lit::Char(char_lit) => LitPat::Char(CharLit { underlying: *char_lit }),
             ast::Lit::Int(int_lit) => LitPat::Int(IntLit { underlying: *int_lit }),
-            ast::Lit::Bool(_bool_lit) => {
-                // @@Todo: bool constructor
-                todo!("Bool patterns currently not implemented")
-            }
-            ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
+            ast::Lit::Bool(_) | ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
                 panic!("Found invalid literal in pattern")
             }
         }
@@ -317,9 +333,7 @@ impl ResolutionPass<'_> {
                 pats: self.make_pat_list_from_ast_pats(&array_pat.fields)?,
                 spread: self.make_spread_from_ast_spread(&array_pat.spread)?,
             })),
-            ast::Pat::Lit(lit_pat) => {
-                self.new_pat(Pat::Lit(self.make_lit_pat_from_ast_lit(lit_pat.data.ast_ref())))
-            }
+            ast::Pat::Lit(lit_pat) => self.make_pat_from_ast_lit(lit_pat.data.ast_ref()),
             ast::Pat::Or(or_pat) => self.new_pat(Pat::Or(OrPat {
                 alternatives: self.make_pat_list_from_ast_pats(&or_pat.variants)?,
             })),
@@ -328,13 +342,13 @@ impl ResolutionPass<'_> {
                 pat: self.make_pat_from_ast_pat(if_pat.pat.ast_ref())?,
             })),
             ast::Pat::Wild(_) => self.new_pat(Pat::Binding(BindingPat {
-                name: self.new_symbol("_"),
+                name: self.new_fresh_symbol(),
                 is_mutable: false,
                 stack_member: None,
             })),
             ast::Pat::Range(range_pat) => {
-                let start = self.make_lit_pat_from_ast_lit(range_pat.lo.ast_ref());
-                let end = self.make_lit_pat_from_ast_lit(range_pat.hi.ast_ref());
+                let start = self.make_lit_pat_from_non_bool_ast_lit(range_pat.lo.ast_ref());
+                let end = self.make_lit_pat_from_non_bool_ast_lit(range_pat.hi.ast_ref());
                 self.new_pat(Pat::Range(RangePat { start, end, range_end: range_pat.end }))
             }
         };

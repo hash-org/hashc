@@ -7,14 +7,13 @@ use std::{
     iter::{self, once},
 };
 
-use hash_ast::ast;
+use hash_intrinsics::intrinsics;
 use hash_source::{
     constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_tir::old::scope::ScopeId;
 use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},
@@ -139,9 +138,6 @@ pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
 /// points to some declaration that needs to be evaluated.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct UnevaluatedConst {
-    /// The source scope of the constant.
-    pub scope: ScopeId,
-
     /// The name of the constant.
     pub name: Identifier,
 }
@@ -202,7 +198,7 @@ impl fmt::Display for ConstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Value(value) => write!(f, "{value}"),
-            Self::Unevaluated(UnevaluatedConst { name, .. }) => write!(f, "<unevaluated> {name}"),
+            Self::Unevaluated(UnevaluatedConst { name }) => write!(f, "<unevaluated> {name}"),
         }
     }
 }
@@ -227,13 +223,34 @@ pub enum UnaryOp {
     Neg,
 }
 
-impl From<ast::UnOp> for UnaryOp {
-    fn from(value: ast::UnOp) -> Self {
+impl From<intrinsics::UnOp> for UnaryOp {
+    fn from(value: intrinsics::UnOp) -> Self {
+        use intrinsics::UnOp::*;
         match value {
-            ast::UnOp::BitNot => Self::BitNot,
-            ast::UnOp::Not => Self::Not,
-            ast::UnOp::Neg => Self::Neg,
-            _ => unreachable!(),
+            BitNot => Self::BitNot,
+            Not => Self::Not,
+            Neg => Self::Neg,
+        }
+    }
+}
+
+/// Represents a binary operation that is short-circuiting. These
+/// operations are only valid on boolean values.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum LogicalBinOp {
+    /// '||'
+    Or,
+    /// '&&'
+    And,
+}
+
+impl From<intrinsics::ShortCircuitBinOp> for LogicalBinOp {
+    fn from(value: intrinsics::ShortCircuitBinOp) -> Self {
+        use intrinsics::ShortCircuitBinOp::*;
+
+        match value {
+            And => Self::And,
+            Or => Self::Or,
         }
     }
 }
@@ -344,29 +361,37 @@ impl fmt::Display for BinOp {
     }
 }
 
-impl From<ast::BinOp> for BinOp {
-    fn from(value: ast::BinOp) -> Self {
+impl From<intrinsics::EndoBinOp> for BinOp {
+    fn from(value: intrinsics::EndoBinOp) -> Self {
+        use intrinsics::EndoBinOp::*;
+
         match value {
-            ast::BinOp::EqEq => Self::Eq,
-            ast::BinOp::NotEq => Self::Neq,
-            ast::BinOp::BitOr => Self::BitOr,
-            ast::BinOp::BitAnd => Self::BitAnd,
-            ast::BinOp::BitXor => Self::BitXor,
-            ast::BinOp::Exp => Self::Exp,
-            ast::BinOp::Gt => Self::Gt,
-            ast::BinOp::GtEq => Self::GtEq,
-            ast::BinOp::Lt => Self::Lt,
-            ast::BinOp::LtEq => Self::LtEq,
-            ast::BinOp::Shr => Self::Shr,
-            ast::BinOp::Shl => Self::Shl,
-            ast::BinOp::Add => Self::Add,
-            ast::BinOp::Sub => Self::Sub,
-            ast::BinOp::Mul => Self::Mul,
-            ast::BinOp::Div => Self::Div,
-            ast::BinOp::Mod => Self::Mod,
-            // `As` and `Merge` are dealt with before this ever reached
-            // this point.
-            _ => unreachable!(),
+            BitOr => Self::BitOr,
+            BitAnd => Self::BitAnd,
+            BitXor => Self::BitXor,
+            Exp => Self::Exp,
+            Shr => Self::Shr,
+            Shl => Self::Shl,
+            Add => Self::Add,
+            Sub => Self::Sub,
+            Mul => Self::Mul,
+            Div => Self::Div,
+            Mod => Self::Mod,
+        }
+    }
+}
+
+impl From<intrinsics::BoolBinOp> for BinOp {
+    fn from(value: intrinsics::BoolBinOp) -> Self {
+        use intrinsics::BoolBinOp::*;
+
+        match value {
+            EqEq => Self::Eq,
+            NotEq => Self::Neq,
+            Gt => Self::Gt,
+            GtEq => Self::GtEq,
+            Lt => Self::Lt,
+            LtEq => Self::LtEq,
         }
     }
 }

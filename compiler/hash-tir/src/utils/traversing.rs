@@ -9,13 +9,13 @@ use super::{common::CommonUtils, AccessToUtils};
 use crate::{
     access::AccessTerm,
     args::{ArgData, ArgsId, PatArgData, PatArgsId, PatOrCapture},
+    arrays::{ArrayPat, ArrayTerm, IndexTerm},
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     environment::env::{AccessToEnv, Env, WithEnv},
     fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
     impl_access_to_env,
-    lits::{ArrayPat, ListCtor, PrimTerm},
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
     params::{ParamData, ParamsId},
@@ -119,13 +119,11 @@ impl<'env> TraversingUtils<'env> {
                     let data = self.fmap_args(tuple_term.data, f)?;
                     Ok(self.new_term(Term::Tuple(TupleTerm { data })))
                 }
-                Term::Prim(prim_term) => match prim_term {
-                    PrimTerm::Lit(lit) => Ok(self.new_term(Term::Prim(PrimTerm::Lit(lit)))),
-                    PrimTerm::Array(list_ctor) => {
-                        let elements = self.fmap_term_list(list_ctor.elements, f)?;
-                        Ok(self.new_term(Term::Prim(PrimTerm::Array(ListCtor { elements }))))
-                    }
-                },
+                Term::Lit(lit) => Ok(self.new_term(Term::Lit(lit))),
+                Term::Array(list_ctor) => {
+                    let elements = self.fmap_term_list(list_ctor.elements, f)?;
+                    Ok(self.new_term(Term::Array(ArrayTerm { elements })))
+                }
                 Term::Ctor(ctor_term) => {
                     let data_args = self.fmap_args(ctor_term.data_args, f)?;
                     let ctor_args = self.fmap_args(ctor_term.ctor_args, f)?;
@@ -197,7 +195,7 @@ impl<'env> TraversingUtils<'env> {
                 Term::Assign(assign_term) => {
                     let subject = self.fmap_term(assign_term.subject, f)?;
                     let value = self.fmap_term(assign_term.value, f)?;
-                    Ok(self.new_term(AssignTerm { subject, value, index: assign_term.index }))
+                    Ok(self.new_term(AssignTerm { subject, value }))
                 }
                 Term::Unsafe(unsafe_term) => {
                     let inner = self.fmap_term(unsafe_term.inner, f)?;
@@ -206,6 +204,11 @@ impl<'env> TraversingUtils<'env> {
                 Term::Access(access_term) => {
                     let subject = self.fmap_term(access_term.subject, f)?;
                     Ok(self.new_term(AccessTerm { subject, field: access_term.field }))
+                }
+                Term::Index(index_term) => {
+                    let subject = self.fmap_term(index_term.subject, f)?;
+                    let index = self.fmap_term(index_term.index, f)?;
+                    Ok(self.new_term(IndexTerm { subject, index }))
                 }
                 Term::Cast(cast_term) => {
                     let subject_term = self.fmap_term(cast_term.subject_term, f)?;
@@ -426,24 +429,25 @@ impl<'env> TraversingUtils<'env> {
             ControlFlow::Break(fn_def_id) => Ok(FnDefId::try_from(fn_def_id).unwrap()),
             ControlFlow::Continue(()) => {
                 let fn_def = self.get_fn_def(fn_def_id);
-                Ok(self.fn_utils().create_fn_def(FnDefData {
-                    name: fn_def.name,
 
-                    ty: {
-                        let fn_ty = fn_def.ty;
-                        FnTy {
-                            params: self.fmap_params(fn_ty.params, f)?,
-                            return_ty: self.fmap_ty(fn_ty.return_ty, f)?,
-                            implicit: fn_ty.implicit,
-                            is_unsafe: fn_ty.is_unsafe,
-                            pure: fn_ty.pure,
-                        }
-                    },
-                    body: match fn_def.body {
-                        FnBody::Defined(defined) => FnBody::Defined(self.fmap_term(defined, f)?),
-                        FnBody::Intrinsic(_) | FnBody::Axiom => fn_def.body, // no-op
-                    },
-                }))
+                match fn_def.body {
+                    FnBody::Defined(defined) => Ok(self.fn_utils().create_fn_def(FnDefData {
+                        name: fn_def.name,
+
+                        ty: {
+                            let fn_ty = fn_def.ty;
+                            FnTy {
+                                params: self.fmap_params(fn_ty.params, f)?,
+                                return_ty: self.fmap_ty(fn_ty.return_ty, f)?,
+                                implicit: fn_ty.implicit,
+                                is_unsafe: fn_ty.is_unsafe,
+                                pure: fn_ty.pure,
+                            }
+                        },
+                        body: FnBody::Defined(self.fmap_term(defined, f)?),
+                    })),
+                    FnBody::Intrinsic(_) | FnBody::Axiom => Ok(fn_def_id),
+                }
             }
         }?;
 
@@ -456,10 +460,8 @@ impl<'env> TraversingUtils<'env> {
             ControlFlow::Break(_) => Ok(()),
             ControlFlow::Continue(()) => match self.get_term(term_id) {
                 Term::Tuple(tuple_term) => self.visit_args(tuple_term.data, f),
-                Term::Prim(prim_term) => match prim_term {
-                    PrimTerm::Lit(_) => Ok(()),
-                    PrimTerm::Array(list_ctor) => self.visit_term_list(list_ctor.elements, f),
-                },
+                Term::Lit(_) => Ok(()),
+                Term::Array(list_ctor) => self.visit_term_list(list_ctor.elements, f),
                 Term::Ctor(ctor_term) => {
                     self.visit_args(ctor_term.data_args, f)?;
                     self.visit_args(ctor_term.ctor_args, f)
@@ -504,6 +506,10 @@ impl<'env> TraversingUtils<'env> {
                 }
                 Term::Unsafe(unsafe_term) => self.visit_term(unsafe_term.inner, f),
                 Term::Access(access_term) => self.visit_term(access_term.subject, f),
+                Term::Index(index_term) => {
+                    self.visit_term(index_term.subject, f)?;
+                    self.visit_term(index_term.index, f)
+                }
                 Term::Cast(cast_term) => {
                     self.visit_term(cast_term.subject_term, f)?;
                     self.visit_ty(cast_term.target_ty, f)

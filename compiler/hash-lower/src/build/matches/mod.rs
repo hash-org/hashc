@@ -12,18 +12,28 @@ use std::mem;
 
 use hash_ast::ast;
 use hash_ir::{
-    ir::{self, BasicBlock, Place, RValue, TerminatorKind},
+    ir::{self, BasicBlock, LogicalBinOp, Place, RValue, TerminatorKind},
     ty::{Mutability, RefKind},
 };
 use hash_source::location::Span;
-use hash_tir::old::pats::Pat;
-use hash_utils::{stack::ensure_sufficient_stack, store::Store};
+use hash_tir::{
+    control::{IfPat, MatchCasesId},
+    environment::{context::ScopeKind, env::AccessToEnv},
+    pats::{Pat, PatId},
+    terms::{Term, TermId},
+    utils::context::ContextUtils,
+};
+use hash_utils::{
+    itertools::Itertools,
+    stack::ensure_sufficient_stack,
+    store::{CloneStore, SequenceStore, Store},
+};
 
 use self::{
     candidate::{traverse_candidate, Binding, Candidate, Candidates},
     test::TestKind,
 };
-use super::{place::PlaceBuilder, unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{place::PlaceBuilder, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
 
 impl<'tcx> Builder<'tcx> {
     /// This is the entry point of matching an expression. Firstly, we deal with
@@ -32,13 +42,13 @@ impl<'tcx> Builder<'tcx> {
     /// blocks that are required to represent the decision tree. After the
     /// decision tree has been built, we then build the blocks
     /// that are required to represent the actual match arms.
-    pub(crate) fn match_expr(
+    pub(crate) fn lower_match_term(
         &mut self,
         destination: Place,
         mut block: BasicBlock,
         span: Span,
-        subject: ast::AstNodeRef<'tcx, ast::Expr>,
-        arms: &'tcx ast::AstNodes<ast::MatchCase>,
+        subject: TermId,
+        arms: MatchCasesId,
         origin: ast::MatchOrigin,
     ) -> BlockAnd<()> {
         // @@Hack: if the match-origin is an `if`-chain, then we don't bother
@@ -51,6 +61,8 @@ impl<'tcx> Builder<'tcx> {
             unpack!(block = self.as_place_builder(block, subject, Mutability::Mutable))
         };
 
+        let subject_span = self.span_of_term(subject);
+
         // Make the decision tree here...
         let mut arm_candidates = self.create_match_candidates(&subject_place, arms);
 
@@ -60,7 +72,7 @@ impl<'tcx> Builder<'tcx> {
         // Using the decision tree, now build up the blocks for each arm, and then
         // join them at the end to the next block after the match, i.e. the `ending
         // block`.
-        self.lower_match_tree(block, subject.span(), span, &mut candidates);
+        self.lower_match_tree(block, subject_span, span, &mut candidates);
 
         self.lower_match_arms(destination, span, arm_candidates)
     }
@@ -68,16 +80,20 @@ impl<'tcx> Builder<'tcx> {
     fn create_match_candidates(
         &mut self,
         subject_place: &PlaceBuilder,
-        arms: &'tcx ast::AstNodes<ast::MatchCase>,
+        arms: MatchCasesId,
     ) -> Vec<Candidates<'tcx>> {
-        arms.iter()
-            .map(|arm| {
-                let arm = arm.ast_ref();
-                let pat_id = self.pat_id_of_node(arm.pat.id());
-                let candidate = Candidate::new(arm.span, pat_id, subject_place, arm.has_if_pat());
-                (arm, candidate)
-            })
-            .collect()
+        self.stores().match_cases().map_fast(arms, |arms| {
+            arms.iter()
+                .copied()
+                .map(|arm| {
+                    let span = self.span_of_pat(arm.bind_pat);
+                    let has_guard = self.stores().pat().map_fast(arm.bind_pat, Pat::is_if);
+
+                    let candidate = Candidate::new(span, arm.bind_pat, subject_place, has_guard);
+                    (arm, candidate)
+                })
+                .collect()
+        })
     }
 
     /// This function is used to create a `then-else` block sequence for a
@@ -88,32 +104,30 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         else_block: BasicBlock,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
+        expr: TermId,
     ) -> BlockAnd<()> {
-        let span = expr.span();
+        let span = self.span_of_term(expr);
+        let term = self.stores().term().get(expr);
 
-        match expr.body {
-            ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator })
-                if *operator.body() == ast::BinOp::And =>
+        // If this is a `&&`, we can create a `then-else` block sequence
+        // that respects the short-circuiting behaviour of `&&`.
+        if let Term::FnCall(ref fn_call) = term {
+            if let FnCallTermKind::LogicalBinOp(LogicalBinOp::And, lhs, rhs) =
+                self.classify_fn_call_term(fn_call)
             {
-                let lhs_then_block =
-                    unpack!(self.then_else_break(block, else_block, lhs.ast_ref()));
-                let rhs_then_block =
-                    unpack!(self.then_else_break(lhs_then_block, else_block, rhs.ast_ref()));
-
-                rhs_then_block.unit()
-            }
-            _ => {
-                let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
-                let then_block = self.control_flow_graph.start_new_block();
-
-                let terminator =
-                    TerminatorKind::make_if(place.into(), then_block, else_block, self.ctx);
-                self.control_flow_graph.terminate(block, span, terminator);
-
-                then_block.unit()
+                let lhs_then_block = unpack!(self.then_else_break(block, else_block, lhs));
+                let rhs_then_block = unpack!(self.then_else_break(lhs_then_block, else_block, rhs));
+                return rhs_then_block.unit();
             }
         }
+
+        let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
+        let then_block = self.control_flow_graph.start_new_block();
+
+        let terminator = TerminatorKind::make_if(place.into(), then_block, else_block, self.ctx);
+        self.control_flow_graph.terminate(block, span, terminator);
+
+        then_block.unit()
     }
 
     /// Create a decision tree for the match expression using all of the created
@@ -175,13 +189,15 @@ impl<'tcx> Builder<'tcx> {
         let mut lowered_arms_edges: Vec<_> = Vec::with_capacity(arm_candidates.len());
 
         for (arm, candidate) in arm_candidates {
-            let arm_block = self.bind_pat(subject_span, arm.body.pat.ast_ref(), candidate);
-
-            lowered_arms_edges.push(self.expr_into_dest(
-                destination,
-                arm_block,
-                arm.body.expr.ast_ref(),
-            ));
+            // Each match-case creates its own scope, so we need to enter it here...
+            ContextUtils::<'_>::enter_resolved_scope_mut(
+                self,
+                ScopeKind::Stack(arm.stack_id),
+                |this| {
+                    let arm_block = this.bind_pat(subject_span, arm.bind_pat, candidate);
+                    lowered_arms_edges.push(this.term_into_dest(destination, arm_block, arm.value));
+                },
+            )
         }
 
         // After the execution of the match, all branches end up here...
@@ -370,7 +386,7 @@ impl<'tcx> Builder<'tcx> {
         // sorted them by priority (all or-patterns go to the end)
         let (first, remaining) = candidates.split_first_mut().unwrap();
 
-        let is_or_pat = self.tcx.pat_store.map_fast(first.pairs[0].pat, |pat| pat.is_or());
+        let is_or_pat = self.stores().pat().map_fast(first.pairs[0].pat, |pat| pat.is_or());
 
         // If this is the case, it means that we have no or-patterns
         // here... since we sorted them
@@ -387,12 +403,17 @@ impl<'tcx> Builder<'tcx> {
         for pair in pairs {
             let or_span = self.span_of_pat(pair.pat);
 
-            let pats = self.tcx.pat_store.map_fast(pair.pat, |pat| {
+            let pats = self.stores().pat().map_fast(pair.pat, |pat| {
                 let Pat::Or(pats) = pat else {
                     unreachable!("`or` pattern expected after candidate sorting")
                 };
 
-                pats.clone()
+                self.stores()
+                    .pat_list()
+                    .get_vec(pats.alternatives)
+                    .into_iter()
+                    .map(|pat| pat.assert_pat())
+                    .collect_vec()
             });
 
             first.visit_leaves(|leaf| {
@@ -575,16 +596,11 @@ impl<'tcx> Builder<'tcx> {
 
     /// This function is responsible for putting all of the declared bindings
     /// into scope.
-    fn bind_pat(
-        &mut self,
-        span: Span,
-        pat: ast::AstNodeRef<'tcx, ast::Pat>,
-        candidate: Candidate,
-    ) -> BasicBlock {
-        let guard = match &pat.body {
-            ast::Pat::If(ast::IfPat { condition, .. }) => Some(condition.ast_ref()),
+    fn bind_pat(&mut self, span: Span, pat: PatId, candidate: Candidate) -> BasicBlock {
+        let guard = self.stores().pat().map_fast(pat, |pat| match pat {
+            Pat::If(IfPat { condition, .. }) => Some(*condition),
             _ => None,
-        };
+        });
 
         if candidate.sub_candidates.is_empty() {
             // We don't need generate another `BasicBlock` when we only have
@@ -626,7 +642,7 @@ impl<'tcx> Builder<'tcx> {
     fn bind_and_guard_matched_candidate(
         &mut self,
         candidate: Candidate,
-        guard: Option<ast::AstNodeRef<'tcx, ast::Expr>>,
+        guard: Option<TermId>,
         parent_bindings: &[Vec<Binding>],
         span: Span,
     ) -> BasicBlock {
@@ -677,7 +693,8 @@ impl<'tcx> Builder<'tcx> {
         // to avoid problems of mutation in the if-guard, and then affecting the
         // soundness of later match checks.
         for binding in bindings {
-            let value_place = Place::from_local(self.lookup_local(binding.name).unwrap(), self.ctx);
+            let value_place =
+                Place::from_local(self.lookup_local_symbol(binding.name).unwrap(), self.ctx);
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
@@ -703,7 +720,8 @@ impl<'tcx> Builder<'tcx> {
 
             // Now resolve where the binding place from, and then push
             // an assign onto the binding source.
-            let value_place = Place::from_local(self.lookup_local(binding.name).unwrap(), self.ctx);
+            let value_place =
+                Place::from_local(self.lookup_local_symbol(binding.name).unwrap(), self.ctx);
 
             self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }

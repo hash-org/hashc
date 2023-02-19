@@ -205,7 +205,11 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
         // object, or if we emit a single module object for the entire program.
         // Currently, we are emitting a single module for the entire program
         // that is being compiled in in the workspace.
-        let entry_point = self.workspace.source_map.entry_point().unwrap();
+        let entry_point = self
+            .workspace
+            .source_map
+            .entry_point()
+            .expect("expected a defined entry point for executable");
 
         let context = LLVMContext::create();
 

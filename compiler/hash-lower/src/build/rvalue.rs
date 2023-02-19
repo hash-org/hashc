@@ -1,132 +1,115 @@
 //! Module that contains logic for handling and creating [RValue]s from
-//! [ast::Expr]s.
+//! [Term]s.
 
-use hash_ast::ast;
 use hash_ir::{
-    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnevaluatedConst},
+    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
     ty::{IrTy, Mutability},
 };
 use hash_source::{
     constant::{IntConstant, IntTy, CONSTANT_MAP},
     location::Span,
 };
-use hash_tir::old::scope::ScopeKind;
-use hash_utils::store::Store;
+use hash_tir::{
+    arrays::ArrayTerm,
+    environment::env::AccessToEnv,
+    terms::{Term, TermId},
+};
+use hash_utils::store::{CloneStore, Store};
 
-use super::{category::Category, unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
 
 impl<'tcx> Builder<'tcx> {
     /// Construct an [RValue] from the given [ast::Expr].
-    pub(crate) fn as_rvalue(
-        &mut self,
-        mut block: BasicBlock,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
-    ) -> BlockAnd<RValue> {
-        match expr.body {
-            ast::Expr::Lit(lit) => {
-                let value = self.as_constant(lit.data.ast_ref()).into();
+    pub(crate) fn as_rvalue(&mut self, mut block: BasicBlock, term_id: TermId) -> BlockAnd<RValue> {
+        // @@Temporary: replace with get_ref();
+        let term = self.stores().term().get(term_id);
+        let span = self.span_of_term(term_id);
+
+        let mut as_operand = |this: &mut Self| {
+            // Verify that this is an actual RValue...
+            debug_assert!(!matches!(Category::of(&term), Category::RValue | Category::Constant));
+
+            let operand = unpack!(block = this.as_operand(block, term_id, Mutability::Mutable));
+            block.and(RValue::Use(operand))
+        };
+
+        match term {
+            Term::Lit(lit) => {
+                let value = self.as_constant(&lit).into();
                 block.and(value)
             }
-
-            // @@SpecialCase: if this is a variable, and it is not in scope,
-            // then we essentially assume that it is a zero-sized constant type.
-            ast::Expr::Variable(variable) if self.lookup_local(variable.name.ident).is_none() => {
-                let ty = self.ty_id_of_node(expr.id());
-                let value = Const::Zero(ty).into();
-
-                block.and(value)
+            Term::Array(ArrayTerm { .. }) => {
+                todo!()
             }
+            Term::FnCall(fn_call) => {
+                match self.classify_fn_call_term(&fn_call) {
+                    FnCallTermKind::BinaryOp(op, lhs, rhs) => {
+                        let lhs = unpack!(block = self.as_operand(block, lhs, Mutability::Mutable));
+                        let rhs = unpack!(block = self.as_operand(block, rhs, Mutability::Mutable));
 
-            ast::Expr::UnaryExpr(ast::UnaryExpr { operator, expr }) => {
-                // If the unary operator is a typeof, we should have already dealt with
-                // this...
-                if matches!(operator.body(), ast::UnOp::TypeOf) {
-                    panic!("`typeof` should have been handled already");
+                        let ty = self.ty_from_tir_term(term_id);
+                        self.build_binary_op(block, ty, span, op, lhs, rhs)
+                    }
+                    FnCallTermKind::UnaryOp(op, subject) => {
+                        let arg =
+                            unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
+
+                        // If the operator is a negation, and the operand is signed, we can have a
+                        // case of overflow. This occurs when the operand is the minimum value for
+                        // the type, and a negation occurs. This causes the value to overflow. We
+                        // check for this case here, and emit an assertion check for this (assuming
+                        // checked operations are enabled).
+                        let ty = self.ty_from_tir_term(term_id);
+
+                        if self.settings.lowering_settings().checked_operations
+                            && matches!(op, UnaryOp::Neg)
+                            && ty.is_signed()
+                        {
+                            let min_value = self.min_value_of_ty(ty);
+                            let is_min = self.temp_place(self.ctx.tys().common_tys.bool);
+
+                            self.control_flow_graph.push_assign(
+                                block,
+                                is_min,
+                                RValue::BinaryOp(BinOp::Eq, Box::new((arg, min_value))),
+                                span,
+                            );
+
+                            block = self.assert(
+                                block,
+                                is_min.into(),
+                                false,
+                                AssertKind::NegativeOverflow { operand: arg },
+                                span,
+                            );
+                        }
+
+                        block.and(RValue::UnaryOp(op, arg))
+                    }
+                    _ => as_operand(self),
                 }
-
-                let arg =
-                    unpack!(block = self.as_operand(block, expr.ast_ref(), Mutability::Mutable));
-
-                // If the operator is a negation, and the operand is signed, we can have a
-                // case of overflow. This occurs when the operand is the minimum value for
-                // the type, and a negation occurs. This causes the value to overflow. We
-                // check for this case here, and emit an assertion check for this (assuming
-                // checked operations are enabled).
-                let ty = self.ty_of_node(expr.id());
-
-                if self.settings.lowering_settings().checked_operations
-                    && matches!(operator.body(), ast::UnOp::Neg)
-                    && ty.is_signed()
-                {
-                    let min_value = self.min_value_of_ty(ty);
-                    let is_min = self.temp_place(self.ctx.tys().common_tys.bool);
-
-                    self.control_flow_graph.push_assign(
-                        block,
-                        is_min,
-                        RValue::BinaryOp(BinOp::Eq, Box::new((arg, min_value))),
-                        expr.span(),
-                    );
-
-                    block = self.assert(
-                        block,
-                        is_min.into(),
-                        false,
-                        AssertKind::NegativeOverflow { operand: arg },
-                        expr.span(),
-                    );
-                }
-
-                block.and(RValue::UnaryOp((*operator.body()).into(), arg))
             }
-            ast::Expr::BinaryExpr(ast::BinaryExpr { lhs, rhs, operator }) => {
-                let lhs =
-                    unpack!(block = self.as_operand(block, lhs.ast_ref(), Mutability::Mutable));
-                let rhs =
-                    unpack!(block = self.as_operand(block, rhs.ast_ref(), Mutability::Mutable));
 
-                return self.build_binary_op(
-                    block,
-                    self.ty_of_node(expr.id()),
-                    expr.span,
-                    (*operator.body()).into(),
-                    lhs,
-                    rhs,
-                );
-            }
-            ast::Expr::Variable(_)
-            | ast::Expr::ConstructorCall(_)
-            | ast::Expr::Directive(_)
-            | ast::Expr::Declaration(_)
-            | ast::Expr::Access(_)
-            | ast::Expr::Ref(_)
-            | ast::Expr::Deref(_)
-            | ast::Expr::Unsafe(_)
-            | ast::Expr::Cast(_)
-            | ast::Expr::Block(_)
-            | ast::Expr::Import(_)
-            | ast::Expr::StructDef(_)
-            | ast::Expr::EnumDef(_)
-            | ast::Expr::TyFnDef(_)
-            | ast::Expr::TraitDef(_)
-            | ast::Expr::ImplDef(_)
-            | ast::Expr::ModDef(_)
-            | ast::Expr::FnDef(_)
-            | ast::Expr::Ty(_)
-            | ast::Expr::Return(_)
-            | ast::Expr::Break(_)
-            | ast::Expr::Continue(_)
-            | ast::Expr::Index(_)
-            | ast::Expr::Assign(_)
-            | ast::Expr::AssignOp(_)
-            | ast::Expr::MergeDeclaration(_)
-            | ast::Expr::TraitImpl(_) => {
-                // Verify that this is an actual RValue...
-                debug_assert!(!matches!(Category::of(expr), Category::RValue | Category::Constant));
-
-                let operand = unpack!(block = self.as_operand(block, expr, Mutability::Mutable));
-                block.and(RValue::Use(operand))
-            }
+            Term::Tuple(_)
+            | Term::Ctor(_)
+            | Term::FnRef(_)
+            | Term::Block(_)
+            | Term::Var(_)
+            | Term::Loop(_)
+            | Term::LoopControl(_)
+            | Term::Match(_)
+            | Term::Return(_)
+            | Term::Decl(_)
+            | Term::Assign(_)
+            | Term::Unsafe(_)
+            | Term::Access(_)
+            | Term::Index(_)
+            | Term::Cast(_)
+            | Term::TypeOf(_)
+            | Term::Ty(_)
+            | Term::Ref(_)
+            | Term::Deref(_)
+            | Term::Hole(_) => as_operand(self),
         }
     }
 
@@ -134,7 +117,8 @@ impl<'tcx> Builder<'tcx> {
     /// signed integer type.
     fn min_value_of_ty(&self, ty: IrTy) -> Operand {
         let value = if let IrTy::Int(signed_ty) = ty {
-            let size = signed_ty.size(self.tcx.pointer_width).unwrap().bits();
+            let ptr_width = self.settings.target().pointer_bit_width / 8;
+            let size = signed_ty.size(ptr_width).unwrap().bits();
             let n = 1 << (size - 1);
 
             // Create and intern the constant
@@ -155,43 +139,29 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn as_operand(
         &mut self,
         mut block: BasicBlock,
-        expr: ast::AstNodeRef<'tcx, ast::Expr>,
+        term_id: TermId,
         mutability: Mutability,
     ) -> BlockAnd<Operand> {
-        // We want to deal with variables in a special way since they might
-        // be referencing values that are outside of the the body, i.e. un-evaluated
-        // constants. In this case, we want to just create a constant value that is
-        // yet to be evaluated.
-        //
-        // @@Future: would be nice to remove this particular check and somehow deal with
-        // these differently, possibly some kind of additional syntax or a flag to
-        // denote when some variable refers to a constant value.
-        if let ast::Expr::Variable(variable) = expr.body {
-            let name = variable.name.ident;
+        let term = self.stores().term().get(term_id);
+        let span = self.span_of_term(term_id);
 
-            let ty_id = self.ty_id_of_node(expr.id());
+        // If the item is a reference to a function, i.e. the subject of a call, then
+        // we emit a constant that refers to the function.
+        if let Term::FnRef(def_id) = term {
+            let ty_id = self.ty_id_from_tir_fn_def(def_id);
 
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
             if self.ctx.map_ty(ty_id, |ty| matches!(ty, IrTy::FnDef { .. })) {
                 return block.and(Operand::Const(Const::Zero(ty_id).into()));
             }
-
-            if let Some((scope, _, kind)) = self.lookup_item_scope(name) && kind != ScopeKind::Variable {
-                let unevaluated_const = UnevaluatedConst { scope, name };
-
-                // record that this constant is used in this function
-                self.needed_constants.push(unevaluated_const);
-
-                return block.and(ConstKind::Unevaluated(unevaluated_const).into());
-            }
         }
 
-        match Category::of(expr) {
+        match Category::of(&term) {
             // Just directly recurse and create the constant.
-            Category::Constant => block.and(self.lower_constant_expr(expr).into()),
+            Category::Constant => block.and(self.lower_constant_expr(&term, span).into()),
             Category::Place | Category::RValue => {
-                let place = unpack!(block = self.as_place(block, expr, mutability));
+                let place = unpack!(block = self.as_place(block, term_id, mutability));
                 block.and(place.into())
             }
         }

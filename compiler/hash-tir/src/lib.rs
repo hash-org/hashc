@@ -5,6 +5,7 @@
 
 pub mod access;
 pub mod args;
+pub mod arrays;
 pub mod atom_info;
 pub mod casting;
 pub mod control;

@@ -1,7 +1,7 @@
 //! Defines a category of AST expressions which can be used to determine how to
 //! lower them throughout the lowering stage.
 
-use hash_ast::ast;
+use hash_tir::terms::Term;
 
 /// A [Category] represents what category [ast::Expr]s belong to
 /// when they are being lowered. Depending on the category, we
@@ -22,23 +22,21 @@ pub(crate) enum Category {
     RValue,
 }
 
-/// Determines the category for a given expression. Note that scope
-/// and paren expressions have no category.
 impl Category {
-    pub(crate) fn of(expr: ast::AstNodeRef<'_, ast::Expr>) -> Self {
-        match expr.body() {
+    /// Determines the [Category] for a given [Term].
+    pub(crate) fn of(term: &Term) -> Self {
+        match term {
             // Constants that are not primitive are dealt with as
             // RValues.
-            ast::Expr::Lit(ast::LitExpr { data }) if data.is_primitive() => Self::Constant,
-
-            ast::Expr::Access(..)
-            | ast::Expr::Index(..)
-            | ast::Expr::Ref(..)
-            | ast::Expr::Deref(..)
-            | ast::Expr::Variable(..) => Self::Place,
+            Term::Lit(_) => Category::Constant,
+            Term::Index(..)
+            | Term::Access(..)
+            | Term::Ref(..)
+            | Term::Deref(..)
+            | Term::Var(..) => Category::Place,
 
             // Everything else is considered as an RValue of some kind.
-            _ => Self::RValue,
+            _ => Category::RValue,
         }
     }
 }

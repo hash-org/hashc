@@ -1,4 +1,6 @@
-// stage=full, run=fail
+// stage=full, run=fail, skip=true
+
+// @@Temporary: disabled before new tc becomes default
 
 foo := () => {
 

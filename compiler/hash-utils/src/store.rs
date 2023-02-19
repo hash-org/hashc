@@ -503,6 +503,15 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         self.internal_data().borrow().get(starting_index + index).unwrap().clone()
     }
 
+    /// Get the value at the given index in the value sequence corresponding to
+    /// the given key.
+    ///
+    /// Panics if the index is out of bounds for the given key.
+    fn try_get_at_index(&self, key: Key, index: usize) -> Option<Value> {
+        let (starting_index, _) = key.to_index_and_len();
+        self.internal_data().borrow().get(starting_index + index).cloned()
+    }
+
     /// Get the value sequence for the given key as an owned vector.
     fn get_vec(&self, key: Key) -> Vec<Value> {
         let (index, len) = key.to_index_and_len();

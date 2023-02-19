@@ -9,7 +9,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId},
 };
 use hash_source::location::Span;
-use hash_tir::old::pats::PatId;
+use hash_tir::pats::{PatId, Spread};
 use smallvec::SmallVec;
 
 use super::candidate::{Candidate, MatchPair};
@@ -61,7 +61,7 @@ impl<'tcx> Builder<'tcx> {
         pairs: &mut SmallVec<[MatchPair; 1]>,
         place: &PlaceBuilder,
         prefix: &[PatId],
-        rest: Option<PatId>,
+        rest: Option<Spread>,
         suffix: &[PatId],
     ) {
         let (min_length, exact_size) = self.ctx.map_ty(ty, |ty| match ty {
@@ -77,14 +77,18 @@ impl<'tcx> Builder<'tcx> {
         }));
 
         // Create a projection as a a `sub-slice` of the original array
-        if let Some(rest_pat) = rest {
+        if let Some(_spread) = rest {
             let suffix_len = suffix.len();
-            let place = place.clone_project(PlaceProjection::SubSlice {
+            let _place = place.clone_project(PlaceProjection::SubSlice {
                 from: prefix.len(),
                 to: if exact_size { min_length - suffix_len } else { suffix_len },
                 from_end: !exact_size,
             });
-            pairs.push(MatchPair { place, pat: rest_pat });
+
+            // @@Todo: we need to somehow mimic the spread pattern being here, this
+            // should be a array pat?
+            todo!()
+            // pairs.push(MatchPair { place, pat: spread });
         }
 
         // Add all of the suffixes, with a constant offset, i.e. the size of the

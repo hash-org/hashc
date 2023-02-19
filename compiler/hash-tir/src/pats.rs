@@ -14,11 +14,12 @@ use super::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
-    lits::{ArrayPat, LitPat},
+    lits::LitPat,
     scopes::{BindingPat, StackMemberId},
     symbols::Symbol,
     tuples::TuplePat,
 };
+use crate::arrays::ArrayPat;
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.
@@ -61,6 +62,31 @@ pub enum Pat {
     Ctor(CtorPat),
     Or(OrPat),
     If(IfPat),
+}
+
+impl Pat {
+    /// Check if the pattern is a [`Pat::Or`].
+    pub fn is_or(&self) -> bool {
+        matches!(self, Pat::Or(_))
+    }
+
+    /// Check if the pattern is of the [`Pat::Binding`] variant.
+    pub fn is_bind(&self) -> bool {
+        matches!(self, Pat::Binding(_))
+    }
+
+    /// Check if the pattern is wrapped with an `if` guard.
+    pub fn is_if(&self) -> bool {
+        matches!(self, Pat::If(_))
+    }
+
+    /// Convert the pattern into a binding pattern, if it is one.
+    pub fn into_bind(self) -> Option<BindingPat> {
+        match self {
+            Pat::Binding(pat) => Some(pat),
+            _ => None,
+        }
+    }
 }
 
 new_store_key!(pub PatId);

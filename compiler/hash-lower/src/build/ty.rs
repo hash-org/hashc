@@ -5,116 +5,205 @@
 //! the lowering process. This is why this builder is used to `lower` the [Term]
 //! types into the [IrTy] which is then used for the lowering process.
 
+use hash_intrinsics::{
+    intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
+    primitives::AccessToPrimitives,
+    utils::PrimitiveUtils,
+};
 use hash_ir::{
-    ir::Const,
-    ty::{IrTy, IrTyId, VariantIdx},
+    ir::{self, Const},
+    ty::{Instance, IrTy, IrTyId},
 };
-use hash_source::{constant::CONSTANT_MAP, identifier::IDENTS};
-use hash_tir::old::{
-    nominals::{EnumVariantValue, NominalDefId},
-    storage::GlobalStorage,
-    terms::{FnLit, FnTy, Level0Term, Level1Term, LitTerm, Term, TermId},
+use hash_source::constant::CONSTANT_MAP;
+use hash_tir::{
+    atom_info::ItemInAtomInfo,
+    environment::env::AccessToEnv,
+    fns::{FnCallTerm, FnDefId, FnTy},
+    lits::LitPat,
+    pats::PatId,
+    terms::{Term, TermId},
+    tys::TyId,
+    utils::common::CommonUtils,
 };
-use hash_utils::store::Store;
+use hash_utils::store::{SequenceStore, Store};
 
 use super::Builder;
-use crate::ty::old::TyLoweringCtx;
-
-/// Get the [FnTy] from a given [TermId].
-pub(super) fn get_fn_ty_from_term(term_id: TermId, tcx: &GlobalStorage) -> FnTy {
-    tcx.term_store.map_fast(term_id, |term| match term {
-        Term::Level0(Level0Term::FnLit(FnLit { fn_ty, .. })) => get_fn_ty_from_term(*fn_ty, tcx),
-        Term::Level1(Level1Term::Fn(fn_ty)) => *fn_ty,
-        _ => unreachable!(),
-    })
-}
+use crate::ty::TyLoweringCtx;
 
 /// Convert a [LitTerm] into a [Const] value.
-pub(super) fn constify_lit_term(term: TermId, tcx: &GlobalStorage) -> Const {
-    tcx.term_store.map_fast(term, |term| match term {
-        Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => Const::Int(*value),
-        Term::Level0(Level0Term::Lit(LitTerm::Char(char))) => Const::Char(*char),
-        Term::Level0(Level0Term::Lit(LitTerm::Str(str))) => Const::Str(*str),
-        _ => unreachable!(),
-    })
+pub(super) fn constify_lit_pat(term: &LitPat) -> Const {
+    match term {
+        LitPat::Int(lit) => Const::Int(lit.interned_value()),
+        LitPat::Str(lit) => Const::Str(lit.interned_value()),
+        LitPat::Char(lit) => Const::Char(lit.value()),
+    }
+}
+
+/// An auxiliary data structure that represents the underlying [FnCallTerm]
+/// as either being a function call, a binary operation (of various kinds), or
+/// a an index operation.
+///
+/// The [FnCallTermKind] is used beyond the semantic stage of the compiler to
+/// help the lowering stage distinguish between these cases.
+pub enum FnCallTermKind {
+    /// A function call, the term doesn't change and should just be
+    /// handled as a function call.
+    Call(FnCallTerm),
+
+    /// A "boolean" binary operation which takes two terms and yields a boolean
+    /// term as a result.
+    BinaryOp(ir::BinOp, TermId, TermId),
+
+    /// A short-circuiting boolean binary operation, the term should be lowered
+    /// into the equivalent of `a && b` or `a || b`.
+    LogicalBinOp(ir::LogicalBinOp, TermId, TermId),
+
+    /// An "unary" operation, the term should be lowered into the equivalent
+    /// unary operation.
+    UnaryOp(ir::UnaryOp, TermId),
 }
 
 impl<'tcx> Builder<'tcx> {
     /// Get the [IrTyId] from a given [TermId]. This function will internally
     /// cache results of lowering a [TermId] into an [IrTyId] to avoid
     /// duplicate work.
-    pub(crate) fn lower_term_as_id(&self, term: TermId) -> IrTyId {
-        let ctx = TyLoweringCtx { tcx: self.tcx, lcx: self.ctx };
-        ctx.ty_id_from_term(term)
+    pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> IrTyId {
+        let ty = self.get_inferred_ty(term);
+
+        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
+        ctx.ty_id_from_tir_ty(ty)
     }
 
     /// Get the [IrTy] from a given [TermId].
-    pub(super) fn lower_term(&self, term: TermId) -> IrTy {
-        let ctx = TyLoweringCtx { tcx: self.tcx, lcx: self.ctx };
-        ctx.ty_from_term(term)
+    pub(super) fn ty_from_tir_term(&mut self, term: TermId) -> IrTy {
+        self.ty_from_tir_ty(self.get_inferred_ty(term))
     }
 
-    /// Get the [IrTyId] from the given [NominalDefId].
-    pub(super) fn lower_nominal_as_id(&self, nominal: NominalDefId) -> IrTyId {
-        let ctx = TyLoweringCtx { tcx: self.tcx, lcx: self.ctx };
-        ctx.ty_id_from_nominal(nominal)
+    /// Create an [`IrTy::FnDef`] from the given [FnDefId].
+    pub(super) fn ty_id_from_tir_fn_def(&mut self, def: FnDefId) -> IrTyId {
+        let (symbol, ty) = self.stores().fn_def().map_fast(def, |fn_def| (fn_def.name, fn_def.ty));
+
+        let name = self.symbol_name(symbol);
+        let source = self.get_location(def).map(|location| location.id);
+        let FnTy { params, return_ty, .. } = ty;
+
+        // Lower the parameters and the return type
+        let param_tys = self.stores().params().get_vec(params);
+
+        let params = self
+            .ctx
+            .tls()
+            .create_from_iter(param_tys.iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
+        let ret_ty = self.ty_id_from_tir_ty(return_ty);
+
+        let instance = self.ctx.instances().create(Instance::new(name, source, params, ret_ty));
+
+        self.ctx.tys().create(IrTy::FnDef { instance })
+    }
+
+    /// Get the [IrTyId] from a given [TyId]. This function will internally
+    /// cache results of lowering a [TyId] into an [IrTyId] to avoid
+    /// duplicate work.
+    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> IrTyId {
+        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
+        ctx.ty_id_from_tir_ty(ty)
+    }
+
+    /// Get the [IrTy] from a given [TyId].
+    pub(super) fn ty_from_tir_ty(&self, ty_id: TyId) -> IrTy {
+        self.stores().ty().map_fast(ty_id, |ty| {
+            let ctx =
+                TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
+            ctx.ty_from_tir_ty(ty_id, ty)
+        })
+    }
+
+    /// Get the [IrTyId] for a give [PatId].
+    pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> IrTyId {
+        let ty = self.get_inferred_ty(pat);
+        self.ty_id_from_tir_ty(ty)
+    }
+
+    /// Function which is used to classify a [FnCallTerm] into a
+    /// [FnCallTermKind].
+    pub(crate) fn classify_fn_call_term(&self, term: &FnCallTerm) -> FnCallTermKind {
+        let FnCallTerm { subject, args, .. } = term;
+
+        match self.get_term(*subject) {
+            Term::FnRef(fn_def) => {
+                // Check if the fn_def is a `un_op` intrinsic
+                if fn_def == self.intrinsics().un_op() {
+                    let (op, subject) = (
+                        self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
+                    );
+
+                    // Parse the operator from the starting term as defined in `hash-intrinsics`
+                    let parsed_op =
+                        UnOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
+                            .unwrap();
+
+                    FnCallTermKind::UnaryOp(parsed_op.into(), subject)
+                } else if fn_def == self.intrinsics().short_circuiting_op() {
+                    let (op, lhs, rhs) = (
+                        self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
+                        self.stores().args().get_at_index(*args, 3).value,
+                    );
+
+                    let op = ShortCircuitBinOp::try_from(
+                        self.try_use_term_as_integer_lit::<u8>(op).unwrap(),
+                    )
+                    .unwrap();
+
+                    FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
+                } else if fn_def == self.intrinsics().endo_bin_op() {
+                    let (op, lhs, rhs) = (
+                        self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
+                        self.stores().args().get_at_index(*args, 3).value,
+                    );
+
+                    let op =
+                        EndoBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
+                            .unwrap();
+                    FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
+                } else if fn_def == self.intrinsics().bool_bin_op() {
+                    let (op, lhs, rhs) = (
+                        self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
+                        self.stores().args().get_at_index(*args, 3).value,
+                    );
+
+                    let op =
+                        BoolBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
+                            .unwrap();
+                    FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
+                } else {
+                    FnCallTermKind::Call(FnCallTerm { ..*term })
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 
     /// Assuming that the provided [TermId] is a literal term, we essentially
     /// convert the term into a [Const] and return the value of the constant
     /// as a [u128]. This literal term must be an integral type.
-    pub(crate) fn evaluate_const_pat_term(&self, term: TermId) -> (Const, u128) {
-        self.tcx.term_store.map_fast(term, |ty| match ty {
-            Term::Level0(Level0Term::Lit(LitTerm::Int { value })) => CONSTANT_MAP
-                .map_int_constant(*value, |constant| {
-                    (Const::Int(*value), constant.value.as_u128().unwrap())
-                }),
-            Term::Level0(Level0Term::Lit(LitTerm::Char(char))) => {
-                (Const::Char(*char), u128::from(*char))
+    pub(crate) fn evaluate_const_pat(&self, pat: LitPat) -> (Const, u128) {
+        match pat {
+            LitPat::Int(lit) => {
+                let value = lit.interned_value();
+
+                CONSTANT_MAP.map_int_constant(value, |constant| {
+                    (Const::Int(value), constant.value.as_u128().unwrap())
+                })
             }
-            Term::Level0(Level0Term::EnumVariant(_)) => {
-                let variant_value = self.evaluate_enum_variant_as_index(term);
-                let bool_value = variant_value.index() == 1;
-                (Const::Bool(bool_value), u128::from(bool_value))
+            LitPat::Char(lit) => {
+                let value = lit.value();
+                (Const::Char(value), u128::from(value))
             }
             _ => unreachable!(),
-        })
-    }
-
-    /// This function will attempt to lower a provided [TermId] into a
-    /// [VariantIdx]. This function assumed that the specified term is
-    /// a [Term::Level0] enum variant which belongs to the specified adt,
-    /// otherwise the function will panic.
-    pub(crate) fn evaluate_enum_variant_as_index(&self, term: TermId) -> VariantIdx {
-        self.tcx.term_store.map_fast(term, |term| match term {
-            Term::Level0(level0_term) => match level0_term {
-                Level0Term::EnumVariant(EnumVariantValue { name, def_id }) => {
-                    // we essentially re-compute the variant type, and then
-                    // compute the variant name index. This should be done
-                    // reasonably cheaply since the type of the nominal has
-                    // already been lowered, and then it is just a matter of
-                    // looking up the cached type.
-                    let ty = self.lower_nominal_as_id(*def_id);
-
-                    self.ctx.map_ty(ty, |ty| {
-                        match ty {
-                            IrTy::Adt(adt) => {
-                                self.ctx.map_adt(*adt, |_, adt| adt.variant_idx(name).unwrap())
-                            }
-                            // @@Hack: The only case this could be is boolean type, since we don't
-                            // represent it as an ADT, but it's own type.  So we just match on the
-                            // variant name and return the correct index.
-                            _ => match *name {
-                                i if i == IDENTS.r#true => VariantIdx::new(1),
-                                i if i == IDENTS.r#false => VariantIdx::new(0),
-                                _ => unreachable!(),
-                            },
-                        }
-                    })
-                }
-                term => panic!("expected enum variant, but got: {term:?}"),
-            },
-            term => panic!("expected enum variant, but got: {term:?}"),
-        })
+        }
     }
 }

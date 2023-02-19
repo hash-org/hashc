@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 
 use hash_ast::ast;
 use hash_ir::ir::{compare_constant_values, Const};
-use hash_tir::old::pats::RangePat;
+use hash_tir::pats::RangePat;
 
 use crate::build::Builder;
 
@@ -27,10 +27,10 @@ pub(super) struct ConstRange {
 impl ConstRange {
     /// Create a [ConstRange] from [RangePat].
     pub fn from_range(range: &RangePat, builder: &Builder) -> Self {
-        let (lo, _) = builder.evaluate_const_pat_term(range.lo);
-        let (hi, _) = builder.evaluate_const_pat_term(range.hi);
+        let (lo, _) = builder.evaluate_const_pat(range.start);
+        let (hi, _) = builder.evaluate_const_pat(range.end);
 
-        Self { lo, hi, end: range.end }
+        Self { lo, hi, end: range.range_end }
     }
 
     /// Check if a [Const] is within the range.

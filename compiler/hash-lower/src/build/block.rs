@@ -4,11 +4,19 @@
 //! is located in `matches.rs`.
 use std::mem;
 
-use hash_ast::ast;
+use hash_ast::ast::MatchOrigin;
 use hash_ir::{
     ir::{BasicBlock, Place},
     ty::Mutability,
 };
+use hash_tir::{
+    control::{LoopTerm, MatchTerm},
+    environment::{context::ScopeKind, env::AccessToEnv},
+    scopes::BlockTerm,
+    terms::{Term, TermId},
+    utils::context::ContextUtils,
+};
+use hash_utils::store::{CloneStore, SequenceStore};
 
 use super::{BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
 use crate::build::unpack;
@@ -18,21 +26,14 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         place: Place,
         block: BasicBlock,
-        ast_block: ast::AstNodeRef<'tcx, ast::Block>,
+        block_term_id: TermId,
     ) -> BlockAnd<()> {
-        let span = ast_block.span();
+        let span = self.span_of_term(block_term_id);
+        let block_term = self.stores().term().get(block_term_id);
 
-        match ast_block.body {
-            ast::Block::Body(body) => {
-                self.with_scope(ast_block, |this| this.body_block_into_dest(place, block, body))
-            }
-
-            // Send this off into the `match` lowering logic
-            ast::Block::Match(ast::MatchBlock { subject, cases, origin }) => {
-                self.match_expr(place, block, span, subject.ast_ref(), cases, *origin)
-            }
-
-            ast::Block::Loop(ast::LoopBlock { contents }) => {
+        match &block_term {
+            Term::Block(ref body) => self.body_block_into_dest(place, block, body),
+            Term::Loop(LoopTerm { block: ref body }) => {
                 // Begin the loop block by connecting the previous block
                 // and terminating it with a `goto` instruction to this block
                 let loop_body = self.control_flow_graph.start_new_block();
@@ -46,20 +47,24 @@ impl<'tcx> Builder<'tcx> {
                     let tmp_place = this.make_tmp_unit();
 
                     let body_block_end =
-                        unpack!(this.block_into_dest(tmp_place, loop_body, contents.ast_ref()));
+                        unpack!(this.body_block_into_dest(tmp_place, loop_body, body));
 
                     // In the situation that we have the final statement in the loop, this
                     // block should go back to the start of the loop...
                     if !this.control_flow_graph.is_terminated(body_block_end) {
-                        this.control_flow_graph.goto(body_block_end, loop_body, ast_block.span());
+                        this.control_flow_graph.goto(body_block_end, loop_body, span);
                     }
 
                     next_block.unit()
                 })
             }
-
-            // These variants are removed during the de-sugaring stage
-            ast::Block::For(..) | ast::Block::While(..) | ast::Block::If(..) => unreachable!(),
+            Term::Match(MatchTerm { subject, cases }) => {
+                // @@TodoTIR: we should be able to get the origin from the
+                // match term.
+                let origin = MatchOrigin::Match;
+                self.lower_match_term(place, block, span, *subject, *cases, origin)
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -67,39 +72,49 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         place: Place,
         mut block: BasicBlock,
-        body: &'tcx ast::BodyBlock,
+        body: &BlockTerm,
     ) -> BlockAnd<()> {
-        // Essentially walk all of the statement in the block, and then set
-        // the return type of this block as the last expression, or an empty
-        // unit if there is no expression.
-        for statement in body.statements.iter() {
-            if self.reached_terminator {
-                break;
+        let BlockTerm { stack_id, statements, return_value } = body;
+
+        if self.reached_terminator {
+            return block.unit();
+        }
+
+        ContextUtils::<'_>::enter_resolved_scope_mut(self, ScopeKind::Stack(*stack_id), |this| {
+            // Essentially walk all of the statement in the block, and then set
+            // the return type of this block as the last expression, or an empty
+            // unit if there is no expression.
+            let statements = this.stores().term_list().get_vec(*statements);
+
+            for statement_id in statements {
+                let statement = this.stores().term().get(statement_id);
+                match statement {
+                    // We need to handle declarations here specifically, otherwise
+                    // in order to not have to create a temporary for the declaration
+                    // which doesn't make sense because we are just declaring a local(s)
+                    Term::Decl(decl) => {
+                        let span = this.span_of_term(statement_id);
+                        unpack!(block = this.lower_declaration(block, &decl, span));
+                    }
+                    _ => {
+                        // @@Investigate: do we need to deal with the temporary here?
+                        unpack!(
+                            block = this.term_into_temp(block, statement_id, Mutability::Immutable)
+                        );
+                    }
+                }
             }
 
-            // We need to handle declarations here specifically, otherwise
-            // in order to not have to create a temporary for the declaration
-            // which doesn't make sense because we are just declaring a local(s)
-            if let ast::Expr::Declaration(decl) = statement.body() {
-                unpack!(block = self.lower_declaration(block, decl, statement.span()));
-            } else {
-                // @@Investigate: do we need to deal with the temporary here?
-                unpack!(
-                    block = self.expr_into_temp(block, statement.ast_ref(), Mutability::Immutable)
-                );
+            // If this block has an expression, we need to deal with it since
+            // it might change the destination of this block.
+            if !this.reached_terminator {
+                unpack!(block = this.term_into_dest(place, block, *return_value));
             }
-        }
+        });
 
         // we finally reset the reached terminator flag so that we can
         // continue to lower the rest of the program
         self.reached_terminator = false;
-
-        // If this block has an expression, we need to deal with it since
-        // it might change the destination of this block.
-        if let Some(expr) = body.expr.as_ref() && !self.reached_terminator {
-            unpack!(block = self.expr_into_dest(place, block, expr.ast_ref()));
-        }
-
         block.unit()
     }
 

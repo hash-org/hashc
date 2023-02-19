@@ -7,21 +7,22 @@ use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgId, ArgsId, PatArgData, PatArgsId, PatOrCapture},
+    arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
-    control::{IfPat, LoopControlTerm, LoopTerm, OrPat, ReturnTerm},
+    control::{IfPat, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{
         ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy,
         PrimitiveCtorInfo,
     },
     environment::context::{BindingKind, ParamOrigin, ScopeKind},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
-    lits::{ArrayPat, ListCtor, Lit, PrimTerm},
+    lits::Lit,
     mods::{ModDefId, ModMemberId, ModMemberValue},
     params::{Param, ParamData, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::{DerefTerm, RefTerm, RefTy},
-    scopes::{BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockTerm, DeclTerm},
     sub::Sub,
     symbols::Symbol,
     term_as_variant,
@@ -304,6 +305,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let inferred_pat_args_id =
             self.param_utils().create_pat_args(inferred_pat_args.into_iter());
 
+        // @@Fix: add back spread to inferred pat args
         self.register_atom_inference_indexed(pat_args, inferred_pat_args_id, inferred_params_id);
         Ok((inferred_pat_args_id, inferred_params_id))
     }
@@ -474,47 +476,109 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a primitive term.
-    pub fn infer_prim_term(
+    pub fn infer_array_term(
         &self,
-        term: &PrimTerm,
+        array_term: &ArrayTerm,
         annotation_ty: TyId,
         original_term_id: TermId,
-    ) -> TcResult<(PrimTerm, TyId)> {
-        match term {
-            PrimTerm::Lit(lit_term) => Ok((*term, self.infer_lit(lit_term, annotation_ty)?.1)),
-            PrimTerm::Array(list_term) => {
-                let normalised_ty = self.normalise_and_check_ty(annotation_ty)?;
-                let list_annotation_inner_ty = match self.get_ty(normalised_ty) {
-                    Ty::Data(data) if data.data_def == self.primitives().list() => {
-                        // Type is already checked
-                        assert!(data.args.len() == 1);
-                        let inner_term = self.stores().args().get_element((data.args, 0)).value;
-                        term_as_variant!(self, self.get_term(inner_term), Ty)
-                    }
-                    Ty::Hole(_) => self.new_ty_hole(),
-                    _ => {
-                        return Err(TcError::MismatchingTypes {
-                            expected: annotation_ty,
-                            actual: {
-                                self.new_ty(DataTy {
-                                    data_def: self.primitives().list(),
-                                    args: self.new_args(&[self.new_term(self.new_ty_hole())]),
-                                })
-                            },
-                            inferred_from: Some(original_term_id.into()),
-                        })
-                    }
-                };
+    ) -> TcResult<(ArrayTerm, TyId)> {
+        let normalised_ty = self.normalise_and_check_ty(annotation_ty)?;
 
-                let (inferred_list, inferred_list_inner_ty) =
-                    self.infer_unified_term_list(list_term.elements, list_annotation_inner_ty)?;
-                let list_ty = self.new_ty(DataTy {
-                    data_def: self.primitives().list(),
-                    args: self.new_args(&[self.new_term(inferred_list_inner_ty)]),
-                });
-                Ok((PrimTerm::Array(ListCtor { elements: inferred_list }), list_ty))
+        let mismatch = || {
+            Err(TcError::MismatchingTypes {
+                expected: annotation_ty,
+                actual: {
+                    self.new_ty(DataTy {
+                        data_def: self.primitives().list(),
+                        args: self.new_args(&[self.new_term(self.new_ty_hole())]),
+                    })
+                },
+                inferred_from: Some(original_term_id.into()),
+            })
+        };
+
+        let (list_annotation_inner_ty, list_len) = match self.get_ty(normalised_ty) {
+            Ty::Data(data) => {
+                let data_def = self.get_data_def(data.data_def);
+
+                match data_def.ctors {
+                    DataDefCtors::Primitive(primitive) => {
+                        if let PrimitiveCtorInfo::Array(array_prim) = primitive {
+                            // First infer the data arguments
+                            let (inferred_data_args, inferred_data_params) =
+                                self.infer_args(data.args, data_def.params)?;
+
+                            let param_uni = self
+                                .unification_ops()
+                                .unify_params(
+                                    inferred_data_params,
+                                    data_def.params,
+                                    ParamOrigin::Data(data_def.id),
+                                )
+                                .unwrap();
+
+                            // Create a substitution from the inferred data arguments
+                            let data_sub = self
+                                .substitution_ops()
+                                .create_sub_from_args_of_params(inferred_data_args, data_def.params)
+                                .join(&param_uni.sub);
+
+                            self.context().enter_scope(data_def.id.into(), || {
+                                let subbed_element_ty = self
+                                    .substitution_ops()
+                                    .apply_sub_to_ty(array_prim.element_ty, &data_sub);
+
+                                let subbed_index = array_prim.length.map(|l| {
+                                    self.substitution_ops().apply_sub_to_term(l, &data_sub)
+                                });
+
+                                Ok((subbed_element_ty, subbed_index))
+                            })
+                        } else {
+                            mismatch()
+                        }
+                    }
+                    _ => mismatch(),
+                }
+            }
+            Ty::Hole(_) => Ok((self.new_ty_hole(), None)),
+            _ => mismatch(),
+        }?;
+
+        let (inferred_list, inferred_list_inner_ty) =
+            self.infer_unified_term_list(array_term.elements, list_annotation_inner_ty)?;
+
+        // Ensure the array lengths match if given
+        if let Some(len) = list_len {
+            if let Some(len) = self.try_use_term_as_integer_lit::<usize>(len) {
+                if inferred_list.len() != len {
+                    return Err(TcError::MismatchingArrayLengths {
+                        expected_len: self.create_term_from_integer_lit(len),
+                        got_len: self.create_term_from_integer_lit(inferred_list.len()),
+                    });
+                }
             }
         }
+
+        // Unify the inner annotation type with the inferred type
+        let inner_ty_uni =
+            self.unification_ops().unify_tys(inferred_list_inner_ty, list_annotation_inner_ty)?;
+
+        // Either create a default list type or apply the substitution to the annotation
+        // type
+        let list_ty = match self.get_ty(normalised_ty) {
+            Ty::Hole(_) => {
+                let list_ty = self.new_ty(DataTy {
+                    data_def: self.primitives().list(),
+                    args: self.new_args(&[self.new_term(inner_ty_uni.result)]),
+                });
+
+                self.unification_ops().unify_tys(normalised_ty, list_ty)?.result
+            }
+            _ => self.substitution_ops().apply_sub_to_ty(normalised_ty, &inner_ty_uni.sub),
+        };
+
+        Ok((ArrayTerm { elements: inferred_list }, list_ty))
     }
 
     /// Infer a constructor term.
@@ -565,7 +629,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
             let param_uni = self
                 .unification_ops()
-                .unify_params(inferred_data_params, data_def.params, ParamOrigin::Ctor(ctor.id))
+                .unify_params(inferred_data_params, data_def.params, ParamOrigin::Data(data_def.id))
                 .unwrap();
 
             // Create a substitution from the inferred data arguments
@@ -685,13 +749,19 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         // @@Todo: implicit check
                         let uni = self.unification_ops().unify_tys(return_ty, annotation_ty)?;
 
+                        let subject = self.substitution_ops().apply_sub_to_term(
+                            self.substitution_ops().apply_sub_to_term(subject_term, &param_uni.sub),
+                            &uni.sub,
+                        );
+                        let subject_ty = self.substitution_ops().apply_sub_to_ty(
+                            self.substitution_ops().apply_sub_to_ty(subject_ty, &param_uni.sub),
+                            &uni.sub,
+                        );
+                        self.register_atom_inference(fn_call_term.subject, subject, subject_ty);
+
                         Ok((
                             FnCallTerm {
-                                subject: self.substitution_ops().apply_sub_to_term(
-                                    self.substitution_ops()
-                                        .apply_sub_to_term(subject_term, &param_uni.sub),
-                                    &uni.sub,
-                                ),
+                                subject,
                                 args: inferred_fn_call_args,
                                 implicit: fn_call_term.implicit,
                             },
@@ -757,7 +827,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Atom is already registered but not inferred, it means we are in a
         // recursive call.
-        if self.atom_is_registered(fn_def_id) {
+        if self.atom_is_registered(fn_def_id) && fn_mode == FnInferMode::Body {
             return Ok((fn_def_id, fn_def.ty));
         }
 
@@ -1261,6 +1331,112 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         }
     }
 
+    /// Infer an index term.
+    pub fn infer_index_term(
+        &self,
+        index_term: &IndexTerm,
+        annotation_ty: TyId,
+        original_term_id: TermId,
+    ) -> TcResult<(IndexTerm, TyId)> {
+        let (inferred_subject, inferred_subject_ty) =
+            self.infer_term(index_term.subject, self.new_ty_hole())?;
+        let normalised_subject_ty = self.normalise_and_check_ty(inferred_subject_ty)?;
+
+        // Ensure the index is a usize
+        let (inferred_index, _) =
+            self.infer_term(index_term.index, self.new_data_ty(self.primitives().usize()))?;
+
+        let wrong_ty = || {
+            Err(TcError::WrongTy {
+                term: original_term_id,
+                inferred_term_ty: normalised_subject_ty,
+                kind: WrongTermKind::NotAnArray,
+            })
+        };
+
+        // Ensure that the subject is array-like
+        let inferred_ty = match self.get_ty(normalised_subject_ty) {
+            Ty::Data(data_ty) => {
+                let data_def = self.get_data_def(data_ty.data_def);
+                if let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array_primitive)) =
+                    data_def.ctors
+                {
+                    let sub = self
+                        .substitution_ops()
+                        .create_sub_from_args_of_params(data_ty.args, data_def.params);
+                    let array_ty =
+                        self.substitution_ops().apply_sub_to_ty(array_primitive.element_ty, &sub);
+                    Ok(array_ty)
+                } else {
+                    wrong_ty()
+                }
+            }
+            _ => wrong_ty(),
+        }?;
+
+        let unified_ty = self.check_by_unify(inferred_ty, annotation_ty)?;
+        Ok((IndexTerm { subject: inferred_subject, index: inferred_index }, unified_ty))
+    }
+
+    /// Infer an assign term.
+    pub fn infer_assign_term(
+        &self,
+        assign_term: &AssignTerm,
+        annotation_ty: TyId,
+    ) -> TcResult<(AssignTerm, TyId)> {
+        let (inferred_lhs, inferred_lhs_ty) =
+            self.infer_term(assign_term.subject, self.new_ty_hole())?;
+        let (inferred_rhs, _inferred_rhs_ty) =
+            self.infer_term(assign_term.value, inferred_lhs_ty)?;
+
+        Ok((
+            AssignTerm { subject: inferred_lhs, value: inferred_rhs },
+            self.check_by_unify(annotation_ty, self.new_void_ty())?,
+        ))
+    }
+
+    /// Infer a match term.
+    pub fn infer_match_term(
+        &self,
+        match_term: &MatchTerm,
+        annotation_ty: TyId,
+    ) -> TcResult<(MatchTerm, TyId)> {
+        let (inferred_subject, inferred_subject_ty) =
+            self.infer_term(match_term.subject, self.new_ty_hole())?;
+        let normalised_subject_ty = self.normalise_and_check_ty(inferred_subject_ty)?;
+        let normalised_annotation_ty = self.normalise_and_check_ty(annotation_ty)?;
+
+        let mut unified_ty = normalised_annotation_ty;
+        let mut inferred_arms = Vec::new();
+
+        for case in match_term.cases.iter() {
+            // @@Todo: dependent
+            let case_data = self.stores().match_cases().get_element(case);
+
+            let (inferred_pat, _) = self.infer_pat(case_data.bind_pat, normalised_subject_ty)?;
+
+            let (inferred_body, inferred_body_ty) =
+                self.infer_term(case_data.value, normalised_annotation_ty)?;
+
+            unified_ty = self.check_by_unify(inferred_body_ty, unified_ty)?;
+
+            inferred_arms.push(MatchCase {
+                bind_pat: inferred_pat,
+                value: inferred_body,
+                stack_id: case_data.stack_id,
+                stack_indices: case_data.stack_indices,
+            });
+        }
+
+        Ok((
+            MatchTerm {
+                cases: self.stores().match_cases().create_from_iter(inferred_arms),
+                subject: inferred_subject,
+            },
+            unified_ty,
+        ))
+    }
+
     pub fn generalise_term_inference(&self, inference: (impl Into<Term>, TyId)) -> (TermId, TyId) {
         let (term, ty) = inference;
         let term_id = self.new_term(term);
@@ -1305,8 +1481,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Tuple(tuple_term) => self
                 .infer_tuple_term(tuple_term, annotation_ty, term_id)
                 .map(|i| self.generalise_term_and_ty_inference(i)),
-            Term::Prim(prim_term) => self
-                .infer_prim_term(prim_term, annotation_ty, term_id)
+            Term::Lit(lit_term) => {
+                self.infer_lit(lit_term, annotation_ty).map(|i| self.generalise_term_inference(i))
+            }
+            Term::Array(prim_term) => self
+                .infer_array_term(prim_term, annotation_ty, term_id)
                 .map(|i| self.generalise_term_inference(i)),
             Term::Ctor(ctor_term) => self
                 .infer_ctor_term(ctor_term, annotation_ty, term_id)
@@ -1362,11 +1541,17 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 .infer_access_term(access_term, annotation_ty, term_id)
                 .map(|i| self.generalise_term_inference(i)),
 
-            // @@Todo:
-            Term::Match(_) | Term::Assign(_) => {
-                // @@Todo
-                Ok((term_id, annotation_ty))
-            }
+            Term::Index(index_term) => self
+                .infer_index_term(index_term, annotation_ty, term_id)
+                .map(|i| self.generalise_term_inference(i)),
+
+            Term::Match(match_term) => self
+                .infer_match_term(match_term, annotation_ty)
+                .map(|i| self.generalise_term_inference(i)),
+
+            Term::Assign(assign_term) => self
+                .infer_assign_term(assign_term, annotation_ty)
+                .map(|i| self.generalise_term_inference(i)),
 
             Term::Hole(_) => Ok((term_id, annotation_ty)),
         })?;
@@ -1418,7 +1603,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer a list pattern
-    pub fn infer_list_pat(
+    pub fn infer_array_pat(
         &self,
         list_pat: &ArrayPat,
         annotation_ty: TyId,
@@ -1538,7 +1723,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     self.infer_tuple_pat(&tuple_pat, annotation_ty, pat_id)?,
                 ),
                 Pat::Array(list_term) => self.generalise_pat_and_ty_inference(
-                    self.infer_list_pat(&list_term, annotation_ty, pat_id)?,
+                    self.infer_array_pat(&list_term, annotation_ty, pat_id)?,
                 ),
                 Pat::Ctor(ctor_pat) => self.generalise_pat_and_ty_inference(self.infer_ctor_pat(
                     &ctor_pat,
@@ -1614,12 +1799,20 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             Ok(())
                         }
                         PrimitiveCtorInfo::Array(array_ctor_info) => {
-                            // Infer the inner type
+                            // Infer the inner type and length
                             let element_ty =
                                 self.infer_ty(array_ctor_info.element_ty, self.new_ty_hole())?.0;
+                            let length = array_ctor_info
+                                .length
+                                .map(|l| -> TcResult<_> {
+                                    Ok(self
+                                        .infer_term(l, self.new_data_ty(self.primitives().usize()))?
+                                        .0)
+                                })
+                                .transpose()?;
                             self.stores().data_def().modify_fast(data_def_id, |def| {
                                 def.ctors = DataDefCtors::Primitive(PrimitiveCtorInfo::Array(
-                                    ArrayCtorInfo { element_ty, length: array_ctor_info.length },
+                                    ArrayCtorInfo { element_ty, length },
                                 ));
                             });
                             Ok(())

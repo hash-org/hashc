@@ -12,6 +12,7 @@ num-traits = "0.2.15"
 rayon = "1.5.0"
 smallvec = "1.9.0"
 derive_more = "0.99"
+log = "0.4"
 
 hash-ast = { path = "../hash-ast" }
 hash-ir = { path = "../hash-ir" }
@@ -24,3 +25,4 @@ hash-tree-def = { path = "../hash-tree-def" }
 hash-tir = { path = "../hash-tir" }
 hash-utils = { path = "../hash-utils" }
 hash-semantics = { path = "../hash-semantics" }
+hash-intrinsics = { path = "../hash-intrinsics" }
