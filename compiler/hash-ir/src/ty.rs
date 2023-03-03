@@ -504,18 +504,13 @@ pub struct AdtData {
 
     /// Options that are regarding the representation of the ADT
     /// in memory.
-    pub representation: AdtRepresentation,
+    pub metadata: AdtRepresentation,
 }
 
 impl AdtData {
     /// Create a new [AdtData] with the given name and variants.
     pub fn new(name: Identifier, variants: IndexVec<VariantIdx, AdtVariant>) -> Self {
-        Self {
-            name,
-            variants,
-            representation: AdtRepresentation::default(),
-            flags: AdtFlags::empty(),
-        }
+        Self { name, variants, metadata: AdtRepresentation::default(), flags: AdtFlags::empty() }
     }
 
     /// Create [AdtData] with specified [AdtFlags].
@@ -524,7 +519,7 @@ impl AdtData {
         variants: IndexVec<VariantIdx, AdtVariant>,
         flags: AdtFlags,
     ) -> Self {
-        Self { name, variants, representation: AdtRepresentation::default(), flags }
+        Self { name, variants, metadata: AdtRepresentation::default(), flags }
     }
 
     /// Get the variant at the given [VariantIdx].
@@ -576,7 +571,7 @@ impl AdtData {
 
         // If this is a C-like representation, then we always
         // default to the tag enum size specified by the target.
-        let minimum = if self.representation.is_c_like() {
+        let minimum = if self.metadata.is_c_like() {
             ctx.data_layout().c_style_enum_min_size
         } else {
             Integer::I8
@@ -642,6 +637,16 @@ impl AdtFlags {
     }
 }
 
+bitflags! {
+    /// Flags that represent information about the representation of the ADT.
+    #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+    pub struct RepresentationFlags: u32 {
+        /// The ADT is a C-like type, and hence adheres to the C ABI and C
+        /// layout rules.
+        const C_LIKE = 0b00000001;
+    }
+}
+
 /// Options that are regarding the representation of the ADT. This includes
 /// options about alignment, padding, etc.
 ///
@@ -649,21 +654,31 @@ impl AdtFlags {
 ///     - add `alignment` configuration
 ///     - add `pack` configuration
 ///     - add layout randomisation configuration
-///     - add `C` layout configuration
 #[derive(Clone, Debug, Default)]
-pub struct AdtRepresentation {}
+pub struct AdtRepresentation {
+    /// Flags that determine the representation of the type. Currently, if
+    /// no flags are set the type is treated normally, if the `C_LIKE` flag
+    /// is set, then the type is treated as a C-like type, and hence adheres
+    /// to the C ABI and C layout rules
+    representation: RepresentationFlags,
+}
 
 impl AdtRepresentation {
+    /// Specify [RepresentationFlags] on the [AdtRepresentation].
+    pub fn add_flags(&mut self, flags: RepresentationFlags) {
+        self.representation |= flags;
+    }
+
     /// Check if the representation of the ADT is specified to
     /// be in C-style layout.
     pub fn is_c_like(&self) -> bool {
-        false
+        self.representation.contains(RepresentationFlags::C_LIKE)
     }
 
     /// Check whether the [AdtRepresentation] permits the re-ordering
     /// of struct fields in order to optimise for memory layout.
     pub fn inhibits_struct_field_reordering(&self) -> bool {
-        false
+        self.is_c_like()
     }
 
     /// Check whether the [AdtRepresentation] (an underlying `union`) permits

@@ -1,6 +1,5 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
-#![allow(dead_code)] // @@Temporary.
 
 use hash_intrinsics::{
     primitives::{AccessToPrimitives, DefinedPrimitives},
@@ -8,7 +7,8 @@ use hash_intrinsics::{
 };
 use hash_ir::{
     ty::{
-        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, IrTy, IrTyId, Mutability,
+        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, IrTy, IrTyId,
+        Mutability, RepresentationFlags,
     },
     IrCtx,
 };
@@ -31,7 +31,7 @@ use hash_tir::{
 };
 use hash_utils::{
     index_vec::index_vec,
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 /// A context that is used to lower types and terms into [IrTy]s.
@@ -169,7 +169,7 @@ impl<'ir> TyLoweringCtx<'ir> {
     /// Convert the [DataDefType] into an [`IrTy::Adt`].
     pub(crate) fn ty_id_from_tir_data(&self, data @ DataTy { data_def, args }: DataTy) -> IrTyId {
         // Check if the data type has already been converted into
-        // an [IrTyId].
+        // an ir type.
         if let Some(ty) = self.lcx.semantic_cache().borrow().get(&data.into()) {
             return *ty;
         }
@@ -234,7 +234,15 @@ impl<'ir> TyLoweringCtx<'ir> {
                 // Get the name of the data type, if no name exists we default to
                 // using `_`.
                 let name = self.get_symbol(data_ty.name).name.unwrap_or(IDENTS.underscore);
-                let adt = AdtData::new_with_flags(name, variants, flags);
+                let mut adt = AdtData::new_with_flags(name, variants, flags);
+
+                // Deal with any specific attributes that were set on the type, i.e.
+                // `#repr_c`.
+                if let Some(directives) = self.stores().directives().get(data_def.into()) {
+                    if directives.contains(IDENTS.repr_c) {
+                        adt.metadata.add_flags(RepresentationFlags::C_LIKE);
+                    }
+                }
 
                 let id = self.lcx.adts().create(adt);
                 IrTy::Adt(id)
