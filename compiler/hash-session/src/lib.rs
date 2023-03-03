@@ -25,11 +25,10 @@ use hash_pipeline::{
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_semantics::{
-    old::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery},
-    SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
+    Flags, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
 };
-use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
-use hash_tir::old::storage::{GlobalStorage, LocalStorage, TyStorage};
+use hash_source::{SourceId, SourceMap};
+use hash_tir::old::storage::{GlobalStorage, LocalStorage};
 use hash_untyped_semantics::{
     UntypedSemanticAnalysis, UntypedSemanticAnalysisCtx, UntypedSemanticAnalysisCtxQuery,
 };
@@ -42,11 +41,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(AstDesugaringPass),
         Box::new(AstExpansionPass),
         Box::new(UntypedSemanticAnalysis),
-        if std::option_env!("USE_NEW_TC").is_some() {
-            Box::new(SemanticAnalysis)
-        } else {
-            Box::new(Typechecker::new())
-        },
+        Box::new(SemanticAnalysis),
         Box::<IrGen>::default(),
         Box::new(IrOptimiser),
         Box::new(CodeGenPass),
@@ -85,11 +80,6 @@ pub struct CompilerSession {
     /// Compiler settings that are stored.
     pub settings: CompilerSettings,
 
-    /// Compiler type storage. Stores all the types that are created during
-    /// the typechecking stage, which is used for later stages during code
-    /// generation.
-    pub ty_storage: TyStorage,
-
     // Semantic analysis storage
     pub semantic_storage: SemanticStorage,
 
@@ -121,7 +111,7 @@ impl CompilerSession {
             .unwrap_or_else(|err| emit_fatal_error(err, &workspace.source_map));
 
         let global = GlobalStorage::new(target);
-        let local = LocalStorage::new(&global, SourceId::default());
+        let _local = LocalStorage::new(&global, SourceId::default());
 
         Self {
             error_stream: Box::new(error_stream),
@@ -130,7 +120,6 @@ impl CompilerSession {
             diagnostics: Vec::new(),
             pool,
             settings,
-            ty_storage: TyStorage { global, local, entry_point_state: EntryPointState::new() },
             semantic_storage: SemanticStorage::new(),
             ir_storage: IrStorage::new(),
             layout_storage: LayoutCtx::new(layout_info),
@@ -220,16 +209,10 @@ impl SemanticAnalysisCtxQuery for CompilerSession {
         SemanticAnalysisCtx {
             workspace: &mut self.workspace,
             semantic_storage: &mut self.semantic_storage,
-        }
-    }
-}
-
-impl TypecheckingCtxQuery for CompilerSession {
-    fn data(&mut self) -> TypecheckingCtx {
-        TypecheckingCtx {
-            settings: &self.settings,
-            workspace: &mut self.workspace,
-            ty_storage: &mut self.ty_storage,
+            flags: Flags {
+                dump_tir: self.settings.semantic_settings.dump_tir,
+                eval_tir: self.settings.semantic_settings.eval_tir,
+            },
         }
     }
 }

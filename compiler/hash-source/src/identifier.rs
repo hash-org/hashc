@@ -237,6 +237,7 @@ core_idents! {
     // Dumping AST/TIR/IR etc.
     dump_ast: "dump_ast",
     dump_ir: "dump_ir",
+    dump_tir: "dump_tir",
 
     // Language items
     intrinsics: "intrinsics",

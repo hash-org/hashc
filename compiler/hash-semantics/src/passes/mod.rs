@@ -1,14 +1,15 @@
-use hash_reporting::diagnostic::Diagnostics;
 use hash_tir::environment::env::{AccessToEnv, Env};
 
 use self::{
-    ast_utils::AstPass, discovery::DiscoveryPass, inference::InferencePass,
-    resolution::ResolutionPass,
+    ast_utils::AstPass, discovery::DiscoveryPass, evaluation::EvaluationPass,
+    inference::InferencePass, resolution::ResolutionPass,
 };
 use super::environment::sem_env::{AccessToSemEnv, SemEnv};
+use crate::diagnostics::error::SemanticResult;
 
 pub mod ast_utils;
 pub mod discovery;
+pub mod evaluation;
 pub mod inference;
 pub mod resolution;
 
@@ -36,22 +37,21 @@ impl<'tc> Visitor<'tc> {
     }
 
     /// Visits the source passed in as an argument to [Self::new_in_source]
-    pub fn visit_source(&self) {
+    pub fn visit_source(&self) -> SemanticResult<()> {
         self.context().clear_all();
 
         // Discover all definitions in the source.
-        DiscoveryPass::new(self.sem_env).pass_source();
-        if self.diagnostics().has_errors() {
-            return;
-        }
+        DiscoveryPass::new(self.sem_env).pass_source()?;
 
         // Resolve all symbols in the source and create TIR terms.
-        ResolutionPass::new(self.sem_env).pass_source();
-        if self.diagnostics().has_errors() {
-            return;
-        }
+        ResolutionPass::new(self.sem_env).pass_source()?;
 
         // Infer all types in the source.
-        InferencePass::new(self.sem_env).pass_source();
+        InferencePass::new(self.sem_env).pass_source()?;
+
+        // Potentially evaluate terms
+        EvaluationPass::new(self.sem_env).pass_source()?;
+
+        Ok(())
     }
 }

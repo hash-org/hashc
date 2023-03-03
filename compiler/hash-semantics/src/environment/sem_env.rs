@@ -15,6 +15,7 @@ use super::ast_info::AstInfo;
 use crate::{
     diagnostics::{error::SemanticError, warning::SemanticWarning},
     ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
+    Flags,
 };
 
 macro_rules! sem_env {
@@ -75,6 +76,7 @@ sem_env! {
     prelude_or_unset: PreludeOrUnset,
     primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
+    flags: Flags,
 }
 
 impl<'tc> AccessToSemEnv for SemEnv<'tc> {

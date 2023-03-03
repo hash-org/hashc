@@ -770,6 +770,15 @@ pub trait PartialCloneStore<Key: Copy + Eq + Hash, Value: Clone>: PartialStore<K
         }
         ret
     }
+
+    /// Duplicate a value in the store, returning the new key.
+    ///
+    /// Assumes that the key already exists in the store.
+    fn duplicate(&self, from: Key, to: Key) {
+        if let Some(value) = self.get(from) {
+            self.insert(to, value);
+        }
+    }
 }
 
 impl<Key: Copy + Eq + Hash, Value: Clone, T: PartialStore<Key, Value>> PartialCloneStore<Key, Value>

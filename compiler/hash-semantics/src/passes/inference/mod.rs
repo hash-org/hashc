@@ -6,17 +6,11 @@
 use derive_more::Constructor;
 use hash_ast::ast;
 use hash_reporting::diagnostic::AccessToDiagnostics;
-use hash_source::ModuleKind;
-use hash_tir::{
-    environment::env::AccessToEnv,
-    fns::FnCallTerm,
-    utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
-};
+use hash_tir::utils::{common::CommonUtils, traversing::Atom};
 use hash_typecheck::{
     errors::{TcError, TcResult},
     AccessToTypechecking,
 };
-use hash_utils::stream_less_writeln;
 
 use super::ast_utils::AstPass;
 use crate::{
@@ -71,11 +65,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
                     .or(self.substitution_ops().atom_has_holes(ty_id))
             },
         )?;
-
-        // @@Temp:
-        let evaluated = self.normalisation_ops().normalise(term.into())?;
-        stream_less_writeln!("{}", self.env().with(evaluated));
-
+        self.ast_info().terms().insert(node.id(), term);
         Ok(())
     }
 
@@ -84,43 +74,13 @@ impl<'tc> AstPass for InferencePass<'tc> {
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::diagnostics::error::SemanticResult<()> {
         // Infer the whole module
-        let mod_def_id = self.infer_fully(
+        let _ = self.infer_fully(
             self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap(),
             |mod_def_id| self.inference_ops().infer_mod_def(mod_def_id).map(|()| mod_def_id),
             |mod_def_id| self.substitution_ops().mod_def_has_holes(mod_def_id),
         )?;
 
-        stream_less_writeln!("{}", self.env().with(mod_def_id));
-
-        // @@Todo: #entry_point directive and main type checking
-
-        if let Some(kind) =
-            self.source_map().module_kind_by_id(self.current_source_info().source_id)
-        {
-            match kind {
-                ModuleKind::Normal => {}
-                ModuleKind::Prelude => {}
-                ModuleKind::EntryPoint => {
-                    // Check that the module has a `main` function
-                    if let Some(fn_def_id) =
-                        self.mod_utils().get_mod_fn_member_by_ident(mod_def_id, "main")
-                    {
-                        let call_term = self.new_term(FnCallTerm {
-                            subject: self.new_term(fn_def_id),
-                            implicit: false,
-                            args: self.new_empty_args(),
-                        });
-
-                        let (inferred_call_term, _) =
-                            self.inference_ops().infer_term(call_term, self.new_ty_hole())?;
-                        let evaluated =
-                            self.normalisation_ops().normalise(inferred_call_term.into())?;
-                        stream_less_writeln!("{}", self.env().with(evaluated));
-                    }
-                }
-            }
-        }
-
+        // Mod def is already registered in the ast info
         Ok(())
     }
 }

@@ -332,8 +332,8 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
                 "stage" => {
                     let stage = match value.as_str() {
                         "parse" => CompilerStageKind::Parse,
-                        "semantic" => CompilerStageKind::SemanticPass,
-                        "typecheck" => CompilerStageKind::Typecheck,
+                        "semantic" => CompilerStageKind::UntypedAnalysis,
+                        "typecheck" => CompilerStageKind::Analysis,
                         "ir" => CompilerStageKind::Lower,
                         "codegen" => CompilerStageKind::CodeGen,
                         "full" => CompilerStageKind::Full,

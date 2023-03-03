@@ -40,7 +40,7 @@ pub trait UntypedSemanticAnalysisCtxQuery: CompilerInterface {
 
 impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanticAnalysis {
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::SemanticPass
+        CompilerStageKind::UntypedAnalysis
     }
 
     /// This will perform a pass on the AST by checking the semantic rules that

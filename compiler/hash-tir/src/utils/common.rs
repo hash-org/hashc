@@ -399,6 +399,10 @@ pub trait CommonUtils: AccessToEnv {
             _ => self.new_term(ty),
         }
     }
+
+    fn dump_tir(&self, value: impl ToString) {
+        println!("[TIR dump]:\n{}", value.to_string());
+    }
 }
 
 impl<T: AccessToEnv + ?Sized> CommonUtils for T {}
