@@ -120,9 +120,6 @@ defined_intrinsics! {
     align_of,
     size_of,
 
-    len,
-    raw_ptr,
-
     ptr_offset,
     transmute
 }
@@ -895,32 +892,6 @@ impl DefinedIntrinsics {
             })
         };
 
-        // Length function for `str`
-        let len = {
-            let t_sym = env.new_symbol("item");
-            let params = env.param_utils().create_params(
-                [ParamData { default: None, name: t_sym, ty: env.new_data_ty(prim.str()) }]
-                    .into_iter(),
-            );
-            let ret = env.new_data_ty(prim.usize());
-            add("len", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
-                unimplemented!("`len` intrinsic evaluation")
-            })
-        };
-
-        // Get raw pointer function for `str`
-        let raw_ptr = {
-            let t_sym = env.new_symbol("T");
-            let params = env.param_utils().create_params(
-                [ParamData { default: None, name: t_sym, ty: env.new_data_ty(prim.str()) }]
-                    .into_iter(),
-            );
-            let ret = env.new_ref_ty(env.new_ty(t_sym), RefKind::Raw, false);
-            add("raw_ptr", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
-                unimplemented!("`raw_ptr` intrinsic evaluation")
-            })
-        };
-
         DefinedIntrinsics {
             eval,
             implementations,
@@ -935,8 +906,6 @@ impl DefinedIntrinsics {
             debug_print,
             align_of,
             size_of,
-            len,
-            raw_ptr,
             ptr_offset,
             transmute,
         }
