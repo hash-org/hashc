@@ -9,6 +9,7 @@ use hash_tir::{
     lits::Lit,
     locations::LocationTarget,
     params::{ParamData, ParamsId},
+    refs::RefTy,
     sub::Sub,
     terms::{Term, TermId},
     tuples::TupleTy,
@@ -182,7 +183,8 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
 
             (Ty::Ref(r1), Ty::Ref(r2)) => {
                 if r1.mutable == r2.mutable && r1.kind == r2.kind {
-                    self.unify_tys(r1.ty, r2.ty)
+                    let result = self.unify_tys(r1.ty, r2.ty)?;
+                    Ok(result.map_result(|ty| self.new_ty(RefTy { ty, ..r1 })))
                 } else {
                     Uni::mismatch_types(src_id, target_id)
                 }
