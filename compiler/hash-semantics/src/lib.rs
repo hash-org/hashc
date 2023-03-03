@@ -16,7 +16,7 @@
 use diagnostics::error::SemanticError;
 use environment::{
     ast_info::AstInfo,
-    sem_env::{AccessToSemEnv, DiagnosticsStore, PreludeOrUnset, SemEnv},
+    sem_env::{AccessToSemEnv, DiagnosticsStore, EntryPoint, PreludeOrUnset, SemEnv},
 };
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
@@ -97,6 +97,7 @@ pub struct SemanticStorage {
     pub prelude_or_unset: PreludeOrUnset,
     pub primitives_or_unset: DefinedPrimitivesOrUnset,
     pub intrinsics_or_unset: DefinedIntrinsicsOrUnset,
+    pub entry_point: EntryPoint,
 }
 
 impl SemanticStorage {
@@ -108,6 +109,7 @@ impl SemanticStorage {
             ast_info: AstInfo::new(),
             prelude_or_unset: OnceCell::new(),
             primitives_or_unset: OnceCell::new(),
+            entry_point: EntryPoint::new(),
             intrinsics_or_unset: OnceCell::new(),
         }
     }
@@ -142,6 +144,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &env,
             &semantic_storage.diagnostics,
             &semantic_storage.ast_info,
+            &semantic_storage.entry_point,
             &semantic_storage.prelude_or_unset,
             &semantic_storage.primitives_or_unset,
             &semantic_storage.intrinsics_or_unset,

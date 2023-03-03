@@ -6,8 +6,10 @@ use hash_intrinsics::{
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
+use hash_source::entry_point::EntryPointState;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
+    fns::FnDefId,
     terms::TermId,
 };
 use inference::InferenceOps;
@@ -36,6 +38,9 @@ pub trait AccessToTypechecking:
     fn new_error_state(&self) -> TcErrorState {
         TcErrorState::new()
     }
+
+    /// Get the entry point of the current compilation, if any.
+    fn entry_point(&self) -> &EntryPointState<FnDefId>;
 
     /// Absorb an error state into the diagnostics.
     ///

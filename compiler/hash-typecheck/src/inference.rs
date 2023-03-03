@@ -5,7 +5,9 @@ use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
+    entry_point::EntryPointKind,
     identifier::IDENTS,
+    ModuleKind,
 };
 use hash_tir::{
     access::AccessTerm,
@@ -809,6 +811,53 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 })
             }
         }
+    }
+
+    /// Flag the given function as an entry point if it is one.
+    ///
+    /// This is done by checking if the function is named "main" or if it has
+    /// the #entry_point directive.
+    pub fn potentially_flag_fn_as_entry_point(&self, fn_def_id: FnDefId) -> TcResult<()> {
+        if self.entry_point().has() {
+            return Ok(());
+        }
+
+        let fn_def_symbol = self.stores().fn_def().map_fast(fn_def_id, |f| f.name);
+        let fn_def_name = self.get_symbol(fn_def_symbol).name.unwrap();
+
+        // Find the entry point either by name "main" or by the #entry_point directive.
+        let entry_point = if self
+            .stores()
+            .directives()
+            .get(fn_def_id.into())
+            .map(|x| x.contains(IDENTS.entry_point))
+            == Some(true)
+        {
+            Some(EntryPointKind::Named(fn_def_name))
+        } else if fn_def_name == IDENTS.main
+            && self.source_map().module_kind_by_id(self.current_source_info().source_id)
+                == Some(ModuleKind::EntryPoint)
+        {
+            Some(EntryPointKind::Main)
+        } else {
+            None
+        };
+
+        if let Some(entry_point) = entry_point {
+            // Ensure it is well-typed
+            let call_term = self.new_term(FnCallTerm {
+                subject: self.new_term(fn_def_id),
+                implicit: false,
+                args: self.new_empty_args(),
+            });
+
+            let _ = self.infer_term(call_term, self.new_ty_hole())?;
+
+            // If successful, flag it as an entry point.
+            self.entry_point().set(fn_def_id, entry_point);
+        }
+
+        Ok(())
     }
 
     /// Infer the type of a function definition.
@@ -1859,7 +1908,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             ModMemberValue::Fn(fn_def_id) => {
                 self.infer_fn_def(fn_def_id, self.new_ty_hole(), self.new_term_hole(), fn_mode)?;
                 if fn_mode == FnInferMode::Body {
+                    // Dump TIR if necessary
                     self.potentially_dump_tir(fn_def_id);
+
+                    // Check for entry point
+                    self.potentially_flag_fn_as_entry_point(fn_def_id)?;
                 }
                 Ok(())
             }

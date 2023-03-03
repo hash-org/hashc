@@ -3,9 +3,11 @@ use hash_intrinsics::{
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
 use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
+use hash_source::entry_point::EntryPointState;
 // @@Docs
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
+    fns::FnDefId,
     mods::ModDefId,
 };
 use hash_typecheck::{errors::TcError, AccessToTypechecking};
@@ -43,6 +45,7 @@ macro_rules! sem_env {
         }
 
         impl<'tc> SemEnv<'tc> {
+            #[allow(clippy::too_many_arguments)]
             pub fn new(
                 $(
                     $name: &'tc $ty $(<$lt>)?,
@@ -67,12 +70,14 @@ macro_rules! sem_env {
 
 pub type DiagnosticsStore = DiagnosticCellStore<SemanticError, SemanticWarning>;
 pub type PreludeOrUnset = OnceCell<ModDefId>;
+pub type EntryPoint = EntryPointState<FnDefId>;
 
 // All the members of the semantic analysis environment.
 sem_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
     ast_info: AstInfo,
+    entry_point: EntryPoint,
     prelude_or_unset: PreludeOrUnset,
     primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
@@ -120,6 +125,10 @@ impl<'tc> AccessToTypechecking for SemEnv<'tc> {
     fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
     }
+
+    fn entry_point(&self) -> &EntryPointState<FnDefId> {
+        self.entry_point
+    }
 }
 
 /// A reference to [`SemEnv`] alongside a value.
@@ -165,6 +174,10 @@ impl<'tc, T> AccessToDiagnostics for WithSemEnv<'tc, T> {
 impl<'tc, T> AccessToTypechecking for WithSemEnv<'tc, T> {
     fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
+    }
+
+    fn entry_point(&self) -> &EntryPointState<FnDefId> {
+        AccessToSemEnv::entry_point(self)
     }
 }
 
@@ -239,6 +252,12 @@ macro_rules! impl_access_to_sem_env {
                 error: hash_typecheck::errors::TcError,
             ) -> <Self::Diagnostics as hash_reporting::diagnostic::Diagnostics>::Error {
                 error.into()
+            }
+
+            fn entry_point(
+                &self,
+            ) -> &hash_source::entry_point::EntryPointState<hash_tir::fns::FnDefId> {
+                $crate::environment::sem_env::AccessToSemEnv::entry_point(self)
             }
         }
     };
