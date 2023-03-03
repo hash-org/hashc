@@ -47,6 +47,8 @@ impl<'tcx> Builder<'tcx> {
                         let lhs = unpack!(block = self.as_operand(block, lhs, Mutability::Mutable));
                         let rhs = unpack!(block = self.as_operand(block, rhs, Mutability::Mutable));
 
+                        // @@Future: we shouldn't use the un-cached version here, however since this
+                        // only for primitive types (at the moment), this is fine.
                         let ty = self.ty_from_tir_term(term_id);
                         self.build_binary_op(block, ty, span, op, lhs, rhs)
                     }
@@ -54,13 +56,15 @@ impl<'tcx> Builder<'tcx> {
                         let arg =
                             unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
 
+                        // @@Future: we shouldn't use the un-cached version here, however since this
+                        // only for primitive types (at the moment), this is fine.
+                        let ty = self.ty_from_tir_term(term_id);
+
                         // If the operator is a negation, and the operand is signed, we can have a
                         // case of overflow. This occurs when the operand is the minimum value for
                         // the type, and a negation occurs. This causes the value to overflow. We
                         // check for this case here, and emit an assertion check for this (assuming
                         // checked operations are enabled).
-                        let ty = self.ty_from_tir_term(term_id);
-
                         if self.settings.lowering_settings().checked_operations
                             && matches!(op, UnaryOp::Neg)
                             && ty.is_signed()

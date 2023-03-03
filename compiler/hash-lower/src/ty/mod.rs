@@ -74,12 +74,9 @@ impl<'ir> TyLoweringCtx<'ir> {
             return *ty;
         }
 
-        // Lower the type into ir type.
-        let ty = self.map_ty(id, |ty| self.ty_from_tir_ty(id, ty));
-
         // @@Hack: avoid re-creating "commonly" used types in order
         // to allow for type_id equality to work
-        let ir_ty = match ty {
+        let create_new_ty = |ty: IrTy| match ty {
             IrTy::Char => self.lcx.tys().common_tys.char,
             IrTy::Bool => self.lcx.tys().common_tys.bool,
             IrTy::UInt(UIntTy::U8) => self.lcx.tys().common_tys.u8,
@@ -99,9 +96,31 @@ impl<'ir> TyLoweringCtx<'ir> {
             _ => self.lcx.tys().create(ty),
         };
 
-        // Add an entry into the cache for this term
-        self.lcx.semantic_cache().borrow_mut().insert(id.into(), ir_ty);
-        ir_ty
+        // Lower the type into ir type.
+        self.map_ty(id, |ty| {
+            if let Ty::Data(data_ty) = ty {
+                let data_ty = *data_ty;
+
+                if let Some(ty) = self.lcx.semantic_cache().borrow().get(&data_ty.into()) {
+                    return *ty;
+                }
+
+                // Convert the data-type into an ir type, cache it and return it
+                let ty = create_new_ty(self.ty_from_tir_data(data_ty));
+
+                // Add entries for both the data type and the type id.
+                let mut cache = self.lcx.semantic_cache().borrow_mut();
+                cache.insert(data_ty.into(), ty);
+                cache.insert(id.into(), ty);
+
+                ty
+            } else {
+                // Add an entry into the cache for this term
+                let ty = create_new_ty(self.ty_from_tir_ty(id, ty));
+                self.lcx.semantic_cache().borrow_mut().insert(id.into(), ty);
+                ty
+            }
+        })
     }
 
     /// Get the [IrTy] from the given [TyId].
