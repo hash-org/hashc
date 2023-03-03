@@ -7,7 +7,7 @@ use hash_tir::{
     pats::{Pat, PatId},
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::common::CommonUtils,
+    utils::common::CommonUtils, refs::{RefKind, RefTy},
 };
 use hash_utils::store::Store;
 use num_bigint::BigInt;
@@ -75,6 +75,11 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     /// Create a new `never` type.
     fn new_never_ty(&self) -> TyId {
         self.new_ty(DataTy { args: self.new_empty_args(), data_def: self.primitives().never() })
+    }
+
+    /// Create a new reference type.
+    fn new_ref_ty(&self, ty: TyId, kind: RefKind, mutable: bool) -> TyId {
+        self.new_ty(RefTy {  ty, kind, mutable })
     }
 
     /// Get the given type as a literal type if possible.

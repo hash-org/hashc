@@ -11,7 +11,7 @@ use hash_tir::{
     params::ParamData,
     terms::{Term, TermId},
     tys::Ty,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::{common::CommonUtils, AccessToUtils}, refs::RefKind,
 };
 use hash_utils::{
     store::{DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store},
@@ -115,6 +115,15 @@ defined_intrinsics! {
     eval,
     debug_print,
     print_fn_directives,
+
+    align_of,
+    size_of,
+
+    len,
+    raw_ptr,
+
+    ptr_offset,
+    transmute
 }
 
 impl Debug for DefinedIntrinsics {
@@ -816,6 +825,105 @@ impl DefinedIntrinsics {
         // Unary ops
         let un_op = Self::add_un_op_intrinsic(env, &implementations);
 
+        // Size of
+        let size_of = {
+            let t_sym = env.new_symbol("T");
+            let params = env.param_utils().create_params(
+                [ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() }]
+                    .into_iter(),
+            );
+            let ret = env.new_data_ty(prim.usize());
+            add("size_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
+                unimplemented!("`size_of` intrinsic evaluation")
+            })
+        };
+
+        // Align of
+        let align_of = {
+            let t_sym = env.new_symbol("T");
+            let params = env.param_utils().create_params(
+                [ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() }]
+                    .into_iter(),
+            );
+            let ret = env.new_data_ty(prim.usize());
+            add("align_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
+                unimplemented!("`align_of` intrinsic evaluation")
+            })
+        };
+
+        let u8 = env.new_data_ty(prim.u8());
+        let usize = env.new_data_ty(prim.usize());
+        let raw_ptr_ty = env.new_ref_ty(u8, RefKind::Raw, false);
+
+        // ptr_offset
+        let ptr_offset = {
+            let t_sym = env.new_symbol("bytes");
+            let a_sym = env.new_symbol("len");
+
+            let params = env.param_utils().create_params(
+                [
+                    ParamData { default: None, name: t_sym, ty: raw_ptr_ty },
+                    ParamData { default: None, name: a_sym, ty: usize  },
+                ]
+                .into_iter(),
+            );
+
+            add(
+                "ptr_offset",
+                FnTy::builder().params(params).return_ty(raw_ptr_ty).build(),
+                |_, _| {
+                    unimplemented!("`ptr_offset` intrinsic evaluation")
+                },
+            )
+        };
+
+        let transmute = {
+            let t_sym = env.new_symbol("T");
+            let a_sym = env.new_symbol("item");
+            let u_sym = env.new_symbol("U");
+            let params = env.param_utils().create_params(
+                [
+                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: u_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
+                ]
+                .into_iter(),
+            );
+
+            let ret = env.new_ty(u_sym);
+            add("transmute", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
+                unimplemented!("`transmute` intrinsic evaluation")
+            })
+        };
+
+        // Length function for `str`
+        let len = {
+            let t_sym = env.new_symbol("item");
+            let params = env.param_utils().create_params(
+                [
+                    ParamData { default: None, name: t_sym, ty: env.new_data_ty(prim.str()) },
+                ]
+                .into_iter(),
+            );
+            let ret = env.new_data_ty(prim.usize());
+            add("len", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
+                unimplemented!("`len` intrinsic evaluation")
+            })
+        };
+
+        // Get raw pointer function for `str`
+        let raw_ptr = {
+            let t_sym = env.new_symbol("T");
+            let params = env.param_utils().create_params(
+                [ParamData { default: None, name: t_sym, ty: env.new_data_ty(prim.str()) }]
+                    .into_iter(),
+            );
+            let ret = env.new_ref_ty(env.new_ty(t_sym), RefKind::Raw, false);
+            add("raw_ptr", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
+                unimplemented!("`raw_ptr` intrinsic evaluation")
+            })
+        };
+
         DefinedIntrinsics {
             eval,
             implementations,
@@ -828,6 +936,12 @@ impl DefinedIntrinsics {
             abort,
             user_error,
             debug_print,
+            align_of,
+            size_of,
+            len,
+            raw_ptr,
+            ptr_offset,
+            transmute,
         }
     }
 
