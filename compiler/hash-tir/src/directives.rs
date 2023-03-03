@@ -53,4 +53,15 @@ pub struct AppliedDirectives {
     pub directives: IndexSet<Identifier>,
 }
 
+impl AppliedDirectives {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Check whether a directive is being applied to this target.
+    pub fn contains(&self, directive: Identifier) -> bool {
+        self.directives.contains(&directive)
+    }
+}
+
 pub type AppliedDirectivesStore = DefaultPartialStore<DirectiveTarget, AppliedDirectives>;

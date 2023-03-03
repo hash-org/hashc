@@ -9,9 +9,10 @@ use hash_tir::{
     lits::Lit,
     mods::{ModMemberData, ModMemberValue},
     params::ParamData,
+    refs::RefKind,
     terms::{Term, TermId},
     tys::Ty,
-    utils::{common::CommonUtils, AccessToUtils}, refs::RefKind,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{
     store::{DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store},
@@ -863,7 +864,7 @@ impl DefinedIntrinsics {
             let params = env.param_utils().create_params(
                 [
                     ParamData { default: None, name: t_sym, ty: raw_ptr_ty },
-                    ParamData { default: None, name: a_sym, ty: usize  },
+                    ParamData { default: None, name: a_sym, ty: usize },
                 ]
                 .into_iter(),
             );
@@ -871,9 +872,7 @@ impl DefinedIntrinsics {
             add(
                 "ptr_offset",
                 FnTy::builder().params(params).return_ty(raw_ptr_ty).build(),
-                |_, _| {
-                    unimplemented!("`ptr_offset` intrinsic evaluation")
-                },
+                |_, _| unimplemented!("`ptr_offset` intrinsic evaluation"),
             )
         };
 
@@ -900,10 +899,8 @@ impl DefinedIntrinsics {
         let len = {
             let t_sym = env.new_symbol("item");
             let params = env.param_utils().create_params(
-                [
-                    ParamData { default: None, name: t_sym, ty: env.new_data_ty(prim.str()) },
-                ]
-                .into_iter(),
+                [ParamData { default: None, name: t_sym, ty: env.new_data_ty(prim.str()) }]
+                    .into_iter(),
             );
             let ret = env.new_data_ty(prim.usize());
             add("len", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {

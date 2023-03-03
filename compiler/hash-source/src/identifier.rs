@@ -241,11 +241,11 @@ core_idents! {
     // Language items
     intrinsics: "intrinsics",
     entry_point: "entry_point",
-    
+
     // Language attributes
     no_mangle: "no_mangle",
     foreign: "foreign",
-    
+
     // Layout intrinsics
     repr_c: "repr_c",
     layout_of: "layout_of",

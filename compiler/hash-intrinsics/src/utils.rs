@@ -5,9 +5,10 @@ use hash_tir::{
     environment::env::AccessToEnv,
     lits::{CharLit, FloatLit, IntLit, Lit},
     pats::{Pat, PatId},
+    refs::{RefKind, RefTy},
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::common::CommonUtils, refs::{RefKind, RefTy},
+    utils::common::CommonUtils,
 };
 use hash_utils::store::Store;
 use num_bigint::BigInt;
@@ -79,7 +80,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
 
     /// Create a new reference type.
     fn new_ref_ty(&self, ty: TyId, kind: RefKind, mutable: bool) -> TyId {
-        self.new_ty(RefTy {  ty, kind, mutable })
+        self.new_ty(RefTy { ty, kind, mutable })
     }
 
     /// Get the given type as a literal type if possible.

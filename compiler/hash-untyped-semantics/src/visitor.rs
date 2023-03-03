@@ -53,7 +53,7 @@ impl<'s> SemanticAnalyser<'s> {
         // which will be checked at a later stage.
 
         if let Expr::Declaration(decl) = subject.body() {
-            if !decl.value.is_some() {
+            if decl.value.is_none() {
                 self.invalid_argument(DirectiveArgument::Declaration, directive, subject);
                 return;
             }
@@ -62,12 +62,8 @@ impl<'s> SemanticAnalyser<'s> {
             let value = decl.value.as_ref().unwrap();
 
             match value.body() {
-                Expr::FnDef(_)  => {}
-                _ => self.invalid_argument(
-                    DirectiveArgument::FnDef,
-                    directive,
-                    value.ast_ref(),
-                ),
+                Expr::FnDef(_) => {}
+                _ => self.invalid_argument(DirectiveArgument::FnDef, directive, value.ast_ref()),
             }
         } else {
             self.invalid_argument(DirectiveArgument::Declaration, directive, subject);
@@ -82,7 +78,7 @@ impl<'s> SemanticAnalyser<'s> {
         subject: AstNodeRef<Expr>,
     ) {
         if let Expr::Declaration(decl) = subject.body() {
-            if !decl.value.is_some() {
+            if decl.value.is_none() {
                 self.invalid_argument(DirectiveArgument::Declaration, directive, subject);
                 return;
             }
@@ -92,7 +88,7 @@ impl<'s> SemanticAnalyser<'s> {
             let value = decl.value.as_ref().unwrap();
 
             match value.body() {
-                Expr::StructDef(_) | Expr::EnumDef(_)  => {}
+                Expr::StructDef(_) | Expr::EnumDef(_) => {}
                 _ => self.invalid_argument(
                     DirectiveArgument::StructDef | DirectiveArgument::EnumDef,
                     directive,
