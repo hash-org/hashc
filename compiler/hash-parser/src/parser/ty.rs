@@ -1,6 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, ast_nodes};
+use hash_source::identifier::IDENTS;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use smallvec::smallvec;
 
@@ -131,6 +132,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Tree(Delimiter::Paren, _) => {
                 multi_ty_components = false;
                 self.parse_fn_or_tuple_ty()?
+            }
+
+            // Special syntax for the never type `!`
+            TokenKind::Exclamation => {
+                self.skip_token();
+
+                Ty::Named(NamedTy {
+                    name: self.node_with_span(Name { ident: IDENTS.never }, token.span),
+                })
             }
 
             // Type function, which is a collection of arguments enclosed in `<...>` and then
