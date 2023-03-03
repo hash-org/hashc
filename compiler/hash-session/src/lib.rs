@@ -8,6 +8,8 @@
 //! This creates a clear separation between the stages and the global state,
 //! keeping the crate dependency graph clean.
 
+use std::collections::HashSet;
+
 use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
@@ -25,10 +27,11 @@ use hash_pipeline::{
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_semantics::{
+    old::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery},
     Flags, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
 };
-use hash_source::{SourceId, SourceMap};
-use hash_tir::old::storage::{GlobalStorage, LocalStorage};
+use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
+use hash_tir::old::storage::{GlobalStorage, LocalStorage, TyStorage};
 use hash_untyped_semantics::{
     UntypedSemanticAnalysis, UntypedSemanticAnalysisCtx, UntypedSemanticAnalysisCtxQuery,
 };
@@ -41,7 +44,11 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(AstDesugaringPass),
         Box::new(AstExpansionPass),
         Box::new(UntypedSemanticAnalysis),
-        Box::new(SemanticAnalysis),
+        if std::env::var("USE_OLD_TC").is_ok() {
+            Box::new(Typechecker::new())
+        } else {
+            Box::new(SemanticAnalysis)
+        },
         Box::<IrGen>::default(),
         Box::new(IrOptimiser),
         Box::new(CodeGenPass),
@@ -83,6 +90,23 @@ pub struct CompilerSession {
     // Semantic analysis storage
     pub semantic_storage: SemanticStorage,
 
+    /// Sources that have passed from the `expansion` stage of the compiler.
+    /// @@Todo: Use bit-flags to represent which module has been
+    /// expanded/desugared/semantically checked/type checked.
+    pub expanded_sources: HashSet<SourceId>,
+
+    /// Sources that have passed from the `desugaring` stage of the compiler.
+    pub desugared_modules: HashSet<SourceId>,
+
+    /// Modules that have already been semantically checked. This is needed in
+    /// order to avoid re-checking modules on re-evaluations of a workspace.
+    pub semantically_checked_modules: HashSet<SourceId>,
+
+    /// Compiler type storage. Stores all the types that are created during
+    /// the typechecking stage, which is used for later stages during code
+    /// generation.
+    pub ty_storage: TyStorage,
+
     /// Compiler IR storage. Stores all the IR that is created during the
     /// lowering stage, which is used for later stages during code generation.
     pub ir_storage: IrStorage,
@@ -111,7 +135,7 @@ impl CompilerSession {
             .unwrap_or_else(|err| emit_fatal_error(err, &workspace.source_map));
 
         let global = GlobalStorage::new(target);
-        let _local = LocalStorage::new(&global, SourceId::default());
+        let local = LocalStorage::new(&global, SourceId::default());
 
         Self {
             error_stream: Box::new(error_stream),
@@ -123,6 +147,10 @@ impl CompilerSession {
             semantic_storage: SemanticStorage::new(),
             ir_storage: IrStorage::new(),
             layout_storage: LayoutCtx::new(layout_info),
+            ty_storage: TyStorage { global, local, entry_point_state: EntryPointState::new() },
+            expanded_sources: HashSet::new(),
+            desugared_modules: HashSet::new(),
+            semantically_checked_modules: HashSet::new(),
         }
     }
 }
@@ -252,5 +280,15 @@ impl LinkerCtxQuery for CompilerSession {
         let stdout = self.output_stream();
 
         LinkerCtx { workspace: &self.workspace, settings: &self.settings, stdout }
+    }
+}
+
+impl TypecheckingCtxQuery for CompilerSession {
+    fn data(&mut self) -> TypecheckingCtx {
+        TypecheckingCtx {
+            settings: &self.settings,
+            workspace: &mut self.workspace,
+            ty_storage: &mut self.ty_storage,
+        }
     }
 }
