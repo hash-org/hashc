@@ -24,6 +24,82 @@ use crate::{
 };
 
 impl<'s> SemanticAnalyser<'s> {
+    fn invalid_argument(
+        &mut self,
+        expected: DirectiveArgument,
+        directive: AstNodeRef<Name>,
+        subject: AstNodeRef<Expr>,
+    ) {
+        self.append_error(
+            AnalysisErrorKind::InvalidDirectiveArgument {
+                name: directive.ident,
+                expected,
+                received: subject.body().into(),
+                notes: vec![],
+            },
+            subject,
+        )
+    }
+
+    /// Function that performs a check on a given directive which expects a
+    /// function declaration as an argument.
+    fn validate_fn_decl_directive(
+        &mut self,
+        directive: AstNodeRef<Name>,
+        subject: AstNodeRef<Expr>,
+    ) {
+        // Check that the supplied argument to `#entry_point` is a
+        // declaration, the entry point must be a function definition
+        // which will be checked at a later stage.
+
+        if let Expr::Declaration(decl) = subject.body() {
+            if decl.value.is_none() {
+                self.invalid_argument(DirectiveArgument::Declaration, directive, subject);
+                return;
+            }
+
+            // Ensure that the value of the declaration is a function definition.
+            let value = decl.value.as_ref().unwrap();
+
+            match value.body() {
+                Expr::FnDef(_) => {}
+                _ => self.invalid_argument(DirectiveArgument::FnDef, directive, value.ast_ref()),
+            }
+        } else {
+            self.invalid_argument(DirectiveArgument::Declaration, directive, subject);
+        }
+    }
+
+    /// Function that performs a check on a given directive which expects a
+    /// struct, enum or data definition.
+    fn validate_data_def_directive(
+        &mut self,
+        directive: AstNodeRef<Name>,
+        subject: AstNodeRef<Expr>,
+    ) {
+        if let Expr::Declaration(decl) = subject.body() {
+            if decl.value.is_none() {
+                self.invalid_argument(DirectiveArgument::Declaration, directive, subject);
+                return;
+            }
+
+            // Ensure that the value of the declaration is an enum
+            // or a struct definition.
+            let value = decl.value.as_ref().unwrap();
+
+            match value.body() {
+                Expr::StructDef(_) | Expr::EnumDef(_) => {}
+                _ => self.invalid_argument(
+                    DirectiveArgument::StructDef | DirectiveArgument::EnumDef,
+                    directive,
+                    value.ast_ref(),
+                ),
+            }
+        } else {
+            self.invalid_argument(DirectiveArgument::Declaration, directive, subject);
+        }
+    }
+
     /// Function that performs a check on a given directive
     /// and a specified subject [AstNodeRef].
     fn validate_directive(
@@ -49,15 +125,7 @@ impl<'s> SemanticAnalyser<'s> {
             // expression must be a `mod` block since otherwise the directive
             // wouldn't make sense...
             if !matches!(subject.body(), Expr::ModDef(..)) {
-                self.append_error(
-                    AnalysisErrorKind::InvalidDirectiveArgument {
-                        name: directive.ident,
-                        expected: DirectiveArgument::ModDef,
-                        received: subject.body().into(),
-                        notes: vec![],
-                    },
-                    subject,
-                );
+                self.invalid_argument(DirectiveArgument::ModDef, directive, subject);
             }
         } else if directive.is(IDENTS.dump_ir) {
             // For the `#dump_ir` directive, we are expecting that it takes either a
@@ -142,21 +210,14 @@ impl<'s> SemanticAnalyser<'s> {
                     )
                 }
             }
-        } else if directive.is(IDENTS.entry_point) {
-            // Check that the supplied argument to `#entry_point` is a
-            // declaration, the entry point must be a function definition
-            // which will be checked at a later stage.
-            if !matches!(subject.body(), Expr::Declaration(_)) {
-                self.append_error(
-                    AnalysisErrorKind::InvalidDirectiveArgument {
-                        name: directive.ident,
-                        expected: DirectiveArgument::Declaration,
-                        received: subject.body().into(),
-                        notes: vec![],
-                    },
-                    subject,
-                );
-            }
+        } else if directive.is(IDENTS.entry_point) || directive.is(IDENTS.foreign) {
+            // Check that the supplied argument to a function modifying directive
+            // is a declaration of a function that the directive will apply to.
+            self.validate_fn_decl_directive(directive, subject)
+        } else if directive.is(IDENTS.repr_c) {
+            // Check that the supplied argument to a function modifying directive
+            // is a declaration of a function that the directive will apply to.
+            self.validate_data_def_directive(directive, subject)
         } else if !directive.is(IDENTS.dump_ast) {
             // @@Future: use some kind of scope validation in order to verify that
             // the used directives are valid

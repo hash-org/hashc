@@ -20,8 +20,11 @@ pub mod write;
 use std::cell::RefCell;
 
 use hash_source::entry_point::EntryPointState;
-use hash_tir::{data::DataTy, tys::TyId};
-use hash_utils::store::{FxHashMap, SequenceStore, Store};
+use hash_tir::{
+    data::{DataDefId, DataTy},
+    tys::TyId,
+};
+use hash_utils::store::{FxHashMap, SequenceStore, SequenceStoreKey, Store};
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use ty::{
@@ -72,8 +75,20 @@ pub enum TyCacheEntry {
     /// The key is a type ID.
     Ty(TyId),
 
-    /// The key is a data definition ID.
+    /// The key is a data definition which includes the data def and the
+    /// type arguments to the data definition.
     Data(DataTy),
+
+    /// This is used as a key to lookup the type of a data definition that has
+    /// no specified arguments. This means that the `args` component of [DataTy]
+    /// must be of length zero. This meant as an optimisation to avoid
+    /// re-creating data types that have no arguments whilst having
+    /// different IDs for the arguments.
+    ///
+    /// This is safe to do since if no arguments are supplied to the data
+    /// definition, this means that they are either all known and resolved
+    /// (as in defaults) or that the data type has no type arguments at all.
+    MonoData(DataDefId),
 }
 
 impl From<TyId> for TyCacheEntry {
@@ -84,7 +99,11 @@ impl From<TyId> for TyCacheEntry {
 
 impl From<DataTy> for TyCacheEntry {
     fn from(data: DataTy) -> Self {
-        Self::Data(data)
+        if data.args.len() == 0 {
+            Self::MonoData(data.data_def)
+        } else {
+            Self::Data(data)
+        }
     }
 }
 

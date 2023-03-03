@@ -298,7 +298,7 @@ impl<'l> LayoutComputer<'l> {
                             first_present,
                             None,
                             &field_layout_table[first_present],
-                            &adt.representation,
+                            &adt.metadata,
                         )
                         .ok_or(LayoutError::Overflow)?;
 
@@ -552,7 +552,7 @@ impl<'l> LayoutComputer<'l> {
         debug_assert!(data.flags.is_union());
 
         let mut alignment = self.data_layout().aggregate_align;
-        let optimize_union_abi = !data.representation.inhibits_union_abi_optimisations();
+        let optimize_union_abi = !data.metadata.inhibits_union_abi_optimisations();
 
         let mut size = Size::ZERO;
         let mut abi = AbiRepresentation::Aggregate;
@@ -638,7 +638,7 @@ impl<'l> LayoutComputer<'l> {
         let prefix_ty = adt.discriminant_representation(dl);
         let mut prefix_alignment = prefix_ty.align(dl).abi;
 
-        if adt.representation.is_c_like() {
+        if adt.metadata.is_c_like() {
             // We need to set the alignment of the prefix to the largest
             // field alignment value.
             for field_row in &field_layout_table {
@@ -680,7 +680,7 @@ impl<'l> LayoutComputer<'l> {
                     index,
                     Some((prefix_ty.size(), prefix_alignment)),
                     field_layouts,
-                    &adt.representation,
+                    &adt.metadata,
                 )?;
 
                 // Compute the layout of the starting field, and take the
@@ -717,7 +717,7 @@ impl<'l> LayoutComputer<'l> {
         // smallest alignment amongst all of the variants, we can now see if
         // we can expand the size of the enum tag value to apply the aforementioned
         // optimisation at ##ExpandEnumTagSize.
-        let mut new_prefix_ty = if adt.representation.is_c_like() {
+        let mut new_prefix_ty = if adt.metadata.is_c_like() {
             // @@Todo: or used specified type value.
             prefix_ty
         } else {

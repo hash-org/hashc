@@ -234,16 +234,21 @@ core_idents! {
     value: "value",
     void: "void",
 
-    // Directives that are pre-defined within the language.
+    // Dumping AST/TIR/IR etc.
     dump_ast: "dump_ast",
     dump_ir: "dump_ir",
-    layout_of: "layout_of",
+
+    // Language items
     intrinsics: "intrinsics",
     entry_point: "entry_point",
 
     // Language attributes
     no_mangle: "no_mangle",
     foreign: "foreign",
+
+    // Layout intrinsics
+    repr_c: "repr_c",
+    layout_of: "layout_of",
 
     // Intrinsic function item names
     sqrt_f32: "sqrtf32",

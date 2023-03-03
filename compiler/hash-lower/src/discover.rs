@@ -5,14 +5,16 @@
 use std::ops::ControlFlow;
 
 use derive_more::{Constructor, Deref};
+use hash_source::identifier::IDENTS;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     environment::env::AccessToEnv,
-    fns::{FnBody, FnDefId},
+    fns::{FnBody, FnDef, FnDefId},
     mods::ModMemberValue,
     terms::TermId,
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
+use hash_utils::store::PartialCloneStore;
 use indexmap::IndexSet;
 
 /// Discoverer for functions to lower in the TIR tree.
@@ -44,6 +46,41 @@ impl DiscoveredFns {
 }
 
 impl<T: AccessToEnv> FnDiscoverer<'_, T> {
+    /// Check whether a function definition needs to be lowered. The function
+    /// should be lowered if it adheres to the following conditions:
+    /// - It is not pure (for now)
+    /// - It is not marked as "foreign"
+    /// - It has a defined body
+    /// - It is not an intrinsic or axiom
+    pub fn fn_needs_to_be_lowered(&self, def_id: FnDefId, fn_def: &FnDef) -> bool {
+        // @@Todo: in the future, we might want to have a special flag by the
+        // typechecker as to whether to lower something or not, rather than always
+        // not lowering pure functions.
+        if fn_def.ty.pure {
+            return false;
+        }
+
+        match fn_def.body {
+            FnBody::Defined(_) => {
+                // Check that the body is marked as "foreign" since
+                // we don't want to lower it.
+                if let Some(entry) = self.env().stores().directives().get(def_id.into()) {
+                    if entry.directives.contains(&IDENTS.foreign) {
+                        return false;
+                    }
+                }
+
+                true
+            }
+            FnBody::Intrinsic(_) | FnBody::Axiom => {
+                // Intrinsic and axiom functions have no defined
+                // bodies
+
+                false
+            }
+        }
+    }
+
     /// Discover all TIR runtime functions in the sources, in order to lower
     /// them to IR.
     pub fn discover_fns(&self) -> DiscoveredFns {
@@ -61,25 +98,16 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
                     ModMemberValue::Fn(fn_def_id) => {
                         let fn_def = self.get_fn_def(fn_def_id);
 
-                        // @@Todo: in the future, we might want to have a special flag by the
-                        // typechecker as to whether to lower something or not, rather than always
-                        // not lowering pure functions.
-                        if fn_def.ty.pure {
-                            continue;
-                        }
+                        if self.fn_needs_to_be_lowered(fn_def_id, &fn_def) {
+                            fns.add_fn(fn_def_id);
 
-                        match fn_def.body {
-                            FnBody::Defined(body) => {
-                                fns.add_fn(fn_def_id);
+                            let FnBody::Defined(body) = fn_def.body else {
+                                unreachable!()
+                            };
 
-                                // Add all nested functions too
-                                let inferred_body = self.get_inferred_value(body);
-                                self.add_all_child_fns(inferred_body, &mut fns);
-                            }
-                            FnBody::Intrinsic(_) | FnBody::Axiom => {
-                                // Intrinsic and axiom functions have no defined
-                                // bodies
-                            }
+                            // Add all nested functions too
+                            let inferred_body = self.get_inferred_value(body);
+                            self.add_all_child_fns(inferred_body, &mut fns);
                         }
                     }
                 }
@@ -99,12 +127,14 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
             .visit_term::<!, _>(term, &mut |atom: Atom| match atom {
                 Atom::Term(_) => Ok(ControlFlow::Continue(())),
                 Atom::Ty(_) => Ok(ControlFlow::Break(())),
-                Atom::FnDef(f) => {
+                Atom::FnDef(def_id) => {
                     // @@Todo: this doesn't deal with captures.
-                    let f_val = self.get_fn_def(f);
-                    if !f_val.ty.pure && matches!(f_val.body, FnBody::Defined(_)) {
-                        fns.add_fn(f);
+                    let fn_def = self.get_fn_def(def_id);
+
+                    if self.fn_needs_to_be_lowered(def_id, &fn_def) {
+                        fns.add_fn(def_id);
                     }
+
                     Ok(ControlFlow::Continue(()))
                 }
                 Atom::Pat(_) => Ok(ControlFlow::Continue(())),

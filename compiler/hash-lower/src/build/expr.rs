@@ -101,7 +101,10 @@ impl<'tcx> Builder<'tcx> {
             }
 
             Term::Ctor(ref ctor) => {
-                match self.ty_from_tir_term(term_id) {
+                let id = self.ty_id_from_tir_term(term_id);
+                let ty = self.ctx.tys().get(id);
+
+                match ty {
                     IrTy::Adt(adt) => {
                         // This is a constructor call, so we need to handle it as such.
                         self.constructor_into_dest(destination, block, ctor, adt, span)

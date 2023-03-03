@@ -1,6 +1,5 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
-#![allow(dead_code)] // @@Temporary.
 
 use hash_intrinsics::{
     primitives::{AccessToPrimitives, DefinedPrimitives},
@@ -8,7 +7,8 @@ use hash_intrinsics::{
 };
 use hash_ir::{
     ty::{
-        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, IrTy, IrTyId, Mutability,
+        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, IrTy, IrTyId,
+        Mutability, RepresentationFlags,
     },
     IrCtx,
 };
@@ -31,7 +31,7 @@ use hash_tir::{
 };
 use hash_utils::{
     index_vec::index_vec,
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 /// A context that is used to lower types and terms into [IrTy]s.
@@ -74,12 +74,9 @@ impl<'ir> TyLoweringCtx<'ir> {
             return *ty;
         }
 
-        // Lower the type into ir type.
-        let ty = self.map_ty(id, |ty| self.ty_from_tir_ty(id, ty));
-
         // @@Hack: avoid re-creating "commonly" used types in order
         // to allow for type_id equality to work
-        let ir_ty = match ty {
+        let create_new_ty = |ty: IrTy| match ty {
             IrTy::Char => self.lcx.tys().common_tys.char,
             IrTy::Bool => self.lcx.tys().common_tys.bool,
             IrTy::UInt(UIntTy::U8) => self.lcx.tys().common_tys.u8,
@@ -99,9 +96,31 @@ impl<'ir> TyLoweringCtx<'ir> {
             _ => self.lcx.tys().create(ty),
         };
 
-        // Add an entry into the cache for this term
-        self.lcx.semantic_cache().borrow_mut().insert(id.into(), ir_ty);
-        ir_ty
+        // Lower the type into ir type.
+        self.map_ty(id, |ty| {
+            if let Ty::Data(data_ty) = ty {
+                let data_ty = *data_ty;
+
+                if let Some(ty) = self.lcx.semantic_cache().borrow().get(&data_ty.into()) {
+                    return *ty;
+                }
+
+                // Convert the data-type into an ir type, cache it and return it
+                let ty = create_new_ty(self.ty_from_tir_data(data_ty));
+
+                // Add entries for both the data type and the type id.
+                let mut cache = self.lcx.semantic_cache().borrow_mut();
+                cache.insert(data_ty.into(), ty);
+                cache.insert(id.into(), ty);
+
+                ty
+            } else {
+                // Add an entry into the cache for this term
+                let ty = create_new_ty(self.ty_from_tir_ty(id, ty));
+                self.lcx.semantic_cache().borrow_mut().insert(id.into(), ty);
+                ty
+            }
+        })
     }
 
     /// Get the [IrTy] from the given [TyId].
@@ -169,7 +188,7 @@ impl<'ir> TyLoweringCtx<'ir> {
     /// Convert the [DataDefType] into an [`IrTy::Adt`].
     pub(crate) fn ty_id_from_tir_data(&self, data @ DataTy { data_def, args }: DataTy) -> IrTyId {
         // Check if the data type has already been converted into
-        // an [IrTyId].
+        // an ir type.
         if let Some(ty) = self.lcx.semantic_cache().borrow().get(&data.into()) {
             return *ty;
         }
@@ -234,7 +253,15 @@ impl<'ir> TyLoweringCtx<'ir> {
                 // Get the name of the data type, if no name exists we default to
                 // using `_`.
                 let name = self.get_symbol(data_ty.name).name.unwrap_or(IDENTS.underscore);
-                let adt = AdtData::new_with_flags(name, variants, flags);
+                let mut adt = AdtData::new_with_flags(name, variants, flags);
+
+                // Deal with any specific attributes that were set on the type, i.e.
+                // `#repr_c`.
+                if let Some(directives) = self.stores().directives().get(data_def.into()) {
+                    if directives.contains(IDENTS.repr_c) {
+                        adt.metadata.add_flags(RepresentationFlags::C_LIKE);
+                    }
+                }
 
                 let id = self.lcx.adts().create(adt);
                 IrTy::Adt(id)
