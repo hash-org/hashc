@@ -56,6 +56,8 @@ pub enum SemanticError {
     TypeError { error: TcError },
     /// Given data definition is not a singleton.
     DataDefIsNotSingleton { location: SourceLocation },
+    /// An entry point was not found in the entry module.
+    EntryPointNotFound,
 }
 
 impl From<TcError> for SemanticError {
@@ -262,6 +264,12 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                 error
                     .add_span(*location)
                     .add_info("you need to specify which variant of this data type you want");
+            }
+            SemanticError::EntryPointNotFound => {
+                let error = reporter.error().title("no entry point specified");
+                error.add_note(
+                    "when operating in `run` mode, an entry point must be specified in the source.\nThis can be done by using the `main` keyword, or by using the `#entry_point` directive."
+                );
             }
         }
     }

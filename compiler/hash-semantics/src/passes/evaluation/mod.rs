@@ -7,16 +7,13 @@ use derive_more::Constructor;
 use hash_ast::ast::{self};
 use hash_source::ModuleKind;
 use hash_tir::{
-    environment::env::AccessToEnv,
-    fns::FnCallTerm,
-    terms::TermId,
-    utils::{common::CommonUtils, AccessToUtils},
+    environment::env::AccessToEnv, fns::FnCallTerm, terms::TermId, utils::common::CommonUtils,
 };
 use hash_typecheck::AccessToTypechecking;
 
 use super::ast_utils::AstPass;
 use crate::{
-    diagnostics::error::SemanticResult,
+    diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::{AccessToSemEnv, SemEnv},
     impl_access_to_sem_env,
 };
@@ -32,39 +29,27 @@ impl_access_to_sem_env!(EvaluationPass<'_>);
 
 impl EvaluationPass<'_> {
     /// Find the main module definition, if it exists.
-    fn find_and_construct_main_call(
-        &self,
-        node: ast::AstNodeRef<ast::Module>,
-    ) -> SemanticResult<Option<TermId>> {
+    fn find_and_construct_main_call(&self) -> SemanticResult<Option<TermId>> {
         let source_id = self.current_source_info().source_id;
         let kind = self.source_map().module_kind_by_id(source_id);
         match kind {
             None | Some(ModuleKind::Normal | ModuleKind::Prelude) => Ok(None),
             Some(ModuleKind::EntryPoint) => {
-                // Get the `main` function
+                // Get the `main` function or custom entry point
                 //
-                // These should exist since the module kind was registered
-                // as an entry point
-                let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-                match self.mod_utils().get_mod_fn_member_by_ident(mod_def_id, "main") {
-                    Some(fn_def_id) => {
+                // This should exist since the module kind was registered
+                // as an entry point during inference.
+                let def = AccessToSemEnv::entry_point(self).def();
+                match def {
+                    Some(def) => {
                         let call_term = self.new_term(FnCallTerm {
-                            subject: self.new_term(fn_def_id),
+                            subject: self.new_term(def),
                             implicit: false,
                             args: self.new_empty_args(),
                         });
-
-                        // Ensure it is well-typed
-                        let (inferred_call_term, _) =
-                            self.inference_ops().infer_term(call_term, self.new_ty_hole())?;
-
-                        Ok(Some(inferred_call_term))
+                        Ok(Some(call_term))
                     }
-                    None => {
-                        // @@Todo: This should be an error at some point,
-                        // question is when.
-                        Ok(None)
-                    }
+                    None => Err(SemanticError::EntryPointNotFound),
                 }
             }
         }
@@ -95,7 +80,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::diagnostics::error::SemanticResult<()> {
         let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        let main_call_term = self.find_and_construct_main_call(node)?;
+        let main_call_term = self.find_and_construct_main_call()?;
 
         // Potentially dump the TIR and evaluate it depending on flags.
         //
