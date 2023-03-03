@@ -30,7 +30,10 @@ use hash_tir::environment::{
     context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores,
 };
 use once_cell::unsync::OnceCell;
-use ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset};
+use ops::{
+    bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
+    common::CommonOps,
+};
 
 pub mod diagnostics;
 pub mod environment;
@@ -44,6 +47,16 @@ pub mod passes;
 #[derive(Default)]
 pub struct SemanticAnalysis;
 
+/// Flags to the semantic analysis stage.
+#[derive(Debug, Clone, Copy)]
+pub struct Flags {
+    /// Evaluate the generated TIR.
+    pub eval_tir: bool,
+
+    /// Dump the generated TIR.
+    pub dump_tir: bool,
+}
+
 /// The [SemanticAnalysisCtx] represents all of the information that is required
 /// from the compiler state for the semantic analysis stage to operate.
 pub struct SemanticAnalysisCtx<'tc> {
@@ -56,6 +69,9 @@ pub struct SemanticAnalysisCtx<'tc> {
     /// It contains stores, environments, context, etc. for semantic
     /// analysis and typechecking.
     pub semantic_storage: &'tc mut SemanticStorage,
+
+    /// The user-given settings to semantic analysis.
+    pub flags: Flags,
 }
 
 pub trait SemanticAnalysisCtxQuery: CompilerInterface {
@@ -105,11 +121,11 @@ impl Default for SemanticStorage {
 
 impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::Typecheck
+        CompilerStageKind::Analysis
     }
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let SemanticAnalysisCtx { workspace, semantic_storage } = ctx.data();
+        let SemanticAnalysisCtx { workspace, semantic_storage, flags } = ctx.data();
         let current_source_info = CurrentSourceInfo { source_id: entry_point };
 
         // Construct the core TIR environment.
@@ -129,14 +145,14 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &semantic_storage.prelude_or_unset,
             &semantic_storage.primitives_or_unset,
             &semantic_storage.intrinsics_or_unset,
+            &flags,
         );
 
         // Visit the sources
         let visitor = passes::Visitor::new(&sem_env);
-        visitor.visit_source();
+        sem_env.try_or_add_error(visitor.visit_source());
 
         if visitor.sem_env().diagnostics().has_errors() {
-            // Handle errors
             // @@Todo: warnings
             let (errors, _warnings) = visitor.sem_env().diagnostics().into_diagnostics();
             return Err(visitor.sem_env().with(&SemanticError::Compound { errors }).into());

@@ -3,7 +3,10 @@
 use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_intrinsics::utils::PrimitiveUtils;
-use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
+use hash_source::{
+    constant::{FloatTy, IntTy, SIntTy, UIntTy},
+    identifier::IDENTS,
+};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgId, ArgsId, PatArgData, PatArgsId, PatOrCapture},
@@ -15,6 +18,7 @@ use hash_tir::{
         ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy,
         PrimitiveCtorInfo,
     },
+    directives::DirectiveTarget,
     environment::context::{BindingKind, ParamOrigin, ScopeKind},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
@@ -32,7 +36,7 @@ use hash_tir::{
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store};
 use itertools::Itertools;
 
 use super::unification::Uni;
@@ -1066,6 +1070,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         }?;
 
         self.register_atom_inference(ty_id, result_ty.0, result_ty.1);
+        self.potentially_dump_tir(result_ty.0);
         Ok((result_ty.0, self.check_by_unify(result_ty.1, annotation_ty)?))
     }
 
@@ -1557,6 +1562,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         })?;
 
         self.register_atom_inference(term_id, result.0, result.1);
+        self.potentially_dump_tir(result.0);
         Ok(result)
     }
 
@@ -1823,6 +1829,18 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         })
     }
 
+    /// Dump the TIR for the given target if it has a `#dump_tir` directive
+    /// applied on it.
+    pub fn potentially_dump_tir(&self, target: impl Into<DirectiveTarget>) {
+        let target = target.into();
+        let has_dump_dir =
+            self.stores().directives().get(target).map(|d| d.contains(IDENTS.dump_tir))
+                == Some(true);
+        if has_dump_dir {
+            self.dump_tir(self.env().with(target));
+        }
+    }
+
     /// Infer the given module member.
     pub fn infer_mod_member(&self, mod_member: ModMemberId, fn_mode: FnInferMode) -> TcResult<()> {
         let value = self
@@ -1840,6 +1858,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             ModMemberValue::Fn(fn_def_id) => {
                 self.infer_fn_def(fn_def_id, self.new_ty_hole(), self.new_term_hole(), fn_mode)?;
+                if fn_mode == FnInferMode::Body {
+                    self.potentially_dump_tir(fn_def_id);
+                }
                 Ok(())
             }
         }

@@ -66,6 +66,9 @@ pub struct CompilerSettings {
     /// All settings that relate to the lowering stage of the compiler.
     pub lowering_settings: LoweringSettings,
 
+    /// All settings that relate to the semantic analysis stage.
+    pub semantic_settings: SemanticSettings,
+
     /// All settings that relate to the code generation backends of the
     /// compiler.
     pub codegen_settings: CodeGenSettings,
@@ -222,6 +225,7 @@ impl Default for CompilerSettings {
             ast_settings: AstSettings::default(),
             lowering_settings: LoweringSettings::default(),
             codegen_settings: CodeGenSettings::default(),
+            semantic_settings: SemanticSettings::default(),
         }
     }
 }
@@ -336,6 +340,17 @@ pub enum IrDumpMode {
     Graph,
 }
 
+/// All settings related to semantic analysis and typechecking.
+#[derive(Debug, Clone, Default)]
+pub struct SemanticSettings {
+    /// Whether the compiler should dump the generated TIR (typed intermediate
+    /// representation).
+    pub dump_tir: bool,
+
+    /// Whether the compiler should evaluate the generated TIR
+    pub eval_tir: bool,
+}
+
 /// All settings that are related to compiler backend and code generation.
 ///
 /// N.B. some information that is stored here may be used by previous stages
@@ -417,11 +432,11 @@ pub enum CompilerStageKind {
     /// Perform semantic analysis on the AST, this includes
     /// only untyped semantic checks that must occur before
     /// the typechecker runs.
-    SemanticPass,
+    UntypedAnalysis,
 
     /// The general semantic pass, resolve types, normalise everything
     /// and prepare for IR generation.
-    Typecheck,
+    Analysis,
 
     /// Convert the produced TIR from the typechecking stage into
     /// Hash IR.
@@ -452,8 +467,8 @@ impl Display for CompilerStageKind {
         match self {
             CompilerStageKind::Parse => write!(f, "parsing"),
             CompilerStageKind::DeSugar => write!(f, "de-sugaring"),
-            CompilerStageKind::SemanticPass => write!(f, "semantic"),
-            CompilerStageKind::Typecheck => write!(f, "typecheck"),
+            CompilerStageKind::UntypedAnalysis => write!(f, "untyped-analysis"),
+            CompilerStageKind::Analysis => write!(f, "analysis"),
             CompilerStageKind::Lower => write!(f, "lowering"),
             CompilerStageKind::CodeGen => write!(f, "codegen"),
             CompilerStageKind::Link => write!(f, "linking"),

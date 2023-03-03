@@ -87,7 +87,7 @@ pub trait TypecheckingCtxQuery: CompilerInterface {
 
 impl<Ctx: TypecheckingCtxQuery> CompilerStage<Ctx> for Typechecker {
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::Typecheck
+        CompilerStageKind::Analysis
     }
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {

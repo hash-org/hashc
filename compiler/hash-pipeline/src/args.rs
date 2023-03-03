@@ -35,8 +35,12 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, PipelineError> {
                 "build" => {
                     settings.stage = CompilerStageKind::Full;
                 }
+                "run" => {
+                    settings.stage = CompilerStageKind::Analysis;
+                    settings.semantic_settings.eval_tir = true;
+                }
                 "check" => {
-                    settings.stage = CompilerStageKind::Typecheck;
+                    settings.stage = CompilerStageKind::Analysis;
                 }
                 "ast-gen" => {
                     settings.stage = CompilerStageKind::Parse;
@@ -181,6 +185,9 @@ fn parse_arg_configuration(
                 }
                 "link-line" => {
                     settings.codegen_settings.dump_link_line = true;
+                }
+                "tir" => {
+                    settings.semantic_settings.dump_tir = true;
                 }
                 _ => {
                     return Err(PipelineError::InvalidValue(key, value));

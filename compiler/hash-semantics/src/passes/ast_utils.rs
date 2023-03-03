@@ -5,24 +5,20 @@ use hash_ast::{
 use hash_source::location::{SourceLocation, Span};
 use hash_tir::{symbols::Symbol, utils::common::CommonUtils};
 
-use crate::{
-    diagnostics::error::SemanticResult, environment::sem_env::AccessToSemEnv,
-    ops::common::CommonOps,
-};
+use crate::{diagnostics::error::SemanticResult, environment::sem_env::AccessToSemEnv};
 
 pub trait AstPass: AccessToSemEnv {
     fn pass_interactive(&self, node: AstNodeRef<BodyBlock>) -> SemanticResult<()>;
     fn pass_module(&self, node: AstNodeRef<Module>) -> SemanticResult<()>;
 
-    fn pass_source(&self) {
+    fn pass_source(&self) -> SemanticResult<()> {
         let source = self.node_map().get_source(self.current_source_info().source_id);
-        let result = match source {
+        match source {
             SourceRef::Interactive(interactive_source) => {
                 self.pass_interactive(interactive_source.node_ref())
             }
             SourceRef::Module(module_source) => self.pass_module(module_source.node_ref()),
-        };
-        self.sem_env().try_or_add_error(result);
+        }
     }
 }
 

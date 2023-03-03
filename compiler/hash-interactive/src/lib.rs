@@ -98,7 +98,7 @@ fn execute<I: CompilerInterface>(input: &str, compiler: &mut Compiler<I>, mut ct
                     // @@Hack: if display is previously set `:d`, then this interferes with this
                     // mode.
                     settings.ast_settings_mut().dump = false;
-                    settings.set_stage(CompilerStageKind::Typecheck)
+                    settings.set_stage(CompilerStageKind::Analysis)
                 }
                 InteractiveCommand::Display(_) => {
                     settings.ast_settings_mut().dump = true;

@@ -13,6 +13,7 @@ use super::{
     tys::TyId,
 };
 use crate::{
+    directives::DirectiveTarget,
     fns::{FnDefId, FnTy},
     locations::{IndexedLocationTarget, LocationTarget},
 };
@@ -43,6 +44,17 @@ impl<Item: Copy, ItemTy: Copy> AtomInfo<Item, ItemTy> {
     /// Create an atom info with the original value and type.
     pub fn with_original_ty(original: Item, original_ty: ItemTy) -> Self {
         Self { original: (original, Some(original_ty)), inferred: None }
+    }
+
+    /// Create an atom info with the original value and type, and the inferred
+    /// value and type.
+    pub fn inference(
+        original: Item,
+        original_ty: Option<ItemTy>,
+        inferred: Item,
+        inferred_ty: ItemTy,
+    ) -> Self {
+        Self { original: (original, original_ty), inferred: Some((inferred, inferred_ty)) }
     }
 }
 
@@ -121,10 +133,7 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
         if !is_present {
             // Add the original value and type, and the inferred value and
             // type.
-            self.data().insert(
-                key,
-                AtomInfo { original: (key, None), inferred: Some((inferred, inferred_ty)) },
-            );
+            self.data().insert(key, AtomInfo::inference(key, None, inferred, inferred_ty));
         }
 
         if key != inferred {
@@ -150,10 +159,11 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
     /// Register the inferred value and type, for the given value.
     fn register_atom_inference(&self, key: Item, inferred: Item, inferred_ty: ItemTy)
     where
-        Item: Into<LocationTarget>,
+        Item: Into<LocationTarget> + Into<DirectiveTarget>,
     {
         self.register_atom_inference_without_location(key, inferred, inferred_ty);
-        self.stores().location().copy_location(key.into(), inferred.into());
+        self.stores().location().copy_location(key, inferred);
+        self.stores().directives().duplicate(key.into(), inferred.into());
 
         if key != inferred {
             // Set the mapping from the inferred value to itself too.
