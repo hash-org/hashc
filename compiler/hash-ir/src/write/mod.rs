@@ -14,7 +14,7 @@ use hash_utils::store::{SequenceStore, Store};
 
 use super::ir::*;
 use crate::{
-    ty::{AdtId, IrTy, IrTyId, IrTyListId},
+    ty::{AdtId, IrTy, IrTyId, IrTyListId, Mutability},
     IrCtx,
 };
 
@@ -138,9 +138,10 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
             RValue::Discriminant(place) => {
                 write!(f, "discriminant({})", place.for_fmt(self.ctx))
             }
-            RValue::Ref(region, borrow_kind, place) => {
-                write!(f, "&{region:?} {borrow_kind:?} {place:?}")
-            }
+            RValue::Ref(mutability, place, kind) => match mutability {
+                Mutability::Mutable => write!(f, "&mut {kind}{}", place.for_fmt(self.ctx)),
+                Mutability::Immutable => write!(f, "&{kind}{}", place.for_fmt(self.ctx)),
+            },
             RValue::Aggregate(aggregate_kind, operands) => {
                 let fmt_operands = |f: &mut fmt::Formatter, start: char, end: char| {
                     write!(f, "{start}")?;

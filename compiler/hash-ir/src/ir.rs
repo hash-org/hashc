@@ -25,6 +25,7 @@ use smallvec::{smallvec, SmallVec};
 use crate::{
     basic_blocks::BasicBlocks,
     ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, ToIrTy, VariantIdx},
+    write::WriteIr,
     IrCtx,
 };
 
@@ -157,17 +158,19 @@ pub enum ConstKind {
 }
 
 impl ConstKind {
-    /// Compute the type of the [ConstKind] provided
-    /// with an IR context.
+    /// Compute the type of the [ConstKind] provided with an IR context.
+    ///
+    /// N.B. Computing the `ty` of a [ConstKind] will always yield a normalised
+    /// type, i.e. a `usize` will be converted into a `u64` on 64-bit
+    /// platforms.
     pub fn ty(&self, ctx: &IrCtx) -> IrTyId {
         match self {
             Self::Value(value) => match value {
                 Const::Zero(ty) => *ty,
                 Const::Bool(_) => ctx.tys().common_tys.bool,
                 Const::Char(_) => ctx.tys().common_tys.char,
-                Const::Int(interned_int) => {
-                    CONSTANT_MAP.map_int_constant(*interned_int, |int| int.ty().to_ir_ty(ctx))
-                }
+                Const::Int(interned_int) => CONSTANT_MAP
+                    .map_int_constant(*interned_int, |int| int.normalised_ty().to_ir_ty(ctx)),
                 Const::Float(interned_float) => CONSTANT_MAP
                     .map_float_constant(*interned_float, |float| float.ty().to_ir_ty(ctx)),
                 Const::Str(_) => ctx.tys().common_tys.str,
@@ -322,7 +325,14 @@ impl BinOp {
             | BinOp::Mul
             | BinOp::Exp => {
                 // Both `lhs` and `rhs` should be of the same type...
-                debug_assert_eq!(lhs, rhs);
+                debug_assert_eq!(
+                    lhs,
+                    rhs,
+                    "binary op types for `{:?}` should be equal, but got: lhs: `{}`, rhs: `{}`",
+                    self,
+                    lhs.for_fmt(ctx),
+                    rhs.for_fmt(ctx)
+                );
                 lhs
             }
 
@@ -540,6 +550,12 @@ pub enum PlaceProjection {
     Deref,
 }
 
+/// A [Place] describes a memory location that is currently
+/// within the function of the body backed by a [Local].
+///
+/// Additionally, [Place]s allow for projections to be applied
+/// to a place in order to specify a location within the [Local],
+/// i.e. an array index, a field access, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Place {
     /// The original place of where this is referring to.
@@ -616,7 +632,12 @@ pub enum AggregateKind {
     /// A tuple value initialisation.
     Tuple(AdtId),
 
-    /// An array aggregate kind initialisation.
+    /// An array aggregate kind initialisation. The type of the array
+    /// is stored here. Additionally, the length of the array is recorded
+    /// in [`IrTy::Array`] data, and can be derived from the type.
+    ///
+    /// N.B. This type is the type of the array, not the type of the
+    /// elements within the array.
     Array(IrTyId),
 
     /// Enum aggregate kind, this is used to represent an initialisation
@@ -754,7 +775,7 @@ impl RValue {
                 AggregateKind::Enum(id, _)
                 | AggregateKind::Struct(id)
                 | AggregateKind::Tuple(id) => ctx.tys().create(IrTy::Adt(*id)),
-                AggregateKind::Array(ty) => ctx.tys().create(IrTy::Slice(*ty)),
+                AggregateKind::Array(ty) => *ty,
             },
             RValue::Discriminant(place) => {
                 let ty = place.ty(locals, ctx);

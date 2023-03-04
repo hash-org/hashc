@@ -199,6 +199,16 @@ pub enum RefKind {
     Rc,
 }
 
+impl fmt::Display for RefKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RefKind::Normal => write!(f, ""),
+            RefKind::Raw => write!(f, "raw "),
+            RefKind::Rc => write!(f, "rc "),
+        }
+    }
+}
+
 /// Simplified type structure used by the IR and other stages to reason about
 /// Hash programs once types have been erased and simplified.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -265,11 +275,6 @@ pub enum IrTy {
 }
 
 impl IrTy {
-    /// Make a `usize` type.
-    pub fn usize() -> Self {
-        Self::UInt(UIntTy::USize)
-    }
-
     /// Create a pointer to a unit item. This is used as the
     /// "opaque" pointer type in order to just represent a
     /// pointer type.
@@ -340,6 +345,11 @@ impl IrTy {
                 | Self::Bool
                 | Self::Ref(_, _, RefKind::Normal | RefKind::Raw)
         )
+    }
+
+    /// Check if the type is an array.
+    pub fn is_array(&self) -> bool {
+        matches!(self, Self::Array { .. })
     }
 
     /// Check if the type is an ADT.

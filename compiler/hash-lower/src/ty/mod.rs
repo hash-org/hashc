@@ -27,7 +27,7 @@ use hash_tir::{
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{
     index_vec::index_vec,
@@ -123,7 +123,12 @@ impl<'ir> TyLoweringCtx<'ir> {
         })
     }
 
-    /// Get the [IrTy] from the given [TyId].
+    /// Get an [IrTy] from the given [Ty].
+    pub(crate) fn ty_from_tir_ty_id(&self, id: TyId) -> IrTy {
+        self.map_ty(id, |ty| self.ty_from_tir_ty(id, ty))
+    }
+
+    /// Get the [IrTy] from the given [Ty].
     pub(crate) fn ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> IrTy {
         match ty {
             Ty::Tuple(TupleTy { data }) => {
@@ -170,14 +175,19 @@ impl<'ir> TyLoweringCtx<'ir> {
             }
             Ty::Data(data_ty) => self.ty_from_tir_data(*data_ty),
             Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
-            ty @ (Ty::Hole(_) | Ty::Var(_)) => {
+
+            Ty::Var(sym) => {
+                let value = self.context_utils().get_binding_value(*sym);
+                self.ty_from_tir_ty_id(self.use_term_as_ty(value))
+            }
+            ty @ Ty::Hole(_) => {
                 let message = format!(
                     "all types should be monomorphised before lowering, type: `{}`",
                     self.env().with(ty)
                 );
 
                 if let Some(location) = self.get_location(id) {
-                    panic_on_span!(location, self.source_map(), "{message}")
+                    panic_on_span!(location, self.source_map(), format!("{message}"))
                 } else {
                     panic!("{message}")
                 }
@@ -201,14 +211,8 @@ impl<'ir> TyLoweringCtx<'ir> {
         id
     }
 
-    /// Convert the [DataDefType] into an [`IrTy::Adt`].
-    fn ty_from_tir_data(&self, DataTy { data_def, args: _ }: DataTy) -> IrTy {
+    fn create_data_def(&self, DataTy { data_def, .. }: DataTy) -> IrTy {
         let data_ty = self.get_data_def(data_def);
-
-        // If the data type is a primitive boolean, then return the boolean type.
-        if data_def == self.primitives().bool() {
-            return IrTy::Bool;
-        }
 
         match data_ty.ctors {
             DataDefCtors::Defined(ctor_defs) => {
@@ -311,5 +315,22 @@ impl<'ir> TyLoweringCtx<'ir> {
                 }
             }
         }
+    }
+
+    /// Convert the [DataDefType] into an [`IrTy::Adt`].
+    fn ty_from_tir_data(&self, ty: DataTy) -> IrTy {
+        // If the data type is a primitive boolean, then return the boolean type.
+        if ty.data_def == self.primitives().bool() {
+            return IrTy::Bool;
+        }
+
+        // Apply the arguments as the scope of the data type.
+        let kind = ty.data_def.into();
+        let data_params = self.stores().data_def().map_fast(ty.data_def, |data| data.params);
+
+        self.context().enter_scope(kind, || {
+            self.context_utils().add_arg_bindings(data_params, ty.args);
+            self.create_data_def(ty)
+        })
     }
 }

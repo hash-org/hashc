@@ -193,19 +193,16 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
         let projected_ty = builder.ir_ctx().map_ty(self.info.ty, |ty| ty.on_deref()).unwrap();
 
         // If we have a pair, then we move the extra data into the place ref.
-        let ptr_value = match self.value {
-            OperandValue::Immediate(value) => value,
-
-            // This will not occur since we don't have unsized pointer
-            // references (i.e. fat pointers).
-            OperandValue::Pair(..) => panic!("cannot perform deref on pair value"),
+        let (ptr_value, extra) = match self.value {
+            OperandValue::Immediate(value) => (value, None),
+            OperandValue::Pair(value, extra) => (value, Some(extra)),
             OperandValue::Ref(..) => panic!("deref on a by-ref operand"),
         };
 
         let info = builder.layout_of(projected_ty);
         let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
 
-        PlaceRef { value: ptr_value, info, alignment }
+        PlaceRef { value: ptr_value, extra, info, alignment }
     }
 
     /// Compute a new [OperandRef] from the current operand and a field

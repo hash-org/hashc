@@ -30,3 +30,8 @@ print := (item: str) => {
     // data := transmute<_, SizedPointer>(item)
     // write(STDOUT, data.0, data.1)
 }
+
+// #dump_ir panic := (item: str) -> ! => {
+//     print(item);
+//     Intrinsics::abort()
+// }

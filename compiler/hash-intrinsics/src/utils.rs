@@ -8,7 +8,7 @@ use hash_tir::{
     refs::{RefKind, RefTy},
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::store::Store;
 use num_bigint::BigInt;
@@ -157,6 +157,10 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     fn try_use_term_as_integer_lit<L: TryFrom<BigInt>>(&self, term: TermId) -> Option<L> {
         match self.get_term(term) {
             Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),
+            Term::Var(sym) => {
+                self.try_use_term_as_integer_lit(self.context_utils().get_binding_value(sym))
+            }
+
             _ => None,
         }
     }

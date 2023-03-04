@@ -28,6 +28,10 @@ pub enum Intrinsic {
     /// The `panic` intrinsic function. This will cause the program
     /// to terminate.
     Panic,
+
+    /// The `ptr_offset` intrinsic function. This will offset a pointer
+    /// by the specified amount.
+    PtrOffset,
 }
 
 impl Intrinsic {
@@ -35,6 +39,7 @@ impl Intrinsic {
     pub fn from_str_name(name: &str) -> Self {
         match name {
             "panic" => Self::Panic,
+            "ptr_offset" => Self::PtrOffset,
             _ => panic!("unknown intrinsic: {name}"),
         }
     }
@@ -98,10 +103,13 @@ impl Intrinsics {
 
         let str_ty = tys.common_tys.str;
         let never_ty = tys.common_tys.never;
+        let ptr_ty = tys.common_tys.ptr;
+        let usize_ty = tys.common_tys.usize;
 
-        // @@Temporary: define the intrinsics using this macro, however we should
-        // be able to specify these intrinsics in the prelude.
+        // The defined intrinsics have special handling within the compiler
+        // in order to generate specific code for the intrinsic.
         define_intrinsic!("panic", fn(str_ty) -> never_ty);
+        define_intrinsic!("ptr_offset", fn(ptr_ty, usize_ty) -> ptr_ty);
 
         Self { intrinsics }
     }

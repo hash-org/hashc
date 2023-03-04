@@ -14,7 +14,7 @@ use hash_ir::{
     ir::{self, Const},
     ty::{Instance, IrTy, IrTyId},
 };
-use hash_source::constant::CONSTANT_MAP;
+use hash_source::{attributes::Attribute, constant::CONSTANT_MAP};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     environment::env::AccessToEnv,
@@ -25,7 +25,7 @@ use hash_tir::{
     tys::TyId,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{PartialStore, SequenceStore, Store};
 
 use super::Builder;
 use crate::ty::TyLoweringCtx;
@@ -84,6 +84,10 @@ impl<'tcx> Builder<'tcx> {
         let (symbol, ty) = self.stores().fn_def().map_fast(def, |fn_def| (fn_def.name, fn_def.ty));
 
         let name = self.symbol_name(symbol);
+
+        // Check whether this is an intrinsic item, since we need to handle
+        // them differently
+
         let source = self.get_location(def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
@@ -96,9 +100,19 @@ impl<'tcx> Builder<'tcx> {
             .create_from_iter(param_tys.iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
-        let instance = self.ctx.instances().create(Instance::new(name, source, params, ret_ty));
+        let mut instance = Instance::new(name, source, params, ret_ty);
 
-        self.ctx.tys().create(IrTy::FnDef { instance })
+        // Lookup any applied directives on the fn_def and add them to the
+        // instance
+        self.stores().directives().map_fast(def.into(), |maybe_directives| {
+            if let Some(directives) = maybe_directives {
+                for directive in directives.iter() {
+                    instance.attributes.add(Attribute::word(directive));
+                }
+            }
+        });
+
+        self.ctx.tys().create(IrTy::FnDef { instance: self.ctx.instances().create(instance) })
     }
 
     /// Get the [IrTyId] from a given [TyId]. This function will internally
@@ -183,7 +197,8 @@ impl<'tcx> Builder<'tcx> {
                     FnCallTermKind::Call(FnCallTerm { ..*term })
                 }
             }
-            _ => unreachable!(),
+            Term::FnCall(_) => FnCallTermKind::Call(FnCallTerm { ..*term }),
+            term => panic!("unexpected term in classify_fn_call_term() `{:?}`", term),
         }
     }
 

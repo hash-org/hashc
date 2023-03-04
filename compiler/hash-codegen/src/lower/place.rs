@@ -4,6 +4,7 @@
 use hash_ir::{
     ir,
     ty::{IrTyId, PlaceTy, VariantIdx},
+    write::WriteIr,
 };
 use hash_layout::{LayoutShape, Variants};
 use hash_target::{
@@ -29,6 +30,10 @@ pub struct PlaceRef<V> {
     /// The value of the place.
     pub value: V,
 
+    /// Additional information about the value, like the length
+    /// of a slice.
+    pub extra: Option<V>,
+
     /// The type and layout of the value.
     pub info: TyInfo,
 
@@ -45,7 +50,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     ) -> Self {
         let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
 
-        Self { value, info, alignment }
+        Self { value, info, alignment, extra: None }
     }
 
     /// Create a new [PlaceRef] which refers to a value allocated on the
@@ -210,6 +215,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
                 self.value,
                 &[builder.const_usize(0), index],
             ),
+            extra: None,
             info: field_info,
             alignment: self.alignment.restrict_to(offset),
         }
@@ -276,7 +282,9 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         let value = builder
             .pointer_cast(value, builder.type_ptr_to(builder.backend_ty_from_info(field_info)));
 
-        PlaceRef { value, info: field_info, alignment: field_alignment }
+        let extra = if builder.ty_has_hidden_metadata(field_info.ty) { self.extra } else { None };
+
+        PlaceRef { value, extra, info: field_info, alignment: field_alignment }
     }
 
     /// Emit a hint to the code generation backend that this [PlaceRef] is
@@ -341,7 +349,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                     codegen_base.deref(builder)
                 } else {
-                    panic!("using operand local `{place:?}` as place")
+                    panic!("using operand local `{}` as place", place.for_fmt(self.ctx.ir_ctx()))
                 }
             }
         };

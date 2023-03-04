@@ -764,9 +764,10 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         let alignment = destination.alignment.restrict_to(field_size);
 
         // now we want to emit a `store` for the value we are writing
-        operand
-            .value
-            .store(&mut body_builder, PlaceRef { value: current, info: operand.info, alignment });
+        operand.value.store(
+            &mut body_builder,
+            PlaceRef { value: current, extra: None, info: operand.info, alignment },
+        );
 
         // Compute the "next" value...
         let ty = self.backend_ty_from_info(operand.info);
@@ -1222,7 +1223,7 @@ fn load_scalar_value_metadata<'m>(
             let (safe, pointee_ty) = builder.ctx.ir_ctx().map_ty(info.ty, |ty| match ty {
                 IrTy::Ref(pointee_ty, _, RefKind::Normal) => (true, *pointee_ty),
                 IrTy::Ref(pointee_ty, _, _) => (false, *pointee_ty),
-                _ => unreachable!(),
+                ty => unreachable!("expected pointer type, got {:?}", ty),
             });
 
             if safe {
