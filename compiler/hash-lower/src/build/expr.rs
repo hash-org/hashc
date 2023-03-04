@@ -18,16 +18,21 @@ use hash_source::{
 use hash_tir::{
     args::ArgsId,
     arrays::ArrayTerm,
+    atom_info::ItemInAtomInfo,
     control::{LoopControlTerm, ReturnTerm},
     data::CtorTerm,
-    environment::{context::BindingKind, env::AccessToEnv},
+    environment::{
+        context::{BindingKind, Context},
+        env::AccessToEnv,
+    },
     fns::FnCallTerm,
     params::ParamIndex,
     refs::{self, RefTerm},
     scopes::AssignTerm,
     terms::{Term, TermId, UnsafeTerm},
     tuples::TupleTerm,
-    utils::common::CommonUtils,
+    ty_as_variant,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
@@ -132,8 +137,15 @@ impl<'tcx> Builder<'tcx> {
             Term::FnCall(term @ FnCallTerm { subject, args, .. }) => {
                 match self.classify_fn_call_term(term) {
                     FnCallTermKind::Call(_) => {
-                        let ty = self.ty_from_tir_term(*subject);
-                        self.fn_call_into_dest(destination, block, *subject, ty, *args, span)
+                        let ty = self.get_inferred_ty(*subject);
+                        let fn_ty = ty_as_variant!(self, self.get_ty(ty), Fn);
+
+                        Context::enter_scope_mut(self, fn_ty.into(), |this| {
+                            this.context_utils().add_arg_bindings(fn_ty.params, *args);
+
+                            let ty = this.ty_from_tir_ty(ty);
+                            this.fn_call_into_dest(destination, block, *subject, ty, *args, span)
+                        })
                     }
                     FnCallTermKind::UnaryOp(_, _) | FnCallTermKind::BinaryOp(_, _, _) => {
                         let rvalue = unpack!(block = self.as_rvalue(block, term_id));

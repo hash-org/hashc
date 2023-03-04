@@ -60,6 +60,14 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
             return false;
         }
 
+        // Also, we don't queue polymorphic functions here as this doesn't
+        // have any concrete types to lower to. Instead we queue all call site
+        // instances of the function for lowering, this isn't ideal but it less
+        // complicated than dealing with the polymorphic functions later on.
+        if fn_def.ty.implicit {
+            return false;
+        }
+
         match fn_def.body {
             FnBody::Defined(_) => {
                 // Check that the body is marked as "foreign" since
@@ -133,9 +141,11 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
 
                     if self.fn_needs_to_be_lowered(def_id, &fn_def) {
                         fns.add_fn(def_id);
-                    }
 
-                    Ok(ControlFlow::Continue(()))
+                        Ok(ControlFlow::Continue(()))
+                    } else {
+                        Ok(ControlFlow::Break(()))
+                    }
                 }
                 Atom::Pat(_) => Ok(ControlFlow::Continue(())),
             })

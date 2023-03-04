@@ -202,13 +202,10 @@ counter! {
 
 impl fmt::Display for FloatConstant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)?;
-
-        if let Some(suffix) = self.suffix {
-            write!(f, "_{suffix}")?;
+        match self.value {
+            F64(val) => write!(f, "{}_f64", val),
+            F32(val) => write!(f, "{}_f32", val),
         }
-
-        Ok(())
     }
 }
 

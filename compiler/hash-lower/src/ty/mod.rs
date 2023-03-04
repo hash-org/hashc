@@ -22,9 +22,13 @@ use hash_tir::{
     data::{
         ArrayCtorInfo, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
     },
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        context::BindingKind,
+        env::{AccessToEnv, Env},
+    },
     fns::FnTy,
     refs::RefTy,
+    terms::TermId,
     tuples::TupleTy,
     tys::{Ty, TyId},
     utils::common::CommonUtils,
@@ -170,14 +174,33 @@ impl<'ir> TyLoweringCtx<'ir> {
             }
             Ty::Data(data_ty) => self.ty_from_tir_data(*data_ty),
             Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
-            ty @ (Ty::Hole(_) | Ty::Var(_)) => {
+
+            Ty::Var(sym) => {
+                let ty_from_value = |value: TermId| {
+                    let ty = self.use_term_as_ty(value);
+
+                    // @@Cleanup: make a ty_from_tir_id()
+                    let ty_kind = self.get_ty(ty);
+                    self.ty_from_tir_ty(ty, &ty_kind)
+                };
+
+                match self.context().get_binding(*sym).kind {
+                    BindingKind::StackMember(_, Some(value)) => ty_from_value(value),
+                    BindingKind::Arg(_, arg) => {
+                        let arg_data = self.stores().args().get_element(arg);
+                        ty_from_value(arg_data.value)
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            ty @ Ty::Hole(_) => {
                 let message = format!(
                     "all types should be monomorphised before lowering, type: `{}`",
                     self.env().with(ty)
                 );
 
                 if let Some(location) = self.get_location(id) {
-                    panic_on_span!(location, self.source_map(), "{message}")
+                    panic_on_span!(location, self.source_map(), format!("{message}"))
                 } else {
                     panic!("{message}")
                 }

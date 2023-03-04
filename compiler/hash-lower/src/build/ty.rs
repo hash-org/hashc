@@ -84,6 +84,10 @@ impl<'tcx> Builder<'tcx> {
         let (symbol, ty) = self.stores().fn_def().map_fast(def, |fn_def| (fn_def.name, fn_def.ty));
 
         let name = self.symbol_name(symbol);
+
+        // Check whether this is an intrinsic item, since we need to handle
+        // them differently
+
         let source = self.get_location(def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
@@ -193,7 +197,8 @@ impl<'tcx> Builder<'tcx> {
                     FnCallTermKind::Call(FnCallTerm { ..*term })
                 }
             }
-            _ => unreachable!(),
+            Term::FnCall(_) => FnCallTermKind::Call(FnCallTerm { ..*term }),
+            term => panic!("unexpected term in classify_fn_call_term() `{:?}`", term),
         }
     }
 
