@@ -1,7 +1,9 @@
 //! Contains logic for computing ABIs of function types and their
 //! arguments.
 
-use hash_abi::{ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi};
+use hash_abi::{
+    ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
+};
 use hash_ir::ty::{InstanceId, IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::{LayoutComputer, LayoutError};
 use hash_target::abi::{Abi, Scalar, ScalarKind};
@@ -95,10 +97,13 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     let (params, return_ty) =
         ctx.ir_ctx().map_instance(instance, |instance| (instance.params, instance.ret_ty));
 
-    let make_arg_abi = |ty: IrTyId, _index: Option<usize>| {
+    let make_arg_abi = |ty: IrTyId, index: Option<usize>| {
+        let is_return = index.is_none();
+
         let lc = ctx.layout_computer();
         let info = ctx.layout_of(ty);
-        let arg = ArgAbi::new(&lc, info, |scalar| {
+
+        let mut arg = ArgAbi::new(&lc, info, |scalar| {
             let mut attributes = ArgAttributes::new();
             adjust_arg_attributes(&lc, &mut attributes, ty, scalar);
             attributes
@@ -106,7 +111,9 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
 
         // @@Todo: we might have to adjust the attribute pass mode
         // for ZSTs on specific platforms since they don't ignore them?
-        // if is_return && info.is_zst() {}
+        if is_return && ctx.layouts().is_zst(info.layout) {
+            arg.mode = PassMode::Ignore;
+        }
 
         Ok(arg)
     };

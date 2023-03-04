@@ -112,6 +112,11 @@ impl LayoutCtx {
         self.cache.borrow_mut().insert(ty, layout);
     }
 
+    /// Check if a given [LayoutId] represents a zero-sized type.
+    pub fn is_zst(&self, layout: LayoutId) -> bool {
+        self.data.map_fast(layout, |layout| layout.is_zst())
+    }
+
     /// Compute the [Size] of a given [LayoutId].
     pub fn size_of(&self, layout: LayoutId) -> Size {
         self.data.map_fast(layout, |layout| layout.size)
