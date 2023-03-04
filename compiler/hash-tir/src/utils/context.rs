@@ -14,8 +14,7 @@ use crate::{
     impl_access_to_env,
     mods::ModDefId,
     params::{ParamId, ParamsId},
-    pats::Pat,
-    scopes::{DeclTerm, StackId, StackIndices, StackMemberId},
+    scopes::{StackId, StackMemberId},
     symbols::Symbol,
     terms::TermId,
     tys::TyId,
@@ -183,30 +182,6 @@ impl<'env> ContextUtils<'env> {
                 });
             }
         });
-    }
-
-    /// Add the given declaration term to the context.
-    ///
-    /// This will add all the stack bindings of the declaration to the context
-    /// using `add_stack_binding`.
-    pub fn add_from_decl_term(&self, decl: &DeclTerm) {
-        let current_stack_id = match self.context().get_current_scope_kind() {
-            ScopeKind::Stack(stack_id) => stack_id,
-            _ => unreachable!(), // decls are only allowed in stack scopes
-        };
-
-        // @@Todo: fill in complex pats
-        if let (Pat::Binding(_), StackIndices::Range { start, end: _ }) =
-            (self.get_pat(decl.bind_pat), decl.stack_indices)
-        {
-            self.stores()
-                .stack()
-                .modify_fast(current_stack_id, |stack| stack.members[start].ty = decl.ty)
-        }
-
-        for stack_index in decl.iter_stack_indices() {
-            self.add_stack_binding((current_stack_id, stack_index), decl.ty, decl.value);
-        }
     }
 
     /// Add the data constructors of the given data definition to the context.

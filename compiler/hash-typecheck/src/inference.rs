@@ -1311,46 +1311,27 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         decl_term: &DeclTerm,
         annotation_ty: TyId,
     ) -> TcResult<Inference<DeclTerm, TyId>> {
-        let result_decl_term: TcResult<DeclTerm> = try {
-            let decl_term_ty = self.normalise_and_check_ty(decl_term.ty)?;
+        let decl_term_ty = self.normalise_and_check_ty(decl_term.ty)?;
 
-            let (inferred_rhs_value, inferred_ty) = match decl_term.value {
-                Some(value) => {
-                    let Inference(inferred_value, inferred_ty) =
-                        self.infer_term(value, decl_term_ty)?;
-                    (Some(inferred_value), inferred_ty)
-                }
-                None => (None, decl_term_ty),
-            };
-
-            let Inference(inferred_lhs_pat, inferred_ty) =
-                self.infer_pat(decl_term.bind_pat, inferred_ty)?;
-
-            let result_decl_term = DeclTerm {
-                bind_pat: inferred_lhs_pat,
-                value: inferred_rhs_value,
-                ty: inferred_ty,
-                stack_indices: decl_term.stack_indices,
-            };
-
-            result_decl_term
+        let (inferred_rhs_value, inferred_ty) = match decl_term.value {
+            Some(value) => {
+                let Inference(inferred_value, inferred_ty) =
+                    self.infer_term(value, decl_term_ty)?;
+                (Some(inferred_value), inferred_ty)
+            }
+            None => (None, decl_term_ty),
         };
 
-        match result_decl_term {
-            Ok(result_decl_term) => {
-                // self.context_utils().add_from_decl_term(&result_decl_term);
-                Ok(Inference(
-                    result_decl_term,
-                    self.check_by_unify(self.new_void_ty(), annotation_ty)?,
-                ))
-            }
-            Err(err) => {
-                // We still want to add the bindings from the decl term to the context, even if
-                // the term is invalid.
-                // self.context_utils().add_from_decl_term(decl_term);
-                Err(err)
-            }
-        }
+        let Inference(inferred_lhs_pat, inferred_ty) =
+            self.infer_pat(decl_term.bind_pat, inferred_ty)?;
+
+        let result_decl_term = DeclTerm {
+            bind_pat: inferred_lhs_pat,
+            value: inferred_rhs_value,
+            ty: inferred_ty,
+            stack_indices: decl_term.stack_indices,
+        };
+        Ok(Inference(result_decl_term, self.check_by_unify(self.new_void_ty(), annotation_ty)?))
     }
 
     /// Infer an access term.
