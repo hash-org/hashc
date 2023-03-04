@@ -11,7 +11,7 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    environment::context::{Binding, BindingKind, ScopeKind},
+    environment::context::{BindingKind, ScopeKind},
     fns::{FnBody, FnCallTerm},
     lits::{Lit, LitPat},
     params::ParamIndex,
@@ -31,6 +31,7 @@ use hash_utils::{
 
 use crate::{
     errors::{TcError, TcResult},
+    inference::Inference,
     AccessToTypechecking, IntrinsicAbilitiesWrapper,
 };
 
@@ -137,7 +138,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
                     self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].value).into();
                 self.eval(value)
             }
-            BindingKind::StackMember(_, value) => {
+            BindingKind::StackMember(_, _, value) => {
                 match value {
                     Some(value) => self.eval(value.into()),
                     None => {
@@ -248,7 +249,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             Some(ty) => Ok(ty.into()),
             None => {
                 // Ask the type checker to infer the type:
-                let (inferred_term, inferred_ty) =
+                let Inference(inferred_term, inferred_ty) =
                     self.inference_ops().infer_term(type_of_term.term, self.new_ty_hole())?;
                 self.register_atom_inference(type_of_term.term, inferred_term, inferred_ty);
 
@@ -288,7 +289,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             }
             // @@Todo: deref
             Term::Var(var) => {
-                let (member, _) = self.context_utils().get_stack_binding(var);
+                let (member, _, _) = self.context_utils().get_stack_binding(var);
                 self.set_stack_member(member, assign_term.value);
             }
             _ => panic!("Invalid assign {}", self.env().with(&assign_term)),
@@ -299,30 +300,17 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Push the given stack member to the stack with no value.
     fn push_stack_uninit(&self, stack_member_id: StackMemberId) {
-        self.context().add_binding(Binding {
-            name: self.get_stack_member_name(stack_member_id),
-            kind: BindingKind::StackMember(stack_member_id, None),
-        })
+        self.context_utils().add_stack_binding_with_default_ty(stack_member_id, None)
     }
 
     /// Push the given stack member to the stack with the given value.
     fn push_stack(&self, stack_member_id: StackMemberId, value: TermId) {
-        self.context().add_binding(Binding {
-            name: self.get_stack_member_name(stack_member_id),
-            kind: BindingKind::StackMember(stack_member_id, Some(value)),
-        })
+        self.context_utils().add_stack_binding_with_default_ty(stack_member_id, Some(value))
     }
-
     /// Set the given stack member to the given value.
     fn set_stack_member(&self, stack_member_id: StackMemberId, value: TermId) {
-        let name = self
-            .stores()
-            .stack()
-            .modify_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].name);
-        self.context().modify_binding(Binding {
-            name,
-            kind: BindingKind::StackMember(stack_member_id, value.into()),
-        })
+        let name = self.get_stack_member_name(stack_member_id);
+        self.context_utils().set_stack_binding_value(name, value)
     }
 
     /// Evaluate a match term.

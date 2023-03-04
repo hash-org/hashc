@@ -278,7 +278,7 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
 
         let current_scope_index = self.context().get_current_scope_index();
         self.context().for_bindings_of_scope(current_scope_index, |binding| {
-            if let BindingKind::StackMember(_, Some(value)) = binding.kind {
+            if let BindingKind::StackMember(_, _, Some(value)) = binding.kind {
                 sub.insert(binding.name, value);
             }
         });

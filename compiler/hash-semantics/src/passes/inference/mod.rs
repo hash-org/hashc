@@ -58,7 +58,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // Infer the expression
         let (term, _) = self.infer_fully(
             (self.ast_info().terms().get_data_by_node(node.id()).unwrap(), self.new_ty_hole()),
-            |(term_id, ty_id)| self.inference_ops().infer_term(term_id, ty_id),
+            |(term_id, ty_id)| self.inference_ops().infer_term(term_id, ty_id).map(|x| x.into()),
             |(term_id, ty_id)| {
                 self.substitution_ops()
                     .atom_has_holes(term_id)
@@ -79,7 +79,6 @@ impl<'tc> AstPass for InferencePass<'tc> {
             |mod_def_id| self.inference_ops().infer_mod_def(mod_def_id).map(|()| mod_def_id),
             |mod_def_id| self.substitution_ops().mod_def_has_holes(mod_def_id),
         )?;
-
         // Mod def is already registered in the ast info
         Ok(())
     }

@@ -17,12 +17,16 @@ transmute := <T,U> => (item: T) -> U => {
 
 #foreign free := (ptr: &raw u8) -> () => { Intrinsics::abort() }
 
+dbg := <T> => (item: T) -> T => {
+    Intrinsics::debug_print(T, item)
+    item
+}
 
 print := (item: str) => {
     STDIN := 0
     STDOUT := 1
     STDERR := 2
-    
+
     // data := transmute<_, SizedPointer>(item)
     // write(STDOUT, data.0, data.1)
 }

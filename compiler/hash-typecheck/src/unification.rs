@@ -20,6 +20,7 @@ use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use crate::{
     errors::{TcError, TcResult},
+    inference::Inference,
     params::ParamError,
     AccessToTypechecking,
 };
@@ -390,13 +391,13 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     _ => {}
                 }
 
-                let (target_ty, _) =
+                let Inference(target_ty, _) =
                     self.inference_ops().infer_ty(target.ty, self.new_ty_hole())?;
 
                 // Apply the name substitution to the parameter
                 let subbed_src_ty = self.substitution_ops().apply_sub_to_ty(src.ty, &name_sub);
 
-                let (src_ty, _) =
+                let Inference(src_ty, _) =
                     self.inference_ops().infer_ty(subbed_src_ty, self.new_ty_hole())?;
 
                 let unified_param = self.unify_tys(src_ty, target_ty)?.map_result(|ty| ParamData {

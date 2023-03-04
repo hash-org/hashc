@@ -140,7 +140,7 @@ impl<'tc> Scoping<'tc> {
                 looking_in,
             })?;
 
-        if self.context().get_current_scope().kind.is_constant() {
+        if self.context().get_current_scope_kind().is_constant() {
             // If we are in a constant scope, we need to check that the binding
             // is also in a constant scope.
             if !self.context().get_binding(symbol).kind.is_constant() {
@@ -200,7 +200,7 @@ impl<'tc> Scoping<'tc> {
         // Get the data of the member.
         let member_name = self.get_stack_member_name(member_id);
         // Add the binding to the current scope.
-        self.context_utils().add_stack_binding(member_id, value);
+        self.context_utils().add_stack_binding_with_default_ty(member_id, value);
         self.add_named_binding(member_name);
     }
 
@@ -363,7 +363,7 @@ impl<'tc> Scoping<'tc> {
         &self,
         node: ast::AstNodeRef<ast::Declaration>,
     ) -> StackIndices {
-        if let ScopeKind::Stack(_) = self.context().get_current_scope().kind {
+        if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
             let mut start_end = StackIndices::Empty;
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
                 start_end.extend_with_index(member.1);

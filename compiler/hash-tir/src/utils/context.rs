@@ -14,10 +14,10 @@ use crate::{
     impl_access_to_env,
     mods::ModDefId,
     params::{ParamId, ParamsId},
-    pats::Pat,
-    scopes::{DeclTerm, StackId, StackIndices, StackMemberId},
+    scopes::{StackId, StackMemberId},
     symbols::Symbol,
     terms::TermId,
+    tys::TyId,
 };
 
 /// Context-related utilities.
@@ -65,6 +65,54 @@ impl<'env> ContextUtils<'env> {
         });
     }
 
+    /// Get the given stack binding, or panic if it does not exist.
+    pub fn get_stack_binding(&self, name: Symbol) -> (StackMemberId, TyId, Option<TermId>) {
+        match self.context().get_binding(name).kind {
+            BindingKind::StackMember(member, ty_id, value) => (member, ty_id, value),
+            _ => panic!("get_stack_binding called on non-stack binding"),
+        }
+    }
+
+    /// Get the value of the given stack binding.
+    pub fn get_stack_binding_value(&self, name: Symbol) -> Option<TermId> {
+        self.get_stack_binding(name).2
+    }
+
+    /// Set the value of the given stack binding.
+    pub fn set_stack_binding_value(&self, name: Symbol, term_id: TermId) {
+        self.context().modify_binding_with(name, |kind| match kind {
+            BindingKind::StackMember(member_id, ty, _) => {
+                BindingKind::StackMember(member_id, ty, Some(term_id))
+            }
+            _ => unreachable!("set_stack_binding_value called on non-stack binding"),
+        })
+    }
+
+    /// Get the type of the given stack binding.
+    pub fn get_stack_binding_ty(&self, name: Symbol) -> TyId {
+        self.get_stack_binding(name).1
+    }
+
+    /// Set the type of the given stack binding.
+    pub fn set_stack_binding_ty(&self, name: Symbol, ty: TyId) {
+        self.context().modify_binding_with(name, |kind| match kind {
+            BindingKind::StackMember(member_id, _, value) => {
+                BindingKind::StackMember(member_id, ty, value)
+            }
+            _ => unreachable!("set_stack_binding_ty called on non-stack binding"),
+        })
+    }
+
+    /// Get the default type of the given stack member.
+    pub fn get_stack_member_ty(&self, member_id: StackMemberId) -> TyId {
+        self.stores().stack().map_fast(member_id.0, |stack| stack.members[member_id.1].ty)
+    }
+
+    /// Get the type of the given stack member.
+    pub fn set_stack_member_ty(&self, member_id: StackMemberId, ty: TyId) {
+        self.stores().stack().modify_fast(member_id.0, |stack| stack.members[member_id.1].ty = ty)
+    }
+
     /// Add argument bindings from the given parameters, using the
     /// given arguments.
     ///
@@ -87,24 +135,40 @@ impl<'env> ContextUtils<'env> {
         });
     }
 
-    /// Add a new stack binding to the current scope context.
+    /// Add a new stack binding to the current scope context with the default
+    /// type for this member.
     ///
     /// *Invariant*: It must be that the member's scope is the current stack
     /// scope.
-    pub fn add_stack_binding(&self, member_id: StackMemberId, value: Option<TermId>) {
-        match self.context().get_current_scope().kind {
+    pub fn add_stack_binding_with_default_ty(
+        &self,
+        member_id: StackMemberId,
+        value: Option<TermId>,
+    ) {
+        let ty = self.get_stack_member_ty(member_id);
+        self.add_stack_binding(member_id, ty, value);
+    }
+
+    /// Add a new stack binding to the current scope context.
+    ///
+    /// *Invariant*: It must be that the member's scope is the context.
+    pub fn add_stack_binding(&self, member_id: StackMemberId, ty: TyId, value: Option<TermId>) {
+        let name = self.get_stack_member_name(member_id);
+        let stack_scope = self.context().get_closest_stack_scope_ref();
+        match stack_scope.kind {
             ScopeKind::Stack(stack_id) => {
                 if stack_id != member_id.0 {
                     panic!("add_stack_binding called with member from different stack");
                 }
-                let name = self
-                    .stores()
-                    .stack()
-                    .map_fast(stack_id, |stack| stack.members[member_id.1].name);
-                self.context()
-                    .add_binding(Binding { name, kind: BindingKind::StackMember(member_id, value) })
+                stack_scope.add_binding(Binding {
+                    name,
+                    kind: BindingKind::StackMember(member_id, ty, value),
+                })
             }
-            _ => panic!("add_stack_binding called in non-stack scope"),
+            _ => panic!(
+                "add_stack_binding called in non-stack scope: {:?}",
+                self.context().get_current_scope_kind()
+            ),
         }
     }
 
@@ -114,34 +178,10 @@ impl<'env> ContextUtils<'env> {
             for i in 0..stack.members.len() {
                 self.context().add_binding(Binding {
                     name: stack.members[i].name,
-                    kind: BindingKind::StackMember((stack_id, i), None),
+                    kind: BindingKind::StackMember((stack_id, i), stack.members[i].ty, None),
                 });
             }
         });
-    }
-
-    /// Add the given declaration term to the context.
-    ///
-    /// This will add all the stack bindings of the declaration to the context
-    /// using `add_stack_binding`.
-    pub fn add_from_decl_term(&self, decl: &DeclTerm) {
-        let current_stack_id = match self.context().get_current_scope().kind {
-            ScopeKind::Stack(stack_id) => stack_id,
-            _ => unreachable!(), // decls are only allowed in stack scopes
-        };
-
-        // @@Todo: fill in complex pats
-        if let (Pat::Binding(_), StackIndices::Range { start, end: _ }) =
-            (self.get_pat(decl.bind_pat), decl.stack_indices)
-        {
-            self.stores()
-                .stack()
-                .modify_fast(current_stack_id, |stack| stack.members[start].ty = decl.ty)
-        }
-
-        for stack_index in decl.iter_stack_indices() {
-            self.add_stack_binding((current_stack_id, stack_index), decl.value);
-        }
     }
 
     /// Add the data constructors of the given data definition to the context.
@@ -192,17 +232,9 @@ impl<'env> ContextUtils<'env> {
 
     /// Get the current stack, or panic we are not in a stack.
     pub fn get_current_stack(&self) -> StackId {
-        match self.context().get_current_scope().kind {
+        match self.context().get_current_scope_kind() {
             ScopeKind::Stack(stack_id) => stack_id,
             _ => panic!("get_current_stack called in non-stack scope"),
-        }
-    }
-
-    /// Get the given stack binding, or panic if it does not exist.
-    pub fn get_stack_binding(&self, name: Symbol) -> (StackMemberId, Option<TermId>) {
-        match self.context().get_binding(name).kind {
-            BindingKind::StackMember(member, value) => (member, value),
-            _ => panic!("get_stack_binding called on non-stack binding"),
         }
     }
 
