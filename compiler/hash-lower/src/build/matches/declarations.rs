@@ -94,14 +94,17 @@ impl<'tcx> Builder<'tcx> {
 
         match pat {
             Pat::Binding(BindingPat { name, is_mutable, .. }) => {
+                let binding = self.get_symbol(name).name;
+
                 // If the symbol has no associated name, then it is not binding
                 // anything...
-                if self.get_symbol(name).name.is_none() {
+                if binding.is_none() {
                     return;
                 }
 
                 // @@Todo: when we support `k @ ...` patterns, we need to know
                 // when this is a primary pattern or not.
+
                 let ty = self.ty_id_from_tir_pat(pat_id);
                 let mutability =
                     if is_mutable { Mutability::Mutable } else { Mutability::Immutable };

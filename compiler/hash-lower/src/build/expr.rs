@@ -9,6 +9,7 @@ use hash_ir::{
         StatementKind, TerminatorKind, UnevaluatedConst,
     },
     ty::{AdtId, IrTy, Mutability, RefKind, VariantIdx},
+    write::WriteIr,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
@@ -88,12 +89,19 @@ impl<'tcx> Builder<'tcx> {
             Term::Array(ArrayTerm { elements }) => {
                 // We lower literal arrays and tuples as aggregates.
                 let ty = self.ty_id_from_tir_term(term_id);
-                let el_ty = self.ctx.map_ty(ty, |ty| match ty {
-                    IrTy::Slice(ty) | IrTy::Array { ty, .. } => *ty,
-                    _ => unreachable!(),
-                });
 
-                let aggregate_kind = AggregateKind::Array(el_ty);
+                // If the type is not an array type, there is a inconsistency in the
+                // type resolution.
+                if !self.ctx.map_ty(ty, |ty| ty.is_array()) {
+                    panic_on_span!(
+                        span.into_location(self.source_id),
+                        self.source_map(),
+                        "expected an array type for the array literal, got `{:?}`",
+                        ty.for_fmt(self.ctx)
+                    );
+                }
+
+                let aggregate_kind = AggregateKind::Array(ty);
                 let args = self.stores().term_list().map_fast(*elements, |elements| {
                     elements
                         .iter()

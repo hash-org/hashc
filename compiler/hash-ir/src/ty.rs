@@ -275,11 +275,6 @@ pub enum IrTy {
 }
 
 impl IrTy {
-    /// Make a `usize` type.
-    pub fn usize() -> Self {
-        Self::UInt(UIntTy::USize)
-    }
-
     /// Create a pointer to a unit item. This is used as the
     /// "opaque" pointer type in order to just represent a
     /// pointer type.
@@ -350,6 +345,11 @@ impl IrTy {
                 | Self::Bool
                 | Self::Ref(_, _, RefKind::Normal | RefKind::Raw)
         )
+    }
+
+    /// Check if the type is an array.
+    pub fn is_array(&self) -> bool {
+        matches!(self, Self::Array { .. })
     }
 
     /// Check if the type is an ADT.

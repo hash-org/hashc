@@ -22,16 +22,12 @@ use hash_tir::{
     data::{
         ArrayCtorInfo, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
     },
-    environment::{
-        context::BindingKind,
-        env::{AccessToEnv, Env},
-    },
+    environment::env::{AccessToEnv, Env},
     fns::FnTy,
     refs::RefTy,
-    terms::TermId,
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{
     index_vec::index_vec,
@@ -127,7 +123,12 @@ impl<'ir> TyLoweringCtx<'ir> {
         })
     }
 
-    /// Get the [IrTy] from the given [TyId].
+    /// Get an [IrTy] from the given [Ty].
+    pub(crate) fn ty_from_tir_ty_id(&self, id: TyId) -> IrTy {
+        self.map_ty(id, |ty| self.ty_from_tir_ty(id, ty))
+    }
+
+    /// Get the [IrTy] from the given [Ty].
     pub(crate) fn ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> IrTy {
         match ty {
             Ty::Tuple(TupleTy { data }) => {
@@ -176,22 +177,8 @@ impl<'ir> TyLoweringCtx<'ir> {
             Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
 
             Ty::Var(sym) => {
-                let ty_from_value = |value: TermId| {
-                    let ty = self.use_term_as_ty(value);
-
-                    // @@Cleanup: make a ty_from_tir_id()
-                    let ty_kind = self.get_ty(ty);
-                    self.ty_from_tir_ty(ty, &ty_kind)
-                };
-
-                match self.context().get_binding(*sym).kind {
-                    BindingKind::StackMember(_, Some(value)) => ty_from_value(value),
-                    BindingKind::Arg(_, arg) => {
-                        let arg_data = self.stores().args().get_element(arg);
-                        ty_from_value(arg_data.value)
-                    }
-                    _ => unreachable!(),
-                }
+                let value = self.context_utils().get_binding_value(*sym);
+                self.ty_from_tir_ty_id(self.use_term_as_ty(value))
             }
             ty @ Ty::Hole(_) => {
                 let message = format!(
@@ -224,14 +211,8 @@ impl<'ir> TyLoweringCtx<'ir> {
         id
     }
 
-    /// Convert the [DataDefType] into an [`IrTy::Adt`].
-    fn ty_from_tir_data(&self, DataTy { data_def, args: _ }: DataTy) -> IrTy {
+    fn create_data_def(&self, DataTy { data_def, .. }: DataTy) -> IrTy {
         let data_ty = self.get_data_def(data_def);
-
-        // If the data type is a primitive boolean, then return the boolean type.
-        if data_def == self.primitives().bool() {
-            return IrTy::Bool;
-        }
 
         match data_ty.ctors {
             DataDefCtors::Defined(ctor_defs) => {
@@ -334,5 +315,22 @@ impl<'ir> TyLoweringCtx<'ir> {
                 }
             }
         }
+    }
+
+    /// Convert the [DataDefType] into an [`IrTy::Adt`].
+    fn ty_from_tir_data(&self, ty: DataTy) -> IrTy {
+        // If the data type is a primitive boolean, then return the boolean type.
+        if ty.data_def == self.primitives().bool() {
+            return IrTy::Bool;
+        }
+
+        // Apply the arguments as the scope of the data type.
+        let kind = ty.data_def.into();
+        let data_params = self.stores().data_def().map_fast(ty.data_def, |data| data.params);
+
+        self.context().enter_scope(kind, || {
+            self.context_utils().add_arg_bindings(data_params, ty.args);
+            self.create_data_def(ty)
+        })
     }
 }
