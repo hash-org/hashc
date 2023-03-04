@@ -15,6 +15,7 @@ mod ty;
 use build::{Builder, Tcx};
 use discover::FnDiscoverer;
 use hash_ir::{
+    ty::IrTy,
     write::{graphviz, pretty},
     IrStorage,
 };
@@ -36,7 +37,7 @@ use hash_tir::{
     utils::common::CommonUtils,
 };
 use hash_utils::{
-    store::{PartialStore, SequenceStore, Store},
+    store::{CloneStore, PartialStore, SequenceStore, Store},
     stream_writeln,
 };
 use optimise::Optimiser;
@@ -103,9 +104,14 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             &workspace.source_map,
             &source_info,
         );
+
+        let entry_point = &semantic_storage.entry_point;
+
+        // Discover all of the bodies that need to be lowered
         let discoverer = FnDiscoverer::new(&env);
         let items = discoverer.discover_fns();
 
+        // Pre-allocate the vector of lowered bodies.
         let mut lowered_bodies = Vec::with_capacity(items.fns.len());
 
         for func in items.iter() {
@@ -126,8 +132,20 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
                 Builder::new(name, (*func).into(), id, tcx, &mut ir_storage.ctx, settings);
             builder.build();
 
+            let body = builder.finish();
+
+            // This is the entry point, so we need to record that this
+            // is the entry point.
+            if let Some(def) = entry_point.def() && def == *func {
+                let IrTy::FnDef { instance } = ir_storage.ctx.tys().get(body.info.ty()) else {
+                    panic!("entry point `{name}` is not a function definition");
+                };
+
+                ir_storage.entry_point.set(instance, entry_point.kind().unwrap());
+            }
+
             // add the body to the lowered bodies
-            lowered_bodies.push(builder.finish());
+            lowered_bodies.push(body);
         }
 
         // @@TodoTIR: deal with the entry point here.
