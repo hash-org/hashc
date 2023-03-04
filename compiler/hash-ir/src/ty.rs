@@ -199,6 +199,16 @@ pub enum RefKind {
     Rc,
 }
 
+impl fmt::Display for RefKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RefKind::Normal => write!(f, ""),
+            RefKind::Raw => write!(f, "raw "),
+            RefKind::Rc => write!(f, "rc "),
+        }
+    }
+}
+
 /// Simplified type structure used by the IR and other stages to reason about
 /// Hash programs once types have been erased and simplified.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
