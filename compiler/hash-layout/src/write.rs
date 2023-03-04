@@ -129,21 +129,6 @@ impl LayoutWriterConfig {
     }
 }
 
-/// The [LayoutWriter] is a wrapper around [LayoutCtx] that allows
-/// for the pretty printing of a [Layout] in a human readable format.
-pub struct LayoutWriter<'l> {
-    /// The layout and associated [IrTy] to be written.
-    pub ty_info: TyInfo,
-
-    /// The current context for printing the layout. The [LayoutComputer]
-    /// is needed since we want access to the interned types and layouts.
-    pub ctx: LayoutComputer<'l>,
-
-    /// A config that stores all of the characters that are used to
-    /// draw the layout.
-    pub config: LayoutWriterConfig,
-}
-
 /// The content of the [Layout] drawing box produced by the
 /// [LayoutWriter].
 #[derive(Debug)]
@@ -552,6 +537,21 @@ impl LayoutWriterHelper<'_> {
         // Write the last connector
         writeln!(f, "{}", merged_connectors.last().unwrap().symbol)
     }
+}
+
+/// The [LayoutWriter] is a wrapper around [LayoutCtx] that allows
+/// for the pretty printing of a [Layout] in a human readable format.
+pub struct LayoutWriter<'l> {
+    /// The layout and associated [IrTy] to be written.
+    pub ty_info: TyInfo,
+
+    /// The current context for printing the layout. The [LayoutComputer]
+    /// is needed since we want access to the interned types and layouts.
+    pub ctx: LayoutComputer<'l>,
+
+    /// A config that stores all of the characters that are used to
+    /// draw the layout.
+    pub config: LayoutWriterConfig,
 }
 
 impl<'l> LayoutWriter<'l> {

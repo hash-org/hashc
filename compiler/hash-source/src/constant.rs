@@ -454,17 +454,11 @@ impl IntConstant {
         Self { value, suffix: None }
     }
 
-    /// Compute the [IntTy] of the constant.
-    pub fn ty(&self) -> IntTy {
+    /// Function that converts the currently stored [IntConstant]
+    /// into the corresponding [IntTy] type that is being used to
+    /// store the value.
+    fn to_int_ty(&self) -> IntTy {
         use IntConstantValue::*;
-
-        // If the suffix is specified, then we use it as that, this
-        // is only specific to the `usize` problem since we don't
-        // store specific `usize` variants in the constant since
-        // we want to make it platform independent.
-        if let Some(suffix) = self.suffix {
-            return suffix.try_into().unwrap();
-        }
 
         match &self.value {
             I8(_) => IntTy::Int(SIntTy::I8),
@@ -485,6 +479,24 @@ impl IntConstant {
                 }
             }
         }
+    }
+
+    /// Compute the normalised [IntTy] of the constant.
+    pub fn normalised_ty(&self) -> IntTy {
+        self.to_int_ty()
+    }
+
+    /// Compute the [IntTy] of the constant.
+    pub fn ty(&self) -> IntTy {
+        // If the suffix is specified, then we use it as that, this
+        // is only specific to the `usize` problem since we don't
+        // store specific `usize` variants in the constant since
+        // we want to make it platform independent.
+        if let Some(suffix) = self.suffix {
+            return suffix.try_into().unwrap();
+        }
+
+        self.to_int_ty()
     }
 
     /// Check if the [IntConstant] is `signed` by checking if the specified

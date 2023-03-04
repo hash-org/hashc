@@ -118,9 +118,6 @@ pub trait TypeBuilderMethods<'b>: Backend<'b> {
     /// Check whether a given type has additional hidden metadata like the
     /// size of a slice or a string.
     fn ty_has_hidden_metadata(&self, ty: IrTyId) -> bool {
-        self.ir_ctx().map_ty(ty, |ty| match ty {
-            IrTy::Slice(_) | IrTy::Str => true,
-            _ => false,
-        })
+        self.ir_ctx().map_ty(ty, |ty| matches!(ty, IrTy::Slice(_) | IrTy::Str))
     }
 }
