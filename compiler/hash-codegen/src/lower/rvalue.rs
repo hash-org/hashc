@@ -305,13 +305,16 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                         let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
                         let place = self.codegen_place(builder, place);
 
-                        // @@Todo: when slices are passed, we might need to use
+                        // When slices are passed, we might need to use
                         // OperandValue::Pair (to pass the actual pointer and then
                         // the length of the slice as an implicit value using `extra`)
-                        OperandRef {
-                            value: OperandValue::Immediate(place.value),
-                            info: builder.layout_of(ty),
-                        }
+                        let value = if !self.ctx.ty_has_hidden_metadata(ty) {
+                            OperandValue::Immediate(place.value)
+                        } else {
+                            OperandValue::Pair(place.value, place.extra.unwrap())
+                        };
+
+                        OperandRef { value, info: builder.layout_of(ty) }
                     }
 
                     // @@Pointers: decide more clearly on what this means, and

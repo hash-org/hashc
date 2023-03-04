@@ -764,9 +764,10 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         let alignment = destination.alignment.restrict_to(field_size);
 
         // now we want to emit a `store` for the value we are writing
-        operand
-            .value
-            .store(&mut body_builder, PlaceRef { value: current, info: operand.info, alignment });
+        operand.value.store(
+            &mut body_builder,
+            PlaceRef { value: current, extra: None, info: operand.info, alignment },
+        );
 
         // Compute the "next" value...
         let ty = self.backend_ty_from_info(operand.info);
