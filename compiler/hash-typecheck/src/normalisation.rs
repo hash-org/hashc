@@ -31,6 +31,7 @@ use hash_utils::{
 
 use crate::{
     errors::{TcError, TcResult},
+    inference::Inference,
     AccessToTypechecking, IntrinsicAbilitiesWrapper,
 };
 
@@ -248,7 +249,7 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
             Some(ty) => Ok(ty.into()),
             None => {
                 // Ask the type checker to infer the type:
-                let (inferred_term, inferred_ty) =
+                let Inference(inferred_term, inferred_ty) =
                     self.inference_ops().infer_term(type_of_term.term, self.new_ty_hole())?;
                 self.register_atom_inference(type_of_term.term, inferred_term, inferred_ty);
 
