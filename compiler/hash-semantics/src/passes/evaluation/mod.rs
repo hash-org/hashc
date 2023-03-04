@@ -10,6 +10,7 @@ use hash_tir::{
     environment::env::AccessToEnv, fns::FnCallTerm, terms::TermId, utils::common::CommonUtils,
 };
 use hash_typecheck::AccessToTypechecking;
+use hash_utils::stream_less_writeln;
 
 use super::ast_utils::AstPass;
 use crate::{
@@ -70,7 +71,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
 
         // Interactive mode is always evaluated.
         let result = self.normalisation_ops().normalise(term.into())?;
-        println!("{}", self.env().with(result));
+        stream_less_writeln!("{}", self.env().with(result));
 
         Ok(())
     }

@@ -63,6 +63,11 @@ impl AppliedDirectives {
     pub fn contains(&self, directive: Identifier) -> bool {
         self.directives.contains(&directive)
     }
+
+    /// Iterate over all discovered functions.
+    pub fn iter(&self) -> impl Iterator<Item = Identifier> + '_ {
+        self.directives.iter().copied()
+    }
 }
 
 pub type AppliedDirectivesStore = DefaultPartialStore<DirectiveTarget, AppliedDirectives>;
