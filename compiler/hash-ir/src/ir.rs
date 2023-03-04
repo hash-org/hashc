@@ -540,10 +540,10 @@ pub enum PlaceProjection {
     Deref,
 }
 
-/// A [Place] describes a memory location that is currently 
+/// A [Place] describes a memory location that is currently
 /// within the function of the body backed by a [Local].
-/// 
-/// Additionally, [Place]s allow for projections to be applied 
+///
+/// Additionally, [Place]s allow for projections to be applied
 /// to a place in order to specify a location within the [Local],
 /// i.e. an array index, a field access, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

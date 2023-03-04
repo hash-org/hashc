@@ -161,11 +161,11 @@ impl<I: CompilerInterface> Compiler<I> {
 
             // Temporarily swap the settings with a patched settings in order
             // for the prelude bootstrap to run
-            // let mut old_settings = std::mem::take(ctx.settings_mut());
+            let stage_kind = ctx.settings_mut().stage;
+            ctx.settings_mut().stage = CompilerStageKind::Lower;
 
             // We don't need to run the prelude in the full pipeline, just until
             // IR-gen since that will be dealt by the actual pipeline.
-            // ctx.settings_mut().stage = CompilerStageKind::Lower;
 
             // Resolve the current working directory so that we can
             // resolve the prelude path...
@@ -188,7 +188,7 @@ impl<I: CompilerInterface> Compiler<I> {
             ctx = self.run_on_filename(path, ModuleKind::Prelude, ctx);
 
             // Reset the settings
-            // std::mem::swap(ctx.settings_mut(), &mut old_settings);
+            ctx.settings_mut().stage = stage_kind;
 
             // The prelude shouldn't generate any errors, otherwise we just failed to
             // bootstrap
