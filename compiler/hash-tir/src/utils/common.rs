@@ -4,7 +4,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::{
-    args::{Arg, ArgsId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
+    args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     data::{DataDef, DataDefId, DataTy},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
@@ -126,6 +126,21 @@ pub trait CommonUtils: AccessToEnv {
     /// Get a type by its ID.
     fn get_ty(&self, ty_id: TyId) -> Ty {
         self.stores().ty().get(ty_id)
+    }
+
+    /// Get an argument by its ID.
+    fn get_arg(&self, arg_id: ArgId) -> Arg {
+        self.stores().args().get_element(arg_id)
+    }
+
+    /// Get a pattern argument by its ID.
+    fn get_pat_arg(&self, arg_id: PatArgId) -> PatArg {
+        self.stores().pat_args().get_element(arg_id)
+    }
+
+    /// Get a parameter by its ID.
+    fn get_param(&self, param_id: ParamId) -> Param {
+        self.stores().params().get_element(param_id)
     }
 
     /// Map a type by its ID.

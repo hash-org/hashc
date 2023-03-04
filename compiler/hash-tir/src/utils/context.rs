@@ -65,6 +65,30 @@ impl<'env> ContextUtils<'env> {
         });
     }
 
+    /// Get the value of a binding.
+    pub fn get_binding_value(&self, name: Symbol) -> TermId {
+        match self.context().get_binding(name).kind {
+            BindingKind::StackMember(_, _, value) => match value {
+                Some(value) => value,
+                None => {
+                    panic!("cannot get value of uninitialised binding {}", self.env().with(name))
+                }
+            },
+            BindingKind::Arg(_, arg_id) => self.get_arg(arg_id).value,
+            _ => panic!("cannot get value of non-stack/argument binding {}", self.env().with(name)),
+        }
+    }
+
+    /// Get the type of a binding.
+    pub fn get_binding_ty(&self, name: Symbol) -> TyId {
+        match self.context().get_binding(name).kind {
+            BindingKind::Param(_, param_id) => self.get_param(param_id).ty,
+            BindingKind::StackMember(_, ty, _) => ty,
+            BindingKind::Arg(param_id, _) => self.get_param(param_id).ty,
+            _ => panic!("cannot get type of binding {}", self.env().with(name)),
+        }
+    }
+
     /// Get the given stack binding, or panic if it does not exist.
     pub fn get_stack_binding(&self, name: Symbol) -> (StackMemberId, TyId, Option<TermId>) {
         match self.context().get_binding(name).kind {
