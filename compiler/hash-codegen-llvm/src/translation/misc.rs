@@ -7,6 +7,7 @@ use hash_codegen::{
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods},
 };
 use hash_ir::ty::InstanceId;
+use hash_source::identifier::IDENTS;
 use inkwell::{
     module::Linkage,
     values::{AnyValue, FunctionValue, UnnamedAddress},
@@ -99,6 +100,14 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     /// a default one.
     fn predefine_fn(&self, instance: InstanceId, symbol_name: &str, fn_abi: &FnAbi) {
         let decl = self.declare_hash_fn(symbol_name, fn_abi);
+
+        // If the instance has the "foreign" attribute, then we need to
+        // specify that the linkage is external.
+        self.ir_ctx.map_instance(instance, |instance| {
+            if instance.attributes.contains(IDENTS.foreign) {
+                decl.set_linkage(Linkage::External);
+            }
+        });
 
         // We insert the function into the cache so that we can
         // reference it later on...
