@@ -145,9 +145,16 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     }
 
     fn type_ptr_to(&self, ty: Self::Type) -> Self::Type {
-        let ty: BasicTypeEnum = ty.try_into().unwrap();
         let AddressSpaceWrapper(addr) = AddressSpace::DATA.into();
-        ty.ptr_type(addr).into()
+
+        // Special handling for when it is a function type...
+        if ty.is_function_type() {
+            let ty = ty.into_function_type();
+            ty.ptr_type(addr).into()
+        } else {
+            let ty: BasicTypeEnum = ty.try_into().unwrap();
+            ty.ptr_type(addr).into()
+        }
     }
 
     fn type_ptr_to_ext(&self, ty: Self::Type, address_space: AddressSpace) -> Self::Type {

@@ -1222,7 +1222,7 @@ fn load_scalar_value_metadata<'m>(
             let (safe, pointee_ty) = builder.ctx.ir_ctx().map_ty(info.ty, |ty| match ty {
                 IrTy::Ref(pointee_ty, _, RefKind::Normal) => (true, *pointee_ty),
                 IrTy::Ref(pointee_ty, _, _) => (false, *pointee_ty),
-                _ => unreachable!(),
+                ty => unreachable!("expected pointer type, got {:?}", ty),
             });
 
             if safe {
