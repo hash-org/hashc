@@ -92,7 +92,7 @@ impl ResolutionPass<'_> {
                     )
                     .unwrap();
 
-                let (stack_member_id, _) = self.context_utils().get_stack_binding(symbol);
+                let (stack_member_id, _, _) = self.context_utils().get_stack_binding(symbol);
 
                 (symbol, stack_member_id)
             });
@@ -222,7 +222,7 @@ impl ResolutionPass<'_> {
                         name: bound_var.name,
                         is_mutable: false,
                         stack_member: match bound_var.kind {
-                            BindingKind::StackMember(member, _) => Some(member),
+                            BindingKind::StackMember(member, _, _) => Some(member),
                             _ => panic!("Found non-stack member in pattern binding"),
                         },
                     })))

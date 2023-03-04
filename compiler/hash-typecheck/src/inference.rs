@@ -1036,10 +1036,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 unreachable!("mod members and ctors should have all been resolved by now")
             }
             BindingKind::Param(_, param_id) => self.stores().params().get_element(param_id).ty,
-            BindingKind::StackMember(stack_member_id, _) => self
-                .stores()
-                .stack()
-                .map_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].ty),
+            BindingKind::StackMember(_, ty, _) => ty,
             BindingKind::Arg(param_id, _) => self.stores().params().get_element(param_id).ty,
         };
         self.check_by_unify(found_ty, annotation_ty)
@@ -1341,7 +1338,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         match result_decl_term {
             Ok(result_decl_term) => {
-                self.context_utils().add_from_decl_term(&result_decl_term);
+                // self.context_utils().add_from_decl_term(&result_decl_term);
                 Ok(Inference(
                     result_decl_term,
                     self.check_by_unify(self.new_void_ty(), annotation_ty)?,
@@ -1350,7 +1347,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Err(err) => {
                 // We still want to add the bindings from the decl term to the context, even if
                 // the term is invalid.
-                self.context_utils().add_from_decl_term(decl_term);
+                // self.context_utils().add_from_decl_term(decl_term);
                 Err(err)
             }
         }
@@ -1509,20 +1506,24 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // @@Todo: dependent
             let case_data = self.stores().match_cases().get_element(case);
 
-            let Inference(inferred_pat, _) =
-                self.infer_pat(case_data.bind_pat, normalised_subject_ty)?;
+            self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
+                let Inference(inferred_pat, _) =
+                    self.infer_pat(case_data.bind_pat, normalised_subject_ty)?;
 
-            let Inference(inferred_body, inferred_body_ty) =
-                self.infer_term(case_data.value, normalised_annotation_ty)?;
+                let Inference(inferred_body, inferred_body_ty) =
+                    self.infer_term(case_data.value, normalised_annotation_ty)?;
 
-            unified_ty = self.check_by_unify(inferred_body_ty, unified_ty)?;
+                unified_ty = self.check_by_unify(inferred_body_ty, unified_ty)?;
 
-            inferred_arms.push(MatchCase {
-                bind_pat: inferred_pat,
-                value: inferred_body,
-                stack_id: case_data.stack_id,
-                stack_indices: case_data.stack_indices,
-            });
+                inferred_arms.push(MatchCase {
+                    bind_pat: inferred_pat,
+                    value: inferred_body,
+                    stack_id: case_data.stack_id,
+                    stack_indices: case_data.stack_indices,
+                });
+
+                Ok(())
+            })?
         }
 
         Ok(Inference(
@@ -1838,7 +1839,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         let result =
             match self.get_pat(pat_id) {
-                Pat::Binding(_) => Inference(pat_id, annotation_ty),
+                Pat::Binding(var) => {
+                    if let Some(member) = var.stack_member {
+                        self.context_utils().add_stack_binding(member, annotation_ty, None);
+                    }
+                    Inference(pat_id, annotation_ty)
+                }
                 Pat::Range(range_pat) => {
                     Inference(pat_id, self.infer_range_pat(range_pat, annotation_ty)?)
                 }

@@ -350,7 +350,7 @@ impl<'tc> ResolutionPass<'tc> {
                     None => todo!(),
                 }
             }
-            BindingKind::Param(_, _) | BindingKind::StackMember(_, _) => {
+            BindingKind::Param(_, _) | BindingKind::StackMember(_, _, _) => {
                 // If the subject has no args, it is a variable, otherwise it is a
                 // function call.
                 match &component.args[..] {

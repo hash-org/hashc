@@ -118,7 +118,7 @@ impl From<BindingKind> for LocalKey {
     fn from(binding: BindingKind) -> Self {
         match binding {
             BindingKind::Param(_, param) => LocalKey::Param(param),
-            BindingKind::StackMember(stack, _) => LocalKey::Stack(stack),
+            BindingKind::StackMember(stack, _, _) => LocalKey::Stack(stack),
             _ => panic!("unexpected binding kind"),
         }
     }
