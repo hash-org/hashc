@@ -1,7 +1,10 @@
 //! Module that deals with lowering [ir::RValue]s into
 //! backend specific RValues.
 
+use std::cmp::Ordering;
+
 use hash_ir::{
+    cast::{CastTy, IntCastKind},
     ir::{self, BinOp},
     ty::{self, IrTyId, RefKind, VariantIdx},
 };
@@ -285,6 +288,59 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef { value: result, info: builder.layout_of(operand_ty) }
             }
+            ir::RValue::Cast(_, op, ir_ty) => {
+                let operand = self.codegen_operand(builder, &op);
+                let cast_ty = builder.layout_of(ir_ty);
+
+                let out_ty = builder.immediate_backend_ty(cast_ty);
+
+                // If the operand is a ZST, then we just return the new
+                // operand as an undefined value of the cast_ty
+                if builder.layouts().is_zst(operand.info.layout) {
+                    let value = OperandValue::Immediate(builder.const_undef(out_ty));
+                    return OperandRef { value, info: cast_ty };
+                }
+
+                let in_cast_ty = CastTy::from_ty(self.ctx.ir_ctx(), operand.info.ty)
+                    .expect("expected castable type for cast");
+                let out_cast_ty = CastTy::from_ty(self.ctx.ir_ctx(), cast_ty.ty)
+                    .expect("expected castable type for cast");
+
+                let in_ty = builder.immediate_backend_ty(operand.info);
+                let value = operand.immediate_value();
+
+                let new_value = match (in_cast_ty, out_cast_ty) {
+                    (CastTy::Int(in_ty), CastTy::Int(_)) => {
+                        builder.int_cast(value, out_ty, in_ty.is_signed())
+                    }
+                    (CastTy::Int(in_ty), CastTy::Float) => {
+                        if in_ty.is_signed() {
+                            builder.si_to_fp(value, out_ty)
+                        } else {
+                            builder.ui_to_fp(value, out_ty)
+                        }
+                    }
+                    (CastTy::Float, CastTy::Int(IntCastKind::Int)) => {
+                        builder.float_to_int_cast(value, out_ty, true)
+                    }
+                    (CastTy::Float, CastTy::Int(_)) => {
+                        builder.float_to_int_cast(value, out_ty, false)
+                    }
+                    (CastTy::Float, CastTy::Float) => {
+                        let src_size = builder.float_width(in_ty);
+                        let dest_size = builder.float_width(out_ty);
+
+                        match src_size.cmp(&dest_size) {
+                            Ordering::Less => builder.fp_extend(value, out_ty),
+                            Ordering::Greater => builder.fp_truncate(value, out_ty),
+                            Ordering::Equal => value,
+                        }
+                    }
+                };
+
+                let value = OperandValue::Immediate(new_value);
+                OperandRef { value, info: cast_ty }
+            }
             ir::RValue::Aggregate(_, _) => {
                 // This is only called if the aggregate value is a ZST, so we just
                 // create a new ZST operand...
@@ -495,6 +551,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             | ir::RValue::CheckedBinaryOp(_, _)
             | ir::RValue::Len(_)
             | ir::RValue::Ref(_, _, _)
+            | ir::RValue::Cast(_, _, _)
             | ir::RValue::Discriminant(_) => true,
             ir::RValue::Aggregate(_, _) => {
                 let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());

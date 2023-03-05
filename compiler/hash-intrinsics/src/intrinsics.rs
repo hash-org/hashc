@@ -121,7 +121,14 @@ defined_intrinsics! {
     size_of,
 
     ptr_offset,
-    transmute
+    transmute,
+
+    // Casting is used to represent a conversion between two types. For example,
+    // converting a `char` to an `u32` but without necessarily going through
+    // transmuting the types and hoping it will be ok. Cast may imply a runtime
+    // operation to convert the value to the desired type whilst the transmute
+    // is more of a type marker to the compiler.
+    cast,
 }
 
 impl Debug for DefinedIntrinsics {
@@ -892,6 +899,25 @@ impl DefinedIntrinsics {
             })
         };
 
+        let cast = {
+            let t_sym = env.new_symbol("T");
+            let a_sym = env.new_symbol("item");
+            let u_sym = env.new_symbol("U");
+            let params = env.param_utils().create_params(
+                [
+                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: u_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
+                ]
+                .into_iter(),
+            );
+
+            let ret = env.new_ty(u_sym);
+            add("cast", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
+                unimplemented!("`cast` intrinsic evaluation")
+            })
+        };
+
         DefinedIntrinsics {
             eval,
             implementations,
@@ -908,6 +934,7 @@ impl DefinedIntrinsics {
             size_of,
             ptr_offset,
             transmute,
+            cast,
         }
     }
 

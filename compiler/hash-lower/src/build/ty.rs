@@ -50,6 +50,10 @@ pub enum FnCallTermKind {
     /// handled as a function call.
     Call(FnCallTerm),
 
+    /// A cast intrinsic operation, we perform a cast from the type of the
+    /// first term into the desired second [IrTyId].
+    Cast(TermId, IrTyId),
+
     /// A "boolean" binary operation which takes two terms and yields a boolean
     /// term as a result.
     BinaryOp(ir::BinOp, TermId, TermId),
@@ -193,6 +197,17 @@ impl<'tcx> Builder<'tcx> {
                         BoolBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
                             .unwrap();
                     FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
+                } else if fn_def == self.intrinsics().cast() {
+                    let (to_ty, value) = (
+                        self.stores().args().get_at_index(*args, 1).value,
+                        self.stores().args().get_at_index(*args, 2).value,
+                    );
+
+                    // Convert the `to_ty` into an IR type and
+                    let to_ty = self.use_term_as_ty(to_ty);
+                    let ty = self.ty_id_from_tir_ty(to_ty);
+
+                    FnCallTermKind::Cast(value, ty)
                 } else {
                     FnCallTermKind::Call(FnCallTerm { ..*term })
                 }

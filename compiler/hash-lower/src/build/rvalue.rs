@@ -2,6 +2,7 @@
 //! [Term]s.
 
 use hash_ir::{
+    cast::CastKind,
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
     ty::{IrTy, Mutability},
 };
@@ -89,6 +90,29 @@ impl<'tcx> Builder<'tcx> {
                         }
 
                         block.and(RValue::UnaryOp(op, arg))
+                    }
+                    // A casting operation between the given term into a type.
+                    FnCallTermKind::Cast(term, ty) => {
+                        // @@Future: there should be some way to convert an enum
+                        // value that is naked
+                        // i.e. equivalent of a c-enum:
+                        // ```
+                        // Direction := enum {
+                        //     Up,
+                        //     Down,
+                        //     Left,
+                        //     Right,
+                        // }
+                        // ```
+                        // Should be convertible into the discriminant value of
+                        // the enum so that it
+                        // can be used for external FFI calls.
+                        let source_ty = self.ty_id_from_tir_term(term);
+                        let source =
+                            unpack!(block = self.as_operand(block, term, Mutability::Mutable));
+
+                        let cast_kind = CastKind::classify(self.ctx, source_ty, ty);
+                        block.and(RValue::Cast(cast_kind, source, ty))
                     }
                     _ => as_operand(self),
                 }

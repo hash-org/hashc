@@ -24,6 +24,7 @@ use smallvec::{smallvec, SmallVec};
 
 use crate::{
     basic_blocks::BasicBlocks,
+    cast::CastKind,
     ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, ToIrTy, VariantIdx},
     write::WriteIr,
     IrCtx,
@@ -721,6 +722,10 @@ pub enum RValue {
     /// flag denotes whether the operation violated the check...
     CheckedBinaryOp(BinOp, Box<(Operand, Operand)>),
 
+    /// A cast operation, this will convert the value of the operand to the
+    /// specified type.
+    Cast(CastKind, Operand, IrTyId),
+
     /// Compute the `length` of a place, yielding a `usize`.
     ///
     /// Any `place` that is not an array or slice, is not a valid [RValue].
@@ -766,6 +771,7 @@ impl RValue {
                 let ty = op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx));
                 ctx.tys().create(IrTy::tuple(ctx, &[ty, ctx.tys().common_tys.bool]))
             }
+            RValue::Cast(_, _, ty) => *ty,
             RValue::Len(_) => ctx.tys().common_tys.usize,
             RValue::Ref(mutability, place, kind) => {
                 let ty = place.ty(locals, ctx);

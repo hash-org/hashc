@@ -401,6 +401,7 @@ pub mod walk_mut {
                 visitor.visit_aggregate_rvalue(*kind, values, reference)
             }
             RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place, reference),
+            RValue::Cast(_, operand, _) => visitor.visit_operand(operand, reference),
         }
     }
 
@@ -853,6 +854,7 @@ pub mod walk_modifying {
             }
 
             RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place, reference),
+            RValue::Cast(_, operand, _) => visitor.visit_operand(operand, reference),
         }
     }
 
