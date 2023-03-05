@@ -552,7 +552,10 @@ impl<'env> TraversingUtils<'env> {
                     self.visit_pat_args(ctor_pat.ctor_pat_args, f)
                 }
                 Pat::Or(or_pat) => self.visit_pat_list(or_pat.alternatives, f),
-                Pat::If(if_pat) => self.visit_pat(if_pat.pat, f),
+                Pat::If(if_pat) => {
+                    self.visit_pat(if_pat.pat, f)?;
+                    self.visit_term(if_pat.condition, f)
+                }
             },
         }
     }

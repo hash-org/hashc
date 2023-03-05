@@ -11,7 +11,7 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    environment::context::{BindingKind, ScopeKind},
+    environment::context::ScopeKind,
     fns::{FnBody, FnCallTerm},
     lits::{Lit, LitPat},
     params::ParamIndex,
@@ -131,28 +131,12 @@ impl<T: AccessToTypechecking> NormalisationOps<'_, T> {
 
     /// Evaluate a variable.
     fn eval_var(&self, var: Symbol) -> Result<Atom, Signal> {
-        match self.context().get_binding(var).kind {
-            BindingKind::Param(_, _) => Ok(self.new_term(var).into()),
-            BindingKind::Arg(_, arg_id) => {
-                let value =
-                    self.stores().args().map_fast(arg_id.0, |args| args[arg_id.1].value).into();
-                self.eval(value)
+        match self.context_utils().try_get_binding_value(var) {
+            Some(result) => {
+                let evaluated = self.eval(result.into())?;
+                Ok(evaluated)
             }
-            BindingKind::StackMember(_, _, value) => {
-                match value {
-                    Some(value) => self.eval(value.into()),
-                    None => {
-                        // @@Todo: make this a user error
-                        panic!("Tried to read uninitialised stack member")
-                    }
-                }
-            }
-
-            // Variables are never bound to a module member, constructor or equality.
-            // @@Todo: make types better
-            BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) | BindingKind::Equality(_) => {
-                unreachable!()
-            }
+            None => Ok(self.new_term(var).into()),
         }
     }
 

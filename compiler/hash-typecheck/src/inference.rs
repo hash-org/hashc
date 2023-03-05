@@ -3,6 +3,7 @@
 use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_intrinsics::utils::PrimitiveUtils;
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     entry_point::EntryPointKind,
@@ -21,7 +22,7 @@ use hash_tir::{
         PrimitiveCtorInfo,
     },
     directives::DirectiveTarget,
-    environment::context::{BindingKind, ParamOrigin, ScopeKind},
+    environment::context::{ParamOrigin, ScopeKind},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     mods::{ModDefId, ModMemberId, ModMemberValue},
@@ -581,13 +582,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
-            if let Some(len) = self.try_use_term_as_integer_lit::<usize>(len) {
-                if inferred_list.len() != len {
-                    return Err(TcError::MismatchingArrayLengths {
-                        expected_len: self.create_term_from_integer_lit(len),
-                        got_len: self.create_term_from_integer_lit(inferred_list.len()),
-                    });
-                }
+            let inferred_len_term = self.create_term_from_integer_lit(inferred_list.len());
+            if !self.unification_ops().terms_are_equal(len, inferred_len_term) {
+                return Err(TcError::MismatchingArrayLengths {
+                    expected_len: len,
+                    got_len: inferred_len_term,
+                });
             }
         }
 
@@ -1028,18 +1028,20 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer the type of a variable, and return it.
     pub fn infer_var(&self, term: Symbol, annotation_ty: TyId) -> TcResult<TyId> {
-        let found_ty = match self.context().get_binding(term).kind {
-            BindingKind::Equality(_) => {
-                unreachable!("equality judgements cannot be referenced")
+        let normalised_annotation_ty = self.normalise_and_check_ty(annotation_ty)?;
+        match self.context().try_get_binding(term) {
+            Some(_) => {
+                let binding_ty = self.context_utils().get_binding_ty(term);
+                self.check_by_unify(binding_ty, normalised_annotation_ty)
             }
-            BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => {
-                unreachable!("mod members and ctors should have all been resolved by now")
+            None => {
+                if self.diagnostics().has_errors() {
+                    Ok(self.new_ty_hole())
+                } else {
+                    panic!("no binding found for symbol '{}'", self.env().with(term))
+                }
             }
-            BindingKind::Param(_, param_id) => self.stores().params().get_element(param_id).ty,
-            BindingKind::StackMember(_, ty, _) => ty,
-            BindingKind::Arg(param_id, _) => self.stores().params().get_element(param_id).ty,
-        };
-        self.check_by_unify(found_ty, annotation_ty)
+        }
     }
 
     /// Infer the type of a `return` term, and return it.
@@ -1197,45 +1199,25 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     self.infer_mod_def(local_mod_def)?;
                 }
 
-                let mut error_state = self.new_error_state();
                 let mut inferred_statements = vec![];
                 for &statement in statements {
-                    match error_state
-                        .try_or_add_error(self.infer_term(statement, self.new_ty_hole()))
-                    {
-                        Some(Inference(inferred_statement, _)) => {
-                            inferred_statements.push(inferred_statement);
-                        }
-                        None => {
-                            inferred_statements.push(statement);
-                        }
-                    }
+                    inferred_statements.push(self.infer_term(statement, self.new_ty_hole())?.0);
                 }
 
                 // Infer the return value
-                let (return_term, subbed_return_ty) = match error_state
-                    .try_or_add_error(self.infer_term(block_term.return_value, annotation_ty))
-                {
-                    Some(Inference(return_term, return_ty)) => {
-                        let sub = self.substitution_ops().create_sub_from_current_stack_members();
-                        (return_term, self.substitution_ops().apply_sub_to_ty(return_ty, &sub))
-                    }
-                    None => (block_term.return_value, annotation_ty),
-                };
+                let Inference(return_term, return_ty) =
+                    self.infer_term(block_term.return_value, annotation_ty)?;
+                let sub = self.substitution_ops().create_sub_from_current_stack_members();
+                let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
 
-                self.return_or_register_errors(
-                    || {
-                        Ok(Inference(
-                            BlockTerm {
-                                statements: self.new_term_list(inferred_statements),
-                                return_value: return_term,
-                                stack_id: block_term.stack_id,
-                            },
-                            subbed_return_ty,
-                        ))
+                Ok(Inference(
+                    BlockTerm {
+                        statements: self.new_term_list(inferred_statements),
+                        return_value: return_term,
+                        stack_id: block_term.stack_id,
                     },
-                    error_state,
-                )
+                    subbed_return_ty,
+                ))
             })
         })
     }
