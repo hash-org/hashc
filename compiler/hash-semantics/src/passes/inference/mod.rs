@@ -39,6 +39,11 @@ impl InferencePass<'_> {
     ) -> TcResult<T> {
         let subject = self.try_or_add_error(try { infer_subject(orig_subject)? });
 
+        // If we have an error, in diagnostics mode, exit.
+        if self.has_errors() {
+            return Err(TcError::Signal);
+        }
+
         // If we have holes, error
         if let Some(subject) = subject && let Some(hole) = subject_has_holes(subject) {
             self.add_error(self.convert_tc_error(TcError::NeedMoreTypeAnnotationsToInfer {

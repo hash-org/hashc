@@ -439,4 +439,10 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     pub fn fn_modalities_match(&self, f1: FnTy, f2: FnTy) -> bool {
         f1.implicit == f2.implicit && f1.is_unsafe == f2.is_unsafe && f1.pure == f2.pure
     }
+
+    /// Determine whether two terms are equal.
+    pub fn terms_are_equal(&self, t1: TermId, t2: TermId) -> bool {
+        self.unification_ops().unify_terms(t1, t2).map(|result| result.sub.is_empty()).ok()
+            == Some(true)
+    }
 }
