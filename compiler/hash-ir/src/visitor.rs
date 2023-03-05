@@ -32,6 +32,9 @@ pub enum PlaceContext {
 
     /// Mutable context use.
     Mutable(MutablePlaceContext),
+
+    /// Meta context use.
+    Meta(MetaPlaceContext),
 }
 
 impl PlaceContext {
@@ -84,6 +87,16 @@ pub enum MutablePlaceContext {
 
     /// The place is being used as a mutable reference.
     Ref,
+}
+
+/// [MetaPlaceContext] is a reference of where a a particular [Place] is
+/// being used in a meta context. These contexts are only used within the
+/// compiler to mark some information about the place, they have no runtime
+/// implications.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum MetaPlaceContext {
+    /// Used to mark a live interval for a [Place].
+    Liveness,
 }
 
 /// A trait for visiting the IR with a mutable context. This trait should
@@ -293,6 +306,11 @@ pub mod walk_mut {
             StatementKind::Discriminate(place, variant) => {
                 visitor.visit_discriminator_statement(place, *variant, reference)
             }
+            StatementKind::Live(local) | StatementKind::Dead(local) => visitor.visit_local(
+                *local,
+                PlaceContext::Meta(MetaPlaceContext::Liveness),
+                reference,
+            ),
         }
     }
 
@@ -740,6 +758,11 @@ pub mod walk_modifying {
             StatementKind::Discriminate(place, variant) => {
                 visitor.visit_discriminator_statement(place, variant, reference)
             }
+            StatementKind::Live(local) | StatementKind::Dead(local) => visitor.visit_local(
+                local,
+                PlaceContext::Meta(MetaPlaceContext::Liveness),
+                reference,
+            ),
         }
     }
 
