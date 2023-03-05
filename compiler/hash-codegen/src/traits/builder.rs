@@ -13,10 +13,12 @@ use hash_target::{
 
 use super::{
     abi::AbiBuilderMethods, debug::BuildDebugInfoMethods, intrinsics::IntrinsicBuilderMethods,
-    target::HasTargetSpec, Codegen,
+    target::HasTargetSpec, ty::TypeBuilderMethods, Codegen,
 };
 use crate::{
-    common::{AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
+    common::{
+        AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind, TypeKind,
+    },
     layout::LayoutId,
     lower::{operands::OperandRef, place::PlaceRef},
 };
@@ -329,6 +331,28 @@ pub trait BlockBuilderMethods<'a, 'b>:
     ///
     /// Ref: <https://llvm.org/docs/LangRef.html#addrspacecast-to-instruction>
     fn pointer_cast(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value;
+
+    fn float_to_int_cast(
+        &mut self,
+        value: Self::Value,
+        dest_ty: Self::Type,
+        is_signed: bool,
+    ) -> Self::Value {
+        let in_ty = self.ty_of_value(value);
+
+        let (float_ty, int_ty) = if self.ty_kind(in_ty) == TypeKind::FixedVector
+            || self.ty_kind(dest_ty) == TypeKind::FixedVector
+        {
+            (self.element_type(in_ty), self.element_type(dest_ty))
+        } else {
+            (in_ty, dest_ty)
+        };
+
+        debug_assert!(matches!(self.ty_kind(float_ty), TypeKind::Float | TypeKind::Double));
+        debug_assert!(matches!(self.ty_kind(int_ty), TypeKind::Integer));
+
+        self.fp_to_int_sat(value, int_ty, is_signed)
+    }
 
     // --- Intrinsic & Memory operations ---
 

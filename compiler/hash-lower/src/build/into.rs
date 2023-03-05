@@ -155,7 +155,9 @@ impl<'tcx> Builder<'tcx> {
                             this.fn_call_into_dest(destination, block, *subject, ty, *args, span)
                         })
                     }
-                    FnCallTermKind::UnaryOp(_, _) | FnCallTermKind::BinaryOp(_, _, _) => {
+                    FnCallTermKind::Cast(..)
+                    | FnCallTermKind::UnaryOp(_, _)
+                    | FnCallTermKind::BinaryOp(_, _, _) => {
                         let rvalue = unpack!(block = self.as_rvalue(block, term_id));
                         self.control_flow_graph.push_assign(block, destination, rvalue, span);
                         block.unit()

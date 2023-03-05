@@ -113,8 +113,10 @@ pub struct FnCallTerm {
     /// This could be a function definition, a value of a function type, or a
     /// trait method.
     pub subject: TermId,
+
     // The arguments to the function, sorted by the parameters of the function
     pub args: ArgsId,
+
     /// Whether the function call is implicit.
     ///
     /// Implicit function calls look like `A<B>`, where as explicit function

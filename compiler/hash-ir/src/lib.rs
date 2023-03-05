@@ -10,6 +10,7 @@
 )]
 
 pub mod basic_blocks;
+pub mod cast;
 pub mod intrinsics;
 pub mod ir;
 pub mod traversal;

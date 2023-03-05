@@ -131,6 +131,15 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
                 write!(f, "Checked{op:?}({}, {})", lhs.for_fmt(self.ctx), rhs.for_fmt(self.ctx))
             }
             RValue::Len(place) => write!(f, "len({})", place.for_fmt(self.ctx)),
+            RValue::Cast(_, op, ty) => {
+                // We write out the type fully for the cast.
+                write!(
+                    f,
+                    "cast({}, {})",
+                    ty.fmt_with_opts(self.ctx, true, true),
+                    op.for_fmt(self.ctx)
+                )
+            }
             RValue::UnaryOp(op, operand) => {
                 write!(f, "{op:?}({})", operand.for_fmt(self.ctx))
             }
