@@ -103,6 +103,7 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         if !self.can_apply_sub_to_atom(atom, sub) {
             return ControlFlow::Break(atom);
         }
+
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => match sub.get_sub_for(symbol) {

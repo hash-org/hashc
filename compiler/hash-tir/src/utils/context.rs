@@ -65,9 +65,25 @@ impl<'env> ContextUtils<'env> {
         });
     }
 
+    /// Get a binding from the current scopes.
+    pub fn get_binding(&self, name: Symbol) -> Binding {
+        self.context()
+            .try_get_binding(name)
+            .unwrap_or_else(|| panic!("cannot get binding for {}", self.env().with(name),))
+    }
+
+    /// Get the value of a binding, if possible.
+    pub fn try_get_binding_value(&self, name: Symbol) -> Option<TermId> {
+        match self.get_binding(name).kind {
+            BindingKind::StackMember(_, _, value) => value,
+            BindingKind::Arg(_, arg_id) => Some(self.get_arg(arg_id).value),
+            _ => None,
+        }
+    }
+
     /// Get the value of a binding.
     pub fn get_binding_value(&self, name: Symbol) -> TermId {
-        match self.context().get_binding(name).kind {
+        match self.get_binding(name).kind {
             BindingKind::StackMember(_, _, value) => match value {
                 Some(value) => value,
                 None => {
@@ -91,7 +107,7 @@ impl<'env> ContextUtils<'env> {
 
     /// Get the given stack binding, or panic if it does not exist.
     pub fn get_stack_binding(&self, name: Symbol) -> (StackMemberId, TyId, Option<TermId>) {
-        match self.context().get_binding(name).kind {
+        match self.get_binding(name).kind {
             BindingKind::StackMember(member, ty_id, value) => (member, ty_id, value),
             _ => panic!("get_stack_binding called on non-stack binding"),
         }
