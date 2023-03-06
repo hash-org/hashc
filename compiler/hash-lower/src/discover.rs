@@ -4,23 +4,37 @@
 //! For now, non-pure functions are always queued for lowering.
 use std::ops::ControlFlow;
 
-use derive_more::{Constructor, Deref};
+use derive_more::Constructor;
+use hash_pipeline::workspace::StageInfo;
 use hash_source::identifier::IDENTS;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    environment::env::AccessToEnv,
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId},
-    mods::ModMemberValue,
+    mods::{ModKind, ModMemberValue},
     terms::TermId,
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::PartialCloneStore;
+use hash_utils::store::{PartialCloneStore, Store};
 use indexmap::IndexSet;
 
 /// Discoverer for functions to lower in the TIR tree.
-#[derive(Constructor, Deref)]
+#[derive(Constructor)]
 pub struct FnDiscoverer<'a, T: AccessToEnv> {
+    /// The TIR environment which can be used to read information about
+    /// all TIR terms and definitions.
     env: &'a T,
+
+    /// A reference to [StageInfo] which refers to what the current
+    /// status of each source is. This is used to avoid re-queuing modules
+    /// that may of been queued in a previous run.
+    stage_info: &'a StageInfo,
+}
+
+impl<T: AccessToEnv> AccessToEnv for FnDiscoverer<'_, T> {
+    fn env(&self) -> &Env {
+        self.env.env()
+    }
 }
 
 /// Stores a set of discovered functions.
@@ -95,6 +109,18 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
         let mut fns = DiscoveredFns::new();
 
         for mod_def_id in self.mod_utils().iter_all_mods() {
+            // Check if we can skip this module as it may of already been queued before
+            // during some other pipeline run.
+            //
+            // @@Incomplete: mod-blocks that are already lowered won't be caught by
+            // the queue-deduplication.
+            if self.stores().mod_def().map_fast(mod_def_id, |def| match def.kind {
+                ModKind::Source(id) => self.stage_info.get(id).is_lowered(),
+                _ => false,
+            }) {
+                continue;
+            }
+
             for member in self.mod_utils().iter_mod_members(mod_def_id) {
                 match member.value {
                     ModMemberValue::Mod(_) => {

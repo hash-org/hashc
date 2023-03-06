@@ -108,7 +108,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let entry_point = &semantic_storage.entry_point;
 
         // Discover all of the bodies that need to be lowered
-        let discoverer = FnDiscoverer::new(&env);
+        let discoverer = FnDiscoverer::new(&env, source_stage_info);
         let items = discoverer.discover_fns();
 
         // Pre-allocate the vector of lowered bodies.
@@ -147,13 +147,6 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             // add the body to the lowered bodies
             lowered_bodies.push(body);
         }
-
-        // @@TodoTIR: deal with the entry point here.
-
-        //     if let Some(instance) = discoverer.entry_point_instance() {
-        //         let kind = ty_storage.entry_point_state.kind().unwrap();
-        //         ir_storage.entry_point.set(instance, kind);
-        //     }
 
         // Mark all modules now as lowered, and all generated
         // bodies to the store.
