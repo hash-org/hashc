@@ -203,8 +203,8 @@ counter! {
 impl fmt::Display for FloatConstant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
-            F64(val) => write!(f, "{}_f64", val),
-            F32(val) => write!(f, "{}_f32", val),
+            F64(val) => write!(f, "{val}_f64"),
+            F32(val) => write!(f, "{val}_f32"),
         }
     }
 }

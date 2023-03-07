@@ -1149,7 +1149,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         self.register_atom_inference(ty_id, result_ty.0, result_ty.1);
         self.potentially_dump_tir(result_ty.0);
-        self.potentially_dump_tir(result_ty.0);
         Ok(Inference(result_ty.0, self.check_by_unify(result_ty.1, annotation_ty)?))
     }
 
@@ -1722,6 +1721,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
         original_pat_id: PatId,
     ) -> TcResult<Inference<CtorPat, DataTy>> {
+        // @@Organisation: factor out because this is almost the same for
+        // infer_ctor_term
         let ctor = self.stores().ctor_defs().map_fast(pat.ctor.0, |defs| defs[pat.ctor.1]);
         let data_def = self.get_data_def(ctor.data_def_id);
 
@@ -1740,32 +1741,86 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
         };
 
-        self.context().enter_scope(ScopeKind::Ctor(pat.ctor), || {
-            let Inference(inferred_data_args, inferred_data_def_params) =
-                self.infer_args(pat.data_args, data_def.params)?;
-            self.context_utils().add_arg_bindings(inferred_data_def_params, inferred_data_args);
+        let pat_data_args = if pat.data_args.len() == 0 {
+            match annotation_data_ty {
+                Some(t) => t.args,
+                None => self.param_utils().instantiate_params_as_holes(data_def.params),
+            }
+        } else {
+            pat.data_args
+        };
 
-            let Inference(inferred_ctor_args, _) =
-                self.infer_pat_args(pat.ctor_pat_args, pat.ctor_pat_args_spread, ctor.params)?;
+        let annotation_data_ty =
+            annotation_data_ty.unwrap_or(DataTy { args: pat_data_args, data_def: data_def.id });
 
-            // Try to unify given annotation with inferred eventual type.
-            let result_data_def_args = match annotation_data_ty {
-                Some(data_ty) => {
-                    self.unification_ops().unify_args(data_ty.args, ctor.result_args)?.result
-                }
-                None => ctor.result_args,
-            };
+        self.context().enter_scope(data_def.id.into(), || {
+            let data_args_uni =
+                self.unification_ops().unify_args(pat_data_args, annotation_data_ty.args)?;
 
-            // Evaluate the result args.
-            Ok(Inference(
-                CtorPat {
-                    ctor: ctor.id,
-                    data_args: result_data_def_args,
-                    ctor_pat_args: inferred_ctor_args,
-                    ctor_pat_args_spread: pat.ctor_pat_args_spread,
-                },
-                DataTy { args: result_data_def_args, data_def: data_def.id },
-            ))
+            // First infer the data arguments
+            let Inference(inferred_data_args, inferred_data_params) =
+                self.infer_args(data_args_uni.result, data_def.params)?;
+
+            let param_uni = self
+                .unification_ops()
+                .unify_params(inferred_data_params, data_def.params, ParamOrigin::Data(data_def.id))
+                .unwrap();
+
+            // Create a substitution from the inferred data arguments
+            let data_sub = self
+                .substitution_ops()
+                .create_sub_from_args_of_params(inferred_data_args, data_def.params);
+
+            self.context().enter_scope(ctor.id.into(), || {
+                // Apply the substitution to the constructor parameters
+                let subbed_ctor_params = self.substitution_ops().apply_sub_to_params(
+                    self.substitution_ops().apply_sub_to_params(
+                        self.substitution_ops()
+                            .apply_sub_to_params(ctor.params, &data_args_uni.sub),
+                        &param_uni.sub,
+                    ),
+                    &data_sub,
+                );
+
+                // Infer the constructor arguments
+                let Inference(inferred_ctor_pat_args, inferred_ctor_params) = self.infer_pat_args(
+                    pat.ctor_pat_args,
+                    pat.ctor_pat_args_spread,
+                    subbed_ctor_params,
+                )?;
+
+                let ctor_ty_sub = self.unification_ops().unify_params(
+                    inferred_ctor_params,
+                    subbed_ctor_params,
+                    ParamOrigin::Ctor(ctor.id),
+                )?;
+
+                // Apply the substitution to the constructor result args
+                let subbed_result_args = self.substitution_ops().apply_sub_to_args(
+                    self.substitution_ops().apply_sub_to_args(
+                        self.substitution_ops().apply_sub_to_args(ctor.result_args, &param_uni.sub),
+                        &data_sub,
+                    ),
+                    &ctor_ty_sub.sub,
+                );
+
+                // Try to unify given annotation with inferred eventual type.
+                let result_data_def_args = self
+                    .unification_ops()
+                    .unify_args(subbed_result_args, inferred_data_args)?
+                    .result;
+
+                // Evaluate the result args.
+                Ok(Inference(
+                    CtorPat {
+                        ctor: ctor.id,
+                        data_args: result_data_def_args,
+                        ctor_pat_args: inferred_ctor_pat_args,
+                        ctor_pat_args_spread: pat.ctor_pat_args_spread,
+                    },
+                    DataTy { args: result_data_def_args, data_def: data_def.id },
+                ))
+            })
         })
     }
 

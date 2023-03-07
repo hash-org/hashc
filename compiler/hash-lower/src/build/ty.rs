@@ -213,7 +213,7 @@ impl<'tcx> Builder<'tcx> {
                 }
             }
             Term::FnCall(_) => FnCallTermKind::Call(FnCallTerm { ..*term }),
-            term => panic!("unexpected term in classify_fn_call_term() `{:?}`", term),
+            term => panic!("unexpected term in classify_fn_call_term() `{term:?}`"),
         }
     }
 
