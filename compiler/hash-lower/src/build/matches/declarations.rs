@@ -74,12 +74,11 @@ impl<'tcx> Builder<'tcx> {
     /// bound within the pattern since we have already checked that all pattern
     /// variants declare the same binds of the same type, on the same
     /// pattern level.
-    fn declare_bindings(&mut self, pat: PatId) {
+    pub(super) fn declare_bindings(&mut self, pat: PatId) {
         self.visit_primary_pattern_bindings(pat, &mut |this, mutability, name, _span, ty| {
             let key = this.local_key_from_symbol(name);
             let name = this.symbol_name(name);
             let local = LocalDecl::new(name, mutability, ty);
-
             this.push_local(local, key);
         })
     }

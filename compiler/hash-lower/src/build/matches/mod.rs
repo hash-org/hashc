@@ -194,6 +194,7 @@ impl<'tcx> Builder<'tcx> {
                 self,
                 ScopeKind::Stack(arm.stack_id),
                 |this| {
+                    this.declare_bindings(arm.bind_pat);
                     let arm_block = this.bind_pat(subject_span, arm.bind_pat, candidate);
                     lowered_arms_edges.push(this.term_into_dest(destination, arm_block, arm.value));
                 },
