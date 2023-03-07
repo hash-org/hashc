@@ -41,7 +41,7 @@ impl<'tcx> Builder<'tcx> {
 
                 let next_block = self.control_flow_graph.start_new_block();
 
-                self.enter_breakable_block(loop_body, next_block, place, move |this| {
+                self.enter_breakable_block(loop_body, next_block, move |this| {
                     // We need to create a temporary for the blocks return value which is
                     // always going to be `()`
                     let tmp_place = this.make_tmp_unit();
@@ -125,7 +125,6 @@ impl<'tcx> Builder<'tcx> {
         &mut self,
         loop_body: BasicBlock,
         next_block: BasicBlock,
-        _break_destination: Place,
         f: F,
     ) -> BlockAnd<()>
     where

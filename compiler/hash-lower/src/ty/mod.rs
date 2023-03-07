@@ -195,19 +195,23 @@ impl<'ir> TyLoweringCtx<'ir> {
         }
     }
 
-    /// Convert the [DataDefType] into an [`IrTy::Adt`].
-    pub(crate) fn ty_id_from_tir_data(&self, data @ DataTy { data_def, args }: DataTy) -> IrTyId {
+    /// Convert the [DataTy] into an [`IrTy::Adt`]. The [DataTy] specifies a
+    /// data definition and a collection of arguments to the data
+    /// definition. The arguments correspond to generic parameters that the
+    /// definition has.
+    pub(crate) fn ty_id_from_tir_data(&self, data_ty: DataTy) -> IrTyId {
         // Check if the data type has already been converted into
         // an ir type.
-        if let Some(ty) = self.lcx.semantic_cache().borrow().get(&data.into()) {
+        let key = data_ty.into();
+        if let Some(ty) = self.lcx.semantic_cache().borrow().get(&key) {
             return *ty;
         }
 
-        let ty = self.ty_from_tir_data(DataTy { data_def, args });
+        let ty = self.ty_from_tir_data(data_ty);
         let id = self.lcx.tys().create(ty);
 
         // Add an entry into the cache for this term
-        self.lcx.semantic_cache().borrow_mut().insert(data.into(), id);
+        self.lcx.semantic_cache().borrow_mut().insert(key, id);
         id
     }
 
@@ -225,8 +229,6 @@ impl<'ir> TyLoweringCtx<'ir> {
                     1 => flags |= AdtFlags::STRUCT,
                     _ => flags |= AdtFlags::ENUM,
                 }
-
-                // @@TodoTIR: Deal with performing generics on the types here...
 
                 // Lower each variant as a constructor.
                 let variants = self.stores().ctor_defs().map_fast(ctor_defs, |defs| {
