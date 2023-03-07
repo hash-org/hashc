@@ -33,6 +33,7 @@ use hash_utils::{
     index_vec::index_vec,
     store::{PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
 };
+use log::info;
 
 /// A context that is used to lower types and terms into [IrTy]s.
 pub(crate) struct TyLoweringCtx<'ir> {
@@ -177,8 +178,16 @@ impl<'ir> TyLoweringCtx<'ir> {
             Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
 
             Ty::Var(sym) => {
-                let value = self.context_utils().get_binding_value(*sym);
-                self.ty_from_tir_ty_id(self.use_term_as_ty(value))
+                // @@Temporary
+                if self.context().try_get_binding(*sym).is_some() {
+                    let term = self.context_utils().get_binding_value(*sym);
+                    self.ty_from_tir_ty_id(self.use_term_as_ty(term))
+                } else {
+                    info!("couldn't resolve type variable `{}`", self.env().with(*sym));
+
+                    // We just return the unit type for now.
+                    IrTy::Adt(AdtId::UNIT)
+                }
             }
             ty @ Ty::Hole(_) => {
                 let message = format!(
