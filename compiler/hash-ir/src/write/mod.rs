@@ -199,6 +199,12 @@ impl fmt::Display for ForFormatting<'_, &Statement> {
             StatementKind::Discriminate(place, index) => {
                 write!(f, "discriminant({}) = {index}", place.for_fmt(self.ctx))
             }
+            StatementKind::Live(local) => {
+                write!(f, "live({local:?})")
+            }
+            StatementKind::Dead(local) => {
+                write!(f, "dead({local:?})")
+            }
         }
     }
 }

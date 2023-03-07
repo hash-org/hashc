@@ -273,6 +273,9 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
                 self.assign(local, reference);
             }
 
+            // Don't do anything for meta context.
+            PlaceContext::Meta(_) => {}
+
             PlaceContext::Immutable(ImmutablePlaceContext::Operand) => {
                 match &mut self.locals[local] {
                     // @@Investigate: do we need to deal with in any way here?

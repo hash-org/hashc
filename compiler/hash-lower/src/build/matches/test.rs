@@ -1,6 +1,7 @@
 //! Definitions for [Test]s that is used to represent what kind
 //! of test needs to be performed on a particular set of candidates
 //! when deciding where to jump to within the decision tree.
+#![allow(clippy::too_many_arguments)]
 
 use std::cmp::Ordering;
 

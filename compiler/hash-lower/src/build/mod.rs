@@ -1,6 +1,5 @@
 //! Defines a IR Builder for function blocks. This is essentially a builder
 //! pattern for lowering declarations into the associated IR.
-#![allow(clippy::too_many_arguments)]
 
 mod block;
 mod category;
@@ -38,7 +37,7 @@ use hash_tir::{
         env::{AccessToEnv, Env},
     },
     fns::{FnBody, FnDef, FnDefId, FnTy},
-    params::ParamsId,
+    params::ParamId,
     scopes::StackMemberId,
     terms::TermId,
     utils::{common::CommonUtils, context::ContextUtils},
@@ -50,9 +49,9 @@ use hash_utils::{
 
 use crate::cfg::ControlFlowGraph;
 
-/// A wrapper type for the kind of AST node that is being lowered, the [Builder]
-/// accepts either a [ast::FnDef] or an [ast::Expr] node. The [ast::Expr] node
-/// case is used when a constant block is being lowered.
+/// A wrapper type for the kind of TIR term that is being lowered, the [Builder]
+/// accepts either a [FnDefId] or a [TermId]. The [TermId] case is used when a
+/// constant block is being lowered.
 #[derive(Clone, Copy)]
 pub(crate) enum BuildItem {
     /// A function body is being lowered.
@@ -97,11 +96,11 @@ impl From<TermId> for BuildItem {
 /// Use to represent a mapping between [BindingKind]s that come from
 /// the TIR to identify a [Local] as either being a reference to a
 /// stack member or a function parameter.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum LocalKey {
     /// The parameter of the current function since they are in a
     /// different binding kind.
-    Param((ParamsId, usize)),
+    Param(ParamId),
 
     /// All references to variables that are declared on the stack
     /// of the function body.

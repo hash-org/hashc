@@ -430,7 +430,7 @@ pub enum LocalKind {
 /// is used to store some data within the function body, it contains
 /// an associated [Mutability], and [IrTy], as well as a name if the
 /// information is available.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalDecl {
     /// Mutability of the local.
     pub mutability: Mutability,
@@ -814,6 +814,14 @@ pub enum StatementKind {
     /// Set the discriminant on a particular place, this is used to concretely
     /// specify what the discriminant of a particular enum/union type is.
     Discriminate(Place, VariantIdx),
+
+    /// A statement which is used to denote that a [Local] is now "live"
+    /// in terms of the live interval.
+    Live(Local),
+
+    /// A statement which is used to denote that a [Local] is now "dead"
+    /// in terms of live interval.
+    Dead(Local),
 }
 
 /// A [Statement] is a intermediate transformation step within a [BasicBlock].

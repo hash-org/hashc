@@ -33,7 +33,7 @@ impl<'ir> IrBodyWriter<'ir> {
     /// the [BodySource] of the [Body]. For function items, the format mimics
     /// a function declaration:
     /// ```ignore
-    /// foo(_0: i32, _1: i32) -> i32 {
+    /// foo := (_0: i32, _1: i32) -> i32 {
     ///    ...
     /// }
     /// ```
@@ -51,7 +51,7 @@ impl<'ir> IrBodyWriter<'ir> {
 
         match self.body.info().source() {
             BodySource::Item | BodySource::Intrinsic => {
-                write!(f, "{}(", self.body.info().name)?;
+                write!(f, "{} := (", self.body.info().name)?;
 
                 for (i, param) in declarations.take(self.body.arg_count).enumerate() {
                     if i > 0 {

@@ -54,6 +54,16 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             StatementKind::Discriminate(place, discriminant) => {
                 self.codegen_place(builder, place).codegen_set_discriminant(builder, discriminant);
             }
+            StatementKind::Live(local) => {
+                if let LocalRef::Place(place) = self.locals[local] {
+                    place.storage_live(builder);
+                }
+            }
+            StatementKind::Dead(local) => {
+                if let LocalRef::Place(place) = self.locals[local] {
+                    place.storage_dead(builder);
+                }
+            }
             StatementKind::Nop => {}
         }
     }
