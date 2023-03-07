@@ -13,7 +13,7 @@ use std::{
 use compute::LayoutComputer;
 use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx};
 use hash_target::{
-    abi::{AbiRepresentation, AddressSpace, Scalar},
+    abi::{AbiRepresentation, Scalar},
     alignment::{Alignment, Alignments},
     data_layout::{HasDataLayout, TargetDataLayout},
     primitives::{FloatTy, SIntTy, UIntTy},
@@ -53,10 +53,7 @@ pub struct PointeeInfo {
     pub size: Size,
 
     /// The kind of pointer, whether it is mutable, immutable, etc.
-    pub kind: PointerKind,
-
-    /// The address space of the data that is pointed to.
-    pub address_space: AddressSpace,
+    pub kind: Option<PointerKind>,
 }
 
 // Define a new key to represent a particular layout.
@@ -232,12 +229,28 @@ impl TyInfo {
             | IrTy::Bool
             | IrTy::Char
             | IrTy::Never
-            | IrTy::Ref(_, _, _)
             | IrTy::FnDef { .. }
             | IrTy::Fn { .. } => panic!("TyInfo::field on a type that does not contain fields"),
 
-            IrTy::Str if field_index == 0 => ctx.ir_ctx().tys().common_tys.ptr,
-            IrTy::Str => ctx.ir_ctx().tys().common_tys.usize,
+            // Handle pointers that might have additional information attached to them, i.e.
+            // `str` and `[T]` types.
+            IrTy::Ref(pointee, _, _) => {
+                // We just create a `void*` pointer...
+                if field_index == 0 {
+                    return ctx.ir_ctx().tys().common_tys.void_ptr;
+                }
+
+                // Deal with loading metadata for the pointer, for now it is either a slice
+                // or a string which only contain the length of the data.
+                ctx.ir_ctx().map_ty(*pointee, |ty| match ty {
+                    IrTy::Str | IrTy::Slice(_) => ctx.ir_ctx().tys().common_tys.usize,
+                    ty => {
+                        unreachable!("TyInfo::field cannot read metadata for pointer type `{ty:?}`")
+                    }
+                })
+            }
+
+            IrTy::Str => ctx.ir_ctx().tys().common_tys.u8,
             IrTy::Slice(element) | IrTy::Array { ty: element, .. } => *element,
             IrTy::Adt(id) => match layout.variants {
                 Variants::Single { index } => {

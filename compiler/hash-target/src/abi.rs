@@ -120,7 +120,7 @@ pub enum ScalarKind {
     Float { kind: FloatTy },
 
     /// A pointer primitive scalar value.
-    Pointer,
+    Pointer(AddressSpace),
 }
 
 impl fmt::Display for ScalarKind {
@@ -131,7 +131,7 @@ impl fmt::Display for ScalarKind {
                 write!(f, "{}{}", prefix, kind.size().bits())
             }
             ScalarKind::Float { kind } => write!(f, "{kind}"),
-            ScalarKind::Pointer => write!(f, "<ptr>"),
+            ScalarKind::Pointer(_) => write!(f, "<ptr>"),
         }
     }
 }
@@ -145,7 +145,7 @@ impl ScalarKind {
         match self {
             ScalarKind::Int { kind, .. } => kind.align(ctx),
             ScalarKind::Float { kind } => kind.align(ctx),
-            ScalarKind::Pointer => dl.pointer_align,
+            ScalarKind::Pointer(_) => dl.pointer_align,
         }
     }
 
@@ -157,7 +157,7 @@ impl ScalarKind {
         match self {
             ScalarKind::Int { kind, .. } => kind.size(),
             ScalarKind::Float { kind } => kind.size(),
-            ScalarKind::Pointer => dl.pointer_size,
+            ScalarKind::Pointer(_) => dl.pointer_size,
         }
     }
 

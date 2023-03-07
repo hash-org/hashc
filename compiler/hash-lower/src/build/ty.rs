@@ -28,7 +28,7 @@ use hash_tir::{
 use hash_utils::store::{PartialStore, SequenceStore, Store};
 
 use super::Builder;
-use crate::ty::TyLoweringCtx;
+use crate::lower_ty::TyLoweringCtx;
 
 /// Convert a [LitTerm] into a [Const] value.
 pub(super) fn constify_lit_pat(term: &LitPat) -> Const {

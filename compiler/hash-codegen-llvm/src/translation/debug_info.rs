@@ -15,7 +15,7 @@ impl<'b, 'm> BuildDebugInfoMethods for Builder<'_, 'b, 'm> {
         _fn_abi: &FnAbi,
         _value: Option<Self::Function>,
     ) -> Self::DebugInfoScope {
-        todo!()
+        unimplemented!()
     }
 
     fn create_debug_info_for_variable(
@@ -26,7 +26,7 @@ impl<'b, 'm> BuildDebugInfoMethods for Builder<'_, 'b, 'm> {
         _kind: VariableKind,
         _span: SourceLocation,
     ) -> Self::DebugInfoVariable {
-        todo!()
+        unimplemented!()
     }
 
     fn create_debug_info_location(
@@ -34,10 +34,10 @@ impl<'b, 'm> BuildDebugInfoMethods for Builder<'_, 'b, 'm> {
         _scope: Self::DebugInfoScope,
         _span: SourceLocation,
     ) -> Self::DebugInfoLocation {
-        todo!()
+        unimplemented!()
     }
 
     fn finalise_debug_info(&self) {
-        todo!()
+        unimplemented!()
     }
 }

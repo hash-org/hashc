@@ -17,7 +17,7 @@ use hash_codegen::{
         layout::LayoutMethods, ty::TypeBuilderMethods,
     },
 };
-use hash_ir::ty::{IrTy, IrTyId, RefKind};
+use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
@@ -1184,14 +1184,8 @@ fn load_scalar_value_metadata<'m>(
     load: InstructionValue<'m>,
     scalar: Scalar,
     info: TyInfo,
-
-    // @@Todo: implement pointee_info_at(offset) for this offset to
-    // work... since we're then indexing into a reference type
-    // layout
     offset: Size,
 ) {
-    debug_assert!(offset == Size::ZERO, "offsets not yet implemented");
-
     // If the scalar is not a uninitialised value (`union`), then
     // we can specify that it will not be non-undef,
     if !scalar.is_union() {
@@ -1210,27 +1204,20 @@ fn load_scalar_value_metadata<'m>(
             }
         }
         ScalarKind::Float { .. } => {}
-        ScalarKind::Pointer => {
+        ScalarKind::Pointer(_) => {
             // If we know that the pointer cannot be non-null,
             // then we emit this metadata.
             if scalar.valid_range(builder.ctx).contains(0) {
                 builder.set_non_null(load);
             }
 
-            // if we know that the pointer is now raw, we can
-            // set the alignment of the load to the same alignment value
-            // as the pointee type.
-            let (safe, pointee_ty) = builder.ctx.ir_ctx().map_ty(info.ty, |ty| match ty {
-                IrTy::Ref(pointee_ty, _, RefKind::Normal) => (true, *pointee_ty),
-                IrTy::Ref(pointee_ty, _, _) => (false, *pointee_ty),
-                ty => unreachable!("expected pointer type, got {:?}", ty),
-            });
-
-            if safe {
-                let pointee_info = builder.layout_of(pointee_ty);
-                let alignment =
-                    builder.map_layout(pointee_info.layout, |layout| layout.alignment.abi);
-                builder.set_alignment(load, alignment);
+            // Compute the layout of the pointee_ty
+            if let Some(pointee_info) =
+                builder.layout_computer().compute_layout_info_of_pointee_at(info, offset)
+            {
+                if pointee_info.kind.is_some() {
+                    builder.set_alignment(load, pointee_info.alignment);
+                }
             }
         }
     }

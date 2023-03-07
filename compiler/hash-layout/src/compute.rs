@@ -60,15 +60,16 @@ pub(crate) fn compute_primitive_ty_layout(ty: IrTy, dl: &TargetDataLayout) -> La
         IrTy::Int(int_ty) => scalar(ScalarKind::from_signed_int_ty(int_ty, dl)),
         IrTy::UInt(uint_ty) => scalar(ScalarKind::from_unsigned_int_ty(uint_ty, dl)),
         IrTy::Float(float_ty) => scalar(float_ty.into()),
-        IrTy::Str => {
-            // `str` is represented as a scalar pair that contains a
-            // pointer to the actual bytes, and then the length of the
-            // characters represented as a `usize`.
-            let ptr = scalar_unit(ScalarKind::Pointer);
-            let len = scalar_unit(ScalarKind::Int { kind: dl.ptr_sized_integer(), signed: false });
 
-            Layout::scalar_pair(dl, ptr, len)
-        }
+        // This is represented as an un-sized pointer to the actual data. In IrTys, the
+        // `str` type is always behind a pointer.
+        IrTy::Str => Layout {
+            shape: LayoutShape::Array { stride: Size::from_bytes(1), elements: 0 },
+            variants: Variants::Single { index: VariantIdx::new(0) },
+            abi: AbiRepresentation::Aggregate,
+            alignment: dl.i8_align,
+            size: Size::ZERO,
+        },
         IrTy::Bool => Layout::scalar(
             dl,
             Scalar::Initialised {
@@ -198,19 +199,45 @@ impl<'l> LayoutComputer<'l> {
                 FloatTy::F32 => self.common_layouts().f32,
                 FloatTy::F64 => self.common_layouts().f64,
             }),
-            IrTy::Str => Ok(self.common_layouts().str),
             IrTy::Bool => Ok(self.common_layouts().bool),
             IrTy::Char => Ok(self.common_layouts().char),
             IrTy::Never => Ok(self.common_layouts().never),
-            IrTy::Ref(_, _, RefKind::Raw | RefKind::Normal) => {
-                let data_ptr = scalar_unit(ScalarKind::Pointer);
-                Ok(self.layouts().create(Layout::scalar(dl, data_ptr)))
+            IrTy::Ref(pointee, _, kind @ (RefKind::Raw | RefKind::Normal)) => {
+                let mut data_ptr = scalar_unit(ScalarKind::Pointer(AddressSpace::DATA));
+
+                // If the reference is raw, then we cannot assume that the pointer
+                // is not-null.
+                if matches!(kind, RefKind::Raw) {
+                    data_ptr.valid_range_mut().start = 1;
+                }
+
+                // Compute any metadata if we need to.
+                let maybe_metadata = self.ir_ctx().map_ty(*pointee, |ty| match ty {
+                    IrTy::Str | IrTy::Slice(_) => Some(scalar_unit(ScalarKind::Int {
+                        kind: dl.ptr_sized_integer(),
+                        signed: false,
+                    })),
+                    _ => None,
+                });
+
+                // Create the layout for the reference type.
+                let layout = match maybe_metadata {
+                    Some(meta) => Layout::scalar_pair(dl, data_ptr, meta),
+                    None => Layout::scalar(dl, data_ptr),
+                };
+
+                Ok(self.layouts().create(layout))
             }
 
             // @@Todo: figure out how to handle rc pointers, probably the same
             // as normal ones, but the underlying type of the pointer may be
             // wrapped in some kind of `Rc` struct?
             IrTy::Ref(_, _, RefKind::Rc) => Err(LayoutError::Unknown(ty_id)),
+
+            // Slices and strings are treated as "unsized" layouts since they
+            // are just pointers to the actual data. In terms of `IrTy`s `str
+            // and `[T]` are always behind a pointer.
+            IrTy::Str => Ok(self.common_layouts().str),
             IrTy::Slice(ty) => {
                 let element = self.layout_of_ty(*ty)?;
                 let (size, alignment) =
@@ -331,7 +358,7 @@ impl<'l> LayoutComputer<'l> {
             }
             IrTy::Fn { .. } => {
                 // Create a function pointer and specify that it cannot be null.
-                let mut data_ptr = scalar_unit(ScalarKind::Pointer);
+                let mut data_ptr = scalar_unit(ScalarKind::Pointer(dl.instruction_address_space));
                 data_ptr.valid_range_mut().start = 1;
 
                 Ok(self.layouts().create(Layout::scalar(dl, data_ptr)))
@@ -970,30 +997,29 @@ impl<'l> LayoutComputer<'l> {
             return *pointee_info;
         }
 
-        let address_of_ty = |ty: &IrTy| {
-            if ty.is_fn() {
-                self.data_layout().instruction_address_space
-            } else {
-                AddressSpace::DATA
-            }
-        };
-
-        // @@Todo: deal with fn-pointers...
         let result = self.ir_ctx().map_ty(info.ty, |ty| match ty {
-            IrTy::Ref(pointee, mutability, _) if offset.bytes() == 0 => {
+            IrTy::Fn { .. } if offset == Size::ZERO => {
+                let (size, alignment) = self
+                    .layouts()
+                    .map_fast(info.layout, |layout| (layout.size, layout.alignment.abi));
+
+                Some(PointeeInfo { size, alignment, kind: None })
+            }
+            IrTy::Ref(pointee, mutability, ref_kind) if offset.bytes() == 0 => {
                 // @@Todo: be more sophisticated with different pointer kinds, and
                 // also deal with Rc specifics here..., and potentially disabling
                 // this optimisation if we are building in debug mode.
-                let kind = match mutability {
-                    Mutability::Mutable => PointerKind::Shared,
-                    Mutability::Immutable => PointerKind::Frozen,
+                let kind = match (mutability, ref_kind) {
+                    (_, RefKind::Raw) => None,
+                    (Mutability::Mutable, _) => Some(PointerKind::Shared),
+                    (Mutability::Immutable, _) => Some(PointerKind::Frozen),
                 };
 
                 self.layout_of_ty(*pointee).ok().map(|layout| {
                     let (size, alignment) = self
                         .layouts()
                         .map_fast(layout, |layout| (layout.size, layout.alignment.abi));
-                    PointeeInfo { size, alignment, kind, address_space: address_of_ty(ty) }
+                    PointeeInfo { size, alignment, kind }
                 })
             }
             _ => {
@@ -1008,7 +1034,8 @@ impl<'l> LayoutComputer<'l> {
                 let mut result = None;
 
                 if let Some(variant) = data_variant {
-                    let ptr_end = offset + ScalarKind::Pointer.size(self.data_layout());
+                    let ptr_end =
+                        offset + ScalarKind::Pointer(AddressSpace::DATA).size(self.data_layout());
 
                     // @@Copying: we can't really do anything about this copy...
                     let shape = self.map_fast(variant.layout, |layout| layout.shape.clone());
