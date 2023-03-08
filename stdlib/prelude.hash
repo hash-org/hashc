@@ -1,6 +1,12 @@
 /// The Hash Compiler Prelude, this defines core language functionality
 /// that is expected to be available to all running contexts.
 
+/// The `cast(..)` function is used to cast some value into another
+/// type provided that the types are cast compatible.
+cast := <T> => (U: Type, item: T) -> U => {
+    Intrinsics::cast(T, U, item)
+}
+
 /// This is powerful mechanism that
 /// allows for interfacing with code that requires converting from a potentially
 /// opaque type into a known type. An example of such code might be to access information
@@ -20,6 +26,7 @@ transmute := <T,U> => (item: T) -> U => {
     Intrinsics::transmute(T, U, item)
 }
 
+#repr_c SizedPointer := struct(&raw u8, usize);
 
 /// The printing function, this allows for printing of strings to the
 /// standard output.
@@ -31,7 +38,7 @@ print := (msg: str, /* end: char = '\n' */) => {
     // We transmute the message into a SizedPointer and then write it out to
     // stdout.
     SizedPointer(bytes, len) := Intrinsics::transmute(type str, type SizedPointer, msg);
-    write(1, bytes, len);
+    libc::write(STDOUT, bytes, len);
 
     // @@Todo: un-comment this when default parameters are working
     // write the end character
@@ -46,28 +53,16 @@ dbg := <T> => (item: T) -> T => {
 }
 
 
-/// The `cast(..)` function is used to cast some value into another
-/// type provided that the types are cast compatible.
-cast := <T> => (U: Type, item: T) -> U => {
-    Intrinsics::cast(T, U, item)
+libc := mod {
+    #foreign write := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }
+
+    #foreign read := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }
+
+    #foreign open := (path: &raw u8, flags: i32, mode: i32) -> i32 => { Intrinsics::abort() }
+
+    #foreign close := (fd: i32) -> i32 => { Intrinsics::abort() }
+
+    #foreign malloc := (size: usize) -> &raw u8 => { Intrinsics::abort() }
+
+    #foreign free := (ptr: &raw u8) -> () => { Intrinsics::abort() }
 }
-
-
-#repr_c SizedPointer := struct(&raw u8, usize);
-
-#foreign write := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }
-
-#foreign read := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }
-
-#foreign open := (path: &raw u8, flags: i32, mode: i32) -> i32 => { Intrinsics::abort() }
-
-#foreign close := (fd: i32) -> i32 => { Intrinsics::abort() }
-
-#foreign malloc := (size: usize) -> &raw u8 => { Intrinsics::abort() }
-
-#foreign free := (ptr: &raw u8) -> () => { Intrinsics::abort() }
-
-// #dump_ir panic := (item: str) -> ! => {
-//     print(item);
-//     Intrinsics::abort()
-// }
