@@ -53,6 +53,11 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         Self { value, info, alignment, extra: None }
     }
 
+    /// Create a new [PlaceRef] with a specified [Alignment].
+    pub fn new_aligned(value: V, info: TyInfo, alignment: Alignment) -> Self {
+        Self { value, info, alignment, extra: None }
+    }
+
     /// Create a new [PlaceRef] which refers to a value allocated on the
     /// function stack.
     pub fn new_stack<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(

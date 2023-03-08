@@ -242,6 +242,8 @@ core_idents! {
     // Language items
     intrinsics: "intrinsics",
     entry_point: "entry_point",
+    transmute: "transmute",
+    cast: "cast",
 
     // Language attributes
     no_mangle: "no_mangle",

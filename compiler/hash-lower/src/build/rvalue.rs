@@ -11,7 +11,6 @@ use hash_source::{
     location::Span,
 };
 use hash_tir::{
-    arrays::ArrayTerm,
     environment::env::AccessToEnv,
     terms::{Term, TermId},
 };
@@ -38,9 +37,6 @@ impl<'tcx> Builder<'tcx> {
             Term::Lit(lit) => {
                 let value = self.as_constant(&lit).into();
                 block.and(value)
-            }
-            Term::Array(ArrayTerm { .. }) => {
-                todo!()
             }
             Term::FnCall(fn_call) => {
                 match self.classify_fn_call_term(&fn_call) {
@@ -118,7 +114,8 @@ impl<'tcx> Builder<'tcx> {
                 }
             }
 
-            Term::Tuple(_)
+            Term::Array(_)
+            | Term::Tuple(_)
             | Term::Ctor(_)
             | Term::FnRef(_)
             | Term::Block(_)

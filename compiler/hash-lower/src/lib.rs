@@ -9,8 +9,8 @@ mod build;
 mod cfg;
 
 mod discover;
+mod lower_ty;
 mod optimise;
-mod ty;
 
 use build::{Builder, Tcx};
 use discover::FnDiscoverer;
@@ -40,8 +40,8 @@ use hash_utils::{
     store::{CloneStore, PartialStore, SequenceStore, Store},
     stream_writeln,
 };
+use lower_ty::TyLoweringCtx;
 use optimise::Optimiser;
-use ty::TyLoweringCtx;
 
 /// The Hash IR builder compiler stage.
 #[derive(Default)]

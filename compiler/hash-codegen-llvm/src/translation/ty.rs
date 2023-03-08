@@ -458,13 +458,13 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
         match scalar.kind() {
             ScalarKind::Int { kind, .. } => ctx.type_from_integer(kind),
             ScalarKind::Float { kind } => ctx.type_from_float(kind),
-            ScalarKind::Pointer => {
-                let (ty, addr) = if let Some(info) =
+            ScalarKind::Pointer(addr) => {
+                let ty = if let Some(info) =
                     ctx.layout_computer().compute_layout_info_of_pointee_at(*self, offset)
                 {
-                    (ctx.type_pointee_for_alignment(info.alignment), info.address_space)
+                    ctx.type_pointee_for_alignment(info.alignment)
                 } else {
-                    (ctx.type_i8p(), AddressSpace::DATA)
+                    ctx.type_i8p()
                 };
 
                 ctx.type_ptr_to_ext(ty, addr)

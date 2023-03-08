@@ -33,6 +33,7 @@ use hash_utils::{
     index_vec::index_vec,
     store::{PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
 };
+use log::info;
 
 /// A context that is used to lower types and terms into [IrTy]s.
 pub(crate) struct TyLoweringCtx<'ir> {
@@ -93,6 +94,7 @@ impl<'ir> TyLoweringCtx<'ir> {
             IrTy::Int(SIntTy::ISize) => self.lcx.tys().common_tys.isize,
             IrTy::Float(FloatTy::F32) => self.lcx.tys().common_tys.f32,
             IrTy::Float(FloatTy::F64) => self.lcx.tys().common_tys.f64,
+            IrTy::Str => self.lcx.tys().common_tys.str,
             _ => self.lcx.tys().create(ty),
         };
 
@@ -177,8 +179,16 @@ impl<'ir> TyLoweringCtx<'ir> {
             Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
 
             Ty::Var(sym) => {
-                let value = self.context_utils().get_binding_value(*sym);
-                self.ty_from_tir_ty_id(self.use_term_as_ty(value))
+                // @@Temporary
+                if self.context().try_get_binding(*sym).is_some() {
+                    let term = self.context_utils().get_binding_value(*sym);
+                    self.ty_from_tir_ty_id(self.use_term_as_ty(term))
+                } else {
+                    info!("couldn't resolve type variable `{}`", self.env().with(*sym));
+
+                    // We just return the unit type for now.
+                    IrTy::Adt(AdtId::UNIT)
+                }
             }
             ty @ Ty::Hole(_) => {
                 let message = format!(
@@ -302,16 +312,27 @@ impl<'ir> TyLoweringCtx<'ir> {
                         }
                     }
 
-                    // @@Verify: does `str` now imply that it is a `&str`, or should we create a
-                    // `&str` type here.
-                    PrimitiveCtorInfo::Str => IrTy::Str,
+                    // @@Temporary: `str` implies that it is a `&str`
+                    PrimitiveCtorInfo::Str => IrTy::Ref(
+                        self.lcx.tys().common_tys.byte_slice,
+                        Mutability::Immutable,
+                        ty::RefKind::Normal,
+                    ),
                     PrimitiveCtorInfo::Char => IrTy::Char,
                     PrimitiveCtorInfo::Array(ArrayCtorInfo { element_ty, length }) => {
                         match length.and_then(|l| self.try_use_term_as_integer_lit(l)) {
                             Some(length) => {
                                 IrTy::Array { ty: self.ty_id_from_tir_ty(element_ty), length }
                             }
-                            None => IrTy::Slice(self.ty_id_from_tir_ty(element_ty)),
+                            // @@Temporary: `[]` implies that it is a `&[]`, and there is no
+                            // information about mutability and reference kind, so for now we
+                            // assume that it is immutable and a normal reference kind.
+                            None => {
+                                let slice = IrTy::Slice(self.ty_id_from_tir_ty(element_ty));
+                                let id = self.lcx.tys().create(slice);
+
+                                IrTy::Ref(id, Mutability::Immutable, ty::RefKind::Normal)
+                            }
                         }
                     }
                 }

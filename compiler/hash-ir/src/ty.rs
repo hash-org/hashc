@@ -250,10 +250,6 @@ pub enum IrTy {
 
     /// A function type, with interned parameter type list and a return
     /// type.
-    ///
-    /// The [InstanceId] is a reference to the instance of the function
-    /// which has additional information about the function type, such as the
-    /// name of the function, any function attributes, etc.
     Fn {
         /// The parameter types of the function.
         params: IrTyListId,
@@ -327,7 +323,6 @@ impl IrTy {
 
     /// Check if a [IrTy] is a function type.
     pub fn is_fn(&self) -> bool {
-        // @@Todo: add fn-ptr here.
         matches!(self, Self::Fn { .. })
     }
 
@@ -829,16 +824,24 @@ macro_rules! create_common_ty_table {
             /// A slice of bytes, i.e. `[u8]`.
             pub byte_slice: IrTyId,
 
+            /// A string, i.e. `&str`.
+            pub str: IrTyId,
+
             /// A general pointer to bytes, i.e. `&[u8]`.
             pub ptr: IrTyId,
+
+            /// A void pointer, i.e. `&()`.
+            pub void_ptr: IrTyId,
         }
 
         impl CommonIrTys {
             pub fn new(data: &DefaultStore<IrTyId, IrTy>) -> CommonIrTys {
-                let mut table = CommonIrTys {
+                let table = CommonIrTys {
                     $($name: data.create($value), )*
                     byte_slice: IrTyId::from_index_unchecked(0),
                     ptr: IrTyId::from_index_unchecked(0),
+                    void_ptr: IrTyId::from_index_unchecked(0),
+                    str: IrTyId::from_index_unchecked(0),
                 };
 
                 // @@Hack: find a way to nicely create this within the `create_common_ty_table!`,
@@ -846,10 +849,16 @@ macro_rules! create_common_ty_table {
                 // they are defined...
                 let byte_slice = data.create(IrTy::Slice(table.u8));
                 let ptr = data.create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Normal));
+                let void_ptr = data.create(IrTy::Ref(table.unit, Mutability::Immutable, RefKind::Raw));
+                let str = data.create(IrTy::Ref(table.unsized_str, Mutability::Immutable, RefKind::Normal));
 
-                table.byte_slice = byte_slice;
-                table.ptr = ptr;
-                table
+                CommonIrTys {
+                    byte_slice,
+                    ptr,
+                    void_ptr,
+                    str,
+                    ..table
+                }
             }
         }
     };
@@ -859,8 +868,12 @@ create_common_ty_table!(
     // Primitive types
     bool: IrTy::Bool,
     char: IrTy::Char,
-    str: IrTy::Str,
     never: IrTy::Never,
+    // Unsized string refers to the inner type of a `str`.
+    //
+    // @@Temporary This is only  temporary until str/[T] type semantics and rules are decided and
+    // implemented.
+    unsized_str: IrTy::Str,
     // Floating point types
     f32: IrTy::Float(FloatTy::F32),
     f64: IrTy::Float(FloatTy::F64),
@@ -1150,7 +1163,7 @@ impl ToIrTy for ScalarKind {
             }
             ScalarKind::Float { kind: FloatTy::F32 } => ctx.tys().common_tys.f32,
             ScalarKind::Float { kind: FloatTy::F64 } => ctx.tys().common_tys.f64,
-            ScalarKind::Pointer => IrTy::unit_ptr(ctx),
+            ScalarKind::Pointer(_) => IrTy::unit_ptr(ctx),
         }
     }
 }
