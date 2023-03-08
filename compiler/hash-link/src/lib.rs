@@ -72,7 +72,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
             get_linker_with_args(&linker_path, flavour, settings, workspace, output_path.as_path())
                 .map_err(|err| vec![err.into()])?;
 
-        // print out link-line if specified via `-Cemit=link-line`
+        // print out link-line if specified via `-Cdump=link-line`
         if settings.codegen_settings.dump_link_line {
             writeln!(stdout, "{linker}").map_err(|err| vec![err.into()])?;
         }

@@ -106,7 +106,7 @@ impl<'ctx> Linker for GccLinker<'ctx> {
     }
 
     fn set_output_kind(&mut self, kind: LinkOutputKind) {
-        match (kind.dynamic, kind.is_pic) {
+        match (kind.is_dynamic, kind.is_pic) {
             (true, true) => {
                 if !self.settings.target().is_like_windows() {
                     self.linker_arg("-pie");

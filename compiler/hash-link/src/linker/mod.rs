@@ -19,7 +19,6 @@ use self::{gcc::GccLinker, msvc::MsvcLinker};
 use crate::{command::LinkCommand, error::LinkerResult, platform};
 
 pub(crate) mod gcc;
-pub(crate) mod lld;
 pub(crate) mod mold;
 pub(crate) mod msvc;
 
@@ -29,7 +28,7 @@ pub(crate) mod msvc;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct LinkOutputKind {
     /// Is the output dynamically linked?
-    pub dynamic: bool,
+    pub is_dynamic: bool,
 
     /// Is the output position-independent?
     pub is_pic: bool,
@@ -177,7 +176,7 @@ pub(crate) fn get_linker_with_args<'a>(
     let target = settings.target();
 
     let output_kind = LinkOutputKind {
-        dynamic: target.crt_statically_linked,
+        is_dynamic: target.crt_statically_linked,
         is_pic: matches!(target.relocation_mode, RelocationModel::Pic | RelocationModel::Pie),
     };
 

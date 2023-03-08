@@ -36,12 +36,20 @@ pub fn flush_linked_file(_: &io::Result<Output>, _: &Path) -> io::Result<()> {
 /// [`File::sync_all()`] calls `FlushFileBuffers()` down the line, which solves
 /// the problem.
 ///
-/// А full writeup of the original Chrome bug can be found at
+/// А full write up of the original Chrome bug can be found at
 /// <randomascii.wordpress.com/2018/02/25/
 /// compiler-bug-linker-bug-windows-kernel-bug/amp>
 #[cfg(windows)]
-pub fn flush_linked_file(_: &io::Result<Output>, _: &Path) -> io::Result<()> {
-    todo!()
+pub fn flush_linked_file(command_output: &io::Result<Output>, filename: &Path) -> io::Result<()> {
+    if let &Ok(ref out) = command_output {
+        if out.status.success() {
+            if let Ok(of) = fs::OpenOptions::new().write(true).open(filename) {
+                of.sync_all()?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Check if the attempted execution of a [Command] resulted in the host
