@@ -1,3 +1,21 @@
+/// The Hash Compiler Prelude, this defines core language functionality
+/// that is expected to be available to all running contexts.
+
+/// This is powerful mechanism that
+/// allows for interfacing with code that requires converting from a potentially
+/// opaque type into a known type. An example of such code might be to access information
+/// about the `&str` type, such as its length or the pointer to its data. To
+/// do this, the type `SizedPointer` which is defined in the prelude can be used
+/// to transmute the `&str` into a `SizedPointer` and further access information
+/// about it. This is done like so:
+/// ```ignore
+/// SizedPointer(bytes, length) := transmute<SizedPointer>(message);
+/// ...
+/// ```
+///
+/// Here, the `message` of string type is transmuted into `SizedPointer` type, This
+/// allows for the program to now read the `bytes` and `length` fields of the
+/// `SizedPointer` type.
 transmute := <T,U> => (item: T) -> U => {
     Intrinsics::transmute(T, U, item)
 }
@@ -8,8 +26,8 @@ dbg := <T> => (item: T) -> T => {
 }
 
 
-/// The `cast(..)` function is used to cast some value into another 
-/// type provided that the types are cast compatible. 
+/// The `cast(..)` function is used to cast some value into another
+/// type provided that the types are cast compatible.
 cast := <T> => (U: Type, item: T) -> U => {
     Intrinsics::cast(T, U, item)
 }

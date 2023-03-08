@@ -13,10 +13,10 @@ use hash_abi::{ArgAbi, FnAbi, PassMode};
 use hash_ir::{
     intrinsics::Intrinsic,
     ir::{self},
-    ty::IrTy,
+    ty::{Instance, IrTy},
 };
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
-use hash_source::constant::CONSTANT_MAP;
+use hash_source::{constant::CONSTANT_MAP, identifier::IDENTS};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
@@ -135,10 +135,6 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
     /// Emit code for a call terminator. This function will emit code
     /// for a function call.
-    ///
-    /// @@Todo: maybe introduce a new intrinsic IR terminator which
-    /// resembles a function call, but actually points to a language
-    /// intrinsic function.
     fn codegen_call_terminator(
         &mut self,
         builder: &mut Builder,
@@ -155,6 +151,17 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             IrTy::FnDef { instance, .. } => *instance,
             _ => panic!("item is not callable"),
         });
+
+        // @@Hack: properly check that this is the transmute function.
+        if self.ctx.ir_ctx().map_instance(instance, Instance::name) == IDENTS.transmute {
+            return if target.is_some() {
+                self.codegen_transmute(builder, &fn_args[2], destination);
+                true
+            } else {
+                builder.unreachable();
+                false
+            };
+        }
 
         // compute the function pointer value and the ABI
         //
