@@ -20,6 +20,26 @@ transmute := <T,U> => (item: T) -> U => {
     Intrinsics::transmute(T, U, item)
 }
 
+
+/// The printing function, this allows for printing of strings to the
+/// standard output.
+print := (msg: str, /* end: char = '\n' */) => {
+    STDIN := 0
+    STDOUT := 1
+    STDERR := 2
+
+    // We transmute the message into a SizedPointer and then write it out to
+    // stdout.
+    SizedPointer(bytes, len) := Intrinsics::transmute(type str, type SizedPointer, msg);
+    write(1, bytes, len);
+
+    // @@Todo: un-comment this when default parameters are working
+    // write the end character
+    // end_sep := Intrinsics::cast(type char, type u8, end);
+    // write(1, &raw end_sep, 1);
+}
+
+
 dbg := <T> => (item: T) -> T => {
     Intrinsics::debug_print(T, item)
     item
@@ -46,15 +66,6 @@ cast := <T> => (U: Type, item: T) -> U => {
 #foreign malloc := (size: usize) -> &raw u8 => { Intrinsics::abort() }
 
 #foreign free := (ptr: &raw u8) -> () => { Intrinsics::abort() }
-
-print := (item: str) => {
-    STDIN := 0
-    STDOUT := 1
-    STDERR := 2
-
-    // data := transmute<_, SizedPointer>(item)
-    // write(STDOUT, data.0, data.1)
-}
 
 // #dump_ir panic := (item: str) -> ! => {
 //     print(item);
