@@ -223,9 +223,8 @@ impl<'m> ExtendedArgAttributeMethods<'m> for ArgAttributes {
         location: AttributeLoc,
         func: FunctionValue<'m>,
     ) {
-        let attributes = self.get_attributes(ctx);
-
-        for attribute in attributes {
+        // Compute the attributes we need to apply to the function.
+        for attribute in self.get_attributes(ctx) {
             func.add_attribute(location, attribute);
         }
     }

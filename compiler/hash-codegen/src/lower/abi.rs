@@ -19,6 +19,7 @@ fn adjust_arg_attributes(
     attributes: &mut ArgAttributes,
     ty: IrTyId,
     scalar: Scalar,
+    is_return: bool,
 ) {
     // Booleans are always "noundef" values...
     if scalar.is_bool() {
@@ -52,7 +53,10 @@ fn adjust_arg_attributes(
         };
 
         // @@Future: can we deduce the same thing for an `Rc` pointer?
-        if matches!(kind, RefKind::Raw | RefKind::Normal) && *mutability == Mutability::Immutable {
+        if !is_return
+            && matches!(kind, RefKind::Raw | RefKind::Normal)
+            && *mutability == Mutability::Immutable
+        {
             attributes.set(ArgAttributeFlag::READ_ONLY);
         }
     });
@@ -105,7 +109,7 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
 
         let mut arg = ArgAbi::new(&lc, info, |scalar| {
             let mut attributes = ArgAttributes::new();
-            adjust_arg_attributes(&lc, &mut attributes, ty, scalar);
+            adjust_arg_attributes(&lc, &mut attributes, ty, scalar, is_return);
             attributes
         });
 
