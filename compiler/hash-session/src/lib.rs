@@ -242,6 +242,7 @@ impl SemanticAnalysisCtxQuery for CompilerSession {
                 dump_tir: self.settings.semantic_settings.dump_tir,
                 eval_tir: self.settings.semantic_settings.eval_tir,
             },
+            target: self.settings.target(),
         }
     }
 }

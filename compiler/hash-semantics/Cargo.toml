@@ -26,3 +26,4 @@ hash-tir = { path = "../hash-tir" }
 hash-utils = { path = "../hash-utils" }
 hash-intrinsics = { path = "../hash-intrinsics" }
 hash-typecheck = { path = "../hash-typecheck" }
+hash-target = { path = "../hash-target" }
