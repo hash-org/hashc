@@ -436,17 +436,17 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // the complexity here.
         match lit {
             Lit::Float(float_lit) => {
-                if let Some(lit_ty) = self.try_use_ty_as_lit_ty(inferred_ty) {
-                    CONSTANT_MAP.adjust_float(float_lit.underlying.value, lit_ty.into());
+                if let Some(float_ty) = self.try_use_ty_as_float_ty(inferred_ty) {
+                    CONSTANT_MAP.adjust_float(float_lit.underlying.value, float_ty);
                 }
                 // @@Incomplete: it is possible that exotic literal
                 // types are defined, what happens then?
             }
             Lit::Int(int_lit) => {
-                if let Some(lit_ty) = self.try_use_ty_as_lit_ty(inferred_ty) {
+                if let Some(int_ty) = self.try_use_ty_as_int_ty(inferred_ty) {
                     CONSTANT_MAP.adjust_int(
                         int_lit.underlying.value,
-                        lit_ty.into(),
+                        int_ty,
                         self.env().target().pointer_bit_width,
                     );
                 }
