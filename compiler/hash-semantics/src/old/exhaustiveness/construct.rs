@@ -34,8 +34,10 @@ use hash_tir::old::{
     nominals::{NominalDef, StructFields},
     terms::{Level1Term, Term, TupleTy},
 };
-use hash_utils::store::{CloneStore, SequenceStoreKey, Store};
-use smallvec::{smallvec, SmallVec};
+use hash_utils::{
+    smallvec::{smallvec, SmallVec},
+    store::{CloneStore, SequenceStoreKey, Store},
+};
 
 use super::{
     range::{IntRange, SplitIntRange},

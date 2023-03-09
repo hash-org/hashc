@@ -44,14 +44,15 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(AstDesugaringPass),
         Box::new(AstExpansionPass),
         Box::new(UntypedSemanticAnalysis),
+        // @@Temporary: remove this when old typechecker is removed.
         if std::env::var("USE_OLD_TC").is_ok() {
             Box::new(Typechecker::new())
         } else {
             Box::new(SemanticAnalysis)
         },
         Box::<IrGen>::default(),
-        Box::new(IrOptimiser),
-        Box::new(CodeGenPass),
+        Box::<IrOptimiser>::default(),
+        Box::<CodeGenPass>::default(),
         Box::new(CompilerLinker),
     ]
 }

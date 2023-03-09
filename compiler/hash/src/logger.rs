@@ -1,11 +1,13 @@
 //! Hash main crate logging utilities
 use hash_reporting::highlight::{highlight, Colour, Modifier};
-use hash_utils::stream_less_writeln;
-use log::{Level, Metadata, Record};
+use hash_utils::{
+    log::{Level, Log, Metadata, Record},
+    stream_less_writeln,
+};
 
 pub struct CompilerLogger;
 
-impl log::Log for CompilerLogger {
+impl Log for CompilerLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
         metadata.level() <= Level::Debug
     }

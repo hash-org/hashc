@@ -15,13 +15,13 @@ use hash_target::{
     alignment::Alignment,
     size::Size,
 };
+use hash_utils::smallvec::{smallvec, SmallVec};
 use inkwell as llvm;
 use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};
 use llvm_sys::{
     core::{LLVMGetTypeKind, LLVMVectorType},
     LLVMTypeKind,
 };
-use smallvec::{smallvec, SmallVec};
 
 use super::abi::ExtendedFnAbiMethods;
 use crate::{context::CodeGenCtx, misc::AddressSpaceWrapper};

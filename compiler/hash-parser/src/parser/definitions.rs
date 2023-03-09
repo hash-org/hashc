@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
-use smallvec::smallvec;
+use hash_utils::smallvec::smallvec;
 
 use super::AstGen;
 use crate::{

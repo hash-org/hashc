@@ -12,6 +12,8 @@ mod error;
 pub mod misc;
 mod translation;
 
+use std::time::Duration;
+
 use context::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
 use hash_codegen::{
@@ -26,12 +28,17 @@ use hash_codegen::{
 };
 use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
 use hash_pipeline::{
-    interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace,
+    interface::{CompilerOutputStream, StageMetrics},
+    settings::CompilerSettings,
+    workspace::Workspace,
     CompilerResult,
 };
 use hash_source::ModuleId;
 use hash_target::TargetArch;
-use hash_utils::stream_writeln;
+use hash_utils::{
+    stream_writeln,
+    timing::{time_item, AccessToMetrics},
+};
 use inkwell as llvm;
 use llvm::{
     context::Context as LLVMContext,
@@ -67,11 +74,22 @@ pub struct LLVMBackend<'b> {
     /// The target machine that we use to write all of the
     /// generated code into the object files.
     target_machine: llvm::targets::TargetMachine,
+
+    /// All of the metrics that are collected when running the LLVM
+    /// backend. This contains a map of `stages` to the time it took
+    /// to run the stage.
+    metrics: &'b mut StageMetrics,
 }
 
-impl<'b> LLVMBackend<'b> {
+impl<'b> AccessToMetrics for LLVMBackend<'b> {
+    fn add_metric(&mut self, name: &'static str, time: Duration) {
+        self.metrics.timings.push((name, time));
+    }
+}
+
+impl<'b, 'm> LLVMBackend<'b> {
     /// Create a new LLVM Backend from the given [BackendCtx].
-    pub fn new(ctx: BackendCtx<'b>) -> Self {
+    pub fn new(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Self {
         let BackendCtx { workspace, ir_storage, layout_storage: layouts, settings, stdout, .. } =
             ctx;
 
@@ -110,9 +128,11 @@ impl<'b> LLVMBackend<'b> {
             )
             .unwrap();
 
-        Self { workspace, target_machine, ir_storage, layouts, settings, stdout }
+        Self { workspace, target_machine, ir_storage, layouts, settings, stdout, metrics }
     }
 
+    /// Create an [PassManager] for LLVM, apply the optimisation options and run
+    /// the optimised on the given [LLVMModule].
     fn optimise(&self, module: &LLVMModule) -> CompilerResult<()> {
         let pass_manager_builder = PassManagerBuilder::create();
 
@@ -157,10 +177,7 @@ impl<'b> LLVMBackend<'b> {
     /// deal with the commandline arguments being passed in, and the
     /// sets some additional attributes on the function. Then, a call
     /// is generated tot the actual entry point of the program.
-    fn define_entry_point<'m>(
-        &self,
-        ctx: &CodeGenCtx<'b, 'm>,
-    ) -> CompilerResult<FunctionValue<'m>> {
+    fn define_entry_point(&self, ctx: &CodeGenCtx<'b, 'm>) -> CompilerResult<FunctionValue<'m>> {
         // If the target requires that the arguments are passed in
         // through the arguments of the function, i.e. `int main(int argc, char** argv)`
         // then we have to define it as such, otherwise, we define it as
@@ -194,29 +211,8 @@ impl<'b> LLVMBackend<'b> {
 
         Ok(main_fn)
     }
-}
 
-impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
-    /// This is the entry point for the LLVM backend, this is where each module
-    /// is translated into an LLVM IR module and is then emitted as a bytecode
-    /// module to the disk.
-    fn run(&mut self) -> CompilerResult<()> {
-        // @@Future: make it configurable whether we emit a module object per single
-        // object, or if we emit a single module object for the entire program.
-        // Currently, we are emitting a single module for the entire program
-        // that is being compiled in in the workspace.
-        let entry_point = self
-            .workspace
-            .source_map
-            .entry_point()
-            .expect("expected a defined entry point for executable");
-
-        let context = LLVMContext::create();
-
-        let module_name = self.workspace.name.as_str();
-        let module = context.create_module(module_name);
-        let ctx = CodeGenCtx::new(&module, self.settings, &self.ir_storage.ctx, self.layouts);
-
+    fn predefine_bodies(&self, ctx: &CodeGenCtx<'b, 'm>) {
         // We perform an initial pass where we pre-define everything so that
         // we can get place all of the symbols in the symbol table first.
         for body in self.ir_storage.bodies.iter() {
@@ -237,10 +233,14 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             // attributes and linkage, etc.
             let symbol_name = compute_symbol_name(&self.ir_storage.ctx, instance);
 
-            let abi = compute_fn_abi_from_instance(&ctx, instance).unwrap();
+            let abi = compute_fn_abi_from_instance(ctx, instance).unwrap();
             ctx.predefine_fn(instance, symbol_name.as_str(), &abi);
         }
+    }
 
+    /// This function will build each body that is stored in the IR, and it to
+    /// the current module.
+    fn build_bodies(&self, ctx: &CodeGenCtx<'b, 'm>) {
         // For each body perform a lowering procedure via the common interface...
         for body in self.ir_storage.bodies.iter() {
             // We don't need to generate anything for constants since they
@@ -258,8 +258,34 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             });
 
             // @@ErrorHandling: we should be able to handle the error here
-            codegen_ir_body::<Builder>(instance, body, &ctx).unwrap();
+            codegen_ir_body::<Builder>(instance, body, ctx).unwrap();
         }
+    }
+}
+
+impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
+    /// This is the entry point for the LLVM backend, this is where each module
+    /// is translated into an LLVM IR module and is then emitted as a bytecode
+    /// module to the disk.
+    fn run(&mut self) -> CompilerResult<()> {
+        // @@Future: make it configurable whether we emit a module object per single
+        // object, or if we emit a single module object for the entire program.
+        // Currently, we are emitting a single module for the entire program
+        // that is being compiled in in the workspace.
+        let entry_point = self
+            .workspace
+            .source_map
+            .entry_point()
+            .expect("expected a defined entry point for executable");
+
+        let context = LLVMContext::create();
+
+        let module_name = self.workspace.name.clone();
+        let module = context.create_module(module_name.as_str());
+        let ctx = CodeGenCtx::new(&module, self.settings, &self.ir_storage.ctx, self.layouts);
+
+        time_item(self, "predefine", |this| this.predefine_bodies(&ctx));
+        time_item(self, "build", |this| this.build_bodies(&ctx));
 
         // Now we define the entry point of the function, if there is one
         if self.ir_storage.entry_point.has() {
@@ -277,7 +303,9 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             );
         }
 
-        self.optimise(&module)?;
-        self.write_module(&module, entry_point).map_err(|err| vec![err.into()])
+        time_item(self, "optimise", |this| this.optimise(&module))?;
+        time_item(self, "write", |this| {
+            this.write_module(&module, entry_point).map_err(|err| vec![err.into()])
+        })
     }
 }

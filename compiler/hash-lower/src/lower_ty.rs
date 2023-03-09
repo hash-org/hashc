@@ -31,9 +31,9 @@ use hash_tir::{
 };
 use hash_utils::{
     index_vec::index_vec,
+    log::info,
     store::{PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
 };
-use log::info;
 
 /// A context that is used to lower types and terms into [IrTy]s.
 pub(crate) struct TyLoweringCtx<'ir> {

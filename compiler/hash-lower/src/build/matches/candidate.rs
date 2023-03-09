@@ -35,9 +35,9 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
+    smallvec::{smallvec, SmallVec},
     store::{CloneStore, SequenceStore, Store},
 };
-use smallvec::{smallvec, SmallVec};
 
 use crate::build::{place::PlaceBuilder, Builder};
 

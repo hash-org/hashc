@@ -8,8 +8,10 @@ use hash_tir::old::{
     nominals::NominalDef,
     terms::{Level1Term, Term},
 };
-use hash_utils::store::Store;
-use smallvec::{smallvec, SmallVec};
+use hash_utils::{
+    smallvec::{smallvec, SmallVec},
+    store::Store,
+};
 
 use crate::old::{
     exhaustiveness::PatCtx,

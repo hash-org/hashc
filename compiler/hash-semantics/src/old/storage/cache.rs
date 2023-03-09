@@ -8,8 +8,10 @@ use std::{
 };
 
 use hash_tir::old::terms::TermId;
-use hash_utils::store::{DefaultPartialStore, FxHashMap, PartialCloneStore, PartialStore};
-use log::log_enabled;
+use hash_utils::{
+    log,
+    store::{DefaultPartialStore, FxHashMap, PartialCloneStore, PartialStore},
+};
 
 use crate::old::ops::validate::TermValidation;
 
@@ -80,7 +82,7 @@ impl<K: Copy + Hash + Eq, V: Clone> CacheStore<K, V> {
         let value = self.store.get(key);
         // Override for metrics:
         // We don't want to record cache metrics if we're not in debug
-        if log_enabled!(log::Level::Debug) {
+        if log::log_enabled!(log::Level::Debug) {
             if value.is_some() {
                 self.hits.set(self.hits.get() + 1);
             } else {

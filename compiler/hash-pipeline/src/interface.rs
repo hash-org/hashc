@@ -2,7 +2,10 @@
 //! that are used by the pipeline to run various stages that transform the
 //! provided sources into runnable/executable code.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use hash_ast::node_map::{InteractiveBlock, ModuleEntry, NodeMap};
 use hash_reporting::report::Report;
@@ -14,6 +17,20 @@ use crate::{
 };
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
+
+/// A [StageMetrics] is a collection of timings for each section of a stage.
+#[derive(Default, Debug, Clone)]
+pub struct StageMetrics {
+    /// The collected timings for each section of the stage.
+    pub timings: Vec<(&'static str, Duration)>,
+}
+
+impl StageMetrics {
+    /// Create an iterator over the collected timings.
+    pub fn iter(&self) -> impl Iterator<Item = (&'static str, Duration)> + '_ {
+        self.timings.iter().cloned()
+    }
+}
 
 /// [CompilerStage] represents an abstract stage within the compiler pipeline.
 /// Each stage has an associated [CompilerStageKind] which can be used by
@@ -35,6 +52,18 @@ pub trait CompilerStage<StageCtx> {
     /// and then invoking a function to emit all of the ASTs for each module
     /// within the workspace.
     fn cleanup(&mut self, _entry_point: SourceId, _stage_data: &mut StageCtx) {}
+
+    /// Ask the stage for any collected metrics that it has collected during
+    /// it's execution.
+    ///
+    /// By default, there are no collected metrics.
+    fn metrics(&self) -> StageMetrics {
+        StageMetrics::default()
+    }
+
+    /// This function is used to "reset" any collected metrics such that
+    /// the stage can run.
+    fn reset_metrics(&mut self) {}
 
     /// This function is used to to return the `stage` kind of
     /// this [CompilerStage].

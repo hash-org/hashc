@@ -13,10 +13,10 @@ use hash_tir::{
     utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{
+    smallvec::{smallvec, SmallVec},
     state::LightState,
     store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store, StoreKey},
 };
-use smallvec::{smallvec, SmallVec};
 
 use super::{super::ast_utils::AstUtils, DiscoveryPass};
 use crate::environment::sem_env::AccessToSemEnv;

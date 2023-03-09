@@ -1,7 +1,7 @@
 //! Definitions related to substitutions.
 use std::fmt::{self, Display, Formatter};
 
-use smallvec::SmallVec;
+use hash_utils::smallvec::SmallVec;
 
 use super::environment::env::AccessToEnv;
 use crate::{environment::env::WithEnv, symbols::Symbol, terms::TermId};

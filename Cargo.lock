@@ -368,7 +368,6 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-utils",
- "log",
  "num_cpus",
  "profiling",
  "rayon",
@@ -492,7 +491,6 @@ dependencies = [
  "inkwell",
  "llvm-sys",
  "rayon",
- "smallvec",
 ]
 
 [[package]]
@@ -540,7 +538,6 @@ dependencies = [
  "hash-tir",
  "hash-utils",
  "html-escape",
- "smallvec",
 ]
 
 [[package]]
@@ -597,10 +594,8 @@ dependencies = [
  "hash-tree-def",
  "hash-utils",
  "indexmap",
- "log",
  "num-traits",
  "rayon",
- "smallvec",
 ]
 
 [[package]]
@@ -619,7 +614,6 @@ dependencies = [
  "num-bigint",
  "profiling",
  "rayon",
- "smallvec",
 ]
 
 [[package]]
@@ -634,7 +628,6 @@ dependencies = [
  "hash-target",
  "hash-tir",
  "hash-utils",
- "log",
  "num_cpus",
  "rayon",
  "slotmap",
@@ -671,12 +664,10 @@ dependencies = [
  "hash-typecheck",
  "hash-utils",
  "if_chain",
- "log",
  "num-bigint",
  "once_cell",
  "rayon",
  "slotmap",
- "smallvec",
 ]
 
 [[package]]
@@ -703,7 +694,6 @@ dependencies = [
  "hash-tree-def",
  "hash-untyped-semantics",
  "hash-utils",
- "log",
  "num_cpus",
  "rayon",
 ]
@@ -791,10 +781,7 @@ dependencies = [
  "hash-target",
  "hash-utils",
  "indexmap",
- "itertools",
- "log",
  "num-bigint",
- "smallvec",
  "textwrap",
  "typed-builder",
  "utility-types",
@@ -840,12 +827,10 @@ dependencies = [
  "hash-utils",
  "if_chain",
  "itertools",
- "log",
  "num-bigint",
  "once_cell",
  "rayon",
  "slotmap",
- "smallvec",
 ]
 
 [[package]]

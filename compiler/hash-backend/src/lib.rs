@@ -8,15 +8,19 @@ mod error;
 use error::BackendError;
 use hash_codegen::backend::{BackendCtx, CompilerBackend};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerStage},
+    interface::{CompilerInterface, CompilerStage, StageMetrics},
     settings::{CodeGenBackend, CompilerStageKind},
     CompilerResult,
 };
 use hash_source::SourceId;
 
-/// The Hash compiler code generator.
+/// The Hash compiler code generation stage. This stage is responsible for
+/// converting the generated Hash IR into machine code using a specific backend.
 #[derive(Default)]
-pub struct CodeGenPass;
+pub struct CodeGenPass {
+    /// The metrics for this stage.
+    metrics: StageMetrics,
+}
 
 pub trait BackendCtxQuery: CompilerInterface {
     fn data(&mut self) -> BackendCtx<'_>;
@@ -25,6 +29,14 @@ pub trait BackendCtxQuery: CompilerInterface {
 impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
     fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::CodeGen
+    }
+
+    fn metrics(&self) -> StageMetrics {
+        self.metrics.clone()
+    }
+
+    fn reset_metrics(&mut self) {
+        self.metrics = StageMetrics::default();
     }
 
     /// Setup the desired code generation backend. Deal with what IR bodies
@@ -48,7 +60,7 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
         // Create a new instance of a backend, and then run it...
         let mut backend = match settings.codegen_settings.backend {
             CodeGenBackend::LLVM if settings.entry_point().is_some() => {
-                create_llvm_backend(ctx.data())
+                create_llvm_backend(ctx.data(), &mut self.metrics)
             }
             CodeGenBackend::VM => unimplemented!(),
 
@@ -60,13 +72,13 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
         };
 
         backend.run()
-
-        // @@Todo: we take all of the produced object files, and then pass
-        // them on to the linking stage.
     }
 }
 
 /// Create a new instance of the [hash_codegen_llvm::LLVMBackend].
-pub fn create_llvm_backend<'b>(ctx: BackendCtx<'b>) -> Box<dyn CompilerBackend<'b> + 'b> {
-    Box::new(hash_codegen_llvm::LLVMBackend::new(ctx))
+pub fn create_llvm_backend<'b>(
+    ctx: BackendCtx<'b>,
+    metrics: &'b mut StageMetrics,
+) -> Box<dyn CompilerBackend<'b> + 'b> {
+    Box::new(hash_codegen_llvm::LLVMBackend::new(ctx, metrics))
 }

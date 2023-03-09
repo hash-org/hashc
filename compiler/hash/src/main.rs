@@ -13,12 +13,13 @@ use hash_pipeline::{
 use hash_reporting::report::Report;
 use hash_session::{emit_fatal_error, make_stages, CompilerSession};
 use hash_source::{ModuleKind, SourceMap};
+use hash_utils::log;
 use log::LevelFilter;
 use logger::CompilerLogger;
 
 use crate::crash_handler::panic_handler;
 
-/// THe logger that is used by the compiler for `log!` statements.
+/// The logger that is used by the compiler for `log!` statements.
 pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
 
 /// Perform some task that might fail and if it does, report the error and exit,

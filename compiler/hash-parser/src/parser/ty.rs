@@ -3,7 +3,7 @@
 use hash_ast::{ast::*, ast_nodes};
 use hash_source::identifier::IDENTS;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-use smallvec::smallvec;
+use hash_utils::smallvec::smallvec;
 
 use super::AstGen;
 use crate::diagnostics::error::{ParseErrorKind, ParseResult};

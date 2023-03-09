@@ -18,7 +18,7 @@ use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::node_map::ModuleEntry;
 use hash_reporting::{reporter::Reports, writer::ReportWriter};
 use hash_source::{ModuleKind, SourceId};
-use hash_utils::{stream_writeln, timing::timed};
+use hash_utils::{log, stream_writeln, timing::timed};
 use interface::{CompilerInterface, CompilerStage};
 use settings::CompilerStageKind;
 
@@ -63,26 +63,91 @@ impl<I: CompilerInterface> Compiler<I> {
     fn report_metrics(&self, ctx: &I) {
         let mut total = Duration::new(0, 0);
 
-        // Sort metrics by the declared order
-        let mut timings: Vec<_> = self.metrics.iter().collect();
-        timings.sort_by_key(|entry| entry.0);
-
-        log::debug!("compiler pipeline timings:");
-
+        log::info!("compiler pipeline timings:");
         let mut stderr = ctx.error_stream();
 
-        for (stage, duration) in timings {
+        // Get the longest key in the stages
+        let longest_key = self
+            .stages
+            .iter()
+            .map(|stage| {
+                let label_size = stage.kind().as_str().len();
+                stage
+                    .metrics()
+                    .iter()
+                    .map(|(item, _)| label_size + item.len() + 2)
+                    .max()
+                    .unwrap_or(label_size)
+            })
+            .max()
+            .unwrap_or(0);
+
+        let report_stage_metrics = |stage: &dyn CompilerStage<I>| {
+            let mut stderr = ctx.error_stream();
+            let kind = stage.kind();
+
+            for (item, duration) in stage.metrics().iter() {
+                stream_writeln!(
+                    stderr,
+                    "{: <width$}: {duration:?}",
+                    format!("{kind}::{item}"),
+                    width = longest_key
+                );
+            }
+        };
+
+        let mut stages = self.stages.iter().peekable();
+        let Some(mut kind) = stages.peek().map(|stage| stage.kind()) else {
+            return
+        };
+
+        let mut stage_count = 0;
+
+        // Iterate over each stage and print out the timings.
+        for stage in stages {
             // This shouldn't occur as we don't record this metric in this way
-            if *stage == CompilerStageKind::Full {
+            if kind == CompilerStageKind::Full {
                 continue;
             }
-            total += *duration;
 
-            stream_writeln!(stderr, "{: <12}: {duration:?}", format!("{stage}"));
+            if stage.kind() == kind {
+                // Query if this particular stage has any additional metrics that
+                // should be added under this stage, and then skip reporting the
+                // sub metrics.
+                if stage_count != 0 {
+                    stage_count = 1;
+                    report_stage_metrics(&**stage);
+                    continue;
+                }
+
+                stage_count += 1;
+            } else {
+                stage_count = 1;
+                kind = stage.kind();
+            }
+
+            let Some(duration) = self.metrics.get(&kind).copied() else {
+                continue;
+            };
+
+            total += duration;
+
+            stream_writeln!(
+                stderr,
+                "{: <width$}: {duration:?}",
+                format!("{kind}"),
+                width = longest_key
+            );
+            report_stage_metrics(&**stage);
         }
 
         // Now print the total
-        stream_writeln!(stderr, "{: <12}: {total:?}\n", format!("{}", CompilerStageKind::Full));
+        stream_writeln!(
+            stderr,
+            "{: <width$}: {total:?}\n",
+            format!("{}", CompilerStageKind::Full),
+            width = longest_key
+        );
     }
 
     fn run_stage(
@@ -96,7 +161,7 @@ impl<I: CompilerInterface> Compiler<I> {
 
         timed(
             || stage.run(entry_point, workspace),
-            log::Level::Debug,
+            log::Level::Info,
             |time| {
                 self.metrics
                     .entry(stage_kind)
@@ -242,7 +307,7 @@ impl<I: CompilerInterface> Compiler<I> {
         }
 
         // Print compiler stage metrics if specified in the settings.
-        if ctx.settings().output_metrics {
+        if ctx.settings().output_metrics && !self.bootstrapping {
             self.report_metrics(&ctx);
         }
 

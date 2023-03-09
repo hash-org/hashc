@@ -6,7 +6,7 @@
 //! algorithm.
 use std::fmt::Debug;
 
-use smallvec::{smallvec, SmallVec};
+use hash_utils::smallvec::{smallvec, SmallVec};
 
 use super::{AccessToUsefulnessOps, PatForFormatting, PreparePatForFormatting};
 use crate::old::{

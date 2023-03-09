@@ -462,17 +462,24 @@ pub enum CompilerStageKind {
     Full,
 }
 
+impl CompilerStageKind {
+    /// Convert [CompilerStageKind] into a string name.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CompilerStageKind::Parse => "parse",
+            CompilerStageKind::DeSugar => "desugar",
+            CompilerStageKind::UntypedAnalysis => "untyped-analysis",
+            CompilerStageKind::Analysis => "analysis",
+            CompilerStageKind::Lower => "lower",
+            CompilerStageKind::CodeGen => "codegen",
+            CompilerStageKind::Link => "link",
+            CompilerStageKind::Full => "full",
+        }
+    }
+}
+
 impl Display for CompilerStageKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CompilerStageKind::Parse => write!(f, "parsing"),
-            CompilerStageKind::DeSugar => write!(f, "de-sugaring"),
-            CompilerStageKind::UntypedAnalysis => write!(f, "untyped-analysis"),
-            CompilerStageKind::Analysis => write!(f, "analysis"),
-            CompilerStageKind::Lower => write!(f, "lowering"),
-            CompilerStageKind::CodeGen => write!(f, "codegen"),
-            CompilerStageKind::Link => write!(f, "linking"),
-            CompilerStageKind::Full => write!(f, "full"),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
