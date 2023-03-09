@@ -22,8 +22,6 @@ use hash_utils::{log, stream_writeln, timing::timed};
 use interface::{CompilerInterface, CompilerStage};
 use settings::CompilerStageKind;
 
-use crate::interface::StageMetrics;
-
 pub type CompilerResult<T> = Result<T, Reports>;
 
 /// The Hash Compiler interface. This interface allows a caller to create a
@@ -73,35 +71,28 @@ impl<I: CompilerInterface> Compiler<I> {
             .stages
             .iter()
             .map(|stage| {
-                let mut stage_size = stage.kind().as_str().len();
-
-                if let Some(metrics) = stage.metrics() {
-                    stage_size = stage_size.max(
-                        metrics
-                            .timings
-                            .iter()
-                            .map(|(item, _)| stage_size + item.len() + 2)
-                            .max()
-                            .unwrap_or(0),
-                    );
-                }
-
-                stage_size
+                let label_size = stage.kind().as_str().len();
+                stage
+                    .metrics()
+                    .iter()
+                    .map(|(item, _)| label_size + item.len() + 2)
+                    .max()
+                    .unwrap_or(label_size)
             })
             .max()
             .unwrap_or(0);
 
-        let report_stage_metrics = |kind, maybe_metrics: Option<&StageMetrics>| {
-            if let Some(metrics) = maybe_metrics {
-                let mut stderr = ctx.error_stream();
-                for (item, duration) in &metrics.timings {
-                    stream_writeln!(
-                        stderr,
-                        "{: <width$}: {duration:?}",
-                        format!("{kind}::{item}"),
-                        width = longest_key
-                    );
-                }
+        let report_stage_metrics = |stage: &dyn CompilerStage<I>| {
+            let mut stderr = ctx.error_stream();
+            let kind = stage.kind();
+
+            for (item, duration) in stage.metrics().iter() {
+                stream_writeln!(
+                    stderr,
+                    "{: <width$}: {duration:?}",
+                    format!("{kind}::{item}"),
+                    width = longest_key
+                );
             }
         };
 
@@ -125,7 +116,7 @@ impl<I: CompilerInterface> Compiler<I> {
                 // sub metrics.
                 if stage_count != 0 {
                     stage_count = 1;
-                    report_stage_metrics(kind, stage.metrics());
+                    report_stage_metrics(&**stage);
                     continue;
                 }
 
@@ -147,7 +138,7 @@ impl<I: CompilerInterface> Compiler<I> {
                 format!("{kind}"),
                 width = longest_key
             );
-            report_stage_metrics(kind, stage.metrics());
+            report_stage_metrics(&**stage);
         }
 
         // Now print the total

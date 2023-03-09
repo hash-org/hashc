@@ -31,8 +31,8 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
         CompilerStageKind::CodeGen
     }
 
-    fn metrics(&self) -> Option<&StageMetrics> {
-        Some(&self.metrics)
+    fn metrics(&self) -> StageMetrics {
+        self.metrics.clone()
     }
 
     fn reset_metrics(&mut self) {

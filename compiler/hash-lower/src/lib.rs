@@ -12,6 +12,8 @@ mod discover;
 mod lower_ty;
 mod optimise;
 
+use std::{collections::BTreeMap, time::Duration};
+
 use build::{Builder, Tcx};
 use discover::FnDiscoverer;
 use hash_ir::{
@@ -21,7 +23,9 @@ use hash_ir::{
 };
 use hash_layout::{compute::LayoutComputer, write::LayoutWriter, LayoutCtx, TyInfo};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage},
+    interface::{
+        CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
+    },
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
@@ -39,13 +43,23 @@ use hash_tir::{
 use hash_utils::{
     store::{CloneStore, PartialStore, SequenceStore, Store},
     stream_writeln,
+    timing::{time_item, AccessToMetrics},
 };
 use lower_ty::TyLoweringCtx;
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.
 #[derive(Default)]
-pub struct IrGen;
+pub struct IrGen {
+    /// The metrics of the IR builder.
+    metrics: BTreeMap<&'static str, Duration>,
+}
+
+impl AccessToMetrics for IrGen {
+    fn add_metric(&mut self, name: &'static str, time: Duration) {
+        self.metrics.entry(name).and_modify(|e| *e += time).or_insert(time);
+    }
+}
 
 /// The [LoweringCtx] represents all of the required information
 /// that the [IrGen] stage needs to query from the pipeline
@@ -86,6 +100,16 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         CompilerStageKind::Lower
     }
 
+    fn metrics(&self) -> StageMetrics {
+        StageMetrics {
+            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
+        }
+    }
+
+    fn reset_metrics(&mut self) {
+        self.metrics.clear();
+    }
+
     /// Lower that AST of each module that is currently in the workspace
     /// into Hash IR. This will iterate over all modules, and possibly
     /// interactive statements to see if the need IR lowering, if so they
@@ -108,45 +132,49 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let entry_point = &semantic_storage.entry_point;
 
         // Discover all of the bodies that need to be lowered
-        let discoverer = FnDiscoverer::new(&env, source_stage_info);
-        let items = discoverer.discover_fns();
+        let items = time_item(self, "discover", |_| {
+            let discoverer = FnDiscoverer::new(&env, source_stage_info);
+            discoverer.discover_fns()
+        });
 
         // Pre-allocate the vector of lowered bodies.
         let mut lowered_bodies = Vec::with_capacity(items.fns.len());
 
-        for func in items.iter() {
-            let symbol = discoverer.stores().fn_def().map_fast(*func, |func| func.name);
-            let name = discoverer
-                .stores()
-                .symbol()
-                .map_fast(symbol, |symbol| symbol.name.unwrap_or(IDENTS.underscore));
+        time_item(self, "build", |_| {
+            for func in items.iter() {
+                let symbol = env.stores().fn_def().map_fast(*func, |func| func.name);
+                let name = env
+                    .stores()
+                    .symbol()
+                    .map_fast(symbol, |symbol| symbol.name.unwrap_or(IDENTS.underscore));
 
-            // Get the source of the symbol therefore that way
-            // we can get the source id of the function.
-            let Some(SourceLocation { id, .. }) = discoverer.get_location(func) else {
-                panic!("function `{name}` has no defined source location");
-            };
-
-            let tcx = Tcx::new(&env, semantic_storage);
-            let mut builder =
-                Builder::new(name, (*func).into(), id, tcx, &mut ir_storage.ctx, settings);
-            builder.build();
-
-            let body = builder.finish();
-
-            // This is the entry point, so we need to record that this
-            // is the entry point.
-            if let Some(def) = entry_point.def() && def == *func {
-                let IrTy::FnDef { instance } = ir_storage.ctx.tys().get(body.info.ty()) else {
-                    panic!("entry point `{name}` is not a function definition");
+                // Get the source of the symbol therefore that way
+                // we can get the source id of the function.
+                let Some(SourceLocation { id, .. }) = env.get_location(func) else {
+                    panic!("function `{name}` has no defined source location");
                 };
 
-                ir_storage.entry_point.set(instance, entry_point.kind().unwrap());
-            }
+                let tcx = Tcx::new(&env, semantic_storage);
+                let mut builder =
+                    Builder::new(name, (*func).into(), id, tcx, &mut ir_storage.ctx, settings);
+                builder.build();
 
-            // add the body to the lowered bodies
-            lowered_bodies.push(body);
-        }
+                let body = builder.finish();
+
+                // This is the entry point, so we need to record that this
+                // is the entry point.
+                if let Some(def) = entry_point.def() && def == *func {
+                    let IrTy::FnDef { instance } = ir_storage.ctx.tys().get(body.info.ty()) else {
+                        panic!("entry point `{name}` is not a function definition");
+                    };
+
+                    ir_storage.entry_point.set(instance, entry_point.kind().unwrap());
+                }
+
+                // add the body to the lowered bodies
+                lowered_bodies.push(body);
+            }
+        });
 
         // Mark all modules now as lowered, and all generated
         // bodies to the store.
@@ -203,12 +231,31 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 /// and perform optimisations on them based on if they are applicable and the
 /// current configuration settings of the compiler.
 #[derive(Default)]
-pub struct IrOptimiser;
+pub struct IrOptimiser {
+    /// The metrics of the IR optimiser.
+    metrics: BTreeMap<&'static str, Duration>,
+}
+
+impl AccessToMetrics for IrOptimiser {
+    fn add_metric(&mut self, name: &'static str, time: Duration) {
+        self.metrics.entry(name).and_modify(|e| *e += time).or_insert(time);
+    }
+}
 
 impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     /// Return that this is [CompilerStageKind::Lower].
     fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::Lower
+    }
+
+    fn metrics(&self) -> StageMetrics {
+        StageMetrics {
+            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
+        }
+    }
+
+    fn reset_metrics(&mut self) {
+        self.metrics.clear();
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
@@ -217,21 +264,23 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
 
         let bodies = &mut ir_storage.bodies;
         let body_data = &ir_storage.ctx;
-        // let optimiser = Optimiser::new(ir_storage, source_map, settings);
 
-        // @@Todo: think about making optimisation passes in parallel...
-        // pool.scope(|scope| {
-        //     for body in &mut ir_storage.generated_bodies {
-        //         scope.spawn(|_| {
-        //             optimiser.optimise(body);
-        //         });
-        //     }
-        // });
+        time_item(self, "optimise", |_| {
+            // @@Todo: think about making optimisation passes in parallel...
+            // pool.scope(|scope| {
+            //     for body in &mut ir_storage.generated_bodies {
+            //         scope.spawn(|_| {
+            //             let optimiser = Optimiser::new(body_data, source_map, settings);
+            //             optimiser.optimise(body);
+            //         });
+            //     }
+            // });
 
-        for body in bodies.iter_mut() {
-            let optimiser = Optimiser::new(body_data, source_map, settings);
-            optimiser.optimise(body);
-        }
+            for body in bodies.iter_mut() {
+                let optimiser = Optimiser::new(body_data, source_map, settings);
+                optimiser.optimise(body);
+            }
+        });
 
         Ok(())
     }

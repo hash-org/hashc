@@ -51,7 +51,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
             Box::new(SemanticAnalysis)
         },
         Box::<IrGen>::default(),
-        Box::new(IrOptimiser),
+        Box::<IrOptimiser>::default(),
         Box::<CodeGenPass>::default(),
         Box::new(CompilerLinker),
     ]

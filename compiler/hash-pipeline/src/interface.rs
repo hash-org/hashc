@@ -19,10 +19,17 @@ use crate::{
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
 
 /// A [StageMetrics] is a collection of timings for each section of a stage.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct StageMetrics {
     /// The collected timings for each section of the stage.
     pub timings: Vec<(&'static str, Duration)>,
+}
+
+impl StageMetrics {
+    /// Create an iterator over the collected timings.
+    pub fn iter(&self) -> impl Iterator<Item = (&'static str, Duration)> + '_ {
+        self.timings.iter().cloned()
+    }
 }
 
 /// [CompilerStage] represents an abstract stage within the compiler pipeline.
@@ -50,8 +57,8 @@ pub trait CompilerStage<StageCtx> {
     /// it's execution.
     ///
     /// By default, there are no collected metrics.
-    fn metrics(&self) -> Option<&StageMetrics> {
-        None
+    fn metrics(&self) -> StageMetrics {
+        StageMetrics::default()
     }
 
     /// This function is used to "reset" any collected metrics such that

@@ -35,7 +35,10 @@ use hash_pipeline::{
 };
 use hash_source::ModuleId;
 use hash_target::TargetArch;
-use hash_utils::{log::Level, stream_writeln, timing::timed};
+use hash_utils::{
+    stream_writeln,
+    timing::{time_item, AccessToMetrics},
+};
 use inkwell as llvm;
 use llvm::{
     context::Context as LLVMContext,
@@ -76,6 +79,12 @@ pub struct LLVMBackend<'b> {
     /// backend. This contains a map of `stages` to the time it took
     /// to run the stage.
     metrics: &'b mut StageMetrics,
+}
+
+impl<'b> AccessToMetrics for LLVMBackend<'b> {
+    fn add_metric(&mut self, name: &'static str, time: Duration) {
+        self.metrics.timings.push((name, time));
+    }
 }
 
 impl<'b, 'm> LLVMBackend<'b> {
@@ -122,21 +131,6 @@ impl<'b, 'm> LLVMBackend<'b> {
         Self { workspace, target_machine, ir_storage, layouts, settings, stdout, metrics }
     }
 
-    /// Run a stage of the backend whilst also timing it.
-    fn time_stage<T>(this: &mut Self, stage: &'static str, f: impl FnOnce(&mut Self) -> T) -> T {
-        let mut time = Duration::default();
-        let value = timed(
-            || f(this),
-            Level::Info,
-            |duration| {
-                time = duration;
-            },
-        );
-
-        this.metrics.timings.push((stage, time));
-        value
-    }
-
     /// Create an [PassManager] for LLVM, apply the optimisation options and run
     /// the optimised on the given [LLVMModule].
     fn optimise(&self, module: &LLVMModule) -> CompilerResult<()> {
@@ -161,8 +155,7 @@ impl<'b, 'm> LLVMBackend<'b> {
     fn write_module(&mut self, module: &LLVMModule, id: ModuleId) -> CodegenResult<()> {
         // If verification fails, this is a bug on our side, and we emit an
         // internal error.
-        module.verify().map_err(|err| CodeGenError::ModuleVerificationFailed {
-        reason: err })?;
+        module.verify().map_err(|err| CodeGenError::ModuleVerificationFailed { reason: err })?;
 
         // For now, we assume that the object file extension is always `.o`.
         let path = self.workspace.module_bitcode_path(id, "o");
@@ -291,8 +284,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
         let module = context.create_module(module_name.as_str());
         let ctx = CodeGenCtx::new(&module, self.settings, &self.ir_storage.ctx, self.layouts);
 
-        LLVMBackend::time_stage(self, "predefine", |this| this.predefine_bodies(&ctx));
-        LLVMBackend::time_stage(self, "build", |this| this.build_bodies(&ctx));
+        time_item(self, "predefine", |this| this.predefine_bodies(&ctx));
+        time_item(self, "build", |this| this.build_bodies(&ctx));
 
         // Now we define the entry point of the function, if there is one
         if self.ir_storage.entry_point.has() {
@@ -310,8 +303,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             );
         }
 
-        LLVMBackend::time_stage(self, "optimise", |this| this.optimise(&module))?;
-        LLVMBackend::time_stage(self, "write", |this| {
+        time_item(self, "optimise", |this| this.optimise(&module))?;
+        time_item(self, "write", |this| {
             this.write_module(&module, entry_point).map_err(|err| vec![err.into()])
         })
     }
