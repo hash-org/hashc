@@ -101,6 +101,9 @@ pub fn parse_option(
             "release" => {
                 settings.set_optimisation_level(OptimisationLevel::Release);
             }
+            "metrics" => {
+                settings.output_metrics = true;
+            }
             "output-dir" => {
                 // The next argument after this is the input file.
                 if let Some(filename) = args.next() {
