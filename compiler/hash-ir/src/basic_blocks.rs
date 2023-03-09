@@ -12,8 +12,8 @@ use hash_utils::{
         dominators::{dominators, Dominators},
     },
     index_vec::IndexVec,
+    smallvec::{smallvec, SmallVec},
 };
-use smallvec::{smallvec, SmallVec};
 
 use crate::ir::{BasicBlock, BasicBlockData, Successors};
 

@@ -16,10 +16,10 @@ use hash_tir::old::{
 };
 use hash_utils::{
     itertools::Itertools,
+    smallvec::SmallVec,
     store::{SequenceStore, Store},
 };
 use if_chain::if_chain;
-use smallvec::SmallVec;
 
 use super::{
     constant::Constant,

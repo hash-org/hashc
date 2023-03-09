@@ -18,7 +18,7 @@ use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::node_map::ModuleEntry;
 use hash_reporting::{reporter::Reports, writer::ReportWriter};
 use hash_source::{ModuleKind, SourceId};
-use hash_utils::{stream_writeln, timing::timed};
+use hash_utils::{log, stream_writeln, timing::timed};
 use interface::{CompilerInterface, CompilerStage};
 use settings::CompilerStageKind;
 

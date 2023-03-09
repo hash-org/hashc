@@ -10,7 +10,7 @@ use hash_ir::{
 };
 use hash_source::location::Span;
 use hash_tir::pats::{PatId, Spread};
-use smallvec::SmallVec;
+use hash_utils::smallvec::SmallVec;
 
 use super::candidate::{Candidate, MatchPair};
 use crate::build::{place::PlaceBuilder, Builder};

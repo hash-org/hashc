@@ -7,9 +7,11 @@ use std::{
 };
 
 use derive_more::From;
-use hash_utils::store::{Store, StoreKey};
+use hash_utils::{
+    itertools::Itertools,
+    store::{Store, StoreKey},
+};
 use indexmap::IndexMap;
-use itertools::Itertools;
 
 use super::env::{AccessToEnv, WithEnv};
 use crate::{

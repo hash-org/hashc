@@ -1,8 +1,10 @@
 //! Module-related utilities.
 use derive_more::Constructor;
 use hash_source::identifier::Identifier;
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store, StoreKey};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{CloneStore, SequenceStore, SequenceStoreKey, Store, StoreKey},
+};
 
 use super::common::CommonUtils;
 use crate::{

@@ -2,8 +2,10 @@
 use std::iter::once;
 
 use derive_more::Constructor;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{SequenceStore, SequenceStoreKey, Store},
+};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{

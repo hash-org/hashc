@@ -1,7 +1,9 @@
 //! Utilities for parameters and arguments.
 use derive_more::Constructor;
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{SequenceStore, SequenceStoreKey},
+};
 
 use super::common::CommonUtils;
 use crate::{

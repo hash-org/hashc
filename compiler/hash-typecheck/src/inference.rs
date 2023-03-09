@@ -39,8 +39,10 @@ use hash_tir::{
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store};
-use itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    store::{CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
+};
 
 use super::unification::Uni;
 use crate::{

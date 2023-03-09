@@ -16,5 +16,7 @@ pub mod tree_writing;
 pub use arrayvec;
 pub use index_vec;
 pub use itertools;
+// Re-export logging utility
+pub use log;
 pub use smallvec;
 pub use thin_vec;

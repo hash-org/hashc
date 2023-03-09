@@ -18,9 +18,9 @@ use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},
     new_sequence_store_key,
+    smallvec::{smallvec, SmallVec},
     store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
 };
-use smallvec::{smallvec, SmallVec};
 
 use crate::{
     basic_blocks::BasicBlocks,

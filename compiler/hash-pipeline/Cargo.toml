@@ -7,7 +7,6 @@ edition = "2021"
 [dependencies]
 bitflags = "2.0.0-rc.1"
 const_format = "0.2.30" # for concatenating strings together at compile time.
-log = "0.4"
 num_cpus = "1.13.0"
 rayon = "1.5.0"
 slotmap = "1.0"

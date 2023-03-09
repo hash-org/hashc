@@ -9,7 +9,10 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
-use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
+use hash_utils::{
+    log,
+    store::{DefaultPartialStore, PartialCloneStore, PartialStore},
+};
 
 use crate::old::{
     args::ArgsId,

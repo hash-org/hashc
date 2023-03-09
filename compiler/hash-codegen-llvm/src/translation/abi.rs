@@ -11,12 +11,12 @@ use hash_codegen::{
     },
 };
 use hash_target::abi::{AbiRepresentation, ScalarKind};
+use hash_utils::smallvec::SmallVec;
 use inkwell::{
     attributes::{Attribute, AttributeLoc},
     types::{AnyTypeEnum, PointerType},
     values::{AnyValue, AnyValueEnum, CallSiteValue, FunctionValue},
 };
-use smallvec::SmallVec;
 
 use super::{ty::ExtendedTyBuilderMethods, Builder};
 use crate::{context::CodeGenCtx, misc::AttributeKind};

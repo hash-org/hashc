@@ -12,7 +12,7 @@ use hash_tir::old::{
     fmt::PrepareForFormatting,
     storage::{LocalStorage, TyStorage},
 };
-use hash_utils::stream_less_writeln;
+use hash_utils::{log, stream_less_writeln};
 
 use crate::old::{
     diagnostics::{

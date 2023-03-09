@@ -15,6 +15,7 @@ use hash_tir::{
     environment::env::AccessToEnv, fns::FnDefId, pats::PatId, symbols::Symbol, terms::TermId,
     utils::common::CommonUtils,
 };
+use hash_utils::log;
 
 use super::{Builder, LocalKey};
 
