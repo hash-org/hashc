@@ -274,7 +274,7 @@ impl SIntTy {
     /// into the normalised type equivalent.
     pub fn normalise(&self, ptr_width: usize) -> Self {
         match self {
-            SIntTy::ISize => SIntTy::from_size(Size::from_bytes(ptr_width)),
+            SIntTy::ISize => SIntTy::from_size(Size::from_bits(ptr_width)),
             _ => *self,
         }
     }
