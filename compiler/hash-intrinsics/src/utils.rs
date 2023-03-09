@@ -1,5 +1,7 @@
 use hash_ast::ast::{self};
-use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
+use hash_source::constant::{
+    FloatTy, IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
+};
 use hash_tir::{
     data::{CtorDefId, CtorPat, CtorTerm, DataTy},
     environment::env::AccessToEnv,
@@ -15,6 +17,10 @@ use num_bigint::BigInt;
 
 use crate::primitives::AccessToPrimitives;
 
+/// Primitive literal types.
+///
+/// @@Future: maybe use `IntTy` and `FloatTy` for integer and float types
+/// instead?
 pub enum LitTy {
     I8,
     U8,
@@ -32,6 +38,36 @@ pub enum LitTy {
     F64,
     Bool,
     Char,
+}
+
+impl From<LitTy> for IntTy {
+    fn from(value: LitTy) -> Self {
+        match value {
+            LitTy::U8 => IntTy::UInt(UIntTy::U8),
+            LitTy::U16 => IntTy::UInt(UIntTy::U16),
+            LitTy::U32 => IntTy::UInt(UIntTy::U32),
+            LitTy::U64 => IntTy::UInt(UIntTy::U64),
+            LitTy::U128 => IntTy::UInt(UIntTy::U128),
+            LitTy::UBig => IntTy::UInt(UIntTy::UBig),
+            LitTy::I8 => IntTy::Int(SIntTy::I8),
+            LitTy::I16 => IntTy::Int(SIntTy::I16),
+            LitTy::I32 => IntTy::Int(SIntTy::I32),
+            LitTy::I64 => IntTy::Int(SIntTy::I64),
+            LitTy::I128 => IntTy::Int(SIntTy::I128),
+            LitTy::IBig => IntTy::Int(SIntTy::IBig),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<LitTy> for FloatTy {
+    fn from(value: LitTy) -> Self {
+        match value {
+            LitTy::F32 => FloatTy::F32,
+            LitTy::F64 => FloatTy::F64,
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// Utilities relating to creating and inspecting primitive types.
@@ -114,7 +150,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
         self.new_term(Term::Lit(Lit::Float(FloatLit {
             underlying: ast::FloatLit {
                 kind: ast::FloatLitKind::Unsuffixed,
-                value: CONSTANT_MAP.create_f64_float_constant(lit.into(), None),
+                value: CONSTANT_MAP.create_f64_float(lit.into(), None),
             },
         })))
     }
@@ -132,7 +168,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
         self.new_term(Term::Lit(Lit::Int(IntLit {
             underlying: ast::IntLit {
                 kind: ast::IntLitKind::Unsuffixed,
-                value: CONSTANT_MAP.create_int_constant(IntConstant::new(
+                value: CONSTANT_MAP.create_int(IntConstant::new(
                     IntConstantValue::Big(Box::new(lit.into())),
                     None,
                 )),

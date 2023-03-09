@@ -23,7 +23,7 @@ impl IntLit {
 
     /// Return the value of the integer literal.
     pub fn value(&self) -> BigInt {
-        (&CONSTANT_MAP.lookup_int_constant(self.underlying.value)).try_into().unwrap()
+        (&CONSTANT_MAP.lookup_int(self.underlying.value)).try_into().unwrap()
     }
 }
 
@@ -63,7 +63,7 @@ impl FloatLit {
 
     /// Return the value of the float literal.
     pub fn value(&self) -> f64 {
-        CONSTANT_MAP.lookup_float_constant(self.underlying.value).as_f64()
+        CONSTANT_MAP.lookup_float(self.underlying.value).as_f64()
     }
 }
 

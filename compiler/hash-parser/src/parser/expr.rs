@@ -816,7 +816,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // `-` was an unexpected token here...
             if let TokenKind::IntLit(value) = token.kind {
                 // Now read the value and verify that it has no numeric prefix
-                let interned_lit = CONSTANT_MAP.lookup_int_constant(value);
+                let interned_lit = CONSTANT_MAP.lookup_int(value);
 
                 if let Some(suffix) = interned_lit.suffix {
                     return self.err_with_location(ParseErrorKind::DisallowedSuffix(suffix), None, None, token.span)?;

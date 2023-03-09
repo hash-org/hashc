@@ -48,8 +48,8 @@ impl<'tcx> Builder<'tcx> {
         // future we should also be able to perform folds on `ibig` and `ubig` values.
         if let Const::Int(interned_lhs) = lhs && let Const::Int(interned_rhs) = rhs
         {
-            let lhs_const = CONSTANT_MAP.lookup_int_constant(interned_lhs);
-            let rhs_const = CONSTANT_MAP.lookup_int_constant(interned_rhs);
+            let lhs_const = CONSTANT_MAP.lookup_int(interned_lhs);
+            let rhs_const = CONSTANT_MAP.lookup_int(interned_rhs);
 
             // First we need to coerce the types into the same primitive integer type, we do this
             // by checking the `suffix` and then coercing both ints into that value
@@ -58,8 +58,8 @@ impl<'tcx> Builder<'tcx> {
 
         // Check if these two operands are floating point numbers
         else if let Const::Float(interned_lhs) = lhs && let Const::Float(interned_rhs) = rhs {
-            let lhs_const = CONSTANT_MAP.lookup_float_constant(interned_lhs);
-            let rhs_const = CONSTANT_MAP.lookup_float_constant(interned_rhs);
+            let lhs_const = CONSTANT_MAP.lookup_float(interned_lhs);
+            let rhs_const = CONSTANT_MAP.lookup_float(interned_rhs);
 
             match (lhs_const.value, rhs_const.value) {
                 (FloatConstantValue::F32(lhs), FloatConstantValue::F32(rhs)) => fold_float_const(op, lhs, rhs),
@@ -117,7 +117,7 @@ where
     value.map(|val| {
         // Create the new constant value and return it as a `const`
         let value: IntConstant = val.into();
-        let id = CONSTANT_MAP.create_int_constant(value);
+        let id = CONSTANT_MAP.create_int(value);
         Const::Int(id)
     })
 }
@@ -158,7 +158,7 @@ where
     value.map(|val| {
         // Create the new constant value and return it as a `const`
         let value: FloatConstant = val.into();
-        let id = CONSTANT_MAP.create_float_constant(value);
+        let id = CONSTANT_MAP.create_float(value);
         Const::Float(id)
     })
 }
