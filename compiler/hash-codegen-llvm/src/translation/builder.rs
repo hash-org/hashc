@@ -544,14 +544,15 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
 
         let intrinsic_prefix = match (op, int_ty.is_signed()) {
             (CheckedOp::Add, true) => "llvm.sadd",
-            (CheckedOp::Add, false) => "llvm.sadd",
+            (CheckedOp::Add, false) => "llvm.uadd",
             (CheckedOp::Sub, true) => "llvm.ssub",
             (CheckedOp::Sub, false) => "llvm.usub",
             (CheckedOp::Mul, true) => "llvm.smul",
             (CheckedOp::Mul, false) => "llvm.umul",
         };
 
-        let intrinsic_name = format!("{}.with.overflow.{}", intrinsic_prefix, int_ty.to_name());
+        let size = int_ty.size(ptr_width).unwrap();
+        let intrinsic_name = format!("{}.with.overflow.i{}", intrinsic_prefix, size.bits());
 
         let result = self.call_intrinsic(&intrinsic_name, &[lhs, rhs]);
         (self.extract_field_value(result, 0), self.extract_field_value(result, 1))
