@@ -147,7 +147,7 @@ impl<'tcx> Builder<'tcx> {
             let n = 1 << (size - 1);
 
             // Create and intern the constant
-            let const_int = CONSTANT_MAP.create_int_constant(IntConstant::from_sint(n, signed_ty));
+            let const_int = CONSTANT_MAP.create_int(IntConstant::from_sint(n, signed_ty));
             Const::Int(const_int).into()
         } else {
             unreachable!()
@@ -261,9 +261,8 @@ impl<'tcx> Builder<'tcx> {
                 // Check for division/modulo of zero...
                 let is_zero = self.temp_place(self.ctx.tys().common_tys.bool);
 
-                let const_val = Const::Int(
-                    CONSTANT_MAP.create_int_constant(IntConstant::from_uint(0, uint_ty)),
-                );
+                let const_val =
+                    Const::Int(CONSTANT_MAP.create_int(IntConstant::from_uint(0, uint_ty)));
                 let zero_val = Operand::Const(const_val.into());
 
                 self.control_flow_graph.push_assign(
@@ -281,9 +280,8 @@ impl<'tcx> Builder<'tcx> {
                 if ty.is_signed() {
                     let sint_ty = int_ty.to_signed();
 
-                    let const_val = Const::Int(
-                        CONSTANT_MAP.create_int_constant(IntConstant::from_sint(-1, sint_ty)),
-                    );
+                    let const_val =
+                        Const::Int(CONSTANT_MAP.create_int(IntConstant::from_sint(-1, sint_ty)));
                     let negative_one_val = Operand::Const(const_val.into());
                     let minimum_value = self.min_value_of_ty(ty);
 

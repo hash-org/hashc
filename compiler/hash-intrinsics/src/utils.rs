@@ -1,5 +1,7 @@
 use hash_ast::ast::{self};
-use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
+use hash_source::constant::{
+    FloatTy, IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
+};
 use hash_tir::{
     data::{CtorDefId, CtorPat, CtorTerm, DataTy},
     environment::env::AccessToEnv,
@@ -15,6 +17,10 @@ use num_bigint::BigInt;
 
 use crate::primitives::AccessToPrimitives;
 
+/// Primitive literal types.
+///
+/// @@Future: maybe use `IntTy` and `FloatTy` for integer and float types
+/// instead?
 pub enum LitTy {
     I8,
     U8,
@@ -32,6 +38,36 @@ pub enum LitTy {
     F64,
     Bool,
     Char,
+}
+
+impl From<LitTy> for IntTy {
+    fn from(value: LitTy) -> Self {
+        match value {
+            LitTy::U8 => IntTy::UInt(UIntTy::U8),
+            LitTy::U16 => IntTy::UInt(UIntTy::U16),
+            LitTy::U32 => IntTy::UInt(UIntTy::U32),
+            LitTy::U64 => IntTy::UInt(UIntTy::U64),
+            LitTy::U128 => IntTy::UInt(UIntTy::U128),
+            LitTy::UBig => IntTy::UInt(UIntTy::UBig),
+            LitTy::I8 => IntTy::Int(SIntTy::I8),
+            LitTy::I16 => IntTy::Int(SIntTy::I16),
+            LitTy::I32 => IntTy::Int(SIntTy::I32),
+            LitTy::I64 => IntTy::Int(SIntTy::I64),
+            LitTy::I128 => IntTy::Int(SIntTy::I128),
+            LitTy::IBig => IntTy::Int(SIntTy::IBig),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<LitTy> for FloatTy {
+    fn from(value: LitTy) -> Self {
+        match value {
+            LitTy::F32 => FloatTy::F32,
+            LitTy::F64 => FloatTy::F64,
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// Utilities relating to creating and inspecting primitive types.
@@ -83,6 +119,42 @@ pub trait PrimitiveUtils: AccessToPrimitives {
         self.new_ty(RefTy { ty, kind, mutable })
     }
 
+    /// Get the given type as a primitive integer type if possible.
+    fn try_use_ty_as_int_ty(&self, ty: TyId) -> Option<IntTy> {
+        match self.get_ty(ty) {
+            Ty::Data(data) => match data.data_def {
+                d if d == self.primitives().i8() => Some(IntTy::Int(SIntTy::I8)),
+                d if d == self.primitives().u8() => Some(IntTy::UInt(UIntTy::U8)),
+                d if d == self.primitives().i16() => Some(IntTy::Int(SIntTy::I16)),
+                d if d == self.primitives().u16() => Some(IntTy::UInt(UIntTy::U16)),
+                d if d == self.primitives().i32() => Some(IntTy::Int(SIntTy::I32)),
+                d if d == self.primitives().u32() => Some(IntTy::UInt(UIntTy::U32)),
+                d if d == self.primitives().i64() => Some(IntTy::Int(SIntTy::I64)),
+                d if d == self.primitives().u64() => Some(IntTy::UInt(UIntTy::U64)),
+                d if d == self.primitives().i128() => Some(IntTy::Int(SIntTy::I128)),
+                d if d == self.primitives().u128() => Some(IntTy::UInt(UIntTy::U128)),
+                d if d == self.primitives().ibig() => Some(IntTy::Int(SIntTy::IBig)),
+                d if d == self.primitives().ubig() => Some(IntTy::UInt(UIntTy::UBig)),
+                d if d == self.primitives().isize() => Some(IntTy::Int(SIntTy::ISize)),
+                d if d == self.primitives().usize() => Some(IntTy::UInt(UIntTy::USize)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get the given type as a primitive float type if possible.
+    fn try_use_ty_as_float_ty(&self, ty: TyId) -> Option<FloatTy> {
+        match self.get_ty(ty) {
+            Ty::Data(data) => match data.data_def {
+                d if d == self.primitives().f32() => Some(FloatTy::F32),
+                d if d == self.primitives().f64() => Some(FloatTy::F64),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Get the given type as a literal type if possible.
     fn try_use_ty_as_lit_ty(&self, ty: TyId) -> Option<LitTy> {
         match self.get_ty(ty) {
@@ -103,6 +175,20 @@ pub trait PrimitiveUtils: AccessToPrimitives {
                 d if d == self.primitives().f64() => Some(LitTy::F64),
                 d if d == self.primitives().bool() => Some(LitTy::Bool),
                 d if d == self.primitives().char() => Some(LitTy::Char),
+                d if d == self.primitives().isize() => match self.target().pointer_bit_width {
+                    8 => Some(LitTy::I8),
+                    16 => Some(LitTy::I16),
+                    32 => Some(LitTy::I32),
+                    64 => Some(LitTy::I64),
+                    _ => unreachable!(),
+                },
+                d if d == self.primitives().usize() => match self.target().pointer_bit_width {
+                    8 => Some(LitTy::U8),
+                    16 => Some(LitTy::U16),
+                    32 => Some(LitTy::U32),
+                    64 => Some(LitTy::U64),
+                    _ => unreachable!(),
+                },
                 _ => None,
             },
             _ => None,
@@ -114,7 +200,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
         self.new_term(Term::Lit(Lit::Float(FloatLit {
             underlying: ast::FloatLit {
                 kind: ast::FloatLitKind::Unsuffixed,
-                value: CONSTANT_MAP.create_f64_float_constant(lit.into(), None),
+                value: CONSTANT_MAP.create_f64_float(lit.into(), None),
             },
         })))
     }
@@ -132,7 +218,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
         self.new_term(Term::Lit(Lit::Int(IntLit {
             underlying: ast::IntLit {
                 kind: ast::IntLitKind::Unsuffixed,
-                value: CONSTANT_MAP.create_int_constant(IntConstant::new(
+                value: CONSTANT_MAP.create_int(IntConstant::new(
                     IntConstantValue::Big(Box::new(lit.into())),
                     None,
                 )),

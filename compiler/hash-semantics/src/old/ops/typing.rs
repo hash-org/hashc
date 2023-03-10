@@ -244,7 +244,7 @@ impl<'tc> Typer<'tc> {
                             // @@Todo: do some more sophisticated inferring here
                             LitTerm::Int { value } => {
                                 let kind: Identifier =
-                                    CONSTANT_MAP.map_int_constant(value, |int| int.ty()).into();
+                                    CONSTANT_MAP.map_int(value, |int| int.ty()).into();
                                 self.core_defs().resolve_core_def(kind)
                             }
                             LitTerm::Char(_) => self.core_defs().char_ty(),

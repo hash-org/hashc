@@ -45,11 +45,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // If it is specified that we should negate this constant, then we modify the
                     // literal that is stored within the constant map with the modified value.
                     if negate {
-                        CONSTANT_MAP.negate_int_constant(value);
+                        CONSTANT_MAP.negate_int(value);
                     }
 
-                    let (ty, suffix) =
-                        CONSTANT_MAP.map_int_constant(value, |val| (val.ty(), val.suffix));
+                    let (ty, suffix) = CONSTANT_MAP.map_int(value, |val| (val.ty(), val.suffix));
 
                     // Despite the fact that we always know the type, we still want to preserve
                     // information about whether this constant had a specified
@@ -66,11 +65,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // If it is specified that we should negate this constant, then we modify the
                     // literal that is stored within the constant map with the modified value.
                     if negate {
-                        CONSTANT_MAP.negate_float_constant(value);
+                        CONSTANT_MAP.negate_float(value);
                     }
 
-                    let (ty, suffix) =
-                        CONSTANT_MAP.map_float_constant(value, |val| (val.ty(), val.suffix));
+                    let (ty, suffix) = CONSTANT_MAP.map_float(value, |val| (val.ty(), val.suffix));
 
                     if suffix.is_some() {
                         Lit::Float(FloatLit { value, kind: FloatLitKind::Suffixed(ty) })

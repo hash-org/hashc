@@ -132,6 +132,19 @@ impl FloatConstant {
             F32(_) => FloatTy::F32,
         }
     }
+
+    /// Perform a conversion from the [FloatConstant] into a specified
+    /// [FloatTy].
+    fn convert_into(self, ty: FloatTy) -> Self {
+        if self.ty() == ty {
+            return self;
+        }
+
+        match ty {
+            FloatTy::F64 => Self::new(F64(self.as_f64()), Some(IDENTS.f64)),
+            FloatTy::F32 => Self::new(F32(self.as_f64() as f32), Some(IDENTS.f32)),
+        }
+    }
 }
 
 impl Neg for FloatConstant {
@@ -211,7 +224,7 @@ impl fmt::Display for FloatConstant {
 
 impl fmt::Display for InternedFloat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", CONSTANT_MAP.lookup_float_constant(*self))
+        write!(f, "{}", CONSTANT_MAP.lookup_float(*self))
     }
 }
 
@@ -512,26 +525,30 @@ impl IntConstant {
             _ => false,
         }
     }
-
     /// Convert the [IntConstant] into the [IntConstant] with
     /// the specified `ty`.
-    pub fn cast_to(&self, ty: IntTy, ptr_width: usize) -> Option<Self> {
+    fn convert_into(self, ty: IntTy, ptr_width: usize) -> Option<Self> {
+        if self.ty() == ty {
+            return Some(self);
+        }
+
         let suffix: Identifier = ty.into();
+        let this = &self;
 
         // Re-make the value based on the new type.
         let value = match ty.normalise(ptr_width) {
-            IntTy::Int(SIntTy::I8) => IntConstantValue::I8(self.try_into().ok()?),
-            IntTy::Int(SIntTy::I16) => IntConstantValue::I16(self.try_into().ok()?),
-            IntTy::Int(SIntTy::I32) => IntConstantValue::I32(self.try_into().ok()?),
-            IntTy::Int(SIntTy::I64) => IntConstantValue::I64(self.try_into().ok()?),
-            IntTy::Int(SIntTy::I128) => IntConstantValue::I128(self.try_into().ok()?),
-            IntTy::Int(SIntTy::IBig) => IntConstantValue::Big(Box::new(self.try_into().ok()?)),
-            IntTy::UInt(UIntTy::U8) => IntConstantValue::U8(self.try_into().ok()?),
-            IntTy::UInt(UIntTy::U16) => IntConstantValue::U16(self.try_into().ok()?),
-            IntTy::UInt(UIntTy::U32) => IntConstantValue::U32(self.try_into().ok()?),
-            IntTy::UInt(UIntTy::U64) => IntConstantValue::U64(self.try_into().ok()?),
-            IntTy::UInt(UIntTy::U128) => IntConstantValue::U128(self.try_into().ok()?),
-            IntTy::UInt(UIntTy::UBig) => IntConstantValue::Big(Box::new(self.try_into().ok()?)),
+            IntTy::Int(SIntTy::I8) => IntConstantValue::I8(this.try_into().ok()?),
+            IntTy::Int(SIntTy::I16) => IntConstantValue::I16(this.try_into().ok()?),
+            IntTy::Int(SIntTy::I32) => IntConstantValue::I32(this.try_into().ok()?),
+            IntTy::Int(SIntTy::I64) => IntConstantValue::I64(this.try_into().ok()?),
+            IntTy::Int(SIntTy::I128) => IntConstantValue::I128(this.try_into().ok()?),
+            IntTy::Int(SIntTy::IBig) => IntConstantValue::Big(Box::new(this.try_into().ok()?)),
+            IntTy::UInt(UIntTy::U8) => IntConstantValue::U8(this.try_into().ok()?),
+            IntTy::UInt(UIntTy::U16) => IntConstantValue::U16(this.try_into().ok()?),
+            IntTy::UInt(UIntTy::U32) => IntConstantValue::U32(this.try_into().ok()?),
+            IntTy::UInt(UIntTy::U64) => IntConstantValue::U64(this.try_into().ok()?),
+            IntTy::UInt(UIntTy::U128) => IntConstantValue::U128(this.try_into().ok()?),
+            IntTy::UInt(UIntTy::UBig) => IntConstantValue::Big(Box::new(this.try_into().ok()?)),
             _ => unreachable!(),
         };
 
@@ -682,7 +699,7 @@ impl fmt::Display for IntConstant {
 
 impl fmt::Display for InternedInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", CONSTANT_MAP.lookup_int_constant(*self))
+        write!(f, "{}", CONSTANT_MAP.lookup_int(*self))
     }
 }
 
@@ -693,7 +710,7 @@ pub fn u128_to_int_const(value: u128, kind: IntTy, ptr_width: usize) -> Interned
     let is_signed = kind.is_signed();
 
     let value = IntConstantValue::from_le_bytes(&value.to_le_bytes()[0..size], is_signed);
-    CONSTANT_MAP.create_int_constant(IntConstant { value, suffix: None })
+    CONSTANT_MAP.create_int(IntConstant { value, suffix: None })
 }
 
 // -------------------- Strings --------------------
@@ -785,27 +802,19 @@ impl ConstantMap {
     }
 
     /// Create a `f64` [FloatConstant] within the [ConstantMap]
-    pub fn create_f64_float_constant(
-        &self,
-        value: f64,
-        suffix: Option<Identifier>,
-    ) -> InternedFloat {
+    pub fn create_f64_float(&self, value: f64, suffix: Option<Identifier>) -> InternedFloat {
         let constant = FloatConstant { value: FloatConstantValue::F64(value), suffix };
-        self.create_float_constant(constant)
+        self.create_float(constant)
     }
 
     /// Create a `f32` [FloatConstant] within the [ConstantMap]
-    pub fn create_f32_float_constant(
-        &self,
-        value: f32,
-        suffix: Option<Identifier>,
-    ) -> InternedFloat {
+    pub fn create_f32_float(&self, value: f32, suffix: Option<Identifier>) -> InternedFloat {
         let constant = FloatConstant { value: FloatConstantValue::F32(value), suffix };
-        self.create_float_constant(constant)
+        self.create_float(constant)
     }
 
     /// Create a [FloatConstant] within the [ConstantMap]
-    pub fn create_float_constant(&self, constant: FloatConstant) -> InternedFloat {
+    pub fn create_float(&self, constant: FloatConstant) -> InternedFloat {
         let ident = InternedFloat::new();
         self.float_table.insert(ident, constant);
 
@@ -813,22 +822,30 @@ impl ConstantMap {
     }
 
     /// Get the [FloatConstant] behind the [InternedFloat]
-    pub fn lookup_float_constant(&self, id: InternedFloat) -> FloatConstant {
+    pub fn lookup_float(&self, id: InternedFloat) -> FloatConstant {
         *self.float_table.get(&id).unwrap().value()
     }
 
+    /// Perform a transformation on the [FloatConstant] behind the
+    /// [InternedFloat] without making a copy of the original value.
+    pub fn map_float<T>(&self, id: InternedFloat, f: impl FnOnce(&FloatConstant) -> T) -> T {
+        let lookup_value = self.float_table.get(&id).unwrap();
+        f(lookup_value.value())
+    }
+
     /// Perform a negation operation on an [InternedFloat].
-    pub fn negate_float_constant(&self, id: InternedFloat) {
+    pub fn negate_float(&self, id: InternedFloat) {
         self.float_table.alter(&id, |_, value| -value);
     }
 
-    /// Perform a negation operation on an [InternedInt].
-    pub fn negate_int_constant(&self, id: InternedInt) {
-        self.int_table.alter(&id, |_, value| -value);
+    /// Adjust the underlying [FloatConstant] into a specified
+    /// float type.
+    pub fn adjust_float(&self, id: InternedFloat, ty: FloatTy) {
+        self.float_table.alter(&id, |_, value| value.convert_into(ty));
     }
 
     /// Create a [IntConstant] within the [ConstantMap].
-    pub fn create_int_constant(&self, constant: IntConstant) -> InternedInt {
+    pub fn create_int(&self, constant: IntConstant) -> InternedInt {
         let ident = InternedInt::new();
 
         // Insert the entries into the map and the reverse-lookup map
@@ -837,27 +854,29 @@ impl ConstantMap {
     }
 
     /// Get the [IntConstant] behind the [InternedInt]
-    pub fn lookup_int_constant(&self, id: InternedInt) -> IntConstant {
+    pub fn lookup_int(&self, id: InternedInt) -> IntConstant {
         let lookup_value = self.int_table.get(&id).unwrap();
         lookup_value.value().clone()
     }
 
     /// Perform a transformation on the [IntConstant] behind the [InternedInt]
     /// without making a copy of the original value.
-    pub fn map_int_constant<T>(&self, id: InternedInt, f: impl FnOnce(&IntConstant) -> T) -> T {
+    pub fn map_int<T>(&self, id: InternedInt, f: impl FnOnce(&IntConstant) -> T) -> T {
         let lookup_value = self.int_table.get(&id).unwrap();
         f(lookup_value.value())
     }
 
-    /// Perform a transformation on the [FloatConstant] behind the
-    /// [InternedFloat] without making a copy of the original value.
-    pub fn map_float_constant<T>(
-        &self,
-        id: InternedFloat,
-        f: impl FnOnce(&FloatConstant) -> T,
-    ) -> T {
-        let lookup_value = self.float_table.get(&id).unwrap();
-        f(lookup_value.value())
+    /// Adjust the underlying [IntConstant] into a specified integer type.
+    pub fn adjust_int(&self, id: InternedInt, ty: IntTy, ptr_width: usize) {
+        self.int_table.alter(&id, |_, item| {
+            item.convert_into(ty, ptr_width)
+                .unwrap_or_else(|| panic!("failed to convert `{id}` to `{ty}`"))
+        })
+    }
+
+    /// Perform a negation operation on an [InternedInt].
+    pub fn negate_int(&self, id: InternedInt) {
+        self.int_table.alter(&id, |_, value| -value);
     }
 }
 

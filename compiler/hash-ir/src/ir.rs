@@ -85,11 +85,11 @@ impl Const {
             IrTy::Int(int_ty) => {
                 let value = i128::from_be_bytes(value.to_be_bytes()); // @@ByteCast.
                 let interned_value = IntConstant::from_sint(value, *int_ty);
-                Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
+                Self::Int(CONSTANT_MAP.create_int(interned_value))
             }
             IrTy::UInt(int_ty) => {
                 let interned_value = IntConstant::from_uint(value, *int_ty);
-                Self::Int(CONSTANT_MAP.create_int_constant(interned_value))
+                Self::Int(CONSTANT_MAP.create_int(interned_value))
             }
             IrTy::Bool => Self::Bool(value == (true as u128)),
             IrTy::Char => unsafe { Self::Char(char::from_u32_unchecked(value as u32)) },
@@ -117,14 +117,11 @@ pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
         (Const::Zero(_), Const::Zero(_)) => Some(Ordering::Equal),
         (Const::Bool(left), Const::Bool(right)) => Some(left.cmp(&right)),
         (Const::Char(left), Const::Char(right)) => Some(left.cmp(&right)),
-        (Const::Int(left), Const::Int(right)) => CONSTANT_MAP.map_int_constant(left, |left| {
-            CONSTANT_MAP.map_int_constant(right, |right| left.partial_cmp(right))
+        (Const::Int(left), Const::Int(right)) => CONSTANT_MAP
+            .map_int(left, |left| CONSTANT_MAP.map_int(right, |right| left.partial_cmp(right))),
+        (Const::Float(left), Const::Float(right)) => CONSTANT_MAP.map_float(left, |left| {
+            CONSTANT_MAP.map_float(right, |right| left.value.partial_cmp(&right.value))
         }),
-        (Const::Float(left), Const::Float(right)) => {
-            CONSTANT_MAP.map_float_constant(left, |left| {
-                CONSTANT_MAP.map_float_constant(right, |right| left.value.partial_cmp(&right.value))
-            })
-        }
         (Const::Str(left), Const::Str(right)) => Some(left.cmp(&right)),
         _ => None,
     }
@@ -170,10 +167,12 @@ impl ConstKind {
                 Const::Zero(ty) => *ty,
                 Const::Bool(_) => ctx.tys().common_tys.bool,
                 Const::Char(_) => ctx.tys().common_tys.char,
-                Const::Int(interned_int) => CONSTANT_MAP
-                    .map_int_constant(*interned_int, |int| int.normalised_ty().to_ir_ty(ctx)),
-                Const::Float(interned_float) => CONSTANT_MAP
-                    .map_float_constant(*interned_float, |float| float.ty().to_ir_ty(ctx)),
+                Const::Int(interned_int) => {
+                    CONSTANT_MAP.map_int(*interned_int, |int| int.normalised_ty().to_ir_ty(ctx))
+                }
+                Const::Float(interned_float) => {
+                    CONSTANT_MAP.map_float(*interned_float, |float| float.ty().to_ir_ty(ctx))
+                }
                 Const::Str(_) => ctx.tys().common_tys.str,
             },
             Self::Unevaluated(UnevaluatedConst { .. }) => {

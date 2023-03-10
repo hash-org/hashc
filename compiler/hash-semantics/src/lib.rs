@@ -26,6 +26,7 @@ use hash_pipeline::{
 };
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
+use hash_target::Target;
 use hash_tir::environment::{
     context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores,
 };
@@ -72,6 +73,9 @@ pub struct SemanticAnalysisCtx<'tc> {
 
     /// The user-given settings to semantic analysis.
     pub flags: Flags,
+
+    /// Target info
+    pub target: &'tc Target,
 }
 
 pub trait SemanticAnalysisCtxQuery: CompilerInterface {
@@ -127,7 +131,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
     }
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let SemanticAnalysisCtx { workspace, semantic_storage, flags } = ctx.data();
+        let SemanticAnalysisCtx { workspace, semantic_storage, flags, target } = ctx.data();
         let current_source_info = CurrentSourceInfo { source_id: entry_point };
 
         // Construct the core TIR environment.
@@ -136,6 +140,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,
+            target,
             &current_source_info,
         );
 

@@ -1220,8 +1220,8 @@ impl<'tc> Validator<'tc> {
                 Term::Level0(Level0Term::Lit(LitTerm::Int { value: rhs })),
             ) => {
                 let ptr_width = self.global_storage().pointer_width;
-                let lhs_kind = CONSTANT_MAP.map_int_constant(lhs, |val| val.ty());
-                let rhs_kind = CONSTANT_MAP.map_int_constant(rhs, |val| val.ty());
+                let lhs_kind = CONSTANT_MAP.map_int(lhs, |val| val.ty());
+                let rhs_kind = CONSTANT_MAP.map_int(rhs, |val| val.ty());
 
                 // Check that the integer type is sized, if it is not then we currently
                 // say that this is not supported...

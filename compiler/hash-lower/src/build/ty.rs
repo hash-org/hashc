@@ -225,7 +225,7 @@ impl<'tcx> Builder<'tcx> {
             LitPat::Int(lit) => {
                 let value = lit.interned_value();
 
-                CONSTANT_MAP.map_int_constant(value, |constant| {
+                CONSTANT_MAP.map_int(value, |constant| {
                     (Const::Int(value), constant.value.as_u128().unwrap())
                 })
             }

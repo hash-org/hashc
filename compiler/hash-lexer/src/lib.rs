@@ -508,7 +508,7 @@ impl<'a> Lexer<'a> {
             IntConstantValue::I32(0)
         });
 
-        let interned = CONSTANT_MAP.create_int_constant(IntConstant { value, suffix });
+        let interned = CONSTANT_MAP.create_int(IntConstant { value, suffix });
         TokenKind::IntLit(interned)
     }
 
@@ -626,9 +626,9 @@ impl<'a> Lexer<'a> {
                         Ok(parsed) => {
                             // Create interned float constant
                             let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
-                                CONSTANT_MAP.create_f32_float_constant(parsed as f32, suffix)
+                                CONSTANT_MAP.create_f32_float(parsed as f32, suffix)
                             } else {
-                                CONSTANT_MAP.create_f64_float_constant(parsed, suffix)
+                                CONSTANT_MAP.create_f64_float(parsed, suffix)
                             };
 
                             TokenKind::FloatLit(float_const)
@@ -661,7 +661,7 @@ impl<'a> Lexer<'a> {
 
                         // Create interned float constant
                         let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
-                            CONSTANT_MAP.create_f32_float_constant(value as f32, suffix)
+                            CONSTANT_MAP.create_f32_float(value as f32, suffix)
                         } else {
                             // Check that the suffix is correct for the literal
                             if let Some(suffix_ident) = suffix && suffix_ident != IDENTS.f64 {
@@ -672,7 +672,7 @@ impl<'a> Lexer<'a> {
                                 );
                             }
 
-                            CONSTANT_MAP.create_f64_float_constant(value, suffix)
+                            CONSTANT_MAP.create_f64_float(value, suffix)
                         };
 
                         TokenKind::FloatLit(float_const)

@@ -5,7 +5,7 @@ use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
-    constant::{FloatTy, IntTy, SIntTy, UIntTy},
+    constant::{FloatTy, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
     entry_point::EntryPointKind,
     identifier::IDENTS,
     ModuleKind,
@@ -22,7 +22,10 @@ use hash_tir::{
         PrimitiveCtorInfo,
     },
     directives::DirectiveTarget,
-    environment::context::{ParamOrigin, ScopeKind},
+    environment::{
+        context::{ParamOrigin, ScopeKind},
+        env::AccessToEnv,
+    },
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     mods::{ModDefId, ModMemberId, ModMemberValue},
@@ -419,6 +422,41 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         Ok(Inference(TupleTerm { data: inferred_args }, TupleTy { data: inferred_params }))
     }
 
+    /// Potentially adjust the underlying constant of a literal after its type
+    /// has been inferred.
+    ///
+    /// This might be needed if a literal is unsuffixed in the original source,
+    /// and thus represented as something other than its true type in the
+    /// `CONSTANT_MAP`. After `infer_lit`, its true type will be known, and
+    /// we can then adjust the underlying constant to match the true type.
+    fn adjust_lit_repr(&self, lit: &Lit, inferred_ty: TyId) -> TcResult<()> {
+        // @@Future: we could defer parsing these literals until we have inferred their
+        // type, and here we can then check that the literal is compatible with
+        // the inferred type, and then we create the constant, avoiding much of
+        // the complexity here.
+        match lit {
+            Lit::Float(float_lit) => {
+                if let Some(float_ty) = self.try_use_ty_as_float_ty(inferred_ty) {
+                    CONSTANT_MAP.adjust_float(float_lit.underlying.value, float_ty);
+                }
+                // @@Incomplete: it is possible that exotic literal
+                // types are defined, what happens then?
+            }
+            Lit::Int(int_lit) => {
+                if let Some(int_ty) = self.try_use_ty_as_int_ty(inferred_ty) {
+                    CONSTANT_MAP.adjust_int(
+                        int_lit.underlying.value,
+                        int_ty,
+                        self.env().target().pointer_bit_width / 8,
+                    );
+                }
+                // @@Incomplete: as above
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// Infer the type of a literal.
     pub fn infer_lit(&self, lit: &Lit, annotation_ty: TyId) -> TcResult<Inference<Lit, TyId>> {
         let inferred_ty = self.new_data_ty(match lit {
@@ -506,7 +544,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             },
         });
 
-        Ok(Inference(*lit, self.check_by_unify(inferred_ty, annotation_ty)?))
+        let inferred_ty = self.check_by_unify(inferred_ty, annotation_ty)?;
+        self.adjust_lit_repr(lit, inferred_ty)?;
+        Ok(Inference(*lit, inferred_ty))
     }
 
     /// Infer the type of a primitive term.

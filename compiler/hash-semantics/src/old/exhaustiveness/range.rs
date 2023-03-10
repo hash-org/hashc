@@ -269,7 +269,7 @@ impl<'tc> IntRangeOps<'tc> {
 
         let bias: u128 = match reader.get_term(constant.ty) {
             Term::Level0(Level0Term::Lit(lit)) => match lit {
-                LitTerm::Int { value } if let kind = CONSTANT_MAP.map_int_constant(value, |val| val.ty()) && kind.is_signed() => {
+                LitTerm::Int { value } if let kind = CONSTANT_MAP.map_int(value, |val| val.ty()) && kind.is_signed() => {
                     let ptr_width = self.global_storage().pointer_width;
                     let bits = kind.size(ptr_width).unwrap().bits();
                     1u128 << (bits - 1)

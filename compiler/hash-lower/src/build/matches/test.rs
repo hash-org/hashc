@@ -742,10 +742,11 @@ impl<'tcx> Builder<'tcx> {
 
                 // Now, we generate a temporary for the expected length, and then
                 // compare the two.
-                let const_len = Const::Int(CONSTANT_MAP.create_int_constant(IntConstant {
-                    value: IntConstantValue::U64(len),
-                    suffix: None,
-                }));
+                let const_len =
+                    Const::Int(CONSTANT_MAP.create_int(IntConstant {
+                        value: IntConstantValue::U64(len),
+                        suffix: None,
+                    }));
                 let expected = Operand::Const(const_len.into());
 
                 let [success, fail] = *target_blocks else {

@@ -144,7 +144,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
             Const::Bool(val) => self.const_bool(val),
             Const::Char(ch) => self.const_u32(ch as u32),
             Const::Int(interned_int) => {
-                let const_int = CONSTANT_MAP.lookup_int_constant(interned_int);
+                let const_int = CONSTANT_MAP.lookup_int(interned_int);
 
                 // Convert the constant into a u128 and then emit the
                 // correct LLVM constant for it.
@@ -158,7 +158,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
                     })
             }
             Const::Float(interned_float) => {
-                self.const_float(ty, CONSTANT_MAP.lookup_float_constant(interned_float).as_f64())
+                self.const_float(ty, CONSTANT_MAP.lookup_float(interned_float).as_f64())
             }
             Const::Str(str) => self.const_str(str).0,
         }
