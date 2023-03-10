@@ -720,14 +720,20 @@ counter! {
     counter_name: STR_LIT_COUNTER,
     visibility: pub,
     method_visibility:,
+    derives: (Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd),
 }
 
 impl fmt::Display for InternedStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", CONSTANT_MAP.lookup_string(*self))
+        write!(f, "{}", CONSTANT_MAP.lookup_string(*self))
     }
 }
 
+impl fmt::Debug for InternedStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", CONSTANT_MAP.lookup_string(*self))
+    }
+}
 
 // Utility methods for converting from a InternedString to an InternedStrLit and
 // vice versa.

@@ -74,9 +74,7 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::StrLit>,
     ) -> Result<Self::StrLitRet, Self::Error> {
-        // Printing an interned string uses the debug formatter, which
-        // deals with escaping exotic characters.
-        Ok(TreeNode::leaf(labelled("str", node.data, "")))
+        Ok(TreeNode::leaf(labelled("str", format!("{:?}", node.data), "")))
     }
 
     type CharLitRet = TreeNode;

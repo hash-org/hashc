@@ -17,7 +17,7 @@ use hash_ast::ast;
 use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
-}; 
+};
 use hash_source::location::Span;
 use hash_target::size::Size;
 use hash_tir::{

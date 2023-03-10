@@ -106,10 +106,7 @@ impl fmt::Display for Const {
             Self::Char(c) => write!(f, "'{c}'"),
             Self::Int(i) => write!(f, "{i}"),
             Self::Float(flt) => write!(f, "{flt}"),
-
-            // Printing interned strings will use the debug formatter which deals 
-            // with escaping exotic characters.
-            Self::Str(s) => write!(f, "{s}"),
+            Self::Str(s) => write!(f, "{s:?}"),
         }
     }
 }
@@ -1254,8 +1251,6 @@ pub enum BodySource {
     Const,
     /// The item is a normal function.
     Item,
-    /// The item is an intrinsic function.
-    Intrinsic,
 }
 
 impl fmt::Display for BodySource {
@@ -1263,7 +1258,6 @@ impl fmt::Display for BodySource {
         match self {
             BodySource::Const => write!(f, "constant block"),
             BodySource::Item => write!(f, "function"),
-            BodySource::Intrinsic => write!(f, "intrinsic function"),
         }
     }
 }

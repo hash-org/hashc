@@ -81,7 +81,7 @@ impl<'ir> IrGraphWriter<'ir> {
         let header = format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, true, false));
 
         match self.body.info().source() {
-            BodySource::Item | BodySource::Intrinsic => {
+            BodySource::Item => {
                 write!(w, "  label=<{}{}", encode_text(&header), LINE_SEPARATOR)?;
             }
             BodySource::Const => {
