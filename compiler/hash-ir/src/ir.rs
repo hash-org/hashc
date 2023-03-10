@@ -106,7 +106,10 @@ impl fmt::Display for Const {
             Self::Char(c) => write!(f, "'{c}'"),
             Self::Int(i) => write!(f, "{i}"),
             Self::Float(flt) => write!(f, "{flt}"),
-            Self::Str(s) => write!(f, "\"{s}\""),
+
+            // Printing interned strings will use the debug formatter which deals 
+            // with escaping exotic characters.
+            Self::Str(s) => write!(f, "{s}"),
         }
     }
 }
