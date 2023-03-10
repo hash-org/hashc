@@ -131,8 +131,6 @@ impl Instance {
         params: IrTyListId,
         ret_ty: IrTyId,
     ) -> Self {
-        // @@Todo: deal with generic functions being properly instantiated
-        // here.
         Self {
             name,
             params,

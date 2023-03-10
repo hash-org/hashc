@@ -101,7 +101,7 @@ impl<'tcx> Builder<'tcx> {
                     return;
                 }
 
-                // @@Todo: when we support `k @ ...` patterns, we need to know
+                // @@Future: when we support `k @ ...` patterns, we need to know
                 // when this is a primary pattern or not.
 
                 let ty = self.ty_id_from_tir_pat(pat_id);
