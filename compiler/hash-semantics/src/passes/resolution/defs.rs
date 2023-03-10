@@ -16,6 +16,7 @@ use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
+    passes::ast_utils::AstPass,
 };
 
 impl<'tc> ResolutionPass<'tc> {
@@ -213,7 +214,7 @@ impl<'tc> ResolutionPass<'tc> {
                         }
                     }
                     ModMemberValue::Mod(mod_def_id) => {
-                        // Must be a module definition node.
+                        // If be a module definition node, recurse into it.
                         match member_rhs_expr.body() {
                             ast::Expr::ModDef(mod_def) => {
                                 if self
@@ -226,7 +227,17 @@ impl<'tc> ResolutionPass<'tc> {
                                     found_error = true;
                                 }
                             }
-                            _ => unreachable!(),
+                            ast::Expr::Import(import_expr) => {
+                                // If it's an import, resolve the source
+                                let source_id = self
+                                    .source_map()
+                                    .get_id_by_path(&import_expr.data.resolved_path)
+                                    .unwrap();
+                                self.current_source_info().with_source_id(source_id, || {
+                                    ResolutionPass::new(self.sem_env()).pass_source()
+                                })?;
+                            }
+                            _ => {}
                         }
                     }
                     ModMemberValue::Fn(_) => {

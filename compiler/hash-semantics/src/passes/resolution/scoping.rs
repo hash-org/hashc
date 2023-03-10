@@ -29,6 +29,7 @@ use super::paths::NonTerminalResolvedPathComponent;
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::{AccessToSemEnv, SemEnv, WithSemEnv},
+    ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
 

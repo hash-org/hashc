@@ -22,15 +22,18 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
     ///
     /// Returns the root module.
     fn bootstrap(&self) -> ModDefId {
-        let primitives =
-            self.primitives_or_unset().get_or_init(|| DefinedPrimitives::create(self.env()));
+        *self.root_mod_or_unset().get_or_init(|| {
+            let primitives =
+                self.primitives_or_unset().get_or_init(|| DefinedPrimitives::create(self.env()));
 
-        let intrinsics =
-            self.intrinsics_or_unset().get_or_init(|| DefinedIntrinsics::create(*self.sem_env()));
+            let intrinsics = self
+                .intrinsics_or_unset()
+                .get_or_init(|| DefinedIntrinsics::create(*self.sem_env()));
 
-        let intrinsic_mod = self.make_intrinsic_mod(intrinsics);
+            let intrinsic_mod = self.make_intrinsic_mod(intrinsics);
 
-        self.make_root_mod(primitives, intrinsic_mod)
+            self.make_root_mod(primitives, intrinsic_mod)
+        })
     }
 
     /// Make a module containing all the intrinsics.

@@ -1,6 +1,7 @@
 //! Module-related utilities.
 use derive_more::Constructor;
-use hash_source::identifier::Identifier;
+use hash_ast::ast::OwnsAstNode;
+use hash_source::{identifier::Identifier, ModuleId};
 use hash_utils::{
     itertools::Itertools,
     store::{CloneStore, SequenceStore, SequenceStoreKey, Store, StoreKey},
@@ -11,7 +12,10 @@ use crate::{
     environment::env::{AccessToEnv, Env},
     fns::FnDefId,
     impl_access_to_env,
-    mods::{ModDef, ModDefData, ModDefId, ModMember, ModMemberData, ModMemberValue, ModMembersId},
+    mods::{
+        ModDef, ModDefData, ModDefId, ModKind, ModMember, ModMemberData, ModMemberValue,
+        ModMembersId,
+    },
 };
 
 /// Operations related to module definitions.
@@ -23,6 +27,26 @@ pub struct ModUtils<'tc> {
 impl_access_to_env!(ModUtils<'tc>);
 
 impl<'tc> ModUtils<'tc> {
+    /// Create or get an existing module definition by `[SourceId]`.
+    pub fn create_or_get_module_mod_def(&self, module_id: ModuleId) -> ModDefId {
+        let source_node_id = self.node_map().get_module(module_id).node_ref().id();
+        match self.stores().ast_info().mod_defs().get_data_by_node(source_node_id) {
+            Some(existing) => existing,
+            None => {
+                // Create a new module definition.
+                let source_id = module_id.into();
+                let module_name: Identifier = self.source_map().source_name(source_id).into();
+                let mod_def_id = self.create_mod_def(ModDefData {
+                    name: self.new_symbol(module_name),
+                    kind: ModKind::Source(source_id),
+                    members: self.create_empty_mod_members(),
+                });
+                self.stores().ast_info().mod_defs().insert(source_node_id, mod_def_id);
+                mod_def_id
+            }
+        }
+    }
+
     /// Create an empty module definition.
     pub fn create_mod_def(&self, data: ModDefData) -> ModDefId {
         self.stores().mod_def().create_with(|id| ModDef {

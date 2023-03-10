@@ -6,7 +6,6 @@ use hash_ast::{
     visitor::walk,
 };
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
-use hash_source::identifier::Identifier;
 use hash_tir::{
     defs::DefId,
     environment::env::AccessToEnv,
@@ -18,7 +17,10 @@ use hash_tir::{
 use hash_utils::itertools::Itertools;
 
 use super::{super::ast_utils::AstUtils, defs::ItemId, DiscoveryPass};
-use crate::{diagnostics::error::SemanticError, environment::sem_env::AccessToSemEnv};
+use crate::{
+    diagnostics::error::SemanticError, environment::sem_env::AccessToSemEnv,
+    passes::ast_utils::AstPass,
+};
 
 impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     type Error = SemanticError;
@@ -36,7 +38,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         TupleTy,
         BodyBlock,
         Expr,
-        MatchCase
+        MatchCase,
+        Import
     );
 
     type DeclarationRet = ();
@@ -59,8 +62,15 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         match self.get_current_item() {
             Some(ItemId::Def(def_id)) => match def_id {
                 DefId::Mod(mod_def_id) => {
-                    walk_with_name_hint()?;
-                    self.add_declaration_node_to_mod_def(node, mod_def_id)
+                    let name = walk_with_name_hint()?;
+                    match name {
+                        Some(name) => self.add_declaration_node_to_mod_def(name, node, mod_def_id),
+                        None => {
+                            return Err(SemanticError::ModulePatternsNotSupported {
+                                location: self.node_location(node),
+                            })
+                        }
+                    }
                 }
                 DefId::Data(_) => {
                     panic_on_span!(
@@ -74,8 +84,9 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
                     // If we can add the declaration as a mod member, do so.
                     if self.stack_declaration_is_mod_member(node) {
-                        let mod_member =
-                            self.make_mod_member_data_from_declaration_node(node).unwrap();
+                        let mod_member = self
+                            .make_mod_member_data_from_declaration_node(name.unwrap(), node)
+                            .unwrap();
                         self.add_mod_member_to_stack(stack_id, node.id(), mod_member)
                     } else {
                         self.add_pat_node_binds_to_stack(
@@ -132,16 +143,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let source_id = self.current_source_info().source_id;
-        let module_name: Identifier = self.source_map().source_name(source_id).into();
-
-        // Create a module definition, with empty members for now.
-        // @@Future: context
-        let mod_def_id = self.mod_utils().create_mod_def(ModDefData {
-            name: self.new_symbol(module_name),
-            kind: ModKind::Source(source_id),
-            members: self.mod_utils().create_empty_mod_members(),
-        });
+        let source_id = self.current_source_info().source_id();
+        let mod_def_id = self.mod_utils().create_or_get_module_mod_def(source_id.into());
 
         // Traverse the module
         self.enter_def(node, mod_def_id, || walk::walk_module(self, node))?;
@@ -395,6 +398,14 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             }
         }
         walk::walk_expr(self, node)?;
+        Ok(())
+    }
+
+    type ImportRet = ();
+    fn visit_import(&self, node: AstNodeRef<ast::Import>) -> Result<Self::ImportRet, Self::Error> {
+        let source_id = self.source_map().get_id_by_path(&node.resolved_path).unwrap();
+        self.current_source_info()
+            .with_source_id(source_id, || DiscoveryPass::new(self.sem_env()).pass_source())?;
         Ok(())
     }
 }

@@ -19,7 +19,7 @@ use hash_utils::{
 };
 
 use super::{super::ast_utils::AstUtils, DiscoveryPass};
-use crate::environment::sem_env::AccessToSemEnv;
+use crate::ops::common::CommonOps;
 
 /// An item that is discovered: either a definition or a function type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, From)]
@@ -293,6 +293,7 @@ impl<'tc> DiscoveryPass<'tc> {
     /// Create `ModMemberData` from a declaration node.
     pub(super) fn make_mod_member_data_from_declaration_node(
         &self,
+        name: Symbol,
         node: AstNodeRef<ast::Declaration>,
     ) -> Option<ModMemberData> {
         // The `def_node_id` is the `AstNodeId` of the actual definition value that
@@ -313,34 +314,41 @@ impl<'tc> DiscoveryPass<'tc> {
         };
 
         let ast_info = self.ast_info();
-        if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
-            // Function definition in a module
-            Some(self.stores().fn_def().map_fast(fn_def_id, |fn_def| ModMemberData {
-                name: fn_def.name,
-                value: ModMemberValue::Fn(fn_def_id),
-            }))
-        } else if let Some(data_def_id) = ast_info.data_defs().get_data_by_node(def_node_id) {
-            // Data definition in a module
-            Some(self.stores().data_def().map_fast(data_def_id, |data_def| ModMemberData {
-                name: data_def.name,
-                value: ModMemberValue::Data(data_def_id),
-            }))
-        } else if let Some(nested_mod_def_id) = ast_info.mod_defs().get_data_by_node(def_node_id) {
-            // Nested module in a module
-            Some(self.stores().mod_def().map_fast(nested_mod_def_id, |nested_mod_def| {
-                ModMemberData {
-                    name: nested_mod_def.name,
-                    value: ModMemberValue::Mod(nested_mod_def_id),
+        match node.value.as_ref() {
+            Some(value) => match value.body() {
+                // Import
+                ast::Expr::Import(import_expr) => {
+                    let source_id =
+                        self.source_map().get_id_by_path(&import_expr.data.resolved_path).unwrap();
+                    let imported_mod_def_id =
+                        self.mod_utils().create_or_get_module_mod_def(source_id.into());
+                    Some(ModMemberData { name, value: ModMemberValue::Mod(imported_mod_def_id) })
                 }
-            }))
-        } else {
-            // Unknown definition, do nothing
-            //
-            // Here we don't panic because there might have been a
-            // recoverable error in a declaration which could have led to no
-            // `AstInfo` being recorded, for example for
-            // `TraitsNotSupported` error.
-            return None;
+
+                _ => {
+                    if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
+                        // Function definition in a module
+                        Some(ModMemberData { name, value: ModMemberValue::Fn(fn_def_id) })
+                    } else if let Some(data_def_id) =
+                        ast_info.data_defs().get_data_by_node(def_node_id)
+                    {
+                        // Data definition in a module
+                        Some(ModMemberData { name, value: ModMemberValue::Data(data_def_id) })
+                    } else {
+                        // Nested module definition
+                        ast_info.mod_defs().get_data_by_node(def_node_id).map(|nested_mod_def_id| {
+                            ModMemberData { name, value: ModMemberValue::Mod(nested_mod_def_id) }
+                        })
+
+                        // If the above `get_data_by_node` returns `None`, do
+                        // nothing because there might have been a recoverable
+                        // error in a declaration which could have led to no
+                        // `AstInfo` being recorded, for example for
+                        // `TraitsNotSupported` error.
+                    }
+                }
+            },
+            None => None,
         }
     }
 
@@ -355,10 +363,11 @@ impl<'tc> DiscoveryPass<'tc> {
     /// it is not a valid module member.
     pub(super) fn add_declaration_node_to_mod_def(
         &self,
+        name: Symbol,
         node: AstNodeRef<ast::Declaration>,
         mod_def_id: ModDefId,
     ) {
-        if let Some(mod_member_data) = self.make_mod_member_data_from_declaration_node(node) {
+        if let Some(mod_member_data) = self.make_mod_member_data_from_declaration_node(name, node) {
             self.def_state().mod_members.modify_fast(mod_def_id, |members| {
                 let members = match members {
                     Some(members) => members,

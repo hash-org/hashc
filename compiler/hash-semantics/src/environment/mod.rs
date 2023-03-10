@@ -1,3 +1,3 @@
 // @@Docs
-pub mod ast_info;
+pub mod analysis_progress;
 pub mod sem_env;

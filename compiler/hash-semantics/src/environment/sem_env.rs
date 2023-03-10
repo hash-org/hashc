@@ -13,7 +13,7 @@ use hash_tir::{
 use hash_typecheck::{errors::TcError, AccessToTypechecking};
 use once_cell::unsync::OnceCell;
 
-use super::ast_info::AstInfo;
+use super::analysis_progress::AnalysisProgress;
 use crate::{
     diagnostics::{error::SemanticError, warning::SemanticWarning},
     ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
@@ -70,17 +70,19 @@ macro_rules! sem_env {
 
 pub type DiagnosticsStore = DiagnosticCellStore<SemanticError, SemanticWarning>;
 pub type PreludeOrUnset = OnceCell<ModDefId>;
+pub type RootModOrUnset = OnceCell<ModDefId>;
 pub type EntryPoint = EntryPointState<FnDefId>;
 
 // All the members of the semantic analysis environment.
 sem_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
-    ast_info: AstInfo,
     entry_point: EntryPoint,
     prelude_or_unset: PreludeOrUnset,
     primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
+    root_mod_or_unset: RootModOrUnset,
+    analysis_progress: AnalysisProgress,
     flags: Flags,
 }
 

@@ -902,7 +902,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         {
             Some(EntryPointKind::Named(fn_def_name))
         } else if fn_def_name == IDENTS.main
-            && self.source_map().module_kind_by_id(self.current_source_info().source_id)
+            && self.source_map().module_kind_by_id(self.current_source_info().source_id())
                 == Some(ModuleKind::EntryPoint)
         {
             Some(EntryPointKind::Main)
@@ -1237,7 +1237,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // Handle local mod def
                 let stack = self.stores().stack().get(block_term.stack_id);
                 if let Some(local_mod_def) = stack.local_mod_def {
-                    self.infer_mod_def(local_mod_def)?;
+                    // @@Improvement: it would be nice to pass through local
+                    // mod defs in two stages as well.
+                    self.infer_mod_def(local_mod_def, FnInferMode::Body)?;
                 }
 
                 let mut inferred_statements = vec![];
@@ -2037,7 +2039,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 Ok(())
             }
             ModMemberValue::Mod(mod_def_id) => {
-                self.infer_mod_def(mod_def_id)?;
+                self.infer_mod_def(mod_def_id, fn_mode)?;
                 Ok(())
             }
             ModMemberValue::Fn(fn_def_id) => {
@@ -2055,27 +2057,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the given module definition.
-    pub fn infer_mod_def(&self, mod_def_id: ModDefId) -> TcResult<()> {
+    pub fn infer_mod_def(&self, mod_def_id: ModDefId, fn_mode: FnInferMode) -> TcResult<()> {
         self.context().enter_scope(mod_def_id.into(), || {
             let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
-            {
-                let mut error_state = self.new_error_state();
-                // Infer each member signature
-                for member_idx in members.to_index_range() {
-                    let _ = error_state.try_or_add_error(
-                        self.infer_mod_member((members, member_idx), FnInferMode::Header),
-                    );
-                }
-                // Here we can simply ignore the errors, as they will be
-                // reported again in the second pass if they are still present.
-            }
 
             let mut error_state = self.new_error_state();
-            // Infer each member body
+            // Infer each member signature
             for member_idx in members.to_index_range() {
-                let _ = error_state.try_or_add_error(
-                    self.infer_mod_member((members, member_idx), FnInferMode::Body),
-                );
+                let _ = error_state
+                    .try_or_add_error(self.infer_mod_member((members, member_idx), fn_mode));
             }
 
             self.return_or_register_errors(|| Ok(()), error_state)

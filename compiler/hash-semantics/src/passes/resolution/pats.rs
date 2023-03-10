@@ -35,7 +35,7 @@ use super::{
 };
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
-    environment::sem_env::AccessToSemEnv,
+    ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
 

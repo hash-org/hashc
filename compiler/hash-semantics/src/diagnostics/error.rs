@@ -28,6 +28,8 @@ pub enum SemanticError {
     TraitsNotSupported { trait_location: SourceLocation },
     /// Merge declarations are not yet supported.
     MergeDeclarationsNotSupported { merge_location: SourceLocation },
+    /// Module patterns are not yet supported.
+    ModulePatternsNotSupported { location: SourceLocation },
     /// Some specified symbol was not found.
     SymbolNotFound { symbol: Symbol, location: SourceLocation, looking_in: ContextKind },
     /// Cannot use a module in a value position.
@@ -270,6 +272,16 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                 error.add_note(
                     "when operating in `run` mode, an entry point must be specified in the source.\nThis can be done by using the `main` keyword, or by using the `#entry_point` directive."
                 );
+            }
+            SemanticError::ModulePatternsNotSupported { location } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::MissingPatternBounds)
+                    .title("module patterns are not supported yet");
+
+                error
+                    .add_span(*location)
+                    .add_info("cannot use a module pattern yet. Instead, bind to a name and access members through `::`");
             }
         }
     }
