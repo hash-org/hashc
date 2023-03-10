@@ -15,8 +15,12 @@ use hash_utils::stream_less_writeln;
 use super::ast_utils::AstPass;
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
-    environment::sem_env::{AccessToSemEnv, SemEnv},
+    environment::{
+        analysis_progress::AnalysisStage,
+        sem_env::{AccessToSemEnv, SemEnv},
+    },
     impl_access_to_sem_env,
+    ops::common::CommonOps,
 };
 
 /// The potential fourth pass of analysis, which executes and dumps the TIR, if
@@ -31,7 +35,7 @@ impl_access_to_sem_env!(EvaluationPass<'_>);
 impl EvaluationPass<'_> {
     /// Find the main module definition, if it exists.
     fn find_and_construct_main_call(&self) -> SemanticResult<Option<TermId>> {
-        let source_id = self.current_source_info().source_id;
+        let source_id = self.current_source_info().source_id();
         let kind = self.source_map().module_kind_by_id(source_id);
         match kind {
             None | Some(ModuleKind::Normal | ModuleKind::Prelude) => Ok(None),
@@ -84,7 +88,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         let main_call_term = self.find_and_construct_main_call()?;
 
         // Potentially dump the TIR and evaluate it depending on flags.
-        //
+
         if self.flags().dump_tir {
             self.dump_tir(self.env().with(mod_def_id));
         }
@@ -96,5 +100,14 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         }
 
         Ok(())
+    }
+
+    fn pre_pass(&self) -> SemanticResult<bool> {
+        if self.get_current_progress() == AnalysisStage::BodyInference {
+            self.set_current_progress(AnalysisStage::PreEvaluation);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }

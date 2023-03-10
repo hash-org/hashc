@@ -52,7 +52,7 @@ use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
-    passes::ast_utils::AstUtils,
+    passes::ast_utils::{AstPass, AstUtils},
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
@@ -184,9 +184,17 @@ impl<'tc> ResolutionPass<'tc> {
                 self.make_term_from_ast_unary_expr(node.with_body(unary_expr))?
             }
 
+            ast::Expr::Import(import_expr) => {
+                let source_id =
+                    self.source_map().get_id_by_path(&import_expr.data.resolved_path).unwrap();
+                self.current_source_info().with_source_id(source_id, || {
+                    ResolutionPass::new(self.sem_env()).pass_source()
+                })?;
+                self.new_void_term()
+            }
+
             // No-ops (not supported or handled earlier):
-            ast::Expr::Import(_)
-            | ast::Expr::TraitDef(_)
+            ast::Expr::TraitDef(_)
             | ast::Expr::MergeDeclaration(_)
             | ast::Expr::ImplDef(_)
             | ast::Expr::TraitImpl(_) => self.new_void_term(),

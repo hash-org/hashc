@@ -13,7 +13,8 @@ use super::super::{
     tys::TyStore,
 };
 use crate::{
-    atom_info::AtomInfoStore, control::MatchCasesStore, directives::AppliedDirectivesStore,
+    ast_info::AstInfo, atom_info::AtomInfoStore, control::MatchCasesStore,
+    directives::AppliedDirectivesStore,
 };
 
 /// This macro creates the `Stores` struct, as well as accompanying creation and
@@ -70,6 +71,7 @@ stores! {
     ty: TyStore,
     match_cases: MatchCasesStore,
     atom_info: AtomInfoStore,
+    ast_info: AstInfo,
     directives: AppliedDirectivesStore,
 }
 

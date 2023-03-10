@@ -9,12 +9,17 @@ use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_tir::utils::{common::CommonUtils, traversing::Atom};
 use hash_typecheck::{
     errors::{TcError, TcResult},
+    inference::FnInferMode,
     AccessToTypechecking,
 };
 
 use super::ast_utils::AstPass;
 use crate::{
-    environment::sem_env::{AccessToSemEnv, SemEnv},
+    diagnostics::error::SemanticResult,
+    environment::{
+        analysis_progress::AnalysisStage,
+        sem_env::{AccessToSemEnv, SemEnv},
+    },
     impl_access_to_sem_env,
     ops::common::CommonOps,
 };
@@ -45,7 +50,9 @@ impl InferencePass<'_> {
         }
 
         // If we have holes, error
-        if let Some(subject) = subject && let Some(hole) = subject_has_holes(subject) {
+        if let Some(subject) = subject && let Some(hole) = subject_has_holes(subject)
+            && self.get_current_progress() == AnalysisStage::BodyInference
+        {
             self.add_error(self.convert_tc_error(TcError::NeedMoreTypeAnnotationsToInfer {
                 atom: hole,
             }));
@@ -81,10 +88,33 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // Infer the whole module
         let _ = self.infer_fully(
             self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap(),
-            |mod_def_id| self.inference_ops().infer_mod_def(mod_def_id).map(|()| mod_def_id),
+            |mod_def_id| {
+                self.inference_ops()
+                    .infer_mod_def(
+                        mod_def_id,
+                        match self.get_current_progress() {
+                            AnalysisStage::HeaderInference => FnInferMode::Header,
+                            AnalysisStage::BodyInference => FnInferMode::Body,
+                            _ => unreachable!(),
+                        },
+                    )
+                    .map(|()| mod_def_id)
+            },
             |mod_def_id| self.substitution_ops().mod_def_has_holes(mod_def_id),
         )?;
         // Mod def is already registered in the ast info
         Ok(())
+    }
+
+    fn pre_pass(&self) -> SemanticResult<bool> {
+        if self.get_current_progress() == AnalysisStage::Resolution {
+            self.set_current_progress(AnalysisStage::HeaderInference);
+            Ok(true)
+        } else if self.get_current_progress() == AnalysisStage::HeaderInference {
+            self.set_current_progress(AnalysisStage::BodyInference);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }

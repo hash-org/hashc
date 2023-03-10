@@ -47,6 +47,10 @@ impl<'tc> Visitor<'tc> {
         ResolutionPass::new(self.sem_env).pass_source()?;
 
         // Infer all types in the source.
+        //
+        // This needs to be run twice, once to infer the headers of the
+        // definitions, and once to infer their bodies.
+        InferencePass::new(self.sem_env).pass_source()?;
         InferencePass::new(self.sem_env).pass_source()?;
 
         // Potentially evaluate terms

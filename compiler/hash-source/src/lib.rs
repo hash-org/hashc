@@ -102,6 +102,11 @@ impl SourceId {
         self._raw >> 31 == 0
     }
 
+    /// Check whether the [SourceId] points to the prelude.
+    pub fn is_prelude(&self) -> bool {
+        self._raw == SOURCE_KIND_MASK
+    }
+
     /// Get the actual value of the [SourceId].
     #[inline]
     fn value(&self) -> u32 {

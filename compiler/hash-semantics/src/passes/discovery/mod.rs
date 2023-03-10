@@ -10,7 +10,14 @@ use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
 use super::ast_utils::AstPass;
-use crate::environment::sem_env::{AccessToSemEnv, SemEnv};
+use crate::{
+    diagnostics::error::SemanticResult,
+    environment::{
+        analysis_progress::AnalysisStage,
+        sem_env::{AccessToSemEnv, SemEnv},
+    },
+    ops::common::CommonOps,
+};
 
 pub mod defs;
 pub mod params;
@@ -38,18 +45,21 @@ impl<'tc> AccessToSemEnv for DiscoveryPass<'tc> {
 }
 
 impl<'tc> AstPass for DiscoveryPass<'tc> {
-    fn pass_interactive(
-        &self,
-        node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> crate::diagnostics::error::SemanticResult<()> {
+    fn pass_interactive(&self, node: ast::AstNodeRef<ast::BodyBlock>) -> SemanticResult<()> {
         self.visit_body_block(node)
     }
 
-    fn pass_module(
-        &self,
-        node: ast::AstNodeRef<ast::Module>,
-    ) -> crate::diagnostics::error::SemanticResult<()> {
+    fn pass_module(&self, node: ast::AstNodeRef<ast::Module>) -> SemanticResult<()> {
         self.visit_module(node)
+    }
+
+    fn pre_pass(&self) -> SemanticResult<bool> {
+        if self.get_current_progress() == AnalysisStage::None {
+            self.set_current_progress(AnalysisStage::Discovery);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 

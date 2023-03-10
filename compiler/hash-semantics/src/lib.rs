@@ -15,8 +15,10 @@
 
 use diagnostics::error::SemanticError;
 use environment::{
-    ast_info::AstInfo,
-    sem_env::{AccessToSemEnv, DiagnosticsStore, EntryPoint, PreludeOrUnset, SemEnv},
+    analysis_progress::AnalysisProgress,
+    sem_env::{
+        AccessToSemEnv, DiagnosticsStore, EntryPoint, PreludeOrUnset, RootModOrUnset, SemEnv,
+    },
 };
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},
@@ -94,13 +96,14 @@ pub struct SemanticStorage {
     /// Diagnostics store.
     pub diagnostics: DiagnosticsStore,
 
-    /// AST information mapped to TIR terms.
-    pub ast_info: AstInfo,
+    /// Progress of analysis
+    pub analysis_progress: AnalysisProgress,
 
     // Bootstrapping:
     pub prelude_or_unset: PreludeOrUnset,
     pub primitives_or_unset: DefinedPrimitivesOrUnset,
     pub intrinsics_or_unset: DefinedIntrinsicsOrUnset,
+    pub root_mod_or_unset: RootModOrUnset,
     pub entry_point: EntryPoint,
 }
 
@@ -110,11 +113,12 @@ impl SemanticStorage {
             stores: Stores::new(),
             context: Context::new(),
             diagnostics: DiagnosticsStore::new(),
-            ast_info: AstInfo::new(),
             prelude_or_unset: OnceCell::new(),
             primitives_or_unset: OnceCell::new(),
             entry_point: EntryPoint::new(),
             intrinsics_or_unset: OnceCell::new(),
+            root_mod_or_unset: OnceCell::new(),
+            analysis_progress: AnalysisProgress::new(),
         }
     }
 }
@@ -132,7 +136,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let SemanticAnalysisCtx { workspace, semantic_storage, flags, target } = ctx.data();
-        let current_source_info = CurrentSourceInfo { source_id: entry_point };
+        let current_source_info = CurrentSourceInfo::new(entry_point);
 
         // Construct the core TIR environment.
         let env = Env::new(
@@ -148,11 +152,12 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
         let sem_env = SemEnv::new(
             &env,
             &semantic_storage.diagnostics,
-            &semantic_storage.ast_info,
             &semantic_storage.entry_point,
             &semantic_storage.prelude_or_unset,
             &semantic_storage.primitives_or_unset,
             &semantic_storage.intrinsics_or_unset,
+            &semantic_storage.root_mod_or_unset,
+            &semantic_storage.analysis_progress,
             &flags,
         );
 

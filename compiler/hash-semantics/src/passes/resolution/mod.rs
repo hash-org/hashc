@@ -15,8 +15,12 @@ use hash_tir::environment::env::AccessToEnv;
 use self::scoping::{ContextKind, Scoping};
 use super::ast_utils::AstPass;
 use crate::{
-    environment::sem_env::{AccessToSemEnv, SemEnv},
-    ops::bootstrap::BootstrapOps,
+    diagnostics::error::SemanticResult,
+    environment::{
+        analysis_progress::AnalysisStage,
+        sem_env::{AccessToSemEnv, SemEnv},
+    },
+    ops::{bootstrap::BootstrapOps, common::CommonOps},
 };
 
 pub mod defs;
@@ -60,10 +64,7 @@ impl AccessToSemEnv for ResolutionPass<'_> {
 }
 
 impl<'tc> AstPass for ResolutionPass<'tc> {
-    fn pass_interactive(
-        &self,
-        node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> crate::diagnostics::error::SemanticResult<()> {
+    fn pass_interactive(&self, node: ast::AstNodeRef<ast::BodyBlock>) -> SemanticResult<()> {
         let root_mod = self.bootstrap();
         self.scoping().add_scope(root_mod.into(), ContextKind::Environment);
         self.scoping().add_mod_members(root_mod);
@@ -78,10 +79,7 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         Ok(())
     }
 
-    fn pass_module(
-        &self,
-        node: ast::AstNodeRef<ast::Module>,
-    ) -> crate::diagnostics::error::SemanticResult<()> {
+    fn pass_module(&self, node: ast::AstNodeRef<ast::Module>) -> SemanticResult<()> {
         let root_mod = self.bootstrap();
         self.scoping().add_scope(root_mod.into(), ContextKind::Environment);
         self.scoping().add_mod_members(root_mod);
@@ -94,12 +92,21 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         let mod_def_id = self.resolve_ast_module_inner_terms(node)?;
 
         if let Some(ModuleKind::Prelude) =
-            self.source_map().module_kind_by_id(self.current_source_info().source_id)
+            self.source_map().module_kind_by_id(self.current_source_info().source_id())
         {
             let _ = self.prelude_or_unset().set(mod_def_id);
         }
 
         Ok(())
+    }
+
+    fn pre_pass(&self) -> SemanticResult<bool> {
+        if self.get_current_progress() < AnalysisStage::Resolution {
+            self.set_current_progress(AnalysisStage::Resolution);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 

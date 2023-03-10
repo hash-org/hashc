@@ -347,7 +347,7 @@ impl<'tc> ResolutionPass<'tc> {
                             unreachable!("Can never have a constructor starting from a module")
                         }
                     },
-                    None => todo!(),
+                    None => unreachable!(),
                 }
             }
             BindingKind::Param(_, _) | BindingKind::StackMember(_, _, _) => {
