@@ -21,14 +21,17 @@ pub trait CommonOps: AccessToSemEnv {
         }
     }
 
+    /// Get a reference to the [`AstInfo`] store.
     fn ast_info(&self) -> &AstInfo {
         self.stores().ast_info()
     }
 
+    /// Set the progress of analysis for the current source.
     fn set_current_progress(&self, stage: AnalysisStage) {
         self.analysis_progress().set(self.current_source_info().source_id(), stage);
     }
 
+    /// Get the progress of analysis for the current source.
     fn get_current_progress(&self) -> AnalysisStage {
         self.analysis_progress().get(self.current_source_info().source_id())
     }

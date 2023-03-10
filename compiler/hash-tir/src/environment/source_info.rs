@@ -1,8 +1,9 @@
+//! Information about the current source being analysed.
 use std::cell::Cell;
 
-// @@Docs
 use hash_source::SourceId;
 
+/// Stores the source ID of the current source being analysed.
 #[derive(Debug, Clone)]
 pub struct CurrentSourceInfo {
     pub source_id: Cell<SourceId>,
@@ -13,10 +14,12 @@ impl CurrentSourceInfo {
         Self { source_id: Cell::new(source_id) }
     }
 
+    /// Set the current source id.
     pub fn set_source_id(&self, source_id: SourceId) {
         self.source_id.set(source_id);
     }
 
+    /// Execute the given function with the given source id.
     pub fn with_source_id<F, R>(&self, source_id: SourceId, f: F) -> R
     where
         F: FnOnce() -> R,
@@ -28,6 +31,7 @@ impl CurrentSourceInfo {
         result
     }
 
+    /// Get the current source id.
     pub fn source_id(&self) -> SourceId {
         self.source_id.get()
     }

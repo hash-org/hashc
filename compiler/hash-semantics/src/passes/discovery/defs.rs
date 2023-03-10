@@ -339,6 +339,12 @@ impl<'tc> DiscoveryPass<'tc> {
                         ast_info.mod_defs().get_data_by_node(def_node_id).map(|nested_mod_def_id| {
                             ModMemberData { name, value: ModMemberValue::Mod(nested_mod_def_id) }
                         })
+
+                        // If the above `get_data_by_node` returns `None`, do
+                        // nothing because there might have been a recoverable
+                        // error in a declaration which could have led to no
+                        // `AstInfo` being recorded, for example for
+                        // `TraitsNotSupported` error.
                     }
                 }
             },
