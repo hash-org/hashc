@@ -341,7 +341,7 @@ pub enum IrDumpMode {
 }
 
 /// All settings related to semantic analysis and typechecking.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SemanticSettings {
     /// Whether the compiler should dump the generated TIR (typed intermediate
     /// representation).
@@ -349,6 +349,15 @@ pub struct SemanticSettings {
 
     /// Whether the compiler should evaluate the generated TIR
     pub eval_tir: bool,
+
+    /// Whether the compiler should monomorphise the generated TIR
+    pub mono_tir: bool,
+}
+
+impl Default for SemanticSettings {
+    fn default() -> Self {
+        Self { dump_tir: false, eval_tir: false, mono_tir: true }
+    }
 }
 
 /// All settings that are related to compiler backend and code generation.

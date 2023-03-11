@@ -131,6 +131,10 @@ impl<'tc> AccessToTypechecking for SemEnv<'tc> {
     fn entry_point(&self) -> &EntryPointState<FnDefId> {
         self.entry_point
     }
+
+    fn should_monomorphise(&self) -> bool {
+        self.flags.mono_tir
+    }
 }
 
 /// A reference to [`SemEnv`] alongside a value.
@@ -180,6 +184,10 @@ impl<'tc, T> AccessToTypechecking for WithSemEnv<'tc, T> {
 
     fn entry_point(&self) -> &EntryPointState<FnDefId> {
         AccessToSemEnv::entry_point(self)
+    }
+
+    fn should_monomorphise(&self) -> bool {
+        self.sem_env.should_monomorphise()
     }
 }
 
@@ -260,6 +268,10 @@ macro_rules! impl_access_to_sem_env {
                 &self,
             ) -> &hash_source::entry_point::EntryPointState<hash_tir::fns::FnDefId> {
                 $crate::environment::sem_env::AccessToSemEnv::entry_point(self)
+            }
+
+            fn should_monomorphise(&self) -> bool {
+                self.sem_env().should_monomorphise()
             }
         }
     };

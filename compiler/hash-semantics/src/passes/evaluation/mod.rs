@@ -9,7 +9,7 @@ use hash_source::ModuleKind;
 use hash_tir::{
     environment::env::AccessToEnv, fns::FnCallTerm, terms::TermId, utils::common::CommonUtils,
 };
-use hash_typecheck::AccessToTypechecking;
+use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
 use hash_utils::stream_less_writeln;
 
 use super::ast_utils::AstPass;
@@ -74,7 +74,10 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         }
 
         // Interactive mode is always evaluated.
-        let result = self.normalisation_ops().normalise(term.into())?;
+        let result = self
+            .norm_ops()
+            .with_mode(NormalisationMode::Full { eval_impure_fns: true })
+            .normalise(term.into())?;
         stream_less_writeln!("{}", self.env().with(result));
 
         Ok(())
@@ -95,7 +98,10 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
 
         if self.flags().eval_tir {
             if let Some(term) = main_call_term {
-                let _ = self.normalisation_ops().normalise(term.into())?;
+                let _ = self
+                    .norm_ops()
+                    .with_mode(NormalisationMode::Full { eval_impure_fns: true })
+                    .normalise(term.into())?;
             }
         }
 

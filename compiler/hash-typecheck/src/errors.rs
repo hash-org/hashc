@@ -139,6 +139,9 @@ pub enum TcError {
     /// Invalid range pattern literal
     InvalidRangePatternLiteral { location: SourceLocation },
 
+    /// Cannot use the given term in a type position.
+    CannotUseInTyPos { location: LocationTarget, inferred_ty: TyId },
+
     /// An error related to argument/parameter matching.
     #[from]
     ParamMatch(ParamError),
@@ -543,6 +546,20 @@ impl<'tc> TcErrorReporter<'tc> {
                 }
                 if let Some(location) = locations.get_location(got_len) {
                     error.add_labelled_span(location, "got array length");
+                }
+            }
+            TcError::CannotUseInTyPos { location, inferred_ty } => {
+                let formatted_ty = self.env().with(*inferred_ty).to_string();
+                let error = reporter.error().code(HashErrorCode::DisallowedType).title(format!(
+                    "cannot use a value of type `{formatted_ty}` in type position",
+                ));
+                if let Some(location) = locations.get_location(location) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "value of type `{formatted_ty}` used in type position. Only values of type `Type` can be used in type position",
+                        )
+                    );
                 }
             }
         }
