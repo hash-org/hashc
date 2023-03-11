@@ -3,7 +3,7 @@
 use derive_more::{Constructor, Deref};
 use hash_tir::{
     args::{ArgData, ArgsId},
-    data::DataTy,
+    data::{DataDefCtors, DataTy},
     environment::context::ParamOrigin,
     fns::{FnBody, FnTy},
     lits::Lit,
@@ -16,7 +16,7 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey};
 
 use crate::{
     errors::{TcError, TcResult},
@@ -107,9 +107,6 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
         let target = self.get_ty(target_id);
 
         let result = match (src, target) {
-            (Ty::Data(data_ty), _) if data_ty.data_def == self.primitives().never() => {
-                Uni::ok(target_id)
-            }
             (Ty::Hole(a), Ty::Hole(b)) => {
                 if a == b {
                     // No-op
@@ -127,6 +124,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 let sub = Sub::from_pairs([(b.0, self.new_term(src_id))]);
                 Uni::ok_with(sub, src_id)
             }
+            (_, _) if self.is_uninhabitable(src_id)? => Uni::ok(target_id),
 
             // @@Todo: eval fully
             (Ty::Eval(t1), Ty::Eval(t2)) => {
@@ -444,5 +442,23 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     pub fn terms_are_equal(&self, t1: TermId, t2: TermId) -> bool {
         self.unification_ops().unify_terms(t1, t2).map(|result| result.sub.is_empty()).ok()
             == Some(true)
+    }
+
+    /// Determine whether the given type is uninhabitable.
+    ///
+    /// This does not look too deeply into the type, so it may return false
+    /// for types that are actually uninhabitable.
+    pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
+        let ty = self.normalisation_ops().to_ty(self.normalisation_ops().normalise(ty.into())?);
+        match self.get_ty(ty) {
+            Ty::Data(data_ty) => {
+                let data_def = self.stores().data_def().get(data_ty.data_def);
+                match data_def.ctors {
+                    DataDefCtors::Defined(ctors) => Ok(ctors.len() == 0),
+                    DataDefCtors::Primitive(_) => Ok(false),
+                }
+            }
+            _ => Ok(false),
+        }
     }
 }

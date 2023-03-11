@@ -1017,7 +1017,22 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                                 .map(|i| self.generalise_term_and_ty_inference(i)),
                             _ => Ok(Inference(body, ty)),
                         },
-                        _ => self.infer_term(body, ty),
+                        _ => {
+                            let inferred_body = self.infer_term(body, ty)?;
+
+                            // Inferring the body might re-set the function type, so we need to
+                            // re-get it.
+                            let return_ty_set_from_return_statement =
+                                self.get_fn_def(fn_def_id).ty.return_ty;
+
+                            Ok(Inference(
+                                inferred_body.0,
+                                self.check_by_unify(
+                                    inferred_body.1,
+                                    return_ty_set_from_return_statement,
+                                )?,
+                            ))
+                        }
                     };
 
                     // Ensure that the return types match
@@ -1092,15 +1107,30 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         return_term: &ReturnTerm,
         annotation_ty: TyId,
     ) -> TcResult<Inference<ReturnTerm, TyId>> {
-        let closest_fn_def_return_ty = self
-            .context_utils()
-            .get_first_fn_def_in_scope()
-            .map(|def| self.stores().fn_def().map_fast(def, |def| def.ty.return_ty))
-            .unwrap_or_else(|| self.new_ty_hole());
-        let _ = self.infer_term(return_term.expression, closest_fn_def_return_ty)?;
+        let closest_fn_def = self.context_utils().get_first_fn_def_in_scope();
+        match closest_fn_def {
+            Some(closest_fn_def) => {
+                // Get the closest fn def in scope, and unify the
+                // inferred expression type with its return type.
+                // If successful, modify the fn def to set the return type to the inferred type.
+                let closest_fn_def_return_ty =
+                    self.stores().fn_def().map_fast(closest_fn_def, |def| def.ty.return_ty);
 
-        let inferred_ty = self.new_never_ty();
-        Ok(Inference(*return_term, self.check_by_unify(inferred_ty, annotation_ty)?))
+                let Inference(inferred_return_term, inferred_return_ty) =
+                    self.infer_term(return_term.expression, closest_fn_def_return_ty)?;
+
+                self.stores()
+                    .fn_def()
+                    .modify_fast(closest_fn_def, |def| def.ty.return_ty = inferred_return_ty);
+
+                let inferred_ty = self.new_never_ty();
+                Ok(Inference(
+                    ReturnTerm { expression: inferred_return_term },
+                    self.check_by_unify(inferred_ty, annotation_ty)?,
+                ))
+            }
+            None => panic!("no fn def found in scope for return term"),
+        }
     }
 
     /// Infer the type of a deref term, and return it.
@@ -1242,16 +1272,39 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     self.infer_mod_def(local_mod_def, FnInferMode::Body)?;
                 }
 
+                // Keep track of statements diverging, so we can infer the appropirate return
+                // type.
+                let mut diverges = false;
+
                 let mut inferred_statements = vec![];
                 for &statement in statements {
-                    inferred_statements.push(self.infer_term(statement, self.new_ty_hole())?.0);
+                    let Inference(inferred_statement, inferred_statement_ty) =
+                        self.infer_term(statement, self.new_ty_hole())?;
+                    inferred_statements.push(inferred_statement);
+
+                    // If the statement diverges, we can already exit
+                    if self.unification_ops().is_uninhabitable(inferred_statement_ty)? {
+                        diverges = true;
+                        break;
+                    }
                 }
 
-                // Infer the return value
-                let Inference(return_term, return_ty) =
-                    self.infer_term(block_term.return_value, annotation_ty)?;
-                let sub = self.substitution_ops().create_sub_from_current_stack_members();
-                let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
+                let (return_term, return_ty) = if diverges {
+                    // If it diverges, we can just infer the return type as `never`.
+                    self.new_never_ty();
+                    (block_term.return_value, self.new_never_ty())
+                } else {
+                    // Infer the return value
+                    let Inference(return_term, return_ty) =
+                        self.infer_term(block_term.return_value, annotation_ty)?;
+
+                    let sub = self.substitution_ops().create_sub_from_current_stack_members();
+                    let subbed_return_ty = self.substitution_ops().apply_sub_to_ty(return_ty, &sub);
+                    let subbed_return_value =
+                        self.substitution_ops().apply_sub_to_term(return_term, &sub);
+
+                    (subbed_return_value, subbed_return_ty)
+                };
 
                 Ok(Inference(
                     BlockTerm {
@@ -1259,7 +1312,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         return_value: return_term,
                         stack_id: block_term.stack_id,
                     },
-                    subbed_return_ty,
+                    self.check_by_unify(return_ty, annotation_ty)?,
                 ))
             })
         })
@@ -1519,7 +1572,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let Inference(inferred_body, inferred_body_ty) =
                     self.infer_term(case_data.value, normalised_annotation_ty)?;
 
-                unified_ty = self.check_by_unify(inferred_body_ty, unified_ty)?;
+                let new_unified_ty = self.check_by_unify(inferred_body_ty, unified_ty)?;
+                if !self.unification_ops().is_uninhabitable(new_unified_ty)? {
+                    unified_ty = new_unified_ty;
+                }
 
                 inferred_arms.push(MatchCase {
                     bind_pat: inferred_pat,
