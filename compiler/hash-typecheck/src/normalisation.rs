@@ -388,7 +388,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 let _ = self.eval_and_record(statement.into(), &st)?;
             }
 
-            let sub = self.sub_ops().create_sub_from_current_stack_members();
+            let sub = self.sub_ops().create_sub_from_current_scope();
             let result_term = self.eval_and_record(block_term.return_value.into(), &st)?;
             let subbed_result_term = self.sub_ops().apply_sub_to_atom(result_term, &sub);
 
@@ -708,19 +708,21 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             {
                 match fn_def.body {
                     FnBody::Defined(defined_fn_def) => {
-                        // Make a substitution from the arguments to the parameters:
-                        let sub = self
-                            .sub_ops()
-                            .create_sub_from_args_of_params(fn_call.args, fn_def.ty.params);
+                        return self.context().enter_scope(fn_def_id.into(), || {
+                            // Add argument bindings:
+                            self.context_utils().add_arg_bindings(fn_def.ty.params, fn_call.args);
 
-                        // Apply substitution to body:
-                        let result = self.sub_ops().apply_sub_to_term(defined_fn_def, &sub);
-
-                        // Evaluate result:
-                        return match self.eval(result.into()) {
-                            Err(Signal::Return(result)) | Ok(result) => evaluation_to(result),
-                            Err(e) => Err(e),
-                        };
+                            // Evaluate result:
+                            match self.eval(defined_fn_def.into()) {
+                                Err(Signal::Return(result)) | Ok(result) => {
+                                    // Substitute remaining bindings:
+                                    let sub = self.sub_ops().create_sub_from_current_scope();
+                                    let result = self.sub_ops().apply_sub_to_atom(result, &sub);
+                                    evaluation_to(result)
+                                }
+                                Err(e) => Err(e),
+                            }
+                        });
                     }
 
                     FnBody::Intrinsic(intrinsic_id) => {

@@ -1342,7 +1342,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let Inference(return_term, return_ty) =
                         self.infer_term(block_term.return_value, annotation_ty)?;
 
-                    let sub = self.sub_ops().create_sub_from_current_stack_members();
+                    let sub = self.sub_ops().create_sub_from_current_scope();
                     let subbed_return_ty = self.sub_ops().apply_sub_to_ty(return_ty, &sub);
                     let subbed_return_value = self.sub_ops().apply_sub_to_term(return_term, &sub);
 

@@ -243,9 +243,10 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     fn try_use_term_as_integer_lit<L: TryFrom<BigInt>>(&self, term: TermId) -> Option<L> {
         match self.get_term(term) {
             Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),
-            Term::Var(sym) => {
-                self.try_use_term_as_integer_lit(self.context_utils().get_binding_value(sym))
-            }
+            Term::Var(sym) => self
+                .context_utils()
+                .try_get_binding_value(sym)
+                .and_then(|result| self.try_use_term_as_integer_lit(result)),
 
             _ => None,
         }
