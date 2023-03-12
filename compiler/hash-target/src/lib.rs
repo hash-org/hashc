@@ -173,6 +173,11 @@ pub struct Target {
 }
 
 impl Target {
+    /// Get the size of the pointer for the target in bits.
+    pub fn ptr_size(&self) -> Size {
+        Size::from_bits(self.pointer_bit_width as u64)
+    }
+
     /// Find and load the specified target from a target triple.
     ///
     /// @@Future: support a more custom way of loading in target specifications.

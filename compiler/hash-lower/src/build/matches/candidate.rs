@@ -290,7 +290,7 @@ impl<'tcx> Builder<'tcx> {
                     } else {
                         Mutability::Immutable
                     },
-                    source: pair.place.into_place(self.ctx),
+                    source: pair.place.into_place(self.ctx()),
                     name,
 
                     // @@Todo: introduce a way of specifying what the binding
@@ -307,11 +307,12 @@ impl<'tcx> Builder<'tcx> {
                 Ok(())
             }
             Pat::Range(RangePat { start, end, range_end }) => {
-                let ptr_width = self.settings.target().pointer_bit_width / 8;
+                let ptr_width = self.settings.target().ptr_size();
 
                 // get the range and bias of this range pattern from
                 // the `lo`
-                let lo_ty = self.ty_from_tir_ty(self.get_inferred_ty(pair.pat));
+                let id = self.ty_id_from_tir_ty(self.get_inferred_ty(pair.pat));
+                let lo_ty = self.ctx().tys().get(id);
 
                 // The range is the minimum value, maximum value, and the size of
                 // the item that is being compared.
@@ -362,7 +363,7 @@ impl<'tcx> Builder<'tcx> {
                 // get the type of the tuple so that we can read all of the
                 // fields
                 let ty = self.ty_id_from_tir_pat(pair.pat);
-                let adt = self.ctx.map_ty(ty, IrTy::as_adt);
+                let adt = self.ctx().map_ty(ty, IrTy::as_adt);
 
                 candidate.pairs.extend(self.match_pat_fields(data, adt, pair.place));
                 Ok(())
@@ -371,10 +372,10 @@ impl<'tcx> Builder<'tcx> {
                 let ty = self.ty_id_from_tir_pat(pair.pat);
 
                 // If the type is a boolean, then we can't simplify this pattern any further...
-                let adt = self.ctx.map_ty(ty, |ty| match ty {
+                let adt = self.ctx().map_ty(ty, |ty| match ty {
                     IrTy::Bool => None,
                     IrTy::Adt(id) => {
-                        self.ctx.map_adt(*id, |id, adt| adt.flags.is_struct().then_some(id))
+                        self.ctx().map_adt(*id, |id, adt| adt.flags.is_struct().then_some(id))
                     }
                     ty => panic!("unexpected type: {ty:?}"),
                 });
@@ -439,7 +440,7 @@ impl<'tcx> Builder<'tcx> {
         ty: AdtId,
         place: PlaceBuilder,
     ) -> Vec<MatchPair> {
-        self.ctx.adts().map_fast(ty, |adt| {
+        self.ctx().adts().map_fast(ty, |adt| {
             debug_assert!(adt.flags.is_struct() || adt.flags.is_tuple());
 
             let variant = adt.variants.first().unwrap();

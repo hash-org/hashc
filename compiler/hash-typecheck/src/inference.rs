@@ -441,7 +441,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     CONSTANT_MAP.adjust_int(
                         int_lit.underlying.value,
                         int_ty,
-                        self.env().target().pointer_bit_width / 8,
+                        self.env().target().ptr_size(),
                     );
                 }
                 // @@Incomplete: as above

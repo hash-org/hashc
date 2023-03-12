@@ -52,6 +52,24 @@ dbg := <T> => (item: T) -> T => {
     item
 }
 
+// Define this in the prelude
+// Intrinsics: := () => #intrinsics mod {
+//     // Defined in here... but can still 
+//     // be referenced in compiler by for example `self.intrinsics().abort()`
+//     panic := (msg: str) -> ! => {
+//         print(msg);
+//         Intrinsics::abort();
+//     }
+
+//     // Defined in the compiler...
+//     abort: () -> !;
+// }
+
+#lang panic := (msg: str) -> ! => {
+    print(msg);
+    Intrinsics::abort()
+}
+
 
 libc := mod {
     #foreign write := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }

@@ -6,7 +6,7 @@
 use std::cell::Cell;
 
 use hash_source::{entry_point::EntryPointState, SourceId};
-use hash_target::Target;
+use hash_target::{size::Size, Target};
 use hash_utils::store::Store;
 
 use crate::old::{
@@ -72,8 +72,8 @@ pub struct GlobalStorage {
     /// queried.
     pub root_scope: ScopeId,
 
-    /// The pointer width in **bytes** on the current target architecture.
-    pub pointer_width: usize,
+    /// The pointer width of the target platform.
+    pub pointer_width: Size,
 }
 
 impl GlobalStorage {
@@ -83,7 +83,7 @@ impl GlobalStorage {
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Mod));
 
         let gs = Self {
-            pointer_width: target.pointer_bit_width / 8,
+            pointer_width: target.ptr_size(),
             location_store: LocationStore::new(),
             term_store: TermStore::new(),
             term_list_store: TermListStore::new(),

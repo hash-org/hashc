@@ -7,37 +7,27 @@
 
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
-    primitives::AccessToPrimitives,
     utils::PrimitiveUtils,
 };
 use hash_ir::{
     ir::{self, Const},
-    ty::{Instance, IrTy, IrTyId},
+    ty::IrTyId,
 };
-use hash_source::{attributes::Attribute, constant::CONSTANT_MAP};
+use hash_source::constant::CONSTANT_MAP;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
+    data::DataTy,
     environment::env::AccessToEnv,
-    fns::{FnCallTerm, FnDefId, FnTy},
+    fns::{FnCallTerm, FnDefId},
     lits::LitPat,
     pats::PatId,
     terms::{Term, TermId},
     tys::TyId,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{PartialStore, SequenceStore, Store};
+use hash_utils::store::SequenceStore;
 
 use super::Builder;
-use crate::lower_ty::TyLoweringCtx;
-
-/// Convert a [LitTerm] into a [Const] value.
-pub(super) fn constify_lit_pat(term: &LitPat) -> Const {
-    match term {
-        LitPat::Int(lit) => Const::Int(lit.interned_value()),
-        LitPat::Str(lit) => Const::Str(lit.interned_value()),
-        LitPat::Char(lit) => Const::Char(lit.value()),
-    }
-}
 
 /// An auxiliary data structure that represents the underlying [FnCallTerm]
 /// as either being a function call, a binary operation (of various kinds), or
@@ -73,73 +63,30 @@ impl<'tcx> Builder<'tcx> {
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> IrTyId {
         let ty = self.get_inferred_ty(term);
-
-        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
-        ctx.ty_id_from_tir_ty(ty)
-    }
-
-    /// Get the [IrTy] from a given [TermId].
-    pub(super) fn ty_from_tir_term(&mut self, term: TermId) -> IrTy {
-        self.ty_from_tir_ty(self.get_inferred_ty(term))
-    }
-
-    /// Create an [`IrTy::FnDef`] from the given [FnDefId].
-    pub(super) fn ty_id_from_tir_fn_def(&mut self, def: FnDefId) -> IrTyId {
-        let (symbol, ty) = self.stores().fn_def().map_fast(def, |fn_def| (fn_def.name, fn_def.ty));
-
-        let name = self.symbol_name(symbol);
-
-        // Check whether this is an intrinsic item, since we need to handle
-        // them differently
-
-        let source = self.get_location(def).map(|location| location.id);
-        let FnTy { params, return_ty, .. } = ty;
-
-        // Lower the parameters and the return type
-        let param_tys = self.stores().params().get_vec(params);
-
-        let params = self
-            .ctx
-            .tls()
-            .create_from_iter(param_tys.iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
-        let ret_ty = self.ty_id_from_tir_ty(return_ty);
-
-        let mut instance = Instance::new(name, source, params, ret_ty);
-
-        // Lookup any applied directives on the fn_def and add them to the
-        // instance
-        self.stores().directives().map_fast(def.into(), |maybe_directives| {
-            if let Some(directives) = maybe_directives {
-                for directive in directives.iter() {
-                    instance.attributes.add(Attribute::word(directive));
-                }
-            }
-        });
-
-        self.ctx.tys().create(IrTy::FnDef { instance: self.ctx.instances().create(instance) })
-    }
-
-    /// Get the [IrTyId] from a given [TyId]. This function will internally
-    /// cache results of lowering a [TyId] into an [IrTyId] to avoid
-    /// duplicate work.
-    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> IrTyId {
-        let ctx = TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
-        ctx.ty_id_from_tir_ty(ty)
-    }
-
-    /// Get the [IrTy] from a given [TyId].
-    pub(super) fn ty_from_tir_ty(&self, ty_id: TyId) -> IrTy {
-        self.stores().ty().map_fast(ty_id, |ty| {
-            let ctx =
-                TyLoweringCtx { tcx: self.env(), lcx: self.ctx, primitives: self.primitives() };
-            ctx.ty_from_tir_ty(ty_id, ty)
-        })
+        self.ctx.ty_id_from_tir_ty(ty)
     }
 
     /// Get the [IrTyId] for a give [PatId].
     pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> IrTyId {
         let ty = self.get_inferred_ty(pat);
         self.ty_id_from_tir_ty(ty)
+    }
+
+    /// Create an ADT from a defined [DataTy].
+    pub(crate) fn ty_id_from_tir_data(&self, data_ty: DataTy) -> IrTyId {
+        self.ctx.ty_from_tir_data(data_ty)
+    }
+
+    /// Create an function type from the given [FnDefId].
+    pub(super) fn ty_id_from_tir_fn_def(&mut self, fn_def: FnDefId) -> IrTyId {
+        self.ctx.ty_id_from_tir_fn_def(fn_def)
+    }
+
+    /// Get the [IrTyId] from a given [TyId]. This function will internally
+    /// cache results of lowering a [TyId] into an [IrTyId] to avoid
+    /// duplicate work.
+    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> IrTyId {
+        self.ctx.ty_id_from_tir_ty(ty)
     }
 
     /// Function which is used to classify a [FnCallTerm] into a

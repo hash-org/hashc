@@ -22,6 +22,7 @@ use hash_pipeline::{
 };
 use hash_reporting::{diagnostic::AccessToDiagnosticsMut, report::Report};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
+use hash_target::size::Size;
 use import_resolver::ImportResolver;
 use parser::AstGen;
 use source::ParseSource;
@@ -177,7 +178,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // This means we don't have to care about the target pointer width. If
     // we were to cross compile, this would need to have access to the
     // target pointer width.
-    let ptr_byte_width = std::mem::size_of::<usize>();
+    let ptr_byte_width = Size::from_bytes(std::mem::size_of::<usize>());
 
     // Lex the contents of the module or interactive block
     let mut lexer = Lexer::new(&contents, source_id, ptr_byte_width);

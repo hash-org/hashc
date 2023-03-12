@@ -2,7 +2,7 @@
 //! [hash_codegen::traits::builder::BlockBuilderMethods] using the Inkwell
 //! wrapper around LLVM.
 
-use std::{borrow::Cow, iter};
+use std::{borrow::Cow, ffi::CString, iter};
 
 use hash_codegen::{
     abi::FnAbi,
@@ -28,11 +28,12 @@ use inkwell::{
     basic_block::BasicBlock,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
     values::{
-        AggregateValueEnum, AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue,
-        BasicValueEnum, FunctionValue, InstructionValue, PhiValue, UnnamedAddress,
+        AggregateValueEnum, AnyValue, AnyValueEnum, AsValueRef, BasicMetadataValueEnum, BasicValue,
+        BasicValueEnum, FunctionValue, InstructionValue, IntMathValue, IntValue, PhiValue,
+        UnnamedAddress,
     },
 };
-use llvm_sys::core::LLVMGetTypeKind;
+use llvm_sys::core::{LLVMBuildExactUDiv, LLVMGetTypeKind};
 use rayon::iter::Either;
 
 use super::{
@@ -326,12 +327,24 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
     }
 
     fn exactudiv(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
-        let _lhs = lhs.into_int_value();
-        let _rhs = rhs.into_int_value();
+        let lhs = lhs.into_int_value();
+        let rhs = rhs.into_int_value();
 
         // @@Todo: patch inkwell to allow for exact unsigned division
-        // self.builder.build_int_exact_unsigned_div(lhs, rhs, "").into()
-        panic!("inkwell doesn't have the ability to emit `exactudiv` yet")
+
+        // create an empty c_str
+        let c_string = CString::new("").unwrap();
+
+        let value = unsafe {
+            LLVMBuildExactUDiv(
+                self.builder.as_mut_ptr(),
+                lhs.as_value_ref(),
+                rhs.as_value_ref(),
+                c_string.as_ptr(),
+            )
+        };
+
+        unsafe { IntValue::new(value) }.into()
     }
 
     fn sdiv(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -525,7 +538,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         lhs: Self::Value,
         rhs: Self::Value,
     ) -> (Self::Value, Self::Value) {
-        let ptr_width = self.ctx.settings().target().pointer_bit_width;
+        let ptr_width = self.ctx.settings().target().ptr_size();
 
         let int_ty = self.ir_ctx().map_ty(ty, |ty| match ty {
             IrTy::Int(ty @ SIntTy::ISize) => IntTy::Int(ty.normalise(ptr_width)),
@@ -840,7 +853,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
 
                 // Check here if the need to load it in a as global value, i.e.
                 // a constant...
-                // @@Todo: need to patch inkwell to be able to check if things are
+                // @@PatchInkwell: need to patch inkwell to be able to check if things are
                 // global variables, and constant.
                 //
                 // if let Some(global) = self.module.get_global(name) {

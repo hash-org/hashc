@@ -119,6 +119,10 @@ pub struct Instance {
     /// id as the disambiguator.
     pub source: Option<SourceId>,
 
+    /// If the instance refers to an intrinsic function, and will be converted
+    /// into possibly some different code.
+    pub is_intrinsic: bool,
+
     /// If the function instance originates from a generic function.
     generic_origin: bool,
 }
@@ -131,10 +135,9 @@ impl Instance {
         params: IrTyListId,
         ret_ty: IrTyId,
     ) -> Self {
-        // @@Todo: deal with generic functions being properly instantiated
-        // here.
         Self {
             name,
+            is_intrinsic: false,
             params,
             source,
             ret_ty,
@@ -151,6 +154,11 @@ impl Instance {
     /// Check if the instance is of a generic origin.
     pub fn is_generic_origin(&self) -> bool {
         self.generic_origin
+    }
+
+    /// Check if the [Instance] is an intrinsic function.
+    pub fn is_intrinsic(&self) -> bool {
+        self.is_intrinsic
     }
 }
 
@@ -271,17 +279,6 @@ pub enum IrTy {
 }
 
 impl IrTy {
-    /// Create a pointer to a unit item. This is used as the
-    /// "opaque" pointer type in order to just represent a
-    /// pointer type.
-    pub fn unit_ptr(ctx: &IrCtx) -> IrTyId {
-        ctx.tys().create(IrTy::Ref(
-            ctx.tys().common_tys.unit,
-            Mutability::Immutable,
-            RefKind::Normal,
-        ))
-    }
-
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
     pub fn tuple(ctx: &IrCtx, tys: &[IrTyId]) -> Self {
         let variants = index_vec![AdtVariant {
@@ -297,6 +294,11 @@ impl IrTy {
         let adt_id = ctx.adts().create(adt);
 
         Self::Adt(adt_id)
+    }
+
+    /// Create a reference type to the provided [IrTy].
+    pub fn make_ref(ty: IrTy, ctx: &IrCtx) -> Self {
+        Self::Ref(ctx.tys().create(ty), Mutability::Immutable, RefKind::Normal)
     }
 
     /// Check if the [IrTy] is an integral type.
@@ -358,6 +360,15 @@ impl IrTy {
         match self {
             Self::Adt(adt_id) => *adt_id,
             ty => panic!("expected ADT, but got {ty:?}"),
+        }
+    }
+
+    /// Assuming that the [IrTy] is an ADT, return the [AdtId]
+    /// of the underlying ADT.
+    pub fn as_instance(&self) -> InstanceId {
+        match self {
+            Self::FnDef { instance } => *instance,
+            ty => panic!("expected fn def, but got {ty:?}"),
         }
     }
 
@@ -455,6 +466,17 @@ impl IrTy {
             | IrTy::Array { .. }
             | IrTy::FnDef { .. }
             | IrTy::Fn { .. } => ctx.tys().common_tys.u8,
+        }
+    }
+
+    /// Attempt to compute the type of an element from an [`IrTy::Slice`] or
+    /// [`IrTy::Array`]. If the type is not a slice or array, then `None` is
+    /// returned.
+    pub fn element_ty(&self, ctx: &IrCtx) -> Option<IrTyId> {
+        match self {
+            IrTy::Slice(ty) | IrTy::Array { ty, .. } => Some(*ty),
+            IrTy::Ref(ty, _, _) => ctx.tys().map_fast(*ty, |ty| ty.element_ty(ctx)),
+            _ => None,
         }
     }
 }
@@ -827,8 +849,11 @@ macro_rules! create_common_ty_table {
             /// A string, i.e. `&str`.
             pub str: IrTyId,
 
-            /// A general pointer to bytes, i.e. `&[u8]`.
+            /// A general pointer to bytes, i.e. `&u8`.
             pub ptr: IrTyId,
+
+            /// A general pointer to bytes, i.e. `&raw u8`.
+            pub raw_ptr: IrTyId,
 
             /// A void pointer, i.e. `&()`.
             pub void_ptr: IrTyId,
@@ -840,6 +865,7 @@ macro_rules! create_common_ty_table {
                     $($name: data.create($value), )*
                     byte_slice: IrTyId::from_index_unchecked(0),
                     ptr: IrTyId::from_index_unchecked(0),
+                    raw_ptr: IrTyId::from_index_unchecked(0),
                     void_ptr: IrTyId::from_index_unchecked(0),
                     str: IrTyId::from_index_unchecked(0),
                 };
@@ -849,12 +875,14 @@ macro_rules! create_common_ty_table {
                 // they are defined...
                 let byte_slice = data.create(IrTy::Slice(table.u8));
                 let ptr = data.create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Normal));
+                let raw_ptr = data.create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Raw));
                 let void_ptr = data.create(IrTy::Ref(table.unit, Mutability::Immutable, RefKind::Raw));
                 let str = data.create(IrTy::Ref(table.unsized_str, Mutability::Immutable, RefKind::Normal));
 
                 CommonIrTys {
                     byte_slice,
                     ptr,
+                    raw_ptr,
                     void_ptr,
                     str,
                     ..table
@@ -1163,7 +1191,7 @@ impl ToIrTy for ScalarKind {
             }
             ScalarKind::Float { kind: FloatTy::F32 } => ctx.tys().common_tys.f32,
             ScalarKind::Float { kind: FloatTy::F64 } => ctx.tys().common_tys.f64,
-            ScalarKind::Pointer(_) => IrTy::unit_ptr(ctx),
+            ScalarKind::Pointer(_) => ctx.tys().common_tys.void_ptr,
         }
     }
 }

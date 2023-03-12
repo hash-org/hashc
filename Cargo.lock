@@ -556,6 +556,7 @@ version = "0.1.0"
 dependencies = [
  "hash-reporting",
  "hash-source",
+ "hash-target",
  "hash-token",
  "num-bigint",
  "num-traits",
@@ -609,6 +610,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-target",
  "hash-token",
  "hash-utils",
  "num-bigint",

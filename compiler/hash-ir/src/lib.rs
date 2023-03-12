@@ -13,21 +13,24 @@ pub mod basic_blocks;
 pub mod cast;
 pub mod intrinsics;
 pub mod ir;
+pub mod lang_items;
 pub mod traversal;
 pub mod ty;
 pub mod visitor;
 pub mod write;
 
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell, RefMut};
 
 use hash_source::entry_point::EntryPointState;
 use hash_tir::{
     data::{DataDefId, DataTy},
+    fns::FnDefId,
     tys::TyId,
 };
 use hash_utils::store::{FxHashMap, SequenceStore, SequenceStoreKey, Store};
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
+use lang_items::LangItems;
 use ty::{
     AdtData, AdtId, AdtStore, Instance, InstanceId, InstanceStore, IrTy, IrTyId, TyListStore,
     TyStore,
@@ -90,6 +93,9 @@ pub enum TyCacheEntry {
     /// definition, this means that they are either all known and resolved
     /// (as in defaults) or that the data type has no type arguments at all.
     MonoData(DataDefId),
+
+    /// A function definition that was lowered into a function type instance.
+    FnDef(FnDefId),
 }
 
 impl From<TyId> for TyCacheEntry {
@@ -105,6 +111,12 @@ impl From<DataTy> for TyCacheEntry {
         } else {
             Self::Data(data)
         }
+    }
+}
+
+impl From<FnDefId> for TyCacheEntry {
+    fn from(fn_def: FnDefId) -> Self {
+        Self::FnDef(fn_def)
     }
 }
 
@@ -133,11 +145,15 @@ pub struct IrCtx {
     instances: ty::InstanceStore,
 
     /// Cache for the [IrTyId]s that are created from [TyId]s.
-    semantic_cache: TyCache,
+    ty_cache: TyCache,
 
     /// A map of all "language" intrinsics that might need to be
     /// generated during the lowering process.
-    intrinsics: Intrinsics,
+    lang_items: RefCell<LangItems>,
+
+    /// A map of intrinsics that will be filled ion at the code generation
+    /// stage based on the selected backend for the compiler.
+    intrinsics: RefCell<Intrinsics>,
 }
 
 impl IrCtx {
@@ -145,21 +161,38 @@ impl IrCtx {
     pub fn new() -> Self {
         let ty_store = TyStore::new();
         let instances = InstanceStore::new();
-        let intrinsics = Intrinsics::new(&ty_store, &instances);
+        let lang_items = LangItems::new();
+        let intrinsics = Intrinsics::new();
 
         Self {
             projection_store: ProjectionStore::default(),
-            intrinsics,
+            lang_items: RefCell::new(lang_items),
+            intrinsics: RefCell::new(intrinsics),
             ty_store,
             instances,
             adt_store: AdtStore::new(),
-            semantic_cache: RefCell::new(FxHashMap::default()),
+            ty_cache: RefCell::new(FxHashMap::default()),
         }
     }
 
     /// Get a reference to the [Intrinsics] map.
-    pub fn intrinsics(&self) -> &Intrinsics {
-        &self.intrinsics
+    pub fn intrinsics(&self) -> Ref<Intrinsics> {
+        self.intrinsics.borrow()
+    }
+
+    /// Get a mutable reference to the [Intrinsics] map.
+    pub fn intrinsics_mut(&self) -> RefMut<Intrinsics> {
+        self.intrinsics.borrow_mut()
+    }
+
+    /// Get a reference to the [LangItems] map.
+    pub fn lang_items(&self) -> Ref<LangItems> {
+        self.lang_items.borrow()
+    }
+
+    /// Get a mutable reference to the [LangItems] map.
+    pub fn lang_items_mut(&self) -> RefMut<LangItems> {
+        self.lang_items.borrow_mut()
     }
 
     /// Get a reference to the [TyStore].
@@ -168,8 +201,8 @@ impl IrCtx {
     }
 
     /// Get a reference to the semantic types conversion cache.
-    pub fn semantic_cache(&self) -> &TyCache {
-        &self.semantic_cache
+    pub fn ty_cache(&self) -> &TyCache {
+        &self.ty_cache
     }
 
     /// Get a reference to the [TyListStore]
@@ -221,6 +254,17 @@ impl IrCtx {
     /// function operation.
     pub fn map_instance<T>(&self, id: InstanceId, f: impl FnOnce(&Instance) -> T) -> T {
         self.instances().map_fast(id, f)
+    }
+
+    /// Apply a function on an type assuming that it is a [`IrTy::Adt`].
+    pub fn map_ty_as_instance<T>(
+        &self,
+        ty: IrTyId,
+        f: impl FnOnce(&Instance, InstanceId) -> T,
+    ) -> T {
+        self.ty_store.map_fast(ty, |ty| {
+            self.instances.map_fast(ty.as_instance(), |instance| f(instance, ty.as_instance()))
+        })
     }
 
     /// Apply a function on an type assuming that it is a [`IrTy::Adt`].

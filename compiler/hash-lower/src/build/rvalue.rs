@@ -4,7 +4,7 @@
 use hash_ir::{
     cast::CastKind,
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
-    ty::{IrTy, Mutability},
+    ty::{IrTy, IrTyId, Mutability},
 };
 use hash_source::{
     constant::{IntConstant, IntTy, CONSTANT_MAP},
@@ -44,18 +44,15 @@ impl<'tcx> Builder<'tcx> {
                         let lhs = unpack!(block = self.as_operand(block, lhs, Mutability::Mutable));
                         let rhs = unpack!(block = self.as_operand(block, rhs, Mutability::Mutable));
 
-                        // @@Future: we shouldn't use the un-cached version here, however since this
-                        // only for primitive types (at the moment), this is fine.
-                        let ty = self.ty_from_tir_term(term_id);
+                        let ty = self.ty_id_from_tir_term(term_id);
                         self.build_binary_op(block, ty, span, op, lhs, rhs)
                     }
                     FnCallTermKind::UnaryOp(op, subject) => {
                         let arg =
                             unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
 
-                        // @@Future: we shouldn't use the un-cached version here, however since this
-                        // only for primitive types (at the moment), this is fine.
-                        let ty = self.ty_from_tir_term(term_id);
+                        let ty_id = self.ty_id_from_tir_term(term_id);
+                        let ty = self.ctx().tys().get(ty_id);
 
                         // If the operator is a negation, and the operand is signed, we can have a
                         // case of overflow. This occurs when the operand is the minimum value for
@@ -67,7 +64,7 @@ impl<'tcx> Builder<'tcx> {
                             && ty.is_signed()
                         {
                             let min_value = self.min_value_of_ty(ty);
-                            let is_min = self.temp_place(self.ctx.tys().common_tys.bool);
+                            let is_min = self.temp_place(self.ctx().tys().common_tys.bool);
 
                             self.control_flow_graph.push_assign(
                                 block,
@@ -107,7 +104,7 @@ impl<'tcx> Builder<'tcx> {
                         let source =
                             unpack!(block = self.as_operand(block, term, Mutability::Mutable));
 
-                        let cast_kind = CastKind::classify(self.ctx, source_ty, ty);
+                        let cast_kind = CastKind::classify(self.ctx(), source_ty, ty);
                         block.and(RValue::Cast(cast_kind, source, ty))
                     }
                     _ => as_operand(self),
@@ -142,7 +139,7 @@ impl<'tcx> Builder<'tcx> {
     /// signed integer type.
     fn min_value_of_ty(&self, ty: IrTy) -> Operand {
         let value = if let IrTy::Int(signed_ty) = ty {
-            let ptr_width = self.settings.target().pointer_bit_width / 8;
+            let ptr_width = self.settings.target().ptr_size();
             let size = signed_ty.size(ptr_width).unwrap().bits();
             let n = 1 << (size - 1);
 
@@ -177,7 +174,7 @@ impl<'tcx> Builder<'tcx> {
 
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
-            if self.ctx.map_ty(ty_id, |ty| matches!(ty, IrTy::FnDef { .. })) {
+            if self.ctx().map_ty(ty_id, |ty| matches!(ty, IrTy::FnDef { .. })) {
                 return block.and(Operand::Const(Const::Zero(ty_id).into()));
             }
         }
@@ -203,7 +200,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn build_binary_op(
         &mut self,
         mut block: BasicBlock,
-        ty: IrTy,
+        ty: IrTyId,
         span: Span,
         op: BinOp,
         lhs: Operand,
@@ -218,21 +215,21 @@ impl<'tcx> Builder<'tcx> {
         }
 
         let operands = Box::new((lhs, rhs));
+        let actual_ty = self.ctx().tys().get(ty);
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
         if self.settings.lowering_settings().checked_operations {
-            if op.is_checkable() && ty.is_integral() {
+            if op.is_checkable() && actual_ty.is_integral() {
                 // Create a new tuple that contains the result of the operation
-                let expr_ty = self.ctx.tys().create(ty);
-                let ty = IrTy::tuple(self.ctx, &[expr_ty, self.ctx.tys().common_tys.bool]);
-                let ty_id = self.ctx.tys().create(ty);
+                let ty = IrTy::tuple(self.ctx(), &[ty, self.ctx().tys().common_tys.bool]);
+                let ty_id = self.ctx().tys().create(ty);
 
                 let temp = self.temp_place(ty_id);
                 let rvalue = RValue::CheckedBinaryOp(op, operands);
 
-                let result = temp.field(0, self.ctx);
-                let overflow = temp.field(1, self.ctx);
+                let result = temp.field(0, self.ctx());
+                let overflow = temp.field(1, self.ctx());
 
                 // Push an assignment to the tuple on the operation
                 self.control_flow_graph.push_assign(block, temp, rvalue, span);
@@ -246,10 +243,10 @@ impl<'tcx> Builder<'tcx> {
                 );
 
                 return block.and(result.into());
-            } else if ty.is_integral() && (op == BinOp::Div || op == BinOp::Mod) {
+            } else if actual_ty.is_integral() && (op == BinOp::Div || op == BinOp::Mod) {
                 // Check for division or a remainder by zero, and if so emit
                 // an assertion to verify this condition.
-                let int_ty: IntTy = ty.into();
+                let int_ty: IntTy = actual_ty.into();
                 let uint_ty = int_ty.to_unsigned();
 
                 let assert_kind = if op == BinOp::Div {
@@ -259,7 +256,7 @@ impl<'tcx> Builder<'tcx> {
                 };
 
                 // Check for division/modulo of zero...
-                let is_zero = self.temp_place(self.ctx.tys().common_tys.bool);
+                let is_zero = self.temp_place(self.ctx().tys().common_tys.bool);
 
                 let const_val =
                     Const::Int(CONSTANT_MAP.create_int(IntConstant::from_uint(0, uint_ty)));
@@ -277,16 +274,16 @@ impl<'tcx> Builder<'tcx> {
                 // In the case of signed integers, if the RHS value is `-1`, and the LHS
                 // is the MIN value, this will result in a division overflow, we need to
                 // check for this and emit code.
-                if ty.is_signed() {
+                if actual_ty.is_signed() {
                     let sint_ty = int_ty.to_signed();
 
                     let const_val =
                         Const::Int(CONSTANT_MAP.create_int(IntConstant::from_sint(-1, sint_ty)));
                     let negative_one_val = Operand::Const(const_val.into());
-                    let minimum_value = self.min_value_of_ty(ty);
+                    let minimum_value = self.min_value_of_ty(actual_ty);
 
-                    let is_negative_one = self.temp_place(self.ctx.tys().common_tys.bool);
-                    let is_minimum_value = self.temp_place(self.ctx.tys().common_tys.bool);
+                    let is_negative_one = self.temp_place(self.ctx().tys().common_tys.bool);
+                    let is_minimum_value = self.temp_place(self.ctx().tys().common_tys.bool);
 
                     // Push the values that have been created into the temporaries
                     self.control_flow_graph.push_assign(
@@ -307,7 +304,7 @@ impl<'tcx> Builder<'tcx> {
                     // which checks the condition `(rhs == -1) & (lhs == MIN)`, and then we
                     // emit an assert. Alternatively, this could short_circuit on the first
                     // check, but it would make control flow more complex.
-                    let is_overflow = self.temp_place(self.ctx.tys().common_tys.bool);
+                    let is_overflow = self.temp_place(self.ctx().tys().common_tys.bool);
                     self.control_flow_graph.push_assign(
                         block,
                         is_overflow,

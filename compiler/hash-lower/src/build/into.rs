@@ -4,15 +4,16 @@
 //! [crate::build::temp].
 
 use hash_ir::{
+    intrinsics::Intrinsic,
     ir::{
-        self, AggregateKind, BasicBlock, Const, ConstKind, LogicalBinOp, Place, RValue, Statement,
-        StatementKind, TerminatorKind, UnevaluatedConst,
+        self, AggregateKind, BasicBlock, Const, ConstKind, LogicalBinOp, Operand, Place, RValue,
+        Statement, StatementKind, TerminatorKind, UnevaluatedConst,
     },
     ty::{AdtId, IrTy, Mutability, RefKind, VariantIdx},
-    write::WriteIr,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
+    constant::CONSTANT_MAP,
     identifier::{Identifier, IDENTS},
     location::Span,
 };
@@ -35,7 +36,7 @@ use hash_tir::{
     ty_as_variant,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 
 use super::{
     ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder, LocalKey, LoopBlockInfo,
@@ -61,7 +62,7 @@ impl<'tcx> Builder<'tcx> {
 
             Term::Tuple(TupleTerm { data }) => {
                 let ty = self.ty_id_from_tir_term(term_id);
-                let adt = self.ctx.map_ty_as_adt(ty, |_, id| id);
+                let adt = self.ctx().map_ty_as_adt(ty, |_, id| id);
                 let aggregate_kind = AggregateKind::Tuple(adt);
 
                 let args = self.stores().args().map_fast(*data, |args| {
@@ -88,20 +89,10 @@ impl<'tcx> Builder<'tcx> {
             }
             Term::Array(ArrayTerm { elements }) => {
                 // We lower literal arrays and tuples as aggregates.
-                let ty = self.ty_id_from_tir_term(term_id);
+                let ty_id = self.ty_id_from_tir_term(term_id);
+                let ty = self.ctx().tys().get(ty_id);
 
-                // If the type is not an array type, there is a inconsistency in the
-                // type resolution.
-                if !self.ctx.map_ty(ty, |ty| ty.is_array()) {
-                    panic_on_span!(
-                        span.into_location(self.source_id),
-                        self.source_map(),
-                        "expected an array type for the array literal, got `{:?}`",
-                        ty.for_fmt(self.ctx)
-                    );
-                }
-
-                let aggregate_kind = AggregateKind::Array(ty);
+                let aggregate_kind = AggregateKind::Array(ty_id);
                 let args = self.stores().term_list().map_fast(*elements, |elements| {
                     elements
                         .iter()
@@ -110,12 +101,24 @@ impl<'tcx> Builder<'tcx> {
                         .collect::<Vec<_>>()
                 });
 
-                self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
+                // If it is a list, we have to initialise it with the array elements...
+                if !ty.is_array() {
+                    self.lower_list_initialisation(
+                        destination,
+                        block,
+                        &ty,
+                        aggregate_kind,
+                        &args,
+                        span,
+                    )
+                } else {
+                    self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
+                }
             }
 
             Term::Ctor(ref ctor) => {
                 let id = self.ty_id_from_tir_term(term_id);
-                let ty = self.ctx.tys().get(id);
+                let ty = self.ctx().tys().get(id);
 
                 match ty {
                     IrTy::Adt(adt) => {
@@ -145,12 +148,16 @@ impl<'tcx> Builder<'tcx> {
             Term::FnCall(term @ FnCallTerm { subject, args, .. }) => {
                 match self.classify_fn_call_term(term) {
                     FnCallTermKind::Call(_) => {
+                        // Get the type of the function into or to to get the
+                        // fn-type so that we can enter the scope.
                         let ty = self.get_inferred_ty(*subject);
                         let fn_ty = ty_as_variant!(self, self.get_ty(ty), Fn);
 
+                        // Try and create the ir_type from a function definition, otherwise
+                        // if it is just a function, then we make the the type from the function.
+
                         Context::enter_scope_mut(self, fn_ty.into(), |this| {
-                            let ty = this.ty_from_tir_ty(ty);
-                            this.fn_call_into_dest(destination, block, *subject, ty, *args, span)
+                            this.fn_call_into_dest(destination, block, *subject, *args, span)
                         })
                     }
                     FnCallTermKind::Cast(..)
@@ -210,7 +217,7 @@ impl<'tcx> Builder<'tcx> {
                             LogicalBinOp::Or => (short_circuiting_block, else_block),
                         };
 
-                        let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx);
+                        let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx());
                         self.control_flow_graph.terminate(block, span, term);
 
                         // Create the constant that we will assign in the `short_circuiting` block.
@@ -268,7 +275,7 @@ impl<'tcx> Builder<'tcx> {
                     let local_key = LocalKey::from(binding.kind);
                     let local = *(self.declaration_map.get(&local_key).unwrap());
 
-                    let place = Place::from_local(local, self.ctx);
+                    let place = Place::from_local(local, self.ctx());
                     self.control_flow_graph.push_assign(block, destination, place.into(), span);
                 }
 
@@ -308,7 +315,8 @@ impl<'tcx> Builder<'tcx> {
                 self.reached_terminator = true;
 
                 unpack!(
-                    block = self.term_into_dest(Place::return_place(self.ctx), block, *expression)
+                    block =
+                        self.term_into_dest(Place::return_place(self.ctx()), block, *expression)
                 );
 
                 // Create a new block for the `return` statement and make this block
@@ -329,7 +337,7 @@ impl<'tcx> Builder<'tcx> {
                 block = unpack!(self.lower_assign_term(block, &term, span));
 
                 // Assign the `value` of the assignment into the `tmp_place`
-                let const_value = ir::Const::zero(self.ctx);
+                let const_value = ir::Const::zero(self.ctx());
                 self.control_flow_graph.push_assign(block, destination, const_value.into(), span);
 
                 block.unit()
@@ -398,7 +406,6 @@ impl<'tcx> Builder<'tcx> {
         destination: Place,
         mut block: BasicBlock,
         subject: TermId,
-        fn_ty: IrTy,
         args: ArgsId,
         span: Span,
     ) -> BlockAnd<()> {
@@ -410,15 +417,15 @@ impl<'tcx> Builder<'tcx> {
         // @@Todo: we need to deal with default arguments here, we compute the missing
         // arguments, and then insert a lowered copy of the default value for
         // the argument.
-        if let IrTy::Fn { params, .. } = fn_ty {
-            if args.len() != params.len() {
-                panic_on_span!(
-                    span.into_location(self.source_id),
-                    self.env().source_map(),
-                    "default arguments on functions are not currently supported",
-                );
-            }
-        }
+        // if let IrTy::Fn { params, .. } = fn_ty {
+        //     if args.len() != params.len() {
+        //         panic_on_span!(
+        //             span.into_location(self.source_id),
+        //             self.env().source_map(),
+        //             "default arguments on functions are not currently supported",
+        //         );
+        //     }
+        // }
 
         let args = self
             .stores()
@@ -428,6 +435,21 @@ impl<'tcx> Builder<'tcx> {
             .map(|arg| unpack!(block = self.as_operand(block, arg.value, Mutability::Immutable)))
             .collect::<Vec<_>>();
 
+        self.build_fn_call(destination, block, func, args, span)
+    }
+
+    /// Build a function call from the provided subject and arguments. This
+    /// function simply terminates the current [BasicBlock] with a
+    /// [`TerminatorKind::Call`] and returns the block that is used for the
+    /// `success` case.
+    pub fn build_fn_call(
+        &mut self,
+        destination: Place,
+        block: BasicBlock,
+        subject: Operand,
+        args: Vec<Operand>,
+        span: Span,
+    ) -> BlockAnd<()> {
         // This is the block that is used when resuming from the function..
         let success = self.control_flow_graph.start_new_block();
 
@@ -435,7 +457,7 @@ impl<'tcx> Builder<'tcx> {
         self.control_flow_graph.terminate(
             block,
             span,
-            TerminatorKind::Call { op: func, args, destination, target: Some(success) },
+            TerminatorKind::Call { op: subject, args, destination, target: Some(success) },
         );
 
         success.unit()
@@ -459,7 +481,7 @@ impl<'tcx> Builder<'tcx> {
     ) -> BlockAnd<()> {
         let CtorTerm { ctor, ctor_args, .. } = subject;
 
-        let aggregate_kind = self.ctx.adts().map_fast(adt_id, |adt| {
+        let aggregate_kind = self.ctx().adts().map_fast(adt_id, |adt| {
             if adt.flags.is_enum() || adt.flags.is_union() {
                 AggregateKind::Enum(adt_id, VariantIdx::from_usize(ctor.1))
             } else {
@@ -529,7 +551,7 @@ impl<'tcx> Builder<'tcx> {
                 field_names.push(*name);
             }
 
-            self.ctx.adts().map_fast(adt_id, |adt| {
+            self.ctx().adts().map_fast(adt_id, |adt| {
                 let variant = if let AggregateKind::Enum(_, index) = aggregate_kind {
                     &adt.variants[index]
                 } else {
@@ -573,6 +595,120 @@ impl<'tcx> Builder<'tcx> {
 
         let aggregate = RValue::Aggregate(aggregate_kind, fields);
         self.control_flow_graph.push_assign(block, destination, aggregate, span);
+
+        block.unit()
+    }
+
+    /// This function will generate the necessary code to initialise a slice on
+    /// the stack. A slice differs from an array by the fact that it is an
+    /// aggregate value that contains the length of the slice, and the
+    /// pointer to the data itself.
+    ///
+    /// The procedure to initialise the list is as follows:
+    ///
+    /// 1. Allocate enough bytes for the literal `[T]` by computing
+    ///    `size_of(T)` * `len(elements)`.
+    ///
+    /// 2. Write the bytes to the allocation.
+    ///
+    /// 3. Create a `SizedPtr(ref, len)` from the pointer that we get
+    ///    from the call to malloc and assign it to a temporary.
+    ///
+    /// 4. Transmute the `SizedPointer` into a `&[T]` and assign it to the
+    ///    destination.
+    ///
+    /// For example, the following snippet:
+    /// ```ignore
+    /// t := [1, 2, 3];
+    /// ```
+    /// Is lowered into the following sequence:
+    /// ```ignore
+    /// _1: &[i32]; // parameter `t`
+    /// _2: &raw u8;
+    /// _3: &[i32; 4];
+    /// _4: SizedPointer;
+    /// _5: ();
+    ///
+    /// bb0 {
+    ///     _2 = malloc(const 16_u64) -> bb1;
+    /// }
+    ///
+    /// bb1 {
+    ///     _3 = _2;
+    ///     (*_3) = [const 1_i32, const 2_i32, const 3_i32, const 5_i32];
+    ///     _4 = SizedPointer(_3, const 4_u64);
+    ///     _1 = transmute((), (), _4) -> bb2;
+    /// }
+    /// ```
+    ///
+    /// @@Future: this should probably be done within the language rather
+    /// than the build initialising the list like this.
+    fn lower_list_initialisation(
+        &mut self,
+        destination: Place,
+        mut block: BasicBlock,
+        ty: &IrTy,
+        aggregate_kind: AggregateKind,
+        args: &[(Identifier, TermId)],
+        span: Span,
+    ) -> BlockAnd<()> {
+        let ptr_width = self.settings.target().ptr_size();
+        let element_ty = ty.element_ty(self.ctx()).unwrap();
+        let size = self.ctx.size_of(element_ty).unwrap() * args.len();
+        let const_size = CONSTANT_MAP.create_usize_int(size, ptr_width);
+        let size_op = Operand::Const(Const::Int(const_size).into());
+
+        // find the `malloc` function which is defined in the prelude
+        // and within the `libc` module
+        let item = self.lookup_libc_fn("malloc").expect("`malloc` not found");
+        let subject = Operand::Const(Const::Zero(item).into());
+
+        // 1).
+        //
+        // Make the call to `malloc`, and then assign the result to a
+        // temporary.
+        let ptr = self.temp_place(self.ctx().tys().common_tys.raw_ptr);
+        unpack!(block = self.build_fn_call(ptr, block, subject, vec![size_op], span));
+
+        // we make a new temporary which is a pointer to the array and assign `ptr`
+        // to it.
+        let ty = IrTy::make_ref(IrTy::Array { ty: element_ty, length: args.len() }, self.ctx());
+        let array_ptr = self.temp_place(self.ctx().tys().create(ty));
+        self.control_flow_graph.push_assign(block, array_ptr, Operand::Place(ptr).into(), span);
+
+        // 2). Write data to allocation.
+        self.aggregate_into_dest(array_ptr.deref(self.ctx()), block, aggregate_kind, args, span);
+
+        // 3).
+        //
+        // Create the SizedPointer from the received pointer and length.
+        let sized_ptr_ty =
+            self.lookup_prelude_item("SizedPointer").expect("`SizedPointer` not found");
+        let sized_ptr = self.temp_place(sized_ptr_ty);
+        let value =
+            self.create_ptr_with_metadata(sized_ptr_ty, Operand::Place(array_ptr), args.len());
+
+        self.control_flow_graph.push_assign(block, sized_ptr, value, span);
+
+        // Finally, transmute the SizedPointer into a `&[T]` and assign it to the
+        // destination.
+        let transmute_fn = self.ctx().intrinsics().get_ty(Intrinsic::Transmute).unwrap();
+        let subject = Operand::Const(Const::Zero(transmute_fn).into());
+
+        unpack!(
+            block = self.build_fn_call(
+                destination,
+                block,
+                subject,
+                // The first two arguments are the fill-ins for the generic parameters.
+                vec![
+                    Operand::Const(Const::Zero(self.ctx().tys().common_tys.unit).into()),
+                    Operand::Const(Const::Zero(self.ctx().tys().common_tys.unit).into()),
+                    Operand::Place(sized_ptr)
+                ],
+                span
+            )
+        );
 
         block.unit()
     }

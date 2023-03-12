@@ -64,13 +64,13 @@ pub enum UIntTy {
 impl UIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub fn size(&self, ptr_width: usize) -> Option<Size> {
+    pub fn size(&self, ptr_width: Size) -> Option<Size> {
         match self {
             UIntTy::U8 => Some(Size::from_bytes(1)),
             UIntTy::U16 => Some(Size::from_bytes(2)),
             UIntTy::U32 => Some(Size::from_bytes(4)),
             UIntTy::U64 => Some(Size::from_bytes(8)),
-            UIntTy::USize => Some(Size::from_bytes(ptr_width)),
+            UIntTy::USize => Some(ptr_width),
             UIntTy::U128 => Some(Size::from_bytes(16)),
             UIntTy::UBig => None,
         }
@@ -95,7 +95,7 @@ impl UIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: Size) -> Option<BigInt> {
         match self {
             UIntTy::U8 => Some(BigInt::from(u8::MAX)),
             UIntTy::U16 => Some(BigInt::from(u16::MAX)),
@@ -103,7 +103,7 @@ impl UIntTy {
             UIntTy::U64 => Some(BigInt::from(u64::MAX)),
             UIntTy::U128 => Some(BigInt::from(u128::MAX)),
             UIntTy::USize => {
-                let max = !0u64 >> (64 - (ptr_width * 8));
+                let max = !0u64 >> (64 - (ptr_width.bits()));
                 Some(BigInt::from(max))
             }
             UIntTy::UBig => None,
@@ -131,9 +131,9 @@ impl UIntTy {
 
     /// Normalise the [UIntTy], i.e. convert the [`UIntTy::USize`] variant
     /// into the normalised type equivalent.
-    pub fn normalise(&self, ptr_width: usize) -> Self {
+    pub fn normalise(&self, ptr_width: Size) -> Self {
         match self {
-            UIntTy::USize => UIntTy::from_size(Size::from_bytes(ptr_width)),
+            UIntTy::USize => UIntTy::from_size(ptr_width),
             _ => *self,
         }
     }
@@ -192,13 +192,13 @@ pub enum SIntTy {
 impl SIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub fn size(&self, ptr_width: usize) -> Option<Size> {
+    pub fn size(&self, ptr_width: Size) -> Option<Size> {
         match self {
             SIntTy::I8 => Some(Size::from_bytes(1)),
             SIntTy::I16 => Some(Size::from_bytes(2)),
             SIntTy::I32 => Some(Size::from_bytes(4)),
             SIntTy::I64 => Some(Size::from_bytes(8)),
-            SIntTy::ISize => Some(Size::from_bytes(ptr_width)),
+            SIntTy::ISize => Some(ptr_width),
             SIntTy::I128 => Some(Size::from_bytes(16)),
             SIntTy::IBig => None,
         }
@@ -223,7 +223,7 @@ impl SIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: Size) -> Option<BigInt> {
         match self {
             SIntTy::I8 => Some(BigInt::from(i8::MAX)),
             SIntTy::I16 => Some(BigInt::from(i16::MAX)),
@@ -232,7 +232,7 @@ impl SIntTy {
             SIntTy::I128 => Some(BigInt::from(i128::MAX)),
             SIntTy::ISize => {
                 // convert the size to a signed integer
-                let max = (1u64 << (ptr_width * 8 - 1)) - 1;
+                let max = (1u64 << (ptr_width.bits() - 1)) - 1;
                 Some(BigInt::from(max))
             }
             SIntTy::IBig => None,
@@ -242,7 +242,7 @@ impl SIntTy {
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self, ptr_width: usize) -> Option<BigInt> {
+    pub fn min(&self, ptr_width: Size) -> Option<BigInt> {
         match self {
             SIntTy::I8 => Some(BigInt::from(i8::MIN)),
             SIntTy::I16 => Some(BigInt::from(i16::MIN)),
@@ -250,7 +250,7 @@ impl SIntTy {
             SIntTy::I64 => Some(BigInt::from(i64::MIN)),
             SIntTy::I128 => Some(BigInt::from(i128::MIN)),
             SIntTy::ISize => {
-                let min = (i64::MAX) << ((ptr_width * 8) - 1);
+                let min = (i64::MAX) << (ptr_width.bits() - 1);
                 Some(BigInt::from(min))
             }
             SIntTy::IBig => None,
@@ -272,9 +272,9 @@ impl SIntTy {
 
     /// Normalise the [UIntTy], i.e. convert the [`UIntTy::USize`] variant
     /// into the normalised type equivalent.
-    pub fn normalise(&self, ptr_width: usize) -> Self {
+    pub fn normalise(&self, ptr_width: Size) -> Self {
         match self {
-            SIntTy::ISize => SIntTy::from_size(Size::from_bits(ptr_width)),
+            SIntTy::ISize => SIntTy::from_size(ptr_width),
             _ => *self,
         }
     }
@@ -348,7 +348,7 @@ impl IntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self, ptr_width: usize) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: Size) -> Option<BigInt> {
         match self {
             IntTy::Int(ty) => ty.max(ptr_width),
             IntTy::UInt(ty) => ty.max(ptr_width),
@@ -358,7 +358,7 @@ impl IntTy {
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self, ptr_width: usize) -> Option<BigInt> {
+    pub fn min(&self, ptr_width: Size) -> Option<BigInt> {
         match self {
             IntTy::Int(ty) => ty.min(ptr_width),
             IntTy::UInt(ty) => Some(ty.min()),
@@ -366,7 +366,7 @@ impl IntTy {
     }
 
     /// Function to get the size of the integer type in bytes.
-    pub fn size(&self, ptr_width: usize) -> Option<Size> {
+    pub fn size(&self, ptr_width: Size) -> Option<Size> {
         match self {
             IntTy::Int(ty) => ty.size(ptr_width),
             IntTy::UInt(ty) => ty.size(ptr_width),
@@ -390,7 +390,7 @@ impl IntTy {
 
     /// Normalise an [IntTy] by removing "usize" and "isize" variants into
     /// known sized variants.
-    pub fn normalise(self, ptr_width: usize) -> Self {
+    pub fn normalise(self, ptr_width: Size) -> Self {
         match self {
             IntTy::Int(ty) => IntTy::Int(ty.normalise(ptr_width)),
             IntTy::UInt(ty) => IntTy::UInt(ty.normalise(ptr_width)),

@@ -7,6 +7,7 @@
 
 mod build;
 mod cfg;
+mod ctx;
 
 mod discover;
 mod lower_ty;
@@ -14,14 +15,15 @@ mod optimise;
 
 use std::{collections::BTreeMap, time::Duration};
 
-use build::{Builder, Tcx};
+use build::Builder;
+use ctx::BuilderCtx;
 use discover::FnDiscoverer;
 use hash_ir::{
     ty::IrTy,
     write::{graphviz, pretty},
     IrStorage,
 };
-use hash_layout::{compute::LayoutComputer, write::LayoutWriter, LayoutCtx, TyInfo};
+use hash_layout::{write::LayoutWriter, LayoutCtx, TyInfo};
 use hash_pipeline::{
     interface::{
         CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
@@ -45,7 +47,6 @@ use hash_utils::{
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };
-use lower_ty::TyLoweringCtx;
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.
@@ -117,7 +118,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     /// Additionally, this module is responsible for performing
     /// optimisations on the IR (if specified via the [CompilerSettings]).
     fn run(&mut self, entry: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let LoweringCtx { semantic_storage, workspace, ir_storage, settings, .. } = ctx.data();
+        let LoweringCtx {
+            semantic_storage, workspace, ir_storage, layout_storage, settings, ..
+        } = ctx.data();
         let source_stage_info = &mut workspace.source_stage_info;
 
         let source_info = CurrentSourceInfo::new(entry);
@@ -132,9 +135,11 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         let entry_point = &semantic_storage.entry_point;
 
+        let ctx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env, semantic_storage);
+
         // Discover all of the bodies that need to be lowered
         let items = time_item(self, "discover", |_| {
-            let discoverer = FnDiscoverer::new(&env, source_stage_info);
+            let discoverer = FnDiscoverer::new(&ctx, source_stage_info);
             discoverer.discover_fns()
         });
 
@@ -155,9 +160,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
                     panic!("function `{name}` has no defined source location");
                 };
 
-                let tcx = Tcx::new(&env, semantic_storage);
-                let mut builder =
-                    Builder::new(name, (*func).into(), id, tcx, &mut ir_storage.ctx, settings);
+                let mut builder = Builder::new(name, (*func).into(), id, ctx, settings);
                 builder.build();
 
                 let body = builder.finish();
@@ -205,28 +208,23 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             &source_info,
         );
 
-        let ty_lowerer = TyLoweringCtx::new(
-            &ir_storage.ctx,
-            &env,
-            semantic_storage.primitives_or_unset.get().unwrap(),
-        );
+        let ctx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env, semantic_storage);
 
         // @@Future: support generic substitutions here.
         let empty_args = semantic_storage.stores.args().create_empty();
 
         semantic_storage.stores.directives().internal_data().borrow().iter().for_each(|(id, directives)| {
             if directives.contains(IDENTS.layout_of) && let DirectiveTarget::DataDefId(data_def) = *id {
-                let ty = ty_lowerer.ty_id_from_tir_data(DataTy { args: empty_args, data_def });
-                let layout_computer = LayoutComputer::new(layout_storage, &ir_storage.ctx);
+                let ty = ctx.ty_from_tir_data(DataTy { args: empty_args, data_def });
 
                 // @@ErrorHandling: propagate this error if it occurs.
-                if let Ok(layout) = layout_computer.layout_of_ty(ty) {
+                if let Ok(layout) = ctx.layout_of(ty) {
                     // Print the layout and add spacing between all of the specified layouts
                     // that were requested.
                     stream_writeln!(
                         stdout,
                         "{}",
-                        LayoutWriter::new(TyInfo { ty, layout }, layout_computer)
+                        LayoutWriter::new(TyInfo { ty, layout }, ctx.layout_computer())
                     );
                 }
             }

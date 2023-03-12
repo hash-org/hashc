@@ -100,6 +100,14 @@ pub struct FnDef {
     /// This depends on `ty.params` and `ty.conditions`.
     pub body: FnBody,
 }
+
+impl FnDef {
+    /// Check if the definition has an intrinsic body.
+    pub fn is_intrinsic(&self) -> bool {
+        matches!(self.body, FnBody::Intrinsic(_))
+    }
+}
+
 new_store_key!(pub FnDefId);
 
 /// Function definitions live in a store

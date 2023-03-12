@@ -11,7 +11,10 @@ use std::{
 };
 
 use compute::LayoutComputer;
-use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx};
+use hash_ir::{
+    ty::{IrTy, IrTyId, ToIrTy, VariantIdx},
+    write::WriteIr,
+};
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::{Alignment, Alignments},
@@ -230,7 +233,10 @@ impl TyInfo {
             | IrTy::Char
             | IrTy::Never
             | IrTy::FnDef { .. }
-            | IrTy::Fn { .. } => panic!("TyInfo::field on a type that does not contain fields"),
+            | IrTy::Fn { .. } => panic!(
+                "TyInfo::field on a type `{}` that does not contain fields",
+                ty.for_fmt(ctx.ir_ctx())
+            ),
 
             // Handle pointers that might have additional information attached to them, i.e.
             // `str` and `[T]` types.

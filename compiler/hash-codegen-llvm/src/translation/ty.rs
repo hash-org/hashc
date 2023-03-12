@@ -338,7 +338,6 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
                         // @@Todo: make emitting names optional in order to improve speed
                         // of LLVM builds.
                         let name: Option<String> = match ty {
-                            IrTy::Str => Some("str".to_string()),
                             IrTy::Adt(adt) => {
                                 ctx.ir_ctx().map_adt(*adt, |_, adt| {
                                     // We don't create a name for tuple types, they are just

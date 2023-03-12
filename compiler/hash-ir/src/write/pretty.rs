@@ -3,6 +3,7 @@
 use std::fmt;
 
 use hash_source::SourceMap;
+use hash_utils::itertools::Itertools;
 
 use super::WriteIr;
 use crate::{
@@ -39,7 +40,7 @@ impl<'ir> IrBodyWriter<'ir> {
     /// ```
     /// and for constants:
     /// ```ignore
-    /// const foo {
+    /// const koo {
     ///    ...
     /// }
     /// ```
@@ -50,7 +51,7 @@ impl<'ir> IrBodyWriter<'ir> {
         let return_ty_decl = declarations.next().unwrap();
 
         match self.body.info().source() {
-            BodySource::Item | BodySource::Intrinsic => {
+            BodySource::Item => {
                 write!(f, "{} := (", self.body.info().name)?;
 
                 for (i, param) in declarations.take(self.body.arg_count).enumerate() {
@@ -82,14 +83,48 @@ impl<'ir> IrBodyWriter<'ir> {
     fn write_body(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.write_header(f)?;
 
-        let declarations = self.body.declarations.iter_enumerated();
-        let offset = 1 + self.body.arg_count;
+        let declarations = self.body.declarations.iter_enumerated().take(self.body.arg_count + 1);
 
-        for (local, decl) in declarations.skip(offset) {
-            write!(f, "    {}{local:?}: {};", decl.mutability(), decl.ty().for_fmt(self.ctx))?;
+        // We write debug information about the parameters of the function in
+        // the format of `// parameter <name> -> _index`
+        if self.body.arg_count > 0 {
+            writeln!(f)?;
+        }
 
+        for (local, decl) in declarations {
             if let Some(name) = decl.name && !decl.auxiliary() {
-                writeln!(f, "\t\t// parameter `{name}`")?;
+                writeln!(f, "    // parameter `{}` -> _{}", name, local.index())?;
+            }
+        }
+
+        // Add some spacing between the parameter comments
+        if self.body.arg_count > 0 {
+            writeln!(f)?;
+        }
+
+        // Next, we render the declarations and then we will render them in order
+        // top properly align all of the comments on the right hand side.
+        let offset = 1 + self.body.arg_count;
+        let declarations = self.body.declarations.iter_enumerated().skip(offset);
+
+        let mut longest_line = 0;
+        let rendered_declarations = declarations
+            .map(|(local, decl)| {
+                let s = format!("{}{local:?}: {};", decl.mutability(), decl.ty().for_fmt(self.ctx));
+
+                if let Some(name) = decl.name && !decl.auxiliary() {
+                longest_line = longest_line.max(s.len());
+                (s, Some(format!("// parameter `{name}`")))
+            } else {
+                (s, None)
+            }
+            })
+            .collect_vec();
+
+        for (declaration, comment) in rendered_declarations {
+            write!(f, "    {}", declaration)?;
+            if let Some(comment) = comment {
+                writeln!(f, "{: <1$}\t{comment}", "", longest_line - declaration.len())?;
             } else {
                 writeln!(f)?;
             }

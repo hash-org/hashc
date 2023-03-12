@@ -106,7 +106,7 @@ impl fmt::Display for Const {
             Self::Char(c) => write!(f, "'{c}'"),
             Self::Int(i) => write!(f, "{i}"),
             Self::Float(flt) => write!(f, "{flt}"),
-            Self::Str(s) => write!(f, "\"{s}\""),
+            Self::Str(s) => write!(f, "{s:?}"),
         }
     }
 }
@@ -581,6 +581,19 @@ impl Place {
     /// Create a new [Place] from a [Local] with no projections.
     pub fn from_local(local: Local, ctx: &IrCtx) -> Self {
         Self { local, projections: ctx.projections().create_empty() }
+    }
+
+    /// Create a new [Place] from an existing [Place] whilst also
+    /// applying a [`PlaceProjection::Deref`] on the old one.
+    pub fn deref(&self, ctx: &IrCtx) -> Self {
+        let projections = ctx.projections().get_vec(self.projections);
+
+        Self {
+            local: self.local,
+            projections: ctx.projections().create_from_iter_fast(
+                projections.iter().copied().chain(once(PlaceProjection::Deref)),
+            ),
+        }
     }
 
     /// Create a new [Place] from an existing place whilst also
@@ -1251,8 +1264,6 @@ pub enum BodySource {
     Const,
     /// The item is a normal function.
     Item,
-    /// The item is an intrinsic function.
-    Intrinsic,
 }
 
 impl fmt::Display for BodySource {
@@ -1260,7 +1271,6 @@ impl fmt::Display for BodySource {
         match self {
             BodySource::Const => write!(f, "constant block"),
             BodySource::Item => write!(f, "function"),
-            BodySource::Intrinsic => write!(f, "intrinsic function"),
         }
     }
 }

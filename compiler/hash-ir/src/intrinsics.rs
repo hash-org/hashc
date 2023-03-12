@@ -1,48 +1,55 @@
 //! Defines all of the intrinsics that are expected to be
 //! declared within the language prelude.
 
-use hash_source::{attributes::Attribute, identifier::IDENTS};
-use hash_utils::store::{SequenceStore, Store};
-
-use crate::ty::{Instance, InstanceStore, IrTy, IrTyId, TyStore};
+use crate::ty::{InstanceId, IrTyId};
 
 /// Defines all of the intrinsics that are present within the
-/// language runtime, and can be accessed by the language. This
-/// does not capture "all" intrinsics since some are defined
-/// at the backend level and might not be generally available.
-/// The [Intrinsic] items are intrinsics that are required by the
-/// language to provide functionality that cannot be provided
-/// by the runtime itself, i.e. "panic".
+/// language runtime, and will be filled in at code generation.
 ///
-/// @@Todo: this needs to record the number of arguments the intrinsic
-/// takes, and possibly other information.
-///
-/// More specifically, the prelude should have a way of marking the
-/// function as an intrinsic within the `Intrinsic` module, which then
-/// directly references these language items. This then allows for the
-/// program to reference the intrinsic implementation.
-///
-/// For now, we just create the function type, and then use it to generate
-/// the intrinsic function.
+/// [Intrinsics] differ from language items in that they have no
+/// defined body within the source, and are always filled in by
+/// the compiler. This is because they require additional information
+/// or access to the compiler internals that are not available to
+/// the runtime. Furthermore, intrinsic behaviour differs from backend
+/// to backend which makes it harder to define such items in the
+/// source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Intrinsic {
-    /// The `panic` intrinsic function. This will cause the program
-    /// to terminate.
-    Panic,
-
     /// The `ptr_offset` intrinsic function. This will offset a pointer
     /// by the specified amount.
     PtrOffset,
+
+    /// The `transmute` intrinsic, documented in the prelude.
+    Transmute,
+
+    /// The `abort` intrinsic, terminates the program.
+    Abort,
 }
 
 impl Intrinsic {
     /// Get the appropriate [Intrinsic] for the specified name.
-    pub fn from_str_name(name: &str) -> Self {
+    pub fn from_str_name(name: &str) -> Option<Self> {
         match name {
-            "panic" => Self::Panic,
-            "ptr_offset" => Self::PtrOffset,
-            _ => panic!("unknown intrinsic: {name}"),
+            "ptr_offset" => Some(Self::PtrOffset),
+            "transmute" => Some(Self::Transmute),
+            "abort" => Some(Self::Abort),
+            _ => None,
         }
     }
+}
+
+/// Stored information about an intrinsic that has been referenced within
+/// the program. The name "intrinsic" in this context refers to something
+/// that is an intrinsic operation that must be filled in by the compiler i.e.
+/// "ptr_offset", or it is an item definition that is crucial to the language
+/// runtime i.e. "panic".
+#[derive(Debug, Clone, Copy)]
+pub struct IntrinsicData {
+    /// The defined instance that corresponds to the intrinsic.
+    instance: InstanceId,
+
+    /// The type of the lang item.
+    ty: IrTyId,
 }
 
 /// This struct is used to map the [Intrinsic] enum to the
@@ -50,77 +57,29 @@ impl Intrinsic {
 #[derive(Default)]
 pub struct Intrinsics {
     /// The intrinsic map.
-    intrinsics: [Option<IrTyId>; std::mem::variant_count::<Intrinsic>()],
+    intrinsics: [Option<IntrinsicData>; std::mem::variant_count::<Intrinsic>()],
 }
 
 impl Intrinsics {
     /// Create a new [Intrinsics] map instance. This will create
     /// all the associated types for the intrinsics, and will populate
     /// the map with them.
-    pub fn new(tys: &TyStore, instances: &InstanceStore) -> Self {
-        let mut intrinsics = [None; std::mem::variant_count::<Intrinsic>()];
-
-        // @@Temp: the intrinsics should be tracked using DefIds in order
-        // so that we can properly deduce the source-id of the defined place.
-        // For now, we just don't set a source_id for these.
-
-        macro_rules! define_intrinsic {
-            ($name:literal, fn() -> $ret:expr) => (
-                let params = tys.tls.create_empty();
-                let mut instance = Instance::new(
-                    $name.into(),
-                    None,
-                    params,
-                    $ret,
-                );
-
-                instance.attributes.add(Attribute::word(IDENTS.no_mangle));
-                let instance = instances.create(instance);
-
-                intrinsics[Intrinsic::from_str_name($name) as usize] = Some(tys.create(IrTy::Fn {
-                    params,
-                    return_ty: $ret,
-                    instance
-                }));
-            );
-            ($name:literal, fn($($arg:expr),*) -> $ret:expr) => (
-                let params = tys.tls.create_from_slice(&[$($arg),*]);
-                let mut instance =Instance::new(
-                    $name.into(),
-                    None,
-                    params,
-                    $ret,
-                );
-
-                instance.attributes.add(Attribute::word(IDENTS.no_mangle));
-                let instance = instances.create(instance);
-
-                intrinsics[Intrinsic::from_str_name($name) as usize] = Some(tys.create(IrTy::FnDef {
-                    instance
-                }));
-            );
-        }
-
-        let str_ty = tys.common_tys.str;
-        let never_ty = tys.common_tys.never;
-        let ptr_ty = tys.common_tys.ptr;
-        let usize_ty = tys.common_tys.usize;
-
-        // The defined intrinsics have special handling within the compiler
-        // in order to generate specific code for the intrinsic.
-        define_intrinsic!("panic", fn(str_ty) -> never_ty);
-        define_intrinsic!("ptr_offset", fn(ptr_ty, usize_ty) -> ptr_ty);
-
-        Self { intrinsics }
+    pub fn new() -> Self {
+        Self { intrinsics: [None; std::mem::variant_count::<Intrinsic>()] }
     }
 
     /// Set the [IrTyId] for the specified intrinsic.
-    pub fn set(&mut self, intrinsic: Intrinsic, ty: IrTyId) {
-        self.intrinsics[intrinsic as usize] = Some(ty);
+    pub fn set(&mut self, intrinsic: Intrinsic, instance: InstanceId, ty: IrTyId) {
+        self.intrinsics[intrinsic as usize] = Some(IntrinsicData { instance, ty });
     }
 
-    /// Get the [IrTyId] for the specified intrinsic.
-    pub fn get(&self, intrinsic: Intrinsic) -> Option<IrTyId> {
-        self.intrinsics[intrinsic as usize]
+    /// Get the [InstanceId] for the specified intrinsic.
+    pub fn get(&self, intrinsic: Intrinsic) -> Option<InstanceId> {
+        self.intrinsics[intrinsic as usize].map(|item| item.instance)
+    }
+
+    /// Get the [InstanceId] for the specified intrinsic.
+    pub fn get_ty(&self, intrinsic: Intrinsic) -> Option<IrTyId> {
+        self.intrinsics[intrinsic as usize].map(|item| item.ty)
     }
 }
