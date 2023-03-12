@@ -10,6 +10,9 @@ pub trait AbiBuilderMethods<'b>: BackendTypes {
     /// Get a particular parameter from the ABI.
     fn get_param(&mut self, index: usize) -> Self::Value;
 
+    /// Get the type of the provided [ArgAbi].
+    fn arg_ty(&mut self, arg_abi: &ArgAbi) -> Self::Type;
+
     /// Store an argument that is passed or returned from a
     /// function call.
     fn store_arg(

@@ -112,6 +112,7 @@ defined_intrinsics! {
     prim_type_eq_op,
     un_op,
     abort,
+    panic,
     user_error,
     eval,
     debug_print,
@@ -739,6 +740,19 @@ impl DefinedIntrinsics {
             |_, _| process::exit(1),
         );
 
+        // Panicking
+        let panic = add(
+            "panic",
+            FnTy::builder()
+                .params(env.new_params(&[env.new_data_ty(prim.str())]))
+                .return_ty(env.new_never_ty())
+                .build(),
+            |env, args| {
+                stream_less_writeln!("{}", env.env().with(args[1]));
+                process::exit(1);
+            },
+        );
+
         // User errors
         let user_error = add(
             "user_error",
@@ -929,6 +943,7 @@ impl DefinedIntrinsics {
             endo_bin_op,
             un_op,
             abort,
+            panic,
             user_error,
             debug_print,
             align_of,

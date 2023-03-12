@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 
 use hash_ir::{
     cast::{CastTy, IntCastKind},
-    ir::{self, BinOp},
+    ir::{self, BinOp, RValue},
     ty::{self, IrTyId, RefKind, VariantIdx},
 };
 
@@ -142,14 +142,12 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         destination: PlaceRef<Builder::Value>,
         rvalue: &ir::RValue,
     ) {
-        // @@Todo: introduce casting, and deal with the code generation
-        match *rvalue {
-            // specifics here.
-            ir::RValue::Use(ref operand) => {
+        match rvalue {
+            ir::RValue::Use(operand) => {
                 let operand = self.codegen_operand(builder, operand);
                 operand.value.store(builder, destination);
             }
-            ir::RValue::Aggregate(ref kind, ref operands) => {
+            ir::RValue::Aggregate(kind, operands) => {
                 let destination = match *kind {
                     ir::AggregateKind::Enum(_, variant) => {
                         destination.codegen_set_discriminant(builder, variant);
@@ -190,6 +188,11 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         }
     }
 
+    /// Compute the type of an [RValue].
+    pub fn ty_of_rvalue(&self, value: &RValue) -> IrTyId {
+        value.ty(&self.body.declarations, self.ctx.ir_ctx())
+    }
+
     /// Emit code for a [ir::RValue] that will return an [OperandRef].
     pub fn codegen_rvalue_operand(
         &mut self,
@@ -226,9 +229,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     ir::UnaryOp::BitNot | ir::UnaryOp::Not => builder.not(value),
                     ir::UnaryOp::Neg => {
                         // check if the underlying value is a floating point...
-                        let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
-
-                        if self.ctx.ir_ctx().map_ty(ty, |ty| ty.is_float()) {
+                        if self.ctx.ir_ctx().map_ty(self.ty_of_rvalue(rvalue), |ty| ty.is_float()) {
                             builder.fneg(value)
                         } else {
                             builder.neg(value)
@@ -284,9 +285,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 );
 
                 // This yields the operand ty as `(<lhs_ty>, bool)`.
-                let operand_ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
-
-                OperandRef { value: result, info: builder.layout_of(operand_ty) }
+                OperandRef { value: result, info: builder.layout_of(self.ty_of_rvalue(rvalue)) }
             }
             ir::RValue::Cast(_, op, ir_ty) => {
                 let operand = self.codegen_operand(builder, &op);
@@ -344,8 +343,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             ir::RValue::Aggregate(_, _) => {
                 // This is only called if the aggregate value is a ZST, so we just
                 // create a new ZST operand...
-                let info = builder.layout_of(rvalue.ty(&self.body.declarations, self.ctx.ir_ctx()));
-                OperandRef::new_zst(builder, info)
+                OperandRef::new_zst(builder, builder.layout_of(self.ty_of_rvalue(rvalue)))
             }
             ir::RValue::Len(place) => {
                 let size = self.evaluate_array_len(builder, place);
@@ -358,7 +356,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             ir::RValue::Ref(_, place, kind) => {
                 match kind {
                     RefKind::Normal | RefKind::Raw => {
-                        let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
+                        let ty = self.ty_of_rvalue(rvalue);
                         let place = self.codegen_place(builder, place);
 
                         // When slices are passed, we might need to use
@@ -379,7 +377,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 }
             }
             ir::RValue::Discriminant(place) => {
-                let discriminant_ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
+                let discriminant_ty = self.ty_of_rvalue(rvalue);
                 let discriminant = self
                     .codegen_place(builder, place)
                     .codegen_get_discriminant(builder, discriminant_ty);
@@ -554,10 +552,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             | ir::RValue::Cast(_, _, _)
             | ir::RValue::Discriminant(_) => true,
             ir::RValue::Aggregate(_, _) => {
-                let ty = rvalue.ty(&self.body.declarations, self.ctx.ir_ctx());
-
                 // check if the type is a ZST, and if so this satisfies the
                 // case that the rvalue creates an operand...
+                let ty = self.ty_of_rvalue(rvalue);
                 self.ctx.layout_of(ty).is_zst(self.ctx.layout_computer())
             }
         }

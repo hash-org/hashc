@@ -2,11 +2,14 @@
 //! code and resolving references to intrinsic function calls.
 
 use hash_abi::FnAbi;
-use hash_ir::{intrinsics::Intrinsic, ir, ty::IrTy};
+use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
 use hash_target::abi::{AbiRepresentation, ScalarKind};
 use hash_utils::store::Store;
 
-use super::{abi::compute_fn_abi_from_instance, locals::LocalRef, place::PlaceRef, FnBuilder};
+use super::{
+    abi::compute_fn_abi_from_instance, locals::LocalRef, operands::OperandRef, place::PlaceRef,
+    FnBuilder,
+};
 use crate::{
     lower::operands::OperandValue,
     traits::{
@@ -16,24 +19,59 @@ use crate::{
 };
 
 impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
-    /// Resolve a reference to an [Intrinsic].
-    pub(super) fn resolve_intrinsic(
+    /// Resolve a reference to an [LangItem].
+    pub(super) fn resolve_lang_item(
         &mut self,
         builder: &mut Builder,
-        intrinsic: Intrinsic,
+        item: LangItem,
     ) -> (FnAbi, Builder::Function) {
         // @@ErrorHandling: propagate the error into the compiler pipeline, thus
         // terminating the workflow if this error occurs which it shouldn't
-        let ty = self.ctx.ir_ctx().intrinsics().get(intrinsic).unwrap();
-
-        // Get function pointer from the specified instance
-        let instance = self.ctx.ir_ctx().map_ty(ty, |ty| match ty {
-            IrTy::FnDef { instance, .. } => *instance,
-            _ => panic!("expected function type when resolving intrinsic item"),
-        });
+        let instance = self.ctx.ir_ctx().lang_items().get(item).unwrap();
 
         let abi = compute_fn_abi_from_instance(builder, instance).unwrap();
         (abi, builder.get_fn_ptr(instance))
+    }
+
+    /// Function that handles generating code for the defined language
+    /// intrinsics.
+    pub(super) fn codegen_intrinsic(
+        &mut self,
+        builder: &mut Builder,
+        intrinsic: Intrinsic,
+        fn_abi: &FnAbi,
+        args: &[OperandRef<Builder::Value>],
+        result: Builder::Value,
+    ) {
+        let result = PlaceRef::new(builder, result, fn_abi.ret_abi.info);
+
+        let value = match intrinsic {
+            Intrinsic::Abort => {
+                builder.codegen_abort_intrinsic();
+                return;
+            }
+            Intrinsic::Transmute => {
+                // This is dealt with before it reaches here.
+                return;
+            }
+            Intrinsic::PtrOffset => {
+                let ty = args[0].info;
+
+                let ptr = args[0].immediate_value();
+                let offset = args[1].immediate_value();
+                builder.bounded_get_element_pointer(
+                    builder.backend_ty_from_info(ty),
+                    ptr,
+                    &[offset],
+                )
+            }
+        };
+
+        if !fn_abi.ret_abi.is_ignored() {
+            OperandRef::from_immediate_value_or_scalar_pair(builder, value, result.info)
+                .value
+                .store(builder, result);
+        }
     }
 
     /// Generate code for a `transmute` intrinsic call. The `transmute`

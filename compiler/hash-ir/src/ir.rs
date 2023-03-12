@@ -583,6 +583,19 @@ impl Place {
         Self { local, projections: ctx.projections().create_empty() }
     }
 
+    /// Create a new [Place] from an existing [Place] whilst also
+    /// applying a [`PlaceProjection::Deref`] on the old one.
+    pub fn deref(&self, ctx: &IrCtx) -> Self {
+        let projections = ctx.projections().get_vec(self.projections);
+
+        Self {
+            local: self.local,
+            projections: ctx.projections().create_from_iter_fast(
+                projections.iter().copied().chain(once(PlaceProjection::Deref)),
+            ),
+        }
+    }
+
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
     pub fn field(&self, field: usize, ctx: &IrCtx) -> Self {

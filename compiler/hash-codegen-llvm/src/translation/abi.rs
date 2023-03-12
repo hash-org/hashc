@@ -44,6 +44,10 @@ impl<'b, 'm> AbiBuilderMethods<'b> for Builder<'_, 'b, 'm> {
     ) {
         arg_abi.store_fn_arg(self, index, destination)
     }
+
+    fn arg_ty(&mut self, arg_abi: &ArgAbi) -> Self::Type {
+        self.backend_ty_from_info(arg_abi.info)
+    }
 }
 
 pub trait ExtendedArgAbiMethods<'m> {

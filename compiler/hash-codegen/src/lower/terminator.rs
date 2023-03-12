@@ -12,7 +12,7 @@
 use hash_abi::{ArgAbi, FnAbi, PassMode};
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
-use hash_source::{constant::CONSTANT_MAP, identifier::IDENTS};
+use hash_source::constant::CONSTANT_MAP;
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
@@ -143,20 +143,30 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // generate the operand as the function call...
         let callee = self.codegen_operand(builder, op);
 
-        let instance = self.ctx.ir_ctx().map_ty(callee.info.ty, |ty| match ty {
-            IrTy::FnDef { instance, .. } => *instance,
-            _ => panic!("item is not callable"),
-        });
+        let (is_intrinsic, instance) = self
+            .ctx
+            .ir_ctx()
+            .map_ty_as_instance(callee.info.ty, |data, instance| (data.is_intrinsic(), instance));
+        let mut maybe_intrinsic = None;
 
-        // @@Hack: properly check that this is the transmute function.
-        if self.ctx.ir_ctx().map_instance(instance, Instance::name) == IDENTS.transmute {
-            return if target.is_some() {
-                self.codegen_transmute(builder, &fn_args[2], destination);
-                true
-            } else {
-                builder.unreachable();
-                false
-            };
+        // If this is an intrinsic, we will generate the required code
+        // for the intrinsic here...
+        if is_intrinsic {
+            maybe_intrinsic = Some(self.ctx.ir_ctx().map_instance(instance, |instance| {
+                Intrinsic::from_str_name(instance.name().into()).unwrap()
+            }));
+
+            // We exit early for transmute since we don't need to compute the ABI
+            // or any information about the return destination.
+            if let Some(Intrinsic::Transmute) = maybe_intrinsic {
+                return if target.is_some() {
+                    self.codegen_transmute(builder, &fn_args[2], destination);
+                    true
+                } else {
+                    builder.unreachable();
+                    false
+                };
+            }
         }
 
         // compute the function pointer value and the ABI
@@ -184,6 +194,39 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         } else {
             ReturnDestinationKind::Nothing
         };
+
+        // If we have an intrinsic, then we will generate the appropriate code
+        // for the intrinsic through the `codegen_intrinsic` function.
+        if let Some(intrinsic) = maybe_intrinsic {
+            let destination = match return_destination {
+                _ if fn_abi.ret_abi.is_indirect() => args[0],
+                ReturnDestinationKind::Nothing => {
+                    let ty = builder.arg_ty(&fn_abi.ret_abi);
+                    builder.const_undef(builder.type_ptr_to(ty))
+                }
+                ReturnDestinationKind::IndirectOperand(op, _)
+                | ReturnDestinationKind::Store(op) => op.value,
+                ReturnDestinationKind::DirectOperand(_) => {
+                    panic!("direct operand being used for intrinsic call")
+                }
+            };
+
+            let op_args =
+                fn_args.iter().map(|arg| self.codegen_operand(builder, arg)).collect::<Vec<_>>();
+
+            self.codegen_intrinsic(builder, intrinsic, &fn_abi, &op_args, destination);
+
+            if let ReturnDestinationKind::IndirectOperand(dest, _) = return_destination {
+                self.store_return_value(builder, return_destination, &fn_abi.ret_abi, dest.value);
+            }
+
+            return if target.is_some() {
+                true
+            } else {
+                builder.unreachable();
+                false
+            };
+        }
 
         // Keep track of all of the copied "constant" arguments to a function
         // if the value is being passed as a reference.
