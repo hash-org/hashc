@@ -65,7 +65,7 @@ impl<'s> SemanticAnalyser<'s> {
                 Expr::FnDef(_) => {}
                 _ => self.invalid_argument(DirectiveArgument::FnDef, directive, value.ast_ref()),
             }
-        } else {
+        } else if !matches!(subject.body(), Expr::FnDef(_)) {
             self.invalid_argument(DirectiveArgument::Declaration, directive, subject);
         }
     }
@@ -210,7 +210,10 @@ impl<'s> SemanticAnalyser<'s> {
                     )
                 }
             }
-        } else if directive.is(IDENTS.entry_point) || directive.is(IDENTS.foreign) {
+        } else if directive.is(IDENTS.entry_point)
+            || directive.is(IDENTS.foreign)
+            || directive.is(IDENTS.pure)
+        {
             // Check that the supplied argument to a function modifying directive
             // is a declaration of a function that the directive will apply to.
             self.validate_fn_decl_directive(directive, subject)
@@ -221,7 +224,6 @@ impl<'s> SemanticAnalyser<'s> {
         } else if !directive.is(IDENTS.dump_ast)
             && !directive.is(IDENTS.dump_tir)
             && !directive.is(IDENTS.run)
-            && !directive.is(IDENTS.pure)
         {
             // @@Future: use some kind of scope validation in order to verify that
             // the used directives are valid
