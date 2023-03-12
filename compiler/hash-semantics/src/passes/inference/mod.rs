@@ -70,11 +70,9 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // Infer the expression
         let (term, _) = self.infer_fully(
             (self.ast_info().terms().get_data_by_node(node.id()).unwrap(), self.new_ty_hole()),
-            |(term_id, ty_id)| self.inference_ops().infer_term(term_id, ty_id).map(|x| x.into()),
+            |(term_id, ty_id)| self.infer_ops().infer_term(term_id, ty_id).map(|x| x.into()),
             |(term_id, ty_id)| {
-                self.substitution_ops()
-                    .atom_has_holes(term_id)
-                    .or(self.substitution_ops().atom_has_holes(ty_id))
+                self.sub_ops().atom_has_holes(term_id).or(self.sub_ops().atom_has_holes(ty_id))
             },
         )?;
         self.ast_info().terms().insert(node.id(), term);
@@ -89,7 +87,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
         let _ = self.infer_fully(
             self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap(),
             |mod_def_id| {
-                self.inference_ops()
+                self.infer_ops()
                     .infer_mod_def(
                         mod_def_id,
                         match self.get_current_progress() {
@@ -100,7 +98,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
                     )
                     .map(|()| mod_def_id)
             },
-            |mod_def_id| self.substitution_ops().mod_def_has_holes(mod_def_id),
+            |mod_def_id| self.sub_ops().mod_def_has_holes(mod_def_id),
         )?;
         // Mod def is already registered in the ast info
         Ok(())

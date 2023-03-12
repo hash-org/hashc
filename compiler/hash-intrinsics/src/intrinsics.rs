@@ -894,8 +894,9 @@ impl DefinedIntrinsics {
             );
 
             let ret = env.new_ty(u_sym);
-            add("transmute", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
-                unimplemented!("`transmute` intrinsic evaluation")
+            add("transmute", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
+                // No-op
+                Ok(args[2])
             })
         };
 

@@ -13,7 +13,7 @@ use hash_intrinsics::{
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
+use hash_source::{identifier::IDENTS, location::Span};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgsId},
@@ -36,7 +36,7 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    store::{PartialStore, SequenceStore, SequenceStoreKey, Store},
+    store::{PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 use super::{
@@ -442,24 +442,25 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::DirectiveExpr>,
     ) -> SemanticResult<TermId> {
+        let directives =
+            AppliedDirectives { directives: node.directives.iter().map(|d| d.ident).collect() };
+
+        // If this is an already-resolved function definition, register the directives
+        // on the function before we pass to the inner expression:
+        if let Some(fn_def_id) = self.ast_info().fn_defs().get_data_by_node(node.subject.id()) {
+            // Register directives on the term:
+            self.stores().directives().insert(fn_def_id.into(), directives.clone());
+        }
+
         // Pass to the inner expression
         let inner = self.make_term_from_ast_expr(node.subject.ast_ref())?;
 
         // Register directives on the term:
-        let directives =
-            AppliedDirectives { directives: node.directives.iter().map(|d| d.ident).collect() };
         self.stores().directives().insert(inner.into(), directives.clone());
 
-        // If this is a function term, also register the directives on the function
-        // definition:
-        match self.get_term(inner) {
-            Term::FnRef(fn_def_id) => {
-                self.stores().directives().insert(fn_def_id.into(), directives);
-            }
-            Term::Ty(ty_id) => {
-                self.stores().directives().insert(ty_id.into(), directives);
-            }
-            _ => {}
+        // If this is a type, also register the directives on the type
+        if let Term::Ty(ty_id) = self.get_term(inner) {
+            self.stores().directives().insert(ty_id.into(), directives);
         }
 
         Ok(inner)
@@ -826,6 +827,14 @@ impl<'tc> ResolutionPass<'tc> {
         // Function should already be discovered
         let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
+        // Whether the function has been marked as pure by a directive
+        let is_pure_by_directive = self
+            .stores()
+            .directives()
+            .get(fn_def_id.into())
+            .map(|directives| directives.contains(IDENTS.pure))
+            == Some(true);
+
         let (params, return_ty, return_value, fn_def_id) =
             self.scoping().enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
                 // First resolve the parameters
@@ -839,6 +848,9 @@ impl<'tc> ResolutionPass<'tc> {
                 if let Some(params) = params {
                     self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
                         fn_def.ty.params = params;
+                        if is_pure_by_directive {
+                            fn_def.ty.pure = true;
+                        }
                     });
                 }
 

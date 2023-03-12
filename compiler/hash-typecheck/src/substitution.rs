@@ -6,7 +6,6 @@ use derive_more::{Constructor, Deref};
 use hash_tir::{
     access::AccessTerm,
     args::ArgsId,
-    environment::context::BindingKind,
     holes::Hole,
     mods::ModDefId,
     params::{ParamIndex, ParamsId},
@@ -273,14 +272,15 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         has_holes
     }
 
-    /// Create a substitution from the current stack members.
-    pub fn create_sub_from_current_stack_members(&self) -> Sub {
+    /// Create a substitution from the current scope members.
+    pub fn create_sub_from_current_scope(&self) -> Sub {
         let mut sub = Sub::identity();
 
         let current_scope_index = self.context().get_current_scope_index();
         self.context().for_bindings_of_scope(current_scope_index, |binding| {
-            if let BindingKind::StackMember(_, _, Some(value)) = binding.kind {
-                sub.insert(binding.name, value);
+            if let Some(value) = self.context_utils().try_get_binding_value(binding.name) {
+                let subbed_value = self.apply_sub_to_term(value, &sub);
+                sub.insert(binding.name, subbed_value);
             }
         });
 

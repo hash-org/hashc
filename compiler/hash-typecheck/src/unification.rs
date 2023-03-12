@@ -14,7 +14,7 @@ use hash_tir::{
     terms::{Term, TermId},
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey};
 
@@ -62,6 +62,13 @@ impl<T> Uni<T> {
     pub fn map_result<U>(self, f: impl FnOnce(T) -> U) -> Uni<U> {
         Uni { result: f(self.result), sub: self.sub }
     }
+
+    pub fn map_into<U>(self) -> Uni<U>
+    where
+        T: Into<U>,
+    {
+        Uni { result: self.result.into(), sub: self.sub }
+    }
 }
 
 impl Uni<TyId> {
@@ -96,12 +103,24 @@ impl Uni<TermId> {
 pub struct UnificationOps<'a, T: AccessToTypechecking>(&'a T);
 
 impl<T: AccessToTypechecking> UnificationOps<'_, T> {
+    pub fn unify_atoms(&self, src: Atom, target: Atom) -> TcResult<Uni<Atom>> {
+        match (src, target) {
+            (Atom::Ty(src_id), Atom::Ty(target_id)) => {
+                Ok(self.unify_tys(src_id, target_id)?.map_into())
+            }
+            (Atom::Term(src_id), Atom::Term(target_id)) => {
+                Ok(self.unify_terms(src_id, target_id)?.map_into())
+            }
+            _ => panic!("unify_atoms: mismatching atoms"),
+        }
+    }
+
     /// Unify two types.
     pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<Uni<TyId>> {
-        let src_id =
-            self.normalisation_ops().to_ty(self.normalisation_ops().normalise(src_id.into())?);
-        let target_id =
-            self.normalisation_ops().to_ty(self.normalisation_ops().normalise(target_id.into())?);
+        let norm_ops = self.norm_ops();
+
+        let src_id = norm_ops.to_ty(norm_ops.normalise(src_id.into())?);
+        let target_id = norm_ops.to_ty(norm_ops.normalise(target_id.into())?);
 
         let src = self.get_ty(src_id);
         let target = self.get_ty(target_id);
@@ -126,26 +145,14 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             }
             (_, _) if self.is_uninhabitable(src_id)? => Uni::ok(target_id),
 
-            // @@Todo: eval fully
             (Ty::Eval(t1), Ty::Eval(t2)) => {
-                self.unify_terms(t1, t2).map(|result| result.map_result(|r| self.new_ty(r)))
+                let uni = self.unify_terms(t1, t2)?;
+                // Ensure it is a type
+                let result_ty = self.infer_ops().use_term_in_ty_pos(uni.result)?;
+                Ok(uni.map_result(|_| result_ty))
             }
-            (Ty::Eval(term), _) => match self
-                .normalisation_ops()
-                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
-            {
-                Some(ty_id) => self.unify_tys(ty_id, target_id),
-                // @@Todo: usage error
-                _ => Uni::mismatch_types(src_id, target_id),
-            },
-            (_, Ty::Eval(term)) => match self
-                .normalisation_ops()
-                .maybe_to_ty(self.normalisation_ops().normalise(term.into())?)
-            {
-                Some(ty) => self.unify_tys(src_id, ty),
-                // @@Todo: usage error
-                _ => Uni::mismatch_types(src_id, target_id),
-            },
+            (Ty::Eval(_), _) => Uni::mismatch_types(src_id, target_id),
+            (_, Ty::Eval(_)) => Uni::mismatch_types(src_id, target_id),
 
             (Ty::Var(a), Ty::Var(b)) => Uni::ok_iff_types_match(a == b, src_id, target_id),
             (Ty::Var(_), _) | (_, Ty::Var(_)) => Uni::mismatch_types(src_id, target_id),
@@ -164,9 +171,9 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                             self.unify_params(f1.params, f2.params, ParamOrigin::FnTy(f1))?;
 
                         let return_ty_1_subbed =
-                            self.substitution_ops().apply_sub_to_ty(f1.return_ty, &param_sub);
+                            self.sub_ops().apply_sub_to_ty(f1.return_ty, &param_sub);
                         let return_ty_2_subbed =
-                            self.substitution_ops().apply_sub_to_ty(f2.return_ty, &param_sub);
+                            self.sub_ops().apply_sub_to_ty(f2.return_ty, &param_sub);
 
                         let Uni { result: return_ty, sub: return_ty_sub } =
                             self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
@@ -221,10 +228,8 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
 
         // @@Todo: document and implement remaining cases
 
-        let src_id =
-            self.normalisation_ops().to_term(self.normalisation_ops().normalise(src_id.into())?);
-        let target_id =
-            self.normalisation_ops().to_term(self.normalisation_ops().normalise(target_id.into())?);
+        let src_id = self.norm_ops().to_term(self.norm_ops().normalise(src_id.into())?);
+        let target_id = self.norm_ops().to_term(self.norm_ops().normalise(target_id.into())?);
 
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
@@ -288,12 +293,10 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                             ParamOrigin::FnTy(f1_def.ty),
                         )?;
 
-                        let return_ty_1_subbed = self
-                            .substitution_ops()
-                            .apply_sub_to_ty(f1_def.ty.return_ty, &param_sub);
-                        let return_ty_2_subbed = self
-                            .substitution_ops()
-                            .apply_sub_to_ty(f2_def.ty.return_ty, &param_sub);
+                        let return_ty_1_subbed =
+                            self.sub_ops().apply_sub_to_ty(f1_def.ty.return_ty, &param_sub);
+                        let return_ty_2_subbed =
+                            self.sub_ops().apply_sub_to_ty(f2_def.ty.return_ty, &param_sub);
 
                         let Uni { result: _, sub: _ } =
                             self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
@@ -301,9 +304,9 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                         match (f1_def.body, f2_def.body) {
                             (FnBody::Defined(f1_body), FnBody::Defined(f2_body)) => {
                                 let body_1_subbed =
-                                    self.substitution_ops().apply_sub_to_term(f1_body, &param_sub);
+                                    self.sub_ops().apply_sub_to_term(f1_body, &param_sub);
                                 let body_2_subbed =
-                                    self.substitution_ops().apply_sub_to_term(f2_body, &param_sub);
+                                    self.sub_ops().apply_sub_to_term(f2_body, &param_sub);
 
                                 let _ = self.unify_terms(body_1_subbed, body_2_subbed)?;
                                 Uni::ok(src_id)
@@ -366,7 +369,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             });
         }
 
-        let name_sub = self.substitution_ops().create_sub_from_param_names(src_id, target_id);
+        let name_sub = self.sub_ops().create_sub_from_param_names(src_id, target_id);
 
         let param_uni = self.reduce_unifications(
             src_id.iter().zip(target_id.iter()).map(|(src, target)| {
@@ -390,13 +393,13 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                 }
 
                 let Inference(target_ty, _) =
-                    self.inference_ops().infer_ty(target.ty, self.new_ty_hole())?;
+                    self.infer_ops().infer_ty(target.ty, self.new_ty_hole())?;
 
                 // Apply the name substitution to the parameter
-                let subbed_src_ty = self.substitution_ops().apply_sub_to_ty(src.ty, &name_sub);
+                let subbed_src_ty = self.sub_ops().apply_sub_to_ty(src.ty, &name_sub);
 
                 let Inference(src_ty, _) =
-                    self.inference_ops().infer_ty(subbed_src_ty, self.new_ty_hole())?;
+                    self.infer_ops().infer_ty(subbed_src_ty, self.new_ty_hole())?;
 
                 let unified_param = self.unify_tys(src_ty, target_ty)?.map_result(|ty| ParamData {
                     name: target.name,
@@ -440,8 +443,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
 
     /// Determine whether two terms are equal.
     pub fn terms_are_equal(&self, t1: TermId, t2: TermId) -> bool {
-        self.unification_ops().unify_terms(t1, t2).map(|result| result.sub.is_empty()).ok()
-            == Some(true)
+        self.uni_ops().unify_terms(t1, t2).map(|result| result.sub.is_empty()).ok() == Some(true)
     }
 
     /// Determine whether the given type is uninhabitable.
@@ -449,7 +451,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
     /// This does not look too deeply into the type, so it may return false
     /// for types that are actually uninhabitable.
     pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
-        let ty = self.normalisation_ops().to_ty(self.normalisation_ops().normalise(ty.into())?);
+        let ty = self.norm_ops().to_ty(self.norm_ops().normalise(ty.into())?);
         match self.get_ty(ty) {
             Ty::Data(data_ty) => {
                 let data_def = self.stores().data_def().get(data_ty.data_def);

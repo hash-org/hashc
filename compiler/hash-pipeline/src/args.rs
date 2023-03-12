@@ -212,6 +212,21 @@ fn parse_arg_configuration(
                 }
             }
         }
+        "mono" => {
+            let value = value.ok_or_else(expected_value)?;
+
+            match value.as_str() {
+                "off" => {
+                    settings.semantic_settings.mono_tir = false;
+                }
+                "on" => {
+                    settings.semantic_settings.mono_tir = true;
+                }
+                _ => {
+                    return Err(PipelineError::InvalidValue(key, value));
+                }
+            }
+        }
         "backend" => {
             let value = value.ok_or_else(expected_value)?;
 

@@ -42,6 +42,9 @@ pub trait AccessToTypechecking:
     /// Get the entry point of the current compilation, if any.
     fn entry_point(&self) -> &EntryPointState<FnDefId>;
 
+    /// Whether the typechecker should monomorphise all pure functions.
+    fn should_monomorphise(&self) -> bool;
+
     /// Absorb an error state into the diagnostics.
     ///
     /// Returns the error or the closure result if successful.
@@ -57,19 +60,19 @@ pub trait AccessToTypechecking:
         }
     }
 
-    fn inference_ops(&self) -> InferenceOps<Self> {
+    fn infer_ops(&self) -> InferenceOps<Self> {
         InferenceOps::new(self)
     }
 
-    fn substitution_ops(&self) -> SubstitutionOps<Self> {
+    fn sub_ops(&self) -> SubstitutionOps<Self> {
         SubstitutionOps::new(self)
     }
 
-    fn unification_ops(&self) -> UnificationOps<Self> {
+    fn uni_ops(&self) -> UnificationOps<Self> {
         UnificationOps::new(self)
     }
 
-    fn normalisation_ops(&self) -> normalisation::NormalisationOps<Self> {
+    fn norm_ops(&self) -> normalisation::NormalisationOps<Self> {
         normalisation::NormalisationOps::new(self)
     }
 
@@ -84,7 +87,7 @@ pub struct IntrinsicAbilitiesWrapper<'tc, T: AccessToTypechecking> {
 
 impl<T: AccessToTypechecking> IntrinsicAbilities for IntrinsicAbilitiesWrapper<'_, T> {
     fn normalise_term(&self, term: TermId) -> Result<TermId, String> {
-        let norm = self.tc.normalisation_ops();
+        let norm = self.tc.norm_ops();
 
         norm.normalise(term.into()).map(|result| norm.to_term(result)).map_err(|e| {
             self.tc.diagnostics().add_error(self.tc.convert_tc_error(e));

@@ -58,6 +58,9 @@ pub struct Flags {
 
     /// Dump the generated TIR.
     pub dump_tir: bool,
+
+    /// Monomorphise the generated TIR.
+    pub mono_tir: bool,
 }
 
 /// The [SemanticAnalysisCtx] represents all of the information that is required

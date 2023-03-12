@@ -241,29 +241,11 @@ impl<'tc> ResolutionPass<'tc> {
                         }
                     }
                     ModMemberValue::Fn(_) => {
-                        // Must be a function definition node.
-                        match member_rhs_expr.body() {
-                            ast::Expr::TyFnDef(ty_fn_def) => {
-                                if self
-                                    .try_or_add_error(self.make_term_from_ast_ty_fn_def(
-                                        member_rhs_expr.with_body(ty_fn_def),
-                                    ))
-                                    .is_none()
-                                {
-                                    found_error = true;
-                                }
-                            }
-                            ast::Expr::FnDef(fn_def) => {
-                                if self
-                                    .try_or_add_error(self.make_term_from_ast_fn_def(
-                                        member_rhs_expr.with_body(fn_def),
-                                    ))
-                                    .is_none()
-                                {
-                                    found_error = true;
-                                }
-                            }
-                            _ => unreachable!(),
+                        if self
+                            .try_or_add_error(self.make_term_from_ast_expr(member_rhs_expr))
+                            .is_none()
+                        {
+                            found_error = true;
                         }
                     }
                 }
