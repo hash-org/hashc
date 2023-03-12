@@ -301,6 +301,11 @@ impl IrTy {
         Self::Ref(ctx.tys().create(ty), Mutability::Immutable, RefKind::Normal)
     }
 
+    /// Check if a type is a reference type.
+    pub fn is_ref(&self) -> bool {
+        matches!(self, Self::Ref(_, _, _))
+    }
+
     /// Check if the [IrTy] is an integral type.
     pub fn is_integral(&self) -> bool {
         matches!(self, Self::Int(_) | Self::UInt(_))
@@ -1090,10 +1095,9 @@ impl PlaceTy {
                 PlaceTy { ty, index: None }
             }
             PlaceProjection::Index(_) | PlaceProjection::ConstantIndex { .. } => {
-                let ty = ctx
-                    .tys()
-                    .map_fast(self.ty, |ty| ty.on_index())
-                    .unwrap_or_else(|| panic!("expected an array or slice, got {self:?}"));
+                let ty = ctx.tys().map_fast(self.ty, |ty| ty.on_index()).unwrap_or_else(|| {
+                    panic!("expected an array or slice, got `{:?}`", self.ty.for_fmt(ctx))
+                });
 
                 PlaceTy { ty, index: None }
             }

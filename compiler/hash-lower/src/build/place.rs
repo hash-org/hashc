@@ -135,10 +135,19 @@ impl<'tcx> Builder<'tcx> {
                 block.and(place_builder.deref())
             }
             Term::Index(IndexTerm { subject, index }) => {
-                let base_place = unpack!(block = self.as_place_builder(block, subject, mutability));
+                let mut base_place =
+                    unpack!(block = self.as_place_builder(block, subject, mutability));
 
                 // Create a temporary for the index expression.
                 let index = unpack!(block = self.term_into_temp(block, index, mutability));
+
+                // Auto-deref: if the base place is behind a reference, then we dereference
+                // it.
+                let ty = self.ty_id_from_tir_term(subject);
+
+                if self.ctx().map_ty(ty, |ty| ty.is_ref()) {
+                    base_place = base_place.deref()
+                }
 
                 // @@Todo: depending on the configuration, we may need to insert a bounds check
                 // here.
