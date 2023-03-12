@@ -1,3 +1,0 @@
-// @@TODO: Potentially move this to `string.hash`?
-// Slice a string at [begin, end)
-slice := (string: str, start: usize, end: usize) -> str => intrinsic_slice(string, start, end);

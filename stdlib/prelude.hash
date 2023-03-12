@@ -38,6 +38,7 @@ print := (msg: str, /* end: char = '\n' */) => {
     // We transmute the message into a SizedPointer and then write it out to
     // stdout.
     SizedPointer(bytes, len) := Intrinsics::transmute(type str, type SizedPointer, msg);
+
     libc::write(STDOUT, bytes, len);
 
     // @@Todo: un-comment this when default parameters are working
@@ -51,19 +52,6 @@ dbg := <T> => (item: T) -> T => {
     Intrinsics::debug_print(T, item)
     item
 }
-
-// Define this in the prelude
-// Intrinsics: := () => #intrinsics mod {
-//     // Defined in here... but can still 
-//     // be referenced in compiler by for example `self.intrinsics().abort()`
-//     panic := (msg: str) -> ! => {
-//         print(msg);
-//         Intrinsics::abort();
-//     }
-
-//     // Defined in the compiler...
-//     abort: () -> !;
-// }
 
 #lang panic := (msg: str) -> ! => {
     print(msg);
