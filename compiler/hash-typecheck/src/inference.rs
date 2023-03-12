@@ -50,6 +50,7 @@ use hash_utils::{
 use super::unification::Uni;
 use crate::{
     errors::{TcError, TcResult, WrongTermKind},
+    normalisation::NormalisationMode,
     AccessToTypechecking,
 };
 
@@ -757,13 +758,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Potentially monomorphise a term.
     ///
     /// This is applied to function calls starting from root.
-    pub fn potentially_monomorphise_term(&self, term: TermId) -> TcResult<TermId> {
-        if self.should_monomorphise() {
+    pub fn potentially_monomorphise_term(&self, fn_call: TermId, fn_ty: FnTy) -> TcResult<TermId> {
+        if self.should_monomorphise() && fn_ty.pure {
             let norm_ops = self.norm_ops();
-            let result = norm_ops.to_term(norm_ops.normalise_pure(term.into())?);
+            norm_ops.with_mode(NormalisationMode::Full { eval_impure_fns: true });
+            let result = norm_ops.to_term(norm_ops.normalise(fn_call.into())?);
             Ok(result)
         } else {
-            Ok(term)
+            Ok(fn_call)
         }
     }
 
@@ -845,7 +847,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         );
 
                         let monomorphised =
-                            self.potentially_monomorphise_term(resulting_fn_call)?;
+                            self.potentially_monomorphise_term(resulting_fn_call, fn_ty)?;
+                        self.register_atom_inference(original_term_id, monomorphised, uni.result);
+
                         Ok(Inference(monomorphised, uni.result))
                     })
                 };

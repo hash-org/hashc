@@ -166,25 +166,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         Self { env, mode: Cell::new(NormalisationMode::Weak) }
     }
 
-    /// Normalise the given atom if it does not contain any side effects.
-    ///
-    /// This is meant to be used for function calls.
-    pub fn normalise_pure(&self, atom: Atom) -> TcResult<Atom> {
-        if !self.atom_has_effects(atom) {
-            match self.eval(atom) {
-                Ok(t) => Ok(t),
-                Err(e) => match e {
-                    Signal::Break | Signal::Continue | Signal::Return(_) => {
-                        panic!("Got signal when normalising: {e:?}")
-                    }
-                    Signal::Err(e) => Err(e),
-                },
-            }
-        } else {
-            Ok(atom)
-        }
-    }
-
     /// Normalise the given atom.
     pub fn normalise(&self, atom: Atom) -> TcResult<Atom> {
         match self.eval(atom) {
