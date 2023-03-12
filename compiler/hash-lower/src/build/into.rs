@@ -4,15 +4,16 @@
 //! [crate::build::temp].
 
 use hash_ir::{
+    intrinsics::Intrinsic,
     ir::{
-        self, AggregateKind, BasicBlock, Const, ConstKind, LogicalBinOp, Place, RValue, Statement,
-        StatementKind, TerminatorKind, UnevaluatedConst,
+        self, AggregateKind, BasicBlock, Const, ConstKind, LogicalBinOp, Operand, Place, RValue,
+        Statement, StatementKind, TerminatorKind, UnevaluatedConst,
     },
     ty::{AdtId, IrTy, Mutability, RefKind, VariantIdx},
-    write::WriteIr,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
+    constant::CONSTANT_MAP,
     identifier::{Identifier, IDENTS},
     location::Span,
 };
@@ -35,7 +36,7 @@ use hash_tir::{
     ty_as_variant,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 
 use super::{
     ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder, LocalKey, LoopBlockInfo,
@@ -88,20 +89,10 @@ impl<'tcx> Builder<'tcx> {
             }
             Term::Array(ArrayTerm { elements }) => {
                 // We lower literal arrays and tuples as aggregates.
-                let ty = self.ty_id_from_tir_term(term_id);
+                let ty_id = self.ty_id_from_tir_term(term_id);
+                let ty = self.ctx().tys().get(ty_id);
 
-                // If the type is not an array type, there is a inconsistency in the
-                // type resolution.
-                if !self.ctx.map_ty(ty, |ty| ty.is_array()) {
-                    panic_on_span!(
-                        span.into_location(self.source_id),
-                        self.source_map(),
-                        "expected an array type for the array literal, got `{:?}`",
-                        ty.for_fmt(self.ctx)
-                    );
-                }
-
-                let aggregate_kind = AggregateKind::Array(ty);
+                let aggregate_kind = AggregateKind::Array(ty_id);
                 let args = self.stores().term_list().map_fast(*elements, |elements| {
                     elements
                         .iter()
@@ -110,7 +101,19 @@ impl<'tcx> Builder<'tcx> {
                         .collect::<Vec<_>>()
                 });
 
-                self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
+                // If it is a list, we have to initialise it with the array elements...
+                if !ty.is_array() {
+                    self.lower_list_initialisation(
+                        destination,
+                        block,
+                        &ty,
+                        aggregate_kind,
+                        &args,
+                        span,
+                    )
+                } else {
+                    self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
+                }
             }
 
             Term::Ctor(ref ctor) => {
@@ -592,6 +595,120 @@ impl<'tcx> Builder<'tcx> {
 
         let aggregate = RValue::Aggregate(aggregate_kind, fields);
         self.control_flow_graph.push_assign(block, destination, aggregate, span);
+
+        block.unit()
+    }
+
+    /// This function will generate the necessary code to initialise a slice on
+    /// the stack. A slice differs from an array by the fact that it is an
+    /// aggregate value that contains the length of the slice, and the
+    /// pointer to the data itself.
+    ///
+    /// The procedure to initialise the list is as follows:
+    ///
+    /// 1. Allocate enough bytes for the literal `[T]` by computing
+    ///    `size_of(T)` * `len(elements)`.
+    ///
+    /// 2. Write the bytes to the allocation.
+    ///
+    /// 3. Create a `SizedPtr(ref, len)` from the pointer that we get
+    ///    from the call to malloc and assign it to a temporary.
+    ///
+    /// 4. Transmute the `SizedPointer` into a `&[T]` and assign it to the
+    ///    destination.
+    ///
+    /// For example, the following snippet:
+    /// ```ignore
+    /// t := [1, 2, 3];
+    /// ```
+    /// Is lowered into the following sequence:
+    /// ```ignore
+    /// _1: &[i32]; // parameter `t`
+    /// _2: &raw u8;
+    /// _3: &[i32; 4];
+    /// _4: SizedPointer;
+    /// _5: ();
+    ///
+    /// bb0 {
+    ///     _2 = malloc(const 16_u64) -> bb1;
+    /// }
+    ///
+    /// bb1 {
+    ///     _3 = _2;
+    ///     (*_3) = [const 1_i32, const 2_i32, const 3_i32, const 5_i32];
+    ///     _4 = SizedPointer(_3, const 4_u64);
+    ///     _1 = transmute((), (), _4) -> bb2;
+    /// }
+    /// ```
+    ///
+    /// @@Future: this should probably be done within the language rather
+    /// than the build initialising the list like this.
+    fn lower_list_initialisation(
+        &mut self,
+        destination: Place,
+        mut block: BasicBlock,
+        ty: &IrTy,
+        aggregate_kind: AggregateKind,
+        args: &[(Identifier, TermId)],
+        span: Span,
+    ) -> BlockAnd<()> {
+        let ptr_width = self.settings.target().ptr_size();
+        let element_ty = ty.element_ty(self.ctx()).unwrap();
+        let size = self.ctx.size_of(element_ty).unwrap() * args.len();
+        let const_size = CONSTANT_MAP.create_usize_int(size, ptr_width);
+        let size_op = Operand::Const(Const::Int(const_size).into());
+
+        // find the `malloc` function which is defined in the prelude
+        // and within the `libc` module
+        let item = self.lookup_libc_fn("malloc").expect("`malloc` not found");
+        let subject = Operand::Const(Const::Zero(item).into());
+
+        // 1).
+        //
+        // Make the call to `malloc`, and then assign the result to a
+        // temporary.
+        let ptr = self.temp_place(self.ctx().tys().common_tys.raw_ptr);
+        unpack!(block = self.build_fn_call(ptr, block, subject, vec![size_op], span));
+
+        // we make a new temporary which is a pointer to the array and assign `ptr`
+        // to it.
+        let ty = IrTy::make_ref(IrTy::Array { ty: element_ty, length: args.len() }, self.ctx());
+        let array_ptr = self.temp_place(self.ctx().tys().create(ty));
+        self.control_flow_graph.push_assign(block, array_ptr, Operand::Place(ptr).into(), span);
+
+        // 2). Write data to allocation.
+        self.aggregate_into_dest(array_ptr.deref(self.ctx()), block, aggregate_kind, args, span);
+
+        // 3).
+        //
+        // Create the SizedPointer from the received pointer and length.
+        let sized_ptr_ty =
+            self.lookup_prelude_item("SizedPointer").expect("`SizedPointer` not found");
+        let sized_ptr = self.temp_place(sized_ptr_ty);
+        let value =
+            self.create_ptr_with_metadata(sized_ptr_ty, Operand::Place(array_ptr), args.len());
+
+        self.control_flow_graph.push_assign(block, sized_ptr, value, span);
+
+        // Finally, transmute the SizedPointer into a `&[T]` and assign it to the
+        // destination.
+        let transmute_fn = self.ctx().intrinsics().get_ty(Intrinsic::Transmute).unwrap();
+        let subject = Operand::Const(Const::Zero(transmute_fn).into());
+
+        unpack!(
+            block = self.build_fn_call(
+                destination,
+                block,
+                subject,
+                // The first two arguments are the fill-ins for the generic parameters.
+                vec![
+                    Operand::Const(Const::Zero(self.ctx().tys().common_tys.unit).into()),
+                    Operand::Const(Const::Zero(self.ctx().tys().common_tys.unit).into()),
+                    Operand::Place(sized_ptr)
+                ],
+                span
+            )
+        );
 
         block.unit()
     }
