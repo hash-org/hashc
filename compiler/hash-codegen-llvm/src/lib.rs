@@ -282,6 +282,11 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
 
         let module_name = self.workspace.name.clone();
         let module = context.create_module(module_name.as_str());
+
+        module.set_source_file_name(&module_name);
+        module.set_triple(&self.target_machine.get_triple());
+        module.set_data_layout(&self.target_machine.get_target_data().get_data_layout());
+
         let ctx = CodeGenCtx::new(&module, self.settings, &self.ir_storage.ctx, self.layouts);
 
         time_item(self, "predefine", |this| this.predefine_bodies(&ctx));
