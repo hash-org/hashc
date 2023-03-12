@@ -4,7 +4,7 @@
 use hash_ir::{
     cast::CastKind,
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
-    ty::{IrTy, Mutability},
+    ty::{IrTy, IrTyId, Mutability},
 };
 use hash_source::{
     constant::{IntConstant, IntTy, CONSTANT_MAP},
@@ -44,18 +44,15 @@ impl<'tcx> Builder<'tcx> {
                         let lhs = unpack!(block = self.as_operand(block, lhs, Mutability::Mutable));
                         let rhs = unpack!(block = self.as_operand(block, rhs, Mutability::Mutable));
 
-                        // @@Future: we shouldn't use the un-cached version here, however since this
-                        // only for primitive types (at the moment), this is fine.
-                        let ty = self.ty_from_tir_term(term_id);
+                        let ty = self.ty_id_from_tir_term(term_id);
                         self.build_binary_op(block, ty, span, op, lhs, rhs)
                     }
                     FnCallTermKind::UnaryOp(op, subject) => {
                         let arg =
                             unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
 
-                        // @@Future: we shouldn't use the un-cached version here, however since this
-                        // only for primitive types (at the moment), this is fine.
-                        let ty = self.ty_from_tir_term(term_id);
+                        let ty_id = self.ty_id_from_tir_term(term_id);
+                        let ty = self.ctx().tys().get(ty_id);
 
                         // If the operator is a negation, and the operand is signed, we can have a
                         // case of overflow. This occurs when the operand is the minimum value for
@@ -203,7 +200,7 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn build_binary_op(
         &mut self,
         mut block: BasicBlock,
-        ty: IrTy,
+        ty: IrTyId,
         span: Span,
         op: BinOp,
         lhs: Operand,
@@ -218,14 +215,14 @@ impl<'tcx> Builder<'tcx> {
         }
 
         let operands = Box::new((lhs, rhs));
+        let actual_ty = self.ctx().tys().get(ty);
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
         if self.settings.lowering_settings().checked_operations {
-            if op.is_checkable() && ty.is_integral() {
+            if op.is_checkable() && actual_ty.is_integral() {
                 // Create a new tuple that contains the result of the operation
-                let expr_ty = self.ctx().tys().create(ty);
-                let ty = IrTy::tuple(self.ctx(), &[expr_ty, self.ctx().tys().common_tys.bool]);
+                let ty = IrTy::tuple(self.ctx(), &[ty, self.ctx().tys().common_tys.bool]);
                 let ty_id = self.ctx().tys().create(ty);
 
                 let temp = self.temp_place(ty_id);
@@ -246,10 +243,10 @@ impl<'tcx> Builder<'tcx> {
                 );
 
                 return block.and(result.into());
-            } else if ty.is_integral() && (op == BinOp::Div || op == BinOp::Mod) {
+            } else if actual_ty.is_integral() && (op == BinOp::Div || op == BinOp::Mod) {
                 // Check for division or a remainder by zero, and if so emit
                 // an assertion to verify this condition.
-                let int_ty: IntTy = ty.into();
+                let int_ty: IntTy = actual_ty.into();
                 let uint_ty = int_ty.to_unsigned();
 
                 let assert_kind = if op == BinOp::Div {
@@ -277,13 +274,13 @@ impl<'tcx> Builder<'tcx> {
                 // In the case of signed integers, if the RHS value is `-1`, and the LHS
                 // is the MIN value, this will result in a division overflow, we need to
                 // check for this and emit code.
-                if ty.is_signed() {
+                if actual_ty.is_signed() {
                     let sint_ty = int_ty.to_signed();
 
                     let const_val =
                         Const::Int(CONSTANT_MAP.create_int(IntConstant::from_sint(-1, sint_ty)));
                     let negative_one_val = Operand::Const(const_val.into());
-                    let minimum_value = self.min_value_of_ty(ty);
+                    let minimum_value = self.min_value_of_ty(actual_ty);
 
                     let is_negative_one = self.temp_place(self.ctx().tys().common_tys.bool);
                     let is_minimum_value = self.temp_place(self.ctx().tys().common_tys.bool);

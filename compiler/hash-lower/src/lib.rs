@@ -208,23 +208,23 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             &source_info,
         );
 
-        let tcx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env, semantic_storage);
+        let ctx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env, semantic_storage);
 
         // @@Future: support generic substitutions here.
         let empty_args = semantic_storage.stores.args().create_empty();
 
         semantic_storage.stores.directives().internal_data().borrow().iter().for_each(|(id, directives)| {
             if directives.contains(IDENTS.layout_of) && let DirectiveTarget::DataDefId(data_def) = *id {
-                let ty = tcx.ty_id_from_tir_data(DataTy { args: empty_args, data_def });
+                let ty = ctx.ty_from_tir_data(DataTy { args: empty_args, data_def });
 
                 // @@ErrorHandling: propagate this error if it occurs.
-                if let Ok(layout) = tcx.layout_of(ty) {
+                if let Ok(layout) = ctx.layout_of(ty) {
                     // Print the layout and add spacing between all of the specified layouts
                     // that were requested.
                     stream_writeln!(
                         stdout,
                         "{}",
-                        LayoutWriter::new(TyInfo { ty, layout }, tcx.layout_computer())
+                        LayoutWriter::new(TyInfo { ty, layout }, ctx.layout_computer())
                     );
                 }
             }

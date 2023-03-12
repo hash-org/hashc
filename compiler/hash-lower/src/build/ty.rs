@@ -11,7 +11,7 @@ use hash_intrinsics::{
 };
 use hash_ir::{
     ir::{self, Const},
-    ty::{IrTy, IrTyId},
+    ty::IrTyId,
 };
 use hash_source::constant::CONSTANT_MAP;
 use hash_tir::{
@@ -25,18 +25,9 @@ use hash_tir::{
     tys::TyId,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::SequenceStore;
 
 use super::Builder;
-
-/// Convert a [LitTerm] into a [Const] value.
-pub(super) fn constify_lit_pat(term: &LitPat) -> Const {
-    match term {
-        LitPat::Int(lit) => Const::Int(lit.interned_value()),
-        LitPat::Str(lit) => Const::Str(lit.interned_value()),
-        LitPat::Char(lit) => Const::Char(lit.value()),
-    }
-}
 
 /// An auxiliary data structure that represents the underlying [FnCallTerm]
 /// as either being a function call, a binary operation (of various kinds), or
@@ -75,17 +66,18 @@ impl<'tcx> Builder<'tcx> {
         self.ctx.ty_id_from_tir_ty(ty)
     }
 
-    /// Get the [IrTy] from a given [TermId].
-    pub(super) fn ty_from_tir_term(&mut self, term: TermId) -> IrTy {
-        self.ty_from_tir_ty(self.get_inferred_ty(term))
+    /// Get the [IrTyId] for a give [PatId].
+    pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> IrTyId {
+        let ty = self.get_inferred_ty(pat);
+        self.ty_id_from_tir_ty(ty)
     }
 
-    /// Create an [IrTy] from a defined [DataTy].
+    /// Create an ADT from a defined [DataTy].
     pub(crate) fn ty_id_from_tir_data(&self, data_ty: DataTy) -> IrTyId {
-        self.ctx.ty_id_from_tir_data(data_ty)
+        self.ctx.ty_from_tir_data(data_ty)
     }
 
-    /// Create an [`IrTy::FnDef`] from the given [FnDefId].
+    /// Create an function type from the given [FnDefId].
     pub(super) fn ty_id_from_tir_fn_def(&mut self, fn_def: FnDefId) -> IrTyId {
         self.ctx.ty_id_from_tir_fn_def(fn_def)
     }
@@ -95,17 +87,6 @@ impl<'tcx> Builder<'tcx> {
     /// duplicate work.
     pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> IrTyId {
         self.ctx.ty_id_from_tir_ty(ty)
-    }
-
-    /// Get the [IrTy] from a given [TyId].
-    pub(super) fn ty_from_tir_ty(&self, ty_id: TyId) -> IrTy {
-        self.stores().ty().map_fast(ty_id, |ty| self.ctx.ty_from_tir_ty(ty_id, ty))
-    }
-
-    /// Get the [IrTyId] for a give [PatId].
-    pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> IrTyId {
-        let ty = self.get_inferred_ty(pat);
-        self.ty_id_from_tir_ty(ty)
     }
 
     /// Function which is used to classify a [FnCallTerm] into a

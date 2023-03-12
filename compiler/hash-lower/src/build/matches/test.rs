@@ -25,6 +25,7 @@ use hash_tir::{
     control::IfPat,
     data::CtorPat,
     environment::env::AccessToEnv,
+    lits::LitPat,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
@@ -35,7 +36,16 @@ use super::{
     candidate::{Candidate, MatchPair},
     const_range::ConstRange,
 };
-use crate::build::{place::PlaceBuilder, ty::constify_lit_pat, Builder};
+use crate::build::{place::PlaceBuilder, Builder};
+
+/// Convert a [LitPat] into a [Const] value.
+fn constify_lit_pat(term: &LitPat) -> Const {
+    match term {
+        LitPat::Int(lit) => Const::Int(lit.interned_value()),
+        LitPat::Str(lit) => Const::Str(lit.interned_value()),
+        LitPat::Char(lit) => Const::Char(lit.value()),
+    }
+}
 
 #[derive(PartialEq, Eq, Debug)]
 pub(super) enum TestKind {

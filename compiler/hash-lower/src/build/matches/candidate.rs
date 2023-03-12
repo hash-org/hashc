@@ -311,7 +311,8 @@ impl<'tcx> Builder<'tcx> {
 
                 // get the range and bias of this range pattern from
                 // the `lo`
-                let lo_ty = self.ty_from_tir_ty(self.get_inferred_ty(pair.pat));
+                let id = self.ty_id_from_tir_ty(self.get_inferred_ty(pair.pat));
+                let lo_ty = self.ctx().tys().get(id);
 
                 // The range is the minimum value, maximum value, and the size of
                 // the item that is being compared.
