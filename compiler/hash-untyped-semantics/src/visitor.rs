@@ -213,6 +213,7 @@ impl<'s> SemanticAnalyser<'s> {
         } else if directive.is(IDENTS.entry_point)
             || directive.is(IDENTS.foreign)
             || directive.is(IDENTS.pure)
+            || directive.is(IDENTS.lang)
         {
             // Check that the supplied argument to a function modifying directive
             // is a declaration of a function that the directive will apply to.

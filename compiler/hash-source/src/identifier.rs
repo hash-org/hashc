@@ -240,6 +240,7 @@ core_idents! {
     dump_tir: "dump_tir",
 
     // Language items
+    lang: "lang",
     intrinsics: "intrinsics",
     entry_point: "entry_point",
     transmute: "transmute",

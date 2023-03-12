@@ -10,11 +10,7 @@
 //! whether two blocks have been merged together.
 
 use hash_abi::{ArgAbi, FnAbi, PassMode};
-use hash_ir::{
-    intrinsics::Intrinsic,
-    ir::{self},
-    ty::{Instance, IrTy},
-};
+use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
 use hash_source::{constant::CONSTANT_MAP, identifier::IDENTS};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
@@ -328,7 +324,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// through an argument to the function rather than the actual pointer
     /// directly ( which is then represented as a
     /// [`ReturnDestinationKind::Store`]).
-    fn compute_fn_return_destination(
+    pub(super) fn compute_fn_return_destination(
         &mut self,
         builder: &mut Builder,
         destination: ir::Place,
@@ -554,9 +550,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         let (bytes, len) = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
         let args = &[bytes, len];
 
-        // @@Todo: we need to create a call to `panic`, as in resolve the function
-        // abi to `panic` and the relative function pointer.
-        let (fn_abi, fn_ptr) = self.resolve_intrinsic(builder, Intrinsic::Panic);
+        // Get the `panic` lang item.
+        let (fn_abi, fn_ptr) = self.resolve_lang_item(builder, LangItem::Panic);
 
         // Finally we emit this as a call to panic...
         self.codegen_fn_call(builder, &fn_abi, fn_ptr, args, &[], None, false)
