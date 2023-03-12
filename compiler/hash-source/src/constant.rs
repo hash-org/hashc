@@ -11,6 +11,7 @@ use fnv::FnvBuildHasher;
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
 pub use hash_target::primitives::{FloatTy, IntTy, SIntTy, UIntTy};
+use hash_target::size::Size;
 use hash_utils::counter;
 use lazy_static::lazy_static;
 use num_bigint::{BigInt, Sign};
@@ -451,7 +452,7 @@ impl IntConstant {
     ///
     /// N.B. The scalar value assumes that the values are in big
     /// endian order.
-    pub fn from_scalar(value: [u8; 16], ty: IntTy, ptr_width: usize) -> Self {
+    pub fn from_scalar(value: [u8; 16], ty: IntTy, ptr_width: Size) -> Self {
         let size = ty.size(ptr_width).unwrap();
 
         // compute the correct slice that we need to use in order to
@@ -527,7 +528,7 @@ impl IntConstant {
     }
     /// Convert the [IntConstant] into the [IntConstant] with
     /// the specified `ty`.
-    fn convert_into(self, ty: IntTy, ptr_width: usize) -> Option<Self> {
+    fn convert_into(self, ty: IntTy, ptr_width: Size) -> Option<Self> {
         if self.ty() == ty {
             return Some(self);
         }
@@ -705,7 +706,7 @@ impl fmt::Display for InternedInt {
 
 /// Convert a given `i128` value with an associated [IntTy] and convert
 /// it into an IntConstantValue.
-pub fn u128_to_int_const(value: u128, kind: IntTy, ptr_width: usize) -> InternedInt {
+pub fn u128_to_int_const(value: u128, kind: IntTy, ptr_width: Size) -> InternedInt {
     let size = kind.size(ptr_width).unwrap().bytes() as usize;
     let is_signed = kind.is_signed();
 
@@ -860,6 +861,14 @@ impl ConstantMap {
         ident
     }
 
+    /// Create a `usize` constant value.
+    pub fn create_usize_int(&self, value: usize, ptr_width: Size) -> InternedInt {
+        let ty = UIntTy::USize.normalise(ptr_width);
+
+        let constant = IntConstant::from_uint(value as u128, ty);
+        self.create_int(constant)
+    }
+
     /// Get the [IntConstant] behind the [InternedInt]
     pub fn lookup_int(&self, id: InternedInt) -> IntConstant {
         let lookup_value = self.int_table.get(&id).unwrap();
@@ -874,7 +883,7 @@ impl ConstantMap {
     }
 
     /// Adjust the underlying [IntConstant] into a specified integer type.
-    pub fn adjust_int(&self, id: InternedInt, ty: IntTy, ptr_width: usize) {
+    pub fn adjust_int(&self, id: InternedInt, ty: IntTy, ptr_width: Size) {
         self.int_table.alter(&id, |_, item| {
             item.convert_into(ty, ptr_width)
                 .unwrap_or_else(|| panic!("failed to convert `{id}` to `{ty}`"))
@@ -898,26 +907,26 @@ mod tests {
     #[test]
     fn test_max_signed_int_value() {
         // Pointer width is always described using a number of bytes
-        assert_eq!(SIntTy::ISize.max(8), Some(BigInt::from(isize::MAX)));
-        assert_eq!(SIntTy::ISize.min(8), Some(BigInt::from(isize::MIN)));
+        assert_eq!(SIntTy::ISize.max(Size::from_bytes(8)), Some(BigInt::from(isize::MAX)));
+        assert_eq!(SIntTy::ISize.min(Size::from_bytes(8)), Some(BigInt::from(isize::MIN)));
 
-        assert_eq!(SIntTy::ISize.max(4), Some(BigInt::from(i32::MAX)));
-        assert_eq!(SIntTy::ISize.min(4), Some(BigInt::from(i32::MIN)));
+        assert_eq!(SIntTy::ISize.max(Size::from_bytes(4)), Some(BigInt::from(i32::MAX)));
+        assert_eq!(SIntTy::ISize.min(Size::from_bytes(4)), Some(BigInt::from(i32::MIN)));
 
         // Check that computing the size of each type with pointer widths
         // is consistent.
-        assert_eq!(SIntTy::ISize.size(8), Some(Size::from_bytes(8)));
-        assert_eq!(SIntTy::ISize.size(4), Some(Size::from_bytes(4)));
+        assert_eq!(SIntTy::ISize.size(Size::from_bytes(8)), Some(Size::from_bytes(8)));
+        assert_eq!(SIntTy::ISize.size(Size::from_bytes(4)), Some(Size::from_bytes(4)));
     }
 
     #[test]
     fn test_max_unsigned_int_value() {
         // We don't check `min()` for unsigned since this always
         // returns 0.
-        assert_eq!(UIntTy::USize.max(8), Some(BigInt::from(usize::MAX)));
-        assert_eq!(UIntTy::USize.max(4), Some(BigInt::from(u32::MAX)));
+        assert_eq!(UIntTy::USize.max(Size::from_bytes(8)), Some(BigInt::from(usize::MAX)));
+        assert_eq!(UIntTy::USize.max(Size::from_bytes(4)), Some(BigInt::from(u32::MAX)));
 
-        assert_eq!(UIntTy::USize.size(4), Some(Size::from_bytes(4)));
-        assert_eq!(UIntTy::USize.size(8), Some(Size::from_bytes(8)));
+        assert_eq!(UIntTy::USize.size(Size::from_bytes(4)), Some(Size::from_bytes(4)));
+        assert_eq!(UIntTy::USize.size(Size::from_bytes(8)), Some(Size::from_bytes(8)));
     }
 }

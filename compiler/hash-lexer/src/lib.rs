@@ -11,6 +11,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
+use hash_target::size::Size;
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
     keyword::Keyword,
@@ -47,7 +48,10 @@ pub struct Lexer<'a> {
     // how to tokenise `usize` and `isize` literals.
     ///
     /// The size of the machine word in bytes.
-    word_size: usize,
+    ///
+    /// @@Future: remove literal parsing until later when we can properly
+    /// normalise everything, the lexer should just normalise this value.
+    word_size: Size,
 
     /// Representing the last character the lexer encountered. This is only set
     /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a
@@ -67,7 +71,7 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Create a new [Lexer] from the given string input.
-    pub fn new(contents: &'a str, source_id: SourceId, word_size: usize) -> Self {
+    pub fn new(contents: &'a str, source_id: SourceId, word_size: Size) -> Self {
         Lexer {
             offset: Cell::new(0),
             source_id,

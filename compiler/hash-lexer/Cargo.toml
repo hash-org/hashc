@@ -11,3 +11,4 @@ num-traits = "0.2.15"
 hash-reporting = {path = "../hash-reporting" }
 hash-source = {path = "../hash-source" }
 hash-token = {path = "../hash-token" }
+hash-target = {path = "../hash-target" }

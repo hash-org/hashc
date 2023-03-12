@@ -20,3 +20,4 @@ hash-reporting = {path = "../hash-reporting"}
 hash-source = {path = "../hash-source" }
 hash-token = {path = "../hash-token" }
 hash-utils = {path = "../hash-utils" }
+hash-target = {path = "../hash-target"}
