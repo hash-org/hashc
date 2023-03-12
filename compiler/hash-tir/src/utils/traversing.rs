@@ -166,12 +166,7 @@ impl<'env> TraversingUtils<'env> {
                         self.stores().match_cases().try_create_from_iter(cases.iter().map(|case| {
                             let bind_pat = self.fmap_pat(case.bind_pat, f)?;
                             let value = self.fmap_term(case.value, f)?;
-                            Ok(MatchCase {
-                                bind_pat,
-                                stack_indices: case.stack_indices,
-                                value,
-                                stack_id: case.stack_id,
-                            })
+                            Ok(MatchCase { bind_pat, value, stack_id: case.stack_id })
                         }))
                     })?;
                     Ok(self.new_term(MatchTerm { cases, subject }))
@@ -185,12 +180,7 @@ impl<'env> TraversingUtils<'env> {
                     let ty = self.fmap_ty(decl_stack_member_term.ty, f)?;
                     let value =
                         decl_stack_member_term.value.map(|v| self.fmap_term(v, f)).transpose()?;
-                    Ok(self.new_term(DeclTerm {
-                        ty,
-                        bind_pat,
-                        value,
-                        stack_indices: decl_stack_member_term.stack_indices,
-                    }))
+                    Ok(self.new_term(DeclTerm { ty, bind_pat, value }))
                 }
                 Term::Assign(assign_term) => {
                     let subject = self.fmap_term(assign_term.subject, f)?;

@@ -18,6 +18,7 @@ use super::{
     terms::Term,
 };
 use crate::{
+    environment::context::Decl,
     mods::ModDefId,
     pats::PatId,
     symbols::Symbol,
@@ -34,10 +35,6 @@ pub struct BindingPat {
     pub name: Symbol,
     /// Whether the binding is declared as mutable.
     pub is_mutable: bool,
-    /// The stack member that this binding pattern binds to.
-    ///
-    /// If this is `None`, then the binding pattern is a wildcard `_`.
-    pub stack_member: Option<StackMemberId>,
 }
 
 /// Indices into a stack, that represent a contiguous range of stack members.
@@ -79,16 +76,8 @@ impl StackIndices {
 #[derive(Debug, Clone, Copy)]
 pub struct DeclTerm {
     pub bind_pat: PatId,
-    pub stack_indices: StackIndices,
     pub ty: TyId,
     pub value: Option<TermId>,
-}
-
-impl DeclTerm {
-    /// Returns the range of stack indices that this declaration covers.
-    pub fn iter_stack_indices(&self) -> impl Iterator<Item = usize> {
-        self.stack_indices.as_option().map(|s| s.0..=s.1).into_iter().flatten()
-    }
 }
 
 /// Term to assign a value to a subject.
@@ -114,7 +103,7 @@ pub struct StackMember {
 #[omit(StackData, [id], [Debug, Clone])]
 pub struct Stack {
     pub id: StackId,
-    pub members: Vec<StackMember>,
+    pub members: Vec<Decl>,
     /// Local module definition containing members that are defined in this
     /// stack.
     pub local_mod_def: Option<ModDefId>,
@@ -201,7 +190,7 @@ impl fmt::Display for WithEnv<'_, &StackMember> {
 impl fmt::Display for WithEnv<'_, StackMemberId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.stores().stack().map_fast(self.value.0, |stack| {
-            write!(f, "{}", self.env().with(&stack.members[self.value.1]))
+            write!(f, "{}", self.env().with(stack.members[self.value.1]))
         })
     }
 }
@@ -218,7 +207,7 @@ impl fmt::Display for WithEnv<'_, &Stack> {
         }
 
         for member in self.value.members.iter() {
-            let member = self.env().with(member).to_string();
+            let member = self.env().with(*member).to_string();
             write!(f, "{}", indent(&member, "  "))?;
         }
 

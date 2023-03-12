@@ -1,6 +1,8 @@
 //! Operations for unifying types and terms.
 
-use derive_more::{Constructor, Deref};
+use std::cell::Cell;
+
+use derive_more::Deref;
 use hash_tir::{
     args::{ArgData, ArgsId},
     data::{DataDefCtors, DataTy},
@@ -99,10 +101,23 @@ impl Uni<TermId> {
     }
 }
 
-#[derive(Constructor, Deref)]
-pub struct UnificationOps<'a, T: AccessToTypechecking>(&'a T);
+#[derive(Deref)]
+pub struct UnificationOps<'a, T: AccessToTypechecking> {
+    #[deref]
+    env: &'a T,
+    add_to_ctx: Cell<bool>,
+}
 
-impl<T: AccessToTypechecking> UnificationOps<'_, T> {
+impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
+    pub fn new(env: &'tc T) -> Self {
+        Self { env, add_to_ctx: Cell::new(true) }
+    }
+
+    pub fn with_no_ctx(&self) -> &Self {
+        self.add_to_ctx.set(false);
+        self
+    }
+
     pub fn unify_atoms(&self, src: Atom, target: Atom) -> TcResult<Uni<Atom>> {
         match (src, target) {
             (Atom::Ty(src_id), Atom::Ty(target_id)) => {
@@ -137,10 +152,16 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
             }
             (Ty::Hole(a), _) => {
                 let sub = Sub::from_pairs([(a.0, self.new_term(target_id))]);
+                if self.add_to_ctx.get() {
+                    self.context_utils().add_untyped_assignment(a.0, self.new_term(target_id));
+                }
                 Uni::ok_with(sub, target_id)
             }
             (_, Ty::Hole(b)) => {
                 let sub = Sub::from_pairs([(b.0, self.new_term(src_id))]);
+                if self.add_to_ctx.get() {
+                    self.context_utils().add_untyped_assignment(b.0, self.new_term(src_id));
+                }
                 Uni::ok_with(sub, src_id)
             }
             (_, _) if self.is_uninhabitable(src_id)? => Uni::ok(target_id),
@@ -357,7 +378,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
         &self,
         src_id: ParamsId,
         target_id: ParamsId,
-        origin: ParamOrigin,
+        _origin: ParamOrigin,
     ) -> TcResult<Uni<ParamsId>> {
         self.param_ops().validate_params(src_id)?;
         self.param_ops().validate_params(target_id)?;
@@ -407,7 +428,7 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
                     default: None,
                 });
 
-                self.context_utils().add_param_binding(target.id, origin);
+                self.context_utils().add_param_binding(target.id);
 
                 Ok(unified_param)
             }),
@@ -443,7 +464,8 @@ impl<T: AccessToTypechecking> UnificationOps<'_, T> {
 
     /// Determine whether two terms are equal.
     pub fn terms_are_equal(&self, t1: TermId, t2: TermId) -> bool {
-        self.uni_ops().unify_terms(t1, t2).map(|result| result.sub.is_empty()).ok() == Some(true)
+        self.uni_ops().with_no_ctx().unify_terms(t1, t2).map(|result| result.sub.is_empty()).ok()
+            == Some(true)
     }
 
     /// Determine whether the given type is uninhabitable.

@@ -7,14 +7,14 @@ use crate::{
     args::{ArgId, ArgsId},
     data::{DataDefCtors, DataDefId},
     environment::{
-        context::{Binding, BindingKind, Context, EqualityJudgement, ParamOrigin, ScopeKind},
+        context::{Binding, BindingKind, Context, Decl, ScopeKind},
         env::{AccessToEnv, Env},
     },
     fns::FnDefId,
     impl_access_to_env,
     mods::ModDefId,
     params::{ParamId, ParamsId},
-    scopes::{StackId, StackMemberId},
+    scopes::StackId,
     symbols::Symbol,
     terms::TermId,
     tys::TyId,
@@ -33,25 +33,56 @@ impl<'env> ContextUtils<'env> {
     ///
     /// This should be used when entering a scope that has parameters. Ensure
     /// that the given parameter belongs to the current scope.
-    pub fn add_param_binding(&self, param_id: ParamId, origin: ParamOrigin) {
-        // @@Safety: Maybe we should check that the param belongs to the current scope?
-        let name = self.stores().params().map_fast(param_id.0, |params| params[param_id.1].name);
-        self.context().add_binding(Binding { name, kind: BindingKind::Param(origin, param_id) });
+    pub fn add_param_binding(&self, param_id: ParamId) {
+        let param = self.get_param(param_id);
+        self.context().add_decl(param.name, Some(param.ty), None);
+    }
+
+    /// Add an assignment without a type.
+    pub fn add_unknown_var(&self, name: Symbol) {
+        self.context().add_decl(name, None, None);
+    }
+
+    /// Add an assignment without a type.
+    pub fn add_untyped_assignment(&self, name: Symbol, term: TermId) {
+        self.context().add_decl(name, None, Some(term));
+    }
+
+    /// Add a typing binding to the closest stack scope.
+    pub fn add_typing_to_closest_stack(&self, name: Symbol, ty: TyId) {
+        self.context().get_closest_stack_scope_ref().add_binding(Binding {
+            name,
+            kind: BindingKind::Decl(Decl { name, ty: Some(ty), value: None }),
+        })
+    }
+
+    /// Add a typing binding.
+    pub fn add_typing(&self, name: Symbol, ty: TyId) {
+        self.context().add_decl(name, Some(ty), None);
+    }
+
+    /// Add an assignment binding with a value.
+    pub fn add_assignment(&self, name: Symbol, ty: TyId, value: TermId) {
+        self.context().add_decl(name, Some(ty), Some(value));
+    }
+
+    /// Modify the value of an assignment binding.
+    pub fn modify_assignment(&self, name: Symbol, new_value: TermId) {
+        let current_ty = self.try_get_binding_ty(name);
+        self.context().modify_binding(Binding {
+            name,
+            kind: BindingKind::Decl(Decl { name, ty: current_ty, value: Some(new_value) }),
+        })
     }
 
     /// Add parameter bindings from the given parameters.
     ///
     /// This should be used when entering an already resolved scope that has
     /// parameters.
-    pub fn add_param_bindings(&self, params_id: ParamsId, origin: ParamOrigin) {
-        self.stores().params().map_fast(params_id, |params| {
-            for i in params_id.to_index_range() {
-                self.context().add_binding(Binding {
-                    name: params[i].name,
-                    kind: BindingKind::Param(origin, (params_id, i)),
-                });
-            }
-        });
+    pub fn add_param_bindings(&self, params_id: ParamsId) {
+        for i in params_id.iter() {
+            self.add_param_binding(i);
+        }
     }
 
     /// Add an argument binding to the current scope.
@@ -59,10 +90,9 @@ impl<'env> ContextUtils<'env> {
     /// This should be used when entering a scope that has given arguments, like
     /// a function call, tuple, constructor.
     pub fn add_arg_binding(&self, arg_id: ArgId, param_id: ParamId) {
-        self.context().add_binding(Binding {
-            name: self.get_param_name(param_id),
-            kind: BindingKind::Arg(param_id, arg_id),
-        });
+        let arg = self.get_arg(arg_id);
+        let param = self.get_param(param_id);
+        self.context().add_decl(param.name, Some(param.ty), Some(arg.value));
     }
 
     /// Get a binding from the current scopes.
@@ -74,83 +104,32 @@ impl<'env> ContextUtils<'env> {
 
     /// Get the value of a binding, if possible.
     pub fn try_get_binding_value(&self, name: Symbol) -> Option<TermId> {
-        match self.get_binding(name).kind {
-            BindingKind::StackMember(_, _, value) => value,
-            BindingKind::Arg(_, arg_id) => Some(self.get_arg(arg_id).value),
+        match self.context().try_get_binding(name)?.kind {
+            BindingKind::Decl(decl) => decl.value,
+            _ => None,
+        }
+    }
+
+    /// Get the type of a binding, if possible.
+    pub fn try_get_binding_ty(&self, name: Symbol) -> Option<TyId> {
+        match self.context().try_get_binding(name)?.kind {
+            BindingKind::Decl(decl) => decl.ty,
             _ => None,
         }
     }
 
     /// Get the value of a binding.
     pub fn get_binding_value(&self, name: Symbol) -> TermId {
-        match self.get_binding(name).kind {
-            BindingKind::StackMember(_, _, value) => match value {
-                Some(value) => value,
-                None => {
-                    panic!("cannot get value of uninitialised binding {}", self.env().with(name))
-                }
-            },
-            BindingKind::Arg(_, arg_id) => self.get_arg(arg_id).value,
-            _ => panic!("cannot get value of non-stack/argument binding {}", self.env().with(name)),
-        }
+        self.try_get_binding_value(name).unwrap_or_else(|| {
+            panic!("cannot get value of uninitialised binding {}", self.env().with(name))
+        })
     }
 
     /// Get the type of a binding.
     pub fn get_binding_ty(&self, name: Symbol) -> TyId {
-        match self.context().get_binding(name).kind {
-            BindingKind::Param(_, param_id) => self.get_param(param_id).ty,
-            BindingKind::StackMember(_, ty, _) => ty,
-            BindingKind::Arg(param_id, _) => self.get_param(param_id).ty,
-            _ => panic!("cannot get type of binding {}", self.env().with(name)),
-        }
-    }
-
-    /// Get the given stack binding, or panic if it does not exist.
-    pub fn get_stack_binding(&self, name: Symbol) -> (StackMemberId, TyId, Option<TermId>) {
-        match self.get_binding(name).kind {
-            BindingKind::StackMember(member, ty_id, value) => (member, ty_id, value),
-            _ => panic!("get_stack_binding called on non-stack binding"),
-        }
-    }
-
-    /// Get the value of the given stack binding.
-    pub fn get_stack_binding_value(&self, name: Symbol) -> Option<TermId> {
-        self.get_stack_binding(name).2
-    }
-
-    /// Set the value of the given stack binding.
-    pub fn set_stack_binding_value(&self, name: Symbol, term_id: TermId) {
-        self.context().modify_binding_with(name, |kind| match kind {
-            BindingKind::StackMember(member_id, ty, _) => {
-                BindingKind::StackMember(member_id, ty, Some(term_id))
-            }
-            _ => unreachable!("set_stack_binding_value called on non-stack binding"),
+        self.try_get_binding_ty(name).unwrap_or_else(|| {
+            panic!("cannot get type of untyped binding {}", self.env().with(name))
         })
-    }
-
-    /// Get the type of the given stack binding.
-    pub fn get_stack_binding_ty(&self, name: Symbol) -> TyId {
-        self.get_stack_binding(name).1
-    }
-
-    /// Set the type of the given stack binding.
-    pub fn set_stack_binding_ty(&self, name: Symbol, ty: TyId) {
-        self.context().modify_binding_with(name, |kind| match kind {
-            BindingKind::StackMember(member_id, _, value) => {
-                BindingKind::StackMember(member_id, ty, value)
-            }
-            _ => unreachable!("set_stack_binding_ty called on non-stack binding"),
-        })
-    }
-
-    /// Get the default type of the given stack member.
-    pub fn get_stack_member_ty(&self, member_id: StackMemberId) -> TyId {
-        self.stores().stack().map_fast(member_id.0, |stack| stack.members[member_id.1].ty)
-    }
-
-    /// Get the type of the given stack member.
-    pub fn set_stack_member_ty(&self, member_id: StackMemberId, ty: TyId) {
-        self.stores().stack().modify_fast(member_id.0, |stack| stack.members[member_id.1].ty = ty)
     }
 
     /// Add argument bindings from the given parameters, using the
@@ -159,67 +138,17 @@ impl<'env> ContextUtils<'env> {
     /// *Invariant*: the lengths of the arguments and parameters must match.
     pub fn add_arg_bindings(&self, params_id: ParamsId, args_id: ArgsId) {
         assert_eq!(params_id.len(), args_id.len());
-        for i in params_id.to_index_range() {
-            self.context().add_binding(Binding {
-                name: self.stores().params().map_fast(params_id, |params| params[i].name),
-                kind: BindingKind::Arg((params_id, i), (args_id, i)),
-            });
-        }
-    }
-
-    /// Add an equality judgement to the context.
-    pub fn add_equality_judgement(&self, lhs: TermId, rhs: TermId) {
-        self.context().add_binding(Binding {
-            name: self.new_fresh_symbol(),
-            kind: BindingKind::Equality(EqualityJudgement { lhs, rhs }),
-        });
-    }
-
-    /// Add a new stack binding to the current scope context with the default
-    /// type for this member.
-    ///
-    /// *Invariant*: It must be that the member's scope is the current stack
-    /// scope.
-    pub fn add_stack_binding_with_default_ty(
-        &self,
-        member_id: StackMemberId,
-        value: Option<TermId>,
-    ) {
-        let ty = self.get_stack_member_ty(member_id);
-        self.add_stack_binding(member_id, ty, value);
-    }
-
-    /// Add a new stack binding to the current scope context.
-    ///
-    /// *Invariant*: It must be that the member's scope is the context.
-    pub fn add_stack_binding(&self, member_id: StackMemberId, ty: TyId, value: Option<TermId>) {
-        let name = self.get_stack_member_name(member_id);
-        let stack_scope = self.context().get_closest_stack_scope_ref();
-        match stack_scope.kind {
-            ScopeKind::Stack(stack_id) => {
-                if stack_id != member_id.0 {
-                    panic!("add_stack_binding called with member from different stack");
-                }
-                stack_scope.add_binding(Binding {
-                    name,
-                    kind: BindingKind::StackMember(member_id, ty, value),
-                })
-            }
-            _ => panic!(
-                "add_stack_binding called in non-stack scope: {:?}",
-                self.context().get_current_scope_kind()
-            ),
+        for (param, arg) in params_id.iter().zip(args_id.iter()) {
+            self.add_arg_binding(arg, param);
         }
     }
 
     /// Add stack bindings from the given stack, with empty values.
     pub fn add_stack_bindings(&self, stack_id: StackId) {
         self.stores().stack().map_fast(stack_id, |stack| {
-            for i in 0..stack.members.len() {
-                self.context().add_binding(Binding {
-                    name: stack.members[i].name,
-                    kind: BindingKind::StackMember((stack_id, i), stack.members[i].ty, None),
-                });
+            for member in &stack.members {
+                self.context()
+                    .add_binding(Binding { name: member.name, kind: BindingKind::Decl(*member) });
             }
         });
     }
@@ -301,26 +230,26 @@ impl<'env> ContextUtils<'env> {
             }
             ScopeKind::Fn(fn_def_id) => {
                 let fn_def = self.stores().fn_def().get(fn_def_id);
-                self.add_param_bindings(fn_def.ty.params, ParamOrigin::Fn(fn_def_id));
+                self.add_param_bindings(fn_def.ty.params);
             }
             ScopeKind::Data(data_def_id) => {
                 let data_def = self.stores().data_def().get(data_def_id);
 
                 // Params
-                self.add_param_bindings(data_def.params, ParamOrigin::Data(data_def_id));
+                self.add_param_bindings(data_def.params);
 
                 // Constructors
                 self.add_data_ctors(data_def_id, |_| {});
             }
             ScopeKind::Ctor(ctor_def_id) => {
                 let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
-                self.add_param_bindings(ctor_def.params, ParamOrigin::Ctor(ctor_def_id));
+                self.add_param_bindings(ctor_def.params);
             }
             ScopeKind::FnTy(fn_ty) => {
-                self.add_param_bindings(fn_ty.params, ParamOrigin::FnTy(fn_ty));
+                self.add_param_bindings(fn_ty.params);
             }
             ScopeKind::TupleTy(tuple_ty) => {
-                self.add_param_bindings(tuple_ty.data, ParamOrigin::TupleTy(tuple_ty));
+                self.add_param_bindings(tuple_ty.data);
             }
         }
     }

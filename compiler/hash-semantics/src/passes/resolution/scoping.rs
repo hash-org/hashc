@@ -13,9 +13,8 @@ use hash_tir::{
     locations::LocationTarget,
     mods::ModDefId,
     params::ParamId,
-    scopes::{StackId, StackIndices, StackMemberId},
+    scopes::StackId,
     symbols::Symbol,
-    terms::TermId,
     tuples::TupleTy,
     ty_as_variant,
     utils::{common::CommonUtils, AccessToUtils},
@@ -186,23 +185,21 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a parameter to the current scope, also adding it to the
     /// `bindings_by_name` map.
-    pub(super) fn add_param_binding(&self, param_id: ParamId, origin: ParamOrigin) {
+    pub(super) fn add_param_binding(&self, param_id: ParamId, _origin: ParamOrigin) {
         // Get the data of the parameter.
         let param_name = self.stores().params().get_element(param_id).name;
 
         // Add the binding to the current scope.
-        self.context_utils().add_param_binding(param_id, origin);
+        self.context_utils().add_param_binding(param_id);
         self.add_named_binding(param_name);
     }
 
     /// Add a stack member to the current scope, also adding it to the
     /// `bindings_by_name` map.
-    pub(super) fn add_stack_binding(&self, member_id: StackMemberId, value: Option<TermId>) {
-        // Get the data of the member.
-        let member_name = self.get_stack_member_name(member_id);
+    pub(super) fn add_stack_binding(&self, name: Symbol) {
         // Add the binding to the current scope.
-        self.context_utils().add_stack_binding_with_default_ty(member_id, value);
-        self.add_named_binding(member_name);
+        self.context_utils().add_unknown_var(name);
+        self.add_named_binding(name);
     }
 
     /// Add the data parameters constructors of the definition to the current
@@ -248,7 +245,7 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn for_each_stack_member_of_pat(
         &self,
         node: ast::AstNodeRef<ast::Pat>,
-        f: &mut impl FnMut(StackMemberId),
+        f: &mut impl FnMut(Symbol),
     ) {
         macro_rules! for_spread_pat {
             ($spread:expr) => {
@@ -256,7 +253,7 @@ impl<'tc> Scoping<'tc> {
                     if let Some(member_id) =
                         self.ast_info().stack_members().get_data_by_node(name.ast_ref().id())
                     {
-                        f(member_id);
+                        f(member_id.name);
                     }
                 }
             };
@@ -266,7 +263,7 @@ impl<'tc> Scoping<'tc> {
             ast::Pat::Binding(_) => {
                 if let Some(member_id) = self.ast_info().stack_members().get_data_by_node(node.id())
                 {
-                    f(member_id);
+                    f(member_id.name);
                 }
             }
             ast::Pat::Tuple(tuple_pat) => {
@@ -302,7 +299,7 @@ impl<'tc> Scoping<'tc> {
             ast::Pat::Wild(_) => {
                 if let Some(member_id) = self.ast_info().stack_members().get_data_by_node(node.id())
                 {
-                    f(member_id);
+                    f(member_id.name);
                 }
             }
             ast::Pat::Module(_) | ast::Pat::Access(_) | ast::Pat::Lit(_) | ast::Pat::Range(_) => {}
@@ -360,19 +357,11 @@ impl<'tc> Scoping<'tc> {
     /// Returns the range of stack indices that were added.
     ///
     /// If the declaration is not in a stack scope, this is a no-op.
-    pub(super) fn register_declaration(
-        &self,
-        node: ast::AstNodeRef<ast::Declaration>,
-    ) -> StackIndices {
+    pub(super) fn register_declaration(&self, node: ast::AstNodeRef<ast::Declaration>) {
         if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
-            let mut start_end = StackIndices::Empty;
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
-                start_end.extend_with_index(member.1);
-                self.add_stack_binding(member, None);
+                self.add_stack_binding(member);
             });
-            start_end
-        } else {
-            StackIndices::Empty
         }
     }
 
@@ -380,20 +369,16 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn enter_match_case<T>(
         &self,
         node: ast::AstNodeRef<ast::MatchCase>,
-        f: impl FnOnce(StackId, StackIndices) -> T,
+        f: impl FnOnce(StackId) -> T,
     ) -> T {
         let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
         // Each match case has its own scope, so we need to enter it, and add all the
         // pattern bindings to the context.
         self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
-            // We also want to keep track of the start and end of the pattern
-            // binds in the stack, to pass to `f`.
-            let mut start_end = StackIndices::Empty;
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
-                start_end.extend_with_index(member.1);
-                self.add_stack_binding(member, None);
+                self.add_stack_binding(member);
             });
-            f(stack_id, start_end)
+            f(stack_id)
         })
     }
 }

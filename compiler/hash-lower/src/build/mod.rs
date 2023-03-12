@@ -35,8 +35,7 @@ use hash_tir::{
         env::{AccessToEnv, Env},
     },
     fns::{FnBody, FnDef, FnDefId, FnTy},
-    params::ParamId,
-    scopes::StackMemberId,
+    symbols::Symbol,
     terms::TermId,
     utils::{common::CommonUtils, context::ContextUtils},
 };
@@ -95,27 +94,12 @@ impl From<TermId> for BuildItem {
 /// the TIR to identify a [Local] as either being a reference to a
 /// stack member or a function parameter.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum LocalKey {
-    /// The parameter of the current function since they are in a
-    /// different binding kind.
-    Param(ParamId),
-
-    /// All references to variables that are declared on the stack
-    /// of the function body.
-    Stack(StackMemberId),
-}
-
-impl From<StackMemberId> for LocalKey {
-    fn from(stack: StackMemberId) -> Self {
-        LocalKey::Stack(stack)
-    }
-}
+pub struct LocalKey(Symbol);
 
 impl From<BindingKind> for LocalKey {
     fn from(binding: BindingKind) -> Self {
         match binding {
-            BindingKind::Param(_, param) => LocalKey::Param(param),
-            BindingKind::StackMember(stack, _, _) => LocalKey::Stack(stack),
+            BindingKind::Decl(decl) => LocalKey(decl.name),
             _ => panic!("unexpected binding kind"),
         }
     }

@@ -6,11 +6,12 @@ use hash_ast::ast::AstNodeId;
 use crate::{
     args::ArgId,
     data::{CtorDefId, DataDefId},
+    environment::context::Decl,
     fns::FnDefId,
     mods::{ModDefId, ModMemberId},
     params::ParamId,
     pats::PatId,
-    scopes::{StackId, StackMemberId},
+    scopes::StackId,
     terms::TermId,
     tys::TyId,
 };
@@ -90,7 +91,7 @@ ast_info! {
     fn_defs: AstMap<FnDefId>,
 
     stacks: AstMap<StackId>,
-    stack_members: AstMap<StackMemberId>,
+    stack_members: AstMap<Decl>,
 
     terms: AstMap<TermId>,
     tys: AstMap<TyId>,
