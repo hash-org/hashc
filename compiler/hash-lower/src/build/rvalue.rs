@@ -67,7 +67,7 @@ impl<'tcx> Builder<'tcx> {
                             && ty.is_signed()
                         {
                             let min_value = self.min_value_of_ty(ty);
-                            let is_min = self.temp_place(self.ctx.tys().common_tys.bool);
+                            let is_min = self.temp_place(self.ctx().tys().common_tys.bool);
 
                             self.control_flow_graph.push_assign(
                                 block,
@@ -107,7 +107,7 @@ impl<'tcx> Builder<'tcx> {
                         let source =
                             unpack!(block = self.as_operand(block, term, Mutability::Mutable));
 
-                        let cast_kind = CastKind::classify(self.ctx, source_ty, ty);
+                        let cast_kind = CastKind::classify(self.ctx(), source_ty, ty);
                         block.and(RValue::Cast(cast_kind, source, ty))
                     }
                     _ => as_operand(self),
@@ -142,7 +142,7 @@ impl<'tcx> Builder<'tcx> {
     /// signed integer type.
     fn min_value_of_ty(&self, ty: IrTy) -> Operand {
         let value = if let IrTy::Int(signed_ty) = ty {
-            let ptr_width = self.settings.target().pointer_bit_width / 8;
+            let ptr_width = self.settings.target().ptr_size();
             let size = signed_ty.size(ptr_width).unwrap().bits();
             let n = 1 << (size - 1);
 
@@ -177,7 +177,7 @@ impl<'tcx> Builder<'tcx> {
 
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
-            if self.ctx.map_ty(ty_id, |ty| matches!(ty, IrTy::FnDef { .. })) {
+            if self.ctx().map_ty(ty_id, |ty| matches!(ty, IrTy::FnDef { .. })) {
                 return block.and(Operand::Const(Const::Zero(ty_id).into()));
             }
         }
@@ -224,15 +224,15 @@ impl<'tcx> Builder<'tcx> {
         if self.settings.lowering_settings().checked_operations {
             if op.is_checkable() && ty.is_integral() {
                 // Create a new tuple that contains the result of the operation
-                let expr_ty = self.ctx.tys().create(ty);
-                let ty = IrTy::tuple(self.ctx, &[expr_ty, self.ctx.tys().common_tys.bool]);
-                let ty_id = self.ctx.tys().create(ty);
+                let expr_ty = self.ctx().tys().create(ty);
+                let ty = IrTy::tuple(self.ctx(), &[expr_ty, self.ctx().tys().common_tys.bool]);
+                let ty_id = self.ctx().tys().create(ty);
 
                 let temp = self.temp_place(ty_id);
                 let rvalue = RValue::CheckedBinaryOp(op, operands);
 
-                let result = temp.field(0, self.ctx);
-                let overflow = temp.field(1, self.ctx);
+                let result = temp.field(0, self.ctx());
+                let overflow = temp.field(1, self.ctx());
 
                 // Push an assignment to the tuple on the operation
                 self.control_flow_graph.push_assign(block, temp, rvalue, span);
@@ -259,7 +259,7 @@ impl<'tcx> Builder<'tcx> {
                 };
 
                 // Check for division/modulo of zero...
-                let is_zero = self.temp_place(self.ctx.tys().common_tys.bool);
+                let is_zero = self.temp_place(self.ctx().tys().common_tys.bool);
 
                 let const_val =
                     Const::Int(CONSTANT_MAP.create_int(IntConstant::from_uint(0, uint_ty)));
@@ -285,8 +285,8 @@ impl<'tcx> Builder<'tcx> {
                     let negative_one_val = Operand::Const(const_val.into());
                     let minimum_value = self.min_value_of_ty(ty);
 
-                    let is_negative_one = self.temp_place(self.ctx.tys().common_tys.bool);
-                    let is_minimum_value = self.temp_place(self.ctx.tys().common_tys.bool);
+                    let is_negative_one = self.temp_place(self.ctx().tys().common_tys.bool);
+                    let is_minimum_value = self.temp_place(self.ctx().tys().common_tys.bool);
 
                     // Push the values that have been created into the temporaries
                     self.control_flow_graph.push_assign(
@@ -307,7 +307,7 @@ impl<'tcx> Builder<'tcx> {
                     // which checks the condition `(rhs == -1) & (lhs == MIN)`, and then we
                     // emit an assert. Alternatively, this could short_circuit on the first
                     // check, but it would make control flow more complex.
-                    let is_overflow = self.temp_place(self.ctx.tys().common_tys.bool);
+                    let is_overflow = self.temp_place(self.ctx().tys().common_tys.bool);
                     self.control_flow_graph.push_assign(
                         block,
                         is_overflow,

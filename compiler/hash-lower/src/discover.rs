@@ -18,12 +18,14 @@ use hash_tir::{
 use hash_utils::store::{PartialCloneStore, Store};
 use indexmap::IndexSet;
 
+use crate::ctx::BuilderCtx;
+
 /// Discoverer for functions to lower in the TIR tree.
 #[derive(Constructor)]
-pub struct FnDiscoverer<'a, T: AccessToEnv> {
+pub(crate) struct FnDiscoverer<'a> {
     /// The TIR environment which can be used to read information about
     /// all TIR terms and definitions.
-    env: &'a T,
+    ctx: &'a BuilderCtx<'a>,
 
     /// A reference to [StageInfo] which refers to what the current
     /// status of each source is. This is used to avoid re-queuing modules
@@ -31,9 +33,9 @@ pub struct FnDiscoverer<'a, T: AccessToEnv> {
     stage_info: &'a StageInfo,
 }
 
-impl<T: AccessToEnv> AccessToEnv for FnDiscoverer<'_, T> {
+impl AccessToEnv for FnDiscoverer<'_> {
     fn env(&self) -> &Env {
-        self.env.env()
+        self.ctx.env()
     }
 }
 
@@ -59,7 +61,7 @@ impl DiscoveredFns {
     }
 }
 
-impl<T: AccessToEnv> FnDiscoverer<'_, T> {
+impl FnDiscoverer<'_> {
     /// Check whether a function definition needs to be lowered. The function
     /// should be lowered if it adheres to the following conditions:
     /// - It is not pure (for now)
@@ -94,12 +96,9 @@ impl<T: AccessToEnv> FnDiscoverer<'_, T> {
 
                 true
             }
-            FnBody::Intrinsic(_) | FnBody::Axiom => {
-                // Intrinsic and axiom functions have no defined
-                // bodies
 
-                false
-            }
+            // Intrinsics and axioms have no effect on the IR lowering
+            FnBody::Intrinsic(_) | FnBody::Axiom => false,
         }
     }
 

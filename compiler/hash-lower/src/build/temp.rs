@@ -21,7 +21,7 @@ impl<'tcx> Builder<'tcx> {
         let local = LocalDecl::new_auxiliary(ty, mutability);
 
         let temp = self.declarations.push(local);
-        let temp_place = Place::from_local(temp, self.ctx);
+        let temp_place = Place::from_local(temp, self.ctx());
 
         unpack!(block = self.term_into_dest(temp_place, block, term));
         block.and(temp)
@@ -31,6 +31,6 @@ impl<'tcx> Builder<'tcx> {
     pub(crate) fn temp_place(&mut self, ty: IrTyId) -> Place {
         let decl = LocalDecl::new_auxiliary(ty, Mutability::Immutable);
 
-        Place::from_local(self.declarations.push(decl), self.ctx)
+        Place::from_local(self.declarations.push(decl), self.ctx())
     }
 }

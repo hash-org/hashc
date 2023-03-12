@@ -207,7 +207,7 @@ impl<'tcx> Builder<'tcx> {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.
                 if let Some(local) = self.lookup_local_symbol(name) {
-                    let place = Place::from_local(local, self.ctx);
+                    let place = Place::from_local(local, self.ctx());
 
                     unpack!(block = self.term_into_dest(place, block, term));
                     block.unit()

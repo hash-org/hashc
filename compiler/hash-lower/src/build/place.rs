@@ -96,7 +96,7 @@ impl<'tcx> Builder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Place> {
         let place_builder = unpack!(block = self.as_place_builder(block, term, mutability));
-        block.and(place_builder.into_place(self.ctx))
+        block.and(place_builder.into_place(self.ctx()))
     }
 
     pub(crate) fn as_place_builder(
@@ -175,7 +175,7 @@ impl<'tcx> Builder<'tcx> {
     /// using a [ParamIndex]. This function assumes that the underlying type
     /// is a [IrTy::Adt].
     fn lookup_field_index(&mut self, ty: IrTyId, field: ParamIndex) -> usize {
-        self.ctx.map_ty_as_adt(ty, |adt, _| {
+        self.ctx().map_ty_as_adt(ty, |adt, _| {
             // @@Todo: deal with unions here.
             if adt.flags.is_struct() || adt.flags.is_tuple() {
                 // So we get the first variant of the ADT since structs, tuples always

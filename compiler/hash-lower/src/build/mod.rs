@@ -22,10 +22,8 @@ use hash_ir::{
         UnevaluatedConst, START_BLOCK,
     },
     ty::{IrTy, Mutability},
-    IrCtx,
 };
 use hash_pipeline::settings::CompilerSettings;
-use hash_semantics::SemanticStorage;
 use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId,
@@ -47,7 +45,7 @@ use hash_utils::{
     store::{FxHashMap, PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
 };
 
-use crate::cfg::ControlFlowGraph;
+use crate::{cfg::ControlFlowGraph, ctx::BuilderCtx};
 
 /// A wrapper type for the kind of TIR term that is being lowered, the [Builder]
 /// accepts either a [FnDefId] or a [TermId]. The [TermId] case is used when a
@@ -178,44 +176,10 @@ pub(crate) struct LoopBlockInfo {
     next_block: BasicBlock,
 }
 
-pub(crate) struct Tcx<'tcx> {
-    /// The type storage needed for accessing the types of the traversed terms
-    pub env: &'tcx Env<'tcx>,
-
-    /// The primitive definitions that are needed for creating and comparing
-    /// primitive types with the TIR.
-    pub primitives: &'tcx DefinedPrimitives,
-
-    /// The intrinsic definitions that are needed for
-    /// dealing with intrinsic functions within the TIR.
-    pub intrinsics: &'tcx DefinedIntrinsics,
-}
-
-impl<'tcx> Tcx<'tcx> {
-    /// Create a new [Tcx] from the given [Env] and
-    /// [SemanticStorage].
-    pub fn new(env: &'tcx Env<'tcx>, storage: &'tcx SemanticStorage) -> Self {
-        let primitives = match storage.primitives_or_unset.get() {
-            Some(primitives) => primitives,
-            None => panic!("Tried to get primitives but they are not set yet"),
-        };
-
-        let intrinsics = match storage.intrinsics_or_unset.get() {
-            Some(intrinsics) => intrinsics,
-            None => panic!("Tried to get intrinsics but they are not set yet"),
-        };
-
-        Self { env, primitives, intrinsics }
-    }
-}
-
 /// The builder is responsible for lowering a body into the associated IR.
 pub(crate) struct Builder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
-    tcx: Tcx<'tcx>,
-
-    /// The IR storage needed for storing all of the created values and bodies
-    ctx: &'tcx mut IrCtx,
+    ctx: BuilderCtx<'tcx>,
 
     /// The stage settings, sometimes used to determine what the lowering
     /// behaviour should be.
@@ -268,19 +232,19 @@ pub(crate) struct Builder<'tcx> {
 
 impl<'ctx> AccessToEnv for Builder<'ctx> {
     fn env(&self) -> &Env {
-        self.tcx.env
+        self.ctx.env
     }
 }
 
 impl<'ctx> AccessToPrimitives for Builder<'ctx> {
     fn primitives(&self) -> &DefinedPrimitives {
-        self.tcx.primitives
+        self.ctx.primitives
     }
 }
 
 impl<'ctx> AccessToIntrinsics for Builder<'ctx> {
     fn intrinsics(&self) -> &DefinedIntrinsics {
-        self.tcx.intrinsics
+        self.ctx.intrinsics
     }
 }
 
@@ -289,8 +253,7 @@ impl<'ctx> Builder<'ctx> {
         name: Identifier,
         item: BuildItem,
         source_id: SourceId,
-        tcx: Tcx<'ctx>,
-        ctx: &'ctx mut IrCtx,
+        tcx: BuilderCtx<'ctx>,
         settings: &'ctx CompilerSettings,
     ) -> Self {
         let (arg_count, source) = match item {
@@ -307,9 +270,8 @@ impl<'ctx> Builder<'ctx> {
         Self {
             settings,
             item,
-            tcx,
+            ctx: tcx,
             info: BodyInfo::new(name, source),
-            ctx,
             arg_count,
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
@@ -374,9 +336,9 @@ impl<'ctx> Builder<'ctx> {
         // If it is a function type, then we use the return type of the
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
-        let return_ty = self.ctx.map_ty(ty, |item_ty| match item_ty {
+        let return_ty = self.ctx().map_ty(ty, |item_ty| match item_ty {
             IrTy::FnDef { instance } => {
-                self.ctx.map_instance(*instance, |instance| instance.ret_ty)
+                self.ctx().map_instance(*instance, |instance| instance.ret_ty)
             }
             _ => ty,
         });
@@ -447,7 +409,8 @@ impl<'ctx> Builder<'ctx> {
 
         // Now that we have built the inner body block, we then need to terminate
         // the current basis block with a return terminator.
-        let return_block = unpack!(self.term_into_dest(Place::return_place(self.ctx), start, body));
+        let return_block =
+            unpack!(self.term_into_dest(Place::return_place(self.ctx()), start, body));
         let span = self.span_of_term(body);
 
         self.control_flow_graph.terminate(return_block, span, TerminatorKind::Return);

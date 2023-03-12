@@ -61,7 +61,7 @@ impl<'tcx> Builder<'tcx> {
 
             Term::Tuple(TupleTerm { data }) => {
                 let ty = self.ty_id_from_tir_term(term_id);
-                let adt = self.ctx.map_ty_as_adt(ty, |_, id| id);
+                let adt = self.ctx().map_ty_as_adt(ty, |_, id| id);
                 let aggregate_kind = AggregateKind::Tuple(adt);
 
                 let args = self.stores().args().map_fast(*data, |args| {
@@ -115,7 +115,7 @@ impl<'tcx> Builder<'tcx> {
 
             Term::Ctor(ref ctor) => {
                 let id = self.ty_id_from_tir_term(term_id);
-                let ty = self.ctx.tys().get(id);
+                let ty = self.ctx().tys().get(id);
 
                 match ty {
                     IrTy::Adt(adt) => {
@@ -145,12 +145,16 @@ impl<'tcx> Builder<'tcx> {
             Term::FnCall(term @ FnCallTerm { subject, args, .. }) => {
                 match self.classify_fn_call_term(term) {
                     FnCallTermKind::Call(_) => {
+                        // Get the type of the function into or to to get the
+                        // fn-type so that we can enter the scope.
                         let ty = self.get_inferred_ty(*subject);
                         let fn_ty = ty_as_variant!(self, self.get_ty(ty), Fn);
 
+                        // Try and create the ir_type from a function definition, otherwise
+                        // if it is just a function, then we make the the type from the function.
+
                         Context::enter_scope_mut(self, fn_ty.into(), |this| {
-                            let ty = this.ty_from_tir_ty(ty);
-                            this.fn_call_into_dest(destination, block, *subject, ty, *args, span)
+                            this.fn_call_into_dest(destination, block, *subject, *args, span)
                         })
                     }
                     FnCallTermKind::Cast(..)
@@ -210,7 +214,7 @@ impl<'tcx> Builder<'tcx> {
                             LogicalBinOp::Or => (short_circuiting_block, else_block),
                         };
 
-                        let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx);
+                        let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx());
                         self.control_flow_graph.terminate(block, span, term);
 
                         // Create the constant that we will assign in the `short_circuiting` block.
@@ -268,7 +272,7 @@ impl<'tcx> Builder<'tcx> {
                     let local_key = LocalKey::from(binding.kind);
                     let local = *(self.declaration_map.get(&local_key).unwrap());
 
-                    let place = Place::from_local(local, self.ctx);
+                    let place = Place::from_local(local, self.ctx());
                     self.control_flow_graph.push_assign(block, destination, place.into(), span);
                 }
 
@@ -308,7 +312,8 @@ impl<'tcx> Builder<'tcx> {
                 self.reached_terminator = true;
 
                 unpack!(
-                    block = self.term_into_dest(Place::return_place(self.ctx), block, *expression)
+                    block =
+                        self.term_into_dest(Place::return_place(self.ctx()), block, *expression)
                 );
 
                 // Create a new block for the `return` statement and make this block
@@ -329,7 +334,7 @@ impl<'tcx> Builder<'tcx> {
                 block = unpack!(self.lower_assign_term(block, &term, span));
 
                 // Assign the `value` of the assignment into the `tmp_place`
-                let const_value = ir::Const::zero(self.ctx);
+                let const_value = ir::Const::zero(self.ctx());
                 self.control_flow_graph.push_assign(block, destination, const_value.into(), span);
 
                 block.unit()
@@ -398,7 +403,6 @@ impl<'tcx> Builder<'tcx> {
         destination: Place,
         mut block: BasicBlock,
         subject: TermId,
-        fn_ty: IrTy,
         args: ArgsId,
         span: Span,
     ) -> BlockAnd<()> {
@@ -410,15 +414,15 @@ impl<'tcx> Builder<'tcx> {
         // @@Todo: we need to deal with default arguments here, we compute the missing
         // arguments, and then insert a lowered copy of the default value for
         // the argument.
-        if let IrTy::Fn { params, .. } = fn_ty {
-            if args.len() != params.len() {
-                panic_on_span!(
-                    span.into_location(self.source_id),
-                    self.env().source_map(),
-                    "default arguments on functions are not currently supported",
-                );
-            }
-        }
+        // if let IrTy::Fn { params, .. } = fn_ty {
+        //     if args.len() != params.len() {
+        //         panic_on_span!(
+        //             span.into_location(self.source_id),
+        //             self.env().source_map(),
+        //             "default arguments on functions are not currently supported",
+        //         );
+        //     }
+        // }
 
         let args = self
             .stores()
@@ -428,6 +432,21 @@ impl<'tcx> Builder<'tcx> {
             .map(|arg| unpack!(block = self.as_operand(block, arg.value, Mutability::Immutable)))
             .collect::<Vec<_>>();
 
+        self.build_fn_call(destination, block, func, args, span)
+    }
+
+    /// Build a function call from the provided subject and arguments. This
+    /// function simply terminates the current [BasicBlock] with a
+    /// [`TerminatorKind::Call`] and returns the block that is used for the
+    /// `success` case.
+    pub fn build_fn_call(
+        &mut self,
+        destination: Place,
+        block: BasicBlock,
+        subject: Operand,
+        args: Vec<Operand>,
+        span: Span,
+    ) -> BlockAnd<()> {
         // This is the block that is used when resuming from the function..
         let success = self.control_flow_graph.start_new_block();
 
@@ -435,7 +454,7 @@ impl<'tcx> Builder<'tcx> {
         self.control_flow_graph.terminate(
             block,
             span,
-            TerminatorKind::Call { op: func, args, destination, target: Some(success) },
+            TerminatorKind::Call { op: subject, args, destination, target: Some(success) },
         );
 
         success.unit()
@@ -459,7 +478,7 @@ impl<'tcx> Builder<'tcx> {
     ) -> BlockAnd<()> {
         let CtorTerm { ctor, ctor_args, .. } = subject;
 
-        let aggregate_kind = self.ctx.adts().map_fast(adt_id, |adt| {
+        let aggregate_kind = self.ctx().adts().map_fast(adt_id, |adt| {
             if adt.flags.is_enum() || adt.flags.is_union() {
                 AggregateKind::Enum(adt_id, VariantIdx::from_usize(ctor.1))
             } else {
@@ -529,7 +548,7 @@ impl<'tcx> Builder<'tcx> {
                 field_names.push(*name);
             }
 
-            self.ctx.adts().map_fast(adt_id, |adt| {
+            self.ctx().adts().map_fast(adt_id, |adt| {
                 let variant = if let AggregateKind::Enum(_, index) = aggregate_kind {
                     &adt.variants[index]
                 } else {

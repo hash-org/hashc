@@ -124,7 +124,7 @@ impl<'tcx> Builder<'tcx> {
         let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
         let then_block = self.control_flow_graph.start_new_block();
 
-        let terminator = TerminatorKind::make_if(place.into(), then_block, else_block, self.ctx);
+        let terminator = TerminatorKind::make_if(place.into(), then_block, else_block, self.ctx());
         self.control_flow_graph.terminate(block, span, terminator);
 
         then_block.unit()
@@ -530,7 +530,7 @@ impl<'tcx> Builder<'tcx> {
 
         // we know the exact size of the targets, so we can pre-allocate
         // the size we need
-        target_table.resize_with(test.targets(self.ctx), Default::default);
+        target_table.resize_with(test.targets(self.ctx()), Default::default);
 
         let candidate_count = candidates.len();
 
@@ -695,7 +695,7 @@ impl<'tcx> Builder<'tcx> {
         // soundness of later match checks.
         for binding in bindings {
             let value_place =
-                Place::from_local(self.lookup_local_symbol(binding.name).unwrap(), self.ctx);
+                Place::from_local(self.lookup_local_symbol(binding.name).unwrap(), self.ctx());
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
@@ -722,7 +722,7 @@ impl<'tcx> Builder<'tcx> {
             // Now resolve where the binding place from, and then push
             // an assign onto the binding source.
             let value_place =
-                Place::from_local(self.lookup_local_symbol(binding.name).unwrap(), self.ctx);
+                Place::from_local(self.lookup_local_symbol(binding.name).unwrap(), self.ctx());
 
             self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }

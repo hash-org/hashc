@@ -195,7 +195,7 @@ impl<'tcx> Builder<'tcx> {
             Pat::Ctor(pat) => {
                 let ty_id = self.ty_id_from_tir_pat(pair.pat);
 
-                self.ctx.map_ty(ty_id, |ty| match ty {
+                self.ctx().map_ty(ty_id, |ty| match ty {
                     IrTy::Bool => {
                         // Constify the bool literal
                         let value =
@@ -203,7 +203,7 @@ impl<'tcx> Builder<'tcx> {
                         emit_const_test(value, ty_id)
                     }
                     IrTy::Adt(id) => {
-                        let (variant_count, adt) = self.ctx.map_adt(*id, |id, adt| {
+                        let (variant_count, adt) = self.ctx().map_adt(*id, |id, adt| {
                             // Structs can be simplified...
                             if adt.flags.is_struct() {
                                 panic_on_span!(
@@ -303,7 +303,7 @@ impl<'tcx> Builder<'tcx> {
                 // variant patterns, bu nothing else.
                 let test_adt = self.ty_id_from_tir_ty(pat_ty);
 
-                let variant_index = self.ctx.map_ty_as_adt(test_adt, |adt, _| {
+                let variant_index = self.ctx().map_ty_as_adt(test_adt, |adt, _| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {
@@ -330,7 +330,7 @@ impl<'tcx> Builder<'tcx> {
             (TestKind::SwitchInt { ty, ref options }, Pat::Ctor(CtorPat { ctor, .. })) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.ctx.map_ty(*ty, |ty| ty.is_switchable()) {
+                if !self.ctx().map_ty(*ty, |ty| ty.is_switchable()) {
                     unreachable!("switch_int test for constructor pat with non-switchable type");
                 }
 
@@ -348,7 +348,7 @@ impl<'tcx> Builder<'tcx> {
             (TestKind::SwitchInt { ty, ref options }, Pat::Lit(term)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.ctx.map_ty(*ty, |ty| ty.is_switchable()) {
+                if !self.ctx().map_ty(*ty, |ty| ty.is_switchable()) {
                     return None;
                 }
 
@@ -526,7 +526,7 @@ impl<'tcx> Builder<'tcx> {
 
         // Only deal with sub-patterns if they exist on the variant.
         if let Some(sub_pats) = sub_patterns {
-            let consequent_pairs: Vec<_> = self.ctx.adts().map_fast(adt, |adt| {
+            let consequent_pairs: Vec<_> = self.ctx().adts().map_fast(adt, |adt| {
                 let variant = &adt.variants[variant_index];
 
                 self.stores().pat_args().map_fast(sub_pats, |pats| {
@@ -560,14 +560,14 @@ impl<'tcx> Builder<'tcx> {
         make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
     ) {
         // Build the place from the provided place builder
-        let place = place_builder.clone().into_place(self.ctx);
+        let place = place_builder.clone().into_place(self.ctx());
         let span = test.span;
 
         match test.kind {
             TestKind::Switch { adt, options: ref variants } => {
                 let target_blocks = make_target_blocks(self);
                 let (variant_count, discriminant_ty) = self
-                    .ctx
+                    .ctx()
                     .adts()
                     .map_fast(adt, |adt| (adt.variants.len(), adt.discriminant_ty()));
 
@@ -579,9 +579,9 @@ impl<'tcx> Builder<'tcx> {
 
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
-                let discriminant_ty = discriminant_ty.to_ir_ty(self.ctx);
+                let discriminant_ty = discriminant_ty.to_ir_ty(self.ctx());
                 let targets = SwitchTargets::new(
-                    self.ctx.adts().map_fast(adt, |adt| {
+                    self.ctx().adts().map_fast(adt, |adt| {
                         // Map over all of the discriminants of the ADT, and filter out those that
                         // are not in the `options` set.
                         adt.discriminants().filter_map(|(var_idx, discriminant)| {
@@ -614,7 +614,7 @@ impl<'tcx> Builder<'tcx> {
             TestKind::SwitchInt { ty, ref options } => {
                 let target_blocks = make_target_blocks(self);
 
-                let terminator_kind = if self.ctx.map_ty(ty, |ty| *ty == IrTy::Bool) {
+                let terminator_kind = if self.ctx().map_ty(ty, |ty| *ty == IrTy::Bool) {
                     debug_assert!(options.len() == 2);
 
                     let [first_block, second_block]= *target_blocks else {
@@ -627,7 +627,7 @@ impl<'tcx> Builder<'tcx> {
                         _ => panic!("expected boolean switch to have only two options"),
                     };
 
-                    TerminatorKind::make_if(place.into(), true_block, false_block, self.ctx)
+                    TerminatorKind::make_if(place.into(), true_block, false_block, self.ctx())
                 } else {
                     debug_assert_eq!(options.len() + 1, target_blocks.len());
                     let otherwise_block = target_blocks.last().copied();
@@ -645,7 +645,7 @@ impl<'tcx> Builder<'tcx> {
             }
             TestKind::Eq { ty, value } => {
                 let (is_str, is_scalar) =
-                    self.ctx.map_ty(ty, |ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
+                    self.ctx().map_ty(ty, |ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
 
                 // If this type is a string, we essentially have to make a call to
                 // a string comparator function (which will be filled in later on
@@ -728,7 +728,7 @@ impl<'tcx> Builder<'tcx> {
             TestKind::Len { len, op } => {
                 let target_blocks = make_target_blocks(self);
 
-                let usize_ty = self.ctx.tys().common_tys.usize;
+                let usize_ty = self.ctx().tys().common_tys.usize;
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
@@ -775,7 +775,7 @@ impl<'tcx> Builder<'tcx> {
     ) {
         debug_assert!(op.is_comparator());
 
-        let bool_ty = self.ctx.tys().common_tys.bool;
+        let bool_ty = self.ctx().tys().common_tys.bool;
         let result = self.temp_place(bool_ty);
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
@@ -789,7 +789,7 @@ impl<'tcx> Builder<'tcx> {
         self.control_flow_graph.terminate(
             block,
             span,
-            TerminatorKind::make_if(result.into(), success, fail, self.ctx),
+            TerminatorKind::make_if(result.into(), success, fail, self.ctx()),
         );
     }
 
