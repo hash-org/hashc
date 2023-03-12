@@ -17,6 +17,7 @@ use hash_tir::{
 use hash_utils::store::{CloneStore, Store};
 
 use super::{category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
+use crate::build::category::RValueKind;
 
 impl<'tcx> Builder<'tcx> {
     /// Construct an [RValue] from the given [ast::Expr].
@@ -27,7 +28,10 @@ impl<'tcx> Builder<'tcx> {
 
         let mut as_operand = |this: &mut Self| {
             // Verify that this is an actual RValue...
-            debug_assert!(!matches!(Category::of(&term), Category::RValue | Category::Constant));
+            debug_assert!(!matches!(
+                Category::of(&term),
+                Category::RValue(RValueKind::As) | Category::Constant
+            ));
 
             let operand = unpack!(block = this.as_operand(block, term_id, Mutability::Mutable));
             block.and(RValue::Use(operand))
@@ -182,7 +186,7 @@ impl<'tcx> Builder<'tcx> {
         match Category::of(&term) {
             // Just directly recurse and create the constant.
             Category::Constant => block.and(self.lower_constant_expr(&term, span).into()),
-            Category::Place | Category::RValue => {
+            Category::Place | Category::RValue(_) => {
                 let place = unpack!(block = self.as_place(block, term_id, mutability));
                 block.and(place.into())
             }

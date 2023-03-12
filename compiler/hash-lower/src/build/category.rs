@@ -19,7 +19,21 @@ pub(crate) enum Category {
 
     // Something that generates a new value at runtime, like `x + y`
     // or `foo()`.
-    RValue,
+    RValue(RValueKind),
+}
+
+/// A sub-category for [`Category::RValue`]s, this describes which
+/// specific kind of [RValue] we are dealing with, whether it will
+/// be lowered with the as-rvalue or the block lowering.
+#[derive(Debug, PartialEq)]
+pub(crate) enum RValueKind {
+    /// [RValue]s that are compiled into a destination, and likely have
+    /// control flow altering effects.
+    Into,
+
+    /// [RValue]s that are used as something, they are lowered with
+    /// `as_rvalue()`
+    As,
 }
 
 impl Category {
@@ -35,8 +49,24 @@ impl Category {
             | Term::Deref(..)
             | Term::Var(..) => Category::Place,
 
-            // Everything else is considered as an RValue of some kind.
-            _ => Category::RValue,
+            Term::Loop(..)
+            | Term::Return(_)
+            | Term::Unsafe(_)
+            | Term::LoopControl(..)
+            | Term::Block(_)
+            | Term::Ctor(_)
+            | Term::FnRef(_)
+            | Term::Match(..)
+            | Term::FnCall(..) => Category::RValue(RValueKind::Into),
+
+            Term::Tuple(_)
+            | Term::Decl(_)
+            | Term::Assign(_)
+            | Term::Array(_)
+            | Term::Cast(_)
+            | Term::TypeOf(_)
+            | Term::Ty(_)
+            | Term::Hole(_) => Category::RValue(RValueKind::As),
         }
     }
 }
