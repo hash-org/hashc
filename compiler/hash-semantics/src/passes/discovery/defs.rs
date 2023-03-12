@@ -290,6 +290,34 @@ impl<'tc> DiscoveryPass<'tc> {
             || ast_info.mod_defs().get_data_by_node(def_node_id).is_some()
     }
 
+    /// Get the module member data for the given definition node id, if it
+    /// exists
+    pub fn get_mod_member_data_from_def_node_id(
+        &self,
+        name: Symbol,
+        def_node_id: AstNodeId,
+    ) -> Option<ModMemberData> {
+        let ast_info = self.ast_info();
+        if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
+            // Function definition in a module
+            Some(ModMemberData { name, value: ModMemberValue::Fn(fn_def_id) })
+        } else if let Some(data_def_id) = ast_info.data_defs().get_data_by_node(def_node_id) {
+            // Data definition in a module
+            Some(ModMemberData { name, value: ModMemberValue::Data(data_def_id) })
+        } else {
+            // Nested module definition
+            ast_info.mod_defs().get_data_by_node(def_node_id).map(|nested_mod_def_id| {
+                ModMemberData { name, value: ModMemberValue::Mod(nested_mod_def_id) }
+            })
+
+            // If the above `get_data_by_node` returns `None`, do
+            // nothing because there might have been a recoverable
+            // error in a declaration which could have led to no
+            // `AstInfo` being recorded, for example for
+            // `TraitsNotSupported` error.
+        }
+    }
+
     /// Create `ModMemberData` from a declaration node.
     pub(super) fn make_mod_member_data_from_declaration_node(
         &self,
@@ -313,7 +341,6 @@ impl<'tc> DiscoveryPass<'tc> {
             }
         };
 
-        let ast_info = self.ast_info();
         match node.value.as_ref() {
             Some(value) => match value.body() {
                 // Import
@@ -324,29 +351,12 @@ impl<'tc> DiscoveryPass<'tc> {
                         self.mod_utils().create_or_get_module_mod_def(source_id.into());
                     Some(ModMemberData { name, value: ModMemberValue::Mod(imported_mod_def_id) })
                 }
-
-                _ => {
-                    if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
-                        // Function definition in a module
-                        Some(ModMemberData { name, value: ModMemberValue::Fn(fn_def_id) })
-                    } else if let Some(data_def_id) =
-                        ast_info.data_defs().get_data_by_node(def_node_id)
-                    {
-                        // Data definition in a module
-                        Some(ModMemberData { name, value: ModMemberValue::Data(data_def_id) })
-                    } else {
-                        // Nested module definition
-                        ast_info.mod_defs().get_data_by_node(def_node_id).map(|nested_mod_def_id| {
-                            ModMemberData { name, value: ModMemberValue::Mod(nested_mod_def_id) }
-                        })
-
-                        // If the above `get_data_by_node` returns `None`, do
-                        // nothing because there might have been a recoverable
-                        // error in a declaration which could have led to no
-                        // `AstInfo` being recorded, for example for
-                        // `TraitsNotSupported` error.
-                    }
+                // Directive, recurse
+                ast::Expr::Directive(inner) => {
+                    self.get_mod_member_data_from_def_node_id(name, inner.subject.id())
                 }
+                // Get the `ModMemberData` from the `def_node_id` of the declaration.
+                _ => self.get_mod_member_data_from_def_node_id(name, def_node_id),
             },
             None => None,
         }

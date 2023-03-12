@@ -755,10 +755,34 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         })
     }
 
-    /// Potentially monomorphise a term.
+    /// Potentially run an expression at compile-time.
     ///
-    /// This is applied to function calls starting from root.
-    pub fn potentially_monomorphise_term(&self, fn_call: TermId, fn_ty: FnTy) -> TcResult<TermId> {
+    /// This is only done if the expression has a `#run` annotation.
+    pub fn potentially_run_expr(&self, expr: TermId) -> TcResult<TermId> {
+        if self.should_monomorphise() {
+            let has_run_directive = self
+                .stores()
+                .directives()
+                .get(expr.into())
+                .map(|directives| directives.contains(IDENTS.run))
+                == Some(true);
+            if has_run_directive {
+                let norm_ops = self.norm_ops();
+                norm_ops.with_mode(NormalisationMode::Full { eval_impure_fns: true });
+                let result = norm_ops.to_term(norm_ops.normalise(expr.into())?);
+                return Ok(result);
+            }
+        }
+
+        Ok(expr)
+    }
+
+    /// Potentially monomorphise a function call, if it is pure.
+    pub fn potentially_monomorphise_fn_call(
+        &self,
+        fn_call: TermId,
+        fn_ty: FnTy,
+    ) -> TcResult<TermId> {
         if self.should_monomorphise() && fn_ty.pure {
             let norm_ops = self.norm_ops();
             norm_ops.with_mode(NormalisationMode::Full { eval_impure_fns: true });
@@ -847,7 +871,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         );
 
                         let monomorphised =
-                            self.potentially_monomorphise_term(resulting_fn_call, fn_ty)?;
+                            self.potentially_monomorphise_fn_call(resulting_fn_call, fn_ty)?;
                         self.register_atom_inference(original_term_id, monomorphised, uni.result);
 
                         Ok(Inference(monomorphised, uni.result))
@@ -1746,8 +1770,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         })?;
 
         self.register_atom_inference(term_id, result.0, result.1);
-        self.potentially_dump_tir(result.0);
-        Ok(result)
+
+        let potentially_evaluated = self.potentially_run_expr(result.0)?;
+        self.potentially_dump_tir(potentially_evaluated);
+        Ok(Inference(potentially_evaluated, result.1))
     }
 
     /// Infer a range pattern.

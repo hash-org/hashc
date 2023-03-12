@@ -589,7 +589,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     }
                     MatchResult::Failed => {}
                     MatchResult::Stuck => {
-                        info!("Stuck evaluating match: {}", self.env().with(&match_term));
                         outcome = Some(stuck_evaluating());
                     }
                 }

@@ -218,7 +218,11 @@ impl<'s> SemanticAnalyser<'s> {
             // Check that the supplied argument to a function modifying directive
             // is a declaration of a function that the directive will apply to.
             self.validate_data_def_directive(directive, subject)
-        } else if !directive.is(IDENTS.dump_ast) && !directive.is(IDENTS.dump_tir) {
+        } else if !directive.is(IDENTS.dump_ast)
+            && !directive.is(IDENTS.dump_tir)
+            && !directive.is(IDENTS.run)
+            && !directive.is(IDENTS.pure)
+        {
             // @@Future: use some kind of scope validation in order to verify that
             // the used directives are valid
             self.append_warning(

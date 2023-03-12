@@ -253,6 +253,12 @@ core_idents! {
     repr_c: "repr_c",
     layout_of: "layout_of",
 
+    // Function flags
+    pure: "pure",
+
+    // Running at compile time
+    run: "run",
+
     // Intrinsic function item names
     sqrt_f32: "sqrtf32",
     sqrt_f64: "sqrtf64",
