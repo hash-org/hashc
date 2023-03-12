@@ -15,7 +15,7 @@ const STDLIB: &str = env!("STDLIB_PATH");
 
 /// The path to the prelude module
 pub const PRELUDE: &str =
-    const_format::formatcp!("{}{}prelude", env!("STDLIB_PATH"), MAIN_SEPARATOR);
+    const_format::formatcp!("{}{}prelude.hash", env!("STDLIB_PATH"), MAIN_SEPARATOR);
 
 /// Specifies the error kinds of an [ImportError]. Each kind denotes
 /// a particular error that can occur when importing a module.
@@ -95,7 +95,7 @@ fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
                         // Special case, don't add prelude to the module list since we don't want to
                         // allow it to be imported under the normal standard
                         // library imports.
-                        if file_name == PRELUDE {
+                        if path.as_path().as_os_str() == PRELUDE {
                             continue;
                         }
 
@@ -162,9 +162,11 @@ pub fn resolve_path<'p>(
 
     let modules = get_stdlib_modules(STDLIB);
 
-    // check if the given path is equal to any of the standard library paths
+    // check if the given path is equal to any of the standard library paths, and
+    // if so we prefix it with the standard library path.
     if modules.contains(&import_path.to_path_buf()) {
-        return Ok(import_path.to_path_buf());
+        let path = Path::new(STDLIB).join(import_path.with_extension("hash"));
+        return Ok(path.to_path_buf());
     }
 
     // otherwise, we have to resolve the module path based on the working directory
