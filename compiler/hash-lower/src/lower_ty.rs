@@ -1,19 +1,18 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
 
-use hash_intrinsics::{
-    primitives::{AccessToPrimitives, DefinedPrimitives},
-    utils::PrimitiveUtils,
-};
+use hash_intrinsics::{primitives::AccessToPrimitives, utils::PrimitiveUtils};
 use hash_ir::{
+    intrinsics::Intrinsic,
+    lang_items::LangItem,
     ty::{
-        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, IrTy, IrTyId,
+        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
         Mutability, RepresentationFlags,
     },
-    IrCtx,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
+    attributes::Attribute,
     constant::{FloatTy, SIntTy, UIntTy},
     identifier::IDENTS,
 };
@@ -22,8 +21,8 @@ use hash_tir::{
     data::{
         ArrayCtorInfo, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
     },
-    environment::env::{AccessToEnv, Env},
-    fns::FnTy,
+    environment::env::AccessToEnv,
+    fns::{FnDef, FnDefId, FnTy},
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
@@ -32,46 +31,19 @@ use hash_tir::{
 use hash_utils::{
     index_vec::index_vec,
     log::info,
-    store::{PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
+    store::{CloneStore, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
-/// A context that is used to lower types and terms into [IrTy]s.
-pub(crate) struct TyLoweringCtx<'ir> {
-    /// A reference to the store of all of the IR types.
-    pub lcx: &'ir IrCtx,
+use crate::ctx::BuilderCtx;
 
-    /// The type storage from the semantic analysis stage.
-    pub tcx: &'ir Env<'ir>,
-
-    /// The primitive storage from the semantic analysis stage.
-    pub primitives: &'ir DefinedPrimitives,
-}
-
-impl<'ir> AccessToEnv for TyLoweringCtx<'ir> {
-    fn env(&self) -> &Env {
-        self.tcx
-    }
-}
-
-impl AccessToPrimitives for TyLoweringCtx<'_> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        self.primitives
-    }
-}
-
-impl<'ir> TyLoweringCtx<'ir> {
-    /// Create a new [TyLoweringCtx] from the given [IrCtx] and [GlobalStorage].
-    pub fn new(lcx: &'ir IrCtx, tcx: &'ir Env<'ir>, primitives: &'ir DefinedPrimitives) -> Self {
-        Self { lcx, tcx, primitives }
-    }
-
+impl<'ir> BuilderCtx<'ir> {
     /// Get the [IrTyId] from a given [TyId]. This function will internally
     /// cache results of lowering a [TyId] into an [IrTyId] to avoid
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_ty(&self, id: TyId) -> IrTyId {
         // Check if the term is present within the cache, and if so, return the
         // cached value.
-        if let Some(ty) = self.lcx.semantic_cache().borrow().get(&id.into()) {
+        if let Some(ty) = self.lcx.ty_cache().borrow().get(&id.into()) {
             return *ty;
         }
 
@@ -103,7 +75,7 @@ impl<'ir> TyLoweringCtx<'ir> {
             if let Ty::Data(data_ty) = ty {
                 let data_ty = *data_ty;
 
-                if let Some(ty) = self.lcx.semantic_cache().borrow().get(&data_ty.into()) {
+                if let Some(ty) = self.lcx.ty_cache().borrow().get(&data_ty.into()) {
                     return *ty;
                 }
 
@@ -111,7 +83,7 @@ impl<'ir> TyLoweringCtx<'ir> {
                 let ty = create_new_ty(self.ty_from_tir_data(data_ty));
 
                 // Add entries for both the data type and the type id.
-                let mut cache = self.lcx.semantic_cache().borrow_mut();
+                let mut cache = self.lcx.ty_cache().borrow_mut();
                 cache.insert(data_ty.into(), ty);
                 cache.insert(id.into(), ty);
 
@@ -119,7 +91,7 @@ impl<'ir> TyLoweringCtx<'ir> {
             } else {
                 // Add an entry into the cache for this term
                 let ty = create_new_ty(self.ty_from_tir_ty(id, ty));
-                self.lcx.semantic_cache().borrow_mut().insert(id.into(), ty);
+                self.lcx.ty_cache().borrow_mut().insert(id.into(), ty);
                 ty
             }
         })
@@ -205,6 +177,83 @@ impl<'ir> TyLoweringCtx<'ir> {
         }
     }
 
+    /// Create a new [IrTyId] from the given function definition whilst
+    /// caching the result in the
+    pub(crate) fn ty_id_from_tir_fn_def(&self, def: FnDefId) -> IrTyId {
+        // Check if we have already lowered this function definition, and
+        // if so we can just return the cached value.
+        if let Some(ty) = self.lcx.ty_cache().borrow().get(&def.into()) {
+            return *ty;
+        }
+
+        let instance = self.create_instance_from_fn_def(def);
+
+        let is_lang = instance.attributes.contains("lang".into());
+        let name = instance.name();
+
+        // Check if the instance has the `lang` attribute, specifying that it is
+        // the lang-item attribute.
+        let instance = self.lcx.instances().create(instance);
+        let ty = self.lcx.tys().create(IrTy::FnDef { instance });
+
+        if is_lang {
+            let item = LangItem::from_str_name(name.into());
+            self.lcx.lang_items_mut().set(item, instance, ty);
+        }
+
+        // Specify here that the function might be an intrinsic function
+        if self.stores().fn_def().map_fast(def, |def| def.is_intrinsic()) {
+            let item = Intrinsic::from_str_name(name.into()).expect("unknown intrinsic function");
+            self.lcx.intrinsics_mut().set(item, instance, ty);
+        }
+
+        // Save in the cache that the definition has been lowered.
+        self.lcx.ty_cache().borrow_mut().insert(def.into(), ty);
+        ty
+    }
+
+    /// Create a [Instance] from a [FnDefId]. This represents the function
+    /// instance including the name, types (monormorphised), and attributes
+    /// that are associated with the function definition.
+    fn create_instance_from_fn_def(&self, fn_def: FnDefId) -> Instance {
+        let FnDef { name, ty, .. } = self.env().stores().fn_def().get(fn_def);
+
+        let name = self.env().symbol_name(name);
+
+        // Check whether this is an intrinsic item, since we need to handle
+        // them differently
+
+        let source = self.get_location(fn_def).map(|location| location.id);
+        let FnTy { params, return_ty, .. } = ty;
+
+        // Lower the parameters and the return type
+        let param_tys = self.stores().params().get_vec(params);
+
+        let params = self
+            .lcx
+            .tls()
+            .create_from_iter(param_tys.iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
+        let ret_ty = self.ty_id_from_tir_ty(return_ty);
+
+        let mut instance = Instance::new(name, source, params, ret_ty);
+
+        // Lookup any applied directives on the fn_def and add them to the
+        // instance
+        self.env().stores().directives().map_fast(fn_def.into(), |maybe_directives| {
+            if let Some(directives) = maybe_directives {
+                for directive in directives.iter() {
+                    instance.attributes.add(Attribute::word(directive));
+                }
+            }
+        });
+
+        if Intrinsic::from_str_name(name.into()).is_some() {
+            instance.is_intrinsic = true;
+        }
+
+        instance
+    }
+
     /// Convert the [DataTy] into an [`IrTy::Adt`]. The [DataTy] specifies a
     /// data definition and a collection of arguments to the data
     /// definition. The arguments correspond to generic parameters that the
@@ -213,7 +262,7 @@ impl<'ir> TyLoweringCtx<'ir> {
         // Check if the data type has already been converted into
         // an ir type.
         let key = data_ty.into();
-        if let Some(ty) = self.lcx.semantic_cache().borrow().get(&key) {
+        if let Some(ty) = self.lcx.ty_cache().borrow().get(&key) {
             return *ty;
         }
 
@@ -221,7 +270,7 @@ impl<'ir> TyLoweringCtx<'ir> {
         let id = self.lcx.tys().create(ty);
 
         // Add an entry into the cache for this term
-        self.lcx.semantic_cache().borrow_mut().insert(key, id);
+        self.lcx.ty_cache().borrow_mut().insert(key, id);
         id
     }
 
