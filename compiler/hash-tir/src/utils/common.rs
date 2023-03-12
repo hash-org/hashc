@@ -1,6 +1,9 @@
 // @@Docs
 
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{
+    identifier::{Identifier, IDENTS},
+    location::SourceLocation,
+};
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::{
@@ -239,6 +242,12 @@ pub trait CommonUtils: AccessToEnv {
     /// Get the default value of a parameter, if any
     fn get_param_default(&self, param_id: ParamId) -> Option<TermId> {
         self.stores().params().map_fast(param_id.0, |params| params[param_id.1].default)
+    }
+
+    /// Get the name of the given symbol. If the symbol has no name, return the
+    /// underscore symbol.
+    fn symbol_name(&self, symbol: Symbol) -> Identifier {
+        self.stores().symbol().map_fast(symbol, |s| s.name.unwrap_or(IDENTS.underscore))
     }
 
     /// Duplicate a symbol by creating a new symbol with the same name.
