@@ -173,7 +173,6 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         //
         // @@Todo: deal with FN ABI error here
         let fn_abi = compute_fn_abi_from_instance(builder, instance).unwrap();
-        let fn_ptr = builder.get_fn_ptr(instance);
 
         // If the return ABI pass mode is "indirect", then this means that
         // we have to create a temporary in order to represent the "out_ptr"
@@ -249,6 +248,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
             self.codegen_fn_argument(builder, arg_operand, &mut args, &fn_abi.args[index]);
         }
+
+        let fn_ptr = builder.get_fn_ptr(instance);
 
         // Finally, generate the code for the function call and
         // cleanup
