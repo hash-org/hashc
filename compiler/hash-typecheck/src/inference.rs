@@ -533,7 +533,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         },
                         _ => None,
                     })
-                    .unwrap_or_else(|| self.primitives().f32())
+                    .unwrap_or_else(|| self.primitives().f64())
                 }
             },
         });

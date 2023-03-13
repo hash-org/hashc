@@ -890,22 +890,22 @@ impl AssertKind {
     /// within the executable for when the assert is triggered.
     pub fn message(&self) -> &'static str {
         match self {
-            AssertKind::Overflow { op: BinOp::Add, .. } => "attempt to add with overflow",
-            AssertKind::Overflow { op: BinOp::Sub, .. } => "attempt to subtract with overflow",
-            AssertKind::Overflow { op: BinOp::Mul, .. } => "attempt to multiply with overflow",
-            AssertKind::Overflow { op: BinOp::Div, .. } => "attempt to divide with overflow",
+            AssertKind::Overflow { op: BinOp::Add, .. } => "attempt to add with overflow\n",
+            AssertKind::Overflow { op: BinOp::Sub, .. } => "attempt to subtract with overflow\n",
+            AssertKind::Overflow { op: BinOp::Mul, .. } => "attempt to multiply with overflow\n",
+            AssertKind::Overflow { op: BinOp::Div, .. } => "attempt to divide with overflow\n",
             AssertKind::Overflow { op: BinOp::Mod, .. } => {
                 "attempt to calculate the remainder with overflow"
             }
-            AssertKind::Overflow { op: BinOp::Shl, .. } => "attempt to shift left with overflow",
-            AssertKind::Overflow { op: BinOp::Shr, .. } => "attempt to shift right with overflow",
-            AssertKind::Overflow { op, .. } => panic!("unexpected overflow operator `{op}`"),
-            AssertKind::DivisionByZero { .. } => "attempt to divide by zero",
+            AssertKind::Overflow { op: BinOp::Shl, .. } => "attempt to shift left with overflow\n",
+            AssertKind::Overflow { op: BinOp::Shr, .. } => "attempt to shift right with overflow\n",
+            AssertKind::Overflow { op, .. } => panic!("unexpected overflow operator `{op}`\n"),
+            AssertKind::DivisionByZero { .. } => "attempt to divide by zero\n",
             AssertKind::RemainderByZero { .. } => {
-                "attempt to take remainder with a divisor of zero"
+                "attempt to take remainder with a divisor of zero\n"
             }
-            AssertKind::NegativeOverflow { .. } => "attempt to negate with overflow",
-            AssertKind::BoundsCheck { .. } => "attempt to index array out of bounds",
+            AssertKind::NegativeOverflow { .. } => "attempt to negate with overflow\n",
+            AssertKind::BoundsCheck { .. } => "attempt to index array out of bounds\n",
         }
     }
 }
