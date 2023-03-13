@@ -1136,11 +1136,11 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
     }
 
     fn lifetime_start(&mut self, ptr: Self::Value, size: Size) {
-        self.emit_lifetime_marker("llvm.lifetime.start.p0i8", ptr, size)
+        self.emit_lifetime_marker("llvm.lifetime.start.p0", ptr, size)
     }
 
     fn lifetime_end(&mut self, ptr: Self::Value, size: Size) {
-        self.emit_lifetime_marker("llvm.lifetime.end.p0i8", ptr, size)
+        self.emit_lifetime_marker("llvm.lifetime.end.p0", ptr, size)
     }
 
     fn add_range_metadata_to(&mut self, load_value: Self::Value, range: ValidScalarRange) {

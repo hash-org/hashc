@@ -334,12 +334,15 @@ impl DefinedIntrinsics {
         env: T,
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
+        let t_sym = env.new_symbol("T");
+
         let op_sym = env.new_symbol("op");
         let a_sym = env.new_symbol("a");
         let b_sym = env.new_symbol("b");
         let ty = env.new_data_ty(env.primitives().bool());
         let params = env.param_utils().create_params(
             [
+                ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
                 ParamData {
                     default: None,
                     name: op_sym,

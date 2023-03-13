@@ -62,7 +62,7 @@ impl<'b, 'm> Builder<'_, 'b, 'm> {
         }
 
         // Declare all of the types that might occur within the intrinsic.
-        let _ptr = self.type_i8p();
+        let ptr = self.type_i8p();
         let void = self.type_void();
         let bool = self.type_i1();
         let i8 = self.type_i8();
@@ -241,6 +241,9 @@ impl<'b, 'm> Builder<'_, 'b, 'm> {
         intrinsic_on!("llvm.umul.with.overflow.i32", fn(i32, i32) -> struct_ty! {i32, bool});
         intrinsic_on!("llvm.umul.with.overflow.i64", fn(i64, i64) -> struct_ty! {i64, bool});
         intrinsic_on!("llvm.umul.with.overflow.i128", fn(i128, i128) -> struct_ty! {i128, bool});
+
+        intrinsic_on!("llvm.lifetime.start.p0", fn(i64, ptr) -> void);
+        intrinsic_on!("llvm.lifetime.end.p0", fn(i64, ptr) -> void);
 
         None
     }

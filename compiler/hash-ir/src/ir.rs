@@ -303,7 +303,7 @@ pub enum BinOp {
 impl BinOp {
     /// Returns whether the [BinOp] can be "checked".
     pub fn is_checkable(&self) -> bool {
-        matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Shl | Self::Shr)
+        matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Shl | Self::Shr)
     }
 
     /// Check if the [BinOp] is a comparator.

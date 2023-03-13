@@ -149,10 +149,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         time_item(self, "build", |_| {
             for func in items.iter() {
                 let symbol = env.stores().fn_def().map_fast(*func, |func| func.name);
-                let name = env
-                    .stores()
-                    .symbol()
-                    .map_fast(symbol, |symbol| symbol.name.unwrap_or(IDENTS.underscore));
+                let name = env.symbol_name(symbol);
 
                 // Get the source of the symbol therefore that way
                 // we can get the source id of the function.

@@ -227,7 +227,7 @@ impl<I: CompilerInterface> Compiler<I> {
             // Temporarily swap the settings with a patched settings in order
             // for the prelude bootstrap to run
             let stage_kind = ctx.settings_mut().stage;
-            ctx.settings_mut().stage = CompilerStageKind::Lower;
+            ctx.settings_mut().stage = CompilerStageKind::Analysis;
 
             // We don't need to run the prelude in the full pipeline, just until
             // IR-gen since that will be dealt by the actual pipeline.

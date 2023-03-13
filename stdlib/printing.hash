@@ -1,0 +1,88 @@
+//! This module contains printing utilties for the language.
+
+
+/// Simply print a character.
+print_char := (c: char) => {
+    t := &raw c;
+    libc::write(1, Intrinsics::transmute(type &raw char, type &raw u8, t), 4);
+}
+
+
+/// Simple printing utility for integers. This function will allocate a small
+/// buffer on the heap, write character by character into the buffer, use it for
+/// printing, and then finally free the buffer.
+///
+/// This function is the equivalent of `printf("%d", value)` in C.
+print_int := (value: i32) => {
+    data := libc::malloc(12);
+    buf: [u8] = Intrinsics::transmute(type SizedPointer, type [u8], SizedPointer(data, 12));
+    len := i32_to_string(value, buf, 10);
+
+    // Convert it back to a sized_ptr and trim the string
+    new_buf := Intrinsics::transmute(type [u8], type SizedPointer, buf);
+    new_buf.1 = len;
+
+    message := Intrinsics::transmute(type SizedPointer, type str, new_buf);
+    print(message);
+
+    libc::free(data);
+}
+
+/// Print a f64 value.
+print_float := (value: f64) => {
+}
+
+
+priv i32_to_string := (value: i32, buf: [u8], base: i32) -> usize => {
+    mut i := 0usize;
+    mut negative := false;
+
+    if value == 0 {
+        buf[i] = 0u8;
+        return i + 1usize;
+    }
+
+    if (value < 0) && (base == 10) {
+        negative = true;
+        value = -value;
+    }
+
+    // Keep dividing by the base until we get 0 and add the remainder.
+    while value != 0 {
+        rem := value % base;
+
+        // Convert the remainder into a character.
+        buf[i] = if rem > 9 {
+            Intrinsics::cast(type i32, type u8, (rem - 10) + 65)
+        } else {
+            // We add `60` to denote the ASCII offset for numbers.
+            Intrinsics::cast(type i32, type u8, rem + 48)
+        };
+        
+        i += 1;
+        value /= base;
+    }
+
+    if negative {
+        buf[i] = Intrinsics::cast(type char, type u8, '-');
+        i += 1;
+    }
+
+    reverse(buf, i);
+    i
+}
+
+priv reverse := (buf: [u8], len: usize) => {
+    mut start:= 0usize;
+    mut end := len - 1;
+
+    while start < end {
+        // Swap the characters.
+        tmp := buf[start];
+        buf[start] = buf[end];
+        buf[end] = tmp;
+
+        start += 1;
+        end -= 1;
+    }
+}
