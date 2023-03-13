@@ -1,6 +1,6 @@
 //! Operations to substitute variables in types and terms.
 
-use std::ops::ControlFlow;
+use std::{collections::HashSet, ops::ControlFlow};
 
 use derive_more::{Constructor, Deref};
 use hash_tir::{
@@ -65,10 +65,10 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
     ///
     /// i.e. if the atom contains a variable or hole that is in the
     /// substitution.
-    pub fn can_apply_sub_to_atom_once(
+    pub fn atom_contains_vars_once(
         &self,
         atom: Atom,
-        sub: &Sub,
+        var_matches: impl Fn(Symbol) -> bool,
         can_apply: &mut bool,
     ) -> ControlFlow<()> {
         if *can_apply {
@@ -76,16 +76,14 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         }
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
-                Ty::Hole(Hole(symbol)) | Ty::Var(symbol) if sub.get_sub_for(symbol).is_some() => {
+                Ty::Hole(Hole(symbol)) | Ty::Var(symbol) if var_matches(symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
                 }
                 _ => ControlFlow::Continue(()),
             },
             Atom::Term(term) => match self.get_term(term) {
-                Term::Hole(Hole(symbol)) | Term::Var(symbol)
-                    if sub.get_sub_for(symbol).is_some() =>
-                {
+                Term::Hole(Hole(symbol)) | Term::Var(symbol) if var_matches(symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
                 }
@@ -93,6 +91,19 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
             },
             Atom::FnDef(_) | Atom::Pat(_) => ControlFlow::Continue(()),
         }
+    }
+
+    /// Whether the given substitution can be appliedto the given atom,
+    ///
+    /// i.e. if the atom contains a variable or hole that is in the
+    /// substitution.
+    pub fn can_apply_sub_to_atom_once(
+        &self,
+        atom: Atom,
+        sub: &Sub,
+        can_apply: &mut bool,
+    ) -> ControlFlow<()> {
+        self.atom_contains_vars_once(atom, |symbol| sub.get_sub_for(symbol).is_some(), can_apply)
     }
 
     /// Apply the given substitution to the given parameters, while handling
@@ -143,6 +154,17 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
             },
             Atom::FnDef(_) | Atom::Pat(_) => ControlFlow::Continue(()),
         }
+    }
+
+    /// Below are convenience methods for specific atoms:
+    pub fn atom_contains_vars(&self, atom: Atom, filter: impl Fn(Symbol) -> bool + Copy) -> bool {
+        let mut can_apply = false;
+        self.traversing_utils()
+            .visit_atom::<!, _>(atom, &mut |atom| {
+                Ok(self.atom_contains_vars_once(atom, filter, &mut can_apply))
+            })
+            .into_ok();
+        can_apply
     }
 
     /// Below are convenience methods for specific atoms:
@@ -375,11 +397,23 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
 
     /// Hide the given set of parameters from the substitution.
     pub fn hide_param_binds(&self, params: impl IntoIterator<Item = ParamId>, sub: &Sub) -> Sub {
-        let mut shadowed_sub = sub.clone();
-        for param in params.into_iter() {
-            let param = self.get_param(param);
-            shadowed_sub.remove(param.name);
+        let mut shadowed_sub = Sub::identity();
+        let param_names =
+            params.into_iter().map(|p| self.get_param(p).name).collect::<HashSet<_>>();
+
+        for (name, value) in sub.iter() {
+            // If the substitution is from that parameter, skip it.
+            if param_names.contains(&name) {
+                continue;
+            }
+            // If the substitution is to that parameter, skip it.
+            if self.atom_contains_vars(value.into(), |v| param_names.contains(&v)) {
+                continue;
+            }
+
+            shadowed_sub.insert(name, value);
         }
+
         shadowed_sub
     }
 
@@ -402,5 +436,24 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
             }
         }
         reversed_sub
+    }
+
+    /// Copies an atom, returning a new atom.
+    pub fn copy_atom(&self, atom: Atom) -> Atom {
+        self.traversing_utils()
+            .fmap_atom::<!, _>(atom, |_a| Ok(ControlFlow::Continue(())))
+            .into_ok()
+    }
+
+    /// Copies a type, returning a new type.
+    pub fn copy_ty(&self, ty: TyId) -> TyId {
+        self.traversing_utils().fmap_ty::<!, _>(ty, |_a| Ok(ControlFlow::Continue(()))).into_ok()
+    }
+
+    /// Copies parameters, returning new parameters.
+    pub fn copy_params(&self, params: ParamsId) -> ParamsId {
+        self.traversing_utils()
+            .fmap_params::<!, _>(params, |_a| Ok(ControlFlow::Continue(())))
+            .into_ok()
     }
 }

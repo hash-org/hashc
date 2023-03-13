@@ -67,6 +67,15 @@ impl<'env> ContextUtils<'env> {
         self.context().add_decl(name, Some(ty), Some(value));
     }
 
+    /// Modify the type of an assignment binding.
+    pub fn modify_typing(&self, name: Symbol, new_ty: TyId) {
+        let current_value = self.try_get_binding_value(name);
+        self.context().modify_binding(Binding {
+            name,
+            kind: BindingKind::Decl(Decl { name, ty: Some(new_ty), value: current_value }),
+        })
+    }
+
     /// Modify the value of an assignment binding.
     pub fn modify_assignment(&self, name: Symbol, new_value: TermId) {
         let current_ty = self.try_get_binding_ty(name);

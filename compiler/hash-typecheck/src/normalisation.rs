@@ -12,7 +12,7 @@ use hash_tir::{
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     environment::context::ScopeKind,
-    fns::{FnBody, FnCallTerm},
+    fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
     params::ParamIndex,
@@ -37,7 +37,6 @@ use hash_utils::{
 
 use crate::{
     errors::{TcError, TcResult},
-    inference::Inference,
     AccessToTypechecking, IntrinsicAbilitiesWrapper,
 };
 
@@ -167,6 +166,35 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         Self { env, mode: Cell::new(NormalisationMode::Weak) }
     }
 
+    /// Change the normalisation mode.
+    pub fn with_mode(&self, mode: NormalisationMode) -> &Self {
+        self.mode.set(mode);
+        self
+    }
+
+    /// Normalise the given atom, in-place.
+    pub fn normalise_in_place(&self, atom: Atom) -> TcResult<()> {
+        match atom {
+            Atom::Term(term_id) => {
+                let result = self.normalise(term_id.into())?;
+                self.stores().term().set(term_id, self.get_term(self.to_term(result)));
+                Ok(())
+            }
+            Atom::Ty(ty_id) => {
+                let result = self.normalise(ty_id.into())?;
+                self.stores().ty().set(ty_id, self.get_ty(self.to_ty(result)));
+                Ok(())
+            }
+            // Fn defs are already normalised.
+            Atom::FnDef(_) => Ok(()),
+            Atom::Pat(pat_id) => {
+                let result = self.normalise(pat_id.into())?;
+                self.stores().pat().set(pat_id, self.get_pat(self.to_pat(result)));
+                Ok(())
+            }
+        }
+    }
+
     /// Normalise the given atom.
     pub fn normalise(&self, atom: Atom) -> TcResult<Atom> {
         match self.eval(atom) {
@@ -189,16 +217,16 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         }
     }
 
-    /// Change the normalisation mode.
-    pub fn with_mode(&self, mode: NormalisationMode) -> &Self {
-        self.mode.set(mode);
-        self
-    }
-
-    /// Try to use the given atom as a type.
-    pub fn to_ty(&self, atom: Atom) -> TyId {
-        self.maybe_to_ty(atom)
-            .unwrap_or_else(|| panic!("Cannot convert {} to a type", self.env().with(atom)))
+    /// Normalise the given atom, and try to use it as a function definition.
+    pub fn maybe_to_fn_def(&self, atom: Atom) -> Option<FnDefId> {
+        match atom {
+            Atom::Term(term) => match self.get_term(term) {
+                Term::FnRef(fn_def_id) => Some(fn_def_id),
+                _ => None,
+            },
+            Atom::FnDef(fn_def_id) => Some(fn_def_id),
+            _ => None,
+        }
     }
 
     /// Normalise the given atom, and try to use it as a term.
@@ -211,10 +239,36 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         }
     }
 
+    /// Normalise the given atom, and try to use it as a pattern.
+    pub fn maybe_to_pat(&self, atom: Atom) -> Option<PatId> {
+        match atom {
+            Atom::Pat(pat) => Some(pat),
+            _ => None,
+        }
+    }
+
     /// Normalise the given atom, and try to use it as a term.
     pub fn to_term(&self, atom: Atom) -> TermId {
         self.maybe_to_term(atom)
             .unwrap_or_else(|| panic!("Cannot convert {} to a term", self.env().with(atom)))
+    }
+
+    /// Normalise the given atom, and try to use it as a function definition.
+    pub fn to_fn_def(&self, atom: Atom) -> FnDefId {
+        self.maybe_to_fn_def(atom)
+            .unwrap_or_else(|| panic!("Cannot convert {} to an fn def", self.env().with(atom)))
+    }
+
+    /// Try to use the given atom as a type.
+    pub fn to_ty(&self, atom: Atom) -> TyId {
+        self.maybe_to_ty(atom)
+            .unwrap_or_else(|| panic!("Cannot convert {} to a type", self.env().with(atom)))
+    }
+
+    /// Try to use the given atom as a pattern.
+    pub fn to_pat(&self, atom: Atom) -> PatId {
+        self.maybe_to_pat(atom)
+            .unwrap_or_else(|| panic!("Cannot convert {} to a pattern", self.env().with(atom)))
     }
 
     fn atom_has_effects_once(
@@ -512,11 +566,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     self.env().with(type_of_term.term)
                 );
                 // Ask the type checker to infer the type:
-                let Inference(inferred_term, inferred_ty) =
-                    self.infer_ops().infer_term(type_of_term.term, self.new_ty_hole())?;
-                self.register_atom_inference(type_of_term.term, inferred_term, inferred_ty);
-
-                Ok(inferred_ty.into())
+                let inferred = self.new_ty_hole_of(type_of_term.term);
+                self.infer_ops().infer_term(type_of_term.term, inferred)?;
+                self.register_atom_inference(type_of_term.term, type_of_term.term, inferred);
+                Ok(inferred.into())
             }
         }
     }

@@ -115,11 +115,6 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::Expr>,
     ) -> SemanticResult<TermId> {
-        // Maybe it has already been made:
-        if let Some(term_id) = self.ast_info().terms().get_data_by_node(node.id()) {
-            return Ok(term_id);
-        }
-
         let term_id = match node.body {
             ast::Expr::Variable(variable_expr) => {
                 self.make_term_from_ast_variable_expr(node.with_body(variable_expr))?
