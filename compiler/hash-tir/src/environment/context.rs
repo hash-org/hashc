@@ -19,6 +19,7 @@ use crate::{
     fns::{FnDefId, FnTy},
     mods::{ModDefId, ModMemberId},
     scopes::StackId,
+    sub::Sub,
     symbols::Symbol,
     terms::TermId,
     tuples::TupleTy,
@@ -131,6 +132,8 @@ pub enum ScopeKind {
     FnTy(FnTy),
     /// A tuple type scope.
     TupleTy(TupleTy),
+    /// A substitution scope.
+    Sub,
 }
 
 impl ScopeKind {
@@ -140,9 +143,11 @@ impl ScopeKind {
     pub fn is_constant(&self) -> bool {
         match self {
             ScopeKind::Mod(_) | ScopeKind::Data(_) | ScopeKind::Ctor(_) => true,
-            ScopeKind::Stack(_) | ScopeKind::Fn(_) | ScopeKind::FnTy(_) | ScopeKind::TupleTy(_) => {
-                false
-            }
+            ScopeKind::Sub
+            | ScopeKind::Stack(_)
+            | ScopeKind::Fn(_)
+            | ScopeKind::FnTy(_)
+            | ScopeKind::TupleTy(_) => false,
         }
     }
 }
@@ -502,6 +507,9 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
             ),
             ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", self.env().with(&fn_ty)),
             ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", self.env().with(&tuple_ty)),
+            ScopeKind::Sub => {
+                write!(f, "sub")
+            }
         }
     }
 }

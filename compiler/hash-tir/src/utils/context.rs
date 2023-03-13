@@ -15,6 +15,7 @@ use crate::{
     mods::ModDefId,
     params::{ParamId, ParamsId},
     scopes::StackId,
+    sub::Sub,
     symbols::Symbol,
     terms::TermId,
     tys::TyId,
@@ -251,6 +252,9 @@ impl<'env> ContextUtils<'env> {
             ScopeKind::TupleTy(tuple_ty) => {
                 self.add_param_bindings(tuple_ty.data);
             }
+            ScopeKind::Sub => {
+                // No-op
+            }
         }
     }
 
@@ -267,6 +271,23 @@ impl<'env> ContextUtils<'env> {
         Context::enter_scope_mut(this, kind, |this| {
             this.context_utils().add_resolved_scope_members(kind);
             f(this)
+        })
+    }
+
+    /// Add the given substitution to the context.
+    pub fn add_sub_to_scope(&self, sub: &Sub) {
+        for (name, value) in sub.iter() {
+            self.add_untyped_assignment(name, value);
+        }
+    }
+
+    /// Enter a scope with the given substitution.
+    pub fn enter_sub_scope<M>(&self, sub: &Sub, f: impl FnOnce() -> M) -> M {
+        self.context().enter_scope(ScopeKind::Sub, || {
+            for (name, value) in sub.iter() {
+                self.context_utils().add_untyped_assignment(name, value);
+            }
+            f()
         })
     }
 }

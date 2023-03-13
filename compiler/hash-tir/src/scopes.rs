@@ -27,7 +27,7 @@ use crate::{
 };
 
 /// A binding pattern, which is essentially a declaration left-hand side.
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub struct BindingPat {
     /// The name of the bind.
     /// If `name` does not map to a specific `Identifier` name, it means

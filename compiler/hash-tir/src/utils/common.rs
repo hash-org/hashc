@@ -156,6 +156,11 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().args().map(args_id, f)
     }
 
+    /// Map pattern args by their IDs.
+    fn map_pat_args<T>(&self, args_id: PatArgsId, f: impl FnOnce(&[PatArg]) -> T) -> T {
+        self.stores().pat_args().map(args_id, f)
+    }
+
     /// Map params by their IDs.
     fn map_params<T>(&self, params_id: ParamsId, f: impl FnOnce(&[Param]) -> T) -> T {
         self.stores().params().map(params_id, f)

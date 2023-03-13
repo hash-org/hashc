@@ -23,7 +23,7 @@ use crate::arrays::ArrayPat;
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Spread {
     /// The name of the spread bind.
     /// If `name` does not map to a specific `Identifier` name, it means

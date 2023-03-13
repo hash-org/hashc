@@ -6,9 +6,10 @@ use derive_more::{Constructor, Deref};
 use hash_tir::{
     access::AccessTerm,
     args::ArgsId,
+    environment::context::ScopeKind,
     holes::Hole,
     mods::ModDefId,
-    params::{ParamData, ParamIndex, ParamsId},
+    params::{ParamData, ParamId, ParamIndex, ParamsId},
     pats::PatId,
     sub::Sub,
     symbols::Symbol,
@@ -371,5 +372,36 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
             }
         }
         sub
+    }
+
+    /// Hide the given set of parameters from the substitution.
+    pub fn hide_param_binds(&self, params: impl IntoIterator<Item = ParamId>, sub: &Sub) -> Sub {
+        let mut shadowed_sub = sub.clone();
+        for param in params.into_iter() {
+            let param = self.get_param(param);
+            shadowed_sub.remove(param.name);
+        }
+        shadowed_sub
+    }
+
+    /// Reverse the given substitution.
+    ///
+    /// Invariant: the substitution is injective.
+    pub fn reverse_sub(&self, sub: &Sub) -> Sub {
+        let mut reversed_sub = Sub::identity();
+        for (name, value) in sub.iter() {
+            match self.get_term(value) {
+                Term::Var(v) => {
+                    reversed_sub.insert(v, self.new_term(name));
+                }
+                Term::Hole(h) => {
+                    reversed_sub.insert(h.0, self.new_term(name));
+                }
+                _ => {
+                    panic!("cannot reverse non-injective substitution");
+                }
+            }
+        }
+        reversed_sub
     }
 }
