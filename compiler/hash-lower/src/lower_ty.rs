@@ -28,7 +28,6 @@ use hash_tir::{
 };
 use hash_utils::{
     index_vec::index_vec,
-    log::info,
     store::{CloneStore, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
@@ -141,8 +140,6 @@ impl<'ir> BuilderCtx<'ir> {
                         self.uncached_ty_from_tir_ty(id, ty)
                     });
                 } else {
-                    info!("couldn't resolve type variable `{}`", self.env().with(*sym));
-
                     // We just return the unit type for now.
                     IrTy::Adt(AdtId::UNIT)
                 }
@@ -270,6 +267,25 @@ impl<'ir> BuilderCtx<'ir> {
         let reserved_ty = self.lcx.tys().create(IrTy::Never);
         self.lcx.ty_cache().borrow_mut().insert(ty.into(), reserved_ty);
 
+        // We want to add the arguments to the ADT, so that we can print them
+        // out when the type is being displayed.
+        let subs = if ty.args.len() > 0 {
+            // For each argument, we lookup the value of the argument, lower it as a
+            // type and create a TyList for the subs.
+            let args = self.stores().args().map_fast(ty.args, |args| {
+                args.iter()
+                    .map(|arg| {
+                        let ty = self.use_term_as_ty(arg.value);
+                        self.ty_id_from_tir_ty(ty)
+                    })
+                    .collect::<Vec<_>>()
+            });
+
+            Some(self.lcx.tls().create_from_iter(args))
+        } else {
+            None
+        };
+
         // Lower each variant as a constructor.
         let variants = self.stores().ctor_defs().map_fast(ctor_defs, |defs| {
             defs.iter()
@@ -298,6 +314,7 @@ impl<'ir> BuilderCtx<'ir> {
         // using `_`.
         let name = self.get_symbol(def.name).name.unwrap_or(IDENTS.underscore);
         let mut adt = AdtData::new_with_flags(name, variants, flags);
+        adt.substitutions = subs;
 
         // Deal with any specific attributes that were set on the type, i.e.
         // `#repr_c`.
