@@ -1,5 +1,6 @@
 //! This module contains printing utilties for the language.
 
+math := import("math");
 
 /// Simply print a character.
 print_char := (c: char) => {
@@ -29,7 +30,23 @@ print_int := (value: i32) => {
 }
 
 /// Print a f64 value.
+///
+/// @@Todo: make the `print_float` have a default argument of preicision, rather
+/// than having a separate function.
 print_float := (value: f64) => {
+    print_float_with_precision(value, 6)
+}
+
+priv print_float_with_precision := (value: f64, precision: i32) => {
+    mut whole := Intrinsics::cast(type f64, type i32, value);
+    temp := Intrinsics::cast(type i32, type f64, whole);
+
+    prec := Intrinsics::cast(type i32, type f64, precision);
+    mut decimal := math::abs(Intrinsics::cast(type f64, type i32, (value - temp) * (10. ^^ prec)));
+
+    print_int(whole);
+    print_char('.');
+    print_int(decimal);
 }
 
 
@@ -58,7 +75,7 @@ priv i32_to_string := (value: i32, buf: [u8], base: i32) -> usize => {
             // We add `60` to denote the ASCII offset for numbers.
             Intrinsics::cast(type i32, type u8, rem + 48)
         };
-        
+
         i += 1;
         value /= base;
     }

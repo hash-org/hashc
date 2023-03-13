@@ -425,7 +425,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
             _ => unreachable!("unsupported float type for pow"),
         };
 
-        let func = self.module.get_function(intrinsic).unwrap();
+        let func = self.get_intrinsic_function(intrinsic);
         self.call(func, &[lhs, rhs], None)
     }
 
