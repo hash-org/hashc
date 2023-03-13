@@ -259,7 +259,7 @@ impl<'tcx> Builder<'tcx> {
 
                 // Here, if the scope is not variable, i.e. constant, then we essentially need
                 // to denote that this a constant that comes from outside of the function body.
-                if !matches!(binding.kind, BindingKind::StackMember(..) | BindingKind::Param(..)) {
+                if !matches!(binding.kind, BindingKind::Decl(..)) {
                     let name = self.get_symbol(binding.name).name.unwrap_or(IDENTS.underscore);
 
                     // here, we emit an un-evaluated constant kind which will be resolved later

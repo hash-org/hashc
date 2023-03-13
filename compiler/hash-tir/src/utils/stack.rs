@@ -3,7 +3,10 @@ use derive_more::Constructor;
 use hash_utils::store::Store;
 
 use crate::{
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        context::Decl,
+        env::{AccessToEnv, Env},
+    },
     impl_access_to_env,
     mods::ModDefId,
     scopes::{Stack, StackId, StackMember, StackMemberData},
@@ -31,11 +34,7 @@ impl<'tc> StackUtils<'tc> {
     }
 
     /// Set the members of the given stack.
-    pub fn set_stack_members(
-        &self,
-        stack_id: StackId,
-        members: impl IntoIterator<Item = StackMember>,
-    ) {
+    pub fn set_stack_members(&self, stack_id: StackId, members: impl IntoIterator<Item = Decl>) {
         self.stores().stack().modify_fast(stack_id, |stack| {
             stack.members.clear();
             stack.members.extend(members);

@@ -15,7 +15,7 @@ use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::{context::BindingKind, env::AccessToEnv},
+    environment::env::AccessToEnv,
     lits::{CharLit, IntLit, LitPat, StrLit},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
@@ -82,28 +82,18 @@ impl ResolutionPass<'_> {
         node: &Option<ast::AstNode<ast::SpreadPat>>,
     ) -> SemanticResult<Option<Spread>> {
         Ok(node.as_ref().map(|node| {
-            let symbol_and_stack_member_id = node.name.as_ref().map(|name| {
-                let symbol = self
+            let symbol = match node.name.as_ref() {
+                Some(name) => self
                     .scoping()
                     .lookup_symbol_by_name_or_error(
                         name.ident,
                         name.span(),
                         self.scoping().get_current_context_kind(),
                     )
-                    .unwrap();
-
-                let (stack_member_id, _, _) = self.context_utils().get_stack_binding(symbol);
-
-                (symbol, stack_member_id)
-            });
-            Spread {
-                name: symbol_and_stack_member_id
-                    .map(|(symbol, _)| symbol)
-                    .unwrap_or_else(|| self.new_fresh_symbol()),
-                index: node.position,
-                stack_member: symbol_and_stack_member_id
-                    .map(|(_, stack_member_id)| stack_member_id),
-            }
+                    .unwrap(),
+                None => self.new_fresh_symbol(),
+            };
+            Spread { name: symbol, index: node.position }
         }))
     }
 
@@ -221,10 +211,6 @@ impl ResolutionPass<'_> {
                     Ok(self.new_pat(Pat::Binding(BindingPat {
                         name: bound_var.name,
                         is_mutable: false,
-                        stack_member: match bound_var.kind {
-                            BindingKind::StackMember(member, _, _) => Some(member),
-                            _ => panic!("Found non-stack member in pattern binding"),
-                        },
                     })))
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term)
@@ -344,7 +330,6 @@ impl ResolutionPass<'_> {
             ast::Pat::Wild(_) => self.new_pat(Pat::Binding(BindingPat {
                 name: self.new_fresh_symbol(),
                 is_mutable: false,
-                stack_member: None,
             })),
             ast::Pat::Range(range_pat) => {
                 let start = self.make_lit_pat_from_non_bool_ast_lit(range_pat.lo.ast_ref());

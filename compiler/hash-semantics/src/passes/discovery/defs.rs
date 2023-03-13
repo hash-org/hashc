@@ -5,9 +5,9 @@ use hash_reporting::macros::panic_on_span;
 use hash_tir::{
     data::{CtorDefData, DataDefId},
     defs::DefId,
-    environment::env::AccessToEnv,
+    environment::{context::Decl, env::AccessToEnv},
     mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
-    scopes::{StackId, StackMemberData},
+    scopes::StackId,
     symbols::Symbol,
     tys::TyId,
     utils::{common::CommonUtils, AccessToUtils},
@@ -34,7 +34,7 @@ pub(super) enum ItemId {
 /// contain local definitions.
 #[derive(Debug, Copy, Clone, From)]
 enum StackMemberOrModMemberData {
-    StackMember(StackMemberData),
+    StackMember(Decl),
     ModMember(ModMemberData),
 }
 
@@ -204,7 +204,6 @@ impl<'tc> DiscoveryPass<'tc> {
                 self.def_state().stack_members.modify_fast(stack_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let members_len = members.len();
                         let stack_utils = self.stack_utils();
 
                         let (mut stack_members, mut mod_members) = (vec![], vec![]);
@@ -222,16 +221,12 @@ impl<'tc> DiscoveryPass<'tc> {
                         // Set stack members.
                         stack_utils.set_stack_members(
                             stack_id,
-                            stack_utils.create_stack_members(
-                                stack_id,
-                                stack_members.iter().map(|(_, data)| data).copied(),
-                            ),
+                            stack_members.iter().map(|(_, data)| data).copied(),
                         );
 
                         // Set node for each stack member.
-                        for ((node_id, _), member_index) in stack_members.iter().zip(0..members_len)
-                        {
-                            ast_info.stack_members().insert(*node_id, (stack_id, member_index));
+                        for (node_id, decl) in stack_members.iter() {
+                            ast_info.stack_members().insert(*node_id, *decl);
                         }
 
                         // If we got local mod members, create a new mod def and
@@ -417,18 +412,18 @@ impl<'tc> DiscoveryPass<'tc> {
     pub(super) fn add_stack_members_in_pat_to_buf(
         &self,
         node: AstNodeRef<ast::Pat>,
-        buf: &mut SmallVec<[(AstNodeId, StackMemberData); 3]>,
+        buf: &mut SmallVec<[(AstNodeId, Decl); 3]>,
     ) {
         let register_spread_pat =
-            |spread: &AstNode<ast::SpreadPat>,
-             buf: &mut SmallVec<[(AstNodeId, StackMemberData); 3]>| {
+            |spread: &AstNode<ast::SpreadPat>, buf: &mut SmallVec<[(AstNodeId, Decl); 3]>| {
                 if let Some(name) = &spread.name {
                     buf.push((
                         name.id(),
-                        StackMemberData {
+                        Decl {
                             name: self.new_symbol(name.ident),
-                            is_mutable: false,
-                            ty: self.new_ty_hole(),
+                            // is_mutable: false,
+                            ty: None,
+                            value: None,
                         },
                     ))
                 }
@@ -438,11 +433,12 @@ impl<'tc> DiscoveryPass<'tc> {
             ast::Pat::Binding(binding) => {
                 buf.push((
                     node.id(),
-                    StackMemberData {
+                    Decl {
                         name: self.new_symbol(binding.name.ident),
-                        is_mutable: binding.mutability.as_ref().map(|m| *m.body())
-                            == Some(ast::Mutability::Mutable),
-                        ty: self.new_ty_hole(),
+                        // is_mutable: binding.mutability.as_ref().map(|m| *m.body())
+                        //     == Some(ast::Mutability::Mutable),
+                        ty: None,
+                        value: None,
                     },
                 ));
             }
@@ -492,10 +488,11 @@ impl<'tc> DiscoveryPass<'tc> {
             ast::Pat::If(if_pat) => self.add_stack_members_in_pat_to_buf(if_pat.pat.ast_ref(), buf),
             ast::Pat::Wild(_) => buf.push((
                 node.id(),
-                StackMemberData {
+                Decl {
                     name: self.new_fresh_symbol(),
-                    is_mutable: false,
-                    ty: self.new_ty_hole(),
+                    // is_mutable: false,
+                    ty: None,
+                    value: None,
                 },
             )),
             ast::Pat::Access(_) | ast::Pat::Lit(_) | ast::Pat::Range(_) => {}
@@ -533,15 +530,8 @@ impl<'tc> DiscoveryPass<'tc> {
                         .map_fast(declaration_name, |sym| Some(binding_pat.name.ident == sym.name?))
                         .contains(&true) =>
                 {
-                    found_members.push((
-                        node.id(),
-                        StackMemberData {
-                            name: declaration_name,
-                            is_mutable: binding_pat.mutability.as_ref().map(|m| *m.body())
-                                == Some(ast::Mutability::Mutable),
-                            ty: self.new_ty_hole(),
-                        },
-                    ))
+                    found_members
+                        .push((node.id(), Decl { name: declaration_name, ty: None, value: None }))
                 }
                 _ => self.add_stack_members_in_pat_to_buf(node, &mut found_members),
             }

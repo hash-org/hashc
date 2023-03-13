@@ -471,7 +471,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::Declaration>,
     ) -> SemanticResult<TermId> {
-        let stack_indices = self.scoping().register_declaration(node);
+        self.scoping().register_declaration(node);
 
         // Pattern
         let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
@@ -492,7 +492,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         match (pat, ty, value) {
             (Some(pat), Some(ty), Some(value)) => {
-                Ok(self.new_term(Term::Decl(DeclTerm { bind_pat: pat, ty, value, stack_indices })))
+                Ok(self.new_term(Term::Decl(DeclTerm { bind_pat: pat, ty, value })))
             }
             _ => {
                 // If pat had an error, then we can't make a term, and the
@@ -644,14 +644,14 @@ impl<'tc> ResolutionPass<'tc> {
         // Convert all the cases and their bodies
         let cases =
             self.stores().match_cases().create_from_iter(node.cases.iter().filter_map(|case| {
-                self.scoping().enter_match_case(case.ast_ref(), |stack_id, stack_indices| {
+                self.scoping().enter_match_case(case.ast_ref(), |stack_id| {
                     let bind_pat =
                         self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
                     let value =
                         self.try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
                     match (bind_pat, value) {
                         (Some(bind_pat), Some(value)) => {
-                            Some(MatchCase { bind_pat, value, stack_indices, stack_id })
+                            Some(MatchCase { bind_pat, value, stack_id })
                         }
                         _ => None,
                     }

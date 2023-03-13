@@ -13,11 +13,12 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     environment::context::ScopeKind,
     fns::{FnBody, FnCallTerm},
+    holes::Hole,
     lits::{Lit, LitPat},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, Spread},
     refs::DerefTerm,
-    scopes::{AssignTerm, BlockTerm, DeclTerm, StackMemberId},
+    scopes::{AssignTerm, BlockTerm, DeclTerm},
     symbols::Symbol,
     terms::{Term, TermId, TermListId, UnsafeTerm},
     tuples::TupleTerm,
@@ -399,7 +400,13 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Evaluate a variable.
     fn eval_var(&self, var: Symbol) -> AtomEvaluation {
         match self.context_utils().try_get_binding_value(var) {
-            Some(result) => evaluation_option(self.potentially_eval(result.into())?),
+            Some(result) => {
+                if matches!(self.get_term(result), Term::Var(v) if v == var) {
+                    already_evaluated()
+                } else {
+                    evaluation_to(self.eval(result.into())?)
+                }
+            }
             None => already_evaluated(),
         }
     }
@@ -544,28 +551,12 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 }
             }
             Term::Var(var) => {
-                let (member, _, _) = self.context_utils().get_stack_binding(var);
-                self.set_stack_member(member, assign_term.value);
+                self.context_utils().modify_assignment(var, assign_term.value);
             }
             _ => panic!("Invalid assign {}", self.env().with(&assign_term)),
         }
 
         full_evaluation_to(self.new_void_term())
-    }
-
-    /// Push the given stack member to the stack with no value.
-    fn push_stack_uninit(&self, stack_member_id: StackMemberId) {
-        self.context_utils().add_stack_binding_with_default_ty(stack_member_id, None)
-    }
-
-    /// Push the given stack member to the stack with the given value.
-    fn push_stack(&self, stack_member_id: StackMemberId, value: TermId) {
-        self.context_utils().add_stack_binding_with_default_ty(stack_member_id, Some(value))
-    }
-    /// Set the given stack member to the given value.
-    fn set_stack_member(&self, stack_member_id: StackMemberId, value: TermId) {
-        let name = self.get_stack_member_name(stack_member_id);
-        self.context_utils().set_stack_binding_value(name, value)
     }
 
     /// Evaluate a match term.
@@ -581,7 +572,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 match self.match_value_and_get_binds(
                     match_term.subject,
                     case.bind_pat,
-                    &mut |stack_member_id, term_id| self.push_stack(stack_member_id, term_id),
+                    &mut |name, term_id| self.context_utils().add_untyped_assignment(name, term_id),
                 )? {
                     MatchResult::Successful => {
                         let result = self.eval_and_record(case.value.into(), &st)?;
@@ -608,7 +599,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Evaluate a declaration term.
     fn eval_decl(&self, mut decl_term: DeclTerm) -> AtomEvaluation {
         let st = eval_state();
-        let current_stack_id = self.context_utils().get_current_stack();
         decl_term.value = decl_term
             .value
             .map(|v| -> Result<_, Signal> {
@@ -620,7 +610,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             Some(value) => match self.match_value_and_get_binds(
                 value,
                 decl_term.bind_pat,
-                &mut |stack_member_id, term_id| self.push_stack(stack_member_id, term_id),
+                &mut |name, term_id| self.context_utils().add_untyped_assignment(name, term_id),
             )? {
                 MatchResult::Successful => {
                     // All good
@@ -635,10 +625,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 }
             },
             None => {
-                for i in decl_term.iter_stack_indices() {
-                    self.push_stack_uninit((current_stack_id, i))
-                }
-                evaluation_to(self.new_void_term())
+                panic!("Let binding with no value: {}", self.env().with(&decl_term))
             }
         }
     }
@@ -726,24 +713,27 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     }
 
                     FnBody::Intrinsic(intrinsic_id) => {
-                        let args_as_terms = self.stores().args().map_fast(fn_call.args, |args| {
-                            args.iter().map(|arg| arg.value).collect_vec()
+                        return self.context().enter_scope(fn_def_id.into(), || {
+                            let args_as_terms =
+                                self.stores().args().map_fast(fn_call.args, |args| {
+                                    args.iter().map(|arg| arg.value).collect_vec()
+                                });
+
+                            // Run intrinsic:
+                            let result: TermId = self
+                                .intrinsics()
+                                .implementations
+                                .map_fast(intrinsic_id, |intrinsic| {
+                                    let intrinsic = intrinsic.unwrap();
+                                    (intrinsic.implementation)(
+                                        &IntrinsicAbilitiesWrapper { tc: self.env },
+                                        &args_as_terms,
+                                    )
+                                })
+                                .map_err(TcError::Intrinsic)?;
+
+                            evaluation_to(result)
                         });
-
-                        // Run intrinsic:
-                        let result: TermId = self
-                            .intrinsics()
-                            .implementations
-                            .map_fast(intrinsic_id, |intrinsic| {
-                                let intrinsic = intrinsic.unwrap();
-                                (intrinsic.implementation)(
-                                    &IntrinsicAbilitiesWrapper { tc: self.env },
-                                    &args_as_terms,
-                                )
-                            })
-                            .map_err(TcError::Intrinsic)?;
-
-                        return evaluation_to(result);
                     }
 
                     FnBody::Axiom => {
@@ -803,7 +793,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 // Introduction forms:
                 Term::Ref(_)
                 | Term::Tuple(_)
-                | Term::Hole(_)
                 | Term::FnRef(_)
                 | Term::Ctor(_)
                 | Term::Lit(_)
@@ -815,7 +804,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
                 Term::FnCall(fn_call) => ctrl_map(self.eval_fn_call(fn_call)),
                 Term::Cast(cast_term) => ctrl_map(self.eval_cast(cast_term)),
-                Term::Var(var) => ctrl_map(self.eval_var(var)),
+                Term::Hole(Hole(var)) | Term::Var(var) => ctrl_map(self.eval_var(var)),
                 Term::Deref(deref_term) => ctrl_map(self.eval_deref(deref_term)),
                 Term::Access(access_term) => ctrl_map(self.eval_access(access_term)),
                 Term::Index(index_term) => ctrl_map(self.eval_index(index_term)),
@@ -830,13 +819,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             },
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
-                Ty::Var(var) => ctrl_map(self.eval_var(var)),
-                Ty::Fn(_)
-                | Ty::Tuple(_)
-                | Ty::Data(_)
-                | Ty::Universe(_)
-                | Ty::Ref(_)
-                | Ty::Hole(_) => already_evaluated(),
+                Ty::Hole(Hole(var)) | Ty::Var(var) => ctrl_map(self.eval_var(var)),
+                Ty::Fn(_) | Ty::Tuple(_) | Ty::Data(_) | Ty::Universe(_) | Ty::Ref(_) => {
+                    already_evaluated()
+                }
             },
             Atom::FnDef(_) => already_evaluated(),
             Atom::Pat(_) => ctrl_continue(),
@@ -895,7 +881,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         extract_spread_list: impl Fn(Spread) -> TermId,
         get_ith_pat: impl Fn(usize) -> PatOrCapture,
         get_ith_term: impl Fn(usize) -> TermId,
-        f: &mut impl FnMut(StackMemberId, TermId),
+        f: &mut impl FnMut(Symbol, TermId),
     ) -> Result<MatchResult, Signal> {
         // We assume that the term list is well-typed with respect to the pattern list.
 
@@ -931,9 +917,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         // Capture the spread
         if let Some(spread) = spread {
             let spread_list = extract_spread_list(spread);
-            if let Some(member) = spread.stack_member {
-                f(member, spread_list);
-            }
+            f(spread.name, spread_list);
         }
 
         Ok(MatchResult::Successful)
@@ -950,7 +934,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         term_args: ArgsId,
         pat_args: PatArgsId,
         spread: Option<Spread>,
-        f: &mut impl FnMut(StackMemberId, TermId),
+        f: &mut impl FnMut(Symbol, TermId),
     ) -> Result<MatchResult, Signal> {
         self.match_some_list_and_get_binds(
             term_args.len(),
@@ -1013,9 +997,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         &self,
         term_id: TermId,
         pat_id: PatId,
-        f: &mut impl FnMut(StackMemberId, TermId),
+        f: &mut impl FnMut(Symbol, TermId),
     ) -> Result<MatchResult, Signal> {
-        let evaluated = self.get_term(self.to_term(self.eval(term_id.into())?));
+        let evaluated_id = self.to_term(self.eval(term_id.into())?);
+        let evaluated = self.get_term(evaluated_id);
         match (evaluated, self.get_pat(pat_id)) {
             (_, Pat::Or(pats)) => {
                 // Try each alternative in turn:
@@ -1054,13 +1039,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             }
 
             // Bindings, always successful
-            (_, Pat::Binding(binding)) => match binding.stack_member {
-                Some(member) => {
-                    f(member, term_id);
-                    Ok(MatchResult::Successful)
-                }
-                None => Ok(MatchResult::Successful),
-            },
+            (_, Pat::Binding(binding)) => {
+                f(binding.name, evaluated_id);
+                Ok(MatchResult::Successful)
+            }
 
             // Tuples
             (Term::Tuple(tuple_term), Pat::Tuple(tuple_pat)) => self.match_args_and_get_binds(

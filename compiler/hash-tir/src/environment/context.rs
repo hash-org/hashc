@@ -15,12 +15,10 @@ use indexmap::IndexMap;
 
 use super::env::{AccessToEnv, WithEnv};
 use crate::{
-    args::ArgId,
     data::{CtorDefId, DataDefId},
     fns::{FnDefId, FnTy},
     mods::{ModDefId, ModMemberId},
-    params::ParamId,
-    scopes::{StackId, StackMemberId},
+    scopes::StackId,
     symbols::Symbol,
     terms::TermId,
     tuples::TupleTy,
@@ -64,6 +62,14 @@ impl ParamOrigin {
     }
 }
 
+/// A binding that contains a type and optional value.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct Decl {
+    pub name: Symbol,
+    pub ty: Option<TyId>,
+    pub value: Option<TermId>,
+}
+
 /// The kind of a binding.
 #[derive(Debug, Clone, Copy)]
 pub enum BindingKind {
@@ -75,24 +81,8 @@ pub enum BindingKind {
     ///
     /// For example, `false`, `None`, `Some(_)`.
     Ctor(DataDefId, CtorDefId),
-    /// A parameter variable
-    ///
-    /// For example, `(x: i32) => x` or `(T: Type, t: T)`
-    Param(ParamOrigin, ParamId),
-    /// Stack member.
-    ///
-    /// For example, `a` in `{ a := 3; a }`
-    ///
-    /// Contains the current value of the stack member, if any.
-    StackMember(StackMemberId, TyId, Option<TermId>),
-    /// Parameter substitution (argument)
-    ///
-    /// For example, `a=3` in `((a: i32) => a + 3)(3)`
-    Arg(ParamId, ArgId),
-    /// Equality judgement
-    ///
-    /// This is a special binding because it cannot be referenced by name.
-    Equality(EqualityJudgement),
+    /// A binding that contains a type and optional value.
+    Decl(Decl),
 }
 
 impl BindingKind {
@@ -100,10 +90,7 @@ impl BindingKind {
     pub fn is_constant(&self) -> bool {
         match self {
             BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => true,
-            BindingKind::Param(origin, _) => origin.is_constant(),
-            BindingKind::StackMember(_, _, _)
-            | BindingKind::Arg(_, _)
-            | BindingKind::Equality(_) => false,
+            BindingKind::Decl(_) => false,
         }
     }
 }
@@ -144,6 +131,8 @@ pub enum ScopeKind {
     FnTy(FnTy),
     /// A tuple type scope.
     TupleTy(TupleTy),
+    /// A substitution scope.
+    Sub,
 }
 
 impl ScopeKind {
@@ -153,9 +142,11 @@ impl ScopeKind {
     pub fn is_constant(&self) -> bool {
         match self {
             ScopeKind::Mod(_) | ScopeKind::Data(_) | ScopeKind::Ctor(_) => true,
-            ScopeKind::Stack(_) | ScopeKind::Fn(_) | ScopeKind::FnTy(_) | ScopeKind::TupleTy(_) => {
-                false
-            }
+            ScopeKind::Sub
+            | ScopeKind::Stack(_)
+            | ScopeKind::Fn(_)
+            | ScopeKind::FnTy(_)
+            | ScopeKind::TupleTy(_) => false,
         }
     }
 }
@@ -269,6 +260,12 @@ impl Context {
     }
 
     /// Add a new binding to the current scope context.
+    pub fn add_decl(&self, name: Symbol, ty: Option<TyId>, value: Option<TermId>) {
+        self.get_current_scope_ref()
+            .add_binding(Binding { name, kind: BindingKind::Decl(Decl { name, ty, value }) })
+    }
+
+    /// Add a new binding to the current scope context.
     pub fn add_binding(&self, binding: Binding) {
         self.get_current_scope_ref().add_binding(binding)
     }
@@ -362,6 +359,21 @@ impl Context {
 
     /// Iterate over all the bindings in the context for the scope with the
     /// given index (fallible).
+    pub fn try_for_bindings_of_scope_rev<E>(
+        &self,
+        scope_index: usize,
+        mut f: impl FnMut(&Binding) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.scopes.borrow()[scope_index]
+            .bindings
+            .borrow()
+            .iter()
+            .rev()
+            .try_for_each(|binding| f(&Binding { name: *binding.0, kind: *binding.1 }))
+    }
+
+    /// Iterate over all the bindings in the context for the scope with the
+    /// given index (fallible).
     pub fn try_for_bindings_of_scope<E>(
         &self,
         scope_index: usize,
@@ -378,6 +390,16 @@ impl Context {
     /// index.
     pub fn count_bindings_of_scope(&self, scope_index: usize) -> usize {
         self.scopes.borrow()[scope_index].bindings.borrow().len()
+    }
+
+    /// Iterate over all the bindings in the context for the scope with the
+    /// given index (reversed).
+    pub fn for_bindings_of_scope_rev(&self, scope_index: usize, mut f: impl FnMut(&Binding)) {
+        let _ =
+            self.try_for_bindings_of_scope_rev(scope_index, |binding| -> Result<(), Infallible> {
+                f(binding);
+                Ok(())
+            });
     }
 
     /// Iterate over all the bindings in the context for the scope with the
@@ -406,37 +428,51 @@ impl fmt::Display for WithEnv<'_, EqualityJudgement> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, Binding> {
+impl fmt::Display for WithEnv<'_, Decl> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value.kind {
+        let ty_or_unknown = {
+            if let Some(ty) = self.value.ty {
+                self.env().with(ty).to_string()
+            } else {
+                "unknown".to_string()
+            }
+        };
+        match self.value.value {
+            Some(value) => {
+                write!(
+                    f,
+                    "{}: {} = {}",
+                    self.env().with(self.value.name),
+                    ty_or_unknown,
+                    self.env().with(value)
+                )
+            }
+            None => {
+                write!(f, "{}: {}", self.env().with(self.value.name), ty_or_unknown)
+            }
+        }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, BindingKind> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
             BindingKind::ModMember(_, member_id) => {
                 write!(f, "{}", self.env().with(member_id))
             }
             BindingKind::Ctor(_, ctor_id) => {
                 write!(f, "{}", self.env().with(ctor_id))
             }
-            BindingKind::Param(_, param_id) => {
-                write!(f, "{}", self.env().with(param_id))
-            }
-            BindingKind::StackMember(stack_member, ty, value) => {
-                write!(
-                    f,
-                    "({}): {} = {}",
-                    self.env().with(stack_member),
-                    self.env().with(ty),
-                    match value {
-                        Some(value) => self.env().with(value).to_string(),
-                        None => "{uninit}".to_string(),
-                    }
-                )
-            }
-            BindingKind::Equality(equality) => {
-                write!(f, "{}", self.env().with(equality))
-            }
-            BindingKind::Arg(_, arg_id) => {
-                write!(f, "{}", self.env().with(arg_id))
+            BindingKind::Decl(decl) => {
+                write!(f, "{}", self.env().with(decl))
             }
         }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, Binding> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.env().with(self.value.kind))
     }
 }
 
@@ -470,7 +506,23 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
             ),
             ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", self.env().with(&fn_ty)),
             ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", self.env().with(&tuple_ty)),
+            ScopeKind::Sub => {
+                write!(f, "sub")
+            }
         }
+    }
+}
+
+impl fmt::Display for WithEnv<'_, &Scope> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}:", self.env().with(self.value.kind))?;
+        for binding in self.value.bindings.borrow().values() {
+            let result = self.env().with(*binding).to_string();
+            for line in result.lines() {
+                writeln!(f, "  {line}")?;
+            }
+        }
+        Ok(())
     }
 }
 

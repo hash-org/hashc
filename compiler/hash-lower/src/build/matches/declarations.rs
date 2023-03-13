@@ -116,58 +116,57 @@ impl<'tcx> Builder<'tcx> {
                     self.visit_primary_pattern_bindings(field.pat.assert_pat(), f);
                 });
 
-                if let Some(spread_pat) = spread && spread_pat.stack_member.is_some() {
-                        //@@Todo: we need to get the type of the spread.
-                        let ty = self.ty_id_from_tir_pat(pat_id);
+                if let Some(spread_pat) = spread {
+                    //@@Todo: we need to get the type of the spread.
+                    let ty = self.ty_id_from_tir_pat(pat_id);
 
-                        f(
-                            self,
-                            // @@Todo: it should be possible to make this a mutable
-                            // pattern reference, for now we assume it is always immutable.
-                            Mutability::Immutable,
-                            spread_pat.name,
-                            span,
-                            ty
-                        )
-                    }
+                    f(
+                        self,
+                        // @@Todo: it should be possible to make this a mutable
+                        // pattern reference, for now we assume it is always immutable.
+                        Mutability::Immutable,
+                        spread_pat.name,
+                        span,
+                        ty,
+                    )
+                }
             }
             Pat::Array(ArrayPat { pats, spread }) => {
-                if let Some(spread_pat) = spread && spread_pat.stack_member.is_some() {
+                if let Some(spread_pat) = spread {
                     let index = spread_pat.index;
 
                     // Create the fields into an iterator, and only take the `prefix`
                     // amount of fields to iterate
                     let pats = self.stores().pat_list().get_vec(pats);
 
-                        let prefix_fields = pats.iter().take(index);
-                        for field in prefix_fields {
-                            self.visit_primary_pattern_bindings(field.assert_pat(), f);
-                        }
+                    let prefix_fields = pats.iter().take(index);
+                    for field in prefix_fields {
+                        self.visit_primary_pattern_bindings(field.assert_pat(), f);
+                    }
 
-                        //@@TodoTIR: we need to get the type of the spread.
-                        let ty = self.ty_id_from_tir_pat(pat_id);
+                    //@@TodoTIR: we need to get the type of the spread.
+                    let ty = self.ty_id_from_tir_pat(pat_id);
 
-                        f(
-                            self,
-                            // @@Todo: it should be possible to make this a mutable
-                            // pattern reference, for now we assume it is always immutable.
-                            Mutability::Immutable,
-                            spread_pat.name,
-                            span,
-                            ty
-                        );
+                    f(
+                        self,
+                        // @@Todo: it should be possible to make this a mutable
+                        // pattern reference, for now we assume it is always immutable.
+                        Mutability::Immutable,
+                        spread_pat.name,
+                        span,
+                        ty,
+                    );
 
-                        // Now deal with the suffix fields.
-                        let suffix_fields = pats.iter().skip(index);
+                    // Now deal with the suffix fields.
+                    let suffix_fields = pats.iter().skip(index);
 
-                        for field in suffix_fields {
-                            self.visit_primary_pattern_bindings(field.assert_pat(), f);
-                        }
+                    for field in suffix_fields {
+                        self.visit_primary_pattern_bindings(field.assert_pat(), f);
+                    }
                 } else {
-                    self.stores().pat_list().get_vec(pats).iter()
-                        .for_each(|pat| {
-                            self.visit_primary_pattern_bindings(pat.assert_pat(), f);
-                        });
+                    self.stores().pat_list().get_vec(pats).iter().for_each(|pat| {
+                        self.visit_primary_pattern_bindings(pat.assert_pat(), f);
+                    });
                 }
             }
             Pat::Or(OrPat { alternatives }) => {

@@ -335,11 +335,11 @@ impl DefinedIntrinsics {
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = env.new_symbol("T");
-
         let op_sym = env.new_symbol("op");
         let a_sym = env.new_symbol("a");
         let b_sym = env.new_symbol("b");
         let ty = env.new_data_ty(env.primitives().bool());
+
         let params = env.param_utils().create_params(
             [
                 ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
@@ -363,7 +363,7 @@ impl DefinedIntrinsics {
                 const INVALID_OP: &str = "Invalid cond-binary operation parameters";
 
                 // Parse the arguments
-                let (op, lhs, rhs) = (args[0], args[1], args[2]);
+                let (op, lhs, rhs) = (args[1], args[2], args[3]);
 
                 // Parse the operator.
                 let parsed_op = ShortCircuitBinOp::try_from(

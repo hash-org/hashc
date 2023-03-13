@@ -122,7 +122,7 @@ impl<'ir> IrBodyWriter<'ir> {
             .collect_vec();
 
         for (declaration, comment) in rendered_declarations {
-            write!(f, "    {}", declaration)?;
+            write!(f, "    {declaration}")?;
             if let Some(comment) = comment {
                 writeln!(f, "{: <1$}\t{comment}", "", longest_line - declaration.len())?;
             } else {

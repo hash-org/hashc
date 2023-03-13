@@ -9,9 +9,11 @@ use hash_reporting::{
 use hash_source::location::SourceLocation;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
+    fns::FnDefId,
     impl_access_to_env,
     locations::LocationTarget,
     params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
+    pats::PatId,
     terms::TermId,
     tys::TyId,
     utils::{common::CommonUtils, traversing::Atom},
@@ -115,6 +117,10 @@ pub enum TcError {
     /// The given parameters do not match the length of their annotations.
     WrongParamLength { given_params_id: ParamsId, annotation_params_id: ParamsId },
 
+    /// The two given argument lists cannot be unified due to mismatching
+    /// lengths.
+    DifferentParamOrArgLengths { a: SomeParamsOrArgsId, b: SomeParamsOrArgsId },
+
     /// Cannot deref the subject.
     CannotDeref { subject: TermId, actual_subject_ty: TyId },
 
@@ -135,6 +141,12 @@ pub enum TcError {
 
     /// Undecidable equality between terms
     UndecidableEquality { a: TermId, b: TermId },
+
+    /// Undecidable equality between terms
+    MismatchingPats { a: PatId, b: PatId },
+
+    /// The given property does not exist on the given term.
+    MismatchingFns { a: FnDefId, b: FnDefId },
 
     /// Invalid range pattern literal
     InvalidRangePatternLiteral { location: SourceLocation },
@@ -559,6 +571,56 @@ impl<'tc> TcErrorReporter<'tc> {
                         format!(
                             "value of type `{formatted_ty}` used in type position. Only values of type `Type` can be used in type position",
                         )
+                    );
+                }
+            }
+            TcError::MismatchingPats { a, b } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "expected pattern `{}`, but got pattern `{}`",
+                    self.env().with(*a),
+                    self.env().with(*b)
+                ));
+                if let Some(location) = locations.get_location(a) {
+                    error.add_labelled_span(location, "expected pattern");
+                }
+                if let Some(location) = locations.get_location(b) {
+                    error.add_labelled_span(location, "got pattern");
+                }
+            }
+            TcError::MismatchingFns { a, b } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "expected function `{}`, but got function `{}`. Functions are only equal if they refer to the same function definition",
+                    self.env().with(*a),
+                    self.env().with(*b)
+                ));
+                if let Some(location) = locations.get_location(a) {
+                    error.add_labelled_span(location, "expected function");
+                }
+                if let Some(location) = locations.get_location(b) {
+                    error.add_labelled_span(location, "got function");
+                }
+            }
+            TcError::DifferentParamOrArgLengths { a, b } => {
+                let name_of_args = match a {
+                    SomeParamsOrArgsId::Params(_) => "parameters",
+                    SomeParamsOrArgsId::PatArgs(_) => "pattern arguments",
+                    SomeParamsOrArgsId::Args(_) => "arguments",
+                };
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "expected `{}` {name_of_args} but got `{}` {name_of_args} ",
+                    a.len(),
+                    b.len()
+                ));
+                if let Some(location) = locations.get_overall_location(*a) {
+                    error.add_labelled_span(
+                        location,
+                        format!("expected {} {name_of_args} here", a.len()),
+                    );
+                }
+                if let Some(location) = locations.get_overall_location(*b) {
+                    error.add_labelled_span(
+                        location,
+                        format!("got {} {name_of_args} here", b.len()),
                     );
                 }
             }

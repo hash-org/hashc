@@ -15,7 +15,7 @@ use super::{
     data::CtorPat,
     environment::env::{AccessToEnv, WithEnv},
     lits::LitPat,
-    scopes::{BindingPat, StackMemberId},
+    scopes::BindingPat,
     symbols::Symbol,
     tuples::TuplePat,
 };
@@ -23,7 +23,7 @@ use crate::arrays::ArrayPat;
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Spread {
     /// The name of the spread bind.
     /// If `name` does not map to a specific `Identifier` name, it means
@@ -31,8 +31,6 @@ pub struct Spread {
     pub name: Symbol,
     /// The index in the sequence of target patterns, of this spread pattern.
     pub index: usize,
-    /// The stack member that this spread pattern binds to, if any.
-    pub stack_member: Option<StackMemberId>,
 }
 
 /// A range pattern containing two bounds `start` and `end`.

@@ -8,9 +8,10 @@ use hash_tir::{
     args::ArgsId,
     holes::Hole,
     mods::ModDefId,
-    params::{ParamIndex, ParamsId},
+    params::{ParamData, ParamId, ParamIndex, ParamsId},
     pats::PatId,
     sub::Sub,
+    symbols::Symbol,
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
@@ -92,6 +93,28 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
             },
             Atom::FnDef(_) | Atom::Pat(_) => ControlFlow::Continue(()),
         }
+    }
+
+    /// Apply the given substitution to the given parameters, while handling
+    /// shadowing.
+    ///
+    /// Returns filtered sub, with shadowed variables removed.
+    pub fn properly_apply_sub_to_params(&self, params: ParamsId, sub: &Sub) -> (ParamsId, Sub) {
+        let mut filtered_sub = sub.clone();
+        let mut param_data = vec![];
+
+        for param_id in params.iter() {
+            let param = self.get_param(param_id);
+            param_data.push(ParamData {
+                name: param.name,
+                ty: self.apply_sub_to_ty(param.ty, &filtered_sub),
+                default: param.default.map(|term| self.apply_sub_to_term(term, &filtered_sub)),
+            });
+            filtered_sub.remove(param.name);
+        }
+
+        let new_params = self.param_utils().create_params(param_data.into_iter());
+        (new_params, filtered_sub)
     }
 
     /// Apply the given substitution to the given atom,
@@ -277,14 +300,22 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         let mut sub = Sub::identity();
 
         let current_scope_index = self.context().get_current_scope_index();
-        self.context().for_bindings_of_scope(current_scope_index, |binding| {
+        self.context().for_bindings_of_scope_rev(current_scope_index, |binding| {
             if let Some(value) = self.context_utils().try_get_binding_value(binding.name) {
-                let subbed_value = self.apply_sub_to_term(value, &sub);
-                sub.insert(binding.name, subbed_value);
+                self.insert_to_sub_if_needed(&mut sub, binding.name, value);
             }
         });
 
         sub
+    }
+
+    /// Insert the given variable and value into the given substitution if
+    /// the value is not a variable with the same name.
+    pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: Symbol, value: TermId) {
+        let subbed_value = self.apply_sub_to_term(value, sub);
+        if !matches!(self.get_term(subbed_value), Term::Var(v) if v == name) {
+            sub.insert(name, subbed_value);
+        }
     }
 
     /// Create a substitution from the given arguments.
@@ -298,7 +329,7 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
         for (param_id, arg_id) in (params_id.iter()).zip(args_id.iter()) {
             let param = self.stores().params().get_element(param_id);
             let arg = self.stores().args().get_element(arg_id);
-            sub.insert(param.name, arg.value);
+            self.insert_to_sub_if_needed(&mut sub, param.name, arg.value);
         }
         sub
     }
@@ -340,5 +371,36 @@ impl<T: AccessToTypechecking> SubstitutionOps<'_, T> {
             }
         }
         sub
+    }
+
+    /// Hide the given set of parameters from the substitution.
+    pub fn hide_param_binds(&self, params: impl IntoIterator<Item = ParamId>, sub: &Sub) -> Sub {
+        let mut shadowed_sub = sub.clone();
+        for param in params.into_iter() {
+            let param = self.get_param(param);
+            shadowed_sub.remove(param.name);
+        }
+        shadowed_sub
+    }
+
+    /// Reverse the given substitution.
+    ///
+    /// Invariant: the substitution is injective.
+    pub fn reverse_sub(&self, sub: &Sub) -> Sub {
+        let mut reversed_sub = Sub::identity();
+        for (name, value) in sub.iter() {
+            match self.get_term(value) {
+                Term::Var(v) => {
+                    reversed_sub.insert(v, self.new_term(name));
+                }
+                Term::Hole(h) => {
+                    reversed_sub.insert(h.0, self.new_term(name));
+                }
+                _ => {
+                    panic!("cannot reverse non-injective substitution");
+                }
+            }
+        }
+        reversed_sub
     }
 }

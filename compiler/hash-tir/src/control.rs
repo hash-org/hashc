@@ -11,7 +11,7 @@ use textwrap::indent;
 use super::{
     environment::env::{AccessToEnv, WithEnv},
     pats::{PatId, PatListId},
-    scopes::{StackId, StackIndices},
+    scopes::StackId,
     utils::common::CommonUtils,
 };
 use crate::{scopes::BlockTerm, terms::TermId};
@@ -46,7 +46,6 @@ pub struct MatchTerm {
 pub struct MatchCase {
     pub bind_pat: PatId,
     pub stack_id: StackId,
-    pub stack_indices: StackIndices,
     pub value: TermId,
 }
 

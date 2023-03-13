@@ -27,7 +27,7 @@ use hash_tir::{
     args::ArgsId,
     data::{CtorPat, CtorTerm, DataDefId},
     environment::{
-        context::{Binding, BindingKind, ScopeKind},
+        context::{Binding, BindingKind, Decl, ScopeKind},
         env::AccessToEnv,
     },
     fns::{FnCallTerm, FnDefId},
@@ -126,7 +126,7 @@ pub enum TerminalResolvedPathComponent {
     /// A function call term.
     FnCall(FnCallTerm),
     /// A variable bound in the current context.
-    Var(Binding),
+    Var(Decl),
 }
 
 /// The result of resolving a path component.
@@ -350,16 +350,16 @@ impl<'tc> ResolutionPass<'tc> {
                     None => unreachable!(),
                 }
             }
-            BindingKind::Param(_, _) | BindingKind::StackMember(_, _, _) => {
+            BindingKind::Decl(decl) => {
                 // If the subject has no args, it is a variable, otherwise it is a
                 // function call.
                 match &component.args[..] {
                     [] => Ok(ResolvedAstPathComponent::Terminal(
-                        TerminalResolvedPathComponent::Var(binding),
+                        TerminalResolvedPathComponent::Var(decl),
                     )),
                     args => {
                         let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                            self.new_term(Term::Var(binding.name)),
+                            self.new_term(Term::Var(decl.name)),
                             args,
                             component.span(),
                         )?;
@@ -368,11 +368,6 @@ impl<'tc> ResolutionPass<'tc> {
                         ))
                     }
                 }
-            }
-            BindingKind::Arg(_, _) | BindingKind::Equality(_) => {
-                unreachable!(
-                    "No equality judgements or arg bindings should be present during resolution"
-                )
             }
         }
     }
