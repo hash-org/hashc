@@ -40,10 +40,7 @@ use hash_tir::{
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
-use hash_utils::{
-    log::info,
-    store::{CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
-};
+use hash_utils::store::{CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use crate::{
     errors::{TcError, TcResult, WrongTermKind},
@@ -830,13 +827,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let ty = if let Some(ty) = decl.ty {
                         self.sub_ops().copy_ty(ty)
                     } else {
-                        info!(
+                        panic!(
                             "Found declaration without type during inference: {}",
                             self.env().with(decl)
-                        );
-                        self.new_ty_hole_of(self.new_term(term))
+                        )
                     };
-                    self.uni_ops().with_no_modify().unify_tys(annotation_ty, ty)?;
+                    self.uni_ops().unify_tys(annotation_ty, ty)?;
                     Ok(())
                 }
                 b => panic!("expected decl, but got {}", self.env().with(b)),
@@ -1202,18 +1198,19 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let match_subject_ty = self.new_ty_hole_of(match_term.subject);
         self.infer_term(match_term.subject, match_subject_ty)?;
 
+        let mut unified_ty = annotation_ty;
         for case in match_term.cases.iter() {
             // @@Todo: dependent
             let case_data = self.stores().match_cases().get_element(case);
             self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
                 self.infer_pat(case_data.bind_pat, match_subject_ty)?;
-                self.infer_term(case_data.value, annotation_ty)?;
 
                 // @@Todo: deal with uninhabited
-                // let new_unified_ty = self.check_by_unify(inferred_body_ty, unified_ty)?;
-                // if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
-                //     unified_ty = new_unified_ty;
-                // }
+                let new_unified_ty = self.sub_ops().copy_ty(unified_ty);
+                self.infer_term(case_data.value, new_unified_ty)?;
+                if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
+                    unified_ty = new_unified_ty;
+                }
 
                 Ok(())
             })?
@@ -1273,6 +1270,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         };
 
         self.register_atom_inference(term_id, term_id, annotation_ty);
+        self.normalise_and_check_ty(annotation_ty)?;
 
         // Potentially evaluate the term.
         self.potentially_run_expr(term_id, annotation_ty)?;

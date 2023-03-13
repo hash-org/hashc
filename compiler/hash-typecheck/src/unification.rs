@@ -10,7 +10,6 @@ use hash_tir::{
     fns::{FnCallTerm, FnTy},
     holes::Hole,
     lits::Lit,
-    locations::LocationTarget,
     params::ParamsId,
     sub::Sub,
     symbols::Symbol,
