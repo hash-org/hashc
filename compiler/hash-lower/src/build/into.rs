@@ -36,7 +36,7 @@ use hash_tir::{
     ty_as_variant,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{CloneStore, SequenceStore, Store};
+use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::{
     ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder, LocalKey, LoopBlockInfo,
@@ -497,6 +497,11 @@ impl<'tcx> Builder<'tcx> {
                 block,
                 Statement { kind: StatementKind::Discriminate(destination, index), span },
             );
+
+            // We don't need to do anything else if it is just the discriminant.
+            if ctor_args.len() == 0 {
+                return block.unit();
+            }
         }
 
         let args = self.stores().args().map_fast(*ctor_args, |args| {
