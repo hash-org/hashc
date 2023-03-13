@@ -23,7 +23,7 @@ use hash_tir::{
     },
     directives::DirectiveTarget,
     environment::{
-        context::{Decl, ParamOrigin, ScopeKind},
+        context::{ParamOrigin, ScopeKind},
         env::AccessToEnv,
     },
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
@@ -1561,7 +1561,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let case_data = self.stores().match_cases().get_element(case);
 
             self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
-                let Inference(inferred_pat, inferred_pat_ty) =
+                let Inference(inferred_pat, _inferred_pat_ty) =
                     self.infer_pat(case_data.bind_pat, normalised_subject_ty)?;
 
                 let Inference(inferred_body, inferred_body_ty) =
@@ -1881,7 +1881,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     subbed_ctor_params,
                 )?;
                 // Apply the substitution to the constructor result args
-                let ctor_subbed_ctor_result_args =
+                let _ctor_subbed_ctor_result_args =
                     self.sub_ops().apply_sub_to_args(subbed_ctor_result_args, &ctor_sub);
 
                 let sub_binds_to_holes = self.sub_ops().create_sub_from_args_of_params(

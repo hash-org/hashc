@@ -19,7 +19,6 @@ use crate::{
     fns::{FnDefId, FnTy},
     mods::{ModDefId, ModMemberId},
     scopes::StackId,
-    sub::Sub,
     symbols::Symbol,
     terms::TermId,
     tuples::TupleTy,

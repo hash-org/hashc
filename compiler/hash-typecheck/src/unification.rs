@@ -4,11 +4,10 @@ use std::cell::Cell;
 
 use derive_more::Deref;
 use hash_tir::{
-    args::{ArgData, ArgsId, PatArgData, PatArgsId, PatOrCapture},
+    args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
     data::{DataDefCtors, DataTy},
     environment::context::{ParamOrigin, ScopeKind},
     fns::{FnBody, FnTy},
-    holes::Hole,
     lits::Lit,
     locations::LocationTarget,
     params::{ParamData, ParamsId},
@@ -165,7 +164,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             let (return_ty, shadowed_sub) =
                 self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                     let _ = self.unify_params(f2.params, f1.params, ParamOrigin::FnTy(f1))?;
-                    let Uni { result: return_ty, sub: return_ty_sub } =
+                    let Uni { result: return_ty, sub: _return_ty_sub } =
                         self.unify_tys(f1.return_ty, f2.return_ty)?;
                     let scope_sub = self.sub_ops().create_sub_from_current_scope();
                     let shadowed_sub = self
@@ -430,14 +429,13 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             }
             (Pat::Array(_), _) | (_, Pat::Array(_)) => false,
 
-            (Pat::Ctor(c1), Pat::Ctor(c2)) => {
+            (Pat::Ctor(_c1), Pat::Ctor(_c2)) => {
                 todo!()
             }
             (Pat::Ctor(_), _) | (_, Pat::Ctor(_)) => todo!(),
             (Pat::Or(_), Pat::Or(_)) => todo!(),
             (Pat::Or(_), _) | (_, Pat::Or(_)) => todo!(),
             (Pat::If(_), Pat::If(_)) => todo!(),
-            (Pat::If(_), _) | (_, Pat::If(_)) => todo!(),
         }
     }
 

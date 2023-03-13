@@ -6,7 +6,6 @@ use derive_more::{Constructor, Deref};
 use hash_tir::{
     access::AccessTerm,
     args::ArgsId,
-    environment::context::ScopeKind,
     holes::Hole,
     mods::ModDefId,
     params::{ParamData, ParamId, ParamIndex, ParamsId},
