@@ -152,7 +152,7 @@ impl<'ir> IrBodyWriter<'ir> {
         // Write the terminator of the block. If the terminator is
         // not present, this is an invariant but we don't care here.
         if let Some(terminator) = &block_data.terminator {
-            writeln!(f, "{: <2$}{};", "", terminator.fmt_with_opts(self.ctx, false, true), 8)?;
+            writeln!(f, "{: <2$}{};", "", terminator.fmt_with_opts(self.ctx, true), 8)?;
         }
 
         writeln!(f, "{: <1$}}}", "", 4)

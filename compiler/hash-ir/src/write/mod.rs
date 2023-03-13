@@ -23,9 +23,6 @@ pub struct ForFormatting<'ir, T> {
     /// The item that is being printed.
     pub item: T,
 
-    /// Whether the formatting should be verbose or not.
-    pub verbose: bool,
-
     /// Whether the formatting implementations should write
     /// edges for IR items, this mostly applies to [Terminator]s.
     pub with_edges: bool,
@@ -36,11 +33,11 @@ pub struct ForFormatting<'ir, T> {
 
 pub trait WriteIr: Sized {
     fn for_fmt(self, ctx: &IrCtx) -> ForFormatting<Self> {
-        ForFormatting { item: self, ctx, verbose: false, with_edges: true }
+        ForFormatting { item: self, ctx, with_edges: true }
     }
 
-    fn fmt_with_opts(self, ctx: &IrCtx, verbose: bool, with_edges: bool) -> ForFormatting<Self> {
-        ForFormatting { item: self, ctx, verbose, with_edges }
+    fn fmt_with_opts(self, ctx: &IrCtx, with_edges: bool) -> ForFormatting<Self> {
+        ForFormatting { item: self, ctx, with_edges }
     }
 }
 
@@ -133,12 +130,7 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
             RValue::Len(place) => write!(f, "len({})", place.for_fmt(self.ctx)),
             RValue::Cast(_, op, ty) => {
                 // We write out the type fully for the cast.
-                write!(
-                    f,
-                    "cast({}, {})",
-                    ty.fmt_with_opts(self.ctx, true, true),
-                    op.for_fmt(self.ctx)
-                )
+                write!(f, "cast({}, {})", ty.fmt_with_opts(self.ctx, true), op.for_fmt(self.ctx))
             }
             RValue::UnaryOp(op, operand) => {
                 write!(f, "{op:?}({})", operand.for_fmt(self.ctx))
