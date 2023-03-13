@@ -30,6 +30,49 @@ print_int := (value: i32) => {
 
 /// Print a f64 value.
 print_float := (value: f64) => {
+    mut whole: i32 = Intrinsics::cast(type f64, type i32, value);
+    mut power: i32 = 1;
+    digit := 0;
+
+    // Print the negative sign if the float is negative.
+    if value < 0. {
+        print_char('-');
+        value *= -1.;
+    }
+
+    while whole >= 1 {
+        whole /= 10;
+        power *= 10;
+    }
+    power /= 10;
+
+    // Print out the integer part of the float
+    whole = Intrinsics::cast(type f64, type i32, value);
+    while power >= 1 {
+        digit = whole / power;
+        whole %= power;
+        print_char(Intrinsics::cast(type i32, type char, digit + 48));
+        power /= 10;
+    }
+
+    print_char('.');
+
+    // // Print the fractional part
+    value = truncate_float(value)
+
+    while value != 0. {
+        digit = Intrinsics::cast(type f64, type i32, value * 10.);
+        print_char(Intrinsics::cast(type i32, type char, digit + 48));
+        value *= 10.;
+        value = truncate_float(value);
+    }
+}
+
+/// Function that will return the fractional part of the
+/// float
+priv truncate_float := (item: f64) -> f64 => {
+    temp := Intrinsics::cast(type f64, type i64, item)
+    item - Intrinsics::cast(type i64, type f64, temp)
 }
 
 
@@ -58,7 +101,7 @@ priv i32_to_string := (value: i32, buf: [u8], base: i32) -> usize => {
             // We add `60` to denote the ASCII offset for numbers.
             Intrinsics::cast(type i32, type u8, rem + 48)
         };
-        
+
         i += 1;
         value /= base;
     }
