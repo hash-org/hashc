@@ -166,7 +166,7 @@ pub fn resolve_path<'p>(
     // if so we prefix it with the standard library path.
     if modules.contains(&import_path.to_path_buf()) {
         let path = Path::new(STDLIB).join(import_path.with_extension("hash"));
-        return Ok(path.to_path_buf());
+        return Ok(path);
     }
 
     // otherwise, we have to resolve the module path based on the working directory
