@@ -31,7 +31,7 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    log::info,
+    log::{debug, info},
     store::{PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
@@ -507,7 +507,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         match self.try_get_inferred_ty(type_of_term.term) {
             Some(ty) => Ok(ty.into()),
             None => {
-                info!(
+                debug!(
                     "Not found type of {} while inferring, so inferring it now",
                     self.env().with(type_of_term.term)
                 );

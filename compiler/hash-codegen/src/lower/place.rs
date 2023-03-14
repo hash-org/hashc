@@ -93,28 +93,21 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         builder: &mut Builder,
         discriminant: VariantIdx,
     ) {
-        let variant_info = self.info.for_variant(builder.layout_computer(), discriminant);
-        let (uninhabited, maybe_field) =
-            builder.map_layout(variant_info.layout, |variant_layout| {
-                if variant_layout.abi.is_uninhabited() {
-                    return (true, None);
-                }
-
-                match variant_layout.variants {
-                    Variants::Single { index } => {
-                        debug_assert_eq!(index, discriminant);
-                        (false, None)
-                    }
-                    Variants::Multiple { field, .. } => (false, Some(field)),
-                }
-            });
-
         // If an attempt is made to set the discriminant for a variant type
         // that is un-inhabited, this is a panic.
-        if uninhabited {
+        if self.info.is_uninhabited(builder.layout_computer()) {
             builder.codegen_abort_intrinsic();
             return;
         }
+
+        // Now generate setting the discriminant for the variant.
+        let maybe_field = builder.map_layout(self.info.layout, |layout| match layout.variants {
+            Variants::Single { index } => {
+                debug_assert_eq!(index, discriminant);
+                None
+            }
+            Variants::Multiple { field, .. } => Some(field),
+        });
 
         // If we have a field index, then perform a field projection on
         // the specified field, and compute the discriminant value for

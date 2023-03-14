@@ -78,13 +78,39 @@ impl<'ir> IrGraphWriter<'ir> {
         // Now we write the `label` of the graph which is essentially the type of
         // the function and any local declarations that have been defined within the
         // body.
-        let header = format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, true, false));
+        let mut declarations = self.body.declarations.iter();
+
+        // return_type declaration, this is always located at `0`
+        let return_ty_decl = declarations.next().unwrap();
 
         match self.body.info().source() {
             BodySource::Item => {
-                write!(w, "  label=<{}{}", encode_text(&header), LINE_SEPARATOR)?;
+                write!(w, "  label=<{}(", self.body.info().name,)?;
+
+                // Write the arguments of the function
+                for (i, param) in declarations.take(self.body.arg_count).enumerate() {
+                    if i > 0 {
+                        write!(w, ", ")?;
+                    }
+
+                    // We add 1 to the index because the return type is always
+                    // located at `0`.
+                    write!(
+                        w,
+                        "{}",
+                        encode_text(&format!("_{}: {}", i + 1, param.ty().for_fmt(self.ctx)))
+                    )?;
+                }
+                writeln!(
+                    w,
+                    "{}{}",
+                    encode_text(&format!(") -> {} {{", return_ty_decl.ty().for_fmt(self.ctx))),
+                    LINE_SEPARATOR
+                )?;
             }
             BodySource::Const => {
+                let header = format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, false));
+
                 // @@Todo: maybe figure out a better format for this?
                 write!(
                     w,
@@ -106,7 +132,7 @@ impl<'ir> IrGraphWriter<'ir> {
                 w,
                 "{}{local:?}: {};{}",
                 decl.mutability(),
-                encode_text(&format!("{}", decl.ty().fmt_with_opts(self.ctx, true, false))),
+                encode_text(&format!("{}", decl.ty().fmt_with_opts(self.ctx, false))),
                 LINE_SEPARATOR
             )?;
         }
@@ -242,7 +268,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left">{}</td></tr>"#,
-                encode_text(&format!("{}", terminator.fmt_with_opts(self.ctx, false, false)))
+                encode_text(&format!("{}", terminator.fmt_with_opts(self.ctx, false)))
             )?;
         }
 

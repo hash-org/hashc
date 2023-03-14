@@ -1027,7 +1027,6 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         debug_assert!(!flags.contains(MemFlags::NON_TEMPORAL), "non-temporal memcpy not supported");
 
         let size = self.int_cast(size, self.ctx.type_isize(), false).into_int_value();
-        let is_volatile = flags.contains(MemFlags::VOLATILE);
 
         let (destination, destination_align) = destination;
         let (source, source_align) = source;
@@ -1047,8 +1046,12 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
             )
             .unwrap();
 
+        // @@PatchInkewll: inkwell doesn't support specifying volatile flags
+        // on memcpy instructions.
+        let is_volatile = flags.contains(MemFlags::VOLATILE);
+
         // Set the volatile flag if necessary
-        if let Some(val) = value.as_instruction_value() {
+        if is_volatile && let Some(val) = value.as_instruction_value() {
             val.set_volatile(is_volatile).unwrap()
         }
     }
@@ -1067,7 +1070,6 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         );
 
         let size = self.int_cast(size, self.ctx.type_isize(), false).into_int_value();
-        let is_volatile = flags.contains(MemFlags::VOLATILE);
 
         let (destination, destination_align) = destination;
         let (source, source_align) = source;
@@ -1088,7 +1090,9 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
             .unwrap();
 
         // Set the volatile flag if necessary
-        if let Some(val) = value.as_instruction_value() {
+        let is_volatile = flags.contains(MemFlags::VOLATILE);
+
+        if is_volatile && let Some(val) = value.as_instruction_value() {
             val.set_volatile(is_volatile).unwrap()
         }
     }
@@ -1101,7 +1105,6 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         alignment: Alignment,
         flags: MemFlags,
     ) {
-        let is_volatile = flags.contains(MemFlags::VOLATILE);
         let ptr = self.pointer_cast(ptr, self.ctx.type_i8p()).into_pointer_value();
 
         let value = self
@@ -1114,8 +1117,10 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
             )
             .unwrap();
 
+        let is_volatile = flags.contains(MemFlags::VOLATILE);
+
         // Set the volatile flag if necessary
-        if let Some(val) = value.as_instruction_value() {
+        if is_volatile && let Some(val) = value.as_instruction_value() {
             val.set_volatile(is_volatile).unwrap()
         }
     }

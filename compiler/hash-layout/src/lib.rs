@@ -211,6 +211,12 @@ impl TyInfo {
         })
     }
 
+    /// Check if the ABI is uninhabited.
+    pub fn is_uninhabited(&self, ctx: LayoutComputer) -> bool {
+        ctx.layouts()
+            .map_fast(self.layout, |layout| matches!(layout.abi, AbiRepresentation::Uninhabited))
+    }
+
     /// Perform a mapping over the [IrTy] and [Layout] associated with
     /// this [LayoutWriter].
     fn with_info<F, T>(&self, ctx: &LayoutComputer, f: F) -> T

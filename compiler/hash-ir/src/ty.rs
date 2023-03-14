@@ -530,6 +530,12 @@ pub struct AdtData {
     /// All of the variants that are defined for this variant.
     pub variants: IndexVec<VariantIdx, AdtVariant>,
 
+    /// Any type substitutions that appeared when the type was
+    /// lowered. This is not important for the type itself, but for
+    /// printing the type, and computing the name of the type does
+    /// depend on this information.
+    pub substitutions: Option<IrTyListId>,
+
     // Flags which denote additional information about this specific
     // data structure.
     pub flags: AdtFlags,
@@ -542,7 +548,13 @@ pub struct AdtData {
 impl AdtData {
     /// Create a new [AdtData] with the given name and variants.
     pub fn new(name: Identifier, variants: IndexVec<VariantIdx, AdtVariant>) -> Self {
-        Self { name, variants, metadata: AdtRepresentation::default(), flags: AdtFlags::empty() }
+        Self {
+            name,
+            variants,
+            metadata: AdtRepresentation::default(),
+            flags: AdtFlags::empty(),
+            substitutions: None,
+        }
     }
 
     /// Create [AdtData] with specified [AdtFlags].
@@ -551,7 +563,7 @@ impl AdtData {
         variants: IndexVec<VariantIdx, AdtVariant>,
         flags: AdtFlags,
     ) -> Self {
-        Self { name, variants, metadata: AdtRepresentation::default(), flags }
+        Self { name, variants, metadata: AdtRepresentation::default(), flags, substitutions: None }
     }
 
     /// Get the variant at the given [VariantIdx].
@@ -826,7 +838,28 @@ impl fmt::Display for ForFormatting<'_, AdtId> {
                 }
                 _ => {
                     // We just write the name of the underlying ADT
-                    write!(f, "{}", adt.name)
+                    write!(f, "{}", adt.name)?;
+
+                    // If there are type arguments, then we write them
+                    // out as well.
+                    if let Some(args) = adt.substitutions {
+                        write!(f, "<")?;
+                        self.ctx.tls().map_fast(args, |args| {
+                            for (i, arg) in args.iter().enumerate() {
+                                if i != 0 {
+                                    write!(f, ", ")?;
+                                }
+
+                                write!(f, "{}", arg.for_fmt(self.ctx))?;
+                            }
+
+                            Ok(())
+                        })?;
+
+                        write!(f, ">")?;
+                    }
+
+                    Ok(())
                 }
             }
         })
@@ -1010,21 +1043,15 @@ impl fmt::Display for ForFormatting<'_, &IrTy> {
             IrTy::Fn { params, return_ty, .. } => {
                 write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
-            IrTy::FnDef { instance } if self.verbose => {
-                self.ctx.instances.map_fast(*instance, |instance| {
-                    write!(
-                        f,
-                        "{}({}) -> {}",
-                        instance.name,
-                        instance.params.for_fmt(self.ctx),
-                        instance.ret_ty.for_fmt(self.ctx)
-                    )
-                })
-            }
-            IrTy::FnDef { instance } => {
-                let name = self.ctx.instances.map_fast(*instance, |instance| instance.name);
-                write!(f, "{name}")
-            }
+            IrTy::FnDef { instance } => self.ctx.instances.map_fast(*instance, |instance| {
+                write!(
+                    f,
+                    "{}({}) -> {}",
+                    instance.name,
+                    instance.params.for_fmt(self.ctx),
+                    instance.ret_ty.for_fmt(self.ctx)
+                )
+            }),
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.ctx)),
             IrTy::Array { ty, length: size } => write!(f, "[{}; {size}]", ty.for_fmt(self.ctx)),
         }

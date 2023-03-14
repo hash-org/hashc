@@ -43,8 +43,13 @@ print := (msg: str, /* end: char = '\n' */) => {
 
     // @@Todo: un-comment this when default parameters are working
     // write the end character
-    // end_sep := Intrinsics::cast(type char, type u8, end);
-    // write(1, &raw end_sep, 1);
+    // end_sep := Intrinsics::cast(type char, type u8, '\n');
+    // libc::write(1, &raw end_sep, 1);
+}
+
+println := (message: str) => {
+    print(message)
+    print("\n")
 }
 
 

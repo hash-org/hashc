@@ -28,7 +28,6 @@ use hash_tir::{
 };
 use hash_utils::{
     index_vec::index_vec,
-    log::info,
     store::{CloneStore, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
@@ -38,7 +37,7 @@ impl<'ir> BuilderCtx<'ir> {
     /// Perform a type lowering operation whilst also caching the result of the
     /// lowering operation. This is used to avoid duplicated work when lowering
     /// types.
-    fn with_cache<T>(&self, item: T, f: impl FnOnce() -> IrTyId) -> IrTyId
+    fn with_cache<T>(&self, item: T, f: impl FnOnce() -> (IrTyId, bool)) -> IrTyId
     where
         T: Copy + Into<TyCacheEntry>,
     {
@@ -48,9 +47,16 @@ impl<'ir> BuilderCtx<'ir> {
             return *ty;
         }
 
-        // Otherwise, create a new type and cache it.
-        let ty = f();
-        self.lcx.ty_cache().borrow_mut().insert(item.into(), ty);
+        // Create the new type
+        let (ty, add_to_cache) = f();
+
+        // If the function returned true, then this means that it has dealt with
+        // adding the item into the cache, and we can skip it here. This is to allow
+        // for recursive type definitions to be lowered.
+        if add_to_cache {
+            self.lcx.ty_cache().borrow_mut().insert(item.into(), ty);
+        }
+
         ty
     }
 
@@ -60,11 +66,18 @@ impl<'ir> BuilderCtx<'ir> {
     pub(crate) fn ty_id_from_tir_ty(&self, id: TyId) -> IrTyId {
         self.with_cache(id, || {
             self.map_ty(id, |ty| {
-                if let Ty::Data(data_ty) = ty {
+                // We compute the "uncached" type, and then it will be added to the
+                // cache if it is not already present. For data types, since they can
+                // be defined in a recursive way, the `ty_from_tir_data` will deal with
+                // its own caching, but we still want to add an entry here for `TyId` since
+                // we want to avoid computing the `ty_from_tir_data` as well.
+                let result = if let Ty::Data(data_ty) = ty {
                     self.ty_from_tir_data(*data_ty)
                 } else {
                     self.uncached_ty_from_tir_ty(id, ty)
-                }
+                };
+
+                (result, false)
             })
         })
     }
@@ -127,8 +140,6 @@ impl<'ir> BuilderCtx<'ir> {
                         self.uncached_ty_from_tir_ty(id, ty)
                     });
                 } else {
-                    info!("couldn't resolve type variable `{}`", self.env().with(*sym));
-
                     // We just return the unit type for now.
                     IrTy::Adt(AdtId::UNIT)
                 }
@@ -177,7 +188,7 @@ impl<'ir> BuilderCtx<'ir> {
                 self.lcx.intrinsics_mut().set(item, instance, ty);
             }
 
-            ty
+            (ty, false)
         })
     }
 
@@ -231,16 +242,49 @@ impl<'ir> BuilderCtx<'ir> {
         self.with_cache(data_ty, || self.uncached_ty_from_tir_data(data_ty))
     }
 
-    fn adt_ty_from_data(&self, def: &DataDef, ctor_defs: CtorDefsId) -> IrTyId {
+    /// Function to convert a data definition into a [`IrTy::Adt`].
+    ///
+    /// This function that will create a [IrTy] and save it into the
+    /// `reserved_ty` slot.
+    fn adt_ty_from_data(&self, ty: DataTy, def: &DataDef, ctor_defs: CtorDefsId) -> (IrTyId, bool) {
         // If data_def has more than one constructor, then it is assumed that this
         // is a enum.
         let mut flags = AdtFlags::empty();
 
         match ctor_defs.len() {
-            0 => return self.lcx.tys().common_tys.never, // This must be the never type.
+            // This must be the never type.
+            0 => {
+                return (self.lcx.tys().common_tys.never, false);
+            }
             1 => flags |= AdtFlags::STRUCT,
             _ => flags |= AdtFlags::ENUM,
         }
+
+        // Reserve a type slot for the data type, and add it to the cache
+        // so that if any inner types are recursive, they can refer to
+        // this type, and it will be updated once the type is fully defined.
+        // Apply the arguments as the scope of the data type.
+        let reserved_ty = self.lcx.tys().create(IrTy::Never);
+        self.lcx.ty_cache().borrow_mut().insert(ty.into(), reserved_ty);
+
+        // We want to add the arguments to the ADT, so that we can print them
+        // out when the type is being displayed.
+        let subs = if ty.args.len() > 0 {
+            // For each argument, we lookup the value of the argument, lower it as a
+            // type and create a TyList for the subs.
+            let args = self.stores().args().map_fast(ty.args, |args| {
+                args.iter()
+                    .map(|arg| {
+                        let ty = self.use_term_as_ty(arg.value);
+                        self.ty_id_from_tir_ty(ty)
+                    })
+                    .collect::<Vec<_>>()
+            });
+
+            Some(self.lcx.tls().create_from_iter(args))
+        } else {
+            None
+        };
 
         // Lower each variant as a constructor.
         let variants = self.stores().ctor_defs().map_fast(ctor_defs, |defs| {
@@ -270,6 +314,7 @@ impl<'ir> BuilderCtx<'ir> {
         // using `_`.
         let name = self.get_symbol(def.name).name.unwrap_or(IDENTS.underscore);
         let mut adt = AdtData::new_with_flags(name, variants, flags);
+        adt.substitutions = subs;
 
         // Deal with any specific attributes that were set on the type, i.e.
         // `#repr_c`.
@@ -279,12 +324,17 @@ impl<'ir> BuilderCtx<'ir> {
             }
         }
 
+        // Update the type in the slot that was reserved for it.
         let id = self.lcx.adts().create(adt);
-        self.lcx.tys().create(IrTy::Adt(id))
+        self.lcx.tys().modify_fast(reserved_ty, |ty| *ty = IrTy::Adt(id));
+
+        // We created our own cache entry, so we don't need to update the
+        // cache.
+        (reserved_ty, true)
     }
 
     /// Function that converts a [DataTy] into the corresponding [IrTyId].
-    fn uncached_ty_from_tir_data(&self, ty: DataTy) -> IrTyId {
+    fn uncached_ty_from_tir_data(&self, ty: DataTy) -> (IrTyId, bool) {
         let data_def = self.get_data_def(ty.data_def);
 
         match data_def.ctors {
@@ -292,19 +342,18 @@ impl<'ir> BuilderCtx<'ir> {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
                 if self.primitives().bool() == ty.data_def {
-                    return self.lcx.tys().common_tys.bool;
+                    return (self.lcx.tys().common_tys.bool, false);
                 }
 
-                // Apply the arguments as the scope of the data type.
                 self.context().enter_scope(ty.data_def.into(), || {
                     self.context_utils().add_arg_bindings(data_def.params, ty.args);
-                    self.adt_ty_from_data(&data_def, ctor_defs)
+                    self.adt_ty_from_data(ty, &data_def, ctor_defs)
                 })
             }
 
             // Primitive are numerics, strings, arrays, etc.
             DataDefCtors::Primitive(primitive) => {
-                match primitive {
+                let ty = match primitive {
                     PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, is_signed, is_float }) => {
                         if is_float {
                             match bits {
@@ -373,7 +422,11 @@ impl<'ir> BuilderCtx<'ir> {
                             self.lcx.tys().create(ty)
                         })
                     }
-                }
+                };
+
+                // Since we don't do anything with the cache, we can specify that
+                // the result of the operation should be cached.
+                (ty, false)
             }
         }
     }
