@@ -1,6 +1,6 @@
 //! Operations for unifying types and terms.
 
-use std::cell::Cell;
+use std::{cell::Cell, collections::HashSet};
 
 use derive_more::Deref;
 use hash_tir::{
@@ -18,6 +18,7 @@ use hash_tir::{
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
 use hash_utils::store::{CloneStore, SequenceStoreKey, Store};
+use once_cell::unsync::OnceCell;
 
 use crate::{
     errors::{TcError, TcResult},
@@ -30,16 +31,28 @@ pub struct UnificationOps<'a, T: AccessToTypechecking> {
     env: &'a T,
     add_to_ctx: Cell<bool>,
     modify_terms: Cell<bool>,
+    pat_binds: OnceCell<HashSet<Symbol>>,
 }
 
 impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     pub fn new(env: &'tc T) -> Self {
-        Self { env, add_to_ctx: Cell::new(true), modify_terms: Cell::new(true) }
+        Self {
+            env,
+            add_to_ctx: Cell::new(true),
+            modify_terms: Cell::new(true),
+            pat_binds: OnceCell::new(),
+        }
     }
 
     /// Disable modifying terms
     pub fn with_no_modify(&self) -> &Self {
         self.modify_terms.set(false);
+        self
+    }
+
+    /// Disable adding unifications to the context.
+    pub fn with_binds(&self, binds: HashSet<Symbol>) -> &Self {
+        self.pat_binds.set(binds).unwrap();
         self
     }
 
@@ -236,6 +249,20 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         Ok((subbed_initial, sub))
     }
 
+    pub fn unify_vars(&self, a: Symbol, b: Symbol, a_id: TermId, b_id: TermId) -> TcResult<()> {
+        if let Some(binds) = self.pat_binds.get() {
+            if binds.contains(&a) {
+                self.add_unification(b, a_id);
+                return Ok(());
+            }
+            if binds.contains(&b) {
+                self.add_unification(a, b_id);
+                return Ok(());
+            }
+        }
+        self.ok_or_mismatching_atoms(a == b, a_id, b_id)
+    }
+
     /// Unify two types.
     pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<()> {
         if src_id == target_id {
@@ -262,7 +289,9 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             (Ty::Eval(t1), Ty::Eval(t2)) => self.unify_terms(t1, t2),
             (Ty::Eval(_), _) | (_, Ty::Eval(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Var(a), Ty::Var(b)) => self.ok_or_mismatching_atoms(a == b, src_id, target_id),
+            (Ty::Var(a), Ty::Var(b)) => {
+                self.unify_vars(a, b, self.use_ty_as_term(src_id), self.use_ty_as_term(target_id))
+            }
             (Ty::Var(_), _) | (_, Ty::Var(_)) => self.mismatching_atoms(src_id, target_id),
 
             (Ty::Tuple(t1), Ty::Tuple(t2)) => self.unify_params(t1.data, t2.data, || Ok(())),
@@ -338,9 +367,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     self.mismatching_atoms(src_id, target_id)
                 }
 
-                (Term::Var(a), Term::Var(b)) => {
-                    self.ok_or_mismatching_atoms(a == b, src_id, target_id)
-                }
+                (Term::Var(a), Term::Var(b)) => self.unify_vars(a, b, src_id, target_id),
                 (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
 
                 (Term::Lit(l1), Term::Lit(l2)) => {

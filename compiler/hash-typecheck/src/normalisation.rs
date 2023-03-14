@@ -31,8 +31,8 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    log::{debug, info},
-    store::{PartialStore, SequenceStore, SequenceStoreKey, Store},
+    log::{error, info},
+    store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 use crate::{
@@ -173,25 +173,39 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Normalise the given atom, in-place.
-    pub fn normalise_in_place(&self, atom: Atom) -> TcResult<()> {
-        match atom {
-            Atom::Term(term_id) => {
-                let result = self.normalise(term_id.into())?;
-                self.stores().term().set(term_id, self.get_term(self.to_term(result)));
-                Ok(())
+    ///
+    /// returns `true` if the atom was normalised.
+    pub fn normalise_in_place(&self, atom: Atom) -> TcResult<bool> {
+        if let Some(result) = self.potentially_normalise(atom)? {
+            match atom {
+                Atom::Term(term_id) => {
+                    self.stores().term().set(term_id, self.get_term(self.to_term(result)));
+                }
+                Atom::Ty(ty_id) => {
+                    self.stores().ty().set(ty_id, self.get_ty(self.to_ty(result)));
+                }
+                // Fn defs are already normalised.
+                Atom::FnDef(_) => {}
+                Atom::Pat(pat_id) => {
+                    self.stores().pat().set(pat_id, self.get_pat(self.to_pat(result)));
+                }
             }
-            Atom::Ty(ty_id) => {
-                let result = self.normalise(ty_id.into())?;
-                self.stores().ty().set(ty_id, self.get_ty(self.to_ty(result)));
-                Ok(())
-            }
-            // Fn defs are already normalised.
-            Atom::FnDef(_) => Ok(()),
-            Atom::Pat(pat_id) => {
-                let result = self.normalise(pat_id.into())?;
-                self.stores().pat().set(pat_id, self.get_pat(self.to_pat(result)));
-                Ok(())
-            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Normalise the given atom.
+    pub fn potentially_normalise(&self, atom: Atom) -> TcResult<Option<Atom>> {
+        match self.potentially_eval(atom) {
+            Ok(t) => Ok(t),
+            Err(e) => match e {
+                Signal::Break | Signal::Continue | Signal::Return(_) => {
+                    panic!("Got signal when normalising: {e:?}")
+                }
+                Signal::Err(e) => Err(e),
+            },
         }
     }
 
@@ -300,7 +314,13 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                 Term::FnCall(fn_call) => {
                     // Get its inferred type and check if it is pure
-                    let fn_ty = self.get_inferred_ty(fn_call.subject);
+                    let fn_ty = self.new_ty_hole_of(fn_call.subject);
+                    self.infer_ops().infer_term(fn_call.subject, fn_ty).unwrap_or_else(|_| {
+                        error!(
+                            "Failed to infer type of function call: {}",
+                            self.env().with(fn_call.subject)
+                        )
+                    });
                     match self.get_ty(fn_ty) {
                         Ty::Fn(fn_ty) => {
                             // If it is a function, check if it is pure

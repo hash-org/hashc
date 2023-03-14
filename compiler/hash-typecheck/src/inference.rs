@@ -1,5 +1,7 @@
 //! Operations to infer types of terms and patterns.
 
+use std::{collections::HashSet, ops::ControlFlow};
+
 use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_intrinsics::utils::PrimitiveUtils;
@@ -570,6 +572,44 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         Ok(())
     }
 
+    pub fn get_binds_in_pat_atom_once(
+        &self,
+        atom: Atom,
+        set: &mut HashSet<Symbol>,
+    ) -> ControlFlow<()> {
+        if let Atom::Pat(pat_id) = atom {
+            match self.get_pat(pat_id) {
+                Pat::Binding(var) => {
+                    set.insert(var.name);
+                    ControlFlow::Break(())
+                }
+                _ => ControlFlow::Continue(()),
+            }
+        } else {
+            ControlFlow::Break(())
+        }
+    }
+
+    pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<Symbol> {
+        let mut binds = HashSet::new();
+        self.traversing_utils()
+            .visit_pat::<!, _>(pat, &mut |atom| {
+                Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
+            })
+            .into_ok();
+        binds
+    }
+
+    pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<Symbol> {
+        let mut binds = HashSet::new();
+        self.traversing_utils()
+            .visit_pat_args::<!, _>(pat_args, &mut |atom| {
+                Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
+            })
+            .into_ok();
+        binds
+    }
+
     /// Infer a constructor, either a pattern or a term.
     ///
     /// This also infers the data arguments of the constructor.
@@ -579,7 +619,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         data_args: ArgsId,
         annotation_ty: TyId,
         original: impl Into<Atom>,
-        infer_ctor_and_get_data_args: impl FnOnce(&CtorDef, ArgsId) -> TcResult<ArgsId>,
+        infer_ctor_and_get_data_args: impl FnOnce(
+            &CtorDef,
+            ArgsId,
+        ) -> TcResult<(ArgsId, HashSet<Symbol>)>,
     ) -> TcResult<()> {
         let original_atom = original.into();
         self.normalise_and_check_ty(annotation_ty)?;
@@ -614,12 +657,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.uni_ops().unify_args(term_data_args, annotation_data_ty.args)?;
 
         let copied_params = self.sub_ops().copy_params(data_def.params);
-        let result_data_args =
+        let (result_data_args, binds) =
             self.infer_args(term_data_args, copied_params, |inferred_term_data_args| {
                 infer_ctor_and_get_data_args(&ctor, inferred_term_data_args)
             })?;
 
-        self.uni_ops().unify_args(term_data_args, result_data_args)?;
+        let uni_ops = self.uni_ops();
+        uni_ops.with_binds(binds);
+        uni_ops.unify_args(term_data_args, result_data_args)?;
 
         let expected_data_ty =
             self.new_expected_ty_of(original_atom, self.new_ty(annotation_data_ty));
@@ -656,7 +701,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         self.sub_ops().apply_sub_to_args(ctor.result_args, &data_sub),
                         &ctor_sub,
                     );
-                    Ok(result_data_args)
+                    Ok((result_data_args, HashSet::new()))
                 })
             },
         )
@@ -676,8 +721,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             if has_run_directive {
                 let norm_ops = self.norm_ops();
                 norm_ops.with_mode(NormalisationMode::Full { eval_impure_fns: true });
-                norm_ops.normalise_in_place(expr.into())?;
-                self.infer_term(expr, term_ty)?;
+                if norm_ops.normalise_in_place(expr.into())? {
+                    self.infer_term(expr, term_ty)?;
+                }
             }
         }
         Ok(())
@@ -693,8 +739,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         if self.should_monomorphise() && fn_ty.pure {
             let norm_ops = self.norm_ops();
             norm_ops.with_mode(NormalisationMode::Full { eval_impure_fns: true });
-            norm_ops.normalise_in_place(fn_call.into())?;
-            self.infer_term(fn_call, fn_call_result_ty)?;
+            if norm_ops.normalise_in_place(fn_call.into())? {
+                self.infer_term(fn_call, fn_call_result_ty)?;
+            }
         }
         Ok(())
     }
@@ -1308,7 +1355,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // @@Todo: deal with uninhabited
                 let new_unified_ty = self.sub_ops().copy_ty(unified_ty);
                 self.infer_term(case_data.value, new_unified_ty)?;
-                if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
+
+                let binds = self.get_binds_in_pat(case_data.bind_pat);
+                if !self.uni_ops().is_uninhabitable(new_unified_ty)?
+                    && !self.sub_ops().atom_contains_vars(new_unified_ty.into(), &binds)
+                {
                     unified_ty = new_unified_ty;
                 }
 
@@ -1497,7 +1548,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             self.sub_ops().apply_sub_to_args(ctor.result_args, &data_sub),
                             &ctor_sub,
                         );
-                        Ok(result_data_args)
+
+                        Ok((result_data_args, self.get_binds_in_pat_args(pat.ctor_pat_args)))
                     },
                 )
             },
