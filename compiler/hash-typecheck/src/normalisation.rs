@@ -361,7 +361,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Whether the given atom will produce effects when evaluated.
-    fn atom_has_effects(&self, atom: Atom) -> bool {
+    pub fn atom_has_effects(&self, atom: Atom) -> bool {
         let mut has_effects = false;
         let traversing_utils = self.traversing_utils();
         traversing_utils
@@ -489,7 +489,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
         for arg_i in args.iter() {
             let arg = self.stores().args().get_element(arg_i);
-            if arg.target == target {
+            if arg.target == target || ParamIndex::Position(arg.id.1) == target {
                 return arg.value.into();
             }
         }
@@ -501,7 +501,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let value = self.to_term(value);
         for arg_i in args.iter() {
             let arg = self.stores().args().get_element(arg_i);
-            if arg.target == target {
+            if arg.target == target || ParamIndex::Position(arg.id.1) == target {
                 self.stores().args().modify_fast(arg_i.0, |mut args| args[arg_i.1].value = value);
                 return;
             }
@@ -556,20 +556,13 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a `typeof` term.
-    fn eval_type_of(&self, type_of_term: TypeOfTerm) -> Result<Atom, Signal> {
+    fn eval_type_of(&self, type_of_term: TypeOfTerm) -> AtomEvaluation {
         // Infer the type of the term:
         match self.try_get_inferred_ty(type_of_term.term) {
-            Some(ty) => Ok(ty.into()),
+            Some(ty) => evaluation_to(ty),
             None => {
-                debug!(
-                    "Not found type of {} while inferring, so inferring it now",
-                    self.env().with(type_of_term.term)
-                );
-                // Ask the type checker to infer the type:
-                let inferred = self.new_ty_hole_of(type_of_term.term);
-                self.infer_ops().infer_term(type_of_term.term, inferred)?;
-                self.register_atom_inference(type_of_term.term, type_of_term.term, inferred);
-                Ok(inferred.into())
+                // Not evaluated yet
+                stuck_evaluating()
             }
         }
     }
@@ -852,7 +845,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 | Term::Array(_) => ctrl_continue(),
 
                 // Potentially reducible forms:
-                Term::TypeOf(term) => ctrl_map_full(self.eval_type_of(term)),
+                Term::TypeOf(term) => ctrl_map(self.eval_type_of(term)),
                 Term::Unsafe(unsafe_expr) => ctrl_map(self.eval_unsafe(unsafe_expr)),
                 Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
                 Term::FnCall(fn_call) => ctrl_map(self.eval_fn_call(fn_call)),

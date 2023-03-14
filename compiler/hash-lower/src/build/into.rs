@@ -34,7 +34,7 @@ use hash_tir::{
     terms::{Term, TermId, UnsafeTerm},
     tuples::TupleTerm,
     ty_as_variant,
-    utils::common::CommonUtils,
+    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
@@ -157,6 +157,7 @@ impl<'tcx> Builder<'tcx> {
                         // if it is just a function, then we make the the type from the function.
 
                         Context::enter_scope_mut(self, fn_ty.into(), |this| {
+                            this.context_utils().add_arg_bindings(fn_ty.params, *args);
                             this.fn_call_into_dest(destination, block, *subject, *args, span)
                         })
                     }

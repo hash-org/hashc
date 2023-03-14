@@ -50,6 +50,14 @@ impl<'env> ContextUtils<'env> {
     }
 
     /// Add a typing binding to the closest stack scope.
+    pub fn add_assignment_to_closest_stack(&self, name: Symbol, ty: TyId, value: TermId) {
+        self.context().get_closest_stack_scope_ref().add_binding(Binding {
+            name,
+            kind: BindingKind::Decl(Decl { name, ty: Some(ty), value: Some(value) }),
+        })
+    }
+
+    /// Add a typing binding to the closest stack scope.
     pub fn add_typing_to_closest_stack(&self, name: Symbol, ty: TyId) {
         self.context().get_closest_stack_scope_ref().add_binding(Binding {
             name,

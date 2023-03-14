@@ -154,6 +154,9 @@ pub enum TcError {
     /// Invalid range pattern literal
     InvalidRangePatternLiteral { location: SourceLocation },
 
+    /// Invalid range pattern literal
+    TryingToReferenceLocalsInType { ty: TyId },
+
     /// Cannot use the given term in a type position.
     CannotUseInTyPos { location: LocationTarget, inferred_ty: TyId },
 
@@ -638,6 +641,15 @@ impl<'tc> TcErrorReporter<'tc> {
                 }
                 if let Some(location) = locations.get_location(target) {
                     error.add_labelled_span(location, "with this type");
+                }
+            }
+            TcError::TryingToReferenceLocalsInType { ty } => {
+                let error = reporter.error().code(HashErrorCode::DisallowedType).title(format!(
+                    "cannot use locals from this block in type `{}`",
+                    self.env().with(*ty)
+                ));
+                if let Some(location) = locations.get_location(ty) {
+                    error.add_labelled_span(location, "type containing locals");
                 }
             }
         }

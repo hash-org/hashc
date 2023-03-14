@@ -135,16 +135,26 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     /// Unify two function types.
     pub fn unify_fn_tys(
         &self,
-        f1: FnTy,
-        f2: FnTy,
-        src_id: impl Into<Atom>,
-        target_id: impl Into<Atom>,
+        mut f1: FnTy,
+        mut f2: FnTy,
+        src_id: TyId,
+        target_id: TyId,
     ) -> TcResult<()> {
         if !self.fn_modalities_match(f1, f2) {
             self.mismatching_atoms(src_id, target_id)
         } else {
             // Unify parameters and apply to return types
-            self.unify_params(f2.params, f1.params, || self.unify_tys(f1.return_ty, f2.return_ty))?;
+            self.unify_params(f1.params, f2.params, || self.unify_tys(f1.return_ty, f2.return_ty))?;
+
+            let forward_sub = self.sub_ops().create_sub_from_param_names(f1.params, f2.params);
+            f2.return_ty = self.sub_ops().apply_sub_to_ty(f2.return_ty, &forward_sub);
+
+            let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
+            f1.return_ty = self.sub_ops().apply_sub_to_ty(f1.return_ty, &backward_sub);
+
+            self.stores().ty().set(src_id, f1.into());
+            self.stores().ty().set(target_id, f2.into());
+
             Ok(())
         }
     }
@@ -323,6 +333,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                 (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
                 (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
 
+                (Term::Tuple(t1), Term::Tuple(t2)) => self.unify_args(t1.data, t2.data),
+                (Term::Tuple(_), _) | (_, Term::Tuple(_)) => {
+                    self.mismatching_atoms(src_id, target_id)
+                }
+
                 (Term::Var(a), Term::Var(b)) => {
                     self.ok_or_mismatching_atoms(a == b, src_id, target_id)
                 }
@@ -361,7 +376,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     /// This takes a function to run in the scope of the parameters. It also
     /// adds the ambient substitutions to the current scope.
     ///
-    /// Names are taken from src
+    /// Names are taken from dest
     pub fn unify_params<U>(
         &self,
         src_id: ParamsId,
@@ -377,6 +392,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                 annotation_params_id: target_id,
             });
         }
+        let forward_sub = self.sub_ops().create_sub_from_param_names(src_id, target_id);
+        let backward_sub = self.sub_ops().create_sub_from_param_names(target_id, src_id);
 
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
@@ -393,6 +410,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
 
                     // Unify the types
                     self.unify_tys(src_param.ty, target_param.ty)?;
+                    self.sub_ops().apply_sub_to_ty_in_place(target_param.ty, &forward_sub);
+                    self.sub_ops().apply_sub_to_ty_in_place(src_param.ty, &backward_sub);
                 }
 
                 // Run the in-scope closure
