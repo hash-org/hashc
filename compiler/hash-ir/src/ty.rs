@@ -1043,15 +1043,9 @@ impl fmt::Display for ForFormatting<'_, &IrTy> {
             IrTy::Fn { params, return_ty, .. } => {
                 write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
             }
-            IrTy::FnDef { instance } => self.ctx.instances.map_fast(*instance, |instance| {
-                write!(
-                    f,
-                    "{}({}) -> {}",
-                    instance.name,
-                    instance.params.for_fmt(self.ctx),
-                    instance.ret_ty.for_fmt(self.ctx)
-                )
-            }),
+            IrTy::FnDef { instance } => {
+                self.ctx.instances.map_fast(*instance, |instance| write!(f, "{}", instance.name))
+            }
             IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.ctx)),
             IrTy::Array { ty, length: size } => write!(f, "[{}; {size}]", ty.for_fmt(self.ctx)),
         }
