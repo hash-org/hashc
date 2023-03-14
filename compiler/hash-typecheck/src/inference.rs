@@ -13,7 +13,7 @@ use hash_source::{
 };
 use hash_tir::{
     access::AccessTerm,
-    args::{ArgsId, PatArgsId, PatOrCapture},
+    args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
@@ -208,13 +208,39 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         Ok(result)
     }
 
+    pub fn try_use_pat_args_as_term_args(&self, pat_args: PatArgsId) -> Option<ArgsId> {
+        let mut args = Vec::new();
+        for pat_arg in pat_args.iter() {
+            let pat_arg = self.get_pat_arg(pat_arg);
+            match pat_arg.pat {
+                PatOrCapture::Pat(pat) => {
+                    let term = self.try_use_pat_as_term(pat)?;
+                    args.push(ArgData { target: pat_arg.target, value: term });
+                }
+                PatOrCapture::Capture => return None,
+            }
+        }
+        Some(self.param_utils().create_args(args.into_iter()))
+    }
+
     pub fn try_use_pat_as_term(&self, pat_id: PatId) -> Option<TermId> {
         match self.get_pat(pat_id) {
             Pat::Binding(var) => Some(self.new_term(var.name)),
-            Pat::Range(_) => None,
+            Pat::Range(_) => Some(self.new_term(self.new_fresh_symbol())),
             Pat::Lit(lit) => Some(self.new_term(Term::Lit(lit.into()))),
-            // @@Todo:
-            Pat::Array(_) | Pat::Ctor(_) | Pat::Or(_) | Pat::If(_) | Pat::Tuple(_) => None,
+            Pat::Ctor(ctor_pat) => Some(self.new_term(CtorTerm {
+                ctor: ctor_pat.ctor,
+                data_args: ctor_pat.data_args,
+                ctor_args: self.try_use_pat_args_as_term_args(ctor_pat.ctor_pat_args)?,
+            })),
+            Pat::Tuple(tuple_pat) => {
+                Some(self.new_term(TupleTerm {
+                    data: self.try_use_pat_args_as_term_args(tuple_pat.data)?,
+                }))
+            }
+            Pat::Array(_) => None,
+            Pat::Or(_) => None,
+            Pat::If(if_pat) => self.try_use_pat_as_term(if_pat.pat),
         }
     }
 
@@ -1345,19 +1371,38 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let match_subject_ty = self.new_ty_hole_of(match_term.subject);
         self.infer_term(match_term.subject, match_subject_ty)?;
 
+        let match_subject_var = match self.get_term(match_term.subject) {
+            Term::Var(v) => Some(v),
+            _ => None,
+        };
+
+        let match_annotation_ty = match self.get_ty(annotation_ty) {
+            Ty::Hole(_) => None,
+            t => Some(t),
+        };
+
         let mut unified_ty = annotation_ty;
         for case in match_term.cases.iter() {
-            // @@Todo: dependent
             let case_data = self.stores().match_cases().get_element(case);
             self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
                 self.infer_pat(case_data.bind_pat, match_subject_ty, Some(match_term.subject))?;
 
-                // @@Todo: deal with uninhabited
+                if let Some(match_subject_var) = match_subject_var {
+                    if let Some(pat_term) = self.try_use_pat_as_term(case_data.bind_pat) {
+                        self.context_utils().add_assignment(
+                            match_subject_var,
+                            match_subject_ty,
+                            pat_term,
+                        );
+                    }
+                }
+
                 let new_unified_ty = self.sub_ops().copy_ty(unified_ty);
                 self.infer_term(case_data.value, new_unified_ty)?;
 
                 let binds = self.get_binds_in_pat(case_data.bind_pat);
-                if !self.uni_ops().is_uninhabitable(new_unified_ty)?
+                if match_annotation_ty.is_none()
+                    && !self.uni_ops().is_uninhabitable(new_unified_ty)?
                     && !self.sub_ops().atom_contains_vars(new_unified_ty.into(), &binds)
                 {
                     unified_ty = new_unified_ty;

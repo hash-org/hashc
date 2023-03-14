@@ -367,6 +367,15 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     self.mismatching_atoms(src_id, target_id)
                 }
 
+                (Term::Ctor(c1), Term::Ctor(c2)) if c1.ctor == c2.ctor => {
+                    self.unify_args(c1.data_args, c2.data_args)?;
+                    self.unify_args(c1.ctor_args, c2.ctor_args)?;
+                    Ok(())
+                }
+                (Term::Ctor(_), _) | (_, Term::Ctor(_)) => {
+                    self.mismatching_atoms(src_id, target_id)
+                }
+
                 (Term::Var(a), Term::Var(b)) => self.unify_vars(a, b, src_id, target_id),
                 (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
 

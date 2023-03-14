@@ -5,6 +5,7 @@
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_tir::{
+    data::DataDefCtors,
     directives::AppliedDirectives,
     environment::{context::ScopeKind, env::AccessToEnv},
     mods::{ModDefId, ModMemberValue},
@@ -73,12 +74,12 @@ impl<'tc> ResolutionPass<'tc> {
                     // Struct variant
                     let struct_ctor =
                         self.stores().data_def().map_fast(data_def_id, |def| match def.ctors {
-                            hash_tir::data::DataDefCtors::Defined(id) => {
+                            DataDefCtors::Defined(id) => {
                                 // There should only be one variant
                                 assert!(id.len() == 1);
                                 (id, 0)
                             },
-                            hash_tir::data::DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
+                            DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
                         });
 
                     self.scoping().enter_scope(
@@ -115,8 +116,8 @@ impl<'tc> ResolutionPass<'tc> {
                     // Enum variants
                     let data_def_ctors =
                         self.stores().data_def().map_fast(data_def_id, |def| match def.ctors {
-                            hash_tir::data::DataDefCtors::Defined(id) => id,
-                            hash_tir::data::DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined enums
+                            DataDefCtors::Defined(id) => id,
+                            DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined enums
                         });
                     assert!(data_def_ctors.len() == enum_def.entries.len());
 
