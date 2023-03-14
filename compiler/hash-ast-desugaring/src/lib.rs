@@ -121,7 +121,7 @@ impl<Ctx: AstDesugaringCtxQuery> CompilerStage<Ctx> for AstDesugaringPass {
         let mut stdout = ctx.output_stream();
 
         if settings.stage > CompilerStageKind::Parse && settings.ast_settings().dump {
-            ctx.workspace().print_sources(entry_point, &mut stdout).unwrap();
+            ctx.workspace().print_sources(entry_point, &mut stdout, settings).unwrap();
         }
     }
 }

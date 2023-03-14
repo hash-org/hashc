@@ -23,7 +23,10 @@ use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
 };
-use hash_layout::{write::LayoutWriter, LayoutCtx, TyInfo};
+use hash_layout::{
+    write::{LayoutWriter, LayoutWriterConfig},
+    LayoutCtx, TyInfo,
+};
 use hash_pipeline::{
     interface::{
         CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
@@ -216,12 +219,14 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
                 // @@ErrorHandling: propagate this error if it occurs.
                 if let Ok(layout) = ctx.layout_of(ty) {
+                    let writer_config = LayoutWriterConfig::from_character_set(settings.character_set);
+
                     // Print the layout and add spacing between all of the specified layouts
                     // that were requested.
                     stream_writeln!(
                         stdout,
                         "{}",
-                        LayoutWriter::new(TyInfo { ty, layout }, ctx.layout_computer())
+                        LayoutWriter::new_with_config(TyInfo { ty, layout }, ctx.layout_computer(), writer_config)
                     );
                 }
             }

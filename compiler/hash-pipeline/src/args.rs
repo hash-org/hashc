@@ -3,6 +3,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use hash_target::Target;
+use hash_utils::tree_writing::CharacterSet;
 
 use crate::{
     error::PipelineError,
@@ -191,6 +192,21 @@ fn parse_arg_configuration(
                 }
                 "tir" => {
                     settings.semantic_settings.dump_tir = true;
+                }
+                _ => {
+                    return Err(PipelineError::InvalidValue(key, value));
+                }
+            }
+        }
+        "character-set" => {
+            let value = value.ok_or_else(expected_value)?;
+
+            match value.as_str() {
+                "ascii" => {
+                    settings.character_set = CharacterSet::Ascii;
+                }
+                "unicode" => {
+                    settings.character_set = CharacterSet::Unicode;
                 }
                 _ => {
                     return Err(PipelineError::InvalidValue(key, value));

@@ -19,7 +19,7 @@ use hash_ast::{
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_utils::{
     store::{FxHashMap, FxHashSet},
-    tree_writing::TreeWriter,
+    tree_writing::{TreeWriter, TreeWriterConfig},
 };
 
 use crate::{
@@ -329,6 +329,7 @@ impl Workspace {
         &self,
         entry_point: SourceId,
         writer: &mut impl std::io::Write,
+        settings: &CompilerSettings,
     ) -> std::io::Result<()> {
         if entry_point.is_interactive() {
             // If this is an interactive statement, we want to print the statement that was
@@ -336,18 +337,20 @@ impl Workspace {
             let source = self.node_map.get_interactive_block(entry_point.into());
             let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
 
-            writeln!(writer, "{}", TreeWriter::new(&tree))
+            let config = TreeWriterConfig::from_character_set(settings.character_set);
+            writeln!(writer, "{}", TreeWriter::new_with_config(&tree, config))
         } else {
             // If this is a module, we want to print all of the generated modules from the
             // parsing stage
             for generated_module in self.node_map.iter_modules() {
                 let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
 
+                let config = TreeWriterConfig::from_character_set(settings.character_set);
                 writeln!(
                     writer,
                     "AST for `{}`:\n{}",
                     generated_module.canonicalised_path(),
-                    TreeWriter::new(&tree)
+                    TreeWriter::new_with_config(&tree, config)
                 )?;
             }
 

@@ -114,7 +114,7 @@ impl LayoutCtx {
 
     /// Check if a given [LayoutId] represents a zero-sized type.
     pub fn is_zst(&self, layout: LayoutId) -> bool {
-        self.data.map_fast(layout, |layout| layout.is_zst())
+        self.data.map_fast(layout, Layout::is_zst)
     }
 
     /// Compute the [Size] of a given [LayoutId].
@@ -201,14 +201,7 @@ impl TyInfo {
 
     /// Check if the type is a zero-sized type.
     pub fn is_zst(&self, ctx: LayoutComputer) -> bool {
-        ctx.layouts().map_fast(self.layout, |layout| match layout.abi {
-            AbiRepresentation::Scalar { .. }
-            | AbiRepresentation::Pair(..)
-            | AbiRepresentation::Vector { .. } => false,
-            AbiRepresentation::Aggregate | AbiRepresentation::Uninhabited => {
-                layout.size.bytes() == 0
-            }
-        })
+        ctx.layouts().map_fast(self.layout, Layout::is_zst)
     }
 
     /// Check if the ABI is uninhabited.

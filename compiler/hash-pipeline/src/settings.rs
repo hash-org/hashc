@@ -10,6 +10,7 @@ use std::{
 
 use hash_source::constant::CONSTANT_MAP;
 use hash_target::{Target, TargetInfo, HOST_TARGET_TRIPLE};
+use hash_utils::tree_writing::CharacterSet;
 
 use crate::{error::PipelineError, fs::resolve_path};
 
@@ -56,6 +57,11 @@ pub struct CompilerSettings {
     /// Whether the pipeline should output errors and warnings to
     /// standard error
     pub emit_errors: bool,
+
+    /// Which character set to use when printing information
+    /// to the terminal, this affects rendering of characters
+    /// such as the arrow in the error messages.
+    pub character_set: CharacterSet,
 
     /// The optimisation level that is to be performed.
     pub optimisation_level: OptimisationLevel,
@@ -219,6 +225,7 @@ impl Default for CompilerSettings {
             output_metrics: false,
             skip_prelude: false,
             emit_errors: true,
+            character_set: CharacterSet::Unicode,
             worker_count: num_cpus::get(),
             stage: CompilerStageKind::default(),
             optimisation_level: OptimisationLevel::default(),

@@ -6,7 +6,7 @@ use hash_ast::{
     tree::AstTreeGenerator,
     visitor::{walk_mut_self, AstVisitor, AstVisitorMutSelf},
 };
-use hash_pipeline::interface::CompilerOutputStream;
+use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
 use hash_source::{
     identifier::IDENTS,
     location::{SourceLocation, Span},
@@ -14,7 +14,7 @@ use hash_source::{
 };
 use hash_utils::{
     stream_writeln,
-    tree_writing::{TreeNode, TreeWriter},
+    tree_writing::{TreeNode, TreeWriter, TreeWriterConfig},
 };
 
 #[derive(Debug)]
@@ -23,6 +23,9 @@ pub struct AstExpander<'s> {
     pub(crate) source_map: &'s SourceMap,
     /// The `id` of the module that is currently being checked
     source_id: SourceId,
+
+    /// The settings to the AST expansion pass.
+    pub(crate) settings: &'s CompilerSettings,
 
     /// The [CompilerOutputStream] that will be used to dump the AST.
     stdout: CompilerOutputStream,
@@ -34,9 +37,10 @@ impl<'s> AstExpander<'s> {
     pub fn new(
         source_map: &'s SourceMap,
         source_id: SourceId,
+        settings: &'s CompilerSettings,
         stdout: CompilerOutputStream,
     ) -> Self {
-        Self { source_map, source_id, stdout }
+        Self { source_map, settings, source_id, stdout }
     }
 
     /// Create a [SourceLocation] from a [Span]
@@ -82,7 +86,10 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
                 self.stdout,
                 "AST dump for {}\n{}",
                 self.source_map.fmt_location(location),
-                TreeWriter::new(&tree)
+                TreeWriter::new_with_config(
+                    &tree,
+                    TreeWriterConfig::from_character_set(self.settings.character_set)
+                )
             );
         };
 

@@ -29,7 +29,7 @@ use hash_ir::{
     write::WriteIr,
 };
 use hash_target::{abi::AbiRepresentation, size::Size};
-use hash_utils::store::Store;
+use hash_utils::{store::Store, tree_writing::CharacterSet};
 
 use crate::{
     compute::LayoutComputer, FieldLayout, Layout, LayoutId, LayoutShape, TyInfo, Variants,
@@ -75,7 +75,15 @@ pub struct LayoutWriterConfig {
 }
 
 impl LayoutWriterConfig {
-    /// Returns a [LayoutWritingConfig] that uses unicode box drawing
+    /// Create a [LayoutWriterConfig] based on the [CharacterSet].
+    pub fn from_character_set(set: CharacterSet) -> Self {
+        match set {
+            CharacterSet::Unicode => Self::unicode(),
+            CharacterSet::Ascii => Self::ascii(),
+        }
+    }
+
+    /// Returns a [LayoutWriterConfig] that uses unicode box drawing
     /// characters.
     pub fn unicode() -> Self {
         Self {
@@ -93,7 +101,7 @@ impl LayoutWriterConfig {
         }
     }
 
-    /// Create a new [LayoutWritingConfig] that uses ASCII characters.
+    /// Create a new [LayoutWriterConfig] that uses ASCII characters.
     pub fn ascii() -> Self {
         Self {
             top_left: '+',
@@ -555,6 +563,15 @@ pub struct LayoutWriter<'l> {
 }
 
 impl<'l> LayoutWriter<'l> {
+    /// Create a new [LayoutWriter] with a config.
+    pub fn new_with_config(
+        ty_info: TyInfo,
+        ctx: LayoutComputer<'l>,
+        config: LayoutWriterConfig,
+    ) -> Self {
+        Self { ty_info, ctx, config }
+    }
+
     /// Create a new [LayoutWriter] that will write the given [Layout] to the
     /// given [fmt::Formatter] using "unicode" characters.
     pub fn new(ty_info: TyInfo, ctx: LayoutComputer<'l>) -> Self {
