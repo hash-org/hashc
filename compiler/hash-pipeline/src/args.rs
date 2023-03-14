@@ -227,6 +227,21 @@ fn parse_arg_configuration(
                 }
             }
         }
+        "checked-operations" => {
+            let value = value.ok_or_else(expected_value)?;
+
+            match value.as_str() {
+                "off" => {
+                    settings.lowering_settings.checked_operations = false;
+                }
+                "on" => {
+                    settings.lowering_settings.checked_operations = true;
+                }
+                _ => {
+                    return Err(PipelineError::InvalidValue(key, value));
+                }
+            }
+        }
         "backend" => {
             let value = value.ok_or_else(expected_value)?;
 
