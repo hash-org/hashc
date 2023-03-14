@@ -343,7 +343,7 @@ impl BoxRow {
             // The row box doesn't need padding, but the
             // last box in the row will need it's width to be adjusted.
             let last_width = self.widths.len() - 1;
-            self.widths[last_width] += 1;
+            self.widths[last_width] += width - current_width;
         }
     }
 }
