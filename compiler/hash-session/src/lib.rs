@@ -246,6 +246,7 @@ impl SemanticAnalysisCtxQuery for CompilerSession {
                 dump_tir: self.settings.semantic_settings.dump_tir,
                 eval_tir: self.settings.semantic_settings.eval_tir,
                 mono_tir: self.settings.semantic_settings.mono_tir,
+                run_to_stage: self.settings.stage,
             },
             target: self.settings.target(),
         }
