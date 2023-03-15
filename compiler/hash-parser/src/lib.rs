@@ -128,7 +128,7 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
         let mut stdout = ctx.output_stream();
 
         if settings.stage < CompilerStageKind::UntypedAnalysis && settings.ast_settings().dump {
-            ctx.workspace().print_sources(entry_point, &mut stdout).unwrap();
+            ctx.workspace().print_sources(entry_point, &mut stdout, settings).unwrap();
         }
     }
 }

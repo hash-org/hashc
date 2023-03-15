@@ -309,15 +309,15 @@ impl<'tcx> Builder<'tcx> {
                 block.unit()
             }
             Term::Return(ReturnTerm { expression }) => {
-                // In either case, we want to mark that the function has reached the
-                // **terminating** statement of this block and we needn't continue looking
-                // for more statements beyond this point.
-                self.reached_terminator = true;
-
                 unpack!(
                     block =
                         self.term_into_dest(Place::return_place(self.ctx()), block, *expression)
                 );
+
+                // In either case, we want to mark that the function has reached the
+                // **terminating** statement of this block and we needn't continue looking
+                // for more statements beyond this point.
+                self.reached_terminator = true;
 
                 // Create a new block for the `return` statement and make this block
                 // go to the return whilst also starting a new block.

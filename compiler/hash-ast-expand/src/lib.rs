@@ -5,7 +5,7 @@
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
-    settings::CompilerStageKind,
+    settings::{CompilerSettings, CompilerStageKind},
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
@@ -26,6 +26,9 @@ pub struct AstExpansionPass;
 pub struct AstExpansionCtx<'ast> {
     /// Reference to the current compiler workspace.
     pub workspace: &'ast mut Workspace,
+
+    /// Settings to the compiler
+    pub settings: &'ast CompilerSettings,
 
     /// Reference to the output stream
     pub stdout: CompilerOutputStream,
@@ -51,7 +54,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace, stdout } = ctx.data();
+        let AstExpansionCtx { workspace, stdout, settings } = ctx.data();
 
         let node_map = &mut workspace.node_map;
         let source_map = &workspace.source_map;
@@ -61,7 +64,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
 
         // De-sugar the target if it isn't already de-sugared
         if source_info.is_expanded() && entry_point.is_interactive() {
-            let mut expander = AstExpander::new(source_map, entry_point, stdout.clone());
+            let mut expander = AstExpander::new(source_map, entry_point, settings, stdout.clone());
             let source = node_map.get_interactive_block(entry_point.into());
 
             expander.visit_body_block(source.node_ref()).unwrap();
@@ -76,7 +79,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
                 continue;
             }
 
-            let mut expander = AstExpander::new(source_map, source_id, stdout.clone());
+            let mut expander = AstExpander::new(source_map, source_id, settings, stdout.clone());
             expander.visit_module(module.node_ref()).unwrap();
         }
 

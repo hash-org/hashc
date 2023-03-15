@@ -229,7 +229,11 @@ impl UntypedSemanticAnalysisCtxQuery for CompilerSession {
 impl AstExpansionCtxQuery for CompilerSession {
     fn data(&mut self) -> AstExpansionCtx {
         let output_stream = self.output_stream();
-        AstExpansionCtx { workspace: &mut self.workspace, stdout: output_stream }
+        AstExpansionCtx {
+            workspace: &mut self.workspace,
+            settings: &self.settings,
+            stdout: output_stream,
+        }
     }
 }
 

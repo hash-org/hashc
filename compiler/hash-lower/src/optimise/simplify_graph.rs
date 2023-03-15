@@ -17,7 +17,7 @@ use hash_ir::{
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 use hash_utils::{
-    index_vec::{index_vec, Idx, IndexVec},
+    index_vec::{index_vec, IndexVec},
     smallvec::{smallvec, SmallVec},
 };
 
@@ -65,15 +65,11 @@ pub fn remove_dead_blocks(body: &mut Body) {
     }
 }
 
-fn copy_index_vec<S, T: Clone, I: Idx>(value: T, previous: &IndexVec<I, S>) -> IndexVec<I, T> {
-    index_vec![value; previous.len()]
-}
-
 /// This function is used to compute a predecessor count for each block, and
 /// returns a vector of the counts. This is used to determine if a block has
 /// a single predecessor, and therefore can be removed.
 fn compute_predecessor_counts(body: &Body) -> IndexVec<BasicBlock, u32> {
-    let mut counts = copy_index_vec(0, &body.basic_blocks.blocks);
+    let mut counts = index_vec![0; body.basic_blocks.blocks.len()];
 
     // We have to always set the count of the basic block as `1` since
     // it might not ever have any predecessors, but it is still reachable.
@@ -90,15 +86,19 @@ fn compute_predecessor_counts(body: &Body) -> IndexVec<BasicBlock, u32> {
     counts
 }
 
-pub struct SimplifyGraph;
+/// This pass will attempt to simplify the control flow graph by removing
+/// any blocks that only perform a goto to another block. This is done
+/// by propagating the destination of the goto to all of the predecessors
+/// of the current block.
+pub struct SimplifyGraphPass;
 
-impl IrOptimisationPass for SimplifyGraph {
+impl IrOptimisationPass for SimplifyGraphPass {
     fn name(&self) -> &'static str {
         "simplify-graph"
     }
 
     fn enabled(&self, settings: &CompilerSettings) -> bool {
-        settings.optimisation_level >= OptimisationLevel::Debug
+        settings.optimisation_level > OptimisationLevel::Debug
     }
 
     fn optimise(&self, body: &mut Body, _: &IrCtx) {
@@ -196,7 +196,7 @@ impl<'ir> GraphSimplifier<'ir> {
             *changed |= *target != last;
             *target = last;
 
-            // If this is the last predecessor, then we don;t need to update
+            // If this is the last predecessor, then we don't need to update
             // the count of the `target` since it will be removed.
             if self.predecessor_count[current] == 1 {
                 self.predecessor_count[current] = 0;

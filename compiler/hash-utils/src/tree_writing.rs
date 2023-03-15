@@ -5,6 +5,17 @@
 use core::fmt;
 use std::{borrow::Cow, iter};
 
+/// What kind of character set to use when printing compiler
+/// messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CharacterSet {
+    /// Use unicode character set, this is used by default.
+    Unicode,
+
+    /// Use the ASCII character set.
+    Ascii,
+}
+
 /// A node in a tree, with a label and children.
 #[derive(Debug, Clone)]
 pub struct TreeNode {
@@ -40,6 +51,14 @@ pub struct TreeWriterConfig {
 }
 
 impl TreeWriterConfig {
+    /// Create a new [TreeWriterConfig] from a [CharacterSet].
+    pub fn from_character_set(set: CharacterSet) -> Self {
+        match set {
+            CharacterSet::Unicode => Self::unicode(),
+            CharacterSet::Ascii => Self::ascii(),
+        }
+    }
+
     /// Draw trees using Unicode box drawing characters.
     pub fn unicode() -> Self {
         Self {

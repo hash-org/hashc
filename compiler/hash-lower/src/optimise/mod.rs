@@ -12,7 +12,7 @@ use hash_source::SourceMap;
 
 // Various passes that are used to optimise the generated IR bodies.
 mod cleanup_locals;
-mod simplify;
+mod simplify_graph;
 
 pub trait IrOptimisationPass {
     /// Get the name of the particular optimisation pass.
@@ -57,7 +57,7 @@ impl<'ir> Optimiser<'ir> {
             _source_map: source_map,
             settings,
             passes: vec![
-                Box::new(simplify::SimplifyGraph),
+                Box::new(simplify_graph::SimplifyGraphPass),
                 Box::new(cleanup_locals::CleanupLocalPass),
             ],
         }
