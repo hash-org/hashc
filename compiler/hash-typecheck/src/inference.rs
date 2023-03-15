@@ -1610,7 +1610,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer an if-pattern
     pub fn infer_if_pat(&self, pat: &IfPat, annotation_ty: TyId) -> TcResult<()> {
         self.infer_pat(pat.pat, annotation_ty, None)?;
-        self.infer_term(pat.condition, self.new_data_ty(self.primitives().bool()))?;
+        let expected_condition_ty =
+            self.new_expected_ty_of(pat.condition, self.new_data_ty(self.primitives().bool()));
+        self.infer_term(pat.condition, expected_condition_ty)?;
+        if let Term::Var(v) = self.get_term(pat.condition) {
+            self.context_utils().add_assignment(v, expected_condition_ty, self.new_bool_term(true));
+        }
         Ok(())
     }
 

@@ -185,7 +185,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     self.stores().ty().set(ty_id, self.get_ty(self.to_ty(result)));
                 }
                 // Fn defs are already normalised.
-                Atom::FnDef(_) => {}
+                Atom::FnDef(_) => return Ok(false),
                 Atom::Pat(pat_id) => {
                     self.stores().pat().set(pat_id, self.get_pat(self.to_pat(result)));
                 }
@@ -381,15 +381,23 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Whether the given atom will produce effects when evaluated.
-    pub fn atom_has_effects(&self, atom: Atom) -> bool {
+    pub fn atom_has_effects_with_traversing(
+        &self,
+        atom: Atom,
+        traversing_utils: &TraversingUtils,
+    ) -> bool {
         let mut has_effects = false;
-        let traversing_utils = self.traversing_utils();
         traversing_utils
             .visit_atom::<!, _>(atom, &mut |atom| {
-                self.atom_has_effects_once(&traversing_utils, atom, &mut has_effects)
+                self.atom_has_effects_once(traversing_utils, atom, &mut has_effects)
             })
             .into_ok();
         has_effects
+    }
+
+    /// Whether the given atom will produce effects when evaluated.
+    pub fn atom_has_effects(&self, atom: Atom) -> bool {
+        self.atom_has_effects_with_traversing(atom, &self.traversing_utils())
     }
 
     /// Evaluate an atom with the current mode, performing at least a single
@@ -756,8 +764,9 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         // Beta-reduce:
         if let Term::FnRef(fn_def_id) = self.get_term(fn_call.subject) {
             let fn_def = self.get_fn_def(fn_def_id);
-            if fn_def.ty.pure
-                || matches!(self.mode.get(), NormalisationMode::Full { eval_impure_fns: true })
+            if (fn_def.ty.pure
+                || matches!(self.mode.get(), NormalisationMode::Full { eval_impure_fns: true }))
+                && self.try_get_inferred_ty(fn_def_id).is_some()
             {
                 match fn_def.body {
                     FnBody::Defined(defined_fn_def) => {
@@ -831,10 +840,11 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 };
 
             let result = match self.eval_once(atom)? {
-                Some(atom) => {
+                Some(result @ ControlFlow::Break(_)) => {
                     st.set_evaluated();
-                    Ok(atom)
+                    Ok(result)
                 }
+                Some(result @ ControlFlow::Continue(())) => Ok(result),
                 None => Ok(ControlFlow::Break(atom)),
             };
 

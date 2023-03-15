@@ -391,6 +391,13 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     self.mismatching_atoms(src_id, target_id)
                 }
 
+                (Term::Ref(r1), Term::Ref(r2))
+                    if r1.mutable == r2.mutable && r1.kind == r2.kind =>
+                {
+                    self.unify_terms(r1.subject, r2.subject)
+                }
+                (Term::Ref(_), _) | (_, Term::Ref(_)) => self.mismatching_atoms(src_id, target_id),
+
                 (Term::FnCall(c1), Term::FnCall(c2)) => self.unify_fn_calls(c1, c2),
                 (Term::FnCall(_), _) | (_, Term::FnCall(_)) => {
                     self.mismatching_atoms(src_id, target_id)
