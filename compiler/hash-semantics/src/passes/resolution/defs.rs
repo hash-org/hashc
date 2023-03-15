@@ -3,12 +3,17 @@
 //! This module re-traverses existing definitions and resolves their
 //! inner terms, which were left as holes after the discovery pass.
 
+use std::cell::Cell;
+
 use hash_ast::ast::{self, AstNodeRef};
+use hash_reporting::diagnostic::Diagnostics;
 use hash_tir::{
     data::DataDefCtors,
     directives::AppliedDirectives,
     environment::{context::ScopeKind, env::AccessToEnv},
     mods::{ModDefId, ModMemberValue},
+    tys::Ty,
+    utils::common::CommonUtils,
 };
 use hash_utils::store::{PartialStore, SequenceStore, SequenceStoreKey, Store};
 
@@ -17,7 +22,7 @@ use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
-    passes::ast_utils::AstPass,
+    passes::ast_utils::{AstPass, AstUtils},
 };
 
 impl<'tc> ResolutionPass<'tc> {
@@ -54,22 +59,22 @@ impl<'tc> ResolutionPass<'tc> {
         let data_def_id =
             self.ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
         self.scoping().enter_scope(data_def_id.into(), ContextKind::Environment, || {
-            let mut found_error = false;
+            let found_error = &Cell::new(false);
+            let attempt = |err| {
+                if self.try_or_add_error(err).is_none() {
+                    found_error.set(true);
+                }
+            };
 
             match originating_node.body() {
                 // Resolve the data of the definition depending on its kind:
                 ast::Expr::StructDef(struct_def) => {
                     // Type parameters
-                    if self
-                        .try_or_add_error(self.resolve_params_from_ast_params(
-                            &struct_def.ty_params,
-                            true,
-                            data_def_id.into(),
-                        ))
-                        .is_none()
-                    {
-                        found_error = true;
-                    }
+                    attempt(self.resolve_params_from_ast_params(
+                        &struct_def.ty_params,
+                        true,
+                        data_def_id.into(),
+                    ));
 
                     // Struct variant
                     let struct_ctor =
@@ -87,31 +92,21 @@ impl<'tc> ResolutionPass<'tc> {
                         ContextKind::Environment,
                         || {
                             // Struct fields
-                            if self
-                                .try_or_add_error(self.resolve_params_from_ast_params(
-                                    &struct_def.fields,
-                                    false,
-                                    struct_ctor.into(),
-                                ))
-                                .is_none()
-                            {
-                                found_error = true;
-                            }
+                            attempt(self.resolve_params_from_ast_params(
+                                &struct_def.fields,
+                                false,
+                                struct_ctor.into(),
+                            ));
                         },
                     );
                 }
                 ast::Expr::EnumDef(enum_def) => {
                     // Type parameters
-                    if self
-                        .try_or_add_error(self.resolve_params_from_ast_params(
-                            &enum_def.ty_params,
-                            true,
-                            data_def_id.into(),
-                        ))
-                        .is_none()
-                    {
-                        found_error = true;
-                    }
+                    attempt(self.resolve_params_from_ast_params(
+                        &enum_def.ty_params,
+                        true,
+                        data_def_id.into(),
+                    ));
 
                     // Enum variants
                     let data_def_ctors =
@@ -127,15 +122,39 @@ impl<'tc> ResolutionPass<'tc> {
                             ContextKind::Environment,
                             || {
                                 // Variant fields
-                                if self
-                                    .try_or_add_error(self.resolve_params_from_ast_params(
-                                        &variant.fields,
-                                        false,
-                                        (data_def_ctors, i).into(),
-                                    ))
-                                    .is_none()
-                                {
-                                    found_error = true;
+                                attempt(self.resolve_params_from_ast_params(
+                                    &variant.fields,
+                                    false,
+                                    (data_def_ctors, i).into(),
+                                ));
+
+                                // Variant type
+                                attempt(self.resolve_params_from_ast_params(
+                                    &variant.fields,
+                                    false,
+                                    (data_def_ctors, i).into(),
+                                ));
+
+                                // Variant indices
+                                if let Some(variant_ty) = variant.ty.as_ref() {
+                                    if let Some(result) = self.try_or_add_error(
+                                        self.make_ty_from_ast_ty(variant_ty.ast_ref()),
+                                    ) {
+                                        match self.get_ty(result) {
+                                            Ty::Data(d) if d.data_def == data_def_id => {
+                                                // Variant type is the same as the enum type
+                                                self.stores().ctor_defs().modify_fast(data_def_ctors, |ctors| {
+                                                    ctors[i].result_args = d.args;
+                                                });
+                                            }
+                                            _ => {
+                                                self.diagnostics().add_error(
+                                                    SemanticError::EnumTypeAnnotationMustBeOfDefiningType {
+                                                       location: self.node_location(variant_ty.ast_ref())}
+                                                );
+                                            }
+                                        }
+                                    }
                                 }
                             },
                         )
@@ -144,7 +163,7 @@ impl<'tc> ResolutionPass<'tc> {
                 _ => unreachable!("Expected a data definition node"),
             }
 
-            if found_error {
+            if found_error.get() {
                 Err(SemanticError::Signal)
             } else {
                 Ok(())

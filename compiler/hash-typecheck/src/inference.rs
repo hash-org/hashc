@@ -645,10 +645,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         data_args: ArgsId,
         annotation_ty: TyId,
         original: impl Into<Atom>,
-        infer_ctor_and_get_data_args: impl FnOnce(
-            &CtorDef,
-            ArgsId,
-        ) -> TcResult<(ArgsId, HashSet<Symbol>)>,
+        infer_ctor_and_get_data_args: impl FnOnce(&CtorDef, ArgsId, ArgsId) -> TcResult<ArgsId>,
     ) -> TcResult<()> {
         let original_atom = original.into();
         self.normalise_and_check_ty(annotation_ty)?;
@@ -656,9 +653,19 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let ctor = self.get_ctor_def(ctor_def_id);
         let data_def = self.get_data_def(ctor.data_def_id);
 
-        let annotation_data_ty = match self.get_ty(annotation_ty) {
-            Ty::Data(data) if data.data_def == ctor.data_def_id => Some(data),
-            Ty::Hole(_) => None,
+        let mut annotation_data_ty = match self.get_ty(annotation_ty) {
+            Ty::Data(data) if data.data_def == ctor.data_def_id => DataTy {
+                data_def: data_def.id,
+                args: if data.args.len() == 0 {
+                    self.param_utils().instantiate_params_as_holes(data_def.params)
+                } else {
+                    data.args
+                },
+            },
+            Ty::Hole(_) => DataTy {
+                data_def: data_def.id,
+                args: self.param_utils().instantiate_params_as_holes(data_def.params),
+            },
             _ => {
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
@@ -669,28 +676,23 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         };
 
         let term_data_args = if data_args.len() == 0 {
-            match annotation_data_ty {
-                Some(t) => t.args,
-                None => self.param_utils().instantiate_params_as_holes(data_def.params),
-            }
+            self.param_utils().instantiate_params_as_holes(data_def.params)
         } else {
             data_args
         };
 
-        let annotation_data_ty =
-            annotation_data_ty.unwrap_or(DataTy { args: term_data_args, data_def: data_def.id });
-
-        self.uni_ops().unify_args(term_data_args, annotation_data_ty.args)?;
-
         let copied_params = self.sub_ops().copy_params(data_def.params);
-        let (result_data_args, binds) =
-            self.infer_args(term_data_args, copied_params, |inferred_term_data_args| {
-                infer_ctor_and_get_data_args(&ctor, inferred_term_data_args)
-            })?;
 
-        let uni_ops = self.uni_ops();
-        uni_ops.with_binds(binds);
-        uni_ops.unify_args(term_data_args, result_data_args)?;
+        // let term_data_arg_sub =
+        //     self.sub_ops().create_sub_from_args_of_params(term_data_args,
+        // copied_params); self.sub_ops().
+        // apply_sub_to_args_in_place(annotation_data_ty.args, &term_data_arg_sub);
+
+        let result_data_args =
+            self.infer_args(term_data_args, copied_params, |inferred_data_args| {
+                infer_ctor_and_get_data_args(&ctor, annotation_data_ty.args, inferred_data_args)
+            })?;
+        annotation_data_ty.args = result_data_args;
 
         let expected_data_ty =
             self.new_expected_ty_of(original_atom, self.new_ty(annotation_data_ty));
@@ -711,23 +713,35 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             term.data_args,
             annotation_ty,
             original_term_id,
-            |ctor, inferred_data_args| {
-                term.data_args = inferred_data_args;
-                self.stores().term().set(original_term_id, term.into());
-
+            |ctor, inferred_annotation_args, inferred_data_args| {
+                let copied_result_args = self.sub_ops().copy_args(ctor.result_args);
+                self.uni_ops().unify_args(inferred_annotation_args, copied_result_args)?;
                 let data_sub = self.sub_ops().create_sub_from_current_scope();
                 let copied_params = self.sub_ops().copy_params(ctor.params);
+                self.sub_ops().apply_sub_to_params_in_place(copied_params, &data_sub);
+
+                term.data_args = inferred_data_args;
+                self.sub_ops().apply_sub_to_args_in_place(inferred_data_args, &data_sub);
 
                 self.infer_args(term.ctor_args, copied_params, |inferred_ctor_args| {
-                    term.ctor_args = inferred_ctor_args;
-                    self.stores().term().set(original_term_id, term.into());
-
+                    self.uni_ops().unify_args(inferred_annotation_args, copied_result_args)?;
                     let ctor_sub = self.sub_ops().create_sub_from_current_scope();
+
                     let result_data_args = self.sub_ops().apply_sub_to_args(
-                        self.sub_ops().apply_sub_to_args(ctor.result_args, &data_sub),
+                        self.sub_ops().apply_sub_to_args(inferred_annotation_args, &data_sub),
                         &ctor_sub,
                     );
-                    Ok((result_data_args, HashSet::new()))
+
+                    term.data_args = inferred_data_args;
+                    self.sub_ops().apply_sub_to_args_in_place(inferred_data_args, &data_sub);
+                    self.sub_ops().apply_sub_to_args_in_place(inferred_data_args, &ctor_sub);
+
+                    term.ctor_args = inferred_ctor_args;
+                    self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_args, &data_sub);
+                    self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_args, &ctor_sub);
+                    self.stores().term().set(original_term_id, term.into());
+
+                    Ok(result_data_args)
                 })
             },
         )
@@ -1575,26 +1589,43 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             pat.data_args,
             annotation_ty,
             original_pat_id,
-            |ctor, inferred_data_args| {
-                pat.data_args = inferred_data_args;
-                self.stores().pat().set(original_pat_id, pat.into());
-
+            |ctor, inferred_annotation_args, inferred_data_args| {
+                let copied_result_args = self.sub_ops().copy_args(ctor.result_args);
+                self.uni_ops().unify_args(inferred_annotation_args, copied_result_args)?;
                 let data_sub = self.sub_ops().create_sub_from_current_scope();
+                let copied_params = self.sub_ops().copy_params(ctor.params);
+                self.sub_ops().apply_sub_to_params_in_place(copied_params, &data_sub);
+
+                pat.data_args = inferred_data_args;
+                self.sub_ops().apply_sub_to_args_in_place(inferred_data_args, &data_sub);
+
                 self.infer_pat_args(
                     pat.ctor_pat_args,
                     pat.ctor_pat_args_spread,
-                    ctor.params,
+                    copied_params,
                     |inferred_ctor_args| {
-                        pat.ctor_pat_args = inferred_ctor_args;
-                        self.stores().pat().set(original_pat_id, pat.into());
-
+                        let uni_ops = self.uni_ops();
+                        uni_ops.with_binds(self.get_binds_in_pat_args(inferred_ctor_args));
+                        uni_ops.unify_args(inferred_annotation_args, copied_result_args)?;
                         let ctor_sub = self.sub_ops().create_sub_from_current_scope();
+
                         let result_data_args = self.sub_ops().apply_sub_to_args(
-                            self.sub_ops().apply_sub_to_args(ctor.result_args, &data_sub),
+                            self.sub_ops().apply_sub_to_args(inferred_annotation_args, &data_sub),
                             &ctor_sub,
                         );
 
-                        Ok((result_data_args, self.get_binds_in_pat_args(pat.ctor_pat_args)))
+                        pat.data_args = inferred_data_args;
+                        self.sub_ops().apply_sub_to_args_in_place(inferred_data_args, &data_sub);
+                        self.sub_ops().apply_sub_to_args_in_place(inferred_data_args, &ctor_sub);
+
+                        pat.ctor_pat_args = inferred_ctor_args;
+                        self.sub_ops()
+                            .apply_sub_to_pat_args_in_place(inferred_ctor_args, &data_sub);
+                        self.sub_ops()
+                            .apply_sub_to_pat_args_in_place(inferred_ctor_args, &ctor_sub);
+                        self.stores().pat().set(original_pat_id, pat.into());
+
+                        Ok(result_data_args)
                     },
                 )
             },

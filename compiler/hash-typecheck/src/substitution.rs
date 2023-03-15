@@ -5,12 +5,13 @@ use std::{collections::HashSet, ops::ControlFlow};
 use derive_more::Deref;
 use hash_tir::{
     access::AccessTerm,
-    args::ArgsId,
+    args::{ArgsId, PatArgsId},
     environment::context::{BindingKind, Decl},
     fns::FnBody,
     holes::Hole,
     mods::ModDefId,
     params::{ParamId, ParamIndex, ParamsId},
+    pats::Pat,
     sub::Sub,
     symbols::Symbol,
     terms::{Term, TermId},
@@ -263,6 +264,14 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             .into_ok()
     }
 
+    pub fn apply_sub_to_pat_args_in_place(&self, pat_args_id: PatArgsId, sub: &Sub) {
+        self.traversing_utils
+            .visit_pat_args::<!, _>(pat_args_id, &mut |atom| {
+                Ok(self.apply_sub_to_atom_in_place_once(atom, sub))
+            })
+            .into_ok()
+    }
+
     pub fn apply_sub_to_args_in_place(&self, args_id: ArgsId, sub: &Sub) {
         self.traversing_utils
             .visit_args::<!, _>(args_id, &mut |atom| {
@@ -296,16 +305,31 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                     *has_holes = Some(atom);
                     ControlFlow::Break(())
                 }
+                Term::Ctor(ctor_term) => {
+                    if let Some(atom) = self.args_have_holes(ctor_term.ctor_args) {
+                        *has_holes = Some(atom);
+                    }
+                    ControlFlow::Break(())
+                }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::FnDef(_) | Atom::Pat(_) => ControlFlow::Continue(()),
+            Atom::Pat(pat) => match self.get_pat(pat) {
+                Pat::Ctor(ctor_pat) => {
+                    if let Some(atom) = self.pat_args_have_holes(ctor_pat.ctor_pat_args) {
+                        *has_holes = Some(atom);
+                    }
+                    ControlFlow::Break(())
+                }
+                _ => ControlFlow::Continue(()),
+            },
+            Atom::FnDef(_) => ControlFlow::Continue(()),
         }
     }
 
     /// Determines whether the given atom contains one or more holes.
     pub fn atom_has_holes(&self, atom: impl Into<Atom>) -> Option<Atom> {
         let mut has_holes = None;
-        self.traversing_utils()
+        self.traversing_utils
             .visit_atom::<!, _>(atom.into(), &mut |atom| {
                 Ok(self.has_holes_once(atom, &mut has_holes))
             })
@@ -317,8 +341,20 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// holes.
     pub fn mod_def_has_holes(&self, mod_def_id: ModDefId) -> Option<Atom> {
         let mut has_holes = None;
-        self.traversing_utils()
+        self.traversing_utils
             .visit_mod_def::<!, _>(mod_def_id, &mut |atom| {
+                Ok(self.has_holes_once(atom, &mut has_holes))
+            })
+            .into_ok();
+        has_holes
+    }
+
+    /// Determines whether the given set of arguments contains one or more
+    /// holes.
+    pub fn pat_args_have_holes(&self, pat_args_id: PatArgsId) -> Option<Atom> {
+        let mut has_holes = None;
+        self.traversing_utils
+            .visit_pat_args::<!, _>(pat_args_id, &mut |atom| {
                 Ok(self.has_holes_once(atom, &mut has_holes))
             })
             .into_ok();
@@ -329,7 +365,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// holes.
     pub fn args_have_holes(&self, args_id: ArgsId) -> Option<Atom> {
         let mut has_holes = None;
-        self.traversing_utils()
+        self.traversing_utils
             .visit_args::<!, _>(args_id, &mut |atom| Ok(self.has_holes_once(atom, &mut has_holes)))
             .into_ok();
         has_holes
@@ -339,7 +375,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// holes.
     pub fn params_have_holes(&self, params_id: ParamsId) -> Option<Atom> {
         let mut has_holes = None;
-        self.traversing_utils()
+        self.traversing_utils
             .visit_params::<!, _>(params_id, &mut |atom| {
                 Ok(self.has_holes_once(atom, &mut has_holes))
             })
@@ -431,7 +467,8 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// Invariant: the arguments are ordered to match the
     /// parameters.
     pub fn create_sub_from_args_of_params(&self, args_id: ArgsId, params_id: ParamsId) -> Sub {
-        assert!(params_id.len() == args_id.len(), "called with mismatched args and params");
+        // assert!(params_id.len() == args_id.len(), "called with mismatched args and
+        // params");
 
         let mut sub = Sub::identity();
         for (param_id, arg_id) in (params_id.iter()).zip(args_id.iter()) {

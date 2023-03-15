@@ -1,0 +1,19 @@
+eq := mod {
+  subst := <A, P: <u: A> -> Type, a: A, b: A> => #pure (p: a ~ b, m: P<a>) -> P<b> => {
+    match p {
+      Equal::Refl(_) => m
+    }
+  }
+
+  sym := <A, a: A, b: A> => #pure (p: a ~ b) -> b ~ a => {
+    match p {
+      Equal::Refl(_) => p
+    }
+  }
+
+  trans := <A, a: A, b: A, c: A> => #pure (p: a ~ b, q: b ~ c) -> a ~ c => {
+    match p {
+      Equal::Refl(_) => q
+    }
+  }
+}
