@@ -1337,6 +1337,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         let subject_ty = self.new_ty_hole_of(index_term.subject);
         self.infer_term(index_term.subject, subject_ty)?;
+        self.normalise_and_check_ty(subject_ty)?;
 
         // Ensure the index is a usize
         let index_ty =
@@ -1444,6 +1445,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     None => {
                         inhabited.set(true);
                         self.uni_ops().unify_tys(new_unified_ty, unified_ty)?;
+                        self.infer_term(case_data.value, new_unified_ty)?;
                     }
                 }
 
@@ -1451,8 +1453,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             })?
         }
 
-        if !inhabited.get() && matches!(self.get_ty(unified_ty), Ty::Hole(_)) {
-            unified_ty = self.new_expected_ty_of_ty(unified_ty, self.new_never_ty());
+        if matches!(self.get_ty(unified_ty), Ty::Hole(_)) {
+            if !inhabited.get() {
+                unified_ty = self.new_expected_ty_of_ty(unified_ty, self.new_never_ty());
+            } else {
+                unified_ty = self.new_expected_ty_of_ty(unified_ty, self.new_void_ty());
+            }
         }
 
         self.check_by_unify(unified_ty, annotation_ty)?;
