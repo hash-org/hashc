@@ -693,7 +693,7 @@ impl<'l> LayoutComputer<'l> {
         // variants, and try to expand the size of the `prefix_ty` to
         // the alignment size integer.
         //
-        // @@BackendDependant(llvm): this "optimisation" might not necessarily
+        // @@BackendDependent(llvm): this "optimisation" might not necessarily
         // apply to other backends than LLVM, so we might not necessarily
         // want to perform this optimisation.
         let mut starting_alignment = Alignment::from_bytes(256).unwrap();

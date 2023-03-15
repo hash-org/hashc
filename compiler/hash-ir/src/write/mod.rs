@@ -48,6 +48,17 @@ impl WriteIr for AdtId {}
 
 impl WriteIr for Place {}
 
+impl fmt::Debug for ForFormatting<'_, Place> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.ctx.projections().map_fast(self.item.projections, |projections| {
+            f.debug_struct("Place")
+                .field("local", &self.item.local)
+                .field("projections", &projections)
+                .finish()
+        })
+    }
+}
+
 impl fmt::Display for ForFormatting<'_, Place> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.ctx.projections().map_fast(self.item.projections, |projections| {
