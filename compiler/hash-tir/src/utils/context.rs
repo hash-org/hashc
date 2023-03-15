@@ -294,16 +294,21 @@ impl<'env> ContextUtils<'env> {
     /// Add the given substitution to the context.
     pub fn add_sub_to_scope(&self, sub: &Sub) {
         for (name, value) in sub.iter() {
-            self.add_untyped_assignment(name, value);
+            match self.try_get_binding_ty(name) {
+                Some(ty) => {
+                    self.add_assignment(name, ty, value);
+                }
+                None => {
+                    self.add_untyped_assignment(name, value);
+                }
+            }
         }
     }
 
     /// Enter a scope with the given substitution.
     pub fn enter_sub_scope<M>(&self, sub: &Sub, f: impl FnOnce() -> M) -> M {
         self.context().enter_scope(ScopeKind::Sub, || {
-            for (name, value) in sub.iter() {
-                self.context_utils().add_untyped_assignment(name, value);
-            }
+            self.add_sub_to_scope(sub);
             f()
         })
     }

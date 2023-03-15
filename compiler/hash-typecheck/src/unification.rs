@@ -260,7 +260,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                 return Ok(());
             }
         }
-        self.ok_or_mismatching_atoms(a == b, a_id, b_id)
+        if a == b {
+            Ok(())
+        } else {
+            self.mismatching_atoms(a_id, b_id)
+        }
     }
 
     /// Unify two types.
@@ -282,17 +286,26 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             (Ty::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
             (_, Ty::Hole(_b)) => self.unify_hole_with(target_id, src_id),
 
+            (Ty::Var(a), _) if self.pat_binds.get().is_some() => {
+                self.add_unification(a, self.use_ty_as_term(target_id));
+                Ok(())
+            }
+            (_, Ty::Var(b)) if self.pat_binds.get().is_some() => {
+                self.add_unification(b, self.use_ty_as_term(src_id));
+                Ok(())
+            }
+
             // If the source is uninhabitable, then we can unify it with
             // anything
             (_, _) if self.is_uninhabitable(src_id)? => Ok(()),
-
-            (Ty::Eval(t1), Ty::Eval(t2)) => self.unify_terms(t1, t2),
-            (Ty::Eval(_), _) | (_, Ty::Eval(_)) => self.mismatching_atoms(src_id, target_id),
 
             (Ty::Var(a), Ty::Var(b)) => {
                 self.unify_vars(a, b, self.use_ty_as_term(src_id), self.use_ty_as_term(target_id))
             }
             (Ty::Var(_), _) | (_, Ty::Var(_)) => self.mismatching_atoms(src_id, target_id),
+
+            (Ty::Eval(t1), Ty::Eval(t2)) => self.unify_terms(t1, t2),
+            (Ty::Eval(_), _) | (_, Ty::Eval(_)) => self.mismatching_atoms(src_id, target_id),
 
             (Ty::Tuple(t1), Ty::Tuple(t2)) => self.unify_params(t1.data, t2.data, || Ok(())),
             (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => self.mismatching_atoms(src_id, target_id),
@@ -355,12 +368,20 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         match (self.try_use_term_as_ty(src_id), self.try_use_term_as_ty(target_id)) {
             (Some(src_ty), Some(target_ty)) => self.unify_tys(src_ty, target_ty),
             _ => match (src, target) {
-                (Term::Ty(t1), _) => self.unify_terms(self.use_ty_as_term(t1), target_id),
-                (_, Term::Ty(t2)) => self.unify_terms(src_id, self.use_ty_as_term(t2)),
-
                 (Term::Hole(h1), Term::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
                 (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
                 (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
+
+                (Term::Var(a), _) if self.pat_binds.get().is_some() => {
+                    self.add_unification(a, target_id);
+                    Ok(())
+                }
+                (_, Term::Var(b)) if self.pat_binds.get().is_some() => {
+                    self.add_unification(b, src_id);
+                    Ok(())
+                }
+                (Term::Var(a), Term::Var(b)) => self.unify_vars(a, b, src_id, target_id),
+                (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
 
                 (Term::Tuple(t1), Term::Tuple(t2)) => self.unify_args(t1.data, t2.data),
                 (Term::Tuple(_), _) | (_, Term::Tuple(_)) => {
@@ -376,8 +397,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     self.mismatching_atoms(src_id, target_id)
                 }
 
-                (Term::Var(a), Term::Var(b)) => self.unify_vars(a, b, src_id, target_id),
-                (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
+                (Term::Ty(t1), _) => self.unify_terms(self.use_ty_as_term(t1), target_id),
+                (_, Term::Ty(t2)) => self.unify_terms(src_id, self.use_ty_as_term(t2)),
 
                 (Term::Lit(l1), Term::Lit(l2)) => {
                     self.ok_or_mismatching_atoms(self.lits_are_equal(l1, l2), src_id, target_id)

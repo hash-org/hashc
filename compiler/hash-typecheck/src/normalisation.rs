@@ -31,7 +31,7 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    log::{error, info},
+    log::info,
     store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
@@ -289,7 +289,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         &self,
         traversing_utils: &TraversingUtils,
         atom: Atom,
-        has_effects: &mut bool,
+        has_effects: &mut Option<bool>,
     ) -> Result<ControlFlow<()>, !> {
         match atom {
             Atom::Term(term) => match self.get_term(term) {
@@ -314,40 +314,42 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                 Term::FnCall(fn_call) => {
                     // Get its inferred type and check if it is pure
-                    let fn_ty = self.new_ty_hole_of(fn_call.subject);
-                    self.infer_ops().infer_term(fn_call.subject, fn_ty).unwrap_or_else(|_| {
-                        error!(
-                            "Failed to infer type of function call: {}",
-                            self.env().with(fn_call.subject)
-                        )
-                    });
-                    match self.get_ty(fn_ty) {
-                        Ty::Fn(fn_ty) => {
-                            // If it is a function, check if it is pure
-                            if fn_ty.pure {
-                                // Check its args too
-                                traversing_utils
-                                    .visit_args::<!, _>(fn_call.args, &mut |atom| {
-                                        self.atom_has_effects_once(
-                                            traversing_utils,
-                                            atom,
-                                            has_effects,
-                                        )
-                                    })
-                                    .into_ok();
-                                Ok(ControlFlow::Break(()))
-                            } else {
-                                *has_effects = true;
-                                Ok(ControlFlow::Break(()))
+                    match self.try_get_inferred_ty(fn_call.subject) {
+                        Some(fn_ty) => {
+                            match self.get_ty(fn_ty) {
+                                Ty::Fn(fn_ty) => {
+                                    // If it is a function, check if it is pure
+                                    if fn_ty.pure {
+                                        // Check its args too
+                                        traversing_utils
+                                            .visit_args::<!, _>(fn_call.args, &mut |atom| {
+                                                self.atom_has_effects_once(
+                                                    traversing_utils,
+                                                    atom,
+                                                    has_effects,
+                                                )
+                                            })
+                                            .into_ok();
+                                        Ok(ControlFlow::Break(()))
+                                    } else {
+                                        *has_effects = Some(true);
+                                        Ok(ControlFlow::Break(()))
+                                    }
+                                }
+                                _ => {
+                                    // If it is not a function, it is a function reference, which is
+                                    // pure
+                                    info!(
+                                        "Found a function term that is not typed as a function: {}",
+                                        self.env().with(fn_call.subject)
+                                    );
+                                    Ok(ControlFlow::Break(()))
+                                }
                             }
                         }
-                        _ => {
-                            // If it is not a function, it is a function reference, which is
-                            // pure
-                            info!(
-                                "Found a function term that is not typed as a function: {}",
-                                self.env().with(fn_call.subject)
-                            );
+                        None => {
+                            // Unknown
+                            *has_effects = None;
                             Ok(ControlFlow::Break(()))
                         }
                     }
@@ -360,7 +362,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 | Term::Loop(_)
                 | Term::LoopControl(_)
                 | Term::Return(_) => {
-                    *has_effects = true;
+                    *has_effects = Some(true);
                     Ok(ControlFlow::Break(()))
                 }
             },
@@ -385,8 +387,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         &self,
         atom: Atom,
         traversing_utils: &TraversingUtils,
-    ) -> bool {
-        let mut has_effects = false;
+    ) -> Option<bool> {
+        let mut has_effects = Some(false);
         traversing_utils
             .visit_atom::<!, _>(atom, &mut |atom| {
                 self.atom_has_effects_once(traversing_utils, atom, &mut has_effects)
@@ -396,7 +398,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Whether the given atom will produce effects when evaluated.
-    pub fn atom_has_effects(&self, atom: Atom) -> bool {
+    pub fn atom_has_effects(&self, atom: Atom) -> Option<bool> {
         self.atom_has_effects_with_traversing(atom, &self.traversing_utils())
     }
 
@@ -441,7 +443,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     // /// Evaluate an atom fully if it has effects.
     fn eval_if_effectful_and_record(&self, atom: Atom, state: &EvalState) -> Result<Atom, Signal> {
-        if self.atom_has_effects(atom) {
+        if self.atom_has_effects(atom) == Some(true) {
             // If the atom has effects, we need to evaluate it fully
             self.eval_fully_and_record(atom, state)
         } else {
@@ -830,14 +832,15 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
         let st = eval_state();
         let result = traversal.fmap_atom(atom, |atom| -> Result<_, Signal> {
-            let old_mode =
-                if self.mode.get() == NormalisationMode::Weak && self.atom_has_effects(atom) {
-                    // If the atom has effects, we need to evaluate it fully
-                    self.mode.replace(NormalisationMode::Full { eval_impure_fns: true })
-                } else {
-                    // Otherwise, we can just evaluate it normally
-                    self.mode.get()
-                };
+            let old_mode = if self.mode.get() == NormalisationMode::Weak
+                && self.atom_has_effects(atom) == Some(true)
+            {
+                // If the atom has effects, we need to evaluate it fully
+                self.mode.replace(NormalisationMode::Full { eval_impure_fns: true })
+            } else {
+                // Otherwise, we can just evaluate it normally
+                self.mode.get()
+            };
 
             let result = match self.eval_once(atom)? {
                 Some(result @ ControlFlow::Break(_)) => {
@@ -897,7 +900,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
                 Ty::Hole(Hole(var)) | Ty::Var(var) => ctrl_map(self.eval_var(var)),
                 Ty::Fn(_) | Ty::Tuple(_) | Ty::Data(_) | Ty::Universe(_) | Ty::Ref(_) => {
-                    already_evaluated()
+                    ctrl_continue()
                 }
             },
             Atom::FnDef(_) => already_evaluated(),

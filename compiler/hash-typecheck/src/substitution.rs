@@ -423,6 +423,15 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         sub
     }
 
+    pub fn apply_sub_to_sub_in_place(&self, origin: &Sub, target: &Sub) -> Sub {
+        let mut sub = Sub::identity();
+        for (var, value) in target.iter() {
+            let value = self.apply_sub_to_term(value, origin);
+            sub.insert(var, value);
+        }
+        sub
+    }
+
     pub fn apply_sub_to_atom(&self, atom: Atom, sub: &Sub) -> Atom {
         let copy = self.copy_atom(atom);
         self.apply_sub_to_atom_in_place(copy, sub);

@@ -1,19 +1,23 @@
-eq := mod {
-  subst := <A, P: <u: A> -> Type, a: A, b: A> => #pure (p: a ~ b, m: P<a>) -> P<b> => {
-    match p {
-      Equal::Refl(_) => m
-    }
+subst := <A, a: A, b: A> => #pure (P: A -> Type, p: a ~ b, m: {P(a)}) -> {P(b)} => {
+  match p {
+    Equal::Refl(x) => m
   }
+}
 
-  sym := <A, a: A, b: A> => #pure (p: a ~ b) -> b ~ a => {
-    match p {
-      Equal::Refl(_) => p
-    }
+transport := <A, C, a: A, b: A> => (P: (y: A) -> C, p: a ~ b) -> {P(a)} ~ {P(b)} => {
+  match p {
+    Equal::Refl(x) => Equal::Refl(P(x))
   }
+}
 
-  trans := <A, a: A, b: A, c: A> => #pure (p: a ~ b, q: b ~ c) -> a ~ c => {
-    match p {
-      Equal::Refl(_) => q
-    }
+sym := <A, a: A, b: A> => (p: a ~ b) -> b ~ a => {
+  match p {
+    Equal::Refl(_) => p
+  }
+}
+
+trans := <A, a: A, b: A, c: A> => (p: a ~ b, q: b ~ c) -> a ~ c => {
+  match p {
+    Equal::Refl(_) => q
   }
 }
