@@ -12,19 +12,21 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Output, Stdio},
+    time::Duration,
 };
 
 use command::{EscapeArg, LinkCommand};
 use error::{escape_returned_error, AdditionalFailureInfo, LinkerError};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
+    interface::{CompilerInterface, CompilerOutputStream, CompilerStage, StageMetrics},
     settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
     CompilerResult,
 };
 use hash_source::SourceId;
 use hash_target::link::{Cc, LinkerFlavour, Lld};
-use linker::get_linker_with_args;
+use hash_utils::timing::{time_item, AccessToMetrics};
+use linker::{build_linker_args, get_linker};
 use platform::flush_linked_file;
 
 /// The linking context, which contains all of the information
@@ -41,7 +43,23 @@ pub struct LinkerCtx<'ctx> {
     pub stdout: CompilerOutputStream,
 }
 
-pub struct CompilerLinker;
+/// The Hash compiler linking stage. This stage is responsible for
+/// linking all of the object files, libraries and various other
+/// artifacts into a single executable or a library.
+#[derive(Default)]
+pub struct CompilerLinker {
+    /// The metrics for this stage. This records the timings
+    /// of various operations that the linker performs, including
+    /// finding the linker tool, linking, and finally writing the
+    /// articfacts to disk.
+    metrics: StageMetrics,
+}
+
+impl AccessToMetrics for CompilerLinker {
+    fn add_metric(&mut self, name: &'static str, time: Duration) {
+        self.metrics.timings.push((name, time));
+    }
+}
 
 pub trait LinkerCtxQuery: CompilerInterface {
     fn data(&mut self) -> LinkerCtx<'_>;
@@ -50,6 +68,14 @@ pub trait LinkerCtxQuery: CompilerInterface {
 impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
     fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::Link
+    }
+
+    fn metrics(&self) -> StageMetrics {
+        self.metrics.clone()
+    }
+
+    fn reset_metrics(&mut self) {
+        self.metrics = StageMetrics::default();
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
@@ -67,18 +93,22 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
 
         // Get the linker that is going to be used to link
 
-        let (linker_path, flavour) = get_linker_and_flavour(settings);
-        let linker =
-            get_linker_with_args(&linker_path, flavour, settings, workspace, output_path.as_path())
+        let (linker_path, flavour) = get_path_linker_and_flavour(settings);
+        let linker = &mut *time_item(self, "find", |_| get_linker(&linker_path, flavour, settings));
+
+        let linker_command =
+            build_linker_args(linker, flavour, settings, workspace, output_path.as_path())
                 .map_err(|err| vec![err.into()])?;
 
         // print out link-line if specified via `-Cdump=link-line`
         if settings.codegen_settings.dump_link_line {
-            writeln!(stdout, "{linker}").map_err(|err| vec![err.into()])?;
+            writeln!(stdout, "{linker_command}").map_err(|err| vec![err.into()])?;
         }
 
         // Run the linker
-        let program = execute_linker(settings, &linker, output_path.as_path(), temp_path.as_path());
+        let program = time_item(self, "execute", |_| {
+            execute_linker(settings, &linker_command, output_path.as_path(), temp_path.as_path())
+        });
 
         // @@Cleanup: would be nice to avoid the `vec![]` everywhere
         match program {
@@ -121,7 +151,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
                     };
 
                     // construct the error and report it
-                    let command = linker.command();
+                    let command = linker_command.command();
                     let error = LinkerError::LinkingFailed {
                         linker_path: &linker_path,
                         exit_status: program.status,
@@ -151,7 +181,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
 /// configuration settings, the function will panic.
 ///
 /// @@Future: allow user to specify which linker to use when linking.
-fn get_linker_and_flavour(settings: &CompilerSettings) -> (PathBuf, LinkerFlavour) {
+fn get_path_linker_and_flavour(settings: &CompilerSettings) -> (PathBuf, LinkerFlavour) {
     let target_flavour = settings.target().linker_flavour;
     let path = match target_flavour {
         LinkerFlavour::Gnu(Cc::Yes, _) | LinkerFlavour::Darwin(Cc::Yes, _) => PathBuf::from("cc"),
