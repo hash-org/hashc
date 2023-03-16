@@ -223,13 +223,16 @@ impl Workspace {
     /// final binary to. This is workspace dependant, since the executables
     /// might not even be emitted for a workspaces that don't "require"
     /// executables.
-    pub fn executable_path(&self) -> PathBuf {
+    pub fn executable_path(&self, settings: &CompilerSettings) -> PathBuf {
+        let target = settings.target();
+
         self.executable_path.as_ref().map_or_else(
             || {
                 // If no executable path was specified, we create one from the
                 // output directory and the name of the entry point file.
                 let mut path = self.output_directory.clone();
                 path.push(&self.name);
+                path.set_extension(target.exe_suffix.as_ref());
                 path
             },
             |path| path.clone(),

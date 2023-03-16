@@ -86,15 +86,15 @@ fn main() {
 
     match entry_point {
         Some(path) => {
-            let new_state = compiler.run_on_filename(path, ModuleKind::EntryPoint, compiler_state);
-            let workspace = new_state.workspace();
-            let settings = new_state.settings();
+            let ctx = compiler.run_on_filename(path, ModuleKind::EntryPoint, compiler_state);
+            let workspace = ctx.workspace();
+            let settings = ctx.settings();
 
             // If the stage is set to `exe`, this means that we want to run the
             // produced executable from the building process. This is essentially
             // a shorthand for `hash build <file> && ./<exe_path>`.
-            if workspace.yields_executable(settings) {
-                let path = workspace.executable_path();
+            if workspace.yields_executable(settings) && !ctx.has_errors() {
+                let path = workspace.executable_path(settings);
 
                 // We need to convert the path to a string so that we can pass it
                 // to the `Command` struct.

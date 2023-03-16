@@ -71,7 +71,7 @@ impl From<LinkerError<'_>> for Report {
         let mut report = Report::new();
 
         let title = match error {
-            LinkerError::NotFound { path } => format!("linker `{path:?}` not found"),
+            LinkerError::NotFound { path } => format!("linker `{}` not found", path.display()),
             LinkerError::UnsupportedArch { arch, os } => {
                 format!("unsupported architecture `{arch}` for `{os}`")
             }

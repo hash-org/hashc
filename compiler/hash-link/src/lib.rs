@@ -62,7 +62,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
 
         // Get the executable path that is going to be
         // emitted by the compiler.
-        let output_path = workspace.executable_path();
+        let output_path = workspace.executable_path(settings);
         let temp_path = workspace.temporary_storage("link").map_err(|err| vec![err.into()])?;
 
         // Get the linker that is going to be used to link

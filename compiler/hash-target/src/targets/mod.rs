@@ -2,6 +2,7 @@
 //! compilation platform.
 
 mod apple_base;
+mod windows_msvc_base;
 
 use crate::Target;
 
@@ -25,4 +26,5 @@ macro_rules! register_targets {
 register_targets! {
     ("x86_64-apple-darwin", x86_apple_darwin),
     ("aarch64-apple-darwin", aarch64_apple_darwin),
+    ("x86_64-pc-windows-msvc", x86_64_pc_windows_msvc),
 }

@@ -2,7 +2,7 @@
 //! to linking executables that includes "platform" specific linker
 //! options.
 
-use std::{io, path::Path, process::Output};
+use std::{fs, io, path::Path, process::Output};
 
 use crate::command::LinkCommand;
 
