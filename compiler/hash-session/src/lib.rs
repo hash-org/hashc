@@ -53,7 +53,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::<IrGen>::default(),
         Box::<IrOptimiser>::default(),
         Box::<CodeGenPass>::default(),
-        Box::new(CompilerLinker),
+        Box::<CompilerLinker>::default(),
     ]
 }
 

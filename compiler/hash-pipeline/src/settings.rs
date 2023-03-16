@@ -475,7 +475,11 @@ pub enum CompilerStageKind {
     /// this will invoke the compiler through the full pipeline,
     /// whilst also potentially creating an executable.
     #[default]
-    Full,
+    Build,
+
+    /// This is a special stage that is used to instruct the compiler
+    /// to immediately run the emitted executable.
+    Exe,
 }
 
 impl CompilerStageKind {
@@ -489,7 +493,8 @@ impl CompilerStageKind {
             CompilerStageKind::Lower => "lower",
             CompilerStageKind::CodeGen => "codegen",
             CompilerStageKind::Link => "link",
-            CompilerStageKind::Full => "full",
+            CompilerStageKind::Build => "build",
+            CompilerStageKind::Exe => "exe",
         }
     }
 }

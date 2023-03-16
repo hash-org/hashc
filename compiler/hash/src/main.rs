@@ -4,11 +4,17 @@
 mod crash_handler;
 mod logger;
 
-use std::panic;
+use std::{
+    panic,
+    process::{Command, Stdio},
+};
 
 use hash_pipeline::{
-    args::parse_settings_from_args, interface::CompilerOutputStream, settings::CompilerSettings,
-    workspace::Workspace, Compiler,
+    args::parse_settings_from_args,
+    interface::{CompilerInterface, CompilerOutputStream},
+    settings::CompilerSettings,
+    workspace::Workspace,
+    Compiler,
 };
 use hash_reporting::report::Report;
 use hash_session::{emit_fatal_error, make_stages, CompilerSession};
@@ -83,7 +89,29 @@ fn main() {
 
     match entry_point {
         Some(path) => {
-            compiler.run_on_filename(path, ModuleKind::EntryPoint, compiler_state);
+            let ctx = compiler.run_on_filename(path, ModuleKind::EntryPoint, compiler_state);
+            let workspace = ctx.workspace();
+            let settings = ctx.settings();
+
+            // If the stage is set to `exe`, this means that we want to run the
+            // produced executable from the building process. This is essentially
+            // a shorthand for `hash build <file> && ./<exe_path>`.
+            if workspace.yields_executable(settings) && !ctx.has_errors() {
+                let path = workspace.executable_path(settings);
+
+                // We need to convert the path to a string so that we can pass it
+                // to the `Command` struct.
+                let path = path.to_str().unwrap();
+
+                // @@Todo: ideally, we should be able to parse the arguments that are specified
+                // after `--` into the spawned process.
+                Command::new(path)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .spawn()
+                    .unwrap();
+            }
         }
         None => {
             hash_interactive::init(compiler, compiler_state);

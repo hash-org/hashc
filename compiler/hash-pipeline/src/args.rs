@@ -34,7 +34,10 @@ pub fn parse_settings_from_args() -> Result<CompilerSettings, PipelineError> {
             // `ast-gen`...
             match arg {
                 "build" => {
-                    settings.stage = CompilerStageKind::Full;
+                    settings.stage = CompilerStageKind::Build;
+                }
+                "exe" => {
+                    settings.stage = CompilerStageKind::Exe;
                 }
                 "run" => {
                     settings.stage = CompilerStageKind::Analysis;

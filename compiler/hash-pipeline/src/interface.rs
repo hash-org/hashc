@@ -138,6 +138,11 @@ pub trait CompilerInterface {
     /// Get a mutable reference to the current [CompilerSettings].
     fn settings_mut(&mut self) -> &mut CompilerSettings;
 
+    /// Check if the context has accumulated any errors.
+    fn has_errors(&self) -> bool {
+        self.diagnostics().iter().any(|report| report.is_error())
+    }
+
     /// Get the current [Report]s that have been collected by the compiler.
     fn diagnostics(&self) -> &[Report];
 

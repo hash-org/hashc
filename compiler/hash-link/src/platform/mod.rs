@@ -41,9 +41,9 @@ pub fn flush_linked_file(_: &io::Result<Output>, _: &Path) -> io::Result<()> {
 /// compiler-bug-linker-bug-windows-kernel-bug/amp>
 #[cfg(windows)]
 pub fn flush_linked_file(command_output: &io::Result<Output>, filename: &Path) -> io::Result<()> {
-    if let &Ok(ref out) = command_output {
+    if let Ok(out) = command_output {
         if out.status.success() {
-            if let Ok(of) = fs::OpenOptions::new().write(true).open(filename) {
+            if let Ok(of) = std::fs::OpenOptions::new().write(true).open(filename) {
                 of.sync_all()?;
             }
         }

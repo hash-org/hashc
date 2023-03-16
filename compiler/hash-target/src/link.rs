@@ -21,7 +21,7 @@ pub enum Lld {
 }
 
 /// Represents that various "Lld" flavours that are available.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum LldFlavour {
     /// The darwin specific linker.
     Ld64,
@@ -62,6 +62,11 @@ impl LinkerFlavour {
     /// Check if the [LinkFlavour] is GNU-like.
     pub fn is_gnu_like(&self) -> bool {
         matches!(self, LinkerFlavour::Gnu(..))
+    }
+
+    /// Check if the [LinkFlavour] is MSVC-like.
+    pub fn is_msvc_like(&self) -> bool {
+        matches!(self, LinkerFlavour::Msvc(..))
     }
 
     /// Compute the [LldFlavour] for this [LinkerFlavour].

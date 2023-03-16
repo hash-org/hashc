@@ -102,7 +102,7 @@ impl dyn Linker + '_ {
 /// Using the provided linker path, and the specified [LinkerFlavour], this
 /// function will create a [Linker] that can then be used to perform various
 /// linking operations.
-fn get_linker<'a>(
+pub(super) fn get_linker<'a>(
     path: &Path,
     flavour: LinkerFlavour,
     settings: &'a CompilerSettings,
@@ -125,25 +125,37 @@ fn get_linker<'a>(
 
     // Due to Windows being crazy^TM, we need tell MSVC to link with the default
     // libraries (vcruntime, msvcrt, etc).
-    if matches!(flavour, LinkerFlavour::Msvc(..)) && target.vendor == "uwp" {
+    if flavour.is_msvc_like() {
         if let Some(tool) = msvc_tool {
-            let tool_path = tool.path();
+            // For UWP(Windows Store) apps, we need to comply with the Windows App
+            // Certification Kit, which means that we need to link with the
+            // Windows Store libraries.
+            if target.vendor == "uwp" {
+                let tool_path = tool.path();
 
-            if let Some(root_path) = tool_path.ancestors().nth(4) {
-                // We need to add the store library path to the linker search path.
-                let arch = match target.arch {
-                    TargetArch::X86 => Some("x64"),
-                    TargetArch::X86_64 => Some("x86"),
-                    TargetArch::Aarch64 => Some("arm64"),
-                    TargetArch::Arm => Some("arm"),
-                    TargetArch::Unknown => None,
-                };
+                if let Some(root_path) = tool_path.ancestors().nth(4) {
+                    // We need to add the store library path to the linker search path.
+                    let arch = match target.arch {
+                        TargetArch::X86 => Some("x64"),
+                        TargetArch::X86_64 => Some("x86"),
+                        TargetArch::Aarch64 => Some("arm64"),
+                        TargetArch::Arm => Some("arm"),
+                        TargetArch::Unknown => None,
+                    };
 
-                if let Some(arch_name) = arch {
-                    let mut arg = OsString::from("/LIBPATH:");
-                    arg.push(format!("{}\\lib\\{}\\store", root_path.display(), arch_name));
-                    command.arg(&arg);
+                    if let Some(arch_name) = arch {
+                        let mut arg = OsString::from("/LIBPATH:");
+                        arg.push(format!("{}\\lib\\{}\\store", root_path.display(), arch_name));
+                        command.arg(&arg);
+                    }
                 }
+            }
+
+            command.args(tool.args());
+
+            // Add any environment variables that the tool provides to our command
+            for (key, value) in tool.env() {
+                command.env(key, value);
             }
         }
     }
@@ -163,15 +175,13 @@ fn get_linker<'a>(
 
 /// Given the [CompilerSettings], the [Workspace], and the specified file
 /// path, we create a new linker instance.
-pub(crate) fn get_linker_with_args<'a>(
-    path: &Path,
+pub(crate) fn build_linker_args<'a>(
+    linker: &mut dyn Linker,
     flavour: LinkerFlavour,
     settings: &'a CompilerSettings,
     workspace: &Workspace,
     output_filename: &Path,
 ) -> LinkerResult<'a, LinkCommand> {
-    let linker = &mut *get_linker(path, flavour, settings);
-
     // Compute the output kind from the session
     let target = settings.target();
 
