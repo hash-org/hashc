@@ -106,7 +106,7 @@ impl<I: CompilerInterface> Compiler<I> {
         // Iterate over each stage and print out the timings.
         for stage in stages {
             // This shouldn't occur as we don't record this metric in this way
-            if kind == CompilerStageKind::Full {
+            if kind >= CompilerStageKind::Build {
                 continue;
             }
 
@@ -145,7 +145,7 @@ impl<I: CompilerInterface> Compiler<I> {
         stream_writeln!(
             stderr,
             "{: <width$}: {total:?}\n",
-            format!("{}", CompilerStageKind::Full),
+            format!("{}", CompilerStageKind::Build),
             width = longest_key
         );
     }

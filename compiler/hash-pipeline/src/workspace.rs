@@ -258,7 +258,7 @@ impl Workspace {
 
     /// Check whether this [Workspace] will yield an executable.
     pub fn yields_executable(&self, settings: &CompilerSettings) -> bool {
-        self.source_map.entry_point().is_some() && settings.stage == CompilerStageKind::Full
+        settings.stage >= CompilerStageKind::Build && self.source_map.entry_point().is_some()
     }
 
     /// Get the bitcode path for a particular [ModuleId]. This does not
