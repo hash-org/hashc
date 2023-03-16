@@ -4,7 +4,10 @@
 mod crash_handler;
 mod logger;
 
-use std::{panic, process::Command};
+use std::{
+    panic,
+    process::{Command, Stdio},
+};
 
 use hash_pipeline::{
     args::parse_settings_from_args,
@@ -102,8 +105,12 @@ fn main() {
 
                 // @@Todo: ideally, we should be able to parse the arguments that are specified
                 // after `--` into the spawned process.
-                let stream = Command::new(path).spawn().unwrap().wait_with_output().unwrap();
-                print!("{}", String::from_utf8_lossy(&stream.stdout));
+                Command::new(path)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .spawn()
+                    .unwrap();
             }
         }
         None => {
