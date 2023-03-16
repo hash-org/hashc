@@ -253,7 +253,7 @@ impl DefinedPrimitives {
                 );
 
                 env.data_utils().create_data_def(eq_sym, params, |_| {
-                    vec![(refl_sym, refl_params, refl_result_args)]
+                    vec![(refl_sym, refl_params, Some(refl_result_args))]
                 })
             },
         }

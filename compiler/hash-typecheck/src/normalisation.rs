@@ -12,7 +12,7 @@ use hash_tir::{
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     environment::context::ScopeKind,
-    fns::{FnBody, FnCallTerm},
+    fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
     params::ParamIndex,
@@ -31,13 +31,12 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    log::{debug, info},
-    store::{PartialStore, SequenceStore, SequenceStoreKey, Store},
+    log::info,
+    store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 use crate::{
     errors::{TcError, TcResult},
-    inference::Inference,
     AccessToTypechecking, IntrinsicAbilitiesWrapper,
 };
 
@@ -167,6 +166,49 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         Self { env, mode: Cell::new(NormalisationMode::Weak) }
     }
 
+    /// Change the normalisation mode.
+    pub fn with_mode(&self, mode: NormalisationMode) -> &Self {
+        self.mode.set(mode);
+        self
+    }
+
+    /// Normalise the given atom, in-place.
+    ///
+    /// returns `true` if the atom was normalised.
+    pub fn normalise_in_place(&self, atom: Atom) -> TcResult<bool> {
+        if let Some(result) = self.potentially_normalise(atom)? {
+            match atom {
+                Atom::Term(term_id) => {
+                    self.stores().term().set(term_id, self.get_term(self.to_term(result)));
+                }
+                Atom::Ty(ty_id) => {
+                    self.stores().ty().set(ty_id, self.get_ty(self.to_ty(result)));
+                }
+                // Fn defs are already normalised.
+                Atom::FnDef(_) => return Ok(false),
+                Atom::Pat(pat_id) => {
+                    self.stores().pat().set(pat_id, self.get_pat(self.to_pat(result)));
+                }
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Normalise the given atom.
+    pub fn potentially_normalise(&self, atom: Atom) -> TcResult<Option<Atom>> {
+        match self.potentially_eval(atom) {
+            Ok(t) => Ok(t),
+            Err(e) => match e {
+                Signal::Break | Signal::Continue | Signal::Return(_) => {
+                    panic!("Got signal when normalising: {e:?}")
+                }
+                Signal::Err(e) => Err(e),
+            },
+        }
+    }
+
     /// Normalise the given atom.
     pub fn normalise(&self, atom: Atom) -> TcResult<Atom> {
         match self.eval(atom) {
@@ -189,16 +231,16 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         }
     }
 
-    /// Change the normalisation mode.
-    pub fn with_mode(&self, mode: NormalisationMode) -> &Self {
-        self.mode.set(mode);
-        self
-    }
-
-    /// Try to use the given atom as a type.
-    pub fn to_ty(&self, atom: Atom) -> TyId {
-        self.maybe_to_ty(atom)
-            .unwrap_or_else(|| panic!("Cannot convert {} to a type", self.env().with(atom)))
+    /// Normalise the given atom, and try to use it as a function definition.
+    pub fn maybe_to_fn_def(&self, atom: Atom) -> Option<FnDefId> {
+        match atom {
+            Atom::Term(term) => match self.get_term(term) {
+                Term::FnRef(fn_def_id) => Some(fn_def_id),
+                _ => None,
+            },
+            Atom::FnDef(fn_def_id) => Some(fn_def_id),
+            _ => None,
+        }
     }
 
     /// Normalise the given atom, and try to use it as a term.
@@ -211,17 +253,43 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         }
     }
 
+    /// Normalise the given atom, and try to use it as a pattern.
+    pub fn maybe_to_pat(&self, atom: Atom) -> Option<PatId> {
+        match atom {
+            Atom::Pat(pat) => Some(pat),
+            _ => None,
+        }
+    }
+
     /// Normalise the given atom, and try to use it as a term.
     pub fn to_term(&self, atom: Atom) -> TermId {
         self.maybe_to_term(atom)
             .unwrap_or_else(|| panic!("Cannot convert {} to a term", self.env().with(atom)))
     }
 
+    /// Normalise the given atom, and try to use it as a function definition.
+    pub fn to_fn_def(&self, atom: Atom) -> FnDefId {
+        self.maybe_to_fn_def(atom)
+            .unwrap_or_else(|| panic!("Cannot convert {} to an fn def", self.env().with(atom)))
+    }
+
+    /// Try to use the given atom as a type.
+    pub fn to_ty(&self, atom: Atom) -> TyId {
+        self.maybe_to_ty(atom)
+            .unwrap_or_else(|| panic!("Cannot convert {} to a type", self.env().with(atom)))
+    }
+
+    /// Try to use the given atom as a pattern.
+    pub fn to_pat(&self, atom: Atom) -> PatId {
+        self.maybe_to_pat(atom)
+            .unwrap_or_else(|| panic!("Cannot convert {} to a pattern", self.env().with(atom)))
+    }
+
     fn atom_has_effects_once(
         &self,
         traversing_utils: &TraversingUtils,
         atom: Atom,
-        has_effects: &mut bool,
+        has_effects: &mut Option<bool>,
     ) -> Result<ControlFlow<()>, !> {
         match atom {
             Atom::Term(term) => match self.get_term(term) {
@@ -246,34 +314,42 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                 Term::FnCall(fn_call) => {
                     // Get its inferred type and check if it is pure
-                    let fn_ty = self.get_inferred_ty(fn_call.subject);
-                    match self.get_ty(fn_ty) {
-                        Ty::Fn(fn_ty) => {
-                            // If it is a function, check if it is pure
-                            if fn_ty.pure {
-                                // Check its args too
-                                traversing_utils
-                                    .visit_args::<!, _>(fn_call.args, &mut |atom| {
-                                        self.atom_has_effects_once(
-                                            traversing_utils,
-                                            atom,
-                                            has_effects,
-                                        )
-                                    })
-                                    .into_ok();
-                                Ok(ControlFlow::Break(()))
-                            } else {
-                                *has_effects = true;
-                                Ok(ControlFlow::Break(()))
+                    match self.try_get_inferred_ty(fn_call.subject) {
+                        Some(fn_ty) => {
+                            match self.get_ty(fn_ty) {
+                                Ty::Fn(fn_ty) => {
+                                    // If it is a function, check if it is pure
+                                    if fn_ty.pure {
+                                        // Check its args too
+                                        traversing_utils
+                                            .visit_args::<!, _>(fn_call.args, &mut |atom| {
+                                                self.atom_has_effects_once(
+                                                    traversing_utils,
+                                                    atom,
+                                                    has_effects,
+                                                )
+                                            })
+                                            .into_ok();
+                                        Ok(ControlFlow::Break(()))
+                                    } else {
+                                        *has_effects = Some(true);
+                                        Ok(ControlFlow::Break(()))
+                                    }
+                                }
+                                _ => {
+                                    // If it is not a function, it is a function reference, which is
+                                    // pure
+                                    info!(
+                                        "Found a function term that is not typed as a function: {}",
+                                        self.env().with(fn_call.subject)
+                                    );
+                                    Ok(ControlFlow::Break(()))
+                                }
                             }
                         }
-                        _ => {
-                            // If it is not a function, it is a function reference, which is
-                            // pure
-                            info!(
-                                "Found a function term that is not typed as a function: {}",
-                                self.env().with(fn_call.subject)
-                            );
+                        None => {
+                            // Unknown
+                            *has_effects = None;
                             Ok(ControlFlow::Break(()))
                         }
                     }
@@ -286,7 +362,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 | Term::Loop(_)
                 | Term::LoopControl(_)
                 | Term::Return(_) => {
-                    *has_effects = true;
+                    *has_effects = Some(true);
                     Ok(ControlFlow::Break(()))
                 }
             },
@@ -307,15 +383,23 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Whether the given atom will produce effects when evaluated.
-    fn atom_has_effects(&self, atom: Atom) -> bool {
-        let mut has_effects = false;
-        let traversing_utils = self.traversing_utils();
+    pub fn atom_has_effects_with_traversing(
+        &self,
+        atom: Atom,
+        traversing_utils: &TraversingUtils,
+    ) -> Option<bool> {
+        let mut has_effects = Some(false);
         traversing_utils
             .visit_atom::<!, _>(atom, &mut |atom| {
-                self.atom_has_effects_once(&traversing_utils, atom, &mut has_effects)
+                self.atom_has_effects_once(traversing_utils, atom, &mut has_effects)
             })
             .into_ok();
         has_effects
+    }
+
+    /// Whether the given atom will produce effects when evaluated.
+    pub fn atom_has_effects(&self, atom: Atom) -> Option<bool> {
+        self.atom_has_effects_with_traversing(atom, &self.traversing_utils())
     }
 
     /// Evaluate an atom with the current mode, performing at least a single
@@ -348,31 +432,11 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         result
     }
 
-    /// Same as `eval_fully`, but also sets the `evaluated` flag in the given
-    /// `EvalState`.
-    fn eval_fully_and_record(&self, atom: Atom, state: &EvalState) -> Result<Atom, Signal> {
-        let old_mode = self.mode.replace(NormalisationMode::Full { eval_impure_fns: true });
-        let result = self.eval_and_record(atom, state);
-        self.mode.set(old_mode);
-        result
-    }
-
-    // /// Evaluate an atom fully if it has effects.
-    fn eval_if_effectful_and_record(&self, atom: Atom, state: &EvalState) -> Result<Atom, Signal> {
-        if self.atom_has_effects(atom) {
-            // If the atom has effects, we need to evaluate it fully
-            self.eval_fully_and_record(atom, state)
-        } else {
-            // Otherwise, we can just return it as is
-            Ok(atom)
-        }
-    }
-
     /// Same as `eval_nested`, but with a given evaluation state.
     fn eval_nested_and_record(&self, atom: Atom, state: &EvalState) -> Result<Atom, Signal> {
         match self.mode.get() {
             NormalisationMode::Full { eval_impure_fns: _ } => self.eval_and_record(atom, state),
-            NormalisationMode::Weak => self.eval_if_effectful_and_record(atom, state),
+            NormalisationMode::Weak => Ok(atom),
         }
     }
 
@@ -435,7 +499,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
         for arg_i in args.iter() {
             let arg = self.stores().args().get_element(arg_i);
-            if arg.target == target {
+            if arg.target == target || ParamIndex::Position(arg.id.1) == target {
                 return arg.value.into();
             }
         }
@@ -447,7 +511,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let value = self.to_term(value);
         for arg_i in args.iter() {
             let arg = self.stores().args().get_element(arg_i);
-            if arg.target == target {
+            if arg.target == target || ParamIndex::Position(arg.id.1) == target {
                 self.stores().args().modify_fast(arg_i.0, |mut args| args[arg_i.1].value = value);
                 return;
             }
@@ -502,21 +566,13 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a `typeof` term.
-    fn eval_type_of(&self, type_of_term: TypeOfTerm) -> Result<Atom, Signal> {
+    fn eval_type_of(&self, type_of_term: TypeOfTerm) -> AtomEvaluation {
         // Infer the type of the term:
         match self.try_get_inferred_ty(type_of_term.term) {
-            Some(ty) => Ok(ty.into()),
+            Some(ty) => evaluation_to(ty),
             None => {
-                debug!(
-                    "Not found type of {} while inferring, so inferring it now",
-                    self.env().with(type_of_term.term)
-                );
-                // Ask the type checker to infer the type:
-                let Inference(inferred_term, inferred_ty) =
-                    self.infer_ops().infer_term(type_of_term.term, self.new_ty_hole())?;
-                self.register_atom_inference(type_of_term.term, inferred_term, inferred_ty);
-
-                Ok(inferred_ty.into())
+                // Not evaluated yet
+                stuck_evaluating()
             }
         }
     }
@@ -690,8 +746,9 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         // Beta-reduce:
         if let Term::FnRef(fn_def_id) = self.get_term(fn_call.subject) {
             let fn_def = self.get_fn_def(fn_def_id);
-            if fn_def.ty.pure
-                || matches!(self.mode.get(), NormalisationMode::Full { eval_impure_fns: true })
+            if (fn_def.ty.pure
+                || matches!(self.mode.get(), NormalisationMode::Full { eval_impure_fns: true }))
+                && self.try_get_inferred_ty(fn_def_id).is_some()
             {
                 match fn_def.body {
                     FnBody::Defined(defined_fn_def) => {
@@ -754,25 +811,32 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         traversal.set_visit_fns_once(false);
 
         let st = eval_state();
+        let nested = Cell::new(false);
         let result = traversal.fmap_atom(atom, |atom| -> Result<_, Signal> {
-            let old_mode =
-                if self.mode.get() == NormalisationMode::Weak && self.atom_has_effects(atom) {
-                    // If the atom has effects, we need to evaluate it fully
-                    self.mode.replace(NormalisationMode::Full { eval_impure_fns: true })
-                } else {
-                    // Otherwise, we can just evaluate it normally
-                    self.mode.get()
-                };
+            let old_mode = if self.mode.get() == NormalisationMode::Weak
+                && self.atom_has_effects(atom) == Some(true)
+            {
+                // If the atom has effects, we need to evaluate it fully
+                self.mode.replace(NormalisationMode::Full { eval_impure_fns: true })
+            } else {
+                // Otherwise, we can just evaluate it normally
+                self.mode.get()
+            };
 
-            let result = match self.eval_once(atom)? {
-                Some(atom) => {
+            let result = match self.eval_once(atom, nested.get())? {
+                Some(result @ ControlFlow::Break(_)) => {
                     st.set_evaluated();
-                    Ok(atom)
+                    Ok(result)
                 }
+                Some(result @ ControlFlow::Continue(())) => Ok(result),
                 None => Ok(ControlFlow::Break(atom)),
             };
 
             self.mode.set(old_mode);
+
+            if self.mode.get() == NormalisationMode::Weak {
+                nested.set(true);
+            }
             result
         })?;
 
@@ -784,22 +848,18 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Invariant: if `self.atom_has_effects(atom)`, then `self.eval_once(atom)
     /// != ctrl_continue()`.
-    fn eval_once(&self, atom: Atom) -> Evaluation<ControlFlow<Atom>> {
+    fn eval_once(&self, atom: Atom, nested: bool) -> Evaluation<ControlFlow<Atom>> {
+        if nested && self.mode.get() == NormalisationMode::Weak {
+            // If we're in weak mode, we don't want to evaluate nested atoms
+            return already_evaluated();
+        }
+
         match atom {
             Atom::Term(term) => match self.get_term(term) {
                 // Types
                 Term::Ty(_) => ctrl_continue(),
 
-                // Introduction forms:
-                Term::Ref(_)
-                | Term::Tuple(_)
-                | Term::FnRef(_)
-                | Term::Ctor(_)
-                | Term::Lit(_)
-                | Term::Array(_) => ctrl_continue(),
-
-                // Potentially reducible forms:
-                Term::TypeOf(term) => ctrl_map_full(self.eval_type_of(term)),
+                Term::TypeOf(term) => ctrl_map(self.eval_type_of(term)),
                 Term::Unsafe(unsafe_expr) => ctrl_map(self.eval_unsafe(unsafe_expr)),
                 Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
                 Term::FnCall(fn_call) => ctrl_map(self.eval_fn_call(fn_call)),
@@ -808,6 +868,14 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::Deref(deref_term) => ctrl_map(self.eval_deref(deref_term)),
                 Term::Access(access_term) => ctrl_map(self.eval_access(access_term)),
                 Term::Index(index_term) => ctrl_map(self.eval_index(index_term)),
+
+                // Introduction forms:
+                Term::Ref(_)
+                | Term::FnRef(_)
+                | Term::Lit(_)
+                | Term::Array(_)
+                | Term::Tuple(_)
+                | Term::Ctor(_) => ctrl_continue(),
 
                 // Imperative:
                 Term::LoopControl(loop_control) => Err(self.eval_loop_control(loop_control)),
@@ -821,7 +889,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
                 Ty::Hole(Hole(var)) | Ty::Var(var) => ctrl_map(self.eval_var(var)),
                 Ty::Fn(_) | Ty::Tuple(_) | Ty::Data(_) | Ty::Universe(_) | Ty::Ref(_) => {
-                    already_evaluated()
+                    ctrl_continue()
                 }
             },
             Atom::FnDef(_) => already_evaluated(),

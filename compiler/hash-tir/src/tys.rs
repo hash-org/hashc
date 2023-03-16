@@ -25,7 +25,7 @@ pub struct UniverseTy {
     /// the term `Universe(n)` itself.
     ///
     /// Root universe is Universe(0).
-    pub size: usize,
+    pub size: Option<usize>,
 }
 
 /// Represents a type in a Hash program.
@@ -68,8 +68,9 @@ pub struct TypeOfTerm {
 impl fmt::Display for &UniverseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.size {
-            0 => write!(f, "Type"),
-            n => write!(f, "Type({n})"),
+            None => write!(f, "Type(*)"),
+            Some(0) => write!(f, "Type"),
+            Some(n) => write!(f, "Type({n})"),
         }
     }
 }

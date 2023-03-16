@@ -6,9 +6,10 @@ use hash_source::{
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
+use super::traversing::Atom;
 use crate::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
-    data::{DataDef, DataDefId, DataTy},
+    data::{CtorDef, CtorDefId, DataDef, DataDefId, DataTy},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
     holes::Hole,
@@ -182,6 +183,11 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().data_def().get(data_def_id)
     }
 
+    /// Get a data constructor by its ID.
+    fn get_ctor_def(&self, data_ctor_id: CtorDefId) -> CtorDef {
+        self.stores().ctor_defs().get_element(data_ctor_id)
+    }
+
     /// Get a function definition by its ID.
     fn get_fn_def(&self, fn_def_id: FnDefId) -> FnDef {
         self.stores().fn_def().get(fn_def_id)
@@ -266,14 +272,19 @@ pub trait CommonUtils: AccessToEnv {
     /// Create a new type.
     fn new_ty(&self, ty: impl Into<Ty>) -> TyId {
         let ty = ty.into();
-        let location = match ty {
-            Ty::Eval(term) => self.get_location(term),
-            Ty::Var(v) => self.get_location(v),
-            _ => None,
+        let (ast_info, location) = match ty {
+            Ty::Eval(term) => {
+                (self.stores().ast_info().terms().get_node_by_data(term), self.get_location(term))
+            }
+            Ty::Var(v) => (None, self.get_location(v)),
+            _ => (None, None),
         };
         let created = self.stores().ty().create(ty);
         if let Some(location) = location {
             self.stores().location().add_location_to_target(created, location);
+        }
+        if let Some(ast_info) = ast_info {
+            self.stores().ast_info().tys().insert(ast_info, created);
         }
         created
     }
@@ -281,22 +292,24 @@ pub trait CommonUtils: AccessToEnv {
     /// Create a new term.
     fn new_term(&self, term: impl Into<Term>) -> TermId {
         let term = term.into();
-        let location = match term {
-            Term::Ty(ty) => self.get_location(ty),
-            Term::FnRef(f) => self.get_location(f),
-            Term::Var(v) => self.get_location(v),
-            _ => None,
+        let (ast_info, location) = match term {
+            Term::Ty(ty) => {
+                (self.stores().ast_info().tys().get_node_by_data(ty), self.get_location(ty))
+            }
+            Term::FnRef(f) => {
+                (self.stores().ast_info().fn_defs().get_node_by_data(f), self.get_location(f))
+            }
+            Term::Var(v) => (None, self.get_location(v)),
+            _ => (None, None),
         };
         let created = self.stores().term().create(term);
         if let Some(location) = location {
             self.stores().location().add_location_to_target(created, location);
         }
+        if let Some(ast_info) = ast_info {
+            self.stores().ast_info().terms().insert(ast_info, created);
+        }
         created
-    }
-
-    /// Create a new term.
-    fn new_term_from(&self, term: impl Into<Term>) -> TermId {
-        self.stores().term().create(term.into())
     }
 
     /// Create a new term list.
@@ -333,6 +346,74 @@ pub trait CommonUtils: AccessToEnv {
     /// Create a new type hole.
     fn new_ty_hole(&self) -> TyId {
         self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()))
+    }
+
+    /// Create a new expected type for typing the given term.
+    fn new_expected_ty_of_ty(&self, ty: TyId, ty_of_ty: TyId) -> TyId {
+        self.stores().location().copy_location(ty, ty_of_ty);
+        if let Some(ast_info) = self.stores().ast_info().tys().get_node_by_data(ty) {
+            self.stores().ast_info().tys().insert(ast_info, ty_of_ty);
+        }
+        ty_of_ty
+    }
+
+    /// Create a new term that inherits location and AST info from the given
+    /// term.
+    fn new_term_from(&self, source: TermId, term: impl Into<Term>) -> TermId {
+        let created = self.new_term(term);
+        self.stores().location().copy_location(source, created);
+        if let Some(ast_info) = self.stores().ast_info().terms().get_node_by_data(source) {
+            self.stores().ast_info().terms().insert(ast_info, created);
+        }
+        created
+    }
+
+    /// Create a new expected type for typing the given term.
+    fn new_expected_ty_of(&self, atom: impl Into<Atom>, ty: TyId) -> TyId {
+        let atom: Atom = atom.into();
+        let (ast_info, location) = match atom {
+            Atom::Term(origin_term) => match self.get_term(origin_term) {
+                Term::Ty(ty) => {
+                    (self.stores().ast_info().tys().get_node_by_data(ty), self.get_location(ty))
+                }
+                Term::FnRef(f) => {
+                    (self.stores().ast_info().fn_defs().get_node_by_data(f), self.get_location(f))
+                }
+                Term::Var(v) => (None, self.get_location(v)),
+                _ => (
+                    self.stores().ast_info().terms().get_node_by_data(origin_term),
+                    self.stores().location().get_location(origin_term),
+                ),
+            },
+            Atom::Ty(origin_ty) => (
+                self.stores().ast_info().tys().get_node_by_data(origin_ty),
+                self.stores().location().get_location(origin_ty),
+            ),
+            Atom::FnDef(_) => todo!(),
+            Atom::Pat(origin_pat) => (
+                self.stores().ast_info().pats().get_node_by_data(origin_pat),
+                self.stores().location().get_location(origin_pat),
+            ),
+        };
+        if let Some(location) = location {
+            self.stores().location().add_location_to_target(ty, location);
+        }
+        if let Some(ast_info) = ast_info {
+            self.stores().ast_info().tys().insert(ast_info, ty);
+        }
+        ty
+    }
+
+    /// Create a new type hole for typing the given term.
+    fn new_ty_hole_of_ty(&self, src: TyId) -> TyId {
+        let ty = self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()));
+        self.new_expected_ty_of_ty(src, ty)
+    }
+
+    /// Create a new type hole for typing the given term.
+    fn new_ty_hole_of(&self, src: TermId) -> TyId {
+        let ty = self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()));
+        self.new_expected_ty_of(src, ty)
     }
 
     /// Create a new empty argument list.
@@ -374,13 +455,17 @@ pub trait CommonUtils: AccessToEnv {
 
     /// Create a type of types, i.e. small `Type`.
     fn new_small_universe_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Universe(UniverseTy { size: 0 }))
+        self.stores().ty().create(Ty::Universe(UniverseTy { size: Some(0) }))
     }
 
     /// Create a large type of types, i.e. `Type(n)` for some natural number
     /// `n`.
     fn new_universe_ty(&self, n: usize) -> TyId {
-        self.stores().ty().create(Ty::Universe(UniverseTy { size: n }))
+        self.stores().ty().create(Ty::Universe(UniverseTy { size: Some(n) }))
+    }
+
+    fn new_flexible_universe_ty(&self) -> TyId {
+        self.stores().ty().create(Ty::Universe(UniverseTy { size: None }))
     }
 
     /// Create a new empty tuple type.

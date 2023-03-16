@@ -68,9 +68,13 @@ impl<'tc> AstPass for InferencePass<'tc> {
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::diagnostics::error::SemanticResult<()> {
         // Infer the expression
+        let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
         let (term, _) = self.infer_fully(
-            (self.ast_info().terms().get_data_by_node(node.id()).unwrap(), self.new_ty_hole()),
-            |(term_id, ty_id)| self.infer_ops().infer_term(term_id, ty_id).map(|x| x.into()),
+            (term, self.new_ty_hole_of(term)),
+            |(term_id, ty_id)| {
+                self.infer_ops().infer_term(term_id, ty_id)?;
+                Ok((term_id, ty_id))
+            },
             |(term_id, ty_id)| {
                 self.sub_ops().atom_has_holes(term_id).or(self.sub_ops().atom_has_holes(ty_id))
             },
@@ -87,16 +91,15 @@ impl<'tc> AstPass for InferencePass<'tc> {
         let _ = self.infer_fully(
             self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap(),
             |mod_def_id| {
-                self.infer_ops()
-                    .infer_mod_def(
-                        mod_def_id,
-                        match self.get_current_progress() {
-                            AnalysisStage::HeaderInference => FnInferMode::Header,
-                            AnalysisStage::BodyInference => FnInferMode::Body,
-                            _ => unreachable!(),
-                        },
-                    )
-                    .map(|()| mod_def_id)
+                self.infer_ops().infer_mod_def(
+                    mod_def_id,
+                    match self.get_current_progress() {
+                        AnalysisStage::HeaderInference => FnInferMode::Header,
+                        AnalysisStage::BodyInference => FnInferMode::Body,
+                        _ => unreachable!(),
+                    },
+                )?;
+                Ok(mod_def_id)
             },
             |mod_def_id| self.sub_ops().mod_def_has_holes(mod_def_id),
         )?;

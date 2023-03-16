@@ -1111,7 +1111,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
                     self.eps_mut().set(fn_ty_term, kind)
                 };
 
-                // If the entry point was declared twice, then we 
+                // If the entry point was declared twice, then we
                 // return an error.
                 result.ok_or_else(|| {
                     TcError::MultipleEntryPoints {
@@ -1416,7 +1416,7 @@ impl<'tc> AstVisitor for TcVisitor<'tc> {
         &self,
         node: AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, node)?;
+        let walk::EnumDefEntry { name, fields, ty: _ } = walk::walk_enum_def_entry(self, node)?;
 
         // Create the enum variant parameters
         let fields = if fields.is_empty() {

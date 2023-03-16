@@ -111,6 +111,9 @@ pub enum TcError {
     /// More type annotations are needed to infer the type of the given term.
     NeedMoreTypeAnnotationsToInfer { atom: Atom },
 
+    /// More type annotations are needed to infer the type of the given term.
+    NeedMoreTypeAnnotationsToUnify { src: Atom, target: Atom },
+
     /// The given arguments do not match the length of the target parameters.
     WrongArgLength { params_id: ParamsId, args_id: SomeParamsOrArgsId },
 
@@ -150,6 +153,9 @@ pub enum TcError {
 
     /// Invalid range pattern literal
     InvalidRangePatternLiteral { location: SourceLocation },
+
+    /// Invalid range pattern literal
+    TryingToReferenceLocalsInType { ty: TyId },
 
     /// Cannot use the given term in a type position.
     CannotUseInTyPos { location: LocationTarget, inferred_ty: TyId },
@@ -622,6 +628,28 @@ impl<'tc> TcErrorReporter<'tc> {
                         location,
                         format!("got {} {name_of_args} here", b.len()),
                     );
+                }
+            }
+            TcError::NeedMoreTypeAnnotationsToUnify { src, target } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "cannot unify `{}` with `{}`",
+                    self.env().with(*src),
+                    self.env().with(*target)
+                ));
+                if let Some(location) = locations.get_location(src) {
+                    error.add_labelled_span(location, "cannot unify this type");
+                }
+                if let Some(location) = locations.get_location(target) {
+                    error.add_labelled_span(location, "with this type");
+                }
+            }
+            TcError::TryingToReferenceLocalsInType { ty } => {
+                let error = reporter.error().code(HashErrorCode::DisallowedType).title(format!(
+                    "cannot use locals from this block in type `{}`",
+                    self.env().with(*ty)
+                ));
+                if let Some(location) = locations.get_location(ty) {
+                    error.add_labelled_span(location, "type containing locals");
                 }
             }
         }

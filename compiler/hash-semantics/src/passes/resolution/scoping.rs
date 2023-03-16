@@ -140,15 +140,16 @@ impl<'tc> Scoping<'tc> {
                 looking_in,
             })?;
 
-        if self.context().get_current_scope_kind().is_constant() {
-            // If we are in a constant scope, we need to check that the binding
-            // is also in a constant scope.
-            if !self.context().get_binding(symbol).kind.is_constant() {
-                return Err(SemanticError::CannotUseNonConstantItem {
-                    location: self.source_location(span),
-                });
-            }
-        }
+        // @@Todo: Ensure that we are in the correct context for the binding.
+        // if self.context().get_current_scope_kind().is_constant() {
+        //     // If we are in a constant scope, we need to check that the binding
+        //     // is also in a constant scope.
+        //     if !self.context().get_binding(symbol).kind.is_constant() {
+        //         return Err(SemanticError::CannotUseNonConstantItem {
+        //             location: self.source_location(span),
+        //         });
+        //     }
+        // }
 
         Ok(symbol)
     }

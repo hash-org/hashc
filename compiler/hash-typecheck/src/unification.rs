@@ -1,62 +1,138 @@
 //! Operations for unifying types and terms.
 
-use std::cell::Cell;
+use std::{cell::Cell, collections::HashSet};
 
 use derive_more::Deref;
 use hash_tir::{
-    args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
-    data::{DataDefCtors, DataTy},
-    environment::context::{ParamOrigin, ScopeKind},
-    fns::{FnBody, FnTy},
+    args::ArgsId,
+    data::DataDefCtors,
+    environment::context::ScopeKind,
+    fns::{FnCallTerm, FnTy},
+    holes::Hole,
     lits::Lit,
-    locations::LocationTarget,
-    params::{ParamData, ParamsId},
-    pats::{Pat, PatId, PatListId},
-    refs::RefTy,
+    params::ParamsId,
     sub::Sub,
     symbols::Symbol,
     terms::{Term, TermId},
-    tuples::TupleTy,
     tys::{Ty, TyId},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey};
+use hash_utils::store::{CloneStore, SequenceStoreKey, Store};
+use once_cell::unsync::OnceCell;
 
 use crate::{
     errors::{TcError, TcResult},
-    inference::Inference,
-    params::ParamError,
     AccessToTypechecking,
 };
 
-/// Represents a unification result.
-#[derive(Debug, Clone)]
-pub struct Uni<T> {
-    pub result: T,
-    pub sub: Sub,
+#[derive(Deref)]
+pub struct UnificationOps<'a, T: AccessToTypechecking> {
+    #[deref]
+    env: &'a T,
+    add_to_ctx: Cell<bool>,
+    modify_terms: Cell<bool>,
+    pat_binds: OnceCell<HashSet<Symbol>>,
 }
 
-impl<T> Uni<T> {
-    /// Create a unification result that is successful and has no substitution.
-    pub fn ok(result: T) -> TcResult<Self> {
-        Ok(Uni { sub: Sub::identity(), result })
+impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
+    pub fn new(env: &'tc T) -> Self {
+        Self {
+            env,
+            add_to_ctx: Cell::new(true),
+            modify_terms: Cell::new(true),
+            pat_binds: OnceCell::new(),
+        }
     }
 
-    /// Create a unification result that is successful and has the given
-    /// substitution.
-    pub fn ok_with(sub: Sub, result: T) -> TcResult<Self> {
-        Ok(Uni { sub, result })
+    /// Disable modifying terms
+    pub fn with_no_modify(&self) -> &Self {
+        self.modify_terms.set(false);
+        self
     }
 
-    /// Create a unification result that is blocked.
-    pub fn blocked(loc: impl Into<LocationTarget>) -> TcResult<Self> {
-        Err(TcError::Blocked(loc.into()))
+    /// Disable adding unifications to the context.
+    pub fn with_binds(&self, binds: HashSet<Symbol>) -> &Self {
+        self.pat_binds.set(binds).unwrap();
+        self
     }
 
-    /// Create a unification result that is an error of mismatching terms.
-    ///
-    /// Invariant: `src_id` and `target_id` must be of the same atom kind.
-    pub fn mismatch_atoms(src_id: impl Into<Atom>, target_id: impl Into<Atom>) -> TcResult<Self> {
+    /// Disable adding unifications to the context.
+    pub fn with_no_ctx(&self) -> &Self {
+        self.add_to_ctx.set(false);
+        self
+    }
+
+    /// Unify two atoms.
+    pub fn unify_atoms(&self, src: Atom, target: Atom) -> TcResult<()> {
+        match (src, target) {
+            (Atom::Ty(src_id), Atom::Ty(target_id)) => {
+                self.unify_tys(src_id, target_id)?;
+                Ok(())
+            }
+            (Atom::Term(src_id), Atom::Term(target_id)) => {
+                self.unify_terms(src_id, target_id)?;
+                Ok(())
+            }
+            (Atom::Pat(_src_id), Atom::Pat(_target_id)) => {
+                // self.unify_pats(src_id, target_id)?;
+                Ok(())
+            }
+            _ => panic!("unify_atoms: mismatching atoms"),
+        }
+    }
+
+    /// Add the given substitutions to the context.
+    pub fn add_unification_from_sub(&self, sub: &Sub) {
+        if self.add_to_ctx.get() {
+            self.context_utils().add_sub_to_scope(sub);
+        }
+    }
+
+    /// Add the given unification to the context, and create a substitution
+    /// from it.
+    pub fn add_unification(&self, src: Symbol, target: impl Into<Atom>) -> Sub {
+        let sub = Sub::from_pairs([(src, self.norm_ops().to_term(target.into()))]);
+        self.add_unification_from_sub(&sub);
+        sub
+    }
+
+    /// Emit an error that the unification cannot continue because it is
+    /// blocked.
+    pub fn blocked<U>(&self, src_id: impl Into<Atom>, target_id: impl Into<Atom>) -> TcResult<U> {
+        Err(TcError::NeedMoreTypeAnnotationsToUnify {
+            src: src_id.into(),
+            target: target_id.into(),
+        })
+    }
+
+    /// Emit an error that the two atoms are mismatching if `cond` is false,
+    pub fn ok_or_mismatching_atoms(
+        &self,
+        cond: bool,
+        src_id: impl Into<Atom>,
+        target_id: impl Into<Atom>,
+    ) -> TcResult<()> {
+        if cond {
+            Ok(())
+        } else {
+            match (src_id.into(), target_id.into()) {
+                (Atom::Term(a), Atom::Term(b)) => Err(TcError::UndecidableEquality { a, b }),
+                (Atom::Ty(a), Atom::Ty(b)) => {
+                    Err(TcError::MismatchingTypes { expected: b, actual: a, inferred_from: None })
+                }
+                (Atom::FnDef(a), Atom::FnDef(b)) => Err(TcError::MismatchingFns { a, b }),
+                (Atom::Pat(a), Atom::Pat(b)) => Err(TcError::MismatchingPats { a, b }),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    /// Emit an error that the two atoms are mismatching.
+    pub fn mismatching_atoms<U>(
+        &self,
+        src_id: impl Into<Atom>,
+        target_id: impl Into<Atom>,
+    ) -> TcResult<U> {
         match (src_id.into(), target_id.into()) {
             (Atom::Term(a), Atom::Term(b)) => Err(TcError::UndecidableEquality { a, b }),
             (Atom::Ty(a), Atom::Ty(b)) => {
@@ -68,226 +144,193 @@ impl<T> Uni<T> {
         }
     }
 
-    pub fn map_result<U>(self, f: impl FnOnce(T) -> U) -> Uni<U> {
-        Uni { result: f(self.result), sub: self.sub }
-    }
-
-    pub fn map_into<U>(self) -> Uni<U>
-    where
-        T: Into<U>,
-    {
-        Uni { result: self.result.into(), sub: self.sub }
-    }
-}
-
-impl Uni<TyId> {
-    /// Create a unification result that is an error of mismatching types if
-    /// `cond` is false, and successful otherwise.
-    pub fn ok_iff_types_match(cond: bool, src_id: TyId, target_id: TyId) -> TcResult<Uni<TyId>> {
-        if cond {
-            Uni::ok(target_id)
-        } else {
-            Uni::mismatch_atoms(src_id, target_id)
-        }
-    }
-}
-
-impl Uni<TermId> {
-    /// Create a unification result that is an error of mismatching terms if
-    /// `cond` is false, and successful otherwise.
-    pub fn ok_iff_atoms_match<I: Into<Atom>>(
-        cond: bool,
-        src_id: I,
-        target_id: I,
-    ) -> TcResult<Uni<I>> {
-        if cond {
-            Uni::ok(target_id)
-        } else {
-            Uni::mismatch_atoms(src_id, target_id)
-        }
-    }
-}
-
-#[derive(Deref)]
-pub struct UnificationOps<'a, T: AccessToTypechecking> {
-    #[deref]
-    env: &'a T,
-    add_to_ctx: Cell<bool>,
-}
-
-impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
-    pub fn new(env: &'tc T) -> Self {
-        Self { env, add_to_ctx: Cell::new(true) }
-    }
-
-    pub fn with_no_ctx(&self) -> &Self {
-        self.add_to_ctx.set(false);
-        self
-    }
-
-    pub fn unify_atoms(&self, src: Atom, target: Atom) -> TcResult<Uni<Atom>> {
-        match (src, target) {
-            (Atom::Ty(src_id), Atom::Ty(target_id)) => {
-                Ok(self.unify_tys(src_id, target_id)?.map_into())
-            }
-            (Atom::Term(src_id), Atom::Term(target_id)) => {
-                Ok(self.unify_terms(src_id, target_id)?.map_into())
-            }
-            _ => panic!("unify_atoms: mismatching atoms"),
-        }
-    }
-
-    pub fn add_unification_from_sub(&self, sub: &Sub) {
-        if self.add_to_ctx.get() {
-            self.context_utils().add_sub_to_scope(sub);
-        }
-    }
-
-    pub fn add_unification(&self, src: Symbol, target: impl Into<Atom>) -> Sub {
-        let sub = Sub::from_pairs([(src, self.norm_ops().to_term(target.into()))]);
-        self.add_unification_from_sub(&sub);
-        sub
-    }
-
-    /// Unified two function types.
+    /// Unify two function types.
     pub fn unify_fn_tys(
         &self,
-        f1: FnTy,
-        f2: FnTy,
-        src_id: impl Into<Atom>,
-        target_id: impl Into<Atom>,
-    ) -> TcResult<Uni<FnTy>> {
+        mut f1: FnTy,
+        mut f2: FnTy,
+        src_id: TyId,
+        target_id: TyId,
+    ) -> TcResult<()> {
         if !self.fn_modalities_match(f1, f2) {
-            Uni::mismatch_atoms(src_id, target_id)
+            self.mismatching_atoms(src_id, target_id)
         } else {
             // Unify parameters and apply to return types
-            let (return_ty, shadowed_sub) =
-                self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
-                    let _ = self.unify_params(f2.params, f1.params, ParamOrigin::FnTy(f1))?;
-                    let Uni { result: return_ty, sub: _return_ty_sub } =
-                        self.unify_tys(f1.return_ty, f2.return_ty)?;
-                    let scope_sub = self.sub_ops().create_sub_from_current_scope();
-                    let shadowed_sub = self
-                        .sub_ops()
-                        .hide_param_binds(f1.params.iter().chain(f2.params.iter()), &scope_sub);
+            self.unify_params(f1.params, f2.params, || self.unify_tys(f1.return_ty, f2.return_ty))?;
 
-                    Ok((return_ty, shadowed_sub))
-                })?;
+            let forward_sub = self.sub_ops().create_sub_from_param_names(f1.params, f2.params);
+            f2.return_ty = self.sub_ops().apply_sub_to_ty(f2.return_ty, &forward_sub);
 
-            // Add to context
-            self.add_unification_from_sub(&shadowed_sub);
-            Ok(Uni { result: FnTy { return_ty, params: f1.params, ..f1 }, sub: shadowed_sub })
+            let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
+            f1.return_ty = self.sub_ops().apply_sub_to_ty(f1.return_ty, &backward_sub);
+
+            self.stores().ty().set(src_id, f1.into());
+            self.stores().ty().set(target_id, f2.into());
+
+            Ok(())
+        }
+    }
+
+    /// Unify two holes.
+    ///
+    /// This modifies src to have the contents of dest, and adds a unification
+    /// to the context.
+    pub fn unify_hole_with(
+        &self,
+        hole_src: impl Into<Atom>,
+        sub_dest: impl Into<Atom>,
+    ) -> TcResult<()> {
+        let norm_ops = self.norm_ops();
+        let hole_atom: Atom = hole_src.into();
+        let sub_dest_atom: Atom = sub_dest.into();
+
+        let hole_symbol = match hole_atom {
+            Atom::Term(term_id) => {
+                let dest_term = self.get_term(norm_ops.to_term(sub_dest_atom));
+                match self.get_term(term_id) {
+                    Term::Hole(Hole(h)) => {
+                        if self.modify_terms.get() {
+                            self.stores().term().modify_fast(term_id, |term| {
+                                *term = dest_term;
+                            });
+                        }
+                        h
+                    }
+                    _ => panic!("unify_hole_with: expected hole for hole src"),
+                }
+            }
+            Atom::Ty(ty_id) => {
+                let dest_ty = self.get_ty(norm_ops.to_ty(sub_dest_atom));
+                match self.get_ty(ty_id) {
+                    Ty::Hole(Hole(h)) => {
+                        if self.modify_terms.get() {
+                            self.stores().ty().modify_fast(ty_id, |ty| {
+                                *ty = dest_ty;
+                            });
+                        }
+                        h
+                    }
+                    _ => panic!("unify_hole_with: expected hole for hole src"),
+                }
+            }
+            Atom::FnDef(_) | Atom::Pat(_) => {
+                panic!("unify_hole_with: expected term or ty for hole src")
+            }
+        };
+        self.add_unification(hole_symbol, sub_dest_atom);
+        Ok(())
+    }
+
+    /// Unify two holes.
+    pub fn unify_holes(
+        &self,
+        h1: Hole,
+        h2: Hole,
+        src_id: impl Into<Atom>,
+        target_id: impl Into<Atom>,
+    ) -> TcResult<()> {
+        if h1 == h2 {
+            Ok(())
+        } else {
+            // We can't unify two holes, so we have to block
+            self.blocked(src_id, target_id)
+        }
+    }
+
+    pub fn unify_tys_self_contained(&self, src_id: TyId, target_id: TyId) -> TcResult<(TyId, Sub)> {
+        let initial = target_id;
+        let sub = self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
+            self.unify_tys(src_id, target_id)?;
+            Ok(self.sub_ops().create_sub_from_current_scope())
+        })?;
+        let subbed_initial = self.sub_ops().apply_sub_to_ty(initial, &sub);
+        self.add_unification_from_sub(&sub);
+        Ok((subbed_initial, sub))
+    }
+
+    pub fn unify_vars(&self, a: Symbol, b: Symbol, a_id: TermId, b_id: TermId) -> TcResult<()> {
+        if let Some(binds) = self.pat_binds.get() {
+            if binds.contains(&a) {
+                self.add_unification(b, a_id);
+                return Ok(());
+            }
+            if binds.contains(&b) {
+                self.add_unification(a, b_id);
+                return Ok(());
+            }
+        }
+        if a == b {
+            Ok(())
+        } else {
+            self.mismatching_atoms(a_id, b_id)
         }
     }
 
     /// Unify two types.
-    pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<Uni<TyId>> {
+    pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<()> {
+        if src_id == target_id {
+            return Ok(());
+        }
+
         let norm_ops = self.norm_ops();
 
-        let src_id = norm_ops.to_ty(norm_ops.normalise(src_id.into())?);
-        let target_id = norm_ops.to_ty(norm_ops.normalise(target_id.into())?);
+        norm_ops.normalise_in_place(src_id.into())?;
+        norm_ops.normalise_in_place(target_id.into())?;
 
         let src = self.get_ty(src_id);
         let target = self.get_ty(target_id);
 
-        let result = match (src, target) {
-            (Ty::Hole(a), Ty::Hole(b)) => {
-                if a == b {
-                    // No-op
-                    Uni::ok(target_id)
-                } else {
-                    // We can't unify two holes, so we have to block
-                    Uni::blocked(target_id)
-                }
+        match (src, target) {
+            (Ty::Hole(h1), Ty::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
+            (Ty::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
+            (_, Ty::Hole(_b)) => self.unify_hole_with(target_id, src_id),
+
+            (Ty::Var(a), _) if self.pat_binds.get().is_some() => {
+                self.add_unification(a, self.use_ty_as_term(target_id));
+                Ok(())
             }
-            (Ty::Hole(a), _) => {
-                let sub = Sub::from_pairs([(a.0, self.new_term(target_id))]);
-                if self.add_to_ctx.get() {
-                    self.context_utils().add_untyped_assignment(a.0, self.new_term(target_id));
-                }
-                Uni::ok_with(sub, target_id)
+            (_, Ty::Var(b)) if self.pat_binds.get().is_some() => {
+                self.add_unification(b, self.use_ty_as_term(src_id));
+                Ok(())
             }
-            (_, Ty::Hole(b)) => {
-                let sub = Sub::from_pairs([(b.0, self.new_term(src_id))]);
-                if self.add_to_ctx.get() {
-                    self.context_utils().add_untyped_assignment(b.0, self.new_term(src_id));
-                }
-                Uni::ok_with(sub, src_id)
+
+            // If the source is uninhabitable, then we can unify it with
+            // anything
+            (_, _) if self.is_uninhabitable(src_id)? => Ok(()),
+
+            (Ty::Var(a), Ty::Var(b)) => {
+                self.unify_vars(a, b, self.use_ty_as_term(src_id), self.use_ty_as_term(target_id))
             }
-            (_, _) if self.is_uninhabitable(src_id)? => Uni::ok(target_id),
+            (Ty::Var(_), _) | (_, Ty::Var(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Eval(t1), Ty::Eval(t2)) => {
-                let uni = self.unify_terms(t1, t2)?;
-                // Ensure it is a type
-                let result_ty = self.infer_ops().use_term_in_ty_pos(uni.result)?;
-                Ok(uni.map_result(|_| result_ty))
+            (Ty::Eval(t1), Ty::Eval(t2)) => self.unify_terms(t1, t2),
+            (Ty::Eval(_), _) | (_, Ty::Eval(_)) => self.mismatching_atoms(src_id, target_id),
+
+            (Ty::Tuple(t1), Ty::Tuple(t2)) => self.unify_params(t1.data, t2.data, || Ok(())),
+            (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => self.mismatching_atoms(src_id, target_id),
+
+            (Ty::Fn(f1), Ty::Fn(f2)) => self.unify_fn_tys(f1, f2, src_id, target_id),
+            (Ty::Fn(_), _) | (_, Ty::Fn(_)) => self.mismatching_atoms(src_id, target_id),
+
+            (Ty::Ref(r1), Ty::Ref(r2)) if r1.mutable == r2.mutable && r1.kind == r2.kind => {
+                self.unify_tys(r1.ty, r2.ty)
             }
-            (Ty::Eval(_), _) => Uni::mismatch_atoms(src_id, target_id),
-            (_, Ty::Eval(_)) => Uni::mismatch_atoms(src_id, target_id),
+            (Ty::Ref(_), _) | (_, Ty::Ref(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Var(a), Ty::Var(b)) => Uni::ok_iff_types_match(a == b, src_id, target_id),
-            (Ty::Var(_), _) | (_, Ty::Var(_)) => Uni::mismatch_atoms(src_id, target_id),
-
-            (Ty::Tuple(t1), Ty::Tuple(t2)) => Ok(self
-                .unify_params(t1.data, t2.data, ParamOrigin::TupleTy(t1))?
-                .map_result(|data| self.new_ty(TupleTy { data }))),
-            (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => Uni::mismatch_atoms(src_id, target_id),
-
-            (Ty::Fn(f1), Ty::Fn(f2)) => {
-                if !self.fn_modalities_match(f1, f2) {
-                    Uni::mismatch_atoms(src_id, target_id)
-                } else {
-                    self.context().enter_scope(f2.into(), || {
-                        let Uni { sub: param_sub, result: params } =
-                            self.unify_params(f1.params, f2.params, ParamOrigin::FnTy(f1))?;
-
-                        let return_ty_1_subbed =
-                            self.sub_ops().apply_sub_to_ty(f1.return_ty, &param_sub);
-                        let return_ty_2_subbed =
-                            self.sub_ops().apply_sub_to_ty(f2.return_ty, &param_sub);
-
-                        let Uni { result: return_ty, sub: return_ty_sub } =
-                            self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
-
-                        Ok(Uni {
-                            result: self.new_ty(FnTy { return_ty, params, ..f1 }),
-                            sub: return_ty_sub.join(&param_sub),
-                        })
-                    })
-                }
+            (Ty::Data(d1), Ty::Data(d2)) if d1.data_def == d2.data_def => {
+                self.unify_args(d1.args, d2.args)
             }
-            (Ty::Fn(_), _) | (_, Ty::Fn(_)) => Uni::mismatch_atoms(src_id, target_id),
+            (Ty::Data(_), _) | (_, Ty::Data(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Ref(r1), Ty::Ref(r2)) => {
-                if r1.mutable == r2.mutable && r1.kind == r2.kind {
-                    let result = self.unify_tys(r1.ty, r2.ty)?;
-                    Ok(result.map_result(|ty| self.new_ty(RefTy { ty, ..r1 })))
-                } else {
-                    Uni::mismatch_atoms(src_id, target_id)
-                }
-            }
-            (Ty::Ref(_), _) | (_, Ty::Ref(_)) => Uni::mismatch_atoms(src_id, target_id),
-
-            (Ty::Data(d1), Ty::Data(d2)) => {
-                if d1.data_def == d2.data_def {
-                    Ok(self
-                        .unify_args(d1.args, d2.args)?
-                        .map_result(|args| self.new_ty(DataTy { data_def: d1.data_def, args })))
-                } else {
-                    Uni::mismatch_atoms(src_id, target_id)
-                }
-            }
-            (Ty::Data(_), _) | (_, Ty::Data(_)) => Uni::mismatch_atoms(src_id, target_id),
-
-            (Ty::Universe(u1), Ty::Universe(u2)) => {
-                Uni::ok_iff_types_match(u1.size == u2.size, src_id, target_id)
-            }
-        }?;
-
-        self.stores().location().copy_location(src_id, result.result);
-        Ok(result)
+            (Ty::Universe(u1), Ty::Universe(u2)) => self.ok_or_mismatching_atoms(
+                u1.size.is_none() || u2.size.is_none() || u1.size.unwrap() <= u2.size.unwrap(),
+                src_id,
+                target_id,
+            ),
+        }
     }
 
+    /// Whether two literals are equal.
     pub fn lits_are_equal(&self, src: Lit, target: Lit) -> bool {
         match (src, target) {
             (Lit::Int(i1), Lit::Int(i2)) => i1.value() == i2.value(),
@@ -298,302 +341,173 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         }
     }
 
+    pub fn unify_fn_calls(&self, src: FnCallTerm, target: FnCallTerm) -> TcResult<()> {
+        self.unify_terms(src.subject, target.subject)?;
+        self.unify_args(src.args, target.args)?;
+        Ok(())
+    }
+
     /// Unify two terms.
     ///
     /// Unless these are types, they must be definitionally (up to beta
     /// reduction) equal.
-    pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<Uni<TermId>> {
+    pub fn unify_terms(&self, src_id: TermId, target_id: TermId) -> TcResult<()> {
         if src_id == target_id {
-            return Uni::ok(src_id);
+            return Ok(());
         }
 
-        // @@Todo: document and implement remaining cases
+        let norm_ops = self.norm_ops();
 
-        let src_id = self.norm_ops().to_term(self.norm_ops().normalise(src_id.into())?);
-        let target_id = self.norm_ops().to_term(self.norm_ops().normalise(target_id.into())?);
+        norm_ops.normalise_in_place(src_id.into())?;
+        norm_ops.normalise_in_place(target_id.into())?;
 
         let src = self.get_term(src_id);
         let target = self.get_term(target_id);
 
-        let result = match (self.try_use_term_as_ty(src_id), self.try_use_term_as_ty(target_id)) {
-            (Some(src_ty), Some(target_ty)) => {
-                let uni = self.unify_tys(src_ty, target_ty)?;
-                Ok(uni.map_result(|t| self.new_term(t)))
-            }
+        match (self.try_use_term_as_ty(src_id), self.try_use_term_as_ty(target_id)) {
+            (Some(src_ty), Some(target_ty)) => self.unify_tys(src_ty, target_ty),
             _ => match (src, target) {
+                (Term::Hole(h1), Term::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
+                (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
+                (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
+
+                (Term::Var(a), _) if self.pat_binds.get().is_some() => {
+                    self.add_unification(a, target_id);
+                    Ok(())
+                }
+                (_, Term::Var(b)) if self.pat_binds.get().is_some() => {
+                    self.add_unification(b, src_id);
+                    Ok(())
+                }
+                (Term::Var(a), Term::Var(b)) => self.unify_vars(a, b, src_id, target_id),
+                (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
+
+                (Term::Tuple(t1), Term::Tuple(t2)) => self.unify_args(t1.data, t2.data),
+                (Term::Tuple(_), _) | (_, Term::Tuple(_)) => {
+                    self.mismatching_atoms(src_id, target_id)
+                }
+
+                (Term::Ctor(c1), Term::Ctor(c2)) if c1.ctor == c2.ctor => {
+                    self.unify_args(c1.data_args, c2.data_args)?;
+                    self.unify_args(c1.ctor_args, c2.ctor_args)?;
+                    Ok(())
+                }
+                (Term::Ctor(_), _) | (_, Term::Ctor(_)) => {
+                    self.mismatching_atoms(src_id, target_id)
+                }
+
                 (Term::Ty(t1), _) => self.unify_terms(self.use_ty_as_term(t1), target_id),
                 (_, Term::Ty(t2)) => self.unify_terms(src_id, self.use_ty_as_term(t2)),
-                (Term::Var(a), Term::Var(b)) => Uni::ok_iff_atoms_match(a == b, src_id, target_id),
-                (Term::Hole(a), Term::Hole(b)) => {
-                    Uni::ok_iff_atoms_match(a == b, src_id, target_id)
-                }
-                (Term::Hole(a), _) => {
-                    let sub = Sub::from_pairs([(a.0, target_id)]);
-                    Uni::ok_with(sub, target_id)
-                }
-                (_, Term::Hole(b)) => {
-                    let sub = Sub::from_pairs([(b.0, src_id)]);
-                    Uni::ok_with(sub, src_id)
-                }
+
                 (Term::Lit(l1), Term::Lit(l2)) => {
-                    Uni::ok_iff_atoms_match(self.lits_are_equal(l1, l2), src_id, target_id)
+                    self.ok_or_mismatching_atoms(self.lits_are_equal(l1, l2), src_id, target_id)
                 }
-                (Term::Access(a1), Term::Access(a2)) => {
-                    let _ = self.unify_terms(a1.subject, a2.subject)?;
-                    Uni::ok_iff_atoms_match(a1.field == a2.field, src_id, target_id)
+                (Term::Lit(_), _) | (_, Term::Lit(_)) => self.mismatching_atoms(src_id, target_id),
+
+                (Term::Access(a1), Term::Access(a2)) if a1.field == a2.field => {
+                    self.unify_terms(a1.subject, a2.subject)
                 }
-                (Term::FnCall(c1), Term::FnCall(c2)) => {
-                    let _ = self.unify_terms(c1.subject, c2.subject)?;
-                    let _ = self.unify_args(c1.args, c2.args)?;
-                    Uni::ok(src_id)
-                }
-                (Term::FnRef(f1), Term::FnRef(f2)) => {
-                    if f1 == f2 {
-                        return Uni::ok(src_id);
-                    }
-                    let f1_def = self.get_fn_def(f1);
-                    let f2_def = self.get_fn_def(f2);
-
-                    self.context().enter_scope(f1.into(), || {
-                        // @@Todo: use sub
-                        let Uni { sub: param_sub, result: _ } = self.unify_params(
-                            f1_def.ty.params,
-                            f2_def.ty.params,
-                            ParamOrigin::FnTy(f1_def.ty),
-                        )?;
-
-                        let return_ty_1_subbed =
-                            self.sub_ops().apply_sub_to_ty(f1_def.ty.return_ty, &param_sub);
-                        let return_ty_2_subbed =
-                            self.sub_ops().apply_sub_to_ty(f2_def.ty.return_ty, &param_sub);
-
-                        let Uni { result: _, sub: _ } =
-                            self.unify_tys(return_ty_1_subbed, return_ty_2_subbed)?;
-
-                        match (f1_def.body, f2_def.body) {
-                            (FnBody::Defined(f1_body), FnBody::Defined(f2_body)) => {
-                                let body_1_subbed =
-                                    self.sub_ops().apply_sub_to_term(f1_body, &param_sub);
-                                let body_2_subbed =
-                                    self.sub_ops().apply_sub_to_term(f2_body, &param_sub);
-
-                                let _ = self.unify_terms(body_1_subbed, body_2_subbed)?;
-                                Uni::ok(src_id)
-                            }
-                            (FnBody::Intrinsic(i1), FnBody::Intrinsic(i2)) => {
-                                Uni::ok_iff_atoms_match(i1.0 == i2.0, src_id, target_id)
-                            }
-                            (FnBody::Axiom, FnBody::Axiom) => Uni::ok(src_id),
-                            _ => Uni::mismatch_atoms(src_id, target_id),
-                        }
-                    })
+                (Term::Access(_), _) | (_, Term::Access(_)) => {
+                    self.mismatching_atoms(src_id, target_id)
                 }
 
-                (Term::Match(m1), Term::Match(m2)) => {
-                    let _ = self.unify_terms(m1.subject, m2.subject)?;
+                (Term::Ref(r1), Term::Ref(r2))
+                    if r1.mutable == r2.mutable && r1.kind == r2.kind =>
+                {
+                    self.unify_terms(r1.subject, r2.subject)
+                }
+                (Term::Ref(_), _) | (_, Term::Ref(_)) => self.mismatching_atoms(src_id, target_id),
 
-                    Uni::ok(src_id)
+                (Term::FnCall(c1), Term::FnCall(c2)) => self.unify_fn_calls(c1, c2),
+                (Term::FnCall(_), _) | (_, Term::FnCall(_)) => {
+                    self.mismatching_atoms(src_id, target_id)
                 }
 
-                _ => Uni::mismatch_atoms(src_id, target_id),
+                (Term::FnRef(f1), Term::FnRef(f2)) if f1 == f2 => Ok(()),
+                (Term::FnRef(_), _) | (_, Term::FnRef(_)) => {
+                    self.mismatching_atoms(src_id, target_id)
+                }
+
+                // @@Todo: rest
+                _ => self.mismatching_atoms(src_id, target_id),
             },
-        }?;
-        self.stores().location().copy_location(src_id, result.result);
-        Ok(result)
-    }
-
-    pub fn pats_are_equal(&self, src_id: PatId, target_id: PatId) -> bool {
-        match (self.get_pat(src_id), self.get_pat(target_id)) {
-            (Pat::Binding(v1), Pat::Binding(v2)) => {
-                v1.is_mutable == v2.is_mutable && v1.name == v2.name
-            }
-            (_, Pat::Binding(_)) | (Pat::Binding(_), _) => false,
-
-            (Pat::Range(r1), Pat::Range(r2)) => {
-                self.lits_are_equal(r1.start.into(), r2.start.into())
-                    && self.lits_are_equal(r1.end.into(), r2.end.into())
-                    && r1.range_end == r2.range_end
-            }
-            (Pat::Range(_), _) | (_, Pat::Range(_)) => false,
-
-            (Pat::Lit(l1), Pat::Lit(l2)) => self.lits_are_equal(l1.into(), l2.into()),
-            (Pat::Lit(_), _) | (_, Pat::Lit(_)) => false,
-
-            (Pat::Tuple(t1), Pat::Tuple(t2)) => {
-                self.pat_args_are_equal(t1.data, t2.data) && t1.data_spread == t2.data_spread
-            }
-            (Pat::Tuple(_), _) | (_, Pat::Tuple(_)) => false,
-
-            (Pat::Array(a1), Pat::Array(a2)) => {
-                self.pat_lists_are_equal(a1.pats, a2.pats) && a1.spread == a2.spread
-            }
-            (Pat::Array(_), _) | (_, Pat::Array(_)) => false,
-
-            (Pat::Ctor(_c1), Pat::Ctor(_c2)) => {
-                todo!()
-            }
-            (Pat::Ctor(_), _) | (_, Pat::Ctor(_)) => todo!(),
-            (Pat::Or(_), Pat::Or(_)) => todo!(),
-            (Pat::Or(_), _) | (_, Pat::Or(_)) => todo!(),
-            (Pat::If(_), Pat::If(_)) => todo!(),
         }
     }
 
-    /// Reduce an iterator of unifications into a single unification.
+    /// Unify two parameter lists.
     ///
-    /// If any of the unifications are blocked or error, then this is forwarded
-    /// to the result.
-    pub fn reduce_unifications<U, V>(
-        &self,
-        unifications: impl Iterator<Item = TcResult<Uni<U>>>,
-        collect_results: impl FnOnce(Vec<U>) -> V,
-    ) -> TcResult<Uni<V>> {
-        let mut sub = Sub::identity();
-        let mut results = Vec::new();
-
-        for unification in unifications {
-            let uni = unification?;
-            sub = sub.join(&uni.sub);
-            results.push(uni.result);
-        }
-
-        Uni::ok_with(sub, collect_results(results))
-    }
-
-    /// Unify two parameter lists, creating a substitution of holes.
+    /// This takes a function to run in the scope of the parameters. It also
+    /// adds the ambient substitutions to the current scope.
     ///
-    /// The parameters must be already in scope.
-    ///
-    /// Names are taken from target
-    pub fn unify_params(
+    /// Names are taken from dest
+    pub fn unify_params<U>(
         &self,
         src_id: ParamsId,
         target_id: ParamsId,
-        _origin: ParamOrigin,
-    ) -> TcResult<Uni<ParamsId>> {
+        in_param_scope: impl FnOnce() -> TcResult<U>,
+    ) -> TcResult<U> {
+        // Validate the parameters and ensure they are of the same length
         self.param_ops().validate_params(src_id)?;
         self.param_ops().validate_params(target_id)?;
-
         if src_id.len() != target_id.len() {
             return Err(TcError::WrongParamLength {
                 given_params_id: src_id,
                 annotation_params_id: target_id,
             });
         }
+        let forward_sub = self.sub_ops().create_sub_from_param_names(src_id, target_id);
+        let backward_sub = self.sub_ops().create_sub_from_param_names(target_id, src_id);
 
-        let name_sub = self.sub_ops().create_sub_from_param_names(src_id, target_id);
+        let (result, shadowed_sub) =
+            self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
+                for (src_param_id, target_param_id) in src_id.iter().zip(target_id.iter()) {
+                    let src_param = self.get_param(src_param_id);
+                    let target_param = self.get_param(target_param_id);
 
-        let param_uni = self.reduce_unifications(
-            src_id.iter().zip(target_id.iter()).map(|(src, target)| {
-                let src = self.stores().params().get_element(src);
-                let target = self.stores().params().get_element(target);
+                    // Substitute the names
+                    self.context_utils().add_assignment(
+                        src_param.name,
+                        src_param.ty,
+                        self.new_term(target_param.name),
+                    );
 
-                match (src.default, target.default) {
-                    (None, None) => {}
-                    // @@Todo
-                    _ => unimplemented!("unify_params with defaults"),
+                    // Unify the types
+                    self.unify_tys(src_param.ty, target_param.ty)?;
+                    self.sub_ops().apply_sub_to_ty_in_place(target_param.ty, &forward_sub);
+                    self.sub_ops().apply_sub_to_ty_in_place(src_param.ty, &backward_sub);
                 }
 
-                match (self.get_param_name_ident(src.id), self.get_param_name_ident(target.id)) {
-                    (Some(name_a), Some(name_b)) if name_a != name_b => {
-                        return Err(TcError::ParamMatch(ParamError::ParamNameMismatch {
-                            param_a: src.id,
-                            param_b: target.id,
-                        }));
-                    }
-                    _ => {}
-                }
+                // Run the in-scope closure
+                let result = in_param_scope()?;
 
-                let Inference(target_ty, _) =
-                    self.infer_ops().infer_ty(target.ty, self.new_ty_hole())?;
+                // Only keep the substitutions that do not refer to the parameters
+                let scope_sub = self.sub_ops().create_sub_from_current_scope();
+                let shadowed_sub = self
+                    .sub_ops()
+                    .hide_param_binds(src_id.iter().chain(target_id.iter()), &scope_sub);
+                Ok((result, shadowed_sub))
+            })?;
 
-                // Apply the name substitution to the parameter
-                let subbed_src_ty = self.sub_ops().apply_sub_to_ty(src.ty, &name_sub);
+        // Add the shadowed substitutions to the ambient scope
+        self.add_unification_from_sub(&shadowed_sub);
 
-                let Inference(src_ty, _) =
-                    self.infer_ops().infer_ty(subbed_src_ty, self.new_ty_hole())?;
-
-                let unified_param = self.unify_tys(src_ty, target_ty)?.map_result(|ty| ParamData {
-                    name: target.name,
-                    ty,
-                    default: None,
-                });
-
-                self.context_utils().add_param_binding(target.id);
-
-                Ok(unified_param)
-            }),
-            |param_data| self.param_utils().create_params(param_data.into_iter()),
-        )?;
-
-        Ok(Uni { result: param_uni.result, sub: param_uni.sub.join(&name_sub) })
+        Ok(result)
     }
 
-    pub fn pat_lists_are_equal(&self, src_id: PatListId, target_id: PatListId) -> bool {
-        if src_id.len() != target_id.len() {
-            false
-        } else {
-            self.map_pat_list(src_id, |src| {
-                self.map_pat_list(target_id, |target| {
-                    src.iter()
-                        .zip(target.iter())
-                        .map(|(src, target)| match (src, target) {
-                            (PatOrCapture::Pat(src_pat), PatOrCapture::Pat(target_pat)) => {
-                                self.pats_are_equal(*src_pat, *target_pat)
-                            }
-                            (PatOrCapture::Capture, PatOrCapture::Capture) => true,
-                            _ => false,
-                        })
-                        .all(|x| x)
-                })
-            })
-        }
-    }
-
-    /// Unify two pattern argument lists, creating a substitution of holes.
-    pub fn pat_args_are_equal(&self, src_id: PatArgsId, target_id: PatArgsId) -> bool {
-        if src_id.len() != target_id.len() {
-            false
-        } else {
-            self.map_pat_args(src_id, |src| {
-                self.map_pat_args(target_id, |target| {
-                    src.iter()
-                        .zip(target.iter())
-                        .map(|(src, target)| match (src.pat, target.pat) {
-                            (PatOrCapture::Pat(src_pat), PatOrCapture::Pat(target_pat)) => {
-                                self.pats_are_equal(src_pat, target_pat)
-                            }
-                            (PatOrCapture::Capture, PatOrCapture::Capture) => true,
-                            _ => false,
-                        })
-                        .all(|x| x)
-                })
-            })
-        }
-    }
-
-    pub fn unify_args(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<Uni<ArgsId>> {
+    /// Unify two argument lists.
+    pub fn unify_args(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<()> {
         if src_id.len() != target_id.len() {
             return Err(TcError::DifferentParamOrArgLengths {
                 a: src_id.into(),
                 b: target_id.into(),
             });
         }
-        self.map_args(src_id, |src| {
-            self.map_args(target_id, |target| {
-                self.reduce_unifications(
-                    src.iter()
-                        .zip(target.iter())
-                        // @@Correctness: which name to use here?
-                        .map(|(src, target)| {
-                            Ok(self
-                                .unify_terms(src.value, target.value)?
-                                .map_result(|term| ArgData { target: target.target, value: term }))
-                        }),
-                    |arg_data| self.param_utils().create_args(arg_data.into_iter()),
-                )
-            })
-        })
+        for (src_arg_id, target_arg_id) in src_id.iter().zip(target_id.iter()) {
+            let src_arg = self.get_arg(src_arg_id);
+            let target_arg = self.get_arg(target_arg_id);
+            self.unify_terms(src_arg.value, target_arg.value)?;
+        }
+        Ok(())
     }
 
     /// Whether two function types match in terms of their modality.
@@ -603,8 +517,10 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
 
     /// Determine whether two terms are equal.
     pub fn terms_are_equal(&self, t1: TermId, t2: TermId) -> bool {
-        self.uni_ops().with_no_ctx().unify_terms(t1, t2).map(|result| result.sub.is_empty()).ok()
-            == Some(true)
+        // @@Todo: prevent modification?
+        let uni_ops = self.uni_ops();
+        uni_ops.with_no_modify();
+        self.context().enter_scope(ScopeKind::Sub, || uni_ops.unify_terms(t1, t2).is_ok())
     }
 
     /// Determine whether the given type is uninhabitable.
@@ -624,4 +540,85 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             _ => Ok(false),
         }
     }
+
+    // @@Todo pats
+    // pub fn pat_lists_are_equal(&self, src_id: PatListId, target_id: PatListId) ->
+    // bool {     if src_id.len() != target_id.len() {
+    //         false
+    //     } else {
+    //         self.map_pat_list(src_id, |src| {
+    //             self.map_pat_list(target_id, |target| {
+    //                 src.iter()
+    //                     .zip(target.iter())
+    //                     .map(|(src, target)| match (src, target) {
+    //                         (PatOrCapture::Pat(src_pat),
+    // PatOrCapture::Pat(target_pat)) => {
+    // self.pats_are_equal(*src_pat, *target_pat)                         }
+    //                         (PatOrCapture::Capture, PatOrCapture::Capture) =>
+    // true,                         _ => false,
+    //                     })
+    //                     .all(|x| x)
+    //             })
+    //         })
+    //     }
+    // }
+
+    // pub fn pats_are_equal(&self, src_id: PatId, target_id: PatId) -> bool {
+    //     match (self.get_pat(src_id), self.get_pat(target_id)) {
+    //         (Pat::Binding(v1), Pat::Binding(v2)) => {
+    //             v1.is_mutable == v2.is_mutable && v1.name == v2.name
+    //         }
+    //         (_, Pat::Binding(_)) | (Pat::Binding(_), _) => false,
+
+    //         (Pat::Range(r1), Pat::Range(r2)) => {
+    //             self.lits_are_equal(r1.start.into(), r2.start.into())
+    //                 && self.lits_are_equal(r1.end.into(), r2.end.into())
+    //                 && r1.range_end == r2.range_end
+    //         }
+    //         (Pat::Range(_), _) | (_, Pat::Range(_)) => false,
+
+    //         (Pat::Lit(l1), Pat::Lit(l2)) => self.lits_are_equal(l1.into(),
+    // l2.into()),         (Pat::Lit(_), _) | (_, Pat::Lit(_)) => false,
+
+    //         (Pat::Tuple(t1), Pat::Tuple(t2)) => {
+    //             self.pat_args_are_equal(t1.data, t2.data) && t1.data_spread ==
+    // t2.data_spread         }
+    //         (Pat::Tuple(_), _) | (_, Pat::Tuple(_)) => false,
+
+    //         (Pat::Array(a1), Pat::Array(a2)) => {
+    //             self.pat_lists_are_equal(a1.pats, a2.pats) && a1.spread ==
+    // a2.spread         }
+    //         (Pat::Array(_), _) | (_, Pat::Array(_)) => false,
+
+    //         (Pat::Ctor(_c1), Pat::Ctor(_c2)) => {
+    //             todo!()
+    //         }
+    //         (Pat::Ctor(_), _) | (_, Pat::Ctor(_)) => todo!(),
+    //         (Pat::Or(_), Pat::Or(_)) => todo!(),
+    //         (Pat::Or(_), _) | (_, Pat::Or(_)) => todo!(),
+    //         (Pat::If(_), Pat::If(_)) => todo!(),
+    //     }
+    // }
+
+    // /// Unify two pattern argument lists, creating a substitution of holes.
+    // pub fn pat_args_are_equal(&self, src_id: PatArgsId, target_id: PatArgsId) ->
+    // bool {     if src_id.len() != target_id.len() {
+    //         false
+    //     } else {
+    //         self.map_pat_args(src_id, |src| {
+    //             self.map_pat_args(target_id, |target| {
+    //                 src.iter()
+    //                     .zip(target.iter())
+    //                     .map(|(src, target)| match (src.pat, target.pat) {
+    //                         (PatOrCapture::Pat(src_pat),
+    // PatOrCapture::Pat(target_pat)) => {
+    // self.pats_are_equal(src_pat, target_pat)                         }
+    //                         (PatOrCapture::Capture, PatOrCapture::Capture) =>
+    // true,                         _ => false,
+    //                     })
+    //                     .all(|x| x)
+    //             })
+    //         })
+    //     }
+    // }
 }

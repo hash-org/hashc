@@ -861,11 +861,15 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, fields } = walk::walk_enum_def_entry(self, node)?;
-        Ok(TreeNode::branch(
-            labelled("variant", name.label, "\""),
-            if fields.is_empty() { vec![] } else { vec![TreeNode::branch("fields", fields)] },
-        ))
+        let walk::EnumDefEntry { name, fields, ty } = walk::walk_enum_def_entry(self, node)?;
+        let mut children = Vec::new();
+        if !fields.is_empty() {
+            children.push(TreeNode::branch("fields", fields))
+        }
+        if let Some(ty) = ty {
+            children.push(TreeNode::branch("type", vec![ty]))
+        }
+        Ok(TreeNode::branch(labelled("variant", name.label, "\""), children))
     }
 
     type EnumDefRet = TreeNode;
