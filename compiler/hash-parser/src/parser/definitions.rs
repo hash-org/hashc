@@ -73,7 +73,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Now try and parse a type if the next token permits it...
         let ty = match self.parse_token_fast(TokenKind::Colon) {
             Some(_) => match self.peek() {
-                Some(token) if matches!(token.kind, TokenKind::Eq | TokenKind::Comma) => None,
+                Some(token) if matches!(token.kind, TokenKind::Comma) => None,
                 _ => Some(self.parse_ty()?),
             },
             None => None,

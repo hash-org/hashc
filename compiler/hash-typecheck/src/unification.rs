@@ -74,7 +74,6 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                 Ok(())
             }
             (Atom::Pat(_src_id), Atom::Pat(_target_id)) => {
-                // @@Todo
                 // self.unify_pats(src_id, target_id)?;
                 Ok(())
             }

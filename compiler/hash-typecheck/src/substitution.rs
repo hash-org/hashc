@@ -476,9 +476,6 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// Invariant: the arguments are ordered to match the
     /// parameters.
     pub fn create_sub_from_args_of_params(&self, args_id: ArgsId, params_id: ParamsId) -> Sub {
-        // assert!(params_id.len() == args_id.len(), "called with mismatched args and
-        // params");
-
         let mut sub = Sub::identity();
         for (param_id, arg_id) in (params_id.iter()).zip(args_id.iter()) {
             let param = self.stores().params().get_element(param_id);

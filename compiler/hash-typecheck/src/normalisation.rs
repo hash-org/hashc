@@ -432,31 +432,11 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         result
     }
 
-    /// Same as `eval_fully`, but also sets the `evaluated` flag in the given
-    /// `EvalState`.
-    fn eval_fully_and_record(&self, atom: Atom, state: &EvalState) -> Result<Atom, Signal> {
-        let old_mode = self.mode.replace(NormalisationMode::Full { eval_impure_fns: true });
-        let result = self.eval_and_record(atom, state);
-        self.mode.set(old_mode);
-        result
-    }
-
-    // /// Evaluate an atom fully if it has effects.
-    fn eval_if_effectful_and_record(&self, atom: Atom, state: &EvalState) -> Result<Atom, Signal> {
-        if self.atom_has_effects(atom) == Some(true) {
-            // If the atom has effects, we need to evaluate it fully
-            self.eval_fully_and_record(atom, state)
-        } else {
-            // Otherwise, we can just return it as is
-            Ok(atom)
-        }
-    }
-
     /// Same as `eval_nested`, but with a given evaluation state.
     fn eval_nested_and_record(&self, atom: Atom, state: &EvalState) -> Result<Atom, Signal> {
         match self.mode.get() {
             NormalisationMode::Full { eval_impure_fns: _ } => self.eval_and_record(atom, state),
-            NormalisationMode::Weak => self.eval_if_effectful_and_record(atom, state),
+            NormalisationMode::Weak => Ok(atom),
         }
     }
 
@@ -831,6 +811,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         traversal.set_visit_fns_once(false);
 
         let st = eval_state();
+        let nested = Cell::new(false);
         let result = traversal.fmap_atom(atom, |atom| -> Result<_, Signal> {
             let old_mode = if self.mode.get() == NormalisationMode::Weak
                 && self.atom_has_effects(atom) == Some(true)
@@ -842,7 +823,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 self.mode.get()
             };
 
-            let result = match self.eval_once(atom)? {
+            let result = match self.eval_once(atom, nested.get())? {
                 Some(result @ ControlFlow::Break(_)) => {
                     st.set_evaluated();
                     Ok(result)
@@ -852,6 +833,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             };
 
             self.mode.set(old_mode);
+
+            if self.mode.get() == NormalisationMode::Weak {
+                nested.set(true);
+            }
             result
         })?;
 
@@ -863,21 +848,17 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Invariant: if `self.atom_has_effects(atom)`, then `self.eval_once(atom)
     /// != ctrl_continue()`.
-    fn eval_once(&self, atom: Atom) -> Evaluation<ControlFlow<Atom>> {
+    fn eval_once(&self, atom: Atom, nested: bool) -> Evaluation<ControlFlow<Atom>> {
+        if nested && self.mode.get() == NormalisationMode::Weak {
+            // If we're in weak mode, we don't want to evaluate nested atoms
+            return already_evaluated();
+        }
+
         match atom {
             Atom::Term(term) => match self.get_term(term) {
                 // Types
                 Term::Ty(_) => ctrl_continue(),
 
-                // Introduction forms:
-                Term::Ref(_)
-                | Term::Tuple(_)
-                | Term::FnRef(_)
-                | Term::Ctor(_)
-                | Term::Lit(_)
-                | Term::Array(_) => ctrl_continue(),
-
-                // Potentially reducible forms:
                 Term::TypeOf(term) => ctrl_map(self.eval_type_of(term)),
                 Term::Unsafe(unsafe_expr) => ctrl_map(self.eval_unsafe(unsafe_expr)),
                 Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
@@ -887,6 +868,14 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::Deref(deref_term) => ctrl_map(self.eval_deref(deref_term)),
                 Term::Access(access_term) => ctrl_map(self.eval_access(access_term)),
                 Term::Index(index_term) => ctrl_map(self.eval_index(index_term)),
+
+                // Introduction forms:
+                Term::Ref(_)
+                | Term::FnRef(_)
+                | Term::Lit(_)
+                | Term::Array(_)
+                | Term::Tuple(_)
+                | Term::Ctor(_) => ctrl_continue(),
 
                 // Imperative:
                 Term::LoopControl(loop_control) => Err(self.eval_loop_control(loop_control)),

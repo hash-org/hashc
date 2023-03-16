@@ -947,7 +947,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let fn_def = self.get_fn_def(fn_def_id);
 
         if fn_mode == FnInferMode::Header {
-            // If we are only inferring the header, then also want to check for
+            // If we are only inferring the header, then we also want to check for
             // immediate body functions.
             self.infer_params(fn_def.ty.params, || {
                 self.infer_ty(fn_def.ty.return_ty, self.new_flexible_universe_ty())?;
