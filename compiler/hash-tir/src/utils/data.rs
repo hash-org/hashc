@@ -186,7 +186,7 @@ impl<'tc> DataUtils<'tc> {
         &self,
         name: Symbol,
         params: ParamsId,
-        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId, ArgsId)>,
+        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId, Option<ArgsId>)>,
     ) -> DataDefId {
         // Create the data definition for the enum
         self.stores().data_def().create_with(|id| DataDef {
@@ -194,21 +194,23 @@ impl<'tc> DataUtils<'tc> {
             name,
             params,
             ctors: DataDefCtors::Defined(self.stores().ctor_defs().create_from_iter_with(
-                variants(id).into_iter().enumerate().map(|(index, variant)| {
-                    let variant_name = variant.0;
-                    let fields_params = variant.1;
-                    let result_args = variant.2;
-
-                    // Create a constructor for each variant
-                    move |ctor_id| CtorDef {
-                        id: ctor_id,
-                        name: variant_name,
-                        data_def_ctor_index: index,
-                        data_def_id: id,
-                        params: fields_params,
-                        result_args,
-                    }
-                }),
+                variants(id).into_iter().enumerate().map(
+                    |(index, (variant_name, fields_params, result_args))| {
+                        // Create a constructor for each variant
+                        move |ctor_id| CtorDef {
+                            id: ctor_id,
+                            name: variant_name,
+                            data_def_ctor_index: index,
+                            data_def_id: id,
+                            params: fields_params,
+                            result_args: result_args.unwrap_or_else(|| {
+                                // Create the arguments for the constructor, which are the type
+                                // parameters given.
+                                self.create_forwarded_data_args_from_params(id, params)
+                            }),
+                        }
+                    },
+                ),
             )),
         })
     }
@@ -227,17 +229,10 @@ impl<'tc> DataUtils<'tc> {
         params: ParamsId,
         variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId)>,
     ) -> DataDefId {
-        // Create the arguments for the constructor, which are the type
-        // parameters given.
-        let result_args =
-            |data_def_id| self.create_forwarded_data_args_from_params(data_def_id, params);
-
         self.create_data_def(name, params, |def_id| {
             variants(def_id)
                 .into_iter()
-                .map(|(variant_name, fields_params)| {
-                    (variant_name, fields_params, result_args(def_id))
-                })
+                .map(|(variant_name, fields_params)| (variant_name, fields_params, None))
                 .collect_vec()
         })
     }

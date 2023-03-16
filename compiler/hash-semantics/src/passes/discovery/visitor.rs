@@ -206,7 +206,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let enum_name = self.take_name_hint_or_create_internal_name();
 
         // Create a data definition for the enum
-        let enum_def_id = self.data_utils().create_enum_def(
+
+        let enum_def_id = self.data_utils().create_data_def(
             enum_name,
             self.create_hole_params(&node.ty_params),
             |_| {
@@ -216,6 +217,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                         (
                             self.new_symbol(variant.name.ident),
                             self.create_hole_params(&variant.fields),
+                            None,
                         )
                     })
                     .collect_vec()

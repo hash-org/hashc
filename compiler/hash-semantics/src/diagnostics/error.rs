@@ -56,6 +56,8 @@ pub enum SemanticError {
     UnexpectedArguments { location: SourceLocation },
     /// Type error, forwarded from the typechecker.
     TypeError { error: TcError },
+    /// Type error, forwarded from the typechecker.
+    EnumTypeAnnotationMustBeOfDefiningType { location: SourceLocation },
     /// Given data definition is not a singleton.
     DataDefIsNotSingleton { location: SourceLocation },
     /// An entry point was not found in the entry module.
@@ -282,6 +284,16 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                 error
                     .add_span(*location)
                     .add_info("cannot use a module pattern yet. Instead, bind to a name and access members through `::`");
+            }
+            SemanticError::EnumTypeAnnotationMustBeOfDefiningType { location } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
+                    .title("enum type annotation must be of the defining type");
+
+                error.add_span(*location).add_info(
+                    "cannot use this type annotation as it is not the defining type of the enum",
+                );
             }
         }
     }

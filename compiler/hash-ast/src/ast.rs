@@ -1239,6 +1239,8 @@ define_tree! {
         pub name: Child!(Name),
         /// The parameters of the enum variant, if any.
         pub fields: Children!(Param),
+        /// The type of the enum variant, if any.
+        pub ty: OptionalChild!(Ty),
     }
 
     /// An enum definition, e.g.

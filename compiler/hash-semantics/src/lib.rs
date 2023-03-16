@@ -61,6 +61,9 @@ pub struct Flags {
 
     /// Monomorphise the generated TIR.
     pub mono_tir: bool,
+
+    /// The compiler stage to run to
+    pub run_to_stage: CompilerStageKind,
 }
 
 /// The [SemanticAnalysisCtx] represents all of the information that is required

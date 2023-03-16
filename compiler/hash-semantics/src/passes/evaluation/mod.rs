@@ -5,6 +5,7 @@
 
 use derive_more::Constructor;
 use hash_ast::ast::{self};
+use hash_pipeline::settings::CompilerStageKind;
 use hash_source::ModuleKind;
 use hash_tir::{
     environment::env::AccessToEnv, fns::FnCallTerm, terms::TermId, utils::common::CommonUtils,
@@ -54,7 +55,18 @@ impl EvaluationPass<'_> {
                         });
                         Ok(Some(call_term))
                     }
-                    None => Err(SemanticError::EntryPointNotFound),
+                    None => {
+                        // We only care about this error if we're running to
+                        // the evaluation stage, or if
+                        // we are continuing after lowering
+                        if self.flags().run_to_stage > CompilerStageKind::Lower
+                            || self.flags().eval_tir
+                        {
+                            Err(SemanticError::EntryPointNotFound)
+                        } else {
+                            Ok(None)
+                        }
+                    }
                 }
             }
         }

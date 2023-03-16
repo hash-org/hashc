@@ -1,9 +1,11 @@
 /// The Hash Compiler Prelude, this defines core language functionality
 /// that is expected to be available to all running contexts.
 
+eq := import("eq")
+
 /// The `cast(..)` function is used to cast some value into another
 /// type provided that the types are cast compatible.
-cast := <T> => (U: Type, item: T) -> U => {
+cast := <T, U> => (item: T) -> U => {
     Intrinsics::cast(T, U, item)
 }
 

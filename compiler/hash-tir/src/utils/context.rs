@@ -50,6 +50,14 @@ impl<'env> ContextUtils<'env> {
     }
 
     /// Add a typing binding to the closest stack scope.
+    pub fn add_assignment_to_closest_stack(&self, name: Symbol, ty: TyId, value: TermId) {
+        self.context().get_closest_stack_scope_ref().add_binding(Binding {
+            name,
+            kind: BindingKind::Decl(Decl { name, ty: Some(ty), value: Some(value) }),
+        })
+    }
+
+    /// Add a typing binding to the closest stack scope.
     pub fn add_typing_to_closest_stack(&self, name: Symbol, ty: TyId) {
         self.context().get_closest_stack_scope_ref().add_binding(Binding {
             name,
@@ -65,6 +73,15 @@ impl<'env> ContextUtils<'env> {
     /// Add an assignment binding with a value.
     pub fn add_assignment(&self, name: Symbol, ty: TyId, value: TermId) {
         self.context().add_decl(name, Some(ty), Some(value));
+    }
+
+    /// Modify the type of an assignment binding.
+    pub fn modify_typing(&self, name: Symbol, new_ty: TyId) {
+        let current_value = self.try_get_binding_value(name);
+        self.context().modify_binding(Binding {
+            name,
+            kind: BindingKind::Decl(Decl { name, ty: Some(new_ty), value: current_value }),
+        })
     }
 
     /// Modify the value of an assignment binding.
@@ -277,16 +294,21 @@ impl<'env> ContextUtils<'env> {
     /// Add the given substitution to the context.
     pub fn add_sub_to_scope(&self, sub: &Sub) {
         for (name, value) in sub.iter() {
-            self.add_untyped_assignment(name, value);
+            match self.try_get_binding_ty(name) {
+                Some(ty) => {
+                    self.add_assignment(name, ty, value);
+                }
+                None => {
+                    self.add_untyped_assignment(name, value);
+                }
+            }
         }
     }
 
     /// Enter a scope with the given substitution.
     pub fn enter_sub_scope<M>(&self, sub: &Sub, f: impl FnOnce() -> M) -> M {
         self.context().enter_scope(ScopeKind::Sub, || {
-            for (name, value) in sub.iter() {
-                self.context_utils().add_untyped_assignment(name, value);
-            }
+            self.add_sub_to_scope(sub);
             f()
         })
     }
