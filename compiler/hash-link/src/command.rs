@@ -17,7 +17,7 @@ use hash_target::{link::LldFlavour, Platform};
 /// [`LinkProgram::Normal`] this is just a path to the program that should
 /// be run. For [`LinkProgram::Lld`] this is the path to the Lld executable
 /// and the flavour of Lld that should be used.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum LinkProgram {
     /// Just a path to the program that should run.
     Normal(OsString),
@@ -31,7 +31,7 @@ pub enum LinkProgram {
 /// A wrapper around the [Command] type which allows us to
 /// build up a command and read the arguments that are being
 /// passed without having to go through the [Command].
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LinkCommand {
     /// The path to the command executable.
     command: LinkProgram,
