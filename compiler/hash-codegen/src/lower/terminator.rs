@@ -448,8 +448,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     let ty = builder.backend_ty_from_info(op.info);
                     builder.load(ty, value, alignment)
                 } else {
-                    // @@Todo: deal with `Pair` operand refs
-                    op.immediate_value()
+                    op.immediate_or_scalar_pair(builder)
                 }
             }
         };
