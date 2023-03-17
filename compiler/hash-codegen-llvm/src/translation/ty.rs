@@ -7,7 +7,7 @@ use hash_codegen::{
     abi::FnAbi,
     common::TypeKind,
     layout::{Layout, LayoutShape, TyInfo, Variants},
-    traits::{ctx::HasCtxMethods, layout::LayoutMethods, ty::TypeBuilderMethods},
+    traits::{layout::LayoutMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::IrTy;
 use hash_target::{

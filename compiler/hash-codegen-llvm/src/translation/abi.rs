@@ -6,8 +6,8 @@ use hash_codegen::{
     },
     lower::{operands::OperandValue, place::PlaceRef},
     traits::{
-        abi::AbiBuilderMethods, builder::BlockBuilderMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::TypeBuilderMethods,
+        abi::AbiBuilderMethods, builder::BlockBuilderMethods, layout::LayoutMethods,
+        ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
 use hash_target::abi::{AbiRepresentation, ScalarKind};

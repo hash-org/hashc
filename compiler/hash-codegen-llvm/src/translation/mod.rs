@@ -4,7 +4,7 @@
 
 use hash_codegen::{
     layout::{compute::LayoutComputer, LayoutCtx},
-    traits::{ctx::HasCtxMethods, Backend, BackendTypes, Codegen},
+    traits::{Backend, BackendTypes, Codegen, HasCtxMethods},
 };
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;

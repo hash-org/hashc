@@ -18,8 +18,8 @@ use super::{
 use crate::{
     common::{CheckedOp, IntComparisonKind, TypeKind},
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::TypeBuilderMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
+        ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
 

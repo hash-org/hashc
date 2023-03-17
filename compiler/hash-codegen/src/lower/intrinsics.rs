@@ -13,8 +13,8 @@ use super::{
 use crate::{
     lower::operands::OperandValue,
     traits::{
-        builder::BlockBuilderMethods, ctx::HasCtxMethods, misc::MiscBuilderMethods,
-        ty::TypeBuilderMethods,
+        builder::BlockBuilderMethods, misc::MiscBuilderMethods, ty::TypeBuilderMethods,
+        HasCtxMethods,
     },
 };
 

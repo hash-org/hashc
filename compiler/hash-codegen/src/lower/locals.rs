@@ -18,7 +18,7 @@ use hash_utils::{
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::traits::{
-    builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods, CodeGenObject, Codegen,
+    builder::BlockBuilderMethods, layout::LayoutMethods, CodeGenObject, Codegen, HasCtxMethods,
 };
 
 /// Defines what kind of reference a local has. A [LocalRef::Place]

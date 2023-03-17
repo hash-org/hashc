@@ -9,7 +9,7 @@ use hash_layout::compute::{LayoutComputer, LayoutError};
 use hash_target::abi::{Abi, Scalar, ScalarKind};
 use hash_utils::store::SequenceStore;
 
-use crate::traits::{ctx::HasCtxMethods, layout::LayoutMethods};
+use crate::traits::{layout::LayoutMethods, HasCtxMethods};
 
 /// Adjust the attributes of an argument ABI based on the provided
 /// [Layout] and [Scalar] information. This is required to do since

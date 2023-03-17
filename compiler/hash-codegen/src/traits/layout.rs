@@ -5,7 +5,7 @@ use hash_ir::ty::IrTyId;
 use hash_layout::{Layout, LayoutId};
 use hash_utils::store::Store;
 
-use super::{ctx::HasCtxMethods, BackendTypes};
+use super::{BackendTypes, HasCtxMethods};
 use crate::layout::TyInfo;
 
 /// Methods for calculating and querying the layout of types within a backend.

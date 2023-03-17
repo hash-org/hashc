@@ -2,15 +2,19 @@
 
 use std::fmt;
 
+use hash_ir::IrCtx;
+use hash_layout::{compute::LayoutComputer, LayoutCtx};
+use hash_pipeline::settings::CompilerSettings;
+use hash_target::{data_layout::HasDataLayout, Target};
+
 use self::{
-    constants::ConstValueBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
-    misc::MiscBuilderMethods, ty::TypeBuilderMethods,
+    constants::ConstValueBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
+    ty::TypeBuilderMethods,
 };
 
 pub mod abi;
 pub mod builder;
 pub mod constants;
-pub mod ctx;
 pub mod debug;
 pub mod intrinsics;
 pub mod layout;
@@ -49,6 +53,30 @@ pub trait BackendTypes {
 
 pub trait CodeGenObject: Copy + PartialEq + fmt::Debug {}
 impl<T: Copy + PartialEq + fmt::Debug> CodeGenObject for T {}
+
+/// A trait that provides the backend the necessary context to perform
+/// code generation.
+pub trait HasCtxMethods<'b>: HasDataLayout {
+    /// Return a reference to the current [CompilerSettings] for the
+    /// workspace.
+    fn settings(&self) -> &CompilerSettings;
+
+    /// Return the current compilation target.
+    fn target(&self) -> &Target {
+        self.settings().target()
+    }
+
+    /// Returns a reference to the IR [IrCtx].
+    fn ir_ctx(&self) -> &IrCtx;
+
+    /// Create a [LayoutComputer] for the current context.
+    fn layout_computer(&self) -> LayoutComputer<'_> {
+        LayoutComputer::new(self.layouts(), self.ir_ctx())
+    }
+
+    /// Returns a reference to the [LayoutCtx].
+    fn layouts(&self) -> &LayoutCtx;
+}
 
 /// The core trait of the code generation backend which is used to
 /// generate code for a particular backend. This trait provides IR

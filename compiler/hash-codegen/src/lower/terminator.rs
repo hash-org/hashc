@@ -26,8 +26,8 @@ use super::{
 use crate::{
     common::{IntComparisonKind, MemFlags},
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
 

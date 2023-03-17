@@ -1,7 +1,7 @@
 //! Implements all of the constant building methods.
 use hash_codegen::traits::{
-    constants::ConstValueBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
-    ty::TypeBuilderMethods,
+    constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods,
+    HasCtxMethods,
 };
 use hash_ir::ir::Const;
 use hash_source::constant::{InternedStr, CONSTANT_MAP};

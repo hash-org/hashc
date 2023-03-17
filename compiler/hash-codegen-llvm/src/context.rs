@@ -7,7 +7,7 @@ use fxhash::FxHashMap;
 use hash_codegen::{
     layout::{compute::LayoutComputer, LayoutCtx},
     symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
-    traits::{ctx::HasCtxMethods, Backend, BackendTypes},
+    traits::{Backend, BackendTypes, HasCtxMethods},
 };
 use hash_ir::{
     ty::{InstanceId, IrTyId, VariantIdx},

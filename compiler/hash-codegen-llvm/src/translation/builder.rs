@@ -13,8 +13,8 @@ use hash_codegen::{
         place::PlaceRef,
     },
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::TypeBuilderMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
+        ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
 use hash_ir::ty::{IrTy, IrTyId};
