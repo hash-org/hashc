@@ -12,7 +12,7 @@ use std::{
 use hash_pipeline::{
     args::parse_settings_from_args,
     interface::{CompilerInterface, CompilerOutputStream},
-    settings::CompilerSettings,
+    settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
     Compiler,
 };
@@ -96,7 +96,10 @@ fn main() {
             // If the stage is set to `exe`, this means that we want to run the
             // produced executable from the building process. This is essentially
             // a shorthand for `hash build <file> && ./<exe_path>`.
-            if workspace.yields_executable(settings) && !ctx.has_errors() {
+            if settings.stage == CompilerStageKind::Exe
+                && workspace.yields_executable(settings)
+                && !ctx.has_errors()
+            {
                 let path = workspace.executable_path(settings);
 
                 // We need to convert the path to a string so that we can pass it
