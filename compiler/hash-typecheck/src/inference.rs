@@ -1181,7 +1181,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     }
                     _ => {
                         // Infer the return value
-                        self.infer_term(block_term.return_value, annotation_ty)?;
+                        let return_value_ty = self.new_ty_hole_of(block_term.return_value);
+                        self.infer_term(block_term.return_value, return_value_ty)?;
                     }
                 }
             } else {
@@ -1243,6 +1244,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         };
 
         self.infer_term(ref_term.subject, annotation_ref_ty.ty)?;
+
+        let ty = self.new_expected_ty_of(original_term_id, self.new_ty(annotation_ref_ty));
+        self.check_by_unify(ty, annotation_ty)?;
         Ok(())
     }
 
@@ -1439,13 +1443,18 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         self.check_by_unify(new_unified_ty, self.new_never_ty())?;
                     }
                     Some(_) => {
-                        inhabited.set(true);
                         self.infer_term(case_data.value, new_unified_ty)?;
+                        if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
+                            inhabited.set(true);
+                        }
                     }
                     None => {
-                        inhabited.set(true);
-                        self.uni_ops().unify_tys(new_unified_ty, unified_ty)?;
                         self.infer_term(case_data.value, new_unified_ty)?;
+                        if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
+                            inhabited.set(true);
+                            self.uni_ops().unify_tys(new_unified_ty, unified_ty)?;
+                            unified_ty = new_unified_ty;
+                        }
                     }
                 }
 
