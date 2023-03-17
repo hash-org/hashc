@@ -188,7 +188,7 @@ impl<'ir> BuilderCtx<'ir> {
                 self.lcx.intrinsics_mut().set(item, instance, ty);
             }
 
-            (ty, false)
+            (ty, true)
         })
     }
 
@@ -342,7 +342,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
                 if self.primitives().bool() == ty.data_def {
-                    return (self.lcx.tys().common_tys.bool, false);
+                    return (self.lcx.tys().common_tys.bool, true);
                 }
 
                 self.context().enter_scope(ty.data_def.into(), || {
@@ -426,7 +426,7 @@ impl<'ir> BuilderCtx<'ir> {
 
                 // Since we don't do anything with the cache, we can specify that
                 // the result of the operation should be cached.
-                (ty, false)
+                (ty, true)
             }
         }
     }

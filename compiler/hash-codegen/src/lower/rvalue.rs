@@ -295,15 +295,15 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 // If the operand is a ZST, then we just return the new
                 // operand as an undefined value of the cast_ty
-                if builder.layouts().is_zst(operand.info.layout) {
+                if operand.info.is_uninhabited(self.ctx.layout_computer()) {
                     let value = OperandValue::Immediate(builder.const_undef(out_ty));
                     return OperandRef { value, info: cast_ty };
                 }
 
                 let in_cast_ty = CastTy::from_ty(self.ctx.ir_ctx(), operand.info.ty)
-                    .expect("expected castable type for cast");
+                    .expect("expected cast-able type for cast");
                 let out_cast_ty = CastTy::from_ty(self.ctx.ir_ctx(), cast_ty.ty)
-                    .expect("expected castable type for cast");
+                    .expect("expected cast-able type for cast");
 
                 let in_ty = builder.immediate_backend_ty(operand.info);
                 let value = operand.immediate_value();

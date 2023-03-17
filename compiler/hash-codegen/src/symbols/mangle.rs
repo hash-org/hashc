@@ -28,6 +28,8 @@ use hash_ir::{ty::InstanceId, IrCtx};
 use hash_source::{identifier::IDENTS, InteractiveId, ModuleId};
 use hash_utils::store::{Store, StoreKey};
 
+use super::{push_string_encoded_count, ALPHANUMERIC_BASE};
+
 /// The [Mangler] is a structure that is used to build up the "mangled"
 /// symbol for an instance or static item.
 ///
@@ -84,12 +86,35 @@ pub fn compute_symbol_name(ctx: &IrCtx, instance_id: InstanceId) -> String {
             }
         }
 
-        // @@Future: if we allow for unicode names, then we have to convert the
-        // name of the module into a valid UTF-8 string.
-        m.push(format!("{}", instance.name()).as_str());
+        let name = instance.name();
+
+        // This is the case that the name wasn't given by the typechecking for several
+        // reasons:
+        //
+        // 1. The function was monomorphised and it didn't retain the original name,
+        // this will be fixed in the future.
+        //
+        // 2. The function is anonymous (a closure) with no inherited name.
+        //
+        // 3. The name wasn't set for some reason.
+        //
+        // In this case, we generate a new name by randomly generating a name which
+        // is unlikely to conflict with any other name.
+        if name == IDENTS.underscore {
+            m.push(format!("closure$SP$_{}", instance_id.to_index()).as_str())
+        } else {
+            // @@Future: if we allow for unicode names, then we have to convert the
+            // name of the module into a valid UTF-8 string.
+            m.push(format!("{name}").as_str());
+        }
 
         if instance.is_generic_origin() {
             m.push(format!("_g{instance_id:?}").as_str());
+            push_string_encoded_count(
+                instance_id.to_index() as u128,
+                ALPHANUMERIC_BASE,
+                &mut m.out,
+            );
         }
     });
 
