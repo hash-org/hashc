@@ -7,7 +7,7 @@ use fxhash::FxHashMap;
 use hash_codegen::{
     layout::{compute::LayoutComputer, LayoutCtx},
     symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
-    traits::{ctx::HasCtxMethods, target::HasTargetSpec, Backend, BackendTypes},
+    traits::{ctx::HasCtxMethods, Backend, BackendTypes},
 };
 use hash_ir::{
     ty::{InstanceId, IrTyId, VariantIdx},
@@ -15,7 +15,6 @@ use hash_ir::{
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::InternedStr;
-use hash_target::Target;
 use inkwell as llvm;
 use llvm::values::FunctionValue;
 
@@ -119,12 +118,6 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
         name.push('.');
         push_string_encoded_count(symbol_counter as u128, ALPHANUMERIC_BASE, &mut name);
         name
-    }
-}
-
-impl HasTargetSpec for CodeGenCtx<'_, '_> {
-    fn target_spec(&self) -> &Target {
-        self.settings.target()
     }
 }
 

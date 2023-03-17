@@ -4,11 +4,10 @@
 
 use hash_codegen::{
     layout::{compute::LayoutComputer, LayoutCtx},
-    traits::{ctx::HasCtxMethods, target::HasTargetSpec, Backend, BackendTypes, Codegen},
+    traits::{ctx::HasCtxMethods, Backend, BackendTypes, Codegen},
 };
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
-use hash_target::Target;
 
 use crate::context::CodeGenCtx;
 
@@ -75,11 +74,5 @@ impl<'b> HasCtxMethods<'b> for Builder<'_, 'b, '_> {
 
     fn layout_computer(&self) -> LayoutComputer<'_> {
         self.ctx.layout_computer()
-    }
-}
-
-impl HasTargetSpec for Builder<'_, '_, '_> {
-    fn target_spec(&self) -> &Target {
-        self.ctx.target_spec()
     }
 }

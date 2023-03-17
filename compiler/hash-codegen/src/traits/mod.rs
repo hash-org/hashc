@@ -4,7 +4,7 @@ use std::fmt;
 
 use self::{
     constants::ConstValueBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
-    misc::MiscBuilderMethods, target::HasTargetSpec, ty::TypeBuilderMethods,
+    misc::MiscBuilderMethods, ty::TypeBuilderMethods,
 };
 
 pub mod abi;
@@ -15,7 +15,6 @@ pub mod debug;
 pub mod intrinsics;
 pub mod layout;
 pub mod misc;
-pub mod target;
 pub mod ty;
 
 /// This trait represents all of the commonly accessed types that a
@@ -61,7 +60,6 @@ pub trait CodeGenMethods<'b>:
     + HasCtxMethods<'b>
     + TypeBuilderMethods<'b>
     + ConstValueBuilderMethods<'b>
-    + HasTargetSpec
 {
 }
 
@@ -73,7 +71,6 @@ impl<'b, T> CodeGenMethods<'b> for T where
         + HasCtxMethods<'b>
         + TypeBuilderMethods<'b>
         + ConstValueBuilderMethods<'b>
-        + HasTargetSpec
 {
 }
 

@@ -12,8 +12,8 @@ use hash_target::{
 };
 
 use super::{
-    abi::AbiBuilderMethods, debug::BuildDebugInfoMethods, intrinsics::IntrinsicBuilderMethods,
-    target::HasTargetSpec, ty::TypeBuilderMethods, Codegen,
+    abi::AbiBuilderMethods, debug::DebugInfoBuilderMethods, intrinsics::IntrinsicBuilderMethods,
+    ty::TypeBuilderMethods, Codegen,
 };
 use crate::{
     common::{
@@ -26,11 +26,7 @@ use crate::{
 /// This trait defines all methods required to convert a Hash IR `BasicBlock`
 /// into the backend equivalent.
 pub trait BlockBuilderMethods<'a, 'b>:
-    Codegen<'b>
-    + AbiBuilderMethods<'b>
-    + IntrinsicBuilderMethods<'b>
-    + BuildDebugInfoMethods
-    + HasTargetSpec
+    Codegen<'b> + AbiBuilderMethods<'b> + IntrinsicBuilderMethods<'b> + DebugInfoBuilderMethods
 {
     /// Get the current context
     fn ctx(&self) -> &Self::CodegenCtx;
