@@ -39,7 +39,7 @@ print := (msg: str, /* end: char = '\n' */) => {
 
     // We transmute the message into a SizedPointer and then write it out to
     // stdout.
-    SizedPointer(bytes, len) := Intrinsics::transmute(type str, type SizedPointer, msg);
+    SizedPointer(bytes, len) := transmute<str, SizedPointer>(msg);
 
     libc::write(STDOUT, bytes, len);
 

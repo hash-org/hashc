@@ -15,6 +15,11 @@ print_char := (c: char) => {
 ///
 /// This function is the equivalent of `printf("%d", value)` in C.
 print_int := (value: i32) => {
+    if value == 0 {
+        print_char('0');
+        return;
+    }
+
     data := libc::malloc(12);
     buf: [u8] = Intrinsics::transmute(type SizedPointer, type [u8], SizedPointer(data, 12));
     len := i32_to_string(value, buf, 10);

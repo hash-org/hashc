@@ -110,6 +110,8 @@ fn main() {
                     .stdout(Stdio::inherit())
                     .stderr(Stdio::inherit())
                     .spawn()
+                    .unwrap()
+                    .wait()
                     .unwrap();
             }
         }
