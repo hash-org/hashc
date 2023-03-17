@@ -29,15 +29,4 @@ pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
     /// Check whether the [TyInfo] layout can be represented as an
     /// immediate value.
     fn is_backend_immediate(&self, ty: TyInfo) -> bool;
-
-    /// Get the type of an element from a scalar pair, and assume
-    /// if it "immediate".
-    ///
-    /// @@TODO: Move this into the type methods.
-    fn scalar_pair_element_backend_type(
-        &self,
-        info: TyInfo,
-        index: usize,
-        immediate: bool,
-    ) -> Self::Type;
 }

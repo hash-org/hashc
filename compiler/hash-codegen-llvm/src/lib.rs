@@ -23,7 +23,7 @@ use hash_codegen::{
     symbols::mangle::compute_symbol_name,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
-        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
 use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
@@ -182,7 +182,7 @@ impl<'b, 'm> LLVMBackend<'b> {
         // through the arguments of the function, i.e. `int main(int argc, char** argv)`
         // then we have to define it as such, otherwise, we define it as
         // `int main()`.
-        let fn_ty = if self.settings.target().entry_point_requires_args {
+        let fn_ty = if ctx.target().entry_point_requires_args {
             ctx.type_function(&[ctx.type_int(), ctx.type_ptr_to(ctx.type_i8p())], ctx.type_int())
         } else {
             ctx.type_function(&[], ctx.type_int())

@@ -239,6 +239,15 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         info.immediate_llvm_ty(self)
     }
 
+    fn scalar_pair_element_backend_type(
+        &self,
+        info: TyInfo,
+        index: usize,
+        immediate: bool,
+    ) -> Self::Type {
+        info.scalar_pair_element_llvm_ty(self, index, immediate)
+    }
+
     fn backend_ty_from_info(&self, info: TyInfo) -> Self::Type {
         info.llvm_ty(self)
     }

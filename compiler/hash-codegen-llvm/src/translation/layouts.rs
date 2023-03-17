@@ -10,10 +10,7 @@ use hash_target::{
     data_layout::{HasDataLayout, TargetDataLayout},
 };
 
-use super::{
-    ty::{ExtendedTyBuilderMethods, TyMemoryRemap},
-    Builder,
-};
+use super::{ty::TyMemoryRemap, Builder};
 use crate::context::CodeGenCtx;
 
 impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
@@ -23,15 +20,6 @@ impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
 
     fn is_backend_immediate(&self, info: TyInfo) -> bool {
         self.map_layout(info.layout, |layout| layout.is_llvm_immediate())
-    }
-
-    fn scalar_pair_element_backend_type(
-        &self,
-        info: TyInfo,
-        index: usize,
-        immediate: bool,
-    ) -> Self::Type {
-        info.scalar_pair_element_llvm_ty(self, index, immediate)
     }
 }
 
@@ -48,15 +36,6 @@ impl<'b, 'm> LayoutMethods<'b> for Builder<'_, 'b, 'm> {
 
     fn is_backend_immediate(&self, ty: TyInfo) -> bool {
         self.ctx.is_backend_immediate(ty)
-    }
-
-    fn scalar_pair_element_backend_type(
-        &self,
-        info: TyInfo,
-        index: usize,
-        immediate: bool,
-    ) -> Self::Type {
-        self.ctx.scalar_pair_element_backend_type(info, index, immediate)
     }
 }
 

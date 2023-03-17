@@ -4,7 +4,7 @@ use hash_codegen::{
     abi::FnAbi,
     lower::abi::compute_fn_abi_from_instance,
     symbols::mangle::compute_symbol_name,
-    traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods},
+    traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::InstanceId;
 use hash_source::identifier::IDENTS;
@@ -71,7 +71,7 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     }
 
     fn declare_entry_point(&self, fn_ty: Self::Type) -> Option<Self::Function> {
-        let target = self.settings.target();
+        let target = self.target();
         let entry_name = target.entry_name.as_ref();
 
         // If the symbol already exists, then it is an error
