@@ -94,10 +94,6 @@ pub struct FnBuilder<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// also facilitate the ability to merge blocks together during the
     /// lowering process.
     block_map: IndexVec<ir::BasicBlock, BlockStatus<Builder::BasicBlock>>,
-
-    /// A commonly shared "unreachable" block in order to avoid
-    /// having multiple basic blocks that are "unreachable".
-    _unreachable_block: Option<Builder::BasicBlock>,
 }
 
 impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
@@ -134,7 +130,6 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             fn_abi,
             block_map,
             locals: IndexVec::with_capacity(body.declarations.len()),
-            _unreachable_block: None,
         }
     }
 }
