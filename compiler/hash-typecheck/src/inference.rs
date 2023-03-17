@@ -803,61 +803,63 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-        let inferred_subject_ty = self.new_ty_hole_of(fn_call_term.subject);
-        self.infer_term(fn_call_term.subject, inferred_subject_ty)?;
+        self.context().enter_scope(ScopeKind::Sub, || {
+            self.normalise_and_check_ty(annotation_ty)?;
+            let inferred_subject_ty = self.new_ty_hole_of(fn_call_term.subject);
+            self.infer_term(fn_call_term.subject, inferred_subject_ty)?;
 
-        match self.get_ty(inferred_subject_ty) {
-            Ty::Fn(fn_ty) => {
-                // Potentially fill-in implicit args
-                if let Ty::Fn(_) = self.get_ty(fn_ty.return_ty) && fn_ty.implicit && !fn_call_term.implicit {
-                    let applied_args = self.param_utils().instantiate_params_as_holes(fn_ty.params);
-                    let copied_subject = self.new_term_from(fn_call_term.subject, self.get_term(fn_call_term.subject));
-                    let new_subject = FnCallTerm {
-                        args: applied_args,
-                        subject: copied_subject,
-                        implicit: fn_ty.implicit,
-                    };
-                    self.stores().term().set(fn_call_term.subject, new_subject.into());
-                    return self.infer_fn_call_term(fn_call_term, annotation_ty, original_term_id);
-                }
+            match self.get_ty(inferred_subject_ty) {
+                Ty::Fn(fn_ty) => {
+                    // Potentially fill-in implicit args
+                    if let Ty::Fn(_) = self.get_ty(fn_ty.return_ty) && fn_ty.implicit && !fn_call_term.implicit {
+                        let applied_args = self.param_utils().instantiate_params_as_holes(fn_ty.params);
+                        let copied_subject = self.new_term_from(fn_call_term.subject, self.get_term(fn_call_term.subject));
+                        let new_subject = FnCallTerm {
+                            args: applied_args,
+                            subject: copied_subject,
+                            implicit: fn_ty.implicit,
+                        };
+                        self.stores().term().set(fn_call_term.subject, new_subject.into());
+                        return self.infer_fn_call_term(fn_call_term, annotation_ty, original_term_id);
+                    }
 
-                // Check that the function call is of the correct kind.
-                if fn_ty.implicit != fn_call_term.implicit {
-                    return Err(TcError::WrongCallKind {
-                        site: original_term_id,
-                        expected_implicit: fn_ty.implicit,
-                        actual_implicit: fn_call_term.implicit,
-                    });
-                }
+                    // Check that the function call is of the correct kind.
+                    if fn_ty.implicit != fn_call_term.implicit {
+                        return Err(TcError::WrongCallKind {
+                            site: original_term_id,
+                            expected_implicit: fn_ty.implicit,
+                            actual_implicit: fn_call_term.implicit,
+                        });
+                    }
 
-                let copied_params = self.sub_ops().copy_params(fn_ty.params);
-                let copied_return_ty = self.sub_ops().copy_ty(fn_ty.return_ty);
+                    let copied_params = self.sub_ops().copy_params(fn_ty.params);
+                    let copied_return_ty = self.sub_ops().copy_ty(fn_ty.return_ty);
 
-                let mut fn_call_term = *fn_call_term;
-                self.infer_args(fn_call_term.args, copied_params, |inferred_fn_call_args| {
-                    fn_call_term.args = inferred_fn_call_args;
-                    self.stores().term().set(original_term_id, fn_call_term.into());
+                    let mut fn_call_term = *fn_call_term;
+                    self.infer_args(fn_call_term.args, copied_params, |inferred_fn_call_args| {
+                        fn_call_term.args = inferred_fn_call_args;
+                        self.stores().term().set(original_term_id, fn_call_term.into());
 
-                    self.sub_ops().apply_sub_to_atom_from_context(copied_return_ty);
-                    self.check_by_unify(copied_return_ty, annotation_ty)?;
+                        self.sub_ops().apply_sub_to_atom_from_context(copied_return_ty);
+                        self.check_by_unify(copied_return_ty, annotation_ty)?;
+                        Ok(())
+                    })?;
+
+                    self.sub_ops().apply_sub_to_atom_from_context(fn_call_term.subject);
+                    self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;
+
                     Ok(())
-                })?;
-                self.sub_ops().apply_sub_to_atom_from_context(fn_call_term.subject);
-
-                self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;
-
-                Ok(())
+                }
+                _ => {
+                    // Not a function type.
+                    Err(TcError::WrongTy {
+                        kind: WrongTermKind::NotAFunction,
+                        inferred_term_ty: inferred_subject_ty,
+                        term: original_term_id,
+                    })
+                }
             }
-            _ => {
-                // Not a function type.
-                Err(TcError::WrongTy {
-                    kind: WrongTermKind::NotAFunction,
-                    inferred_term_ty: inferred_subject_ty,
-                    term: original_term_id,
-                })
-            }
-        }
+        })
     }
 
     /// Flag the given function as an entry point if it is one.
