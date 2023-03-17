@@ -78,4 +78,6 @@ libc := mod {
     #foreign malloc := (size: usize) -> &raw u8 => { Intrinsics::abort() }
 
     #foreign free := (ptr: &raw u8) -> () => { Intrinsics::abort() }
+
+    #foreign memcpy := (dest: &raw u8, src: &raw u8, n: usize) -> &raw u8 => { Intrinsics::abort() }
 }
