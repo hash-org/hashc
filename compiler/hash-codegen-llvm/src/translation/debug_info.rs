@@ -3,13 +3,13 @@
 
 use hash_codegen::{
     abi::FnAbi,
-    traits::debug::{BuildDebugInfoMethods, VariableKind},
+    traits::debug::{DebugInfoBuilderMethods, VariableKind},
 };
 use hash_source::{identifier::Identifier, location::SourceLocation};
 
 use super::Builder;
 
-impl<'b, 'm> BuildDebugInfoMethods for Builder<'_, 'b, 'm> {
+impl<'b, 'm> DebugInfoBuilderMethods for Builder<'_, 'b, 'm> {
     fn create_debug_info_scope_for_fn(
         &self,
         _fn_abi: &FnAbi,
