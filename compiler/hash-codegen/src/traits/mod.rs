@@ -1,4 +1,13 @@
-//! backends in order to create a backend agnostic interface.
+//! Defines interfaces as traits for a code generation backend
+//! to implement. The [BackendMethods] trait is the core trait that
+//! should be implemented by the code generation context for the
+//! backend, and all of the traits should be implemented by the
+//! backend itself.
+//!
+//! The [BackendTypes] trait is used to define the types that are
+//! used by the backend, and the [HasCtxMethods] trait is used to
+//! provide the backend with the necessary context to perform code
+//! generation.
 
 use std::fmt;
 
@@ -80,7 +89,7 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
 
 /// The core trait of the code generation backend which is used to
 /// generate code for a particular backend.
-pub trait CodeGenMethods<'b>:
+pub trait BackendMethods<'b>:
     BackendTypes
     + LayoutMethods<'b>
     + MiscBuilderMethods<'b>
@@ -90,9 +99,9 @@ pub trait CodeGenMethods<'b>:
 {
 }
 
-// Dummy implementation for `CodeGenMethods` for any T that implements
+// Dummy implementation for `BackendMethods` for any T that implements
 // those methods too.
-impl<'b, T> CodeGenMethods<'b> for T where
+impl<'b, T> BackendMethods<'b> for T where
     Self: BackendTypes
         + LayoutMethods<'b>
         + MiscBuilderMethods<'b>
@@ -106,8 +115,8 @@ pub trait Codegen<'b>:
     BackendTypes + std::ops::Deref<Target = <Self as Codegen<'b>>::CodegenCtx>
 {
     /// The type of the codegen context, all items within the context can access
-    /// all of the methods that are provided via [CodeGenMethods]
-    type CodegenCtx: CodeGenMethods<'b>
+    /// all of the methods that are provided via [BackendMethods].
+    type CodegenCtx: BackendMethods<'b>
         + BackendTypes<
             Value = Self::Value,
             Function = Self::Function,

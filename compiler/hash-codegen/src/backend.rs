@@ -1,6 +1,9 @@
-//! This module defines all of the useful traits and data types that
-//! are used by the code generation backend to interface with
-//! the compiler pipeline.
+//! This module defines the [CompilerBackend] trait which is
+//! used to represent a compiler backend that the pipeline can
+//! interface with. The trait is simple and only requires for
+//! the backend to implement the [CompilerBackend::run] method
+//! which is called by the pipeline to generate code for the
+//! processed [Workspace].
 
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;

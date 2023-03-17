@@ -32,7 +32,7 @@ pub struct LLVMBuilder<'a, 'b, 'm> {
     pub(crate) ctx: &'a CodeGenCtx<'b, 'm>,
 }
 
-/// This specifies that the [Builder] context is [CodeGenCtx].
+/// This specifies that the [LLVMBuilder] context is [CodeGenCtx].
 impl<'b, 'm> Codegen<'b> for LLVMBuilder<'_, 'b, 'm> {
     type CodegenCtx = CodeGenCtx<'b, 'm>;
 }
