@@ -30,3 +30,4 @@ pub mod traits;
 // implementations.
 pub use hash_abi as abi;
 pub use hash_layout as layout;
+pub use hash_target as target;

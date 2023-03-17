@@ -7,14 +7,14 @@ use hash_codegen::{
     abi::FnAbi,
     common::TypeKind,
     layout::{Layout, LayoutShape, TyInfo, Variants},
+    target::{
+        abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind},
+        alignment::Alignment,
+        size::Size,
+    },
     traits::{layout::LayoutMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::IrTy;
-use hash_target::{
-    abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind},
-    alignment::Alignment,
-    size::Size,
-};
 use hash_utils::smallvec::{smallvec, SmallVec};
 use inkwell as llvm;
 use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};
@@ -239,7 +239,7 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         info.immediate_llvm_ty(self)
     }
 
-    fn scalar_pair_element_backend_type(
+    fn scalar_pair_element_backend_ty(
         &self,
         info: TyInfo,
         index: usize,

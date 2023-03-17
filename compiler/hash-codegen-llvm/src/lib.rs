@@ -21,6 +21,7 @@ use hash_codegen::{
     layout::LayoutCtx,
     lower::{abi::compute_fn_abi_from_instance, codegen_ir_body},
     symbols::mangle::compute_symbol_name,
+    target::TargetArch,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
         misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
@@ -34,7 +35,6 @@ use hash_pipeline::{
     CompilerResult,
 };
 use hash_source::ModuleId;
-use hash_target::TargetArch;
 use hash_utils::{
     stream_writeln,
     timing::{time_item, AccessToMetrics},
@@ -48,7 +48,7 @@ use llvm::{
     values::FunctionValue,
 };
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
-use translation::Builder;
+use translation::LLVMBuilder;
 
 pub struct LLVMBackend<'b> {
     /// The stream to use for printing out the results
@@ -195,8 +195,8 @@ impl<'b, 'm> LLVMBackend<'b> {
 
         // @@Todo: we can set additional attributes to this, i.e. cpu_attrs
 
-        let block = Builder::append_block(ctx, main_fn, "init");
-        let mut builder = Builder::build(ctx, block);
+        let block = LLVMBuilder::append_block(ctx, main_fn, "init");
+        let mut builder = LLVMBuilder::build(ctx, block);
 
         // Get the instance of the entry point function so that
         // we can reference it here.
@@ -258,7 +258,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             });
 
             // @@ErrorHandling: we should be able to handle the error here
-            codegen_ir_body::<Builder>(instance, body, ctx).unwrap();
+            codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();
         }
     }
 }

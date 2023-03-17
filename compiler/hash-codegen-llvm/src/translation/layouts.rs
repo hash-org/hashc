@@ -2,15 +2,15 @@
 
 use hash_codegen::{
     layout::{Layout, LayoutShape, TyInfo, Variants},
+    target::{
+        abi::AbiRepresentation,
+        data_layout::{HasDataLayout, TargetDataLayout},
+    },
     traits::layout::LayoutMethods,
 };
 use hash_ir::{ty::IrTyId, write::WriteIr};
-use hash_target::{
-    abi::AbiRepresentation,
-    data_layout::{HasDataLayout, TargetDataLayout},
-};
 
-use super::{ty::TyMemoryRemap, Builder};
+use super::{ty::TyMemoryRemap, LLVMBuilder};
 use crate::ctx::CodeGenCtx;
 
 impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
@@ -29,7 +29,7 @@ impl HasDataLayout for CodeGenCtx<'_, '_> {
     }
 }
 
-impl<'b, 'm> LayoutMethods<'b> for Builder<'_, 'b, 'm> {
+impl<'b, 'm> LayoutMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {
         self.ctx.backend_field_index(info, index)
     }
@@ -39,7 +39,7 @@ impl<'b, 'm> LayoutMethods<'b> for Builder<'_, 'b, 'm> {
     }
 }
 
-impl HasDataLayout for Builder<'_, '_, '_> {
+impl HasDataLayout for LLVMBuilder<'_, '_, '_> {
     fn data_layout(&self) -> &TargetDataLayout {
         self.ctx.data_layout()
     }

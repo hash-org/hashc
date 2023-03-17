@@ -110,7 +110,7 @@ pub trait TypeBuilderMethods<'b>: Backend<'b> {
 
     /// Get the type of an element from a scalar pair, and assume
     /// if it "immediate".
-    fn scalar_pair_element_backend_type(
+    fn scalar_pair_element_backend_ty(
         &self,
         info: TyInfo,
         index: usize,

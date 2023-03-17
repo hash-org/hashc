@@ -7,9 +7,9 @@ use hash_codegen::{
 };
 use hash_source::{identifier::Identifier, location::SourceLocation};
 
-use super::Builder;
+use super::LLVMBuilder;
 
-impl<'b, 'm> DebugInfoBuilderMethods for Builder<'_, 'b, 'm> {
+impl<'b, 'm> DebugInfoBuilderMethods for LLVMBuilder<'_, 'b, 'm> {
     fn create_debug_info_scope_for_fn(
         &self,
         _fn_abi: &FnAbi,

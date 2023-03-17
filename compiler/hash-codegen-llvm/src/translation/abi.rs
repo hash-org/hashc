@@ -5,12 +5,12 @@ use hash_codegen::{
         ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
     },
     lower::{operands::OperandValue, place::PlaceRef},
+    target::abi::{AbiRepresentation, ScalarKind},
     traits::{
         abi::AbiBuilderMethods, builder::BlockBuilderMethods, layout::LayoutMethods,
         ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
-use hash_target::abi::{AbiRepresentation, ScalarKind};
 use hash_utils::smallvec::SmallVec;
 use inkwell::{
     attributes::{Attribute, AttributeLoc},
@@ -18,10 +18,10 @@ use inkwell::{
     values::{AnyValue, AnyValueEnum, CallSiteValue, FunctionValue},
 };
 
-use super::{ty::ExtendedTyBuilderMethods, Builder};
+use super::{ty::ExtendedTyBuilderMethods, LLVMBuilder};
 use crate::{ctx::CodeGenCtx, misc::AttributeKind};
 
-impl<'b, 'm> AbiBuilderMethods<'b> for Builder<'_, 'b, 'm> {
+impl<'b, 'm> AbiBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
     fn get_param(&mut self, index: usize) -> Self::Value {
         let func = self.basic_block().get_parent().unwrap();
         func.get_nth_param(index as u32).unwrap().into()
@@ -58,7 +58,7 @@ pub trait ExtendedArgAbiMethods<'m> {
     /// Store the given [AnyValueEnum] into the given [PlaceRef].
     fn store(
         &self,
-        builder: &mut Builder<'_, '_, 'm>,
+        builder: &mut LLVMBuilder<'_, '_, 'm>,
         value: AnyValueEnum<'m>,
         destination: PlaceRef<AnyValueEnum<'m>>,
     );
@@ -66,7 +66,7 @@ pub trait ExtendedArgAbiMethods<'m> {
     /// Store the given function argument into the given [PlaceRef].
     fn store_fn_arg(
         &self,
-        builder: &mut Builder<'_, '_, 'm>,
+        builder: &mut LLVMBuilder<'_, '_, 'm>,
         index: &mut usize,
         destination: PlaceRef<AnyValueEnum<'m>>,
     );
@@ -75,7 +75,7 @@ pub trait ExtendedArgAbiMethods<'m> {
 impl<'m> ExtendedArgAbiMethods<'m> for ArgAbi {
     fn store(
         &self,
-        builder: &mut Builder<'_, '_, 'm>,
+        builder: &mut LLVMBuilder<'_, '_, 'm>,
         value: AnyValueEnum<'m>,
         destination: PlaceRef<AnyValueEnum<'m>>,
     ) {
@@ -95,7 +95,7 @@ impl<'m> ExtendedArgAbiMethods<'m> for ArgAbi {
 
     fn store_fn_arg(
         &self,
-        builder: &mut Builder<'_, '_, 'm>,
+        builder: &mut LLVMBuilder<'_, '_, 'm>,
         index: &mut usize,
         destination: PlaceRef<AnyValueEnum<'m>>,
     ) {
@@ -259,7 +259,7 @@ pub trait ExtendedFnAbiMethods<'b, 'm> {
     /// Apply the derived ABI attributes to the given [CallSiteValue].
     fn apply_attributes_call_site(
         &self,
-        builder: &mut Builder<'_, 'b, 'm>,
+        builder: &mut LLVMBuilder<'_, 'b, 'm>,
         call_site: CallSiteValue<'m>,
     );
 }
@@ -371,7 +371,7 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
 
     fn apply_attributes_call_site(
         &self,
-        builder: &mut Builder<'_, '_, 'm>,
+        builder: &mut LLVMBuilder<'_, '_, 'm>,
         call_site: CallSiteValue<'m>,
     ) {
         let mut fn_attributes = SmallVec::<[Attribute; 1]>::new();

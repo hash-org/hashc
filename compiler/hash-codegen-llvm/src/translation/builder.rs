@@ -12,6 +12,11 @@ use hash_codegen::{
         operands::{OperandRef, OperandValue},
         place::PlaceRef,
     },
+    target::{
+        abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
+        alignment::Alignment,
+        size::Size,
+    },
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
         ty::TypeBuilderMethods, HasCtxMethods,
@@ -19,11 +24,6 @@ use hash_codegen::{
 };
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
-use hash_target::{
-    abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
-    alignment::Alignment,
-    size::Size,
-};
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
@@ -38,7 +38,7 @@ use rayon::iter::Either;
 
 use super::{
     abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,
-    Builder,
+    LLVMBuilder,
 };
 use crate::misc::{
     AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
@@ -58,7 +58,7 @@ pub fn instruction_from_any_value(value: AnyValueEnum<'_>) -> InstructionValue<'
     value.as_instruction_value().unwrap()
 }
 
-impl<'a, 'b, 'm> Builder<'a, 'b, 'm> {
+impl<'a, 'b, 'm> LLVMBuilder<'a, 'b, 'm> {
     /// Create a PHI node in the current block.
     fn phi(
         &mut self,
@@ -127,7 +127,7 @@ impl<'a, 'b, 'm> Builder<'a, 'b, 'm> {
     }
 }
 
-impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
+impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
     fn ctx(&self) -> &Self::CodegenCtx {
         self.ctx
     }
@@ -139,7 +139,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         // because the builder is created at the beginning of the block.
         builder.position_at_end(block);
 
-        Builder { builder, ctx }
+        LLVMBuilder { builder, ctx }
     }
 
     fn append_block(
@@ -1199,7 +1199,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
 /// the value within the LLVM IR. Here, we emit information about the
 /// [ValidScalarRange], alignment metadata and `non-null`ness.
 fn load_scalar_value_metadata<'m>(
-    builder: &mut Builder<'_, '_, 'm>,
+    builder: &mut LLVMBuilder<'_, '_, 'm>,
     load: InstructionValue<'m>,
     scalar: Scalar,
     info: TyInfo,

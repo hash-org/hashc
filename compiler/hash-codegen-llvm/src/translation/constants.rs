@@ -1,11 +1,13 @@
 //! Implements all of the constant building methods.
-use hash_codegen::traits::{
-    constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods,
-    HasCtxMethods,
+use hash_codegen::{
+    target::{abi::Scalar, data_layout::HasDataLayout},
+    traits::{
+        constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods,
+        HasCtxMethods,
+    },
 };
 use hash_ir::ir::Const;
 use hash_source::constant::{InternedStr, CONSTANT_MAP};
-use hash_target::{abi::Scalar, data_layout::HasDataLayout};
 use inkwell::{module::Linkage, types::BasicTypeEnum, values::AnyValueEnum};
 
 use super::ty::ExtendedTyBuilderMethods;
