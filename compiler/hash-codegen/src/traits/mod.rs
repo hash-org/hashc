@@ -79,11 +79,10 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
 }
 
 /// The core trait of the code generation backend which is used to
-/// generate code for a particular backend. This trait provides IR
-pub trait Backend<'b>: Sized + BackendTypes + LayoutMethods<'b> {}
-
+/// generate code for a particular backend.
 pub trait CodeGenMethods<'b>:
-    Backend<'b>
+    BackendTypes
+    + LayoutMethods<'b>
     + MiscBuilderMethods<'b>
     + HasCtxMethods<'b>
     + TypeBuilderMethods<'b>
@@ -94,7 +93,8 @@ pub trait CodeGenMethods<'b>:
 // Dummy implementation for `CodeGenMethods` for any T that implements
 // those methods too.
 impl<'b, T> CodeGenMethods<'b> for T where
-    Self: Backend<'b>
+    Self: BackendTypes
+        + LayoutMethods<'b>
         + MiscBuilderMethods<'b>
         + HasCtxMethods<'b>
         + TypeBuilderMethods<'b>
@@ -103,7 +103,7 @@ impl<'b, T> CodeGenMethods<'b> for T where
 }
 
 pub trait Codegen<'b>:
-    Backend<'b> + std::ops::Deref<Target = <Self as Codegen<'b>>::CodegenCtx>
+    BackendTypes + std::ops::Deref<Target = <Self as Codegen<'b>>::CodegenCtx>
 {
     /// The type of the codegen context, all items within the context can access
     /// all of the methods that are provided via [CodeGenMethods]

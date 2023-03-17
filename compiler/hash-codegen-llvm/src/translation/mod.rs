@@ -4,7 +4,7 @@
 
 use hash_codegen::{
     layout::{compute::LayoutComputer, LayoutCtx},
-    traits::{Backend, BackendTypes, Codegen, HasCtxMethods},
+    traits::{BackendTypes, Codegen, HasCtxMethods},
 };
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
@@ -47,8 +47,6 @@ impl<'b, 'm> BackendTypes for LLVMBuilder<'_, 'b, 'm> {
     type DebugInfoLocation = <CodeGenCtx<'b, 'm> as BackendTypes>::DebugInfoLocation;
     type DebugInfoVariable = <CodeGenCtx<'b, 'm> as BackendTypes>::DebugInfoVariable;
 }
-
-impl<'b, 'm> Backend<'b> for LLVMBuilder<'_, 'b, 'm> {}
 
 impl<'b, 'm> std::ops::Deref for LLVMBuilder<'_, 'b, 'm> {
     type Target = CodeGenCtx<'b, 'm>;

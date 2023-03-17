@@ -7,7 +7,7 @@ use fxhash::FxHashMap;
 use hash_codegen::{
     layout::{compute::LayoutComputer, LayoutCtx},
     symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
-    traits::{Backend, BackendTypes, HasCtxMethods},
+    traits::{BackendTypes, HasCtxMethods},
 };
 use hash_ir::{
     ty::{InstanceId, IrTyId, VariantIdx},
@@ -137,8 +137,6 @@ impl<'b, 'm> BackendTypes for CodeGenCtx<'b, 'm> {
 
     type DebugInfoVariable = llvm::debug_info::DILocalVariable<'m>;
 }
-
-impl<'b> Backend<'b> for CodeGenCtx<'b, '_> {}
 
 impl<'b> HasCtxMethods<'b> for CodeGenCtx<'b, '_> {
     fn settings(&self) -> &CompilerSettings {

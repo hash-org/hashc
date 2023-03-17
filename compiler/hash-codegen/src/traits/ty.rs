@@ -6,10 +6,10 @@ use hash_layout::TyInfo;
 use hash_source::constant::FloatTy;
 use hash_target::abi::{AddressSpace, Integer};
 
-use super::Backend;
+use super::{layout::LayoutMethods, BackendTypes};
 use crate::common::TypeKind;
 
-pub trait TypeBuilderMethods<'b>: Backend<'b> {
+pub trait TypeBuilderMethods<'b>: BackendTypes + LayoutMethods<'b> {
     /// Create a bit type.
     fn type_i1(&self) -> Self::Type;
 
