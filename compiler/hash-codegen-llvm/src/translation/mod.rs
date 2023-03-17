@@ -9,7 +9,7 @@ use hash_codegen::{
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
 
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 mod abi;
 mod builder;

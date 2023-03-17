@@ -15,7 +15,7 @@ use inkwell::{
 };
 
 use super::abi::ExtendedFnAbiMethods;
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 impl<'b, 'm> CodeGenCtx<'b, 'm> {
     /// Generate code for a reference to a function or method item. The

@@ -8,7 +8,7 @@ use inkwell::{
 };
 
 use super::abi::ExtendedFnAbiMethods;
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 impl<'b, 'm> CodeGenCtx<'b, 'm> {
     /// Standard function to declare a C-like function. This should only be used

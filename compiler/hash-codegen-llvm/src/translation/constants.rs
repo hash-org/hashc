@@ -9,7 +9,7 @@ use hash_target::{abi::Scalar, data_layout::HasDataLayout};
 use inkwell::{module::Linkage, types::BasicTypeEnum, values::AnyValueEnum};
 
 use super::ty::ExtendedTyBuilderMethods;
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     fn const_undef(&self, ty: Self::Type) -> Self::Value {

@@ -24,7 +24,7 @@ use llvm_sys::{
 };
 
 use super::abi::ExtendedFnAbiMethods;
-use crate::{context::CodeGenCtx, misc::AddressSpaceWrapper};
+use crate::{ctx::CodeGenCtx, misc::AddressSpaceWrapper};
 
 /// Convert a [BasicTypeEnum] into a [AnyTypeEnum].
 ///

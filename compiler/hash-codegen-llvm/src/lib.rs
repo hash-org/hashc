@@ -7,14 +7,14 @@
 //! the results of each module in the [Workspace].
 #![feature(let_chains, hash_raw_entry)]
 
-mod context;
+mod ctx;
 mod error;
 pub mod misc;
 mod translation;
 
 use std::time::Duration;
 
-use context::CodeGenCtx;
+use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
 use hash_codegen::{
     backend::{BackendCtx, CompilerBackend},

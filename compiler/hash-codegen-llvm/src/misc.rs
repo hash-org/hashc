@@ -9,7 +9,7 @@ use hash_target::{
 };
 use inkwell::attributes::Attribute;
 
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 /// Wrapper type around [inkwell::IntPredicate] to allow for conversion from
 /// [IntComparisonKind].

@@ -11,7 +11,7 @@ use hash_target::{
 };
 
 use super::{ty::TyMemoryRemap, Builder};
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {

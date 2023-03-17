@@ -19,7 +19,7 @@ use inkwell::{
 };
 
 use super::{ty::ExtendedTyBuilderMethods, Builder};
-use crate::{context::CodeGenCtx, misc::AttributeKind};
+use crate::{ctx::CodeGenCtx, misc::AttributeKind};
 
 impl<'b, 'm> AbiBuilderMethods<'b> for Builder<'_, 'b, 'm> {
     fn get_param(&mut self, index: usize) -> Self::Value {
