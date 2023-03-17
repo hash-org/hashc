@@ -105,12 +105,12 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
 
     /// Create a global constant value for the [InternedStr].
     fn const_str(&self, s: InternedStr) -> (Self::Value, Self::Value) {
-        let mut str_len = 0;
+        let value: &str = s.into();
+        let str_len = value.len();
 
         let mut str_consts = self.str_consts.borrow_mut();
         let (_, global_str) = str_consts.raw_entry_mut().from_key(&s).or_insert_with(|| {
             let value: &str = s.into();
-            str_len = value.len();
 
             let str = self.ll_ctx.const_string(value.as_bytes(), false);
 
@@ -135,6 +135,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         let ptr = global_str.as_pointer_value().const_cast(
             self.type_ptr_to(self.layout_of(byte_slice_ty).llvm_ty(self)).into_pointer_type(),
         );
+
         (ptr.into(), self.const_usize(str_len as u64))
     }
 
