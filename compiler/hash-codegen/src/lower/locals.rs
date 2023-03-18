@@ -87,7 +87,7 @@ pub fn compute_non_ssa_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     // If there exists a local definition that dominates all uses of that local,
     // the definition should be visited first. Traverse blocks in an order that
     // is a topological sort of dominance partial order.
-    for (block, data) in traversal::PostOrder::new_from_start(body) {
+    for (block, data) in traversal::ReversePostOrder::new_from_start(body) {
         analyser.visit_basic_block(block, data);
     }
 
