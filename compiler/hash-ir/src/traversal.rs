@@ -98,6 +98,27 @@ pub fn reachable_block_indices(body: &Body) -> FixedBitSet {
     pre_order_traversal.visited
 }
 
+/// A [PostOrder] struct performs a post-order traversal of a
+/// [Body] and implements the [Iterator] trait. This will yield
+/// the next basic block in the post-order traversal.
+///
+/// # Example
+/// ```ignore
+///              A
+///              |
+///              B
+///            /   \
+///            F     D
+///           / \     \
+///          G   H     E
+///             / \
+///            I   C
+/// ```
+///
+/// The post-order traversal of the above graph would be:
+/// ```
+/// G, I, C,  H, F, E, D, B, A
+/// ```
 pub struct PostOrder<'ir> {
     /// The body that we are traversing.
     body: &'ir Body,

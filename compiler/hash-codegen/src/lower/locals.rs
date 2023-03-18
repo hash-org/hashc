@@ -3,6 +3,8 @@
 //! an IR body, and whether they can be allocated on the stack
 //! or not.
 
+use core::fmt;
+
 use fixedbitset::FixedBitSet;
 use hash_ir::{
     ir::{self, IrRef, Local, PlaceProjection, START_BLOCK},
@@ -124,6 +126,17 @@ enum LocalMemoryKind {
     Ssa(ir::IrRef),
 }
 
+impl fmt::Display for LocalMemoryKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LocalMemoryKind::Zst => write!(f, "Zst"),
+            LocalMemoryKind::Unused => write!(f, "Unused"),
+            LocalMemoryKind::Memory => write!(f, "Memory"),
+            LocalMemoryKind::Ssa(_) => write!(f, "Ssa"),
+        }
+    }
+}
+
 struct LocalKindAnalyser<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// The function lowering context.
     fn_builder: &'ir FnBuilder<'a, 'b, Builder>,
@@ -135,6 +148,33 @@ struct LocalKindAnalyser<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// represent the local, an allocation or can be passed around
     /// as a scalar value.
     locals: IndexVec<Local, LocalMemoryKind>,
+}
+
+impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> fmt::Display
+    for LocalKindAnalyser<'ir, 'a, 'b, Builder>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // compute the longest local name, and align all of the
+        // local names to that length.
+        let width = self
+            .locals
+            .iter_enumerated()
+            .fold(0, |acc, (local, _)| {
+                if local.raw() == 0 {
+                    return acc;
+                }
+
+                std::cmp::max(acc, local.raw().ilog10() + 1)
+            })
+            .try_into()
+            .unwrap();
+
+        for (local, kind) in self.locals.iter_enumerated() {
+            writeln!(f, "{: >width$?}: {}", local, kind)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'ir, 'a, 'b, Builder> {

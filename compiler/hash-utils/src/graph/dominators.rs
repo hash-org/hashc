@@ -49,7 +49,7 @@ impl<Node: Idx> Dominators<Node> {
 
     /// Check if a particular node is a dominator of another node.
     pub fn is_dominated_by(&self, node: Node, dominator: Node) -> bool {
-        self.dominators(node).any(|node| node == dominator)
+        self.dominators(node).any(|node_dominator| node_dominator == dominator)
     }
 
     /// Provide deterministic ordering of nodes such that, if any two nodes have
