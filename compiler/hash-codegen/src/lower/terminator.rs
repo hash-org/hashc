@@ -159,9 +159,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             // We exit early for transmute since we don't need to compute the ABI
             // or any information about the return destination.
             if let Some(Intrinsic::Transmute) = maybe_intrinsic {
-                return if target.is_some() {
+                return if let Some(target) = target {
                     self.codegen_transmute(builder, &fn_args[2], destination);
-                    true
+                    self.codegen_goto_terminator(builder, target, can_merge)
                 } else {
                     builder.unreachable();
                     false
