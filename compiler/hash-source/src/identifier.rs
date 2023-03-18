@@ -238,6 +238,7 @@ core_idents! {
     dump_ast: "dump_ast",
     dump_ir: "dump_ir",
     dump_tir: "dump_tir",
+    dump_llvm_ir: "dump_llvm_ir",
 
     // Language items
     lang: "lang",

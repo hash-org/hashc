@@ -61,7 +61,7 @@ impl fmt::Display for ReportKind {
 
 /// The kind of [ReportNote], this is primarily used for rendering the label of
 /// the [ReportNote].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReportNoteKind {
     /// A help message or a suggestion.
     Help,
@@ -71,6 +71,9 @@ pub enum ReportNoteKind {
 
     /// Additional information about the diagnostic.
     Note,
+
+    /// An empty marker that is used to just add a `=` line.
+    Raw,
 }
 
 impl ReportNoteKind {
@@ -80,6 +83,7 @@ impl ReportNoteKind {
             ReportNoteKind::Note => "note",
             ReportNoteKind::Info => "info",
             ReportNoteKind::Help => "help",
+            ReportNoteKind::Raw => "",
         }
     }
 }
@@ -89,6 +93,7 @@ impl fmt::Display for ReportNoteKind {
         match self {
             ReportNoteKind::Note => write!(f, "note"),
             ReportNoteKind::Info => write!(f, "info"),
+            ReportNoteKind::Raw => Ok(()),
             ReportNoteKind::Help => write!(f, "{}", highlight(Colour::Cyan, "help")),
         }
     }
@@ -196,6 +201,15 @@ impl Report {
     pub fn add_info(&mut self, message: impl ToString) -> &mut Self {
         self.add_element(ReportElement::Note(ReportNote::new(
             ReportNoteKind::Info,
+            message.to_string(),
+        )))
+    }
+
+    /// Add a [`ReportNoteKind::Empty`] note with the given message to the
+    /// [Report].
+    pub fn add_empty(&mut self, message: impl ToString) -> &mut Self {
+        self.add_element(ReportElement::Note(ReportNote::new(
+            ReportNoteKind::Raw,
             message.to_string(),
         )))
     }

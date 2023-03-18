@@ -103,7 +103,7 @@ pub fn reachable_block_indices(body: &Body) -> FixedBitSet {
 /// the next basic block in the post-order traversal.
 ///
 /// # Example
-/// ```ignore
+/// ```ignore, notrust
 ///              A
 ///              |
 ///              B
@@ -116,7 +116,7 @@ pub fn reachable_block_indices(body: &Body) -> FixedBitSet {
 /// ```
 ///
 /// The post-order traversal of the above graph would be:
-/// ```
+/// ```ignore
 /// G, I, C,  H, F, E, D, B, A
 /// ```
 pub struct PostOrder<'ir> {

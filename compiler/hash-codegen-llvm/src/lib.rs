@@ -9,6 +9,7 @@
 
 mod ctx;
 mod error;
+mod fmt;
 pub mod misc;
 mod translation;
 
@@ -34,7 +35,8 @@ use hash_pipeline::{
     workspace::Workspace,
     CompilerResult,
 };
-use hash_source::ModuleId;
+use hash_reporting::writer::ReportWriter;
+use hash_source::{identifier::IDENTS, ModuleId};
 use hash_utils::{
     stream_writeln,
     timing::{time_item, AccessToMetrics},
@@ -49,6 +51,8 @@ use llvm::{
 };
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
 use translation::LLVMBuilder;
+
+use crate::fmt::FunctionPrinter;
 
 pub struct LLVMBackend<'b> {
     /// The stream to use for printing out the results
@@ -241,8 +245,10 @@ impl<'b, 'm> LLVMBackend<'b> {
     /// This function will build each body that is stored in the IR, and it to
     /// the current module.
     fn build_bodies(&self, ctx: &CodeGenCtx<'b, 'm>) {
+        let ir = self.ir_storage;
+
         // For each body perform a lowering procedure via the common interface...
-        for body in self.ir_storage.bodies.iter() {
+        for body in ir.bodies.iter() {
             // We don't need to generate anything for constants since they
             // should have already been dealt with...
             if matches!(body.info().source(), BodySource::Const) {
@@ -250,7 +256,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             }
 
             // Get the instance of the function.
-            let instance = self.ir_storage.ctx.map_ty(body.info().ty(), |ty| {
+            let instance = ir.ctx.map_ty(body.info().ty(), |ty| {
                 let IrTy::FnDef { instance, .. } = ty else {
                     panic!("ir-body has non-function type")
                 };
@@ -259,6 +265,20 @@ impl<'b, 'm> LLVMBackend<'b> {
 
             // @@ErrorHandling: we should be able to handle the error here
             codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();
+
+            // Check if we should dump the generated LLVM IR
+            if ir.ctx.map_instance(instance, |instance| {
+                instance.attributes.contains(IDENTS.dump_llvm_ir)
+            }) {
+                let mut stdout = self.stdout.clone();
+                let func = FunctionPrinter::new(body.info.name(), ctx.get_fn(instance));
+
+                stream_writeln!(
+                    stdout,
+                    "{}",
+                    ReportWriter::new(vec![func.into()], &self.workspace.source_map)
+                );
+            }
         }
     }
 }

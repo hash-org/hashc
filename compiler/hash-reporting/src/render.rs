@@ -20,7 +20,9 @@ use hash_source::{
 
 use crate::{
     highlight::{highlight, Colour, Modifier},
-    report::{ReportCodeBlock, ReportCodeBlockInfo, ReportElement, ReportKind, ReportNote},
+    report::{
+        ReportCodeBlock, ReportCodeBlockInfo, ReportElement, ReportKind, ReportNote, ReportNoteKind,
+    },
 };
 
 /// Character used to denote the span of the diagnostic for the `line` view.
@@ -388,6 +390,12 @@ impl ReportNote {
         f: &mut fmt::Formatter<'_>,
         longest_indent_width: usize,
     ) -> fmt::Result {
+        // If the label is `empty`, then we don't want to render anything
+        // except for the message.
+        if self.label == ReportNoteKind::Raw {
+            return write!(f, "{}", self.message);
+        }
+
         // We want to align the specified message line by line
         // with the `note: ...` label being as the initial suffix
         // of the first line. So, we compute the length of the label,
