@@ -1,13 +1,13 @@
 //! Implements various miscellaneous methods for the LLVM backend.
 
 use hash_codegen::{
-    abi::FnAbi,
-    lower::abi::compute_fn_abi_from_instance,
+    abi::{CallingConvention, FnAbi},
     symbols::mangle::compute_symbol_name,
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::InstanceId;
 use hash_source::identifier::IDENTS;
+use hash_utils::store::Store;
 use inkwell::{
     module::Linkage,
     values::{AnyValue, FunctionValue, UnnamedAddress},
@@ -30,14 +30,13 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
         }
 
         let name = compute_symbol_name(self.ir_ctx, instance);
-
-        // @@ErrorHandling: deal with error here...
-        let fn_abi = compute_fn_abi_from_instance(self, instance).unwrap();
+        let abis = self.cg_ctx().abis();
+        let fn_abi = abis.create_fn_abi(self, instance);
 
         // See if this item has already been declared in the module
         let func = if let Some(func) = self.module.get_function(name.as_str()) {
             // Create a function pointer with the new signature...
-            let ptr = fn_abi.ptr_to_llvm_ty(self);
+            let ptr = abis.map_fast(fn_abi, |abi| abi.ptr_to_llvm_ty(self));
 
             // If the value type of the function does not match the
             // created pointer type, we have to create a pointer cast
@@ -50,7 +49,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
                 func
             }
         } else {
-            self.declare_hash_fn(name.as_str(), &fn_abi)
+            abis.map_fast(fn_abi, |abi| self.declare_hash_fn(name.as_str(), abi))
         };
 
         // We insert the function into the cache so that we can
@@ -85,8 +84,9 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
                 GlobalVisibility::Default
             };
 
+            let convention = CallingConvention::make_from_abi_and_target(abi, target);
             let func =
-                self.declare_fn(entry_name, fn_ty, abi.into(), UnnamedAddress::Global, visibility);
+                self.declare_fn(entry_name, fn_ty, convention, UnnamedAddress::Global, visibility);
             func.set_linkage(Linkage::External);
 
             Some(func)

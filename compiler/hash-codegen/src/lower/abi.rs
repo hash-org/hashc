@@ -4,10 +4,10 @@
 use hash_abi::{
     ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
 };
-use hash_ir::ty::{InstanceId, IrTy, IrTyId, Mutability, RefKind};
+use hash_ir::ty::{Instance, InstanceId, IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::{LayoutComputer, LayoutError};
-use hash_target::abi::{Abi, Scalar, ScalarKind};
-use hash_utils::store::SequenceStore;
+use hash_target::abi::{Scalar, ScalarKind};
+use hash_utils::store::{CloneStore, SequenceStore};
 
 use crate::traits::{layout::LayoutMethods, HasCtxMethods};
 
@@ -86,21 +86,13 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
 ) -> Result<FnAbi, FnAbiError> {
     // @@Todo: add caching for the ABI computation...
 
-    // @@Todo: add support for specifying more calling conventions, but for now
-    // we only support the C calling convention.
-    let calling_convention = CallingConvention::C;
+    let Instance { params, ret_ty, abi, .. } = ctx.ir_ctx().instances().get(instance);
 
-    // @@Todo: we should be able to deduce the ABI from the "Instance"
-    // of the type since this stores attributes which specify which
-    // ABI to use.
-    //
-    // This probably involves introducing `extern` keyword to allow
-    // overriding the default ABI.
-    let abi = Abi::Hash;
+    // map the ABI to a calling convention whilst making any adjustments according
+    // to the target.
+    let calling_convention = CallingConvention::make_from_abi_and_target(abi, ctx.target());
 
-    let (params, return_ty) =
-        ctx.ir_ctx().map_instance(instance, |instance| (instance.params, instance.ret_ty));
-
+    // Closure to create a new argument for the ABI from a given type.
     let make_arg_abi = |ty: IrTyId, index: Option<usize>| {
         let is_return = index.is_none();
 
@@ -122,35 +114,35 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
         Ok(arg)
     };
 
-    let mut fn_abi = FnAbi {
+    let fn_abi = FnAbi {
         args: ctx.ir_ctx().tls().map_fast(params, |tys| {
             tys.iter()
                 .enumerate()
                 .map(|(i, ty)| make_arg_abi(*ty, Some(i)))
                 .collect::<Result<_, _>>()
         })?,
-        ret_abi: make_arg_abi(return_ty, None)?,
+        ret_abi: make_arg_abi(ret_ty, None)?,
         calling_convention,
     };
 
-    adjust_fn_abi_for_specified_abi(ctx, &mut fn_abi, abi);
+    // adjust_fn_abi_for_specified_abi(ctx, &mut fn_abi, abi);
     Ok(fn_abi)
 }
 
-/// This function adjusts the ABI of a function based on the specified
-/// ABI. This is required since the ABI of a function is not always
-/// the same as the ABI of the arguments.
-fn adjust_fn_abi_for_specified_abi<'b, Ctx: HasCtxMethods<'b>>(
-    _ctx: &Ctx,
-    _fn_abi: &mut FnAbi,
-    abi: Abi,
-) {
-    if abi == Abi::Hash {
-        // @@Todo: currently unclear what optimisations we can perform
-        // here...
-    } else {
-        // Here we adjust to a platform specific ABI, based on the
-        // platform.
-        unimplemented!()
-    }
-}
+// /// This function adjusts the ABI of a function based on the specified
+// /// ABI. This is required since the ABI of a function is not always
+// /// the same as the ABI of the arguments.
+// fn adjust_fn_abi_for_specified_abi<'b, Ctx: HasCtxMethods<'b>>(
+//     _ctx: &Ctx,
+//     _fn_abi: &mut FnAbi,
+//     abi: Abi,
+// ) {
+//     if abi == Abi::Hash {
+//         // @@Todo: currently unclear what optimisations we can perform
+//         // here...
+//     } else {
+//         // Here we adjust to a platform specific ABI, based on the
+//         // platform.
+//         unimplemented!()
+//     }
+// }

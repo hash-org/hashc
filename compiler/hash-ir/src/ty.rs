@@ -15,7 +15,7 @@ use hash_source::{
     SourceId,
 };
 use hash_target::{
-    abi::{self, Integer, ScalarKind},
+    abi::{self, Abi, Integer, ScalarKind},
     data_layout::HasDataLayout,
     size::Size,
 };
@@ -119,6 +119,12 @@ pub struct Instance {
     /// id as the disambiguator.
     pub source: Option<SourceId>,
 
+    /// The ABI of the function, defaults to [`Abi::Hash`].
+    ///
+    /// @@Future: introduce `#extern "<abi>"` syntax, but this involves adding
+    /// directives with arguments.
+    pub abi: Abi,
+
     /// If the instance refers to an intrinsic function, and will be converted
     /// into possibly some different code.
     pub is_intrinsic: bool,
@@ -142,6 +148,7 @@ impl Instance {
             source,
             ret_ty,
             generic_origin: false,
+            abi: Abi::Hash,
             attributes: ItemAttributes::default(),
         }
     }

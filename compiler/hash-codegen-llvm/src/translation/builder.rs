@@ -5,7 +5,7 @@
 use std::{borrow::Cow, ffi::CString, iter};
 
 use hash_codegen::{
-    abi::FnAbi,
+    abi::FnAbiId,
     common::{AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
     layout::TyInfo,
     lower::{
@@ -24,6 +24,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
+use hash_utils::store::Store;
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
@@ -216,7 +217,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         &mut self,
         fn_ptr: Self::Function,
         args: &[Self::Value],
-        fn_abi: Option<&FnAbi>,
+        fn_abi: Option<FnAbiId>,
     ) -> Self::Value {
         let args: Vec<BasicMetadataValueEnum> =
             args.iter().map(|v| (*v).try_into().unwrap()).collect();
@@ -227,7 +228,9 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let site = self.builder.build_call(fn_ptr, &args, "");
 
         if let Some(abi) = fn_abi {
-            abi.apply_attributes_call_site(self, site);
+            self.ctx.cg_ctx().abis().map_fast(abi, |abi| {
+                abi.apply_attributes_call_site(self, site);
+            })
         }
 
         // Convert the `CallSiteValue` into a `AnyEnumValue`...

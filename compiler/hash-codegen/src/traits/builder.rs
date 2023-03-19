@@ -3,7 +3,7 @@
 //! provides IR builder methods that the compiler uses to generate code
 //! from Hash IR.
 
-use hash_abi::FnAbi;
+use hash_abi::FnAbiId;
 use hash_ir::ty::IrTyId;
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ValidScalarRange},
@@ -95,7 +95,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
         &mut self,
         fn_ptr: Self::Function,
         args: &[Self::Value],
-        fn_abi: Option<&FnAbi>,
+        fn_abi: Option<FnAbiId>,
     ) -> Self::Value;
 
     // --- Arithmetic ---

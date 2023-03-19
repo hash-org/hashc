@@ -178,6 +178,16 @@ impl Target {
         Size::from_bits(self.pointer_bit_width as u64)
     }
 
+    /// Adjust a given [ABI] to match the specifics of the
+    /// target. Currently, we don't support any other ABI
+    /// except "Hash", so this function will do nothing. However,
+    /// when we support various other CPP ABIs like "stdcall", "fastcall",
+    /// "vectorcall", etc, this function will be used to adjust the
+    /// ABI to match the target details.
+    pub fn adjust_abi(&self, abi: Abi) -> Abi {
+        abi
+    }
+
     /// Find and load the specified target from a target triple.
     ///
     /// @@Future: support a more custom way of loading in target specifications.

@@ -18,9 +18,9 @@ use std::time::Duration;
 use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
 use hash_codegen::{
-    backend::{BackendCtx, CompilerBackend},
+    backend::{BackendCtx, CodeGenStorage, CompilerBackend},
     layout::LayoutCtx,
-    lower::{abi::compute_fn_abi_from_instance, codegen_ir_body},
+    lower::codegen_ir_body,
     symbols::mangle::compute_symbol_name,
     target::TargetArch,
     traits::{
@@ -38,6 +38,7 @@ use hash_pipeline::{
 use hash_reporting::writer::ReportWriter;
 use hash_source::{identifier::IDENTS, ModuleId};
 use hash_utils::{
+    store::Store,
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };
@@ -71,6 +72,10 @@ pub struct LLVMBackend<'b> {
     /// about the IR.
     ir_storage: &'b IrStorage,
 
+    /// The codegen storage, stores information about objects that were
+    /// generated during code generation.
+    codegen_storage: &'b CodeGenStorage,
+
     /// All of the information about the layouts of types
     /// in the current session.
     layouts: &'b LayoutCtx,
@@ -94,8 +99,15 @@ impl<'b> AccessToMetrics for LLVMBackend<'b> {
 impl<'b, 'm> LLVMBackend<'b> {
     /// Create a new LLVM Backend from the given [BackendCtx].
     pub fn new(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Self {
-        let BackendCtx { workspace, ir_storage, layout_storage: layouts, settings, stdout, .. } =
-            ctx;
+        let BackendCtx {
+            workspace,
+            ir_storage,
+            codegen_storage,
+            layout_storage: layouts,
+            settings,
+            stdout,
+            ..
+        } = ctx;
 
         // We have to create a target machine from the provided target
         // data.
@@ -132,7 +144,16 @@ impl<'b, 'm> LLVMBackend<'b> {
             )
             .unwrap();
 
-        Self { workspace, target_machine, ir_storage, layouts, settings, stdout, metrics }
+        Self {
+            workspace,
+            target_machine,
+            ir_storage,
+            codegen_storage,
+            layouts,
+            settings,
+            stdout,
+            metrics,
+        }
     }
 
     /// Create an [PassManager] for LLVM, apply the optimisation options and run
@@ -237,8 +258,12 @@ impl<'b, 'm> LLVMBackend<'b> {
             // attributes and linkage, etc.
             let symbol_name = compute_symbol_name(&self.ir_storage.ctx, instance);
 
-            let abi = compute_fn_abi_from_instance(ctx, instance).unwrap();
-            ctx.predefine_fn(instance, symbol_name.as_str(), &abi);
+            let abis = self.codegen_storage.abis();
+            let abi = abis.create_fn_abi(ctx, instance);
+
+            abis.map_fast(abi, |abi| {
+                ctx.predefine_fn(instance, symbol_name.as_str(), abi);
+            });
         }
     }
 
@@ -307,7 +332,13 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
         module.set_triple(&self.target_machine.get_triple());
         module.set_data_layout(&self.target_machine.get_target_data().get_data_layout());
 
-        let ctx = CodeGenCtx::new(&module, self.settings, &self.ir_storage.ctx, self.layouts);
+        let ctx = CodeGenCtx::new(
+            &module,
+            self.settings,
+            &self.ir_storage.ctx,
+            self.layouts,
+            self.codegen_storage,
+        );
 
         time_item(self, "predefine", |this| this.predefine_bodies(&ctx));
         time_item(self, "build", |this| this.build_bodies(&ctx));

@@ -150,9 +150,11 @@ macro_rules! core_idents {
 
 // Prefill the `IdentifierMap` with commonly used/accessed identifiers.
 core_idents! {
+    // How long until we get the entire alphabet?
     a: "a",
-    AnyType: "AnyType",
     b: "b",
+
+    AnyType: "AnyType",
     bool: "bool",
     char: "char",
     eq: "eq",

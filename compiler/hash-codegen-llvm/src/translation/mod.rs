@@ -3,6 +3,7 @@
 //! compiled by LLVM into a native executable with the specified target triple.
 
 use hash_codegen::{
+    backend::CodeGenStorage,
     layout::{compute::LayoutComputer, LayoutCtx},
     traits::{BackendTypes, Codegen, HasCtxMethods},
 };
@@ -71,5 +72,9 @@ impl<'b> HasCtxMethods<'b> for LLVMBuilder<'_, 'b, '_> {
 
     fn layout_computer(&self) -> LayoutComputer<'_> {
         self.ctx.layout_computer()
+    }
+
+    fn cg_ctx(&self) -> &CodeGenStorage {
+        self.ctx.cg_ctx()
     }
 }

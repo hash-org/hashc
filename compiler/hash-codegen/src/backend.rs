@@ -12,11 +12,39 @@ use hash_pipeline::{
     CompilerResult,
 };
 
+use crate::traits::abi::FnAbiStore;
+
+/// The [CodeGenStorage] stores useful created information
+/// during code generation. Currently, it is used to store
+/// a map between function instances and their associated
+/// ABIs.
+#[derive(Default)]
+pub struct CodeGenStorage {
+    /// The function ABIs that have been created.
+    fn_abi_store: FnAbiStore,
+}
+
+impl CodeGenStorage {
+    /// Create a new [CodeGenStorage].
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Get a reference to the function ABI store.
+    pub fn abis(&self) -> &FnAbiStore {
+        &self.fn_abi_store
+    }
+}
+
 /// The [BackendCtx] is the context that is needed for any
 /// [CompilerBackend] to generate code for the target backend.
 pub struct BackendCtx<'b> {
     /// Reference to the current compiler workspace.
     pub workspace: &'b mut Workspace,
+
+    /// Reference to the codegen storage that is used to store information
+    /// about the generated code, and accompanying metadata.
+    pub codegen_storage: &'b CodeGenStorage,
 
     /// Reference to the IR storage that is used to store
     /// the lowered IR, and all metadata about the IR.

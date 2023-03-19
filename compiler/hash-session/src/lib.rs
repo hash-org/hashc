@@ -14,7 +14,7 @@ use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
 use hash_backend::{BackendCtxQuery, CodeGenPass};
-use hash_codegen::backend::BackendCtx;
+use hash_codegen::backend::{BackendCtx, CodeGenStorage};
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;
 use hash_link::{CompilerLinker, LinkerCtx, LinkerCtxQuery};
@@ -91,6 +91,9 @@ pub struct CompilerSession {
     // Semantic analysis storage
     pub semantic_storage: SemanticStorage,
 
+    /// The codegen backend storage.
+    pub codegen_storage: CodeGenStorage,
+
     /// Sources that have passed from the `expansion` stage of the compiler.
     /// @@Todo: Use bit-flags to represent which module has been
     /// expanded/desugared/semantically checked/type checked.
@@ -148,6 +151,7 @@ impl CompilerSession {
             semantic_storage: SemanticStorage::new(),
             ir_storage: IrStorage::new(),
             layout_storage: LayoutCtx::new(layout_info),
+            codegen_storage: CodeGenStorage::new(),
             ty_storage: TyStorage { global, local, entry_point_state: EntryPointState::new() },
             expanded_sources: HashSet::new(),
             desugared_modules: HashSet::new(),
@@ -273,6 +277,7 @@ impl BackendCtxQuery for CompilerSession {
         let output_stream = self.output_stream();
 
         BackendCtx {
+            codegen_storage: &self.codegen_storage,
             workspace: &mut self.workspace,
             ir_storage: &self.ir_storage,
             layout_storage: &self.layout_storage,

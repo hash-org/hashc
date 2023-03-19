@@ -27,7 +27,7 @@ impl<'b, 'm> AbiBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
         func.get_nth_param(index as u32).unwrap().into()
     }
 
-    fn store_arg(
+    fn store_fn_call_arg(
         &mut self,
         arg_abi: &ArgAbi,
         value: Self::Value,

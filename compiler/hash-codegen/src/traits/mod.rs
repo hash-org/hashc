@@ -20,6 +20,7 @@ use self::{
     constants::ConstValueBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
     ty::TypeBuilderMethods,
 };
+use crate::backend::CodeGenStorage;
 
 pub mod abi;
 pub mod builder;
@@ -74,6 +75,9 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
     fn target(&self) -> &Target {
         self.settings().target()
     }
+
+    /// Returns a reference to the [CodeGenStorage].
+    fn cg_ctx(&self) -> &CodeGenStorage;
 
     /// Returns a reference to the IR [IrCtx].
     fn ir_ctx(&self) -> &IrCtx;
