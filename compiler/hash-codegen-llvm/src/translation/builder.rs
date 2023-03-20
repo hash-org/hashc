@@ -5,25 +5,26 @@
 use std::{borrow::Cow, ffi::CString, iter};
 
 use hash_codegen::{
-    abi::FnAbi,
+    abi::FnAbiId,
     common::{AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
     layout::TyInfo,
     lower::{
         operands::{OperandRef, OperandValue},
         place::PlaceRef,
     },
+    target::{
+        abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
+        alignment::Alignment,
+        size::Size,
+    },
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::TypeBuilderMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
+        ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
-use hash_target::{
-    abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
-    alignment::Alignment,
-    size::Size,
-};
+use hash_utils::store::Store;
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
@@ -38,7 +39,7 @@ use rayon::iter::Either;
 
 use super::{
     abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,
-    Builder,
+    LLVMBuilder,
 };
 use crate::misc::{
     AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
@@ -58,7 +59,7 @@ pub fn instruction_from_any_value(value: AnyValueEnum<'_>) -> InstructionValue<'
     value.as_instruction_value().unwrap()
 }
 
-impl<'a, 'b, 'm> Builder<'a, 'b, 'm> {
+impl<'a, 'b, 'm> LLVMBuilder<'a, 'b, 'm> {
     /// Create a PHI node in the current block.
     fn phi(
         &mut self,
@@ -127,7 +128,7 @@ impl<'a, 'b, 'm> Builder<'a, 'b, 'm> {
     }
 }
 
-impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
+impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
     fn ctx(&self) -> &Self::CodegenCtx {
         self.ctx
     }
@@ -139,7 +140,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         // because the builder is created at the beginning of the block.
         builder.position_at_end(block);
 
-        Builder { builder, ctx }
+        LLVMBuilder { builder, ctx }
     }
 
     fn append_block(
@@ -216,7 +217,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         &mut self,
         fn_ptr: Self::Function,
         args: &[Self::Value],
-        fn_abi: Option<&FnAbi>,
+        fn_abi: Option<FnAbiId>,
     ) -> Self::Value {
         let args: Vec<BasicMetadataValueEnum> =
             args.iter().map(|v| (*v).try_into().unwrap()).collect();
@@ -227,7 +228,9 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         let site = self.builder.build_call(fn_ptr, &args, "");
 
         if let Some(abi) = fn_abi {
-            abi.apply_attributes_call_site(self, site);
+            self.ctx.cg_ctx().abis().map_fast(abi, |abi| {
+                abi.apply_attributes_call_site(self, site);
+            })
         }
 
         // Convert the `CallSiteValue` into a `AnyEnumValue`...
@@ -538,7 +541,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
         lhs: Self::Value,
         rhs: Self::Value,
     ) -> (Self::Value, Self::Value) {
-        let ptr_width = self.ctx.settings().target().ptr_size();
+        let ptr_width = self.target().ptr_size();
 
         let int_ty = self.ir_ctx().map_ty(ty, |ty| match ty {
             IrTy::Int(ty @ SIntTy::ISize) => IntTy::Int(ty.normalise(ptr_width)),
@@ -1199,7 +1202,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for Builder<'a, 'b, 'm> {
 /// the value within the LLVM IR. Here, we emit information about the
 /// [ValidScalarRange], alignment metadata and `non-null`ness.
 fn load_scalar_value_metadata<'m>(
-    builder: &mut Builder<'_, '_, 'm>,
+    builder: &mut LLVMBuilder<'_, '_, 'm>,
     load: InstructionValue<'m>,
     scalar: Scalar,
     info: TyInfo,

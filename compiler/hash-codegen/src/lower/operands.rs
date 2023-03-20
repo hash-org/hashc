@@ -10,8 +10,8 @@ use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
 use crate::{
     common::MemFlags,
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        layout::LayoutMethods, ty::TypeBuilderMethods, CodeGenObject, Codegen,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
+        ty::TypeBuilderMethods, CodeGenObject, Codegen, HasCtxMethods,
     },
 };
 
@@ -271,11 +271,11 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
                 // @@BitCasts
                 *value_a = builder.bit_cast(
                     *value_a,
-                    builder.scalar_pair_element_backend_type(field_info, 0, true),
+                    builder.scalar_pair_element_backend_ty(field_info, 0, true),
                 );
                 *value_b = builder.bit_cast(
                     *value_b,
-                    builder.scalar_pair_element_backend_type(field_info, 0, true),
+                    builder.scalar_pair_element_backend_ty(field_info, 0, true),
                 );
             }
             (OperandValue::Pair(..), _) => unreachable!(),

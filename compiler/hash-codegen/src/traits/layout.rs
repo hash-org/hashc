@@ -5,7 +5,7 @@ use hash_ir::ty::IrTyId;
 use hash_layout::{Layout, LayoutId};
 use hash_utils::store::Store;
 
-use super::{ctx::HasCtxMethods, BackendTypes};
+use super::{BackendTypes, HasCtxMethods};
 use crate::layout::TyInfo;
 
 /// Methods for calculating and querying the layout of types within a backend.
@@ -29,13 +29,4 @@ pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
     /// Check whether the [TyInfo] layout can be represented as an
     /// immediate value.
     fn is_backend_immediate(&self, ty: TyInfo) -> bool;
-
-    /// Get the type of an element from a scalar pair, and assume
-    /// if it "immediate".
-    fn scalar_pair_element_backend_type(
-        &self,
-        info: TyInfo,
-        index: usize,
-        immediate: bool,
-    ) -> Self::Type;
 }

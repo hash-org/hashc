@@ -3,7 +3,7 @@
 //! provides IR builder methods that the compiler uses to generate code
 //! from Hash IR.
 
-use hash_abi::FnAbi;
+use hash_abi::FnAbiId;
 use hash_ir::ty::IrTyId;
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ValidScalarRange},
@@ -12,8 +12,8 @@ use hash_target::{
 };
 
 use super::{
-    abi::AbiBuilderMethods, debug::BuildDebugInfoMethods, intrinsics::IntrinsicBuilderMethods,
-    target::HasTargetSpec, ty::TypeBuilderMethods, Codegen,
+    abi::AbiBuilderMethods, debug::DebugInfoBuilderMethods, intrinsics::IntrinsicBuilderMethods,
+    layout::LayoutMethods, ty::TypeBuilderMethods, Codegen,
 };
 use crate::{
     common::{
@@ -27,10 +27,10 @@ use crate::{
 /// into the backend equivalent.
 pub trait BlockBuilderMethods<'a, 'b>:
     Codegen<'b>
+    + LayoutMethods<'b>
     + AbiBuilderMethods<'b>
     + IntrinsicBuilderMethods<'b>
-    + BuildDebugInfoMethods
-    + HasTargetSpec
+    + DebugInfoBuilderMethods
 {
     /// Get the current context
     fn ctx(&self) -> &Self::CodegenCtx;
@@ -95,7 +95,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
         &mut self,
         fn_ptr: Self::Function,
         args: &[Self::Value],
-        fn_abi: Option<&FnAbi>,
+        fn_abi: Option<FnAbiId>,
     ) -> Self::Value;
 
     // --- Arithmetic ---

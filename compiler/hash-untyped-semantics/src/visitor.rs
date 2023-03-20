@@ -107,9 +107,11 @@ impl<'s> SemanticAnalyser<'s> {
         directive: AstNodeRef<Name>,
         subject: AstNodeRef<'_, Expr>,
     ) -> Result<(), Infallible> {
+        let name = directive.ident;
+
         // Here we should check if in the event that an `intrinsics` directive
         // is being used only within the `prelude` module.
-        if directive.is(IDENTS.intrinsics) {
+        if name == IDENTS.intrinsics {
             let module_kind = self.source_map.module_kind_by_id(self.source_id);
 
             if !matches!(module_kind, Some(ModuleKind::Prelude)) {
@@ -127,7 +129,7 @@ impl<'s> SemanticAnalyser<'s> {
             if !matches!(subject.body(), Expr::ModDef(..)) {
                 self.invalid_argument(DirectiveArgument::ModDef, directive, subject);
             }
-        } else if directive.is(IDENTS.dump_ir) {
+        } else if name == IDENTS.dump_ir || name == IDENTS.dump_llvm_ir {
             // For the `#dump_ir` directive, we are expecting that it takes either a
             // function definition and be within a constant scope
             match subject.body() {
@@ -153,7 +155,7 @@ impl<'s> SemanticAnalyser<'s> {
                     subject,
                 ),
             }
-        } else if directive.is(IDENTS.layout_of) {
+        } else if name == IDENTS.layout_of {
             // The `#layout_of` directive accepts only type definitions.
             //
             // @@Future: it would be nice for this directive to accept any type-like
@@ -210,10 +212,10 @@ impl<'s> SemanticAnalyser<'s> {
                     )
                 }
             }
-        } else if directive.is(IDENTS.entry_point)
-            || directive.is(IDENTS.foreign)
-            || directive.is(IDENTS.pure)
-            || directive.is(IDENTS.lang)
+        } else if name == IDENTS.entry_point
+            || name == IDENTS.foreign
+            || name == IDENTS.pure
+            || name == IDENTS.lang
         {
             // Check that the supplied argument to a function modifying directive
             // is a declaration of a function that the directive will apply to.

@@ -7,23 +7,25 @@
 //! the results of each module in the [Workspace].
 #![feature(let_chains, hash_raw_entry)]
 
-mod context;
+mod ctx;
 mod error;
+mod fmt;
 pub mod misc;
 mod translation;
 
 use std::time::Duration;
 
-use context::CodeGenCtx;
+use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
 use hash_codegen::{
-    backend::{BackendCtx, CompilerBackend},
+    backend::{BackendCtx, CodeGenStorage, CompilerBackend},
     layout::LayoutCtx,
-    lower::{abi::compute_fn_abi_from_instance, codegen_ir_body},
+    lower::codegen_ir_body,
     symbols::mangle::compute_symbol_name,
+    target::TargetArch,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
-        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
 use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
@@ -33,9 +35,10 @@ use hash_pipeline::{
     workspace::Workspace,
     CompilerResult,
 };
-use hash_source::ModuleId;
-use hash_target::TargetArch;
+use hash_reporting::writer::ReportWriter;
+use hash_source::{identifier::IDENTS, ModuleId};
 use hash_utils::{
+    store::Store,
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };
@@ -48,7 +51,9 @@ use llvm::{
     values::FunctionValue,
 };
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
-use translation::Builder;
+use translation::LLVMBuilder;
+
+use crate::fmt::FunctionPrinter;
 
 pub struct LLVMBackend<'b> {
     /// The stream to use for printing out the results
@@ -66,6 +71,10 @@ pub struct LLVMBackend<'b> {
     /// The IR storage that is used to store the lowered IR, and all metadata
     /// about the IR.
     ir_storage: &'b IrStorage,
+
+    /// The codegen storage, stores information about objects that were
+    /// generated during code generation.
+    codegen_storage: &'b CodeGenStorage,
 
     /// All of the information about the layouts of types
     /// in the current session.
@@ -90,8 +99,15 @@ impl<'b> AccessToMetrics for LLVMBackend<'b> {
 impl<'b, 'm> LLVMBackend<'b> {
     /// Create a new LLVM Backend from the given [BackendCtx].
     pub fn new(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Self {
-        let BackendCtx { workspace, ir_storage, layout_storage: layouts, settings, stdout, .. } =
-            ctx;
+        let BackendCtx {
+            workspace,
+            ir_storage,
+            codegen_storage,
+            layout_storage: layouts,
+            settings,
+            stdout,
+            ..
+        } = ctx;
 
         // We have to create a target machine from the provided target
         // data.
@@ -128,7 +144,16 @@ impl<'b, 'm> LLVMBackend<'b> {
             )
             .unwrap();
 
-        Self { workspace, target_machine, ir_storage, layouts, settings, stdout, metrics }
+        Self {
+            workspace,
+            target_machine,
+            ir_storage,
+            codegen_storage,
+            layouts,
+            settings,
+            stdout,
+            metrics,
+        }
     }
 
     /// Create an [PassManager] for LLVM, apply the optimisation options and run
@@ -182,7 +207,7 @@ impl<'b, 'm> LLVMBackend<'b> {
         // through the arguments of the function, i.e. `int main(int argc, char** argv)`
         // then we have to define it as such, otherwise, we define it as
         // `int main()`.
-        let fn_ty = if self.settings.target().entry_point_requires_args {
+        let fn_ty = if ctx.target().entry_point_requires_args {
             ctx.type_function(&[ctx.type_int(), ctx.type_ptr_to(ctx.type_i8p())], ctx.type_int())
         } else {
             ctx.type_function(&[], ctx.type_int())
@@ -195,8 +220,8 @@ impl<'b, 'm> LLVMBackend<'b> {
 
         // @@Todo: we can set additional attributes to this, i.e. cpu_attrs
 
-        let block = Builder::append_block(ctx, main_fn, "init");
-        let mut builder = Builder::build(ctx, block);
+        let block = LLVMBuilder::append_block(ctx, main_fn, "init");
+        let mut builder = LLVMBuilder::build(ctx, block);
 
         // Get the instance of the entry point function so that
         // we can reference it here.
@@ -233,16 +258,22 @@ impl<'b, 'm> LLVMBackend<'b> {
             // attributes and linkage, etc.
             let symbol_name = compute_symbol_name(&self.ir_storage.ctx, instance);
 
-            let abi = compute_fn_abi_from_instance(ctx, instance).unwrap();
-            ctx.predefine_fn(instance, symbol_name.as_str(), &abi);
+            let abis = self.codegen_storage.abis();
+            let abi = abis.create_fn_abi(ctx, instance);
+
+            abis.map_fast(abi, |abi| {
+                ctx.predefine_fn(instance, symbol_name.as_str(), abi);
+            });
         }
     }
 
     /// This function will build each body that is stored in the IR, and it to
     /// the current module.
     fn build_bodies(&self, ctx: &CodeGenCtx<'b, 'm>) {
+        let ir = self.ir_storage;
+
         // For each body perform a lowering procedure via the common interface...
-        for body in self.ir_storage.bodies.iter() {
+        for body in ir.bodies.iter() {
             // We don't need to generate anything for constants since they
             // should have already been dealt with...
             if matches!(body.info().source(), BodySource::Const) {
@@ -250,7 +281,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             }
 
             // Get the instance of the function.
-            let instance = self.ir_storage.ctx.map_ty(body.info().ty(), |ty| {
+            let instance = ir.ctx.map_ty(body.info().ty(), |ty| {
                 let IrTy::FnDef { instance, .. } = ty else {
                     panic!("ir-body has non-function type")
                 };
@@ -258,7 +289,21 @@ impl<'b, 'm> LLVMBackend<'b> {
             });
 
             // @@ErrorHandling: we should be able to handle the error here
-            codegen_ir_body::<Builder>(instance, body, ctx).unwrap();
+            codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();
+
+            // Check if we should dump the generated LLVM IR
+            if ir.ctx.map_instance(instance, |instance| {
+                instance.attributes.contains(IDENTS.dump_llvm_ir)
+            }) {
+                let mut stdout = self.stdout.clone();
+                let func = FunctionPrinter::new(body.info.name(), ctx.get_fn(instance));
+
+                stream_writeln!(
+                    stdout,
+                    "{}",
+                    ReportWriter::new(vec![func.into()], &self.workspace.source_map)
+                );
+            }
         }
     }
 }
@@ -287,7 +332,13 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
         module.set_triple(&self.target_machine.get_triple());
         module.set_data_layout(&self.target_machine.get_target_data().get_data_layout());
 
-        let ctx = CodeGenCtx::new(&module, self.settings, &self.ir_storage.ctx, self.layouts);
+        let ctx = CodeGenCtx::new(
+            &module,
+            self.settings,
+            &self.ir_storage.ctx,
+            self.layouts,
+            self.codegen_storage,
+        );
 
         time_item(self, "predefine", |this| this.predefine_bodies(&ctx));
         time_item(self, "build", |this| this.build_bodies(&ctx));

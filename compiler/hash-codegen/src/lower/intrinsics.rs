@@ -1,20 +1,17 @@
 //! Module that hosts all of the logic that deals with emitting
 //! code and resolving references to intrinsic function calls.
 
-use hash_abi::FnAbi;
-use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
+use hash_abi::ArgAbi;
+use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::InstanceId};
 use hash_target::abi::{AbiRepresentation, ScalarKind};
 use hash_utils::store::Store;
 
-use super::{
-    abi::compute_fn_abi_from_instance, locals::LocalRef, operands::OperandRef, place::PlaceRef,
-    FnBuilder,
-};
+use super::{locals::LocalRef, operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::{
     lower::operands::OperandValue,
     traits::{
-        builder::BlockBuilderMethods, ctx::HasCtxMethods, misc::MiscBuilderMethods,
-        ty::TypeBuilderMethods,
+        builder::BlockBuilderMethods, misc::MiscBuilderMethods, ty::TypeBuilderMethods,
+        HasCtxMethods,
     },
 };
 
@@ -24,13 +21,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         &mut self,
         builder: &mut Builder,
         item: LangItem,
-    ) -> (FnAbi, Builder::Function) {
-        // @@ErrorHandling: propagate the error into the compiler pipeline, thus
-        // terminating the workflow if this error occurs which it shouldn't
+    ) -> (InstanceId, Builder::Function) {
         let instance = self.ctx.ir_ctx().lang_items().get(item).unwrap();
-
-        let abi = compute_fn_abi_from_instance(builder, instance).unwrap();
-        (abi, builder.get_fn_ptr(instance))
+        (instance, builder.get_fn_ptr(instance))
     }
 
     /// Function that handles generating code for the defined language
@@ -39,11 +32,11 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         &mut self,
         builder: &mut Builder,
         intrinsic: Intrinsic,
-        fn_abi: &FnAbi,
+        ret_abi: &ArgAbi,
         args: &[OperandRef<Builder::Value>],
         result: Builder::Value,
     ) {
-        let result = PlaceRef::new(builder, result, fn_abi.ret_abi.info);
+        let result = PlaceRef::new(builder, result, ret_abi.info);
 
         let value = match intrinsic {
             Intrinsic::Abort => {
@@ -67,7 +60,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             }
         };
 
-        if !fn_abi.ret_abi.is_ignored() {
+        if !ret_abi.is_ignored() {
             OperandRef::from_immediate_value_or_scalar_pair(builder, value, result.info)
                 .value
                 .store(builder, result);

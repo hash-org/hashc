@@ -7,14 +7,14 @@ use hash_codegen::{
     abi::FnAbi,
     common::TypeKind,
     layout::{Layout, LayoutShape, TyInfo, Variants},
-    traits::{ctx::HasCtxMethods, layout::LayoutMethods, ty::TypeBuilderMethods},
+    target::{
+        abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind},
+        alignment::Alignment,
+        size::Size,
+    },
+    traits::{layout::LayoutMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::IrTy;
-use hash_target::{
-    abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind},
-    alignment::Alignment,
-    size::Size,
-};
 use hash_utils::smallvec::{smallvec, SmallVec};
 use inkwell as llvm;
 use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};
@@ -24,7 +24,7 @@ use llvm_sys::{
 };
 
 use super::abi::ExtendedFnAbiMethods;
-use crate::{context::CodeGenCtx, misc::AddressSpaceWrapper};
+use crate::{ctx::CodeGenCtx, misc::AddressSpaceWrapper};
 
 /// Convert a [BasicTypeEnum] into a [AnyTypeEnum].
 ///
@@ -237,6 +237,15 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
 
     fn immediate_backend_ty(&self, info: TyInfo) -> Self::Type {
         info.immediate_llvm_ty(self)
+    }
+
+    fn scalar_pair_element_backend_ty(
+        &self,
+        info: TyInfo,
+        index: usize,
+        immediate: bool,
+    ) -> Self::Type {
+        info.scalar_pair_element_llvm_ty(self, index, immediate)
     }
 
     fn backend_ty_from_info(&self, info: TyInfo) -> Self::Type {

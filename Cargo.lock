@@ -471,7 +471,6 @@ dependencies = [
  "hash-codegen",
  "hash-ir",
  "hash-source",
- "hash-target",
  "hash-utils",
  "rayon",
 ]
@@ -486,7 +485,6 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
- "hash-target",
  "hash-utils",
  "inkwell",
  "llvm-sys",

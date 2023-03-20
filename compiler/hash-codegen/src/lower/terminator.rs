@@ -9,14 +9,14 @@
 //! into a single [ir::BasicBlock]. The builder API will denote
 //! whether two blocks have been merged together.
 
-use hash_abi::{ArgAbi, FnAbi, PassMode};
+use hash_abi::{ArgAbi, FnAbiId, PassMode};
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
 use hash_source::constant::CONSTANT_MAP;
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
+use hash_utils::store::Store;
 
 use super::{
-    abi::compute_fn_abi_from_instance,
     locals::LocalRef,
     operands::{OperandRef, OperandValue},
     place::PlaceRef,
@@ -26,8 +26,8 @@ use super::{
 use crate::{
     common::{IntComparisonKind, MemFlags},
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ctx::HasCtxMethods,
-        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
 
@@ -159,9 +159,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             // We exit early for transmute since we don't need to compute the ABI
             // or any information about the return destination.
             if let Some(Intrinsic::Transmute) = maybe_intrinsic {
-                return if target.is_some() {
+                return if let Some(target) = target {
                     self.codegen_transmute(builder, &fn_args[2], destination);
-                    true
+                    self.codegen_goto_terminator(builder, target, can_merge)
                 } else {
                     builder.unreachable();
                     false
@@ -170,26 +170,20 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         }
 
         // compute the function pointer value and the ABI
-        //
-        // @@Todo: deal with FN ABI error here
-        let fn_abi = compute_fn_abi_from_instance(builder, instance).unwrap();
+        let abis = self.ctx.cg_ctx().abis();
+        let abi_id = abis.create_fn_abi(builder, instance);
+        let ret_abi = abis.map_fast(abi_id, |abi| abi.ret_abi);
 
         // If the return ABI pass mode is "indirect", then this means that
         // we have to create a temporary in order to represent the "out_ptr"
         // of the function.
-        let mut args = Vec::with_capacity(fn_args.len() + (fn_abi.ret_abi.is_indirect() as usize));
+        let mut args = Vec::with_capacity(fn_args.len() + (ret_abi.is_indirect() as usize));
 
         // compute the return destination of the function. If the function
         // return is indirect, `compute_fn_return_destination` will push
         // an operand which represents the "out_ptr" as the first argument.
         let return_destination = if target.is_some() {
-            self.compute_fn_return_destination(
-                builder,
-                destination,
-                &fn_abi.ret_abi,
-                &mut args,
-                false,
-            )
+            self.compute_fn_return_destination(builder, destination, &ret_abi, &mut args, false)
         } else {
             ReturnDestinationKind::Nothing
         };
@@ -198,9 +192,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // for the intrinsic through the `codegen_intrinsic` function.
         if let Some(intrinsic) = maybe_intrinsic {
             let destination = match return_destination {
-                _ if fn_abi.ret_abi.is_indirect() => args[0],
+                _ if ret_abi.is_indirect() => args[0],
                 ReturnDestinationKind::Nothing => {
-                    let ty = builder.arg_ty(&fn_abi.ret_abi);
+                    let ty = builder.arg_ty(&ret_abi);
                     builder.const_undef(builder.type_ptr_to(ty))
                 }
                 ReturnDestinationKind::IndirectOperand(op, _)
@@ -213,10 +207,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             let op_args =
                 fn_args.iter().map(|arg| self.codegen_operand(builder, arg)).collect::<Vec<_>>();
 
-            self.codegen_intrinsic(builder, intrinsic, &fn_abi, &op_args, destination);
+            self.codegen_intrinsic(builder, intrinsic, &ret_abi, &op_args, destination);
 
             if let ReturnDestinationKind::IndirectOperand(dest, _) = return_destination {
-                self.store_return_value(builder, return_destination, &fn_abi.ret_abi, dest.value);
+                self.store_return_value(builder, return_destination, &ret_abi, dest.value);
             }
 
             return if target.is_some() {
@@ -246,7 +240,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 copied_const_args.push(temp);
             }
 
-            self.codegen_fn_argument(builder, arg_operand, &mut args, &fn_abi.args[index]);
+            let arg_abi = abis.get_arg_abi(abi_id, index);
+            self.codegen_fn_argument(builder, arg_operand, &mut args, &arg_abi);
         }
 
         let fn_ptr = builder.get_fn_ptr(instance);
@@ -255,7 +250,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // cleanup
         self.codegen_fn_call(
             builder,
-            &fn_abi,
+            abi_id,
             fn_ptr,
             &args,
             &copied_const_args,
@@ -422,8 +417,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// `unreachable` instruction.
     // Additionally, unit types `()` are considered as a `void` return type.
     fn codegen_return_terminator(&mut self, builder: &mut Builder) {
-        let is_uninhabited = builder
-            .map_layout(self.fn_abi.ret_abi.info.layout, |layout| layout.abi.is_uninhabited());
+        let ret_abi = builder.cg_ctx().abis().get_return_abi(self.fn_abi);
+
+        let is_uninhabited =
+            builder.map_layout(ret_abi.info.layout, |layout| layout.abi.is_uninhabited());
 
         // if the return type is uninhabited, then we can emit an
         // `abort` call to exit the program, and then close the
@@ -435,7 +432,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             return;
         }
 
-        let value = match &self.fn_abi.ret_abi.mode {
+        let value = match &ret_abi.mode {
             PassMode::Ignore | PassMode::Indirect { .. } => {
                 builder.return_void();
                 return;
@@ -594,10 +591,11 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         let args = &[bytes, len];
 
         // Get the `panic` lang item.
-        let (fn_abi, fn_ptr) = self.resolve_lang_item(builder, LangItem::Panic);
+        let (instance, fn_ptr) = self.resolve_lang_item(builder, LangItem::Panic);
+        let abi = self.ctx.cg_ctx().abis().create_fn_abi(builder, instance);
 
         // Finally we emit this as a call to panic...
-        self.codegen_fn_call(builder, &fn_abi, fn_ptr, args, &[], None, false)
+        self.codegen_fn_call(builder, abi, fn_ptr, args, &[], None, false)
     }
 
     /// Function that prepares a function call to be generated, and the emits
@@ -608,7 +606,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     fn codegen_fn_call(
         &mut self,
         builder: &mut Builder,
-        fn_abi: &FnAbi,
+        fn_abi: FnAbiId,
         fn_ptr: Builder::Function,
         args: &[Builder::Value],
         copied_const_args: &[PlaceRef<Builder::Value>],
@@ -629,8 +627,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 builder.lifetime_end(temporary.value, size)
             }
 
+            let ret_abi = self.ctx.cg_ctx().abis().get_return_abi(fn_abi);
+
             // we need to store the return value in the appropriate place.
-            self.store_return_value(builder, return_destination, &fn_abi.ret_abi, return_value);
+            self.store_return_value(builder, return_destination, &ret_abi, return_value);
             self.codegen_goto_terminator(builder, destination_block, can_merge)
         } else {
             builder.unreachable();
@@ -654,7 +654,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         match destination {
             ReturnDestinationKind::Nothing => {}
             ReturnDestinationKind::Store(destination) => {
-                builder.store_arg(return_abi, value, destination)
+                builder.store_fn_call_arg(return_abi, value, destination)
             }
             ReturnDestinationKind::DirectOperand(local) => {
                 // @@CastPassMode: if it is a casting pass mode, then it needs to be stored

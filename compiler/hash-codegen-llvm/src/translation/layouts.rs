@@ -2,19 +2,16 @@
 
 use hash_codegen::{
     layout::{Layout, LayoutShape, TyInfo, Variants},
+    target::{
+        abi::AbiRepresentation,
+        data_layout::{HasDataLayout, TargetDataLayout},
+    },
     traits::layout::LayoutMethods,
 };
 use hash_ir::{ty::IrTyId, write::WriteIr};
-use hash_target::{
-    abi::AbiRepresentation,
-    data_layout::{HasDataLayout, TargetDataLayout},
-};
 
-use super::{
-    ty::{ExtendedTyBuilderMethods, TyMemoryRemap},
-    Builder,
-};
-use crate::context::CodeGenCtx;
+use super::{ty::TyMemoryRemap, LLVMBuilder};
+use crate::ctx::CodeGenCtx;
 
 impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {
@@ -24,15 +21,6 @@ impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
     fn is_backend_immediate(&self, info: TyInfo) -> bool {
         self.map_layout(info.layout, |layout| layout.is_llvm_immediate())
     }
-
-    fn scalar_pair_element_backend_type(
-        &self,
-        info: TyInfo,
-        index: usize,
-        immediate: bool,
-    ) -> Self::Type {
-        info.scalar_pair_element_llvm_ty(self, index, immediate)
-    }
 }
 
 impl HasDataLayout for CodeGenCtx<'_, '_> {
@@ -41,7 +29,7 @@ impl HasDataLayout for CodeGenCtx<'_, '_> {
     }
 }
 
-impl<'b, 'm> LayoutMethods<'b> for Builder<'_, 'b, 'm> {
+impl<'b, 'm> LayoutMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {
         self.ctx.backend_field_index(info, index)
     }
@@ -49,18 +37,9 @@ impl<'b, 'm> LayoutMethods<'b> for Builder<'_, 'b, 'm> {
     fn is_backend_immediate(&self, ty: TyInfo) -> bool {
         self.ctx.is_backend_immediate(ty)
     }
-
-    fn scalar_pair_element_backend_type(
-        &self,
-        info: TyInfo,
-        index: usize,
-        immediate: bool,
-    ) -> Self::Type {
-        self.ctx.scalar_pair_element_backend_type(info, index, immediate)
-    }
 }
 
-impl HasDataLayout for Builder<'_, '_, '_> {
+impl HasDataLayout for LLVMBuilder<'_, '_, '_> {
     fn data_layout(&self) -> &TargetDataLayout {
         self.ctx.data_layout()
     }

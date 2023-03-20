@@ -3,6 +3,8 @@
 //! an IR body, and whether they can be allocated on the stack
 //! or not.
 
+use core::fmt;
+
 use fixedbitset::FixedBitSet;
 use hash_ir::{
     ir::{self, IrRef, Local, PlaceProjection, START_BLOCK},
@@ -18,7 +20,7 @@ use hash_utils::{
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::traits::{
-    builder::BlockBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods, CodeGenObject, Codegen,
+    builder::BlockBuilderMethods, layout::LayoutMethods, CodeGenObject, Codegen, HasCtxMethods,
 };
 
 /// Defines what kind of reference a local has. A [LocalRef::Place]
@@ -85,7 +87,7 @@ pub fn compute_non_ssa_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     // If there exists a local definition that dominates all uses of that local,
     // the definition should be visited first. Traverse blocks in an order that
     // is a topological sort of dominance partial order.
-    for (block, data) in traversal::PostOrder::new_from_start(body) {
+    for (block, data) in traversal::ReversePostOrder::new_from_start(body) {
         analyser.visit_basic_block(block, data);
     }
 
@@ -124,6 +126,17 @@ enum LocalMemoryKind {
     Ssa(ir::IrRef),
 }
 
+impl fmt::Display for LocalMemoryKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LocalMemoryKind::Zst => write!(f, "Zst"),
+            LocalMemoryKind::Unused => write!(f, "Unused"),
+            LocalMemoryKind::Memory => write!(f, "Memory"),
+            LocalMemoryKind::Ssa(_) => write!(f, "Ssa"),
+        }
+    }
+}
+
 struct LocalKindAnalyser<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// The function lowering context.
     fn_builder: &'ir FnBuilder<'a, 'b, Builder>,
@@ -135,6 +148,33 @@ struct LocalKindAnalyser<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// represent the local, an allocation or can be passed around
     /// as a scalar value.
     locals: IndexVec<Local, LocalMemoryKind>,
+}
+
+impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> fmt::Display
+    for LocalKindAnalyser<'ir, 'a, 'b, Builder>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // compute the longest local name, and align all of the
+        // local names to that length.
+        let width = self
+            .locals
+            .iter_enumerated()
+            .fold(0, |acc, (local, _)| {
+                if local.raw() == 0 {
+                    return acc;
+                }
+
+                std::cmp::max(acc, local.raw().ilog10() + 1)
+            })
+            .try_into()
+            .unwrap();
+
+        for (local, kind) in self.locals.iter_enumerated() {
+            writeln!(f, "{: >width$?}: {}", local, kind)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'ir, 'a, 'b, Builder> {

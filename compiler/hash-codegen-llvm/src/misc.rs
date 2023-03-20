@@ -1,15 +1,17 @@
 //! Contains various mappings and conversions between the generic code
 //! generation types and the LLVM backend specific data types.
 
-use hash_codegen::common::{AtomicOrdering, IntComparisonKind, RealComparisonKind};
-use hash_pipeline::settings::OptimisationLevel;
-use hash_target::{
-    abi::AddressSpace,
-    link::{CodeModel, RelocationModel},
+use hash_codegen::{
+    common::{AtomicOrdering, IntComparisonKind, RealComparisonKind},
+    target::{
+        abi::AddressSpace,
+        link::{CodeModel, RelocationModel},
+    },
 };
+use hash_pipeline::settings::OptimisationLevel;
 use inkwell::attributes::Attribute;
 
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 /// Wrapper type around [inkwell::IntPredicate] to allow for conversion from
 /// [IntComparisonKind].

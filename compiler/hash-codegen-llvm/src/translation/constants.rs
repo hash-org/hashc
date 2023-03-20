@@ -1,15 +1,17 @@
 //! Implements all of the constant building methods.
-use hash_codegen::traits::{
-    constants::ConstValueBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
-    ty::TypeBuilderMethods,
+use hash_codegen::{
+    target::{abi::Scalar, data_layout::HasDataLayout},
+    traits::{
+        constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods,
+        HasCtxMethods,
+    },
 };
 use hash_ir::ir::Const;
 use hash_source::constant::{InternedStr, CONSTANT_MAP};
-use hash_target::{abi::Scalar, data_layout::HasDataLayout};
 use inkwell::{module::Linkage, types::BasicTypeEnum, values::AnyValueEnum};
 
 use super::ty::ExtendedTyBuilderMethods;
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     fn const_undef(&self, ty: Self::Type) -> Self::Value {
@@ -103,12 +105,12 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
 
     /// Create a global constant value for the [InternedStr].
     fn const_str(&self, s: InternedStr) -> (Self::Value, Self::Value) {
-        let mut str_len = 0;
+        let value: &str = s.into();
+        let str_len = value.len();
 
         let mut str_consts = self.str_consts.borrow_mut();
         let (_, global_str) = str_consts.raw_entry_mut().from_key(&s).or_insert_with(|| {
             let value: &str = s.into();
-            str_len = value.len();
 
             let str = self.ll_ctx.const_string(value.as_bytes(), false);
 
@@ -133,6 +135,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         let ptr = global_str.as_pointer_value().const_cast(
             self.type_ptr_to(self.layout_of(byte_slice_ty).llvm_ty(self)).into_pointer_type(),
         );
+
         (ptr.into(), self.const_usize(str_len as u64))
     }
 

@@ -3,14 +3,14 @@
 //! compiled by LLVM into a native executable with the specified target triple.
 
 use hash_codegen::{
+    backend::CodeGenStorage,
     layout::{compute::LayoutComputer, LayoutCtx},
-    traits::{ctx::HasCtxMethods, target::HasTargetSpec, Backend, BackendTypes, Codegen},
+    traits::{BackendTypes, Codegen, HasCtxMethods},
 };
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
-use hash_target::Target;
 
-use crate::context::CodeGenCtx;
+use crate::ctx::CodeGenCtx;
 
 mod abi;
 mod builder;
@@ -25,7 +25,7 @@ pub(crate) mod ty;
 
 /// A [Builder] is defined as being a context that is used to implement
 /// all of the specified builder methods.
-pub struct Builder<'a, 'b, 'm> {
+pub struct LLVMBuilder<'a, 'b, 'm> {
     /// The actual InkWell builder
     pub(crate) builder: inkwell::builder::Builder<'m>,
 
@@ -33,26 +33,23 @@ pub struct Builder<'a, 'b, 'm> {
     pub(crate) ctx: &'a CodeGenCtx<'b, 'm>,
 }
 
-/// This specifies that the [Builder] context is [CodeGenCtx].
-impl<'b, 'm> Codegen<'b> for Builder<'_, 'b, 'm> {
+/// This specifies that the [LLVMBuilder] context is [CodeGenCtx].
+impl<'b, 'm> Codegen<'b> for LLVMBuilder<'_, 'b, 'm> {
     type CodegenCtx = CodeGenCtx<'b, 'm>;
 }
 
 /// This specifies all of the common IR type kinds for [Builder].
-impl<'b, 'm> BackendTypes for Builder<'_, 'b, 'm> {
+impl<'b, 'm> BackendTypes for LLVMBuilder<'_, 'b, 'm> {
     type Value = <CodeGenCtx<'b, 'm> as BackendTypes>::Value;
     type Function = <CodeGenCtx<'b, 'm> as BackendTypes>::Function;
     type Type = <CodeGenCtx<'b, 'm> as BackendTypes>::Type;
     type BasicBlock = <CodeGenCtx<'b, 'm> as BackendTypes>::BasicBlock;
-
     type DebugInfoScope = <CodeGenCtx<'b, 'm> as BackendTypes>::DebugInfoScope;
     type DebugInfoLocation = <CodeGenCtx<'b, 'm> as BackendTypes>::DebugInfoLocation;
     type DebugInfoVariable = <CodeGenCtx<'b, 'm> as BackendTypes>::DebugInfoVariable;
 }
 
-impl<'b, 'm> Backend<'b> for Builder<'_, 'b, 'm> {}
-
-impl<'b, 'm> std::ops::Deref for Builder<'_, 'b, 'm> {
+impl<'b, 'm> std::ops::Deref for LLVMBuilder<'_, 'b, 'm> {
     type Target = CodeGenCtx<'b, 'm>;
 
     fn deref(&self) -> &Self::Target {
@@ -60,7 +57,7 @@ impl<'b, 'm> std::ops::Deref for Builder<'_, 'b, 'm> {
     }
 }
 
-impl<'b> HasCtxMethods<'b> for Builder<'_, 'b, '_> {
+impl<'b> HasCtxMethods<'b> for LLVMBuilder<'_, 'b, '_> {
     fn settings(&self) -> &CompilerSettings {
         self.ctx.settings()
     }
@@ -76,10 +73,8 @@ impl<'b> HasCtxMethods<'b> for Builder<'_, 'b, '_> {
     fn layout_computer(&self) -> LayoutComputer<'_> {
         self.ctx.layout_computer()
     }
-}
 
-impl HasTargetSpec for Builder<'_, '_, '_> {
-    fn target_spec(&self) -> &Target {
-        self.ctx.target_spec()
+    fn cg_ctx(&self) -> &CodeGenStorage {
+        self.ctx.cg_ctx()
     }
 }

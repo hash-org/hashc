@@ -13,9 +13,9 @@ use hash_source::identifier::{Identifier, IDENTS};
 use hash_utils::store::CloneStore;
 use inkwell::values::{AnyValueEnum, UnnamedAddress};
 
-use super::Builder;
+use super::LLVMBuilder;
 
-impl<'b, 'm> Builder<'_, 'b, 'm> {
+impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
     /// Call an intrinsic function with the specified arguments.
     pub(crate) fn call_intrinsic(
         &mut self,
@@ -303,7 +303,7 @@ impl<'b, 'm> Builder<'_, 'b, 'm> {
     }
 }
 
-impl<'b, 'm> IntrinsicBuilderMethods<'b> for Builder<'_, 'b, 'm> {
+impl<'b, 'm> IntrinsicBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
     fn codegen_intrinsic_call(
         &mut self,
         ty: IrTyId,

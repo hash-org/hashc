@@ -98,7 +98,7 @@ impl IrOptimisationPass for SimplifyGraphPass {
     }
 
     fn enabled(&self, settings: &CompilerSettings) -> bool {
-        settings.optimisation_level > OptimisationLevel::Debug
+        settings.optimisation_level >= OptimisationLevel::Debug
     }
 
     fn optimise(&self, body: &mut Body, _: &IrCtx) {

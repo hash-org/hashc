@@ -1,21 +1,34 @@
-//! backends in order to create a backend agnostic interface.
+//! Defines interfaces as traits for a code generation backend
+//! to implement. The [BackendMethods] trait is the core trait that
+//! should be implemented by the code generation context for the
+//! backend, and all of the traits should be implemented by the
+//! backend itself.
+//!
+//! The [BackendTypes] trait is used to define the types that are
+//! used by the backend, and the [HasCtxMethods] trait is used to
+//! provide the backend with the necessary context to perform code
+//! generation.
 
 use std::fmt;
 
+use hash_ir::IrCtx;
+use hash_layout::{compute::LayoutComputer, LayoutCtx};
+use hash_pipeline::settings::CompilerSettings;
+use hash_target::{data_layout::HasDataLayout, Target};
+
 use self::{
-    constants::ConstValueBuilderMethods, ctx::HasCtxMethods, layout::LayoutMethods,
-    misc::MiscBuilderMethods, target::HasTargetSpec, ty::TypeBuilderMethods,
+    constants::ConstValueBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
+    ty::TypeBuilderMethods,
 };
+use crate::backend::CodeGenStorage;
 
 pub mod abi;
 pub mod builder;
 pub mod constants;
-pub mod ctx;
 pub mod debug;
 pub mod intrinsics;
 pub mod layout;
 pub mod misc;
-pub mod target;
 pub mod ty;
 
 /// This trait represents all of the commonly accessed types that a
@@ -51,38 +64,63 @@ pub trait BackendTypes {
 pub trait CodeGenObject: Copy + PartialEq + fmt::Debug {}
 impl<T: Copy + PartialEq + fmt::Debug> CodeGenObject for T {}
 
-/// The core trait of the code generation backend which is used to
-/// generate code for a particular backend. This trait provides IR
-pub trait Backend<'b>: Sized + BackendTypes + LayoutMethods<'b> {}
+/// A trait that provides the backend the necessary context to perform
+/// code generation.
+pub trait HasCtxMethods<'b>: HasDataLayout {
+    /// Return a reference to the current [CompilerSettings] for the
+    /// workspace.
+    fn settings(&self) -> &CompilerSettings;
 
-pub trait CodeGenMethods<'b>:
-    Backend<'b>
+    /// Return the current compilation target.
+    fn target(&self) -> &Target {
+        self.settings().target()
+    }
+
+    /// Returns a reference to the [CodeGenStorage].
+    fn cg_ctx(&self) -> &CodeGenStorage;
+
+    /// Returns a reference to the IR [IrCtx].
+    fn ir_ctx(&self) -> &IrCtx;
+
+    /// Create a [LayoutComputer] for the current context.
+    fn layout_computer(&self) -> LayoutComputer<'_> {
+        LayoutComputer::new(self.layouts(), self.ir_ctx())
+    }
+
+    /// Returns a reference to the [LayoutCtx].
+    fn layouts(&self) -> &LayoutCtx;
+}
+
+/// The core trait of the code generation backend which is used to
+/// generate code for a particular backend.
+pub trait BackendMethods<'b>:
+    BackendTypes
+    + LayoutMethods<'b>
     + MiscBuilderMethods<'b>
     + HasCtxMethods<'b>
     + TypeBuilderMethods<'b>
     + ConstValueBuilderMethods<'b>
-    + HasTargetSpec
 {
 }
 
-// Dummy implementation for `CodeGenMethods` for any T that implements
+// Dummy implementation for `BackendMethods` for any T that implements
 // those methods too.
-impl<'b, T> CodeGenMethods<'b> for T where
-    Self: Backend<'b>
+impl<'b, T> BackendMethods<'b> for T where
+    Self: BackendTypes
+        + LayoutMethods<'b>
         + MiscBuilderMethods<'b>
         + HasCtxMethods<'b>
         + TypeBuilderMethods<'b>
         + ConstValueBuilderMethods<'b>
-        + HasTargetSpec
 {
 }
 
 pub trait Codegen<'b>:
-    Backend<'b> + std::ops::Deref<Target = <Self as Codegen<'b>>::CodegenCtx>
+    BackendTypes + std::ops::Deref<Target = <Self as Codegen<'b>>::CodegenCtx>
 {
     /// The type of the codegen context, all items within the context can access
-    /// all of the methods that are provided via [CodeGenMethods]
-    type CodegenCtx: CodeGenMethods<'b>
+    /// all of the methods that are provided via [BackendMethods].
+    type CodegenCtx: BackendMethods<'b>
         + BackendTypes<
             Value = Self::Value,
             Function = Self::Function,

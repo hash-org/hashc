@@ -6,22 +6,17 @@
 use std::iter;
 
 use fixedbitset::FixedBitSet;
-use hash_abi::FnAbi;
+use hash_abi::FnAbiId;
 use hash_ir::{
     ir::{self, Local},
     traversal,
     ty::InstanceId,
 };
-use hash_utils::index_vec::IndexVec;
+use hash_utils::{index_vec::IndexVec, store::Store};
 
-use self::{
-    abi::{compute_fn_abi_from_instance, FnAbiError},
-    locals::LocalRef,
-    operands::OperandRef,
-    place::PlaceRef,
-};
+use self::{abi::FnAbiError, locals::LocalRef, operands::OperandRef, place::PlaceRef};
 use crate::traits::{
-    builder::BlockBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
+    builder::BlockBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods, HasCtxMethods,
 };
 
 pub mod abi;
@@ -64,9 +59,8 @@ pub struct FnBuilder<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// The function that is being built.
     function: Builder::Function,
 
-    /// The function ABI detailing all the information about
-    /// arguments, return types, layout and calling conventions.
-    fn_abi: FnAbi,
+    /// The [FnAbi] of the function that is being lowered.
+    fn_abi: FnAbiId,
 
     /// The location of where each IR argument/temporary/variable and return
     /// value is stored. Usually, this is a [PlaceRef] which represents an
@@ -94,19 +88,15 @@ pub struct FnBuilder<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// also facilitate the ability to merge blocks together during the
     /// lowering process.
     block_map: IndexVec<ir::BasicBlock, BlockStatus<Builder::BasicBlock>>,
-
-    /// A commonly shared "unreachable" block in order to avoid
-    /// having multiple basic blocks that are "unreachable".
-    _unreachable_block: Option<Builder::BasicBlock>,
 }
 
 impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Create a new [FnBuilder] instance.
     pub fn new(
+        fn_abi: FnAbiId,
         body: &'b ir::Body,
         ctx: &'a Builder::CodegenCtx,
         func: Builder::Function,
-        fn_abi: FnAbi,
         starting_block: Builder::BasicBlock,
     ) -> Self {
         // Verify that the IR body has resolved all "constant" references
@@ -130,11 +120,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         Self {
             body,
             ctx,
-            function: func,
             fn_abi,
+            function: func,
             block_map,
             locals: IndexVec::with_capacity(body.declarations.len()),
-            _unreachable_block: None,
         }
     }
 }
@@ -159,15 +148,18 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     // @@Todo: compute debug info about each local
 
     let func = ctx.get_fn(instance);
-    let fn_abi = compute_fn_abi_from_instance(ctx, instance)?;
+
+    let abis = ctx.cg_ctx().abis();
+
+    let fn_abi = abis.create_fn_abi(ctx, instance);
+    let is_return_indirect = abis.map_fast(fn_abi, |abi| abi.ret_abi.is_indirect());
 
     // create the starting block, this is needed since we always specify
     // that the initial block is in "use".
     let starting_block = Builder::append_block(ctx, func, "start");
 
-    // create a new function builder
-    let mut fn_builder = FnBuilder::new(body, ctx, func, fn_abi, starting_block);
-
+    // create a new function builder and a builder for the starting block
+    let mut fn_builder = FnBuilder::new(fn_abi, body, ctx, func, starting_block);
     let mut builder = Builder::build(fn_builder.ctx, starting_block);
 
     // Allocate space for all the locals.
@@ -181,7 +173,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
             let decl = &fn_builder.body.declarations[local];
             let info = fn_builder.ctx.layout_of(decl.ty);
 
-            if local == ir::RETURN_PLACE && fn_builder.fn_abi.ret_abi.is_indirect() {
+            if local == ir::RETURN_PLACE && is_return_indirect {
                 let value = builder.get_param(0);
                 return LocalRef::Place(PlaceRef::new(&mut builder, value, info));
             }
@@ -231,7 +223,7 @@ fn allocate_argument_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     body.args_iter()
         .enumerate()
         .map(|(arg_index, local)| {
-            let arg_abi = &fn_ctx.fn_abi.args[arg_index];
+            let arg_abi = builder.cg_ctx().abis().get_arg_abi(fn_ctx.fn_abi, arg_index);
 
             // Check if we can just pass these arguments directly...
             if !memory_locals.contains(local.index()) {
@@ -263,7 +255,7 @@ fn allocate_argument_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 
             // Otherwise, just allocate it on the stack
             let tmp = PlaceRef::new_stack(builder, arg_abi.info);
-            builder.store_fn_arg(arg_abi, &mut param_index, tmp);
+            builder.store_fn_arg(&arg_abi, &mut param_index, tmp);
             LocalRef::Place(tmp)
         })
         .collect()

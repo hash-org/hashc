@@ -6,10 +6,10 @@ use hash_layout::TyInfo;
 use hash_source::constant::FloatTy;
 use hash_target::abi::{AddressSpace, Integer};
 
-use super::Backend;
+use super::{layout::LayoutMethods, BackendTypes};
 use crate::common::TypeKind;
 
-pub trait TypeBuilderMethods<'b>: Backend<'b> {
+pub trait TypeBuilderMethods<'b>: BackendTypes + LayoutMethods<'b> {
     /// Create a bit type.
     fn type_i1(&self) -> Self::Type;
 
@@ -34,7 +34,7 @@ pub trait TypeBuilderMethods<'b>: Backend<'b> {
     /// Create a C `int` type, this will depend on the
     /// compilation target.
     fn type_int(&self) -> Self::Type {
-        match &self.settings().target().c_int_width {
+        match &self.target().c_int_width {
             16 => self.type_i16(),
             32 => self.type_i32(),
             64 => self.type_i64(),
@@ -107,6 +107,15 @@ pub trait TypeBuilderMethods<'b>: Backend<'b> {
     /// Create a new "immediate" backend type. This is mainly
     /// used for constants and ZSTs.
     fn immediate_backend_ty(&self, info: TyInfo) -> Self::Type;
+
+    /// Get the type of an element from a scalar pair, and assume
+    /// if it "immediate".
+    fn scalar_pair_element_backend_ty(
+        &self,
+        info: TyInfo,
+        index: usize,
+        immediate: bool,
+    ) -> Self::Type;
 
     /// Create a backend specific type from a [TyInfo].
     fn backend_ty_from_info(&self, info: TyInfo) -> Self::Type;

@@ -5,9 +5,10 @@ use std::cell::{Cell, RefCell};
 
 use fxhash::FxHashMap;
 use hash_codegen::{
+    backend::CodeGenStorage,
     layout::{compute::LayoutComputer, LayoutCtx},
     symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
-    traits::{ctx::HasCtxMethods, target::HasTargetSpec, Backend, BackendTypes},
+    traits::{BackendTypes, HasCtxMethods},
 };
 use hash_ir::{
     ty::{InstanceId, IrTyId, VariantIdx},
@@ -15,7 +16,6 @@ use hash_ir::{
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::InternedStr;
-use hash_target::Target;
 use inkwell as llvm;
 use llvm::values::FunctionValue;
 
@@ -32,6 +32,9 @@ pub struct CodeGenCtx<'b, 'm> {
 
     /// A reference to the IR context.
     pub ir_ctx: &'b IrCtx,
+
+    /// A reference to the code generation context.
+    pub codegen_ctx: &'b CodeGenStorage,
 
     /// Store for all of the information about type [Layout]s.
     pub layouts: &'b LayoutCtx,
@@ -82,6 +85,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
         settings: &'b CompilerSettings,
         ir_ctx: &'b IrCtx,
         layouts: &'b LayoutCtx,
+        codegen_ctx: &'b CodeGenStorage,
     ) -> Self {
         let ptr_size = layouts.data_layout.pointer_size;
         let ll_ctx = module.get_context();
@@ -92,6 +96,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
             settings,
             ir_ctx,
             layouts,
+            codegen_ctx,
             module,
             ll_ctx,
             symbol_counter: Cell::new(0),
@@ -122,12 +127,6 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
     }
 }
 
-impl HasTargetSpec for CodeGenCtx<'_, '_> {
-    fn target_spec(&self) -> &Target {
-        self.settings.target()
-    }
-}
-
 /// Implement the types for the [CodeGenCtx].
 impl<'b, 'm> BackendTypes for CodeGenCtx<'b, 'm> {
     type Value = llvm::values::AnyValueEnum<'m>;
@@ -145,8 +144,6 @@ impl<'b, 'm> BackendTypes for CodeGenCtx<'b, 'm> {
     type DebugInfoVariable = llvm::debug_info::DILocalVariable<'m>;
 }
 
-impl<'b> Backend<'b> for CodeGenCtx<'b, '_> {}
-
 impl<'b> HasCtxMethods<'b> for CodeGenCtx<'b, '_> {
     fn settings(&self) -> &CompilerSettings {
         self.settings
@@ -162,5 +159,9 @@ impl<'b> HasCtxMethods<'b> for CodeGenCtx<'b, '_> {
 
     fn layout_computer(&self) -> LayoutComputer<'_> {
         LayoutComputer::new(self.layouts(), self.ir_ctx())
+    }
+
+    fn cg_ctx(&self) -> &CodeGenStorage {
+        self.codegen_ctx
     }
 }

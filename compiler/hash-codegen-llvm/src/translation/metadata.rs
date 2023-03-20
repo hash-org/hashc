@@ -1,17 +1,19 @@
 //! Contains utility methods for emitting LLVM metadata about
 //! values, functions, and types.
 
-use hash_codegen::traits::{
-    builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
+use hash_codegen::{
+    target::{alignment::Alignment, size::Size},
+    traits::{
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
+    },
 };
-use hash_target::{alignment::Alignment, size::Size};
 use inkwell as llvm;
 use llvm::values::{AnyValueEnum, BasicMetadataValueEnum, InstructionValue};
 
-use super::Builder;
+use super::LLVMBuilder;
 use crate::misc::MetadataTypeKind;
 
-impl<'m> Builder<'_, '_, 'm> {
+impl<'m> LLVMBuilder<'_, '_, 'm> {
     /// Emit a `no-undef` metadata attribute on a specific value.
     pub fn set_no_undef(&mut self, value: InstructionValue<'m>) {
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);

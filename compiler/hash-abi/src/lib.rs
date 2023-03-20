@@ -7,8 +7,9 @@ use hash_layout::{compute::LayoutComputer, LayoutId, TyInfo};
 use hash_target::{
     abi::{Abi, AbiRepresentation, Scalar},
     size::Size,
+    Target,
 };
-use hash_utils::store::Store;
+use hash_utils::{new_store_key, store::Store};
 
 /// Defines the available calling conventions that can be
 /// used when invoking functions with the ABI.
@@ -29,20 +30,25 @@ pub enum CallingConvention {
     Cold = 9,
 }
 
-impl From<Abi> for CallingConvention {
-    fn from(abi: Abi) -> Self {
-        match abi {
+impl CallingConvention {
+    /// Create a new [CallingConvention] from the provided [Abi] whilst
+    /// also making any adjustments according to the current compilation
+    /// [Target].
+    pub fn make_from_abi_and_target(abi: Abi, target: &Target) -> Self {
+        match target.adjust_abi(abi) {
             Abi::C | Abi::Hash => CallingConvention::C,
             Abi::Cold => CallingConvention::Cold,
         }
     }
 }
 
+new_store_key!(pub FnAbiId);
+
 /// Defines ABI specific information about a function.
 ///
 /// @@TODO: Do we need to record information about variadics here (when we add
 /// them)?
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FnAbi {
     /// All the types of the arguments in order, and how they should
     /// be passed to the function (as per convention).
@@ -59,7 +65,7 @@ pub struct FnAbi {
 /// Defines ABI specific information about an argument. [ArgAbi] is also
 /// used to denote the return type of the function it has similar conventions
 /// to function arguments.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ArgAbi {
     /// The type of the argument.
     pub info: TyInfo,
