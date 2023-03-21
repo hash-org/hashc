@@ -24,12 +24,12 @@ use hash_tir::{
 };
 use hash_utils::{log, store::SequenceStore};
 
-use super::{Builder, LocalKey};
+use super::{BodyBuilder, LocalKey};
 
 // @@Temporary: use this for terms that don't have a location
 const DUMMY_SPAN: Span = Span::new(0, 0);
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// Get a reference to a [IrCtx].
     pub(crate) fn ctx(&self) -> &IrCtx {
         self.ctx.lcx

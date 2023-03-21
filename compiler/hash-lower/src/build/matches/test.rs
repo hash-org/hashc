@@ -36,7 +36,7 @@ use super::{
     candidate::{Candidate, MatchPair},
     const_range::ConstRange,
 };
-use crate::build::{place::PlaceBuilder, Builder};
+use crate::build::{place::PlaceBuilder, BodyBuilder};
 
 /// Convert a [LitPat] into a [Const] value.
 fn constify_lit_pat(term: &LitPat) -> Const {
@@ -137,7 +137,7 @@ impl Test {
     }
 }
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     pub(super) fn test_or_pat(
         &mut self,
         candidate: &mut Candidate,

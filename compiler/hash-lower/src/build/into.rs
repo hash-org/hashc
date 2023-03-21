@@ -39,10 +39,10 @@ use hash_tir::{
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::{
-    ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder, LocalKey, LoopBlockInfo,
+    ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LocalKey, LoopBlockInfo,
 };
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// Compile the given [Term] and place the value of the [Term]
     /// into the specified destination [Place].
     pub(crate) fn term_into_dest(

@@ -33,9 +33,11 @@ use self::{
     candidate::{traverse_candidate, Binding, Candidate, Candidates},
     test::TestKind,
 };
-use super::{place::PlaceBuilder, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{
+    place::PlaceBuilder, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
+};
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// This is the entry point of matching an expression. Firstly, we deal with
     /// the subject of the match, and then we build a decision tree of all
     /// of the arms that have been specified, then we create all of the

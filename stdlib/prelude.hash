@@ -67,6 +67,9 @@ dbg := <T> => (item: T) -> T => {
 
 
 libc := mod {
+    /// The `char` is equivalent to an `i32` but avoid having to make the cast.
+    #foreign putwchar := (c: char) -> i32 => { Intrinsics::abort() }
+
     #foreign write := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }
 
     #foreign read := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }
@@ -74,6 +77,8 @@ libc := mod {
     #foreign open := (path: &raw u8, flags: i32, mode: i32) -> i32 => { Intrinsics::abort() }
 
     #foreign close := (fd: i32) -> i32 => { Intrinsics::abort() }
+
+    #foreign exit := (status: i32) => { Intrinsics::abort() }
 
     #foreign malloc := (size: usize) -> &raw u8 => { Intrinsics::abort() }
 

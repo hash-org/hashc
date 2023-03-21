@@ -16,10 +16,12 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, Store};
 
-use super::{category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{
+    category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
+};
 use crate::build::category::RValueKind;
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// Construct an [RValue] from the given [ast::Expr].
     pub(crate) fn as_rvalue(&mut self, mut block: BasicBlock, term_id: TermId) -> BlockAnd<RValue> {
         // @@Temporary: replace with get_ref();

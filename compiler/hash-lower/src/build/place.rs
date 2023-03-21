@@ -17,7 +17,7 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore};
 
-use super::{unpack, BlockAnd, BlockAndExtend, Builder};
+use super::{unpack, BlockAnd, BlockAndExtend, BodyBuilder};
 
 /// A builder interface for building a [Place] with a base [Local]
 /// and a collection of projections that are applied as the
@@ -88,7 +88,7 @@ impl From<Local> for PlaceBuilder {
     }
 }
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn as_place(
         &mut self,
         mut block: BasicBlock,

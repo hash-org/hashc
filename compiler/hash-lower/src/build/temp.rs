@@ -6,10 +6,10 @@ use hash_ir::{
 };
 use hash_tir::terms::TermId;
 
-use super::{BlockAnd, Builder};
+use super::{BlockAnd, BodyBuilder};
 use crate::build::{unpack, BlockAndExtend};
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// Compile an "term" into a freshly created temporary [Place].
     pub(crate) fn term_into_temp(
         &mut self,

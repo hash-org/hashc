@@ -13,9 +13,9 @@ use hash_tir::pats::{PatId, Spread};
 use hash_utils::smallvec::SmallVec;
 
 use super::candidate::{Candidate, MatchPair};
-use crate::build::{place::PlaceBuilder, Builder};
+use crate::build::{place::PlaceBuilder, BodyBuilder};
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// Attempt to optimise the sub-candidates of a provided [Candidate]. This
     /// only performs a trivial merge, so we avoid generating exponential
     pub(super) fn merge_sub_candidates(&mut self, candidate: &mut Candidate, span: Span) {

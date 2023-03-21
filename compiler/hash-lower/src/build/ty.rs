@@ -27,7 +27,7 @@ use hash_tir::{
 };
 use hash_utils::store::SequenceStore;
 
-use super::Builder;
+use super::BodyBuilder;
 
 /// An auxiliary data structure that represents the underlying [FnCallTerm]
 /// as either being a function call, a binary operation (of various kinds), or
@@ -57,7 +57,7 @@ pub enum FnCallTermKind {
     UnaryOp(ir::UnaryOp, TermId),
 }
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// Get the [IrTyId] from a given [TermId]. This function will internally
     /// cache results of lowering a [TermId] into an [IrTyId] to avoid
     /// duplicate work.
