@@ -11,36 +11,17 @@ use textwrap::indent;
 use utility_types::omit;
 
 use super::{
-    data::{DataDefId, DataTy},
+    data::DataDefId,
     environment::env::{AccessToEnv, WithEnv},
     fns::FnDefId,
 };
 use crate::symbols::Symbol;
-
-// @@Todo: examples
-
-/// The subject of an implementation block.
-#[derive(Debug, Clone, Copy)]
-pub enum ImplSubject {
-    Data(DataTy),
-    // @@Todo: add some primitives here
-}
-
-/// An anonymous implementation
-///
-/// Contains the subject to implement members on.
-#[derive(Debug, Clone, Copy)]
-pub struct AnonImpl {
-    pub subject: ImplSubject,
-}
 
 /// The kind of a module.
 ///
 /// Might reference parameters in the mod def.
 #[derive(Debug, Clone, Copy)]
 pub enum ModKind {
-    /// Defined as an anonymous implementation on a datatype.
-    AnonImpl(AnonImpl),
     /// Defined as a module (`mod` block).
     ModBlock,
     /// Defined as a file module or interactive.
@@ -56,7 +37,7 @@ pub enum ModKind {
 /// This can be:
 /// - a function definition, e.g  x := () -> i32 => 42;
 /// - a data definition, e.g.  x := struct(foo: str);
-/// - a module definition, e.g.  x := mod {}, or x := impl y {};
+/// - a module definition, e.g.  x := mod {}
 #[derive(Debug, Clone, Copy)]
 pub enum ModMemberValue {
     /// A module member that is a definition.
@@ -65,7 +46,6 @@ pub enum ModMemberValue {
     Mod(ModDefId),
     /// A module member that is a function.
     Fn(FnDefId),
-    // @@Future: constants
 }
 
 impl Display for WithEnv<'_, ModMemberValue> {
@@ -133,17 +113,8 @@ pub struct ModDef {
     pub name: Symbol,
     /// The kind is parametrised over `params`.
     pub kind: ModKind,
-
     /// The members of the module.
     pub members: ModMembersId,
-    // @@Future:
-    // /// The name of the "Self" type in the scope of the trait definition, if
-    // /// present.
-    // pub self_ty_name: Option<Symbol>,
-
-    // @@Future:
-    // /// The parameters of the module, if any.
-    // pub params: DefParamsId,
 }
 
 new_store_key!(pub ModDefId);
@@ -153,7 +124,6 @@ impl Display for WithEnv<'_, &ModDef> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let members = self.env().with(self.value.members).to_string();
         match self.value.kind {
-            ModKind::AnonImpl(_) => todo!(),
             ModKind::ModBlock => {
                 write!(
                     f,
