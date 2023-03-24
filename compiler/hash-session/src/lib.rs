@@ -27,11 +27,9 @@ use hash_pipeline::{
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_semantics::{
-    old::{Typechecker, TypecheckingCtx, TypecheckingCtxQuery},
     Flags, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
 };
-use hash_source::{entry_point::EntryPointState, SourceId, SourceMap};
-use hash_tir::old::storage::{GlobalStorage, LocalStorage, TyStorage};
+use hash_source::{SourceId, SourceMap};
 use hash_untyped_semantics::{
     UntypedSemanticAnalysis, UntypedSemanticAnalysisCtx, UntypedSemanticAnalysisCtxQuery,
 };
@@ -45,11 +43,7 @@ pub fn make_stages() -> Vec<Box<dyn CompilerStage<CompilerSession>>> {
         Box::new(AstExpansionPass),
         Box::new(UntypedSemanticAnalysis),
         // @@Temporary: remove this when old typechecker is removed.
-        if std::env::var("USE_OLD_TC").is_ok() {
-            Box::new(Typechecker::new())
-        } else {
-            Box::new(SemanticAnalysis)
-        },
+        Box::new(SemanticAnalysis),
         Box::<IrGen>::default(),
         Box::<IrOptimiser>::default(),
         Box::<CodeGenPass>::default(),
@@ -106,11 +100,6 @@ pub struct CompilerSession {
     /// order to avoid re-checking modules on re-evaluations of a workspace.
     pub semantically_checked_modules: HashSet<SourceId>,
 
-    /// Compiler type storage. Stores all the types that are created during
-    /// the typechecking stage, which is used for later stages during code
-    /// generation.
-    pub ty_storage: TyStorage,
-
     /// Compiler IR storage. Stores all the IR that is created during the
     /// lowering stage, which is used for later stages during code generation.
     pub ir_storage: IrStorage,
@@ -138,9 +127,6 @@ impl CompilerSession {
             .parse_data_layout()
             .unwrap_or_else(|err| emit_fatal_error(err, &workspace.source_map));
 
-        let global = GlobalStorage::new(target);
-        let local = LocalStorage::new(&global, SourceId::default());
-
         Self {
             error_stream: Box::new(error_stream),
             output_stream: Box::new(output_stream),
@@ -152,7 +138,6 @@ impl CompilerSession {
             ir_storage: IrStorage::new(),
             layout_storage: LayoutCtx::new(layout_info),
             codegen_storage: CodeGenStorage::new(),
-            ty_storage: TyStorage { global, local, entry_point_state: EntryPointState::new() },
             expanded_sources: HashSet::new(),
             desugared_modules: HashSet::new(),
             semantically_checked_modules: HashSet::new(),
@@ -293,15 +278,5 @@ impl LinkerCtxQuery for CompilerSession {
         let stdout = self.output_stream();
 
         LinkerCtx { workspace: &self.workspace, settings: &self.settings, stdout }
-    }
-}
-
-impl TypecheckingCtxQuery for CompilerSession {
-    fn data(&mut self) -> TypecheckingCtx {
-        TypecheckingCtx {
-            settings: &self.settings,
-            workspace: &mut self.workspace,
-            ty_storage: &mut self.ty_storage,
-        }
     }
 }

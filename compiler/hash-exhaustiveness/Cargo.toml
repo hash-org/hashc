@@ -1,0 +1,9 @@
+[package]
+name = "hash-exhaustiveness"
+version = "0.1.0"
+authors = ["The Hash Language authors"]
+edition = "2021"
+
+# @@Future: this crate is currently not in use, and is disabled. Needs to be
+# hooked-up to the typechecking system.
+[dependencies]

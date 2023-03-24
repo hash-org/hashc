@@ -496,6 +496,10 @@ name = "hash-error-codes"
 version = "0.1.0"
 
 [[package]]
+name = "hash-exhaustiveness"
+version = "0.1.0"
+
+[[package]]
 name = "hash-interactive"
 version = "0.1.0"
 dependencies = [

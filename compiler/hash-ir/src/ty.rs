@@ -69,17 +69,6 @@ impl From<ast::Mutability> for Mutability {
     }
 }
 
-impl From<hash_tir::old::scope::Mutability> for Mutability {
-    fn from(value: hash_tir::old::scope::Mutability) -> Self {
-        use hash_tir::old::scope::Mutability::*;
-
-        match value {
-            Mutable => Mutability::Mutable,
-            Immutable => Mutability::Immutable,
-        }
-    }
-}
-
 impl fmt::Display for Mutability {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())

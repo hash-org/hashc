@@ -170,7 +170,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> fmt::Display
             .unwrap();
 
         for (local, kind) in self.locals.iter_enumerated() {
-            writeln!(f, "{: >width$?}: {}", local, kind)?;
+            writeln!(f, "{local: >width$?}: {kind}")?;
         }
 
         Ok(())

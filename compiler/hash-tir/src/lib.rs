@@ -20,7 +20,6 @@ pub mod intrinsics;
 pub mod lits;
 pub mod locations;
 pub mod mods;
-pub mod old;
 pub mod params;
 pub mod pats;
 pub mod refs;
