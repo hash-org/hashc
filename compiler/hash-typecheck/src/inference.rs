@@ -359,34 +359,36 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-        let params = match self.get_ty(annotation_ty) {
-            Ty::Tuple(tuple_ty) => self.sub_ops().copy_params(tuple_ty.data),
-            Ty::Hole(_) => self.param_utils().create_hole_params_from_args(tuple_term.data),
-            _ => {
-                let inferred = self.param_utils().create_hole_params_from_args(tuple_term.data);
-                return Err(TcError::MismatchingTypes {
-                    expected: annotation_ty,
-                    actual: self.new_ty(TupleTy { data: inferred }),
-                    inferred_from: Some(original_term_id.into()),
-                });
-            }
-        };
+        self.context().enter_scope(ScopeKind::Sub, || {
+            self.normalise_and_check_ty(annotation_ty)?;
+            let params = match self.get_ty(annotation_ty) {
+                Ty::Tuple(tuple_ty) => self.sub_ops().copy_params(tuple_ty.data),
+                Ty::Hole(_) => self.param_utils().create_hole_params_from_args(tuple_term.data),
+                _ => {
+                    let inferred = self.param_utils().create_hole_params_from_args(tuple_term.data);
+                    return Err(TcError::MismatchingTypes {
+                        expected: annotation_ty,
+                        actual: self.new_ty(TupleTy { data: inferred }),
+                        inferred_from: Some(original_term_id.into()),
+                    });
+                }
+            };
 
-        let mut tuple_term = *tuple_term;
-        self.infer_args(tuple_term.data, params, |new_args| {
-            tuple_term.data = new_args;
-            self.stores().term().set(original_term_id, tuple_term.into());
+            let mut tuple_term = *tuple_term;
+            self.infer_args(tuple_term.data, params, |new_args| {
+                tuple_term.data = new_args;
+                self.stores().term().set(original_term_id, tuple_term.into());
+                Ok(())
+            })?;
+
+            let tuple_ty =
+                self.new_expected_ty_of(original_term_id, self.new_ty(TupleTy { data: params }));
+            self.check_by_unify(tuple_ty, annotation_ty)?;
+            // @@Review: why is this needed? Shouldn't the substitution be applied during
+            // `check_by_unify`?
+            self.sub_ops().apply_sub_to_atom_from_context(annotation_ty);
             Ok(())
-        })?;
-
-        let tuple_ty =
-            self.new_expected_ty_of(original_term_id, self.new_ty(TupleTy { data: params }));
-        self.check_by_unify(tuple_ty, annotation_ty)?;
-        // @@Review: why is this needed? Shouldn't the substitution be applied during
-        // `check_by_unify`?
-        self.sub_ops().apply_sub_to_atom_from_context(annotation_ty);
-        Ok(())
+        })
     }
 
     /// Potentially adjust the underlying constant of a literal after its type
