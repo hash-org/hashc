@@ -1,0 +1,3 @@
+// run=pass, stage=parse
+
+nat_induction := <P: <n: Nat> -> Type> => (n: Nat) -> P<n> => {}

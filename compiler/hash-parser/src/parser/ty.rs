@@ -146,6 +146,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Type function, which is a collection of arguments enclosed in `<...>` and then
             // followed by a return type
             TokenKind::Lt => {
+                self.skip_token();
+
                 multi_ty_components = false;
                 self.parse_ty_fn()?
             }
@@ -344,7 +346,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn parse_ty_fn(&mut self) -> ParseResult<Ty> {
         // Since this is only called from `parse_singular_type` we know that this should
         // only be fired when the next token is a an `<`
-        debug_assert!(matches!(self.next_token(), Some(Token { kind: TokenKind::Lt, .. })));
+        debug_assert!(matches!(self.current_token(), Token { kind: TokenKind::Lt, .. }));
 
         let mut arg_span = self.current_location();
         let mut args = vec![];
