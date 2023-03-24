@@ -457,7 +457,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             let result_term = self.eval_and_record(block_term.return_value.into(), &st)?;
             let subbed_result_term = self.sub_ops().apply_sub_to_atom(result_term, &sub);
 
-            evaluation_if(|| subbed_result_term, &st)
+            evaluation_to(subbed_result_term)
         })
     }
 

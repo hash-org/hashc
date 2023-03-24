@@ -54,6 +54,9 @@ println := (message: str) => {
     print("\n")
 }
 
+refl := <T, a: T> => () -> {a ~ a} => {
+    Equal::Refl(a)
+}
 
 dbg := <T> => (item: T) -> T => {
     Intrinsics::debug_print(T, item)
