@@ -383,6 +383,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let tuple_ty =
             self.new_expected_ty_of(original_term_id, self.new_ty(TupleTy { data: params }));
         self.check_by_unify(tuple_ty, annotation_ty)?;
+        // @@Review: why is this needed? Shouldn't the substitution be applied during
+        // `check_by_unify`?
+        self.sub_ops().apply_sub_to_atom_from_context(annotation_ty);
         Ok(())
     }
 
