@@ -15,7 +15,7 @@ mod optimise;
 
 use std::{collections::BTreeMap, time::Duration};
 
-use build::Builder;
+use build::BodyBuilder;
 use ctx::BuilderCtx;
 use discover::FnDiscoverer;
 use hash_ir::{
@@ -160,7 +160,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
                     panic!("function `{name}` has no defined source location");
                 };
 
-                let mut builder = Builder::new(name, (*func).into(), id, ctx, settings);
+                let mut builder = BodyBuilder::new(name, (*func).into(), id, ctx, settings);
                 builder.build();
 
                 let body = builder.finish();

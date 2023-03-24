@@ -161,7 +161,7 @@ pub(crate) struct LoopBlockInfo {
 }
 
 /// The builder is responsible for lowering a body into the associated IR.
-pub(crate) struct Builder<'tcx> {
+pub(crate) struct BodyBuilder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
     ctx: BuilderCtx<'tcx>,
 
@@ -214,25 +214,25 @@ pub(crate) struct Builder<'tcx> {
     tmp_place: Option<Place>,
 }
 
-impl<'ctx> AccessToEnv for Builder<'ctx> {
+impl<'ctx> AccessToEnv for BodyBuilder<'ctx> {
     fn env(&self) -> &Env {
         self.ctx.env
     }
 }
 
-impl<'ctx> AccessToPrimitives for Builder<'ctx> {
+impl<'ctx> AccessToPrimitives for BodyBuilder<'ctx> {
     fn primitives(&self) -> &DefinedPrimitives {
         self.ctx.primitives
     }
 }
 
-impl<'ctx> AccessToIntrinsics for Builder<'ctx> {
+impl<'ctx> AccessToIntrinsics for BodyBuilder<'ctx> {
     fn intrinsics(&self) -> &DefinedIntrinsics {
         self.ctx.intrinsics
     }
 }
 
-impl<'ctx> Builder<'ctx> {
+impl<'ctx> BodyBuilder<'ctx> {
     pub(crate) fn new(
         name: Identifier,
         item: BuildItem,

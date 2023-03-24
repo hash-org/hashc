@@ -39,7 +39,7 @@ use hash_utils::{
     store::{CloneStore, SequenceStore, Store},
 };
 
-use crate::build::{place::PlaceBuilder, Builder};
+use crate::build::{place::PlaceBuilder, BodyBuilder};
 
 /// A [Candidate] is a representation of a single `match` arm that
 /// is used to generate code for a `match` block. [Candidate]s store
@@ -174,7 +174,7 @@ pub(super) enum BindingMode {
     ByRef,
 }
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// This function attempts to simplify a [Candidate] so that all match pairs
     /// can be tested. This method will also split the candidate in which
     /// the only match pair is a `or` pattern, in order for matches like:

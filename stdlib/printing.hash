@@ -3,9 +3,8 @@
 math := import("math");
 
 /// Simply print a character.
-print_char := (c: char) => {
-    t := &raw c;
-    libc::write(1, Intrinsics::transmute(type &raw char, type &raw u8, t), 4);
+print_char := (c: char) -> () => {
+    libc::putwchar(c);
 }
 
 

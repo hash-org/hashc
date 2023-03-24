@@ -7,7 +7,7 @@ use hash_ast::ast;
 use hash_ir::ir::{compare_constant_values, Const};
 use hash_tir::pats::RangePat;
 
-use crate::build::Builder;
+use crate::build::BodyBuilder;
 
 /// A constant range which is a representation of a range pattern, but
 /// instead of using literals, we directly store these with [Const]s.
@@ -26,7 +26,7 @@ pub(super) struct ConstRange {
 
 impl ConstRange {
     /// Create a [ConstRange] from [RangePat].
-    pub fn from_range(range: &RangePat, builder: &Builder) -> Self {
+    pub fn from_range(range: &RangePat, builder: &BodyBuilder) -> Self {
         let (lo, _) = builder.evaluate_const_pat(range.start);
         let (hi, _) = builder.evaluate_const_pat(range.end);
 

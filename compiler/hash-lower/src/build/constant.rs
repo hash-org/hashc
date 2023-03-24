@@ -12,9 +12,9 @@ use hash_source::{
 };
 use hash_tir::{environment::env::AccessToEnv, lits::Lit, terms::Term};
 
-use super::Builder;
+use super::BodyBuilder;
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// Lower a simple literal into an [ir::Const], this does not deal
     /// with literals that are arrays or other compound data structures.
     pub(crate) fn as_constant(&mut self, lit: &Lit) -> ConstKind {

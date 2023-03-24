@@ -21,10 +21,10 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore};
 
-use super::{candidate::Candidate, BlockAnd, Builder};
+use super::{candidate::Candidate, BlockAnd, BodyBuilder};
 use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend, LocalKey};
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     /// Push a [LocalDecl] in the current [Builder] with the associated
     /// [LocalKey]. This will put the [LocalDecl] into the declarations, and
     /// create an entry in the lookup map so that the [Local] can be looked up

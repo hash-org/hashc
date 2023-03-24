@@ -18,10 +18,10 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore};
 
-use super::{BlockAnd, BlockAndExtend, Builder, LoopBlockInfo};
+use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
 use crate::build::unpack;
 
-impl<'tcx> Builder<'tcx> {
+impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn block_into_dest(
         &mut self,
         place: Place,
@@ -128,7 +128,7 @@ impl<'tcx> Builder<'tcx> {
         f: F,
     ) -> BlockAnd<()>
     where
-        F: FnOnce(&mut Builder<'tcx>) -> BlockAnd<()>,
+        F: FnOnce(&mut BodyBuilder<'tcx>) -> BlockAnd<()>,
     {
         let block_info = LoopBlockInfo { loop_body, next_block };
         let old_block_info = mem::replace(&mut self.loop_block_info, Some(block_info));
