@@ -348,9 +348,6 @@ fn handle_test(test: TestingInput) {
         },
     );
 
-    // @@Remove: this is a temporary hack to allow us to use the old type checker
-    // for the tests because some are failing
-    std::env::set_var("USE_OLD_TC", "1");
     let mut compiler = Compiler::new(make_stages());
     let mut compiler_state = compiler.bootstrap(session);
 

@@ -40,7 +40,6 @@ use ops::{
 
 pub mod diagnostics;
 pub mod environment;
-pub mod old;
 pub mod ops;
 pub mod passes;
 
