@@ -272,7 +272,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(_) => self.parse_pat()?,
             None => {
                 let span = name.span();
-                let copy = self.node(Name { ..*name.body() });
+                let copy = self.node(*name.body());
 
                 self.node_with_span(
                     Pat::Binding(BindingPat { name: copy, visibility: None, mutability: None }),
