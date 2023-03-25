@@ -1701,7 +1701,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let ctor_sub = self.sub_ops().create_sub_from_current_scope();
                 self.sub_ops().apply_sub_to_args_in_place(subbed_ctor_result_args, &ctor_sub);
                 self.sub_ops().apply_sub_to_pat_args_in_place(inferred_pat_ctor_args, &ctor_sub);
-                self.sub_ops().apply_sub_to_pat_args_in_place(inferred_pat_ctor_args, &ctor_sub);
                 self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_data_args, &ctor_sub);
 
                 // These arguments might have been updated so we need to set them
@@ -1736,6 +1735,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let final_sub = self.sub_ops().create_sub_from_current_scope();
         self.sub_ops().apply_sub_to_args_in_place(subbed_ctor_result_args, &final_sub);
         self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_data_args, &final_sub);
+        self.sub_ops().apply_sub_to_pat_args_in_place(pat.ctor_pat_args, &final_sub);
         // Set data args because they might have been updated again
         pat.data_args = inferred_ctor_data_args;
         self.stores().pat().set(original_pat_id, pat.into());
