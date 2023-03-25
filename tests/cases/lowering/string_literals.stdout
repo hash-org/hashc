@@ -10,11 +10,11 @@ main := () -> () {
     _6: ();
 
     bb0 {
-        _1 = print(const "Hola mundo") -> bb1;
+        _1 = print(const "Hello world") -> bb1;
     }
 
     bb1 {
-        _2 = print(const "Hello world") -> bb2;
+        _2 = print(const "Hola mundo") -> bb2;
     }
 
     bb2 {

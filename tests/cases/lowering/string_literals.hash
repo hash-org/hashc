@@ -2,8 +2,8 @@
 
 
 main := () => {
-    print("Hola mundo");
     print("Hello world");
+    print("Hola mundo");
     print("Привет мир");
     print("你好，世界");
     print("Hallo Welt");

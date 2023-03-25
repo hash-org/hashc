@@ -701,8 +701,13 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
-            let rvalue = RValue::Ref(binding.mutability, binding.source, RefKind::Raw);
-            self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
+            // let rvalue = RValue::Ref(binding.mutability, binding.source, RefKind::Raw);
+            self.control_flow_graph.push_assign(
+                block,
+                value_place,
+                binding.source.into(),
+                binding.span,
+            );
         }
     }
 

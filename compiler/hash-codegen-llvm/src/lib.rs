@@ -205,7 +205,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             stream_writeln!(
                 self.stdout,
                 "{}",
-                ReportWriter::new(vec![report.into()], &self.workspace.source_map)
+                ReportWriter::new(vec![report], &self.workspace.source_map)
             );
         }
 
