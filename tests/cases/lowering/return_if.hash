@@ -1,4 +1,4 @@
-// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty, skip=true
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
 
 foo := () -> i32 => {
 	mut x := 3;

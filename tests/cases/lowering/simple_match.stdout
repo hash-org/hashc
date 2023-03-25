@@ -1,6 +1,10 @@
+
 IR dump for function `foo` defined at $DIR/simple_match.hash:3:8-9:2
-foo(_1: i32) -> i32 {
+foo := (_1: i32) -> i32 {
     mut _0: i32;
+
+    // parameter `i` -> _1
+
 
     bb0 {
         switch(_1) [1_i32 -> bb1, 2_i32 -> bb2, otherwise -> bb3];

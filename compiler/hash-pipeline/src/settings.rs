@@ -54,6 +54,11 @@ pub struct CompilerSettings {
     /// is set for testing purposes.
     pub skip_prelude: bool,
 
+    /// This specifies whether the `prelude` module should not be emitted
+    /// when the compiler should emit things like `TIR` or `IR` in order
+    /// to avoid noise in the unit tests. @@Hack: remove this somehow?
+    pub prelude_is_quiet: bool,
+
     /// Whether the pipeline should output errors and warnings to
     /// standard error
     pub emit_errors: bool,
@@ -224,6 +229,7 @@ impl Default for CompilerSettings {
             output_stage_results: false,
             output_metrics: false,
             skip_prelude: false,
+            prelude_is_quiet: false,
             emit_errors: true,
             character_set: CharacterSet::Unicode,
             worker_count: num_cpus::get(),

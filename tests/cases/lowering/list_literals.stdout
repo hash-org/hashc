@@ -1,0 +1,43 @@
+
+IR dump for function `foo` defined at $DIR/list_literals.hash:3:8-5:2
+foo := (_1: &[i32]) -> () {
+    mut _0: ();
+
+    // parameter `items` -> _1
+
+
+    bb0 {
+        _0 = ();
+        return;
+    }
+}
+
+
+IR dump for function `main` defined at $DIR/list_literals.hash:8:9-11:2
+main := () -> () {
+    mut _0: ();
+    _1: &[i32];	// parameter `t`
+    _2: &raw u8;
+    _3: &[i32; 3];
+    _4: SizedPointer;
+
+    bb0 {
+        _2 = malloc(const 12_u64) -> bb1;
+    }
+
+    bb1 {
+        _3 = _2;
+        (*_3) = [const 1_i32, const 2_i32, const 3_i32];
+        _4 = SizedPointer(_3, const 3_u64);
+        _1 = transmute((), (), _4) -> bb2;
+    }
+
+    bb2 {
+        _0 = foo(_1) -> bb3;
+    }
+
+    bb3 {
+        return;
+    }
+}
+

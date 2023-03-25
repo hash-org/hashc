@@ -1309,7 +1309,7 @@ pub struct Body {
     span: Span,
 
     /// The id of the source of where this body originates from.
-    source_id: SourceId,
+    pub source_id: SourceId,
 
     /// Whether the IR Body that is generated should be printed
     /// when the generation process is finalised.

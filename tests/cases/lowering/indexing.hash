@@ -1,6 +1,4 @@
-// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty, skip=true
-
-// @@Temporary: disabled before new tc becomes default
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
 
 foo := (arr: [i32]) -> i32 => {
     arr[2] - (arr[0] + arr[1])
