@@ -94,7 +94,6 @@ impl CleanupLocalPass {
                             // we also need to perform an update to the local count
                             // since we just removed the assignment to this local.
                             local_map.statement_removed(statement);
-                        } else {
                             changed = true;
                         }
                     }

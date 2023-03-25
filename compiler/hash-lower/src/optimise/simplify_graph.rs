@@ -164,7 +164,7 @@ impl<'ir> GraphSimplifier<'ir> {
     /// jump. These jump chains can occur in common with complex `match`
     /// expressions or `loop` control flow.
     fn fold_goto_chain(&mut self, block: &mut BasicBlock, changed: &mut bool) {
-        // @@Note: usually the go-to chain will be of length 1, so we use a
+        // ##Note: usually the go-to chain will be of length 1, so we use a
         // smallvec here.
         let mut terminators: SmallVec<[_; 1]> = smallvec![];
 

@@ -186,7 +186,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'ir, '
     /// in any way be promoted.
     ///
     /// - If the previous kind of memory is [LocalMemoryKind::Unused] then it
-    /// is converted into a [LocalMemoryKind::SSA] with an associated [IrRef].
+    /// is converted into a [LocalMemoryKind::Ssa] with an associated [IrRef].
     ///
     /// - If the previous kind of memory is [LocalMemoryKind::SSA] then it
     /// is converted into a [LocalMemoryKind::Memory] since it is no longer

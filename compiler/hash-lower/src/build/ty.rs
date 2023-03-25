@@ -156,10 +156,10 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                     FnCallTermKind::Cast(value, ty)
                 } else {
-                    FnCallTermKind::Call(FnCallTerm { ..*term })
+                    FnCallTermKind::Call(*term)
                 }
             }
-            Term::FnCall(_) => FnCallTermKind::Call(FnCallTerm { ..*term }),
+            Term::FnCall(_) => FnCallTermKind::Call(*term),
             term => panic!("unexpected term in classify_fn_call_term() `{term:?}`"),
         }
     }

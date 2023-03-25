@@ -15,7 +15,7 @@ pub fn options() -> Target {
     let mut late_link_args = LinkageArgs::new();
     late_link_args.add_str_args(
         LinkerFlavour::Msvc(Lld::No),
-        // @@Note: without `defaultlib:oldnames` we get a linker error:
+        // @@Hack: without `defaultlib:oldnames` we get a linker error:
         // specifally for symbols like `write`, unsure why this is needed.
         &["/ENTRY:mainCRTStartup", "-defaultlib:libcmt", "-defaultlib:oldnames"],
     );

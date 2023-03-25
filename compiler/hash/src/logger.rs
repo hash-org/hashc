@@ -23,7 +23,7 @@ impl Log for CompilerLogger {
                 Level::Trace => highlight(Colour::Magenta | Modifier::Bold, "trace"),
             };
 
-            // @@Streams: we don't stream this since this is always meant to be a debugging
+            // ##Streams: we don't stream this since this is always meant to be a debugging
             // message, thus it is never tested for anyway.
             stream_less_writeln!("{level_prefix}: {}", record.args());
         }

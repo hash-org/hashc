@@ -322,7 +322,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Create a new block for the `return` statement and make this block
                 // go to the return whilst also starting a new block.
                 //
-                // @@Note: during CFG simplification, this edge will be removed and unified with
+                // ##Note: during CFG simplification, this edge will be removed and unified with
                 // the `exit` block.
                 let return_block = self.control_flow_graph.make_return_block();
                 self.control_flow_graph.goto(block, return_block, span);
