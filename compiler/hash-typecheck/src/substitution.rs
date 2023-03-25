@@ -6,6 +6,7 @@ use derive_more::Deref;
 use hash_tir::{
     access::AccessTerm,
     args::{ArgsId, PatArgsId},
+    atom_info::ItemInAtomInfo,
     environment::context::{BindingKind, Decl},
     fns::FnBody,
     holes::Hole,
@@ -83,6 +84,20 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// Returns `ControlFlow::Break(())` if the atom was modified, and
     /// `ControlFlow::Continue(())` otherwise to recurse deeper.
     pub fn apply_sub_to_atom_in_place_once(&self, atom: Atom, sub: &Sub) -> ControlFlow<()> {
+        // Apply to type as well if applicable
+        match atom {
+            Atom::Term(term) => {
+                if let Some(ty) = self.try_get_inferred_ty(term) {
+                    self.apply_sub_to_atom_in_place(ty.into(), sub);
+                }
+            }
+            Atom::Pat(pat) => {
+                if let Some(ty) = self.try_get_inferred_ty(pat) {
+                    self.apply_sub_to_atom_in_place(ty.into(), sub);
+                }
+            }
+            Atom::Ty(_) | Atom::FnDef(_) => {}
+        }
         match atom {
             Atom::Ty(ty) => match self.get_ty(ty) {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
