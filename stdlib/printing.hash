@@ -4,7 +4,11 @@ math := import("math");
 
 /// Simply print a character.
 print_char := (c: char) -> () => {
-    libc::putwchar(c);
+    // @@FixMe: use `putwchar` or properly write a wide character to the 
+    // system by encoding it as a utf-8 string...
+
+    val := cast<char, u8>(c);
+    libc::write(1, &raw val, 1);
 }
 
 
