@@ -190,6 +190,9 @@ fn parse_arg_configuration(
                 "llvm-ir" => {
                     settings.codegen_settings.dump_bytecode = true;
                 }
+                "asm" => {
+                    settings.codegen_settings.dump_assembly = true;
+                }
                 "link-line" => {
                     settings.codegen_settings.dump_link_line = true;
                 }

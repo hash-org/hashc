@@ -395,6 +395,9 @@ pub struct CodeGenSettings {
     /// Emit the generated IR to standard output.
     pub dump_bytecode: bool,
 
+    /// Emit the generated ASM to standard output.
+    pub dump_assembly: bool,
+
     /// Emit the generated Link line for the project if the compiler
     /// pipeline specifies that something should be linked.
     pub dump_link_line: bool,
@@ -412,6 +415,7 @@ impl Default for CodeGenSettings {
             backend: Default::default(),
             output_path: Default::default(),
             dump_bytecode: Default::default(),
+            dump_assembly: Default::default(),
             dump_link_line: Default::default(),
         }
     }
