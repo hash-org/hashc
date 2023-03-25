@@ -1,0 +1,17 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+
+Data := struct<T>(
+    id: i32,
+    inner: T
+)
+
+data_id := <T> => (data: Data<T>) -> i32 => data.id
+
+main := () -> () => {
+    data := Data(id = 1, inner = 2);
+    data_id(data);
+
+    string_data := Data(id = 1, inner = "hello!");
+    data_id(string_data);
+}

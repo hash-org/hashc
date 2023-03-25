@@ -1,0 +1,15 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+main := () => {
+    loop {
+
+    }
+    
+    // Everything after the loop should be optimised out, since there are no break 
+    // statements from the loop.
+    loop {
+        if "a" == "b" {
+            break
+        }
+    }
+}

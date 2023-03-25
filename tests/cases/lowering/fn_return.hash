@@ -1,0 +1,10 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+foo := () -> () -> i32 => {
+    () => 3 + 4
+}
+
+main := () => {
+    t := foo();
+    t();
+}

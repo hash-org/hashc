@@ -1,0 +1,26 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+
+boo := (i: i32, j: i32) -> i32 => {
+    if i == 0 {
+        return 1;
+    }
+
+    if i > 10 || j > 10 {
+        return 2;
+    }
+
+    foo(i) + foo(j)
+}
+
+foo := (i: i32) -> i32 => {
+    if i == 0 {
+        return 3;
+    }
+
+    if i > 10 {
+        return 4;
+    }
+
+    boo(i, i + 1)
+}

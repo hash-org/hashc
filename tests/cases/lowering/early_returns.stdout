@@ -1,0 +1,147 @@
+
+IR dump for function `boo` defined at $DIR/early_returns.hash:4:8-14:2
+boo := (_1: i32, _2: i32) -> i32 {
+    mut _0: i32;
+
+    // parameter `i` -> _1
+    // parameter `j` -> _2
+
+    mut _3: bool;
+    mut _4: bool;
+    mut _5: bool;
+    mut _6: i32;
+    mut _7: i32;
+    _8: (i32, bool);
+
+    bb0 {
+        _3 = Eq(_1, const 0_i32);
+        switch(_3) [false -> bb1, otherwise -> bb2];
+    }
+
+    bb1 {
+        goto -> bb4;
+    }
+
+    bb2 {
+        _0 = const 1_i32;
+        goto -> bb3;
+    }
+
+    bb3 {
+        return;
+    }
+
+    bb4 {
+        switch(const 0_u8) [false -> bb7, otherwise -> bb6];
+    }
+
+    bb5 {
+        goto -> bb11;
+    }
+
+    bb6 {
+        _4 = const true;
+        goto -> bb8;
+    }
+
+    bb7 {
+        _5 = Gt(_1, const 10_i32);
+        _4 = _5;
+        goto -> bb8;
+    }
+
+    bb8 {
+        switch(_4) [false -> bb5, otherwise -> bb9];
+    }
+
+    bb9 {
+        _0 = const 2_i32;
+        goto -> bb10;
+    }
+
+    bb10 {
+        return;
+    }
+
+    bb11 {
+        _6 = foo(_1) -> bb12;
+    }
+
+    bb12 {
+        _7 = foo(_2) -> bb13;
+    }
+
+    bb13 {
+        _8 = CheckedAdd(_6, _7);
+        assert((_8.1), false, "attempt to compute `_12 + _13`, which would overflow") -> bb14;
+    }
+
+    bb14 {
+        _0 = (_8.0);
+        return;
+    }
+}
+
+
+IR dump for function `foo` defined at $DIR/early_returns.hash:16:8-26:2
+foo := (_1: i32) -> i32 {
+    mut _0: i32;
+
+    // parameter `i` -> _1
+
+    mut _2: bool;
+    mut _3: bool;
+    _4: i32;
+    _5: (i32, bool);
+
+    bb0 {
+        _2 = Eq(_1, const 0_i32);
+        switch(_2) [false -> bb1, otherwise -> bb2];
+    }
+
+    bb1 {
+        goto -> bb4;
+    }
+
+    bb2 {
+        _0 = const 3_i32;
+        goto -> bb3;
+    }
+
+    bb3 {
+        return;
+    }
+
+    bb4 {
+        _3 = Gt(_1, const 10_i32);
+        switch(_3) [false -> bb5, otherwise -> bb6];
+    }
+
+    bb5 {
+        goto -> bb8;
+    }
+
+    bb6 {
+        _0 = const 4_i32;
+        goto -> bb7;
+    }
+
+    bb7 {
+        return;
+    }
+
+    bb8 {
+        _5 = CheckedAdd(_1, const 1_i32);
+        assert((_5.1), false, "attempt to compute `_1 + const 1_i32`, which would overflow") -> bb9;
+    }
+
+    bb9 {
+        _4 = (_5.0);
+        _0 = boo(_1, _4) -> bb10;
+    }
+
+    bb10 {
+        return;
+    }
+}
+

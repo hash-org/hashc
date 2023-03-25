@@ -1,0 +1,57 @@
+
+IR dump for function `get_name` defined at $DIR/strings_in_matches.hash:3:13-5:2
+get_name := () -> &str {
+    mut _0: &str;
+
+    bb0 {
+        _0 = const "John";
+        return;
+    }
+}
+
+
+IR dump for function `main` defined at $DIR/strings_in_matches.hash:7:9-21:2
+main := () -> () {
+    mut _0: ();
+    mut _1: &str;
+    _2: bool;
+    _3: bool;
+    _4: &str;	// parameter `name`
+    _5: ();
+
+    bb0 {
+        _1 = get_name() -> bb1;
+    }
+
+    bb1 {
+        _3 = Eq(const "Alex", _1);
+        switch(_3) [false -> bb3, otherwise -> bb2];
+    }
+
+    bb2 {
+        _0 = println(const "Hi Alex!") -> bb7;
+    }
+
+    bb3 {
+        _2 = Eq(const "John", _1);
+        switch(_2) [false -> bb5, otherwise -> bb4];
+    }
+
+    bb4 {
+        _0 = println(const "Hi John!") -> bb7;
+    }
+
+    bb5 {
+        _4 = _1;
+        _5 = print(const "Hi! It's nice to meet you ") -> bb6;
+    }
+
+    bb6 {
+        _0 = println(_4) -> bb7;
+    }
+
+    bb7 {
+        return;
+    }
+}
+

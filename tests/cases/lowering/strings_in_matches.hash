@@ -1,0 +1,21 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+get_name := () -> str => {
+    "John"
+}
+
+main := () => {
+
+    match get_name() {
+        "Alex" => {
+            println("Hi Alex!")
+        },
+        "John" => {
+            println("Hi John!")
+        },
+        name => {
+            print("Hi! It's nice to meet you ")
+            println(name)
+        }
+    }
+}

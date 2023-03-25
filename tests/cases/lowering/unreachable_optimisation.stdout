@@ -1,0 +1,14 @@
+
+IR dump for function `main` defined at $DIR/unreachable_optimisation.hash:3:9-15:2
+main := () -> () {
+    mut _0: ();
+
+    bb0 {
+        goto -> bb1;
+    }
+
+    bb1 {
+        goto -> bb1;
+    }
+}
+

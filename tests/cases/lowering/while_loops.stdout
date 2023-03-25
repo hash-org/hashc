@@ -1,0 +1,44 @@
+
+IR dump for function `input` defined at $DIR/while_loops.hash:4:10-6:2
+input := () -> i32 {
+    mut _0: i32;
+
+    bb0 {
+        _0 = const 0_i32;
+        goto -> bb1;
+    }
+
+    bb1 {
+        return;
+    }
+}
+
+
+IR dump for function `main` defined at $DIR/while_loops.hash:8:9-14:2
+main := () -> () {
+    mut _0: ();
+    mut _1: bool;
+    mut _2: i32;
+
+    bb0 {
+        goto -> bb1;
+    }
+
+    bb1 {
+        _2 = input() -> bb3;
+    }
+
+    bb2 {
+        _0 = println(const "got here") -> bb4;
+    }
+
+    bb3 {
+        _1 = Neq(_2, const 1_i32);
+        switch(_1) [false -> bb2, otherwise -> bb1];
+    }
+
+    bb4 {
+        return;
+    }
+}
+
