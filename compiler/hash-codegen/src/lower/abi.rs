@@ -84,8 +84,6 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     ctx: &Ctx,
     instance: InstanceId,
 ) -> Result<FnAbi, FnAbiError> {
-    // @@Todo: add caching for the ABI computation...
-
     let Instance { params, ret_ty, abi, .. } = ctx.ir_ctx().instances().get(instance);
 
     // map the ABI to a calling convention whilst making any adjustments according

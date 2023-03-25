@@ -315,7 +315,7 @@ impl<'l> LayoutComputer<'l> {
                 if adt.flags.is_struct()
                     || adt.flags.is_tuple()
 
-                    // @@Note: if in the future, a specific type can be 
+                    // @@Future: if in the future, a specific type can be 
                     // specified to the discriminant, and or it is in "C" mode,
                     // then we can't perform this optimisation.
                     || (adt.flags.is_enum() && second_present.is_none())
