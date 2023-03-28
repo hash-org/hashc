@@ -1,7 +1,8 @@
-IR dump for function `foo` defined at = $DIR/return_if.hash:3:17-10:2
+
+IR dump for function `foo` defined at $DIR/return_if.hash:3:8-10:2
 foo := () -> i32 {
     mut _0: i32;
-    _1: i32;    // parameter `x`
+    _1: i32;	// parameter `x`
     mut _2: bool;
     _3: (i32, bool);
 
@@ -27,14 +28,7 @@ foo := () -> i32 {
     }
 
     bb4 {
-        goto -> bb5;
-    }
-
-    bb5 {
-        return;
-    }
-
-    bb6 {
         return;
     }
 }
+

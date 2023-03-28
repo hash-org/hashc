@@ -1,0 +1,17 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+main := () => {
+    t := (1, 2)
+
+    match t {
+        a if a.0 == 1 => {
+            println("a.0 == 1")
+        },
+        (b, 2) if b % 2 == 0 => {
+            println("b % 2 == 0")
+        },
+        _ => {
+            println("something else")
+        }
+    }
+}

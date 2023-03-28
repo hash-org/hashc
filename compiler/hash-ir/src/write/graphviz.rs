@@ -282,11 +282,17 @@ pub fn dump_ir_bodies(
     ctx: &IrCtx,
     bodies: &[Body],
     dump_all: bool,
+    prelude_is_quiet: bool,
     writer: &mut impl io::Write,
 ) -> io::Result<()> {
     writeln!(writer, "digraph program {{")?;
 
     for (id, body) in bodies.iter().enumerate() {
+        // Skip the prelude if we're in quiet mode
+        if prelude_is_quiet && body.source_id.is_prelude() {
+            continue;
+        }
+
         // Check if we need to print this body (or if we're printing all of them)
         // and then skip bodies that we didn't request to print.
         if !dump_all && !body.needs_dumping() {

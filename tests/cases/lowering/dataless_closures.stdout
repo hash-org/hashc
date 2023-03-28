@@ -1,0 +1,49 @@
+
+IR dump for function `main` defined at $DIR/dataless_closures.hash:4:9-12:2
+main := () -> () {
+    mut _0: ();
+    _1: ();
+    _2: ();
+
+    bb0 {
+        _1 = _() -> bb1;
+    }
+
+    bb1 {
+        _2 = _() -> bb2;
+    }
+
+    bb2 {
+        _0 = ();
+        return;
+    }
+}
+
+
+IR dump for function `_` defined at $DIR/dataless_closures.hash:5:6-7:6
+_ := () -> () {
+    mut _0: ();
+
+    bb0 {
+        _0 = println(const "Hello, world!") -> bb1;
+    }
+
+    bb1 {
+        return;
+    }
+}
+
+
+IR dump for function `_` defined at $DIR/dataless_closures.hash:9:6-11:6
+_ := () -> () {
+    mut _0: ();
+
+    bb0 {
+        _0 = println(const "Goodbye, world!") -> bb1;
+    }
+
+    bb1 {
+        return;
+    }
+}
+

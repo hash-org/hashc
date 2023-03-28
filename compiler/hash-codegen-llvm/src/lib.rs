@@ -53,7 +53,7 @@ use llvm::{
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
 use translation::LLVMBuilder;
 
-use crate::fmt::FunctionPrinter;
+use crate::fmt::{info_report, FunctionPrinter};
 
 pub struct LLVMBackend<'b> {
     /// The stream to use for printing out the results
@@ -188,6 +188,25 @@ impl<'b, 'm> LLVMBackend<'b> {
         // Check if we need to create the "build" folder
         if let Some(parent) = path.parent() && !parent.exists() {
             std::fs::create_dir_all(parent).unwrap();
+        }
+
+        // If the `-Cemit=asm` flag was specified then we will also emit the
+        // assembly code for the module.
+        if self.settings.codegen_settings.dump_assembly {
+            let asm_path = self.workspace.module_bitcode_path(id, "s");
+            self.target_machine
+                .write_to_file(module, FileType::Assembly, &asm_path)
+                .map_err(|err| CodeGenError::ModuleWriteFailed { reason: err })?;
+
+            // notify the user that we have written the assembly file.
+            let report =
+                info_report(format!("wrote assembly file to `{}`", asm_path.to_string_lossy()));
+
+            stream_writeln!(
+                self.stdout,
+                "{}",
+                ReportWriter::new(vec![report], &self.workspace.source_map)
+            );
         }
 
         self.target_machine

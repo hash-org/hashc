@@ -1,0 +1,14 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+
+input := () -> i32 => {
+    return 0
+}
+
+main := () => {
+    while input() != 1 {
+        continue
+    }
+
+    println("got here")
+}

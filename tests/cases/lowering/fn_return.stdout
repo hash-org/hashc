@@ -1,0 +1,42 @@
+
+IR dump for function `foo` defined at $DIR/fn_return.hash:3:8-5:2
+foo := () -> () -> i32 {
+    mut _0: () -> i32;
+
+    bb0 {
+        return;
+    }
+}
+
+
+IR dump for function `_` defined at $DIR/fn_return.hash:4:5-4:16
+_ := () -> i32 {
+    mut _0: i32;
+
+    bb0 {
+        _0 = const 7_i32;
+        return;
+    }
+}
+
+
+IR dump for function `main` defined at $DIR/fn_return.hash:7:9-10:2
+main := () -> () {
+    mut _0: ();
+    _1: () -> i32;	// parameter `t`
+    _2: i32;
+
+    bb0 {
+        _1 = foo() -> bb1;
+    }
+
+    bb1 {
+        _2 = _1() -> bb2;
+    }
+
+    bb2 {
+        _0 = ();
+        return;
+    }
+}
+

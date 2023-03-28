@@ -1,0 +1,11 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+foo := (items: [i32]) => {
+
+}
+
+// This should generate the initialisation steps for a list
+main := () => {
+    t := [1, 2, 3]
+    foo(t)
+}

@@ -1,0 +1,41 @@
+
+IR dump for function `main` defined at $DIR/string_literals.hash:4:9-11:2
+main := () -> () {
+    mut _0: ();
+    _1: ();
+    _2: ();
+    _3: ();
+    _4: ();
+    _5: ();
+    _6: ();
+
+    bb0 {
+        _1 = print(const "Hello world") -> bb1;
+    }
+
+    bb1 {
+        _2 = print(const "Hola mundo") -> bb2;
+    }
+
+    bb2 {
+        _3 = print(const "Привет мир") -> bb3;
+    }
+
+    bb3 {
+        _4 = print(const "你好，世界") -> bb4;
+    }
+
+    bb4 {
+        _5 = print(const "Hallo Welt") -> bb5;
+    }
+
+    bb5 {
+        _6 = print(const "Bonjour le monde") -> bb6;
+    }
+
+    bb6 {
+        _0 = ();
+        return;
+    }
+}
+

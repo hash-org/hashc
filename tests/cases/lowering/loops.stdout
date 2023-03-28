@@ -1,9 +1,10 @@
-IR dump for function `main` defined at $DIR/loops.hash:3:9-14:2
-main() -> () {
+
+IR dump for function `main` defined at $DIR/loops.hash:5:9-16:2
+main := () -> () {
     mut _0: ();
-    mut _1: i32;		// parameter `x`
-    mut _2: i32;		// parameter `y`
-    mut _3: i32;		// parameter `z`
+    _1: i32;	// parameter `x`
+    _2: i32;	// parameter `y`
+    _3: i32;	// parameter `z`
     mut _4: bool;
     _5: (i32, bool);
     _6: (i32, bool);

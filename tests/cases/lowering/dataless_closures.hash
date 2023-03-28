@@ -1,0 +1,12 @@
+// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+
+
+main := () => {
+    (() => {
+        println("Hello, world!")
+    })();
+
+    (() => {
+        println("Goodbye, world!")
+    })();
+}

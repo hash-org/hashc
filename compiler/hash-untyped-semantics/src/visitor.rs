@@ -214,6 +214,7 @@ impl<'s> SemanticAnalyser<'s> {
             }
         } else if name == IDENTS.entry_point
             || name == IDENTS.foreign
+            || name == IDENTS.no_mangle
             || name == IDENTS.pure
             || name == IDENTS.lang
         {

@@ -1,0 +1,53 @@
+
+IR dump for function `main` defined at $DIR/polymorphic_fns.hash:11:9-17:2
+main := () -> () {
+    mut _0: ();
+    _1: Data<i32>; 	// parameter `data`
+    _2: i32;
+    _3: Data<&str>;	// parameter `string_data`
+    _4: i32;
+
+    bb0 {
+        _1 = Data<i32>(const 1_i32, const 2_i32);
+        _2 = _(_1) -> bb1;
+    }
+
+    bb1 {
+        _3 = Data<&str>(const 1_i32, const "hello!");
+        _4 = _(_3) -> bb2;
+    }
+
+    bb2 {
+        _0 = ();
+        return;
+    }
+}
+
+
+IR dump for function `_` defined at $DIR/polymorphic_fns.hash:9:19-9:52
+_ := (_1: Data<i32>) -> i32 {
+    mut _0: i32;
+
+    // parameter `data` -> _1
+
+
+    bb0 {
+        _0 = (_1.0);
+        return;
+    }
+}
+
+
+IR dump for function `_` defined at $DIR/polymorphic_fns.hash:9:19-9:52
+_ := (_1: Data<&str>) -> i32 {
+    mut _0: i32;
+
+    // parameter `data` -> _1
+
+
+    bb0 {
+        _0 = (_1.0);
+        return;
+    }
+}
+

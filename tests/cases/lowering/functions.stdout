@@ -1,6 +1,10 @@
+
 IR dump for function `print` defined at $DIR/functions.hash:3:10-4:2
-print(_1: str) -> () {
+print := (_1: &str) -> () {
     mut _0: ();
+
+    // parameter `message` -> _1
+
 
     bb0 {
         _0 = ();
@@ -10,7 +14,7 @@ print(_1: str) -> () {
 
 
 IR dump for function `main` defined at $DIR/functions.hash:6:9-8:2
-main() -> () {
+main := () -> () {
     mut _0: ();
     _1: ();
 

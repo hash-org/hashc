@@ -292,7 +292,7 @@ fn handle_pass_case(
 /// Generic test handler in the event whether a case should pass or fail.
 fn handle_test(test: TestingInput) {
     let mut settings = CompilerSettings::new(WORKER_COUNT);
-    settings.set_skip_prelude(true);
+    settings.prelude_is_quiet = true;
     settings.set_emit_errors(false);
     settings.set_stage(test.metadata.stage);
 

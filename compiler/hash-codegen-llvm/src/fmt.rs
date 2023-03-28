@@ -31,3 +31,11 @@ impl From<FunctionPrinter<'_>> for Report {
         report
     }
 }
+
+/// Create an informational report by accepting a string to represent
+/// the title of the [Report].
+pub(super) fn info_report(title: String) -> Report {
+    let mut report = Report::new();
+    report.kind(ReportKind::Info).title(title);
+    report
+}

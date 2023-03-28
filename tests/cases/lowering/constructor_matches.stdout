@@ -1,0 +1,72 @@
+
+IR dump for function `maybe_add` defined at $DIR/constructor_matches.hash:3:14-10:2
+maybe_add := (_1: Option<i32>, _2: Option<i32>) -> i32 {
+    mut _0: i32;
+
+    // parameter `left` -> _1
+    // parameter `right` -> _2
+
+    mut _3: (Option<i32>, Option<i32>);
+    _4: u8;
+    _5: u8;
+    _6: u8;
+    _7: i32; 	// parameter `a`
+    _8: i32; 	// parameter `b`
+    _9: (i32, bool);
+    _10: i32;	// parameter `a`
+    _11: i32;	// parameter `a`
+
+    bb0 {
+        _3 = (_1, _2);
+        _6 = discriminant((_3.0));
+        switch(_6) [0_u8 -> bb1, 1_u8 -> bb5, otherwise -> bb4];
+    }
+
+    bb1 {
+        _4 = discriminant((_3.1));
+        switch(_4) [0_u8 -> bb2, 1_u8 -> bb3, otherwise -> bb4];
+    }
+
+    bb2 {
+        _0 = const 0_i32;
+        goto -> bb9;
+    }
+
+    bb3 {
+        _11 = (((_3.1) as variant#1).0);
+        _0 = _11;
+        goto -> bb9;
+    }
+
+    bb4 {
+        unreachable;
+    }
+
+    bb5 {
+        _5 = discriminant((_3.1));
+        switch(_5) [0_u8 -> bb6, 1_u8 -> bb7, otherwise -> bb4];
+    }
+
+    bb6 {
+        _10 = (((_3.0) as variant#1).0);
+        _0 = _10;
+        goto -> bb9;
+    }
+
+    bb7 {
+        _7 = (((_3.0) as variant#1).0);
+        _8 = (((_3.1) as variant#1).0);
+        _9 = CheckedAdd(_7, _8);
+        assert((_9.1), false, "attempt to compute `_7 + _8`, which would overflow") -> bb8;
+    }
+
+    bb8 {
+        _0 = (_9.0);
+        goto -> bb9;
+    }
+
+    bb9 {
+        return;
+    }
+}
+
