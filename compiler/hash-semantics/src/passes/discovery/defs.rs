@@ -528,7 +528,7 @@ impl<'tc> DiscoveryPass<'tc> {
                         .stores()
                         .symbol()
                         .map_fast(declaration_name, |sym| Some(binding_pat.name.ident == sym.name?))
-                        .contains(&true) =>
+                        .is_some_and(|d| d) =>
                 {
                     found_members
                         .push((node.id(), Decl { name: declaration_name, ty: None, value: None }))

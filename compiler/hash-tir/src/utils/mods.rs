@@ -93,7 +93,7 @@ impl<'tc> ModUtils<'tc> {
             self.stores().mod_members().map_fast(def.members, |members| {
                 members.iter().find_map(|&member| {
                     if let ModMemberValue::Fn(fn_def_id) = member.value {
-                        if self.get_symbol(member.name).name.contains(&name) {
+                        if self.get_symbol(member.name).name.is_some_and(|sym| sym == name) {
                             return Some(fn_def_id);
                         }
                     }
@@ -114,7 +114,9 @@ impl<'tc> ModUtils<'tc> {
             self.stores().mod_members().map_fast(def.members, |members| {
                 members
                     .iter()
-                    .find(|&member| self.get_symbol(member.name).name.contains(&name))
+                    .find(|&member| {
+                        self.get_symbol(member.name).name.is_some_and(|sym| sym == name)
+                    })
                     .copied()
             })
         })

@@ -1,5 +1,5 @@
+//! Utilities to traverse the TIR.
 use core::fmt;
-///! Utilities to traverse the TIR.
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{From, TryInto};
