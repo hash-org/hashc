@@ -1,7 +1,6 @@
 //! Hash Compiler Intermediate Representation (IR) crate.
 #![feature(
     let_chains,
-    once_cell,
     associated_type_defaults,
     type_alias_impl_trait,
     decl_macro,

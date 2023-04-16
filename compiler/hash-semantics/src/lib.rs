@@ -3,15 +3,7 @@
 //! This brings light to the world by ensuring the correctness of the crude and
 //! dangerous Hash program that is given as input to the compiler.
 
-#![feature(
-    decl_macro,
-    slice_pattern,
-    option_result_contains,
-    let_chains,
-    if_let_guard,
-    cell_update,
-    try_blocks
-)]
+#![feature(decl_macro, slice_pattern, let_chains, if_let_guard, cell_update, try_blocks)]
 
 use diagnostics::error::SemanticError;
 use environment::{

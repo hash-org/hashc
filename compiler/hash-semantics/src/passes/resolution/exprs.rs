@@ -512,7 +512,7 @@ impl<'tc> ResolutionPass<'tc> {
                 .mutability
                 .as_ref()
                 .map(|m| *m.body())
-                .contains(&ast::Mutability::Mutable),
+                .is_some_and(|mutability| mutability == ast::Mutability::Mutable),
             subject,
         })))
     }
