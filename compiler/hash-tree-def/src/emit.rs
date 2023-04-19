@@ -778,6 +778,16 @@ fn emit_default_impl_macros(
 
     let root_module = tree_def.opts.root_module.clone();
 
+    // If this macro is being used in the same crate as the tree, we need to
+    // modify the `root_module` to point to "crate" instead of the crate name.
+    // if root_module.segments.len() > 1  {
+    //     let crate_name = &root_module.segments[0].ident;
+    //     if crate_name == tree_def.opts.crate_name {
+    //         root_module.segments[0].ident = Ident::new("crate",
+    // crate_name.span());     }
+
+    // }
+
     // We have one macro case prefixed with `@@` for each node type.
     let default_impl_macro_cases = tree_def.nodes.keys().map(|node_name| {
         let node_ret = format_ident!("{}Ret", node_name.to_string().to_case(Case::Pascal));
