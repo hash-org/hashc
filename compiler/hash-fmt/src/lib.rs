@@ -29,6 +29,10 @@ pub struct AstPrinter<'ast, T> {
     /// If the traversal is currently within a declaration.
     in_declaration: LightState<bool>,
 
+    /// If the traversal is currently within a match case, this only
+    /// applies to the top-level expressions within a match case.
+    in_match_case: LightState<bool>,
+
     /// Any specifics about how the AST should be printed
     config: AstPrintingConfig,
 }
@@ -44,6 +48,7 @@ where
             indentation: 0,
             config: AstPrintingConfig { indentation: 4 },
             in_declaration: LightState::new(false),
+            in_match_case: LightState::new(false),
         }
     }
 
@@ -62,6 +67,14 @@ where
         self.in_declaration.set(true);
         let result = f(self);
         self.in_declaration.set(false);
+        result
+    }
+
+    fn with_match_case<U>(&mut self, value: bool, mut f: impl FnMut(&mut Self) -> U) -> U {
+        let old = self.in_match_case.get();
+        self.in_match_case.set(value);
+        let result = f(self);
+        self.in_match_case.set(old);
         result
     }
 }
@@ -1130,21 +1143,32 @@ where
         self.indentation += self.config.indentation;
         writeln!(self.fmt, "{{")?;
 
-        // Visit every statement in the block.
-        for statement in statements.iter() {
-            self.write_indent()?;
-            self.visit_expr(statement.ast_ref())?;
-            writeln!(self.fmt)?;
-        }
+        self.with_match_case(false, |this| -> Result<(), Self::Error> {
+            // Visit every statement in the block.
+            for statement in statements.iter() {
+                this.write_indent()?;
+                this.visit_expr(statement.ast_ref())?;
+                writeln!(this.fmt)?;
+            }
 
-        if let Some(tail) = expr {
-            self.write_indent()?;
-            self.visit_expr(tail.ast_ref())?;
-            writeln!(self.fmt)?;
-        }
+            if let Some(tail) = expr {
+                this.write_indent()?;
+                this.visit_expr(tail.ast_ref())?;
+                writeln!(this.fmt)?;
+            }
+
+            Ok(())
+        })?;
 
         self.indentation -= self.config.indentation;
-        self.write_line("}")
+        self.write_indent()?;
+        write!(self.fmt, "}}")?;
+
+        if !self.in_match_case.get() {
+            self.write_line("")?;
+        }
+
+        Ok(())
     }
 
     type CharLitRet = ();
@@ -1202,7 +1226,8 @@ where
         let ast::MatchCase { pat, expr } = node.body();
         self.visit_pat(pat.ast_ref())?;
         write!(self.fmt, " => ")?;
-        self.visit_expr(expr.ast_ref())
+
+        self.with_match_case(true, |this| this.visit_expr(expr.ast_ref()))
     }
 
     type FloatLitRet = ();
