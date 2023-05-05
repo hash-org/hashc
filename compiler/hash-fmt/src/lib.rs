@@ -1,7 +1,7 @@
 #![feature(let_chains)]
 
 use hash_ast::{
-    ast::{self, walk_mut_self, AstNodeRef, AstVisitorMutSelf, RefKind},
+    ast::{self, walk_mut_self, AstNodeRef, AstNodes, AstVisitorMutSelf, RefKind},
     ast_visitor_mut_self_default_impl,
 };
 use hash_utils::state::LightState;
@@ -33,6 +33,10 @@ pub struct AstPrinter<'ast, T> {
     /// applies to the top-level expressions within a match case.
     in_match_case: LightState<bool>,
 
+    /// If the traversal is currently within a body block, this only
+    /// applies to the top-level expressions within a body block.
+    in_body_block: LightState<bool>,
+
     /// Any specifics about how the AST should be printed
     config: AstPrintingConfig,
 }
@@ -49,6 +53,7 @@ where
             config: AstPrintingConfig { indentation: 4 },
             in_declaration: LightState::new(false),
             in_match_case: LightState::new(false),
+            in_body_block: LightState::new(false),
         }
     }
 
@@ -61,6 +66,52 @@ where
     fn write_line(&mut self, line: impl ToString) -> std::io::Result<()> {
         self.write_indent()?;
         writeln!(self.fmt, "{}", line.to_string())
+    }
+
+    fn print_separated_collection<'k, N>(
+        &mut self,
+        collection: &'k AstNodes<N>,
+        separator: &str,
+        mut print_item: impl FnMut(&mut Self, AstNodeRef<'k, N>) -> std::io::Result<()>,
+    ) -> std::io::Result<()> {
+        //
+
+        for (i, item) in collection.iter().enumerate() {
+            print_item(self, item.ast_ref())?;
+            if i != collection.len() - 1 { self.write_line(separator) } else { Ok(()) }?;
+        }
+
+        Ok(())
+    }
+
+    fn print_pattern_collection<'k, N>(
+        &mut self,
+        collection: &'k ast::AstNodes<N>,
+        spread: &'k Option<ast::AstNode<ast::SpreadPat>>,
+        mut print_item: impl FnMut(&mut Self, AstNodeRef<'k, N>) -> std::io::Result<()>,
+    ) -> std::io::Result<()> {
+        //
+        let spread_pos = spread.as_ref().map(|s| s.body().position);
+
+        for (i, item) in collection.iter().enumerate() {
+            if i > 0 {
+                write!(self.fmt, ", ")?;
+            }
+
+            // For the spread pattern, we just insert it into the location that it needs to
+            // be in.
+            if let Some(pos) = spread_pos && pos == i {
+                self.visit_spread_pat(spread.as_ref().unwrap().ast_ref())?;
+
+                if i != collection.len() - 1 {
+                    write!(self.fmt, ", ")?;
+                }
+            }
+
+            print_item(self, item.ast_ref())?;
+        }
+
+        Ok(())
     }
 
     fn enter_declaration<U>(&mut self, mut f: impl FnMut(&mut Self) -> U) -> U {
@@ -122,14 +173,7 @@ where
 
         self.visit_expr(subject.ast_ref())?;
         write!(self.fmt, "<")?;
-
-        for (i, arg) in args.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-            self.visit_ty_arg(arg.ast_ref())?;
-        }
-
+        self.print_separated_collection(args, ",", |this, arg| this.visit_ty_arg(arg))?;
         write!(self.fmt, ">")
     }
 
@@ -176,9 +220,12 @@ where
             write!(self.fmt, ";")?;
         }
 
-        // we always terminate the declaration with the a line, as it is the
-        // responsibility of the caller to terminate the line.
-        writeln!(self.fmt)
+        // Only terminate the line if we are not in a body block.
+        if !self.in_body_block.get() {
+            writeln!(self.fmt)?;
+        }
+
+        Ok(())
     }
 
     type EnumDefEntryRet = ();
@@ -193,12 +240,7 @@ where
 
         if fields.len() > 0 {
             write!(self.fmt, "(")?;
-            for (i, field) in fields.iter().enumerate() {
-                if i > 0 {
-                    write!(self.fmt, ", ")?;
-                }
-                self.visit_param(field.ast_ref())?;
-            }
+            self.print_separated_collection(fields, ",", |this, field| this.visit_param(field))?;
             write!(self.fmt, ")")?;
         }
 
@@ -232,13 +274,9 @@ where
     ) -> Result<Self::IfBlockRet, Self::Error> {
         let ast::IfBlock { clauses, otherwise } = node.body();
 
-        for (i, clause) in clauses.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, " else ")?;
-            }
-
-            self.visit_if_clause(clause.ast_ref())?;
-        }
+        self.print_separated_collection(clauses, " else", |this, clause| {
+            this.visit_if_clause(clause)
+        })?;
 
         if let Some(otherwise) = otherwise {
             write!(self.fmt, " else ")?;
@@ -339,25 +377,15 @@ where
 
         if ty_params.len() > 0 {
             write!(self.fmt, "<")?;
-            for (i, ty_param) in ty_params.iter().enumerate() {
-                if i > 0 {
-                    write!(self.fmt, ", ")?;
-                }
-                self.visit_param(ty_param.ast_ref())?;
-            }
+            self.print_separated_collection(ty_params, ",", |this, field| this.visit_param(field))?;
             write!(self.fmt, ">")?;
         }
 
         writeln!(self.fmt, "(")?;
         self.indentation += self.config.indentation;
-
-        for (i, entry) in entries.iter().enumerate() {
-            if i > 0 {
-                writeln!(self.fmt, ",")?;
-            }
-
-            self.visit_enum_def_entry(entry.ast_ref())?;
-        }
+        self.print_separated_collection(entries, ",", |this, entry| {
+            this.visit_enum_def_entry(entry)
+        })?;
 
         self.indentation -= self.config.indentation;
         writeln!(self.fmt, ")")
@@ -369,13 +397,7 @@ where
         let ast::TyFn { params, return_ty } = node.body();
 
         write!(self.fmt, "<")?;
-        for (i, param) in params.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-            self.visit_param(param.ast_ref())?;
-        }
-
+        self.print_separated_collection(params, ",", |this, field| this.visit_param(field))?;
         write!(self.fmt, "> -> ")?;
         self.visit_ty(return_ty.ast_ref())
     }
@@ -404,25 +426,16 @@ where
 
         if ty_params.len() > 0 {
             write!(self.fmt, "<")?;
-            for (i, ty_param) in ty_params.iter().enumerate() {
-                if i > 0 {
-                    write!(self.fmt, ", ")?;
-                }
-                self.visit_param(ty_param.ast_ref())?;
-            }
+            self.print_separated_collection(ty_params, ",", |this, param| this.visit_param(param))?;
+
             write!(self.fmt, ">")?;
         }
 
+        // @@Refactor this out into a separate function which deals with collections
+        // that can print separators and properly wrap everything.
         writeln!(self.fmt, "(")?;
         self.indentation += self.config.indentation;
-
-        for (i, field) in fields.iter().enumerate() {
-            if i > 0 {
-                writeln!(self.fmt, ",")?;
-            }
-
-            self.visit_param(field.ast_ref())?;
-        }
+        self.print_separated_collection(fields, ",", |this, field| this.visit_param(field))?;
 
         self.indentation -= self.config.indentation;
         writeln!(self.fmt, ")")
@@ -449,12 +462,7 @@ where
         let ast::TupleTy { entries } = node.body();
 
         write!(self.fmt, "(")?;
-        for (i, entry) in entries.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-            self.visit_ty_arg(entry.ast_ref())?;
-        }
+        self.print_separated_collection(entries, ",", |this, arg| this.visit_ty_arg(arg))?;
         write!(self.fmt, ")")
     }
 
@@ -473,7 +481,7 @@ where
         &mut self,
         node: AstNodeRef<ast::StrLit>,
     ) -> Result<Self::StrLitRet, Self::Error> {
-        write!(self.fmt, "\"{}\"", node.body.data)
+        write!(self.fmt, "{:?}", node.body.data)
     }
 
     type TraitImplRet = ();
@@ -487,17 +495,10 @@ where
         write!(self.fmt, "impl ")?;
         self.visit_ty(ty.ast_ref())?;
 
-        writeln!(self.fmt, " {{")?;
         self.indentation += self.config.indentation;
 
-        for (index, entry) in trait_body.iter().enumerate() {
-            if index > 0 {
-                writeln!(self.fmt)?;
-            }
-
-            self.visit_expr(entry.ast_ref())?;
-        }
-
+        writeln!(self.fmt, " {{")?;
+        self.print_separated_collection(trait_body, ",", |this, item| this.visit_expr(item))?;
         self.write_line("}")
     }
 
@@ -536,26 +537,11 @@ where
         node: AstNodeRef<ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
         let ast::TuplePat { fields, spread } = node.body();
-        let spread_pos = spread.as_ref().map(|s| s.body().position);
 
         write!(self.fmt, "(")?;
-        for (i, entry) in fields.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-
-            // For the spread pattern, we just insert it into the location that it needs to
-            // be in.
-            if let Some(pos) = spread_pos && pos == i {
-                self.visit_spread_pat(spread.as_ref().unwrap().ast_ref())?;
-
-                if i != fields.len() - 1 {
-                    write!(self.fmt, ", ")?;
-                }
-            }
-
-            self.visit_tuple_pat_entry(entry.ast_ref())?;
-        }
+        self.print_pattern_collection(fields, spread, |this, field| {
+            this.visit_tuple_pat_entry(field)
+        })?;
         write!(self.fmt, ")")
     }
 
@@ -569,7 +555,10 @@ where
         }
 
         if let Some(ty) = ty {
-            write!(self.fmt, ": ")?;
+            if name.is_some() {
+                write!(self.fmt, ": ")?;
+            }
+
             self.visit_ty(ty.ast_ref())?;
         }
 
@@ -723,27 +712,10 @@ where
         node: AstNodeRef<ast::ArrayPat>,
     ) -> Result<Self::ArrayPatRet, Self::Error> {
         let ast::ArrayPat { fields, spread } = node.body();
-        let spread_pos = spread.as_ref().map(|s| s.position);
 
         write!(self.fmt, "[")?;
-
-        for (i, field) in fields.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-
-            // For the spread pattern, we just insert it into the location that it needs to
-            // be in.
-            if let Some(pos) = spread_pos && pos == i {
-                self.visit_spread_pat(spread.as_ref().unwrap().ast_ref())?;
-
-                if i != fields.len() - 1 {
-                    write!(self.fmt, ", ")?;
-                }
-            }
-
-            self.visit_pat(field.ast_ref())?;
-        }
+        self.print_pattern_collection(fields, spread, |this, pat| this.visit_pat(pat))?;
+        write!(self.fmt, "]")?;
 
         Ok(())
     }
@@ -757,13 +729,7 @@ where
         let ast::TyFnDef { params, return_ty, ty_fn_body } = node.body();
 
         write!(self.fmt, "<")?;
-        for (i, param) in params.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-
-            self.visit_param(param.ast_ref())?;
-        }
+        self.print_separated_collection(params, ",", |this, param| this.visit_param(param))?;
 
         write!(self.fmt, ">")?;
 
@@ -785,14 +751,7 @@ where
         let ast::ArrayLit { elements } = node.body();
 
         write!(self.fmt, "[")?;
-        for (i, element) in elements.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-
-            self.visit_expr(element.ast_ref())?;
-        }
-
+        self.print_separated_collection(elements, ",", |this, item| this.visit_expr(item))?;
         write!(self.fmt, "]")
     }
 
@@ -852,14 +811,7 @@ where
         let ast::FnDef { params, return_ty, fn_body } = node.body();
 
         write!(self.fmt, "(")?;
-
-        for (i, param) in params.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-            self.visit_param(param.ast_ref())?;
-        }
-
+        self.print_separated_collection(params, ",", |this, param| this.visit_param(param))?;
         write!(self.fmt, ")")?;
 
         if let Some(return_ty) = return_ty {
@@ -889,14 +841,9 @@ where
         let ast::TupleLit { elements } = node.body();
 
         write!(self.fmt, "(")?;
-        for (i, element) in elements.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-
-            self.visit_tuple_lit_entry(element.ast_ref())?;
-        }
-
+        self.print_separated_collection(elements, ",", |this, entry| {
+            this.visit_tuple_lit_entry(entry)
+        })?;
         write!(self.fmt, ")")
     }
 
@@ -904,15 +851,9 @@ where
 
     fn visit_fn_ty(&mut self, node: AstNodeRef<ast::FnTy>) -> Result<Self::FnTyRet, Self::Error> {
         let ast::FnTy { params, return_ty } = node.body();
+
         write!(self.fmt, "(")?;
-
-        for (i, param) in params.iter().enumerate() {
-            if i > 0 {
-                write!(self.fmt, ", ")?;
-            }
-            self.visit_ty_arg(param.ast_ref())?;
-        }
-
+        self.print_separated_collection(params, ",", |this, param| this.visit_ty_arg(param))?;
         write!(self.fmt, ") -> ")?;
         self.visit_ty(return_ty.ast_ref())
     }
@@ -954,16 +895,11 @@ where
         let ast::ConstructorCallExpr { subject, args } = node.body();
 
         self.visit_expr(subject.ast_ref())?;
+
         write!(self.fmt, "(")?;
-
-        for (index, arg) in args.iter().enumerate() {
-            self.visit_constructor_call_arg(arg.ast_ref())?;
-
-            if index != args.len() - 1 {
-                write!(self.fmt, ", ")?;
-            }
-        }
-
+        self.print_separated_collection(args, ",", |this, arg| {
+            this.visit_constructor_call_arg(arg)
+        })?;
         write!(self.fmt, ")")
     }
 
@@ -980,22 +916,9 @@ where
 
         if fields.len() > 0 || spread_pos.is_some() {
             write!(self.fmt, "(")?;
-
-            for (index, field) in fields.iter().enumerate() {
-                if index > 0 {
-                    write!(self.fmt, ", ")?;
-                }
-
-                if let Some(pos) = spread_pos && pos == index {
-                    self.visit_spread_pat(spread.as_ref().unwrap().ast_ref())?;
-                    if index != fields.len() - 1 {
-                        write!(self.fmt, ", ")?;
-                    }
-                }
-
-                self.visit_tuple_pat_entry(field.ast_ref())?;
-            }
-
+            self.print_separated_collection(fields, ",", |this, field| {
+                this.visit_tuple_pat_entry(field)
+            })?;
             write!(self.fmt, ")")?;
         }
 
@@ -1084,15 +1007,7 @@ where
         write!(self.fmt, "trait")?;
         if ty_params.len() > 0 {
             write!(self.fmt, "<")?;
-
-            for (index, param) in ty_params.iter().enumerate() {
-                if index > 0 {
-                    write!(self.fmt, ", ")?;
-                }
-
-                self.visit_param(param.ast_ref())?;
-            }
-
+            self.print_separated_collection(ty_params, ",", |this, param| this.visit_param(param))?;
             write!(self.fmt, ">")?;
         }
 
@@ -1117,16 +1032,9 @@ where
         let ast::ModulePat { fields } = node.body();
 
         write!(self.fmt, "{{")?;
-
-        // @@Todo: maybe split on `,` here if needed?
-        for (index, field) in fields.iter().enumerate() {
-            if index > 0 {
-                write!(self.fmt, ", ")?;
-            }
-
-            self.visit_module_pat_entry(field.ast_ref())?;
-        }
-
+        self.print_separated_collection(fields, ",", |this, field| {
+            this.visit_module_pat_entry(field)
+        })?;
         write!(self.fmt, "}}")
     }
 
@@ -1141,6 +1049,10 @@ where
         let ast::BodyBlock { statements, expr } = node.body();
 
         self.indentation += self.config.indentation;
+
+        let old_body_block = self.in_body_block.get();
+        self.in_body_block.set(true);
+
         writeln!(self.fmt, "{{")?;
 
         self.with_match_case(false, |this| -> Result<(), Self::Error> {
@@ -1161,6 +1073,8 @@ where
         })?;
 
         self.indentation -= self.config.indentation;
+        self.in_body_block.set(old_body_block);
+
         self.write_indent()?;
         write!(self.fmt, "}}")?;
 
@@ -1201,15 +1115,7 @@ where
 
         if !ty_params.is_empty() {
             write!(self.fmt, "<")?;
-
-            for (index, param) in ty_params.iter().enumerate() {
-                if index > 0 {
-                    write!(self.fmt, ", ")?;
-                }
-
-                self.visit_param(param.ast_ref())?;
-            }
-
+            self.print_separated_collection(ty_params, ",", |this, param| this.visit_param(param))?;
             write!(self.fmt, ">")?;
         }
 
@@ -1268,17 +1174,7 @@ where
 
         self.indentation += self.config.indentation;
         writeln!(self.fmt, " {{")?;
-
-        for (index, case) in cases.iter().enumerate() {
-            self.write_indent()?;
-            self.visit_match_case(case.ast_ref())?;
-
-            if index != cases.len() - 1 {
-                writeln!(self.fmt, ",")?;
-            } else {
-                writeln!(self.fmt)?;
-            }
-        }
+        self.print_separated_collection(cases, ",", |this, case| this.visit_match_case(case))?;
 
         self.indentation -= self.config.indentation;
         self.write_line("}")
@@ -1328,15 +1224,7 @@ where
 
         if !ty_params.is_empty() {
             write!(self.fmt, "<")?;
-
-            for (index, param) in ty_params.iter().enumerate() {
-                if index > 0 {
-                    write!(self.fmt, ", ")?;
-                }
-
-                self.visit_param(param.ast_ref())?;
-            }
-
+            self.print_separated_collection(ty_params, ",", |this, param| this.visit_param(param))?;
             write!(self.fmt, ">")?;
         }
 
@@ -1399,13 +1287,7 @@ where
     ) -> Result<Self::OrPatRet, Self::Error> {
         let ast::OrPat { variants } = node.body();
 
-        for (index, variant) in variants.iter().enumerate() {
-            self.visit_pat(variant.ast_ref())?;
-
-            if index != variants.len() - 1 {
-                write!(self.fmt, " | ")?;
-            }
-        }
+        self.print_separated_collection(variants, " |", |this, variant| this.visit_pat(variant))?;
 
         Ok(())
     }
