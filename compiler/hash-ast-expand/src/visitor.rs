@@ -85,6 +85,9 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
                 AstDumpMode::Pretty => {
                     let mut printer = AstPrinter::new(&mut self.stdout);
                     printer.visit_expr(node.subject.ast_ref()).unwrap();
+
+                    // @@Hack: terminate the line with a newline.
+                    stream_writeln!(self.stdout, "");
                 }
                 AstDumpMode::Tree => {
                     let mut tree = AstTreeGenerator.visit_expr(node.subject.ast_ref()).unwrap();
