@@ -678,22 +678,42 @@ counter! {
     method_visibility:,
 }
 
+impl fmt::Display for IntConstantValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            I8(value) => write!(f, "{value}"),
+            I16(value) => write!(f, "{value}"),
+            I32(value) => write!(f, "{value}"),
+            I64(value) => write!(f, "{value}"),
+            I128(value) => write!(f, "{value}"),
+            U8(value) => write!(f, "{value}"),
+            U16(value) => write!(f, "{value}"),
+            U32(value) => write!(f, "{value}"),
+            U64(value) => write!(f, "{value}"),
+            U128(value) => write!(f, "{value}"),
+            Big(value) => write!(f, "{value}"),
+        }
+    }
+}
+
 impl fmt::Display for IntConstant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)?;
+
+        // We want to snip the value from the `total` value since we don't care about
+        // the rest...
         match &self.value {
-            // We want to snip the value from the `total` value since we don't care about the
-            // rest...
-            I8(value) => write!(f, "{value}_i8"),
-            I16(value) => write!(f, "{value}_i16"),
-            I32(value) => write!(f, "{value}_i32"),
-            I64(value) => write!(f, "{value}_i64"),
-            I128(value) => write!(f, "{value}_i128"),
-            U8(value) => write!(f, "{value}_u8"),
-            U16(value) => write!(f, "{value}_u16"),
-            U32(value) => write!(f, "{value}_u32"),
-            U64(value) => write!(f, "{value}_u64"),
-            U128(value) => write!(f, "{value}_u128"),
-            Big(value) => write!(f, "{value}"),
+            I8(_) => write!(f, "_i8"),
+            I16(_) => write!(f, "_i16"),
+            I32(_) => write!(f, "_i32"),
+            I64(_) => write!(f, "_i64"),
+            I128(_) => write!(f, "_i128"),
+            U8(_) => write!(f, "_u8"),
+            U16(_) => write!(f, "_u16"),
+            U32(_) => write!(f, "_u32"),
+            U64(_) => write!(f, "_u64"),
+            U128(_) => write!(f, "_u128"),
+            _ => Ok(()),
         }
     }
 }

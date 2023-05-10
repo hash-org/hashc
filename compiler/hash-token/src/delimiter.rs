@@ -5,12 +5,14 @@
 /// conflicts with the binary operators '<' and '>'.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Delimiter {
-    /// '(' or ')'
+    /// Parenthesis, `(` or `)`
     Paren,
-    /// '{' or '}'
+    /// Brace, `{` or `}`
     Brace,
-    /// '[' or ']'
+    /// Bracket, `[` or `]`
     Bracket,
+    /// Angle bracket, `<` or `>`
+    Angle,
 }
 
 impl Delimiter {
@@ -19,6 +21,7 @@ impl Delimiter {
             '(' => Some(Delimiter::Paren),
             '[' => Some(Delimiter::Bracket),
             '{' => Some(Delimiter::Brace),
+            '<' => Some(Delimiter::Angle),
             _ => None,
         }
     }
@@ -28,6 +31,7 @@ impl Delimiter {
             ')' => Some(Delimiter::Paren),
             ']' => Some(Delimiter::Bracket),
             '}' => Some(Delimiter::Brace),
+            '>' => Some(Delimiter::Angle),
             _ => None,
         }
     }
@@ -38,6 +42,7 @@ impl Delimiter {
             Delimiter::Paren => '(',
             Delimiter::Bracket => '[',
             Delimiter::Brace => '{',
+            Delimiter::Angle => '<',
         }
     }
 
@@ -47,6 +52,7 @@ impl Delimiter {
             Delimiter::Paren => ')',
             Delimiter::Bracket => ']',
             Delimiter::Brace => '}',
+            Delimiter::Angle => '>',
         }
     }
 }
