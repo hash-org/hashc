@@ -43,6 +43,14 @@ impl<T: Copy + fmt::Debug> LightState<T> {
         self.current.set(value)
     }
 
+    /// Swap the value of the state with the given value.
+    /// Returns the old value.
+    pub fn swap(&self, value: T) -> T {
+        let old_value = self.get();
+        self.set(value);
+        old_value
+    }
+
     /// Get a reference to the internal [`Cell`].
     pub fn as_cell(&self) -> &Cell<T> {
         &self.current
