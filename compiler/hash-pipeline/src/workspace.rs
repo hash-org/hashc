@@ -151,7 +151,6 @@ impl Default for StageInfo {
 /// contains produced data and metadata from all the various stages within the
 /// compiler. The [Workspace] represents a shared work space for stages to
 /// access information about the current job.
-#[derive(Debug)]
 pub struct Workspace {
     /// The name of the current workspace.
     pub name: String,

@@ -9,6 +9,7 @@ pub mod location;
 
 use std::{
     fmt,
+    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
 
@@ -16,8 +17,10 @@ use bimap::BiMap;
 use hash_utils::{
     index_vec::{define_index_type, index_vec, IndexVec},
     path::adjust_canonicalisation,
+    range_map::RangeMap,
 };
 use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
+use once_cell::sync::OnceCell;
 
 /// Used to check what kind of [SourceId] is being
 /// stored, i.e. the most significant bit denotes whether
@@ -162,6 +165,96 @@ pub enum ModuleKind {
     EntryPoint,
 }
 
+/// This struct is used a wrapper for a [RangeMap] in order to
+/// implement a nice display format, amongst other things. However,
+/// it is a bit of a @@Hack, but I don't think there is really any other
+/// better way to do this.
+#[derive(Debug)]
+pub struct LineRanges(RangeMap<usize, ()>);
+
+impl LineRanges {
+    /// Create a new [LineRanges] with a specified number of slots
+    /// within the [RangeMap].
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(RangeMap::with_capacity(capacity))
+    }
+}
+
+impl Deref for LineRanges {
+    type Target = RangeMap<usize, ()>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for LineRanges {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl fmt::Display for LineRanges {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, (key, _)) in self.iter().enumerate() {
+            writeln!(f, "{key}: {}", index + 1)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Stores all of the relevant source information about a particular module.
+#[derive(Debug)]
+pub struct Module {
+    /// The source of the module.
+    source: String,
+
+    /// The kind of the module.
+    kind: ModuleKind,
+
+    /// Line ranges for fast lookups, this is only computed when it is needed.
+    line_ranges: OnceCell<LineRanges>,
+}
+
+impl Module {
+    /// Create a new [Module].
+    pub fn new(source: String, kind: ModuleKind) -> Self {
+        Self { source, kind, line_ranges: OnceCell::new() }
+    }
+
+    /// Get the source of the module.
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// Get the kind of the module.
+    pub fn kind(&self) -> ModuleKind {
+        self.kind
+    }
+
+    /// Get the line ranges for this particular module.
+    pub fn line_ranges(&self) -> &LineRanges {
+        self.line_ranges.get_or_init(|| {
+            // Pre-allocate the line ranges to a specific size by counting the number of
+            // newline characters within the module source.
+            let mut ranges =
+                LineRanges::with_capacity(bytecount::count(self.source.as_bytes(), b'\n'));
+
+            // Now, iterate through the source and record the position of each newline
+            // range, and push it into the map.
+            let mut count = 0;
+
+            for line in self.source.lines() {
+                ranges.append(count..=(count + line.len()), ());
+                count += line.len() + 1;
+            }
+
+            ranges
+        })
+    }
+}
+
 /// This data structure is used to store and organise the sources of the
 /// modules and interactive blocks. It separates the contents of the sources
 /// from the other data structures due to the need to sometimes only read the
@@ -174,25 +267,17 @@ pub struct SourceMap {
     module_paths: BiMap<ModuleId, PathBuf>,
 
     ///  A map between [ModuleId] and the actual sources of the module.
-    module_content_map: IndexVec<InteractiveId, String>,
-
-    /// A map between [ModuleId] and the kind of module
-    module_kind_map: IndexVec<ModuleId, ModuleKind>,
+    modules: IndexVec<ModuleId, Module>,
 
     /// A map between [InteractiveId] and the actual sources of the interactive
     /// block.
-    interactive_content_map: IndexVec<InteractiveId, String>,
+    interactive_blocks: IndexVec<InteractiveId, String>,
 }
 
 impl SourceMap {
     /// Create a new [SourceMap]
     pub fn new() -> Self {
-        Self {
-            module_paths: BiMap::new(),
-            module_kind_map: index_vec![],
-            module_content_map: index_vec![],
-            interactive_content_map: index_vec![],
-        }
+        Self { module_paths: BiMap::new(), modules: index_vec![], interactive_blocks: index_vec![] }
     }
 
     /// Get a [Path] by a specific [SourceId]. If it is interactive, the path
@@ -263,9 +348,9 @@ impl SourceMap {
     /// specified [SourceId]
     pub fn contents_by_id(&self, source_id: SourceId) -> &str {
         if source_id.is_interactive() {
-            self.interactive_content_map.get(source_id.value() as usize).unwrap()
+            self.interactive_blocks.get(source_id.value() as usize).unwrap()
         } else {
-            self.module_content_map.get(source_id.value() as usize).unwrap()
+            self.modules.get(source_id.value() as usize).map(|module| module.source()).unwrap()
         }
     }
 
@@ -277,36 +362,40 @@ impl SourceMap {
         }
 
         let value = source_id.value();
-        self.module_kind_map.get(value as usize).copied()
+        self.modules.get(value as usize).map(|module| module.kind)
     }
 
     /// Get the entry point that has been registered with the [SourceMap].
     ///
     /// If no entry point has been registered, then the function will panic.
     pub fn entry_point(&self) -> Option<ModuleId> {
-        self.module_kind_map
+        self.modules
             .iter()
-            .position(|kind| matches!(kind, ModuleKind::EntryPoint))
+            .position(|module| matches!(module.kind, ModuleKind::EntryPoint))
             .map(|index| index.into())
+    }
+
+    /// Get a module by the specific [ModuleId].
+    pub fn get_module(&self, id: ModuleId) -> &Module {
+        self.modules.get(id).unwrap()
     }
 
     /// Add a module to the [SourceMap] with the specified resolved file path,
     /// contents and a kind of module.
     pub fn add_module(&mut self, path: PathBuf, contents: String, kind: ModuleKind) -> SourceId {
-        let id = self.module_content_map.len() as u32;
-        self.module_content_map.push(contents);
+        let id = self.modules.len() as u32;
+        self.modules.push(Module::new(contents, kind));
 
         // Create references for the paths reverse
         let id = ModuleId::from_raw(id);
         self.module_paths.insert(id, path);
-        self.module_kind_map.push(kind);
         id.into()
     }
 
     /// Add an interactive block to the [SourceMap]
     pub fn add_interactive_block(&mut self, contents: String) -> SourceId {
-        let id = self.interactive_content_map.len() as u32;
-        self.interactive_content_map.push(contents);
+        let id = self.interactive_blocks.len() as u32;
+        self.interactive_blocks.push(contents);
         SourceId::new_interactive(id)
     }
 
@@ -321,8 +410,9 @@ impl SourceMap {
         RowColSpan { start, end }
     }
 
-    /// Pretty print a [SourceLocation] in terms of the filename, row and column
-    /// to the provided [Write] instance.
+    /// Convert a [SourceLocation] in terms of the filename, row and column.
+    ///
+    /// @@cleanup: move this out of here.
     pub fn fmt_location(&self, location: SourceLocation) -> String {
         let name = self.canonicalised_path_by_id(location.id);
         let span = self.get_column_row_span_for(location);
