@@ -272,7 +272,7 @@ pub struct DefaultStore<K, V> {
 
 impl<K, V> std::default::Default for DefaultStore<K, V> {
     fn default() -> Self {
-        Self { data: RefCell::new(Vec::new()), _phantom: PhantomData::default() }
+        Self { data: RefCell::new(Vec::new()), _phantom: PhantomData }
     }
 }
 
@@ -658,7 +658,7 @@ pub struct DefaultSequenceStore<K, V> {
 
 impl<K, V> Default for DefaultSequenceStore<K, V> {
     fn default() -> Self {
-        Self { data: RefCell::new(Vec::new()), _phantom: PhantomData::default() }
+        Self { data: RefCell::new(Vec::new()), _phantom: PhantomData }
     }
 }
 

@@ -6,6 +6,9 @@ members = [
   "tests/testing-macros",
 ]
 
+# Without this, cargo complains about differing resolvers... (see cargo/#9956)
+resolver = "2"
+
 [profile.release]
 opt-level = 3
 lto = "fat"
