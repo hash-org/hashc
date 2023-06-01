@@ -93,8 +93,8 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
                 .sorted_by_key(|(range, _): &(Range<I>, _)| range.start)
                 .collect_vec(),
         };
-        debug_assert!(map.verify());
 
+        assert!(map.verify(), "range map contains overlapping keys, which is not valid");
         map
     }
 
@@ -124,12 +124,7 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
 
         let key: Range<_> = key.into();
 
-        if self.store.is_empty() {
-            self.store.push((key, value));
-            return;
-        }
-
-        for (item, _) in self.store.iter() {
+        for (index, (item, _)) in self.store.iter().enumerate() {
             if overlaps(item, &key) {
                 panic!("keys are not allowed to overlap in a range map")
             }
@@ -138,11 +133,16 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
                 continue;
             }
 
+            // we've found the right spot to insert the key
             if key.end < item.start {
-                self.store.push((key, value));
-                break;
+                self.store.insert(index, (key, value));
+                return;
             }
         }
+
+        // If we've reached the end, then we can just push the key
+        // into the store.
+        self.store.push((key, value))
     }
 
     /// Append a line range to the end of the [RangeMap] assuming that
@@ -190,22 +190,62 @@ mod test_super {
         let map = RangeMap::populated(vec![(0..=10, 'a'), (11..=20, 'b'), (21..=30, 'c')]);
 
         // A
-        println!("{:?}", map.find(2));
-        println!("{:?}", map.find(7));
-        println!("{:?}", map.find(0));
+        assert_eq!(map.find(2), Some(&'a'));
+        assert_eq!(map.find(7), Some(&'a'));
+        assert_eq!(map.find(0), Some(&'a'));
 
         // B
-        println!("{:?}", map.find(10));
-        println!("{:?}", map.find(12));
-        println!("{:?}", map.find(19));
+        assert_eq!(map.find(11), Some(&'b'));
+        assert_eq!(map.find(15), Some(&'b'));
+        assert_eq!(map.find(20), Some(&'b'));
 
         // C
-        println!("{:?}", map.find(21));
-        println!("{:?}", map.find(22));
-        println!("{:?}", map.find(23));
+        assert_eq!(map.find(21), Some(&'c'));
+        assert_eq!(map.find(25), Some(&'c'));
+        assert_eq!(map.find(30), Some(&'c'));
 
         // Nothing
-        println!("{:?}", map.find(31));
-        println!("{:?}", map.find(1239));
+        assert_eq!(map.find(31), None);
+        assert_eq!(map.find(1239), None);
+    }
+
+    #[test]
+    fn test_range_map_insert() {
+        let mut map = RangeMap::populated(vec![(0..=10, 'a'), (15..=20, 'c'), (21..=30, 'd')]);
+
+        // Insert a 11-14 range with 'b'
+        map.insert(11..=14, 'd');
+        assert_eq!(map.find(12), Some(&'d'));
+        println!("{}", map);
+
+        // Insert into empty map
+        let mut map = RangeMap::new();
+        map.insert(0..=10, 'a');
+        println!("{}", map);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_range_map_insert() {
+        let mut map = RangeMap::populated(vec![(0..=10, 'a'), (15..=20, 'c'), (21..=30, 'd')]);
+
+        // Insert a 10-14 range with 'b'
+        //
+        // @@Note: this should panic since the map disallows overlapping ranges.
+        map.insert(10..=14, 'd');
+        println!("{}", map);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_range_map() {
+        // @@Note: this should panic since the provided ranges overlap.
+        let map = RangeMap::populated(vec![
+            (0..=10, 'a'),
+            (10..=14, 'd'),
+            (15..=20, 'c'),
+            (21..=30, 'd'),
+        ]);
+        println!("{}", map);
     }
 }
