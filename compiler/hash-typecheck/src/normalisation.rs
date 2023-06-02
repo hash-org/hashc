@@ -512,7 +512,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         for arg_i in args.iter() {
             let arg = self.stores().args().get_element(arg_i);
             if arg.target == target || ParamIndex::Position(arg.id.1) == target {
-                self.stores().args().modify_fast(arg_i.0, |mut args| args[arg_i.1].value = value);
+                self.stores().args().modify_fast(arg_i.0, |args| args[arg_i.1].value = value);
                 return;
             }
         }

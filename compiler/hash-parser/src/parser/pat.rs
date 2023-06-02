@@ -469,7 +469,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // If the spread pattern is already present, then we need to
         // report this as an error since, a spread pattern can only appear
         // once within a tuple or list pattern.
-        if let Some(..) = spread {
+        if spread.is_some() {
             self.add_error(self.make_err(
                 ParseErrorKind::MultipleSpreadPats { origin },
                 None,

@@ -6,6 +6,7 @@ pub mod counter;
 pub mod graph;
 pub mod path;
 pub mod printing;
+pub mod range_map;
 pub mod stack;
 pub mod state;
 pub mod store;

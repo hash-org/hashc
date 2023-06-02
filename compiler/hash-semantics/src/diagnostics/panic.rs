@@ -1,7 +1,7 @@
 //! Utility macros for performing various operations when it comes to
 //! working with reports
 
-const TC_FATAL_ERROR_MESSAGE: &str =
+pub const TC_FATAL_ERROR_MESSAGE: &str =
     "A fatal error occurred during typechecking on the reported node";
 
 /// The macro `tc_panic` is essentially used to create a
