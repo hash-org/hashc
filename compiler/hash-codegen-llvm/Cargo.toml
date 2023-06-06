@@ -8,7 +8,7 @@ edition = "2021"
 rayon = "1.5.0"
 llvm-sys = "150.0.3"
 fxhash = "0.2.1"
-inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm15-0"] }
+inkwell = { version="0.2.0", features = ["llvm15-0"] }
 
 hash-codegen = {path = "../hash-codegen" }
 hash-ir = {path = "../hash-ir" }
