@@ -86,10 +86,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         }
 
         // Interactive mode is always evaluated.
-        let result = self
-            .norm_ops()
-            .with_mode(NormalisationMode::Full { eval_impure_fns: true })
-            .normalise(term.into())?;
+        let result = self.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
         stream_less_writeln!("{}", self.env().with(result));
 
         Ok(())
@@ -110,10 +107,8 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
 
         if self.flags().eval_tir {
             if let Some(term) = main_call_term {
-                let _ = self
-                    .norm_ops()
-                    .with_mode(NormalisationMode::Full { eval_impure_fns: true })
-                    .normalise(term.into())?;
+                let _ =
+                    self.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
             }
         }
 

@@ -51,11 +51,10 @@ pub struct NormalisationOps<'a, T: AccessToTypechecking> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NormalisationMode {
     /// Normalise the term as much as possible.
-    Full {
-        /// Whether to normalise impure function calls too.
-        eval_impure_fns: bool,
-    },
+    Full,
     /// Normalise the term to a single step.
+    ///
+    /// This will not execute any impure code.
     Weak,
 }
 
@@ -426,7 +425,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Evaluate an atom in full, even if it has no effects, and including
     /// impure function calls.
     fn eval_fully(&self, atom: Atom) -> Result<Atom, Signal> {
-        let old_mode = self.mode.replace(NormalisationMode::Full { eval_impure_fns: true });
+        let old_mode = self.mode.replace(NormalisationMode::Full);
         let result = self.eval(atom);
         self.mode.set(old_mode);
         result
@@ -435,7 +434,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Same as `eval_nested`, but with a given evaluation state.
     fn eval_nested_and_record(&self, atom: Atom, state: &EvalState) -> Result<Atom, Signal> {
         match self.mode.get() {
-            NormalisationMode::Full { eval_impure_fns: _ } => self.eval_and_record(atom, state),
+            NormalisationMode::Full => self.eval_and_record(atom, state),
             NormalisationMode::Weak => Ok(atom),
         }
     }
@@ -746,8 +745,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         // Beta-reduce:
         if let Term::FnRef(fn_def_id) = self.get_term(fn_call.subject) {
             let fn_def = self.get_fn_def(fn_def_id);
-            if (fn_def.ty.pure
-                || matches!(self.mode.get(), NormalisationMode::Full { eval_impure_fns: true }))
+            if (fn_def.ty.pure || matches!(self.mode.get(), NormalisationMode::Full))
                 && self.try_get_inferred_ty(fn_def_id).is_some()
             {
                 match fn_def.body {
@@ -817,7 +815,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 && self.atom_has_effects(atom) == Some(true)
             {
                 // If the atom has effects, we need to evaluate it fully
-                self.mode.replace(NormalisationMode::Full { eval_impure_fns: true })
+                self.mode.replace(NormalisationMode::Full)
             } else {
                 // Otherwise, we can just evaluate it normally
                 self.mode.get()

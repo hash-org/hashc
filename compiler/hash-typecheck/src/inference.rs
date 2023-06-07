@@ -775,7 +775,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 == Some(true);
             if has_run_directive {
                 let norm_ops = self.norm_ops();
-                norm_ops.with_mode(NormalisationMode::Full { eval_impure_fns: true });
+                norm_ops.with_mode(NormalisationMode::Full);
                 if norm_ops.normalise_in_place(expr.into())? {
                     self.infer_term(expr, term_ty)?;
                 }
@@ -793,7 +793,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         if self.should_monomorphise() && fn_ty.pure {
             let norm_ops = self.norm_ops();
-            norm_ops.with_mode(NormalisationMode::Full { eval_impure_fns: true });
+            norm_ops.with_mode(NormalisationMode::Full);
             if norm_ops.normalise_in_place(fn_call.into())? {
                 self.infer_term(fn_call, fn_call_result_ty)?;
             }
