@@ -6,7 +6,7 @@ use hash_source::{identifier::Identifier, location::Span};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataDefId},
     environment::{
-        context::{ParamOrigin, ScopeKind},
+        context::ParamOrigin,
         env::{AccessToEnv, Env},
     },
     fns::FnTy,
@@ -188,8 +188,7 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Add a new scope
-    pub(super) fn add_scope(&self, _kind: ScopeKind, context_kind: ContextKind) {
-        // self.context().add_scope(kind);
+    pub(super) fn add_scope(&self, context_kind: ContextKind) {
         let mut b = self.bindings_by_name.get_mut();
         // Initialise the name map. Any duplicate names will be shadowed by the last
         // entry.

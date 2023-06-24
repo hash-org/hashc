@@ -38,8 +38,6 @@ impl<'tc> Visitor<'tc> {
 
     /// Visits the source passed in as an argument to [Self::new_in_source]
     pub fn visit_source(&self) -> SemanticResult<()> {
-        // self.context().clear_all();
-
         // Discover all definitions in the source.
         DiscoveryPass::new(self.sem_env).pass_source()?;
 
