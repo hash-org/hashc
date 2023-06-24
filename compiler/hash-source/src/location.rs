@@ -18,11 +18,7 @@ pub struct Span(u32, u32);
 impl Span {
     /// Create a [Span] by providing a start and end byte position.
     pub const fn new(start: usize, end: usize) -> Self {
-        debug_assert!(
-            end >= start,
-            "Got invalid span for Span::new. Start needs to be smaller than end."
-        );
-
+        debug_assert!(end >= start, "invalid span. start < end");
         Span(start as u32, end as u32)
     }
 
@@ -166,69 +162,5 @@ impl Display for RowColSpan {
         } else {
             write!(f, "{}-{}", self.start, self.end)
         }
-    }
-}
-
-/// Function to compute a row and column number from a given source string
-/// and an offset within the source. This will take into account the number
-/// of encountered newlines and characters per line in order to compute
-/// precise row and column numbers of the span.
-pub fn compute_row_col_from_offset(offset: usize, source: &str, non_inclusive: bool) -> RowCol {
-    let source_lines = source.split('\n');
-
-    let mut bytes_skipped = 0;
-    let mut total_lines: usize = 0;
-    let mut last_line_len = 0;
-
-    let mut line_index = None;
-    for (line_idx, line) in source_lines.enumerate() {
-        // @@Future: rather than *assuming* that the newline will always be a single
-        // byte, we should perform a `normalisation` operation when the source
-        // file is first read, so that we can deal with any line ending
-        // regardless of the current environment.
-        //
-        // Add a single byte for the `\n`...
-        let skip_width = line.len() + 1;
-
-        // Here, we don't want an inclusive range because we don't want to get the last
-        // byte because that will always point to the newline character and this
-        // isn't necessary to be included when selecting a span for printing.
-        let range = if non_inclusive {
-            bytes_skipped..bytes_skipped + skip_width
-        } else {
-            bytes_skipped..bytes_skipped + skip_width + 1
-        };
-
-        if range.contains(&offset) {
-            line_index = Some(RowCol { column: offset - bytes_skipped, row: line_idx });
-            break;
-        }
-
-        bytes_skipped += skip_width;
-        total_lines += 1;
-        last_line_len = line.len();
-    }
-
-    line_index.unwrap_or(RowCol {
-        column: last_line_len.saturating_sub(1),
-        row: total_lines.saturating_sub(1),
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn offset_test() {
-        let contents = "Hello, world!\nGoodbye, world, it has been fun.";
-
-        let RowCol { column, row } =
-            compute_row_col_from_offset(contents.len() - 1, contents, false);
-        assert_eq!((column, row), (31, 1));
-
-        let RowCol { column, row } =
-            compute_row_col_from_offset(contents.len() + 3, contents, false);
-        assert_eq!((column, row), (31, 1));
     }
 }
