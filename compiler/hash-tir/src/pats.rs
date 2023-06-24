@@ -19,7 +19,7 @@ use super::{
     symbols::Symbol,
     tuples::TuplePat,
 };
-use crate::arrays::ArrayPat;
+use crate::{arrays::ArrayPat, impl_sequence_store_id, impl_single_store_id};
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.
@@ -89,9 +89,11 @@ impl Pat {
 
 new_store_key!(pub PatId);
 new_store!(pub PatStore<PatId, Pat>);
+impl_single_store_id!(PatId, Pat, pat);
 
 new_sequence_store_key!(pub PatListId);
 pub type PatListStore = DefaultSequenceStore<PatListId, PatOrCapture>;
+impl_sequence_store_id!(PatListId, PatOrCapture, pat_list);
 
 impl fmt::Display for WithEnv<'_, Spread> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

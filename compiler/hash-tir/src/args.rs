@@ -16,7 +16,7 @@ use super::{
     params::ParamIndex,
     pats::PatId,
 };
-use crate::terms::TermId;
+use crate::{impl_sequence_store_id, terms::TermId};
 
 /// An argument to a parameter.
 ///
@@ -42,6 +42,8 @@ impl From<Arg> for ArgData {
 new_sequence_store_key!(pub ArgsId);
 pub type ArgId = (ArgsId, usize);
 pub type ArgsStore = DefaultSequenceStore<ArgsId, Arg>;
+
+impl_sequence_store_id!(ArgsId, Arg, args);
 
 /// A pattern or a capture.
 ///
@@ -95,6 +97,7 @@ impl From<PatArg> for PatArgData {
 new_sequence_store_key!(pub PatArgsId);
 pub type PatArgId = (PatArgsId, usize);
 pub type PatArgsStore = DefaultSequenceStore<PatArgsId, PatArg>;
+impl_sequence_store_id!(PatArgsId, PatArg, pat_args);
 
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
