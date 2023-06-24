@@ -611,13 +611,13 @@ impl<'tcx> BodyBuilder<'tcx> {
     ///
     /// The procedure to initialise the list is as follows:
     ///
-    /// 1. Allocate enough bytes for the literal `[T]` by computing
-    ///    `size_of(T)` * `len(elements)`.
+    /// 1. Allocate enough bytes for the literal `[T]` by computing `size_of(T)`
+    ///    * `len(elements)`.
     ///
     /// 2. Write the bytes to the allocation.
     ///
-    /// 3. Create a `SizedPtr(ref, len)` from the pointer that we get
-    ///    from the call to malloc and assign it to a temporary.
+    /// 3. Create a `SizedPtr(ref, len)` from the pointer that we get from the
+    ///    call to malloc and assign it to a temporary.
     ///
     /// 4. Transmute the `SizedPointer` into a `&[T]` and assign it to the
     ///    destination.
