@@ -29,17 +29,16 @@ jobs:
         with:
           version: "15.0.6"
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+
       - name: Install Rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt, clippy
+        run: |
+          rustup toolchain install nightly
+          rustup component add clippy --toolchain nightly
+          rustup component add rustfmt --toolchain nightly
+          rustup default nightly
 
-      - name: "Dependency caching"
-        uses: Swatinem/rust-cache@v1
-
-      - uses: actions-rs/cargo@v1
+      - name: Dependency caching
+        uses: Swatinem/rust-cache@v2
       
       - name: Run tests
         run: "LLVM_SYS_150_PREFIX=$LLVM_PATH cargo test --all --verbose"
@@ -48,7 +47,4 @@ jobs:
         run: "LLVM_SYS_150_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
 
       - name: Check formatting
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: "cargo fmt --all -- --check"
