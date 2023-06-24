@@ -18,7 +18,7 @@ pub struct Span(u32, u32);
 impl Span {
     /// Create a [Span] by providing a start and end byte position.
     pub const fn new(start: usize, end: usize) -> Self {
-        debug_assert!(end >= start, "invalid span. start < end");
+        debug_assert!(end >= start, "invalid span. start > end");
         Span(start as u32, end as u32)
     }
 
