@@ -1,18 +1,17 @@
 //! Contains context-related utilities.
+
 use derive_more::Constructor;
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
     args::{ArgId, ArgsId},
-    data::{DataDefCtors, DataDefId},
     environment::{
-        context::{Binding, BindingKind, Context, Decl, ScopeKind},
+        context::{Context, Decl, ScopeKind},
         env::{AccessToEnv, Env},
     },
     fns::FnDefId,
     impl_access_to_env,
-    mods::ModDefId,
     params::{ParamId, ParamsId},
     scopes::StackId,
     sub::Sub,
@@ -51,17 +50,19 @@ impl<'env> ContextUtils<'env> {
 
     /// Add a typing binding to the closest stack scope.
     pub fn add_assignment_to_closest_stack(&self, name: Symbol, ty: TyId, value: TermId) {
-        self.context().get_closest_stack_scope_ref().add_binding(Binding {
+        self.context().get_closest_stack_scope_ref().add_decl(Decl {
             name,
-            kind: BindingKind::Decl(Decl { name, ty: Some(ty), value: Some(value) }),
+            ty: Some(ty),
+            value: Some(value),
         })
     }
 
     /// Add a typing binding to the closest stack scope.
     pub fn add_typing_to_closest_stack(&self, name: Symbol, ty: TyId) {
-        self.context().get_closest_stack_scope_ref().add_binding(Binding {
+        self.context().get_closest_stack_scope_ref().add_decl(Decl {
             name,
-            kind: BindingKind::Decl(Decl { name, ty: Some(ty), value: None }),
+            ty: Some(ty),
+            value: None,
         })
     }
 
@@ -77,20 +78,14 @@ impl<'env> ContextUtils<'env> {
 
     /// Modify the type of an assignment binding.
     pub fn modify_typing(&self, name: Symbol, new_ty: TyId) {
-        let current_value = self.try_get_binding_value(name);
-        self.context().modify_binding(Binding {
-            name,
-            kind: BindingKind::Decl(Decl { name, ty: Some(new_ty), value: current_value }),
-        })
+        let current_value = self.try_get_decl_value(name);
+        self.context().modify_decl(Decl { name, ty: Some(new_ty), value: current_value })
     }
 
     /// Modify the value of an assignment binding.
     pub fn modify_assignment(&self, name: Symbol, new_value: TermId) {
-        let current_ty = self.try_get_binding_ty(name);
-        self.context().modify_binding(Binding {
-            name,
-            kind: BindingKind::Decl(Decl { name, ty: current_ty, value: Some(new_value) }),
-        })
+        let current_ty = self.try_get_decl_ty(name);
+        self.context().modify_decl(Decl { name, ty: current_ty, value: Some(new_value) })
     }
 
     /// Add parameter bindings from the given parameters.
@@ -114,38 +109,32 @@ impl<'env> ContextUtils<'env> {
     }
 
     /// Get a binding from the current scopes.
-    pub fn get_binding(&self, name: Symbol) -> Binding {
+    pub fn get_decl(&self, name: Symbol) -> Decl {
         self.context()
-            .try_get_binding(name)
+            .try_get_decl(name)
             .unwrap_or_else(|| panic!("cannot get binding for {}", self.env().with(name),))
     }
 
     /// Get the value of a binding, if possible.
-    pub fn try_get_binding_value(&self, name: Symbol) -> Option<TermId> {
-        match self.context().try_get_binding(name)?.kind {
-            BindingKind::Decl(decl) => decl.value,
-            _ => None,
-        }
+    pub fn try_get_decl_value(&self, name: Symbol) -> Option<TermId> {
+        self.context().try_get_decl(name)?.value
     }
 
     /// Get the type of a binding, if possible.
-    pub fn try_get_binding_ty(&self, name: Symbol) -> Option<TyId> {
-        match self.context().try_get_binding(name)?.kind {
-            BindingKind::Decl(decl) => decl.ty,
-            _ => None,
-        }
+    pub fn try_get_decl_ty(&self, name: Symbol) -> Option<TyId> {
+        self.context().try_get_decl(name)?.ty
     }
 
     /// Get the value of a binding.
     pub fn get_binding_value(&self, name: Symbol) -> TermId {
-        self.try_get_binding_value(name).unwrap_or_else(|| {
+        self.try_get_decl_value(name).unwrap_or_else(|| {
             panic!("cannot get value of uninitialised binding {}", self.env().with(name))
         })
     }
 
     /// Get the type of a binding.
     pub fn get_binding_ty(&self, name: Symbol) -> TyId {
-        self.try_get_binding_ty(name).unwrap_or_else(|| {
+        self.try_get_decl_ty(name).unwrap_or_else(|| {
             panic!("cannot get type of untyped binding {}", self.env().with(name))
         })
     }
@@ -165,56 +154,9 @@ impl<'env> ContextUtils<'env> {
     pub fn add_stack_bindings(&self, stack_id: StackId) {
         self.stores().stack().map_fast(stack_id, |stack| {
             for member in &stack.members {
-                self.context()
-                    .add_binding(Binding { name: member.name, kind: BindingKind::Decl(*member) });
+                self.context().add_decl(member.name, member.ty, member.value);
             }
         });
-    }
-
-    /// Add the data constructors of the given data definition to the context.
-    ///
-    /// Must be in the scope of the given data definition.
-    /// Assumes that the data definition's parameters have already been added.
-    pub fn add_data_ctors(&self, data_def_id: DataDefId, f: impl Fn(Binding)) {
-        // @@Safety: Maybe we should check that we are in this data def?
-        self.stores().data_def().map_fast(data_def_id, |data_def| {
-            // Add all the constructors
-            match data_def.ctors {
-                DataDefCtors::Defined(ctors) => {
-                    self.stores().ctor_defs().map_fast(ctors, |ctors| {
-                        for ctor in ctors.iter() {
-                            let binding = Binding {
-                                name: ctor.name,
-                                kind: BindingKind::Ctor(data_def_id, ctor.id),
-                            };
-                            self.context().add_binding(binding);
-                            f(binding);
-                        }
-                    })
-                }
-                DataDefCtors::Primitive(_) => {
-                    // No-op
-                }
-            }
-        })
-    }
-
-    /// Add the module's members to the context.
-    ///
-    /// Must be in the scope of the given module.
-    pub fn add_mod_members(&self, mod_def_id: ModDefId, f: impl Fn(Binding)) {
-        self.stores().mod_def().map_fast(mod_def_id, |mod_def| {
-            self.stores().mod_members().map_fast(mod_def.members, |members| {
-                for member in members.iter() {
-                    let binding = Binding {
-                        name: member.name,
-                        kind: BindingKind::ModMember(mod_def_id, member.id),
-                    };
-                    self.context().add_binding(binding);
-                    f(binding);
-                }
-            })
-        })
     }
 
     /// Get the current stack, or panic we are not in a stack.
@@ -240,9 +182,7 @@ impl<'env> ContextUtils<'env> {
     /// Add the members of the given scope to the context.
     pub fn add_resolved_scope_members(&self, kind: ScopeKind) {
         match kind {
-            ScopeKind::Mod(mod_def_id) => {
-                self.add_mod_members(mod_def_id, |_| {});
-            }
+            ScopeKind::Mod(_) => {}
             ScopeKind::Stack(stack_id) => {
                 self.add_stack_bindings(stack_id);
             }
@@ -255,9 +195,6 @@ impl<'env> ContextUtils<'env> {
 
                 // Params
                 self.add_param_bindings(data_def.params);
-
-                // Constructors
-                self.add_data_ctors(data_def_id, |_| {});
             }
             ScopeKind::Ctor(ctor_def_id) => {
                 let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
@@ -294,7 +231,7 @@ impl<'env> ContextUtils<'env> {
     /// Add the given substitution to the context.
     pub fn add_sub_to_scope(&self, sub: &Sub) {
         for (name, value) in sub.iter() {
-            match self.try_get_binding_ty(name) {
+            match self.try_get_decl_ty(name) {
                 Some(ty) => {
                     self.add_assignment(name, ty, value);
                 }

@@ -66,7 +66,7 @@ impl AccessToSemEnv for ResolutionPass<'_> {
 impl<'tc> AstPass for ResolutionPass<'tc> {
     fn pass_interactive(&self, node: ast::AstNodeRef<ast::BodyBlock>) -> SemanticResult<()> {
         let root_mod = self.bootstrap();
-        self.scoping().add_scope(root_mod.into(), ContextKind::Environment);
+        self.scoping().add_scope(ContextKind::Environment);
         self.scoping().add_mod_members(root_mod);
 
         // If the prelude is set, add its members to the root module.
@@ -81,7 +81,7 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
 
     fn pass_module(&self, node: ast::AstNodeRef<ast::Module>) -> SemanticResult<()> {
         let root_mod = self.bootstrap();
-        self.scoping().add_scope(root_mod.into(), ContextKind::Environment);
+        self.scoping().add_scope(ContextKind::Environment);
         self.scoping().add_mod_members(root_mod);
 
         // If the prelude is set, add its members to the root module.

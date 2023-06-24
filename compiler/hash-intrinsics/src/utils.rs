@@ -245,7 +245,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
             Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),
             Term::Var(sym) => self
                 .context_utils()
-                .try_get_binding_value(sym)
+                .try_get_decl_value(sym)
                 .and_then(|result| self.try_use_term_as_integer_lit(result)),
 
             _ => None,

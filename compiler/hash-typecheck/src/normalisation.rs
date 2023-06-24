@@ -462,7 +462,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     /// Evaluate a variable.
     fn eval_var(&self, var: Symbol) -> AtomEvaluation {
-        match self.context_utils().try_get_binding_value(var) {
+        match self.context_utils().try_get_decl_value(var) {
             Some(result) => {
                 if matches!(self.get_term(result), Term::Var(v) if v == var) {
                     already_evaluated()

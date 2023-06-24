@@ -20,10 +20,7 @@ use hash_tir::{
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     directives::DirectiveTarget,
-    environment::{
-        context::{BindingKind, ScopeKind},
-        env::AccessToEnv,
-    },
+    environment::{context::ScopeKind, env::AccessToEnv},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -1003,25 +1000,22 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer the type of a variable, and return it.
     pub fn infer_var(&self, term: Symbol, annotation_ty: TyId) -> TcResult<()> {
-        match self.context().try_get_binding(term) {
-            Some(binding) => match binding.kind {
-                BindingKind::Decl(decl) => {
-                    if let Some(ty) = decl.ty {
-                        let ty = self.sub_ops().copy_ty(ty);
-                        self.check_ty(ty)?;
-                        self.uni_ops().unify_tys(ty, annotation_ty)?;
-                        Ok(())
-                    } else if decl.value.is_some() {
-                        panic!("no type found for decl '{}'", self.env().with(decl))
-                    } else {
-                        panic!(
-                            "Found declaration without type or value during inference: {}",
-                            self.env().with(decl)
-                        )
-                    }
+        match self.context().try_get_decl(term) {
+            Some(decl) => {
+                if let Some(ty) = decl.ty {
+                    let ty = self.sub_ops().copy_ty(ty);
+                    self.check_ty(ty)?;
+                    self.uni_ops().unify_tys(ty, annotation_ty)?;
+                    Ok(())
+                } else if decl.value.is_some() {
+                    panic!("no type found for decl '{}'", self.env().with(decl))
+                } else {
+                    panic!(
+                        "Found declaration without type or value during inference: {}",
+                        self.env().with(decl)
+                    )
                 }
-                b => panic!("expected decl, but got {}", self.env().with(b)),
-            },
+            }
             None => {
                 panic!("no binding found for symbol '{}'", self.env().with(term))
             }

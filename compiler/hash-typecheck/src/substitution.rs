@@ -7,7 +7,7 @@ use hash_tir::{
     access::AccessTerm,
     args::{ArgsId, PatArgsId},
     atom_info::ItemInAtomInfo,
-    environment::context::{BindingKind, Decl},
+    environment::context::Decl,
     fns::FnBody,
     holes::Hole,
     mods::ModDefId,
@@ -402,8 +402,8 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn get_unassigned_vars_in_current_scope(&self) -> HashSet<Symbol> {
         let mut sub = HashSet::new();
         let current_scope_index = self.context().get_current_scope_index();
-        self.context().for_bindings_of_scope_rev(current_scope_index, |binding| {
-            if self.context_utils().try_get_binding_value(binding.name).is_none() {
+        self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
+            if self.context_utils().try_get_decl_value(binding.name).is_none() {
                 sub.insert(binding.name);
             }
         });
@@ -413,9 +413,9 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// Create a substitution from the current scope members.
     pub fn is_unassigned_var_in_current_scope(&self, var: Symbol) -> bool {
         let _current_scope_index = self.context().get_current_scope_index();
-        match self.context().get_current_scope_ref().get_binding(var) {
+        match self.context().get_current_scope_ref().get_decl(var) {
             Some(var) => {
-                matches!(var.kind, BindingKind::Decl(Decl { value: None, .. }))
+                matches!(var, Decl { value: None, .. })
             }
             None => {
                 warn!("Not found var {} in current scope", self.env().with(var));
@@ -429,8 +429,8 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         let mut sub = Sub::identity();
 
         let current_scope_index = self.context().get_current_scope_index();
-        self.context().for_bindings_of_scope_rev(current_scope_index, |binding| {
-            if let Some(value) = self.context_utils().try_get_binding_value(binding.name) {
+        self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
+            if let Some(value) = self.context_utils().try_get_decl_value(binding.name) {
                 self.insert_to_sub_if_needed(&mut sub, binding.name, value);
             }
         });

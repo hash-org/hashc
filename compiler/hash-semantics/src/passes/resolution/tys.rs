@@ -146,7 +146,7 @@ impl<'tc> ResolutionPass<'tc> {
                     Ok(self.use_term_as_ty(self.new_term(Term::FnCall(*fn_call_term))))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
-                    Ok(self.new_ty(Ty::Var(bound_var.name)))
+                    Ok(self.new_ty(Ty::Var(*bound_var)))
                 }
             },
         }
