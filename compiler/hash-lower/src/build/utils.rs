@@ -64,7 +64,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Create a [LocalKey] from a [Symbol].
     pub(crate) fn local_key_from_symbol(&self, symbol: Symbol) -> LocalKey {
-        self.context().get_binding(symbol).kind.into()
+        self.context().get_decl(symbol).into()
     }
 
     /// Lookup a local by its [LocalKey].
@@ -74,7 +74,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Lookup a [Local] by a specified [Symbol].
     pub(crate) fn lookup_local_symbol(&self, symbol: Symbol) -> Option<Local> {
-        let key = self.context().get_binding(symbol).kind.into();
+        let key = self.context().get_decl(symbol).into();
         self.lookup_local(&key)
     }
 

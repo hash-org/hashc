@@ -23,10 +23,7 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     control::{LoopControlTerm, ReturnTerm},
     data::CtorTerm,
-    environment::{
-        context::{BindingKind, Context},
-        env::AccessToEnv,
-    },
+    environment::{context::Context, env::AccessToEnv},
     fns::FnCallTerm,
     params::ParamIndex,
     refs::{self, RefTerm},
@@ -38,9 +35,7 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
-use super::{
-    ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LocalKey, LoopBlockInfo,
-};
+use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Compile the given [Term] and place the value of the [Term]
@@ -255,29 +250,21 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
             }
             Term::Var(symbol) => {
-                let binding = self.context().get_binding(*symbol);
+                let binding = self.context().get_decl(*symbol);
 
                 // Here, if the scope is not variable, i.e. constant, then we essentially need
                 // to denote that this a constant that comes from outside of the function body.
-                if !matches!(binding.kind, BindingKind::Decl(..)) {
-                    let name = self.get_symbol(binding.name).name.unwrap_or(IDENTS.underscore);
+                let name = self.get_symbol(binding.name).name.unwrap_or(IDENTS.underscore);
 
-                    // here, we emit an un-evaluated constant kind which will be resolved later
-                    // during IR simplification.
-                    let unevaluated_const = UnevaluatedConst { name };
-                    let rvalue = (ConstKind::Unevaluated(unevaluated_const)).into();
+                // here, we emit an un-evaluated constant kind which will be resolved later
+                // during IR simplification.
+                let unevaluated_const = UnevaluatedConst { name };
+                let rvalue = (ConstKind::Unevaluated(unevaluated_const)).into();
 
-                    // we also need to save this un-evaluated const in the builder
-                    // so we can easily know what should and shouldn't be resolved.
-                    self.needed_constants.push(unevaluated_const);
-                    self.control_flow_graph.push_assign(block, destination, rvalue, span);
-                } else {
-                    let local_key = LocalKey::from(binding.kind);
-                    let local = *(self.declaration_map.get(&local_key).unwrap());
-
-                    let place = Place::from_local(local, self.ctx());
-                    self.control_flow_graph.push_assign(block, destination, place.into(), span);
-                }
+                // we also need to save this un-evaluated const in the builder
+                // so we can easily know what should and shouldn't be resolved.
+                self.needed_constants.push(unevaluated_const);
+                self.control_flow_graph.push_assign(block, destination, rvalue, span);
 
                 block.unit()
             }

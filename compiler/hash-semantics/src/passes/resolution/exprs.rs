@@ -22,7 +22,7 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
     directives::AppliedDirectives,
-    environment::{context::ScopeKind, env::AccessToEnv},
+    environment::env::AccessToEnv,
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
@@ -356,7 +356,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Bound variable
-                    Ok(self.new_term(Term::Var(bound_var.name)))
+                    Ok(self.new_term(Term::Var(*bound_var)))
                 }
             },
         }
@@ -831,7 +831,7 @@ impl<'tc> ResolutionPass<'tc> {
             == Some(true);
 
         let (params, return_ty, return_value, fn_def_id) =
-            self.scoping().enter_scope(ScopeKind::Fn(fn_def_id), ContextKind::Environment, || {
+            self.scoping().enter_scope(ContextKind::Environment, || {
                 // First resolve the parameters
                 let params = self.try_or_add_error(self.resolve_params_from_ast_params(
                     params,

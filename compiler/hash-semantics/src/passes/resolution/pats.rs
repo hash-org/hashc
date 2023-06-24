@@ -83,14 +83,16 @@ impl ResolutionPass<'_> {
     ) -> SemanticResult<Option<Spread>> {
         Ok(node.as_ref().map(|node| {
             let symbol = match node.name.as_ref() {
-                Some(name) => self
-                    .scoping()
-                    .lookup_symbol_by_name_or_error(
-                        name.ident,
-                        name.span(),
-                        self.scoping().get_current_context_kind(),
-                    )
-                    .unwrap(),
+                Some(name) => {
+                    self.scoping()
+                        .lookup_symbol_by_name_or_error(
+                            name.ident,
+                            name.span(),
+                            self.scoping().get_current_context_kind(),
+                        )
+                        .unwrap()
+                        .0
+                }
                 None => self.new_fresh_symbol(),
             };
             Spread { name: symbol, index: node.position }
@@ -208,10 +210,8 @@ impl ResolutionPass<'_> {
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Binding pattern
                     // @@Todo: is_mutable, perhaps refactor `BindingPat`?
-                    Ok(self.new_pat(Pat::Binding(BindingPat {
-                        name: bound_var.name,
-                        is_mutable: false,
-                    })))
+                    Ok(self
+                        .new_pat(Pat::Binding(BindingPat { name: *bound_var, is_mutable: false })))
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term)
                     if ctor_term.ctor_args.is_empty() =>

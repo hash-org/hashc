@@ -26,12 +26,10 @@ use hash_source::{identifier::Identifier, location::Span};
 use hash_tir::{
     args::ArgsId,
     data::{CtorPat, CtorTerm, DataDefId},
-    environment::{
-        context::{Binding, BindingKind, Decl, ScopeKind},
-        env::AccessToEnv,
-    },
+    environment::env::AccessToEnv,
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
+    symbols::Symbol,
     terms::Term,
     utils::{common::CommonUtils, AccessToUtils},
 };
@@ -39,7 +37,7 @@ use hash_utils::store::SequenceStore;
 
 use super::{
     params::{AstArgGroup, ResolvedArgs},
-    scoping::ContextKind,
+    scoping::{BindingKind, ContextKind},
     ResolutionPass,
 };
 use crate::{
@@ -126,7 +124,7 @@ pub enum TerminalResolvedPathComponent {
     /// A function call term.
     FnCall(FnCallTerm),
     /// A variable bound in the current context.
-    Var(Decl),
+    Var(Symbol),
 }
 
 /// The result of resolving a path component.
@@ -150,22 +148,17 @@ impl<'tc> ResolutionPass<'tc> {
         name: Identifier,
         name_span: Span,
         starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
-    ) -> SemanticResult<Binding> {
+    ) -> SemanticResult<(Symbol, BindingKind)> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.
-                NonTerminalResolvedPathComponent::Data(data_def_id, _def_args_id) => {
-                    self.scoping().enter_scope(
-                        ScopeKind::Data(data_def_id),
-                        ContextKind::Access(member_value, data_def_id.into()),
-                        || {
-                            self.scoping().add_data_params_and_ctors(data_def_id);
-                            self.resolve_ast_name(name, name_span, None)
-                        },
-                    )
-                }
+                NonTerminalResolvedPathComponent::Data(data_def_id, _def_args_id) => self
+                    .scoping()
+                    .enter_scope(ContextKind::Access(member_value, data_def_id.into()), || {
+                        self.scoping().add_data_params_and_ctors(data_def_id);
+                        self.resolve_ast_name(name, name_span, None)
+                    }),
                 NonTerminalResolvedPathComponent::Mod(mod_def_id) => self.scoping().enter_scope(
-                    ScopeKind::Mod(mod_def_id),
                     ContextKind::Access(member_value, mod_def_id.into()),
                     || {
                         self.scoping().add_mod_members(mod_def_id);
@@ -175,12 +168,11 @@ impl<'tc> ResolutionPass<'tc> {
             },
             None => {
                 // If there is no start point, try to lookup the variable in the current scope.
-                let binding_symbol = self.scoping().lookup_symbol_by_name_or_error(
+                self.scoping().lookup_symbol_by_name_or_error(
                     name,
                     name_span,
                     self.scoping().get_current_context_kind(),
-                )?;
-                Ok(self.context().get_binding(binding_symbol))
+                )
             }
         }
     }
@@ -196,9 +188,10 @@ impl<'tc> ResolutionPass<'tc> {
         component: &AstPathComponent<'_>,
         starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
     ) -> SemanticResult<ResolvedAstPathComponent> {
-        let binding = self.resolve_ast_name(component.name, component.name_span, starting_from)?;
+        let (_binding, binding_kind) =
+            self.resolve_ast_name(component.name, component.name_span, starting_from)?;
 
-        match binding.kind {
+        match binding_kind {
             BindingKind::ModMember(_, mod_member_id) => {
                 let mod_member = self.stores().mod_members().get_element(mod_member_id);
                 match mod_member.value {
@@ -350,7 +343,7 @@ impl<'tc> ResolutionPass<'tc> {
                     None => unreachable!(),
                 }
             }
-            BindingKind::Decl(decl) => {
+            BindingKind::Sym(decl) => {
                 // If the subject has no args, it is a variable, otherwise it is a
                 // function call.
                 match &component.args[..] {
@@ -359,7 +352,7 @@ impl<'tc> ResolutionPass<'tc> {
                     )),
                     args => {
                         let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                            self.new_term(Term::Var(decl.name)),
+                            self.new_term(Term::Var(decl)),
                             args,
                             component.span(),
                         )?;

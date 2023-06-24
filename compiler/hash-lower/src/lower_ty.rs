@@ -134,7 +134,7 @@ impl<'ir> BuilderCtx<'ir> {
             // resolved and substituted in the `Ty::Var` case below.
             Ty::Var(sym) => {
                 // @@Temporary
-                if self.context().try_get_binding(*sym).is_some() {
+                if self.context().try_get_decl(*sym).is_some() {
                     let term = self.context_utils().get_binding_value(*sym);
                     return self.map_ty(self.use_term_as_ty(term), |ty| {
                         self.uncached_ty_from_tir_ty(id, ty)

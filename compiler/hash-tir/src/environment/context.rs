@@ -17,7 +17,7 @@ use super::env::{AccessToEnv, WithEnv};
 use crate::{
     data::{CtorDefId, DataDefId},
     fns::{FnDefId, FnTy},
-    mods::{ModDefId, ModMemberId},
+    mods::ModDefId,
     scopes::StackId,
     symbols::Symbol,
     terms::TermId,
@@ -70,43 +70,6 @@ pub struct Decl {
     pub value: Option<TermId>,
 }
 
-/// The kind of a binding.
-#[derive(Debug, Clone, Copy)]
-pub enum BindingKind {
-    /// A binding that is a module member.
-    ///
-    /// For example, `mod { Q := struct(); Q }`
-    ModMember(ModDefId, ModMemberId),
-    /// A binding that is a constructor definition.
-    ///
-    /// For example, `false`, `None`, `Some(_)`.
-    Ctor(DataDefId, CtorDefId),
-    /// A binding that contains a type and optional value.
-    Decl(Decl),
-}
-
-impl BindingKind {
-    /// A constant binding is one that cannot depend on non-constant bindings.
-    pub fn is_constant(&self) -> bool {
-        match self {
-            BindingKind::ModMember(_, _) | BindingKind::Ctor(_, _) => true,
-            BindingKind::Decl(_) => false,
-        }
-    }
-}
-
-/// A binding.
-///
-/// A binding is essentially something in the form `a := b` in the current
-/// context.
-#[derive(Debug, Clone, Copy)]
-pub struct Binding {
-    /// The name of the binding.
-    pub name: Symbol,
-    /// The kind of the binding.
-    pub kind: BindingKind,
-}
-
 /// An established equality between terms, that is in scope.
 #[derive(Debug, Clone, Copy)]
 pub struct EqualityJudgement {
@@ -157,45 +120,35 @@ pub struct Scope {
     /// The kind of the scope.
     pub kind: ScopeKind,
     /// The bindings of the scope
-    pub bindings: RefCell<IndexMap<Symbol, BindingKind>>,
+    pub decls: RefCell<IndexMap<Symbol, Decl>>,
 }
 
 impl Scope {
     /// Create a new scope with the given kind.
     pub fn with_empty_members(kind: ScopeKind) -> Self {
-        Self { kind, bindings: RefCell::new(IndexMap::new()) }
+        Self { kind, decls: RefCell::new(IndexMap::new()) }
     }
 
     /// Add a binding to the scope.
-    pub fn add_binding(&self, binding: Binding) {
-        self.bindings.borrow_mut().insert(binding.name, binding.kind);
+    pub fn add_decl(&self, decl: Decl) {
+        self.decls.borrow_mut().insert(decl.name, decl);
     }
 
-    /// Get the binding corresponding to the given symbol.
-    pub fn get_binding(&self, symbol: Symbol) -> Option<Binding> {
-        self.bindings.borrow().get(&symbol).map(|kind| Binding { name: symbol, kind: *kind })
+    /// Get the decl corresponding to the given symbol.
+    pub fn get_decl(&self, symbol: Symbol) -> Option<Decl> {
+        self.decls.borrow().get(&symbol).copied()
     }
 
-    /// Set an existing binding kind of the given symbol.
+    /// Set an existing decl kind of the given symbol.
     ///
-    /// Returns `true` if the binding was found and updated, `false` otherwise.
-    pub fn set_existing_binding_kind(
-        &self,
-        symbol: Symbol,
-        kind: &impl Fn(BindingKind) -> BindingKind,
-    ) -> bool {
-        if let Some(old) = self.get_binding_kind(symbol) {
-            self.bindings.borrow_mut().insert(symbol, kind(old));
+    /// Returns `true` if the decl was found and updated, `false` otherwise.
+    pub fn set_existing_decl(&self, symbol: Symbol, f: &impl Fn(Decl) -> Decl) -> bool {
+        if let Some(old) = self.get_decl(symbol) {
+            self.decls.borrow_mut().insert(symbol, f(old));
             true
         } else {
             false
         }
-    }
-
-    /// Get a binding reference corresponding to the given symbol.
-    pub fn get_binding_kind(&self, symbol: Symbol) -> Option<BindingKind> {
-        let bindings = self.bindings.borrow();
-        bindings.get(&symbol).copied()
     }
 }
 
@@ -203,8 +156,8 @@ impl Scope {
 ///
 /// The context is a stack of scopes, each scope being a stack in itself.
 ///
-/// The context is used to resolve symbols to their corresponding bindings, and
-/// thus interpret their meaning. It can read and add [`Binding`]s, and can
+/// The context is used to resolve symbols to their corresponding decls, and
+/// thus interpret their meaning. It can read and add [`Decl`]s, and can
 /// enter and exit scopes.
 #[derive(Debug, Clone, Default)]
 pub struct Context {
@@ -259,50 +212,43 @@ impl Context {
         res
     }
 
-    /// Add a new binding to the current scope context.
+    /// Add a new decl to the current scope context.
     pub fn add_decl(&self, name: Symbol, ty: Option<TyId>, value: Option<TermId>) {
-        self.get_current_scope_ref()
-            .add_binding(Binding { name, kind: BindingKind::Decl(Decl { name, ty, value }) })
+        self.get_current_scope_ref().add_decl(Decl { name, ty, value })
     }
 
-    /// Add a new binding to the current scope context.
-    pub fn add_binding(&self, binding: Binding) {
-        self.get_current_scope_ref().add_binding(binding)
+    /// Add a new decl to the scope with the given index.
+    pub fn add_decl_to_scope(&self, decl: Decl, _scope_index: usize) {
+        self.get_closest_stack_scope_ref().add_decl(decl);
     }
 
-    /// Add a new binding to the scope with the given index.
-    pub fn add_binding_to_scope(&self, binding: Binding, _scope_index: usize) {
-        self.get_closest_stack_scope_ref().add_binding(binding);
+    /// Get a decl from the context, reading all accessible scopes.
+    pub fn try_get_decl(&self, name: Symbol) -> Option<Decl> {
+        self.scopes.borrow().iter().rev().find_map(|scope| scope.get_decl(name))
     }
 
-    /// Get a binding from the context, reading all accessible scopes.
-    pub fn try_get_binding(&self, name: Symbol) -> Option<Binding> {
-        self.scopes.borrow().iter().rev().find_map(|scope| scope.get_binding(name))
-    }
-
-    /// Get a binding from the context, reading all accessible scopes.
+    /// Get a decl from the context, reading all accessible scopes.
     ///
-    /// Panics if the binding doesn't exist.
-    pub fn get_binding(&self, name: Symbol) -> Binding {
-        self.try_get_binding(name)
-            .unwrap_or_else(|| panic!("tried to get a binding that doesn't exist"))
+    /// Panics if the decl doesn't exist.
+    pub fn get_decl(&self, name: Symbol) -> Decl {
+        self.try_get_decl(name).unwrap_or_else(|| panic!("tried to get a decl that doesn't exist"))
     }
 
-    /// Modify a binding in the context, with a function that takes the current
-    /// binding kind and returns the new binding kind.
-    pub fn modify_binding_with(&self, name: Symbol, binding: impl Fn(BindingKind) -> BindingKind) {
+    /// Modify a decl in the context, with a function that takes the current
+    /// decl kind and returns the new decl kind.
+    pub fn modify_decl_with(&self, name: Symbol, f: impl Fn(Decl) -> Decl) {
         let _ = self
             .scopes
             .borrow()
             .iter()
             .rev()
-            .find(|scope| scope.set_existing_binding_kind(name, &binding))
-            .unwrap_or_else(|| panic!("tried to modify a binding that doesn't exist"));
+            .find(|scope| scope.set_existing_decl(name, &f))
+            .unwrap_or_else(|| panic!("tried to modify a decl that doesn't exist"));
     }
 
-    /// Modify a binding in the context.
-    pub fn modify_binding(&self, binding: Binding) {
-        self.modify_binding_with(binding.name, |_| binding.kind);
+    /// Modify a decl in the context.
+    pub fn modify_decl(&self, decl: Decl) {
+        self.modify_decl_with(decl.name, |_| decl);
     }
 
     /// Get a reference to the current scope.
@@ -357,66 +303,61 @@ impl Context {
         0..self.scopes.borrow().len()
     }
 
-    /// Iterate over all the bindings in the context for the scope with the
+    /// Iterate over all the decls in the context for the scope with the
     /// given index (fallible).
-    pub fn try_for_bindings_of_scope_rev<E>(
+    pub fn try_for_decls_of_scope_rev<E>(
         &self,
         scope_index: usize,
-        mut f: impl FnMut(&Binding) -> Result<(), E>,
+        mut f: impl FnMut(&Decl) -> Result<(), E>,
     ) -> Result<(), E> {
         self.scopes.borrow()[scope_index]
-            .bindings
+            .decls
             .borrow()
             .iter()
             .rev()
-            .try_for_each(|binding| f(&Binding { name: *binding.0, kind: *binding.1 }))
+            .try_for_each(|(_, decl)| f(decl))
     }
 
-    /// Iterate over all the bindings in the context for the scope with the
+    /// Iterate over all the decls in the context for the scope with the
     /// given index (fallible).
-    pub fn try_for_bindings_of_scope<E>(
+    pub fn try_for_decls_of_scope<E>(
         &self,
         scope_index: usize,
-        mut f: impl FnMut(&Binding) -> Result<(), E>,
+        mut f: impl FnMut(&Decl) -> Result<(), E>,
     ) -> Result<(), E> {
-        self.scopes.borrow()[scope_index]
-            .bindings
-            .borrow()
-            .iter()
-            .try_for_each(|binding| f(&Binding { name: *binding.0, kind: *binding.1 }))
+        self.scopes.borrow()[scope_index].decls.borrow().iter().try_for_each(|(_, decl)| f(decl))
     }
 
-    /// Get the number of bindings in the context for the scope with the given
+    /// Get the number of decls in the context for the scope with the given
     /// index.
-    pub fn count_bindings_of_scope(&self, scope_index: usize) -> usize {
-        self.scopes.borrow()[scope_index].bindings.borrow().len()
+    pub fn count_decls_of_scope(&self, scope_index: usize) -> usize {
+        self.scopes.borrow()[scope_index].decls.borrow().len()
     }
 
-    /// Iterate over all the bindings in the context for the scope with the
+    /// Iterate over all the decls in the context for the scope with the
     /// given index (reversed).
-    pub fn for_bindings_of_scope_rev(&self, scope_index: usize, mut f: impl FnMut(&Binding)) {
-        let _ =
-            self.try_for_bindings_of_scope_rev(scope_index, |binding| -> Result<(), Infallible> {
-                f(binding);
-                Ok(())
-            });
-    }
-
-    /// Iterate over all the bindings in the context for the scope with the
-    /// given index.
-    pub fn for_bindings_of_scope(&self, scope_index: usize, mut f: impl FnMut(&Binding)) {
-        let _ = self.try_for_bindings_of_scope(scope_index, |binding| -> Result<(), Infallible> {
-            f(binding);
+    pub fn for_decls_of_scope_rev(&self, scope_index: usize, mut f: impl FnMut(&Decl)) {
+        let _ = self.try_for_decls_of_scope_rev(scope_index, |decl| -> Result<(), Infallible> {
+            f(decl);
             Ok(())
         });
     }
 
-    /// Get all the bindings in the context for the given scope.
-    pub fn get_owned_bindings_of_scope(&self, scope_index: usize) -> Vec<Symbol> {
-        self.scopes.borrow()[scope_index].bindings.borrow().keys().copied().collect_vec()
+    /// Iterate over all the decls in the context for the scope with the
+    /// given index.
+    pub fn for_decls_of_scope(&self, scope_index: usize, mut f: impl FnMut(&Decl)) {
+        let _ = self.try_for_decls_of_scope(scope_index, |decl| -> Result<(), Infallible> {
+            f(decl);
+            Ok(())
+        });
     }
 
-    /// Clear all the scopes and bindings in the context.
+    /// Get all the decls in the context for the given scope.
+    pub fn get_owned_decls_of_scope(&self, scope_index: usize) -> Vec<Symbol> {
+        self.scopes.borrow()[scope_index].decls.borrow().keys().copied().collect_vec()
+    }
+
+    /// Clear all the scopes and decls in the context.
     pub fn clear_all(&self) {
         self.scopes.borrow_mut().clear();
     }
@@ -451,28 +392,6 @@ impl fmt::Display for WithEnv<'_, Decl> {
                 write!(f, "{}: {}", self.env().with(self.value.name), ty_or_unknown)
             }
         }
-    }
-}
-
-impl fmt::Display for WithEnv<'_, BindingKind> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            BindingKind::ModMember(_, member_id) => {
-                write!(f, "{}", self.env().with(member_id))
-            }
-            BindingKind::Ctor(_, ctor_id) => {
-                write!(f, "{}", self.env().with(ctor_id))
-            }
-            BindingKind::Decl(decl) => {
-                write!(f, "{}", self.env().with(decl))
-            }
-        }
-    }
-}
-
-impl fmt::Display for WithEnv<'_, Binding> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(self.value.kind))
     }
 }
 
@@ -516,8 +435,8 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
 impl fmt::Display for WithEnv<'_, &Scope> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}:", self.env().with(self.value.kind))?;
-        for binding in self.value.bindings.borrow().values() {
-            let result = self.env().with(*binding).to_string();
+        for decl in self.value.decls.borrow().values() {
+            let result = self.env().with(*decl).to_string();
             for line in result.lines() {
                 writeln!(f, "  {line}")?;
             }
@@ -531,8 +450,8 @@ impl fmt::Display for WithEnv<'_, &Context> {
         for scope_index in self.value.get_scope_indices() {
             let kind = self.value.get_scope(scope_index).kind;
             writeln!(f, "({}) {}:", scope_index, self.env().with(kind))?;
-            self.value.try_for_bindings_of_scope(scope_index, |binding| {
-                let result = self.env().with(*binding).to_string();
+            self.value.try_for_decls_of_scope(scope_index, |decl| {
+                let result = self.env().with(*decl).to_string();
                 for line in result.lines() {
                     writeln!(f, "  {line}")?;
                 }

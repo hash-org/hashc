@@ -10,7 +10,7 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_tir::{
     data::DataDefCtors,
     directives::AppliedDirectives,
-    environment::{context::ScopeKind, env::AccessToEnv},
+    environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberValue},
     tys::Ty,
     utils::common::CommonUtils,
@@ -58,7 +58,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<()> {
         let data_def_id =
             self.ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
-        self.scoping().enter_scope(data_def_id.into(), ContextKind::Environment, || {
+        self.scoping().enter_scope(ContextKind::Environment, || {
             let found_error = &Cell::new(false);
             let attempt = |err| {
                 if self.try_or_add_error(err).is_none() {
@@ -88,7 +88,6 @@ impl<'tc> ResolutionPass<'tc> {
                         });
 
                     self.scoping().enter_scope(
-                        ScopeKind::Ctor(struct_ctor),
                         ContextKind::Environment,
                         || {
                             // Struct fields
@@ -118,7 +117,6 @@ impl<'tc> ResolutionPass<'tc> {
 
                     for (i, variant) in enum_def.entries.ast_ref_iter().enumerate() {
                         self.scoping().enter_scope(
-                            ScopeKind::Ctor((data_def_ctors, i)),
                             ContextKind::Environment,
                             || {
                                 // Variant fields
@@ -211,7 +209,7 @@ impl<'tc> ResolutionPass<'tc> {
         mod_def_id: ModDefId,
         member_exprs: impl Iterator<Item = ast::AstNodeRef<'a, ast::Expr>>,
     ) -> SemanticResult<()> {
-        self.scoping().enter_scope(mod_def_id.into(), ContextKind::Environment, || {
+        self.scoping().enter_scope(ContextKind::Environment, || {
             self.scoping().add_mod_members(mod_def_id);
 
             let mut found_error = false;

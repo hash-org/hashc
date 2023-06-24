@@ -4,20 +4,20 @@ use std::{collections::HashMap, fmt};
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_tir::{
-    data::DataDefId,
+    data::{CtorDefId, DataDefCtors, DataDefId},
     environment::{
         context::{ParamOrigin, ScopeKind},
         env::{AccessToEnv, Env},
     },
     fns::FnTy,
     locations::LocationTarget,
-    mods::ModDefId,
+    mods::{ModDefId, ModMemberId},
     params::ParamId,
     scopes::StackId,
     symbols::Symbol,
     tuples::TupleTy,
     ty_as_variant,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::{
     state::HeavyState,
@@ -58,6 +58,22 @@ impl fmt::Display for WithSemEnv<'_, &ContextKind> {
         }
     }
 }
+/// The kind of a binding.
+#[derive(Debug, Clone, Copy)]
+pub enum BindingKind {
+    /// A binding that is a module member.
+    ///
+    /// For example, `mod { Q := struct(); Q }`
+    ModMember(ModDefId, ModMemberId),
+    /// A binding that is a constructor definition.
+    ///
+    /// For example, `false`, `None`, `Some(_)`.
+    Ctor(DataDefId, CtorDefId),
+    /// A symbolic binding.
+    Sym(Symbol),
+}
+
+pub type Binding = (Symbol, BindingKind);
 
 /// Contains helper functions for traversing scopes and adding bindings.
 ///
@@ -68,10 +84,10 @@ impl fmt::Display for WithSemEnv<'_, &ContextKind> {
 pub(super) struct Scoping<'tc> {
     sem_env: &'tc SemEnv<'tc>,
     /// Stores a list of contexts we are in, mirroring `ContextStore` but with
-    /// identifiers so that we can resolve them to symbols.
+    /// identifiers so that we can resolve them to bindings.
     ///
     /// Also keeps track of the kind of context we are in.
-    bindings_by_name: HeavyState<Vec<(ContextKind, HashMap<Identifier, Symbol>)>>,
+    bindings_by_name: HeavyState<Vec<(ContextKind, HashMap<Identifier, Binding>)>>,
 }
 
 impl AccessToEnv for Scoping<'_> {
@@ -105,7 +121,7 @@ impl<'tc> Scoping<'tc> {
     ///
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
-    fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<Symbol> {
+    fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<(Symbol, BindingKind)> {
         let name = name.into();
         let binding = match self.get_current_context_kind() {
             ContextKind::Access(_, _) => {
@@ -131,7 +147,7 @@ impl<'tc> Scoping<'tc> {
         name: impl Into<Identifier>,
         span: Span,
         looking_in: ContextKind,
-    ) -> SemanticResult<Symbol> {
+    ) -> SemanticResult<(Symbol, BindingKind)> {
         let name = name.into();
         let symbol =
             self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
@@ -155,29 +171,22 @@ impl<'tc> Scoping<'tc> {
     }
 
     /// Run a function in a new scope, and then exit the scope.
-    pub(super) fn enter_scope<T>(
-        &self,
-        kind: ScopeKind,
-        context_kind: ContextKind,
-        f: impl FnOnce() -> T,
-    ) -> T {
-        self.context().enter_scope(kind, || {
-            self.bindings_by_name.enter(
-                |b| {
-                    b.push((context_kind, HashMap::new()));
-                },
-                |b| {
-                    // Exit the scope on the context exit.
-                    b.pop();
-                },
-                f,
-            )
-        })
+    pub(super) fn enter_scope<T>(&self, context_kind: ContextKind, f: impl FnOnce() -> T) -> T {
+        self.bindings_by_name.enter(
+            |b| {
+                b.push((context_kind, HashMap::new()));
+            },
+            |b| {
+                // Exit the scope on the context exit.
+                b.pop();
+            },
+            f,
+        )
     }
 
     /// Add a new scope
-    pub(super) fn add_scope(&self, kind: ScopeKind, context_kind: ContextKind) {
-        self.context().add_scope(kind);
+    pub(super) fn add_scope(&self, _kind: ScopeKind, context_kind: ContextKind) {
+        // self.context().add_scope(kind);
         let mut b = self.bindings_by_name.get_mut();
         // Initialise the name map. Any duplicate names will be shadowed by the last
         // entry.
@@ -191,16 +200,14 @@ impl<'tc> Scoping<'tc> {
         let param_name = self.stores().params().get_element(param_id).name;
 
         // Add the binding to the current scope.
-        self.context_utils().add_param_binding(param_id);
-        self.add_named_binding(param_name);
+        self.add_named_binding(param_name, BindingKind::Sym(param_name));
     }
 
     /// Add a stack member to the current scope, also adding it to the
     /// `bindings_by_name` map.
     pub(super) fn add_stack_binding(&self, name: Symbol) {
         // Add the binding to the current scope.
-        self.context_utils().add_unknown_var(name);
-        self.add_named_binding(name);
+        self.add_named_binding(name, BindingKind::Sym(name));
     }
 
     /// Add the data parameters constructors of the definition to the current
@@ -210,27 +217,51 @@ impl<'tc> Scoping<'tc> {
         for i in params.to_index_range() {
             self.add_param_binding((params, i), data_def_id.into());
         }
-        self.context_utils()
-            .add_data_ctors(data_def_id, |binding| self.add_named_binding(binding.name));
+        self.stores().data_def().map_fast(data_def_id, |data_def| {
+            // Add all the constructors
+            match data_def.ctors {
+                DataDefCtors::Defined(ctors) => {
+                    self.stores().ctor_defs().map_fast(ctors, |ctors| {
+                        for ctor in ctors.iter() {
+                            self.add_named_binding(
+                                ctor.name,
+                                BindingKind::Ctor(data_def_id, ctor.id),
+                            );
+                        }
+                    })
+                }
+                DataDefCtors::Primitive(_) => {
+                    // No-op
+                }
+            }
+        })
     }
 
     /// Add the module members of the definition to the current scope,
     /// also adding them to the `bindings_by_name` map.
     pub(super) fn add_mod_members(&self, mod_def_id: ModDefId) {
-        self.context_utils()
-            .add_mod_members(mod_def_id, |binding| self.add_named_binding(binding.name));
+        self.stores().mod_def().map_fast(mod_def_id, |mod_def| {
+            self.stores().mod_members().map_fast(mod_def.members, |members| {
+                for member in members.iter() {
+                    self.add_named_binding(
+                        member.name,
+                        BindingKind::ModMember(mod_def_id, member.id),
+                    );
+                }
+            })
+        })
     }
 
     /// Add a named binding to the current scope, by recording its identifier
     /// name.
-    fn add_named_binding(&self, name: Symbol) {
+    fn add_named_binding(&self, name: Symbol, kind: BindingKind) {
         let name_data = self.stores().symbol().get(name);
 
         // Add the binding to the `bindings_by_name` map.
         if let Some(ident_name) = name_data.name {
             match self.bindings_by_name.get_mut().last_mut() {
                 Some(bindings) => {
-                    bindings.1.insert(ident_name, name);
+                    bindings.1.insert(ident_name, (name, kind));
                 }
                 None => panic!("No bindings_by_name map for current scope!"),
             }
@@ -315,9 +346,10 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::BodyBlock>,
         f: impl FnOnce(StackId) -> T,
     ) -> Option<T> {
-        self.ast_info().stacks().get_data_by_node(node.id()).map(|stack_id| {
-            self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || f(stack_id))
-        })
+        self.ast_info()
+            .stacks()
+            .get_data_by_node(node.id())
+            .map(|stack_id| self.enter_scope(ContextKind::Environment, || f(stack_id)))
     }
 
     /// Enter the scope of a type function type
@@ -328,7 +360,7 @@ impl<'tc> Scoping<'tc> {
     ) -> T {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
         let fn_ty = ty_as_variant!(self, self.get_ty(fn_ty_id), Fn);
-        self.enter_scope(ScopeKind::FnTy(fn_ty), ContextKind::Environment, || f(fn_ty))
+        self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
 
     /// Enter the scope of a function type
@@ -339,7 +371,7 @@ impl<'tc> Scoping<'tc> {
     ) -> T {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
         let fn_ty = ty_as_variant!(self, self.get_ty(fn_ty_id), Fn);
-        self.enter_scope(ScopeKind::FnTy(fn_ty), ContextKind::Environment, || f(fn_ty))
+        self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
 
     /// Enter the scope of a tuple type
@@ -350,7 +382,7 @@ impl<'tc> Scoping<'tc> {
     ) -> T {
         let tuple_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
         let tuple_ty = ty_as_variant!(self, self.get_ty(tuple_ty_id), Tuple);
-        self.enter_scope(ScopeKind::TupleTy(tuple_ty), ContextKind::Environment, || f(tuple_ty))
+        self.enter_scope(ContextKind::Environment, || f(tuple_ty))
     }
 
     /// Register a declaration, which will add it to the current stack scope.
@@ -359,11 +391,9 @@ impl<'tc> Scoping<'tc> {
     ///
     /// If the declaration is not in a stack scope, this is a no-op.
     pub(super) fn register_declaration(&self, node: ast::AstNodeRef<ast::Declaration>) {
-        if let ScopeKind::Stack(_) = self.context().get_current_scope_kind() {
-            self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
-                self.add_stack_binding(member);
-            });
-        }
+        self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
+            self.add_stack_binding(member);
+        });
     }
 
     /// Enter a match case, adding the bindings to the current stack scope.
@@ -375,7 +405,7 @@ impl<'tc> Scoping<'tc> {
         let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
         // Each match case has its own scope, so we need to enter it, and add all the
         // pattern bindings to the context.
-        self.enter_scope(ScopeKind::Stack(stack_id), ContextKind::Environment, || {
+        self.enter_scope(ContextKind::Environment, || {
             self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
                 self.add_stack_binding(member);
             });
