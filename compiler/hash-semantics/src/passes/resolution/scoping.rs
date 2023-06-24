@@ -70,6 +70,9 @@ pub enum BindingKind {
     /// For example, `false`, `None`, `Some(_)`.
     Ctor(DataDefId, CtorDefId),
     /// A symbolic binding.
+    ///
+    /// This includes parameters, stack variables, and anything else that
+    /// remains as `Var` in the TIR.
     Sym(Symbol),
 }
 
