@@ -6,17 +6,13 @@
 use hash_ir::{
     intrinsics::Intrinsic,
     ir::{
-        self, AggregateKind, BasicBlock, Const, ConstKind, LogicalBinOp, Operand, Place, RValue,
-        Statement, StatementKind, TerminatorKind, UnevaluatedConst,
+        self, AggregateKind, BasicBlock, Const, LogicalBinOp, Operand, Place, RValue, Statement,
+        StatementKind, TerminatorKind,
     },
     ty::{AdtId, IrTy, Mutability, RefKind, VariantIdx},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{
-    constant::CONSTANT_MAP,
-    identifier::{Identifier, IDENTS},
-    location::Span,
-};
+use hash_source::{constant::CONSTANT_MAP, identifier::Identifier, location::Span};
 use hash_tir::{
     args::ArgsId,
     arrays::ArrayTerm,
@@ -35,7 +31,9 @@ use hash_tir::{
 };
 use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 
-use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
+use super::{
+    ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LocalKey, LoopBlockInfo,
+};
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Compile the given [Term] and place the value of the [Term]
@@ -252,19 +250,11 @@ impl<'tcx> BodyBuilder<'tcx> {
             Term::Var(symbol) => {
                 let binding = self.context().get_decl(*symbol);
 
-                // Here, if the scope is not variable, i.e. constant, then we essentially need
-                // to denote that this a constant that comes from outside of the function body.
-                let name = self.get_symbol(binding.name).name.unwrap_or(IDENTS.underscore);
+                let local_key = LocalKey::from(binding);
+                let local = *(self.declaration_map.get(&local_key).unwrap());
 
-                // here, we emit an un-evaluated constant kind which will be resolved later
-                // during IR simplification.
-                let unevaluated_const = UnevaluatedConst { name };
-                let rvalue = (ConstKind::Unevaluated(unevaluated_const)).into();
-
-                // we also need to save this un-evaluated const in the builder
-                // so we can easily know what should and shouldn't be resolved.
-                self.needed_constants.push(unevaluated_const);
-                self.control_flow_graph.push_assign(block, destination, rvalue, span);
+                let place = Place::from_local(local, self.ctx());
+                self.control_flow_graph.push_assign(block, destination, place.into(), span);
 
                 block.unit()
             }

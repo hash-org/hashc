@@ -159,52 +159,6 @@ impl<'env> ContextUtils<'env> {
         });
     }
 
-    // /// Add the data constructors of the given data definition to the context.
-    // ///
-    // /// Must be in the scope of the given data definition.
-    // /// Assumes that the data definition's parameters have already been added.
-    // pub fn add_data_ctors(&self, data_def_id: DataDefId, f: impl Fn(Decl)) {
-    //     // @@Safety: Maybe we should check that we are in this data def?
-    //     self.stores().data_def().map_fast(data_def_id, |data_def| {
-    //         // Add all the constructors
-    //         match data_def.ctors {
-    //             DataDefCtors::Defined(ctors) => {
-    //                 self.stores().ctor_defs().map_fast(ctors, |ctors| {
-    //                     for ctor in ctors.iter() {
-    //                         let binding = Binding {
-    //                             name: ctor.name,
-    //                             kind: BindingKind::Ctor(data_def_id, ctor.id),
-    //                         };
-    //                         self.context().add_binding(binding);
-    //                         f(binding);
-    //                     }
-    //                 })
-    //             }
-    //             DataDefCtors::Primitive(_) => {
-    //                 // No-op
-    //             }
-    //         }
-    //     })
-    // }
-
-    // /// Add the module's members to the context.
-    // ///
-    // /// Must be in the scope of the given module.
-    // pub fn add_mod_members(&self, mod_def_id: ModDefId, f: impl Fn(Binding)) {
-    //     self.stores().mod_def().map_fast(mod_def_id, |mod_def| {
-    //         self.stores().mod_members().map_fast(mod_def.members, |members| {
-    //             for member in members.iter() {
-    //                 let binding = Binding {
-    //                     name: member.name,
-    //                     kind: BindingKind::ModMember(mod_def_id, member.id),
-    //                 };
-    //                 self.context().add_binding(binding);
-    //                 f(binding);
-    //             }
-    //         })
-    //     })
-    // }
-
     /// Get the current stack, or panic we are not in a stack.
     pub fn get_current_stack(&self) -> StackId {
         match self.context().get_current_scope_kind() {
@@ -228,9 +182,7 @@ impl<'env> ContextUtils<'env> {
     /// Add the members of the given scope to the context.
     pub fn add_resolved_scope_members(&self, kind: ScopeKind) {
         match kind {
-            ScopeKind::Mod(_mod_def_id) => {
-                // self.add_mod_members(mod_def_id, |_| {});
-            }
+            ScopeKind::Mod(_) => {}
             ScopeKind::Stack(stack_id) => {
                 self.add_stack_bindings(stack_id);
             }
@@ -243,9 +195,6 @@ impl<'env> ContextUtils<'env> {
 
                 // Params
                 self.add_param_bindings(data_def.params);
-
-                // Constructors
-                // self.add_data_ctors(data_def_id, |_| {});
             }
             ScopeKind::Ctor(ctor_def_id) => {
                 let ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);

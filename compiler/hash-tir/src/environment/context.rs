@@ -98,22 +98,6 @@ pub enum ScopeKind {
     Sub,
 }
 
-impl ScopeKind {
-    /// Whether this scope is constant.
-    ///
-    /// A constant scope is one that cannot depend on non-constant bindings.
-    pub fn is_constant(&self) -> bool {
-        match self {
-            ScopeKind::Mod(_) | ScopeKind::Data(_) | ScopeKind::Ctor(_) => true,
-            ScopeKind::Sub
-            | ScopeKind::Stack(_)
-            | ScopeKind::Fn(_)
-            | ScopeKind::FnTy(_)
-            | ScopeKind::TupleTy(_) => false,
-        }
-    }
-}
-
 /// Information about a scope in the context.
 #[derive(Debug, Clone)]
 pub struct Scope {

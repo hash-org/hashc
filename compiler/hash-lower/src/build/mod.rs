@@ -31,7 +31,7 @@ use hash_source::{
 use hash_tir::{
     directives::DirectiveTarget,
     environment::{
-        context::{BindingKind, ScopeKind},
+        context::{Decl, ScopeKind},
         env::{AccessToEnv, Env},
     },
     fns::{FnBody, FnDef, FnDefId, FnTy},
@@ -96,12 +96,9 @@ impl From<TermId> for BuildItem {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct LocalKey(Symbol);
 
-impl From<BindingKind> for LocalKey {
-    fn from(binding: BindingKind) -> Self {
-        match binding {
-            BindingKind::Decl(decl) => LocalKey(decl.name),
-            _ => panic!("unexpected binding kind"),
-        }
+impl From<Decl> for LocalKey {
+    fn from(binding: Decl) -> Self {
+        LocalKey(binding.name)
     }
 }
 
@@ -190,7 +187,9 @@ pub(crate) struct BodyBuilder<'tcx> {
 
     /// Constants that will need to be resolved after all IR
     /// is built.
-    needed_constants: Vec<UnevaluatedConst>,
+    // @@Unused: If we need to resolve constants after TIR, then this field
+    // will be needed, but currently it is not used.
+    _needed_constants: Vec<UnevaluatedConst>,
 
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
@@ -260,7 +259,7 @@ impl<'ctx> BodyBuilder<'ctx> {
             source_id,
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
-            needed_constants: Vec::new(),
+            _needed_constants: Vec::new(),
             declaration_map: FxHashMap::default(),
             reached_terminator: false,
             loop_block_info: None,
@@ -353,10 +352,10 @@ impl<'ctx> BodyBuilder<'ctx> {
 
                 let symbol = this.get_symbol(param.name);
                 let param_name = symbol.name.unwrap_or(IDENTS.underscore);
-                let binding = this.context().get_binding(symbol.symbol);
+                let binding = this.context().get_decl(symbol.symbol);
 
                 // @@Future: deal with parameter attributes that are mutable?
-                this.push_local(LocalDecl::new_immutable(param_name, ir_ty), binding.kind.into());
+                this.push_local(LocalDecl::new_immutable(param_name, ir_ty), binding.into());
             });
 
             // Axioms and Intrinsics are not lowered into IR
