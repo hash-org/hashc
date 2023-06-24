@@ -14,7 +14,7 @@ use std::{
 };
 
 use hash_source::{
-    location::{compute_row_col_from_offset, RowCol, RowColSpan, SourceLocation},
+    location::{RowCol, RowColSpan, SourceLocation},
     SourceMap,
 };
 
@@ -71,18 +71,14 @@ impl ReportCodeBlock {
         match self.info.get() {
             Some(info) => info,
             None => {
-                let SourceLocation { span, id: source_id } = self.source_location;
-                let source = sources.contents_by_id(source_id);
+                let SourceLocation { span, id } = self.source_location;
+                let source = sources.line_ranges_by_id(id);
 
                 // Compute offset rows and columns from the provided span
-                let start @ RowCol { row: start_row, .. } =
-                    compute_row_col_from_offset(span.start(), source, true);
-
-                let end @ RowCol { row: end_row, .. } =
-                    compute_row_col_from_offset(span.end(), source, false);
-
+                let start @ RowCol { row: start_row, .. } = source.get_row_col(span.start());
+                let end @ RowCol { row: end_row, .. } = source.get_row_col(span.end());
                 let RowCol { row: last_row, .. } =
-                    compute_row_col_from_offset(source.len(), source, false);
+                    source.get_row_col(sources.contents_by_id(id).len() - 1);
 
                 // Compute the selected span outside of the diagnostic span
                 let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
