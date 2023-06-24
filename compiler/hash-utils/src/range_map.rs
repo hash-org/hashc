@@ -17,6 +17,20 @@ pub struct Range<Idx> {
     end: Idx,
 }
 
+impl Range<usize> {
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn end(&self) -> usize {
+        self.end
+    }
+}
+
 impl<T: fmt::Display> fmt::Display for Range<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}..={}", self.start, self.end)
@@ -112,6 +126,11 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
         true
     }
 
+    /// Get the number of entries in the [RangeMap].
+    pub fn entry_count(&self) -> usize {
+        self.store.len()
+    }
+
     /// Insert a new key-value pair into the [RangeMap].
     pub fn insert(&mut self, key: RangeInclusive<I>, value: V) {
         let overlaps = |left: &Range<I>, right: &Range<I>| {
@@ -165,6 +184,30 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
     /// Get the position of an element within the range map.
     pub fn index(&self, key: I) -> Option<usize> {
         self.store.binary_search_by(|(r, _)| r.partial_cmp(&key).unwrap()).ok()
+    }
+
+    /// Get the position of an element within the range map or fall
+    /// back to the last element in the map. This is useful for performing
+    /// a `wrapping` search in the range.
+    pub fn index_wrapping(&self, key: I) -> usize {
+        match self.index(key) {
+            Some(index) => index,
+            None => self.store.len() - 1,
+        }
+    }
+
+    /// Get the key of from the given index, this returns the actual key
+    /// for the value, returning a [Range].
+    pub fn key(&self, key: I) -> Option<&Range<I>> {
+        let index = self.index(key)?;
+        self.store.get(index).map(|(range, _)| range)
+    }
+
+    /// This function is a `wrapping` search version for the [`Self::key()`]
+    /// function.
+    pub fn key_wrapping(&self, key: I) -> &Range<I> {
+        let index = self.index_wrapping(key);
+        &self.store[index].0
     }
 
     /// Get the value from the given key.

@@ -19,7 +19,7 @@ use hash_utils::{
     path::adjust_canonicalisation,
     range_map::RangeMap,
 };
-use location::{compute_row_col_from_offset, RowColSpan, SourceLocation};
+use location::{RowCol, RowColSpan, SourceLocation, Span};
 use once_cell::sync::OnceCell;
 
 /// Used to check what kind of [SourceId] is being
@@ -178,6 +178,42 @@ impl LineRanges {
     pub fn with_capacity(capacity: usize) -> Self {
         Self(RangeMap::with_capacity(capacity))
     }
+
+    /// Create a line range from a string slice.
+    pub fn new_from_str(s: &str) -> Self {
+        // Pre-allocate the line ranges to a specific size by counting the number of
+        // newline characters within the module source.
+        let mut ranges = LineRanges::with_capacity(bytecount::count(s.as_bytes(), b'\n'));
+
+        // Now, iterate through the source and record the position of each newline
+        // range, and push it into the map.
+        let mut count = 0;
+
+        for line in s.lines() {
+            ranges.append(count..=(count + line.len()), ());
+            count += line.len() + 1;
+        }
+
+        ranges
+    }
+
+    /// Get a [RowCol] from a given byte index.
+    pub fn get_row_col(&self, index: usize) -> RowCol {
+        let ranges = &self.0;
+        let line = ranges.index_wrapping(index);
+        let key = ranges.key_wrapping(index);
+        let offset = key.start();
+
+        RowCol { row: line, column: index - offset }
+    }
+
+    /// Returns the line and column of the given [Span]
+    pub fn span_into_row_col_span(&self, span: Span) -> RowColSpan {
+        let start = self.get_row_col(span.start());
+        let end = self.get_row_col(span.end());
+
+        RowColSpan { start, end }
+    }
 }
 
 impl Deref for LineRanges {
@@ -207,8 +243,8 @@ impl fmt::Display for LineRanges {
 /// Stores all of the relevant source information about a particular module.
 #[derive(Debug)]
 pub struct Module {
-    /// The source of the module.
-    source: String,
+    /// The contents of the module.
+    contents: String,
 
     /// The kind of the module.
     kind: ModuleKind,
@@ -220,12 +256,12 @@ pub struct Module {
 impl Module {
     /// Create a new [Module].
     pub fn new(source: String, kind: ModuleKind) -> Self {
-        Self { source, kind, line_ranges: OnceCell::new() }
+        Self { contents: source, kind, line_ranges: OnceCell::new() }
     }
 
     /// Get the source of the module.
-    pub fn source(&self) -> &str {
-        &self.source
+    pub fn contents(&self) -> &str {
+        &self.contents
     }
 
     /// Get the kind of the module.
@@ -235,23 +271,37 @@ impl Module {
 
     /// Get the line ranges for this particular module.
     pub fn line_ranges(&self) -> &LineRanges {
-        self.line_ranges.get_or_init(|| {
-            // Pre-allocate the line ranges to a specific size by counting the number of
-            // newline characters within the module source.
-            let mut ranges =
-                LineRanges::with_capacity(bytecount::count(self.source.as_bytes(), b'\n'));
+        self.line_ranges.get_or_init(|| LineRanges::new_from_str(&self.contents))
+    }
+}
 
-            // Now, iterate through the source and record the position of each newline
-            // range, and push it into the map.
-            let mut count = 0;
+/// A single entry within the interactive mode, this is used to store the
+/// contents of the interactive block. An [InteractiveBlock] is only part
+/// of the `<interactive>` module, and thus does not imply the same behaviour
+/// or handling as a [Module].
+#[derive(Debug)]
+pub struct InteractiveBlock {
+    /// The contents of the interactive block.
+    contents: String,
 
-            for line in self.source.lines() {
-                ranges.append(count..=(count + line.len()), ());
-                count += line.len() + 1;
-            }
+    /// Line ranges for fast lookups, this is only computed when it is needed.
+    line_ranges: OnceCell<LineRanges>,
+}
 
-            ranges
-        })
+impl InteractiveBlock {
+    /// Create a new [InteractiveBlock].
+    pub fn new(contents: String) -> Self {
+        Self { contents, line_ranges: OnceCell::new() }
+    }
+
+    /// Get the contents of the interactive block.
+    pub fn contents(&self) -> &str {
+        &self.contents
+    }
+
+    /// Get the line ranges for this particular interactive block.
+    pub fn line_ranges(&self) -> &LineRanges {
+        self.line_ranges.get_or_init(|| LineRanges::new_from_str(&self.contents))
     }
 }
 
@@ -271,7 +321,7 @@ pub struct SourceMap {
 
     /// A map between [InteractiveId] and the actual sources of the interactive
     /// block.
-    interactive_blocks: IndexVec<InteractiveId, String>,
+    interactive_blocks: IndexVec<InteractiveId, InteractiveBlock>,
 }
 
 impl SourceMap {
@@ -348,9 +398,18 @@ impl SourceMap {
     /// specified [SourceId]
     pub fn contents_by_id(&self, source_id: SourceId) -> &str {
         if source_id.is_interactive() {
-            self.interactive_blocks.get(source_id.value() as usize).unwrap()
+            self.interactive_blocks.get(source_id.value() as usize).unwrap().contents()
         } else {
-            self.modules.get(source_id.value() as usize).map(|module| module.source()).unwrap()
+            self.modules.get(source_id.value() as usize).unwrap().contents()
+        }
+    }
+
+    /// Get the [LineRanges] for a specific [SourceId].
+    pub fn line_ranges_by_id(&self, source_id: SourceId) -> &LineRanges {
+        if source_id.is_interactive() {
+            self.interactive_blocks.get(source_id.value() as usize).unwrap().line_ranges()
+        } else {
+            self.modules.get(source_id.value() as usize).unwrap().line_ranges()
         }
     }
 
@@ -395,19 +454,14 @@ impl SourceMap {
     /// Add an interactive block to the [SourceMap]
     pub fn add_interactive_block(&mut self, contents: String) -> SourceId {
         let id = self.interactive_blocks.len() as u32;
-        self.interactive_blocks.push(contents);
+        self.interactive_blocks.push(InteractiveBlock::new(contents));
         SourceId::new_interactive(id)
     }
 
     /// Function to get a friendly representation of the [SourceLocation] in
     /// terms of row and column positions.
     pub fn get_column_row_span_for(&self, location: SourceLocation) -> RowColSpan {
-        let source = self.contents_by_id(location.id);
-
-        let start = compute_row_col_from_offset(location.span.start(), source, true);
-        let end = compute_row_col_from_offset(location.span.end(), source, false);
-
-        RowColSpan { start, end }
+        self.line_ranges_by_id(location.id).span_into_row_col_span(location.span)
     }
 
     /// Convert a [SourceLocation] in terms of the filename, row and column.

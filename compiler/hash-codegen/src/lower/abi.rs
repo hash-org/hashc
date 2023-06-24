@@ -123,24 +123,5 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
         calling_convention,
     };
 
-    // adjust_fn_abi_for_specified_abi(ctx, &mut fn_abi, abi);
     Ok(fn_abi)
 }
-
-// /// This function adjusts the ABI of a function based on the specified
-// /// ABI. This is required since the ABI of a function is not always
-// /// the same as the ABI of the arguments.
-// fn adjust_fn_abi_for_specified_abi<'b, Ctx: HasCtxMethods<'b>>(
-//     _ctx: &Ctx,
-//     _fn_abi: &mut FnAbi,
-//     abi: Abi,
-// ) {
-//     if abi == Abi::Hash {
-//         // @@Todo: currently unclear what optimisations we can perform
-//         // here...
-//     } else {
-//         // Here we adjust to a platform specific ABI, based on the
-//         // platform.
-//         unimplemented!()
-//     }
-// }

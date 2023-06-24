@@ -4,8 +4,8 @@
 //!
 //! 1. Count how many times the [Local] is used as an [RValue].
 //!
-//! 2. For any [Local]s that are to be removed, we also remove all
-//!    assignments to those locals that may affect counts of other
+//! 2. For any [Local]s that are to be removed, we also remove all assignments
+//!    to those locals that may affect counts of other
 //!   [Local]s.
 
 use hash_ir::{

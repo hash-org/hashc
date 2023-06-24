@@ -4,15 +4,15 @@
 //! approach to as the AST. Most of the time, we don't want to
 //! write the visitor code by hand. Ideally, we want:
 //!
-//! 1. A cartesian product of the IR Visitor traits, so that we
-//!    can both visit with a mutable and immutable context, and an
-//!    a visitor that can modify the IR in place and one that can't.
+//! 1. A cartesian product of the IR Visitor traits, so that we can both visit
+//!    with a mutable and immutable context, and an a visitor that can modify
+//!    the IR in place and one that can't.
 //!
-//! 2. The ability to generate walking methods for the IR that can accompany
-//!    all variants fo the visiting traits.
+//! 2. The ability to generate walking methods for the IR that can accompany all
+//!    variants fo the visiting traits.
 //!
-//! 3. The ability to hide away the boilerplate of the visitor and walking
-//!    code for nodes that don't need to be dealt with.
+//! 3. The ability to hide away the boilerplate of the visitor and walking code
+//!    for nodes that don't need to be dealt with.
 use crate::{
     ir::{
         AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, ConstKind, ConstOp,
