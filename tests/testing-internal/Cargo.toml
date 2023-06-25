@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 itertools = "0.10"
-syn = { version = "1.0", features = ["extra-traits", "full"] }
 quote = "1.0"
 
-hash-pipeline = {path = "../../compiler/hash-pipeline" }
+hash-pipeline = { path = "../../compiler/hash-pipeline" }

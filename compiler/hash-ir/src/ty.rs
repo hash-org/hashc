@@ -22,7 +22,10 @@ use hash_target::{
 use hash_utils::{
     index_vec::{self, index_vec, IndexVec},
     new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store, StoreKey},
+    store::{
+        CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store, StoreInternalData,
+        StoreKey,
+    },
 };
 
 use crate::{
@@ -185,7 +188,7 @@ impl Default for InstanceStore {
 }
 
 impl Store<InstanceId, Instance> for InstanceStore {
-    fn internal_data(&self) -> &std::cell::RefCell<Vec<Instance>> {
+    fn internal_data(&self) -> &StoreInternalData<Instance> {
         self.store.internal_data()
     }
 }
@@ -808,7 +811,7 @@ impl Default for AdtStore {
 }
 
 impl Store<AdtId, AdtData> for AdtStore {
-    fn internal_data(&self) -> &std::cell::RefCell<Vec<AdtData>> {
+    fn internal_data(&self) -> &StoreInternalData<AdtData> {
         self.store.internal_data()
     }
 }
@@ -993,7 +996,7 @@ impl TyStore {
 }
 
 impl Store<IrTyId, IrTy> for TyStore {
-    fn internal_data(&self) -> &std::cell::RefCell<Vec<IrTy>> {
+    fn internal_data(&self) -> &StoreInternalData<IrTy> {
         self.data.internal_data()
     }
 }

@@ -1,7 +1,8 @@
-use std::{cell::RefCell, hash::Hash};
+use std::hash::Hash;
 
 use bimap::BiMap;
 use hash_ast::ast::AstNodeId;
+use parking_lot::RwLock;
 
 use crate::{
     args::ArgId,
@@ -17,18 +18,18 @@ use crate::{
 };
 
 /// A partial mapping from AST nodes to `T` and back.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AstMap<T: Hash + Eq> {
-    data: RefCell<BiMap<AstNodeId, T>>,
+    data: RwLock<BiMap<AstNodeId, T>>,
 }
 
 impl<T: Hash + Eq> AstMap<T> {
     pub fn new() -> Self {
-        Self { data: RefCell::new(BiMap::new()) }
+        Self { data: RwLock::new(BiMap::new()) }
     }
 
     pub fn insert(&self, ast_id: AstNodeId, data: T) {
-        self.data.borrow_mut().insert(ast_id, data);
+        self.data.write().insert(ast_id, data);
     }
 }
 
@@ -40,17 +41,17 @@ impl<T: Hash + Eq> Default for AstMap<T> {
 
 impl<T: Hash + Eq + Copy> AstMap<T> {
     pub fn get_data_by_node(&self, ast_id: AstNodeId) -> Option<T> {
-        self.data.borrow().get_by_left(&ast_id).copied()
+        self.data.read().get_by_left(&ast_id).copied()
     }
 
     pub fn get_node_by_data(&self, data: T) -> Option<AstNodeId> {
-        self.data.borrow().get_by_right(&data).copied()
+        self.data.read().get_by_right(&data).copied()
     }
 }
 
 macro_rules! ast_info {
     ($($name:ident: $ty:ty),* $(,)?) => {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub struct AstInfo {
             $(
                 $name: $ty,

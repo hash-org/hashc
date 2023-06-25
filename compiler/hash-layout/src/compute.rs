@@ -3,7 +3,7 @@
 //! as possible, thus using a [LayoutCache] in order to cache all the
 //! previously computed layouts, and re-use them as much as possible
 
-use std::{cell::RefCell, cmp, iter, num::NonZeroUsize};
+use std::{cmp, iter, num::NonZeroUsize};
 
 use hash_ir::{
     ty::{AdtData, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
@@ -18,7 +18,7 @@ use hash_target::{
 };
 use hash_utils::{
     index_vec::IndexVec,
-    store::{CloneStore, Store},
+    store::{CloneStore, Store, StoreInternalData},
 };
 
 use crate::{
@@ -123,7 +123,7 @@ pub struct LayoutComputer<'l> {
 }
 
 impl Store<LayoutId, Layout> for LayoutComputer<'_> {
-    fn internal_data(&self) -> &RefCell<Vec<Layout>> {
+    fn internal_data(&self) -> &StoreInternalData<Layout> {
         self.layout_ctx.internal_data()
     }
 }
@@ -315,7 +315,7 @@ impl<'l> LayoutComputer<'l> {
                 if adt.flags.is_struct()
                     || adt.flags.is_tuple()
 
-                    // @@Future: if in the future, a specific type can be 
+                    // @@Future: if in the future, a specific type can be
                     // specified to the discriminant, and or it is in "C" mode,
                     // then we can't perform this optimisation.
                     || (adt.flags.is_enum() && second_present.is_none())
