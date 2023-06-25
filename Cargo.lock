@@ -846,6 +846,7 @@ dependencies = [
 name = "hash-tests"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "hash-ast",
  "hash-ast-desugaring",
  "hash-ast-expand",

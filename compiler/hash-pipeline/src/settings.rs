@@ -19,14 +19,18 @@ use crate::{error::PipelineError, fs::resolve_path};
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
 #[derive(Parser, Debug, Clone)]
-#[command(name = "hashc", version, about="", author)]
+#[command(name = "hashc", version, about = "", author)]
 pub struct CompilerSettings {
     /// An optionally specified entry point for the compiler.
     ///
     /// N.B. This path is the one that is specified via command-line arguments,
     /// it is not resolved and it is not guaranteed to exist. The resolved
     /// path can be accessed via [`CompilerSettings::entry_point`] API.
-    #[arg(short='i', long, default_value="None", help = "The entry point for the compiler. This will invoke the compile in a non-interactive mode.")]
+    #[arg(
+        short = 'i',
+        long,
+        help = "The entry point for the compiler. This will invoke the compile in a non-interactive mode."
+    )]
     pub(crate) entry_point: Option<PathBuf>,
 
     /// An optionally specified output directory for compiler generated
@@ -35,7 +39,11 @@ pub struct CompilerSettings {
     /// N.B. This path is the one that is specified via command-line arguments,
     /// it is not resolved and it is not guaranteed to exist. The resolved
     /// path can be accessed via [`CompilerSettings::output_directory`] API.
-    #[arg(short='o', long, default_value="None")]
+    #[arg(
+        short = 'o',
+        long,
+        help = "The directory to use when outputting compiler generated information and artifacts."
+    )]
     pub output_directory: Option<PathBuf>,
 
     /// Whether debugging log statements are enabled.
@@ -43,9 +51,6 @@ pub struct CompilerSettings {
     pub debug: bool,
 
     /// Print metrics about each stage when the entire pipeline has completed.
-    ///
-    /// N.B: This flag has no effect if the compiler is not specified to run in
-    ///      debug mode!
     #[arg(long, default_value_t = false)]
     pub output_metrics: bool,
 
@@ -343,7 +348,7 @@ impl fmt::Display for OptimisationLevel {
 pub struct AstSettings {
     /// Whether to pretty-print all of the generated AST after the whole
     /// [Workspace] has been parsed.
-    #[arg(name = "ast-dump", long="ast-dump", default_value_t = false)]
+    #[arg(name = "ast-dump", long = "ast-dump", default_value_t = false)]
     pub dump: bool,
 }
 
@@ -354,7 +359,7 @@ pub struct AstSettings {
 pub struct LoweringSettings {
     /// Whether the IR should dump all lowered bodies, rather than
     /// relying on user directives to select specific bodies.
-    #[arg(name = "ir-dump", long="ir-dump", default_value_t = false)]
+    #[arg(name = "ir-dump", long = "ir-dump", default_value_t = false)]
     pub dump: bool,
 
     /// Whether the IR that is generated at the time should be dumped.
@@ -363,7 +368,7 @@ pub struct LoweringSettings {
 
     /// Use checked operations when emitting IR, this is usually derived whether
     /// the compiler is building a debug variant or not.
-    #[arg(long="ir-checked-operations", default_value_t = true)]
+    #[arg(long = "ir-checked-operations", default_value_t = true)]
     pub checked_operations: bool,
 }
 
@@ -398,15 +403,15 @@ impl fmt::Display for IrDumpMode {
 pub struct SemanticSettings {
     /// Whether the compiler should dump the generated TIR (typed intermediate
     /// representation).
-    #[arg(long="tir-dump", default_value_t = false)]
+    #[arg(long = "tir-dump", default_value_t = false)]
     pub dump_tir: bool,
 
     /// Whether the compiler should evaluate the generated TIR.
-    #[arg(long="tir-eval", default_value_t = false)]
+    #[arg(long = "tir-eval", default_value_t = false)]
     pub eval_tir: bool,
 
     /// Whether the compiler should monomorphise the generated TIR.
-    #[arg(long="tir-mono", default_value_t = false)]
+    #[arg(long = "tir-mono", default_value_t = true)]
     pub mono_tir: bool,
 }
 
@@ -441,20 +446,20 @@ pub struct CodeGenSettings {
     /// An optionally specified path to a file that should be used to
     /// write the executable to. If the path is [`None`], the executable
     /// path will be derived from the workspace.
-    #[arg(long="output-path", default_value = "None")]
+    #[arg(long = "output-path")]
     pub output_path: Option<PathBuf>,
 
     /// Emit the generated IR to standard output.
-    #[arg(long="bc-dump", default_value_t = false)]
+    #[arg(long = "bc-dump", default_value_t = false)]
     pub dump_bytecode: bool,
 
     /// Emit the generated ASM to standard output.
-    #[arg(long="asm-dump", default_value_t = false)]
+    #[arg(long = "asm-dump", default_value_t = false)]
     pub dump_assembly: bool,
 
     /// Emit the generated Link line for the project if the compiler
     /// pipeline specifies that something should be linked.
-    #[arg(long="link-line-dump", default_value_t = false)]
+    #[arg(long = "link-line-dump", default_value_t = false)]
     pub dump_link_line: bool,
 }
 

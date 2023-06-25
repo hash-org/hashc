@@ -22,7 +22,7 @@ impl CharacterSet {
         match s {
             "unicode" => Ok(Self::Unicode),
             "ascii" => Ok(Self::Ascii),
-            _ => Err(format!("invalid character set: {}", s))
+            _ => Err(format!("invalid character set: {}", s)),
         }
     }
 }

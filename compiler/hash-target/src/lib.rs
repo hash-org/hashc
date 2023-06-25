@@ -12,7 +12,7 @@ pub mod targets;
 use std::{
     borrow::Cow,
     env::consts::{ARCH, OS},
-    fmt::{Display, Formatter, self},
+    fmt::{self, Display, Formatter},
 };
 
 use abi::{Abi, Integer};
@@ -310,7 +310,6 @@ impl Default for Target {
         }
     }
 }
-
 
 impl fmt::Display for Target {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
