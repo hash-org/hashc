@@ -126,7 +126,7 @@ impl<'tc> ModUtils<'tc> {
     ///
     /// *Note*: this will not include modules created while iterating.
     pub fn iter_all_mods(&self) -> impl Iterator<Item = ModDefId> + '_ {
-        let member_count = self.stores().mod_def().internal_data().borrow().len();
+        let member_count = self.stores().mod_def().internal_data().read().len();
         (0..member_count).map(ModDefId::from_index_unchecked)
     }
 

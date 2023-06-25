@@ -4,7 +4,6 @@
 // @@Organisation: Move this module to the `hash_alloc` crate and split it into
 // smaller modules.
 use std::{
-    cell::RefCell,
     hash::Hash,
     iter::{repeat, Repeat, Zip},
     marker::PhantomData,
@@ -12,7 +11,10 @@ use std::{
 };
 
 use append_only_vec::AppendOnlyVec;
+use dashmap::DashMap;
+use fxhash::FxBuildHasher;
 pub use fxhash::{FxHashMap, FxHashSet};
+use parking_lot::RwLock;
 
 /// Represents a key that can be used to index a [`Store`].
 pub trait StoreKey: Copy + Eq + Hash {
@@ -46,105 +48,8 @@ macro_rules! new_store_key {
     };
 }
 
-/// Create a new [`Store`] with the given name, key and value type.
-#[macro_export]
-macro_rules! new_store {
-    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
-        #[derive(Default, Debug)]
-        $visibility struct $name {
-            data: std::cell::RefCell<Vec<$Value>>,
-        }
-
-        #[allow(dead_code)]
-        impl $name {
-            /// Create a new empty store.
-            $visibility fn new() -> Self {
-                Self { data: std::cell::RefCell::new(Vec::new()) }
-            }
-        }
-
-        impl $crate::store::Store<$Key, $Value> for $name {
-            fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
-                &self.data
-            }
-        }
-    };
-}
-
-/// Create a new [`PartialStore`] with the given name, key and value type.
-#[macro_export]
-macro_rules! new_partial_store {
-    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
-        #[derive(Default, Debug)]
-        $visibility struct $name {
-            data: std::cell::RefCell<FxHashMap<$Key, $Value>>,
-        }
-
-        #[allow(dead_code)]
-        impl $name {
-            /// Create a new empty store.
-            $visibility fn new() -> Self {
-                Self { data: std::cell::RefCell::new(FxHashMap::default()) }
-            }
-        }
-
-        impl $crate::store::PartialStore<$Key, $Value> for $name {
-            fn internal_data(&self) -> &std::cell::RefCell<FxHashMap<$Key, $Value>> {
-                &self.data
-            }
-        }
-    };
-}
-
-/// Create a new [`SequenceStore`] with the given name, key and value type.
-#[macro_export]
-macro_rules! new_sequence_store {
-    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
-        #[derive(Default, Debug)]
-        $visibility struct $name {
-            data: std::cell::RefCell<Vec<$Value>>,
-        }
-
-        #[allow(dead_code)]
-        impl $name {
-            /// Create a new empty store.
-            $visibility fn new() -> Self {
-                Self { data: std::cell::RefCell::new(Vec::new()) }
-            }
-        }
-
-        impl $crate::store::SequenceStore<$Key, $Value> for $name {
-            fn internal_data(&self) -> &std::cell::RefCell<Vec<$Value>> {
-                &self.data
-            }
-        }
-    };
-}
-
-/// Create a new [`CellStore`] with the given name, key and value type.
-#[macro_export]
-macro_rules! new_cell_store {
-    ($visibility:vis $name:ident<$Key:ty, $Value:ty>) => {
-        #[derive(Default, Debug)]
-        $visibility struct $name {
-            data: append_only_vec::AppendOnlyVec<Cell<Value>>>
-        }
-
-        #[allow(dead_code)]
-        impl $name {
-            /// Create a new empty store.
-            $visibility fn new() -> Self {
-                Self { data: append_only_vec::AppendOnlyVec::new() }
-            }
-        }
-
-        impl $crate::store::CellStore<$Key, $Value> for $name {
-            fn internal_data(&self) -> &append_only_vec::AppendOnlyVec<Cell<Value>> {
-                &self.data
-            }
-        }
-    };
-}
+/// The internal data of a store.
+pub type StoreInternalData<Value> = RwLock<Vec<Value>>;
 
 /// A store, which provides a way to efficiently store values indexed by opaque
 /// generated keys.
@@ -163,21 +68,21 @@ pub trait Store<Key: StoreKey, Value> {
     ///
     /// This should only be used to implement new store methods, not to access
     /// the store.
-    fn internal_data(&self) -> &RefCell<Vec<Value>>;
+    fn internal_data(&self) -> &StoreInternalData<Value>;
 
     /// Create a value inside the store, given its key, returning its key.
     fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
-        let next_index = self.internal_data().borrow().len();
+        let next_index = self.internal_data().read().len();
         let key = Key::from_index_unchecked(next_index);
         let value = value_fn(key);
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         data.push(value);
         key
     }
 
     /// Create a value inside the store, returning its key.
     fn create(&self, value: Value) -> Key {
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let next_index = data.len();
         data.push(value);
         Key::from_index_unchecked(next_index)
@@ -189,7 +94,7 @@ pub trait Store<Key: StoreKey, Value> {
     /// otherwise there will be a panic. If you want to do this, consider using
     /// [`CloneStore::map()`] instead.
     fn map_fast<T>(&self, key: Key, f: impl FnOnce(&Value) -> T) -> T {
-        let data = self.internal_data().borrow();
+        let data = self.internal_data().read();
         let value = data.get(key.to_index()).unwrap();
         f(value)
     }
@@ -204,7 +109,7 @@ pub trait Store<Key: StoreKey, Value> {
         keys: impl IntoIterator<Item = Key>,
         f: impl FnOnce(&[&Value]) -> T,
     ) -> T {
-        let data = self.internal_data().borrow();
+        let data = self.internal_data().read();
         let values =
             keys.into_iter().map(|key| data.get(key.to_index()).unwrap()).collect::<Vec<_>>();
         f(&values)
@@ -216,7 +121,7 @@ pub trait Store<Key: StoreKey, Value> {
     /// otherwise there will be a panic. If you want to do this, consider using
     /// [`CloneStore::modify()`] instead.
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut Value) -> T) -> T {
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let value = data.get_mut(key.to_index()).unwrap();
         f(value)
     }
@@ -226,7 +131,7 @@ pub trait Store<Key: StoreKey, Value> {
 pub trait CloneStore<Key: StoreKey, Value: Clone>: Store<Key, Value> {
     /// Get a value by its key.
     fn get(&self, key: Key) -> Value {
-        self.internal_data().borrow().get(key.to_index()).unwrap().clone()
+        self.internal_data().read().get(key.to_index()).unwrap().clone()
     }
 
     /// Get a value by a key, and map it to another value given its reference.
@@ -253,7 +158,7 @@ pub trait CloneStore<Key: StoreKey, Value: Clone>: Store<Key, Value> {
 
     /// Set a key's value to a new value, returning the old value.
     fn set(&self, key: Key, new_value: Value) -> Value {
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let value_ref = data.get_mut(key.to_index()).unwrap();
         let old_value = value_ref.clone();
         *value_ref = new_value;
@@ -266,13 +171,13 @@ impl<Key: StoreKey, Value: Clone, S: Store<Key, Value>> CloneStore<Key, Value> f
 /// A default implementation of [`Store`].
 #[derive(Debug)]
 pub struct DefaultStore<K, V> {
-    data: RefCell<Vec<V>>,
+    data: StoreInternalData<V>,
     _phantom: PhantomData<K>,
 }
 
 impl<K, V> std::default::Default for DefaultStore<K, V> {
     fn default() -> Self {
-        Self { data: RefCell::new(Vec::new()), _phantom: PhantomData }
+        Self { data: RwLock::new(Vec::new()), _phantom: PhantomData }
     }
 }
 
@@ -283,7 +188,7 @@ impl<K, V> DefaultStore<K, V> {
 }
 
 impl<K: StoreKey, V: Clone> Store<K, V> for DefaultStore<K, V> {
-    fn internal_data(&self) -> &RefCell<Vec<V>> {
+    fn internal_data(&self) -> &StoreInternalData<V> {
         &self.data
     }
 }
@@ -356,6 +261,9 @@ macro_rules! new_sequence_store_key {
     };
 }
 
+/// The internal data of a store.
+pub type SequenceStoreInternalData<Value> = RwLock<Vec<Value>>;
+
 /// A sequence store, which provides a way to efficiently store sequences of
 /// contiguous values by an opaque generated key.
 ///
@@ -373,12 +281,12 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     ///
     /// This should only be used to implement new store methods, not to access
     /// the store.
-    fn internal_data(&self) -> &RefCell<Vec<Value>>;
+    fn internal_data(&self) -> &SequenceStoreInternalData<Value>;
 
     /// Create a sequence of values inside the store from a slice, returning its
     /// key.
     fn create_from_slice(&self, values: &[Value]) -> Key {
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let starting_index = data.len();
         data.extend_from_slice(values);
         Key::from_index_and_len_unchecked(starting_index, values.len())
@@ -386,7 +294,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
 
     /// Create an empty sequence of values inside the store, returning its key.
     fn create_empty(&self) -> Key {
-        let starting_index = self.internal_data().borrow().len();
+        let starting_index = self.internal_data().read().len();
         Key::from_index_and_len_unchecked(starting_index, 0)
     }
 
@@ -401,7 +309,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     where
         I::IntoIter: ExactSizeIterator,
     {
-        let starting_index = self.internal_data().borrow().len();
+        let starting_index = self.internal_data().read().len();
 
         let (key, values_computed) = {
             let values = values.into_iter();
@@ -409,7 +317,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
             (key, values.enumerate().map(|(i, f)| f((key, i))).collect::<Vec<_>>())
         };
 
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         data.extend(values_computed.into_iter());
         key
     }
@@ -421,7 +329,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// `values` iterator, otherwise there will be a panic. If you want to
     /// do this, consider using [`Self::create_from_iter()`] instead.
     fn create_from_iter_fast(&self, values: impl IntoIterator<Item = Value>) -> Key {
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let starting_index = data.len();
         data.extend(values);
         Key::from_index_and_len_unchecked(starting_index, data.len() - starting_index)
@@ -449,7 +357,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         &self,
         values: impl IntoIterator<Item = Result<Value, E>>,
     ) -> Result<Key, E> {
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let starting_index = data.len();
         let values = values.into_iter();
 
@@ -500,7 +408,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     fn get_at_index(&self, key: Key, index: usize) -> Value {
         let (starting_index, len) = key.to_index_and_len();
         assert!(index < len);
-        self.internal_data().borrow().get(starting_index + index).unwrap().clone()
+        self.internal_data().read().get(starting_index + index).unwrap().clone()
     }
 
     /// Get the value at the given index in the value sequence corresponding to
@@ -509,13 +417,13 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// Panics if the index is out of bounds for the given key.
     fn try_get_at_index(&self, key: Key, index: usize) -> Option<Value> {
         let (starting_index, _) = key.to_index_and_len();
-        self.internal_data().borrow().get(starting_index + index).cloned()
+        self.internal_data().read().get(starting_index + index).cloned()
     }
 
     /// Get the value sequence for the given key as an owned vector.
     fn get_vec(&self, key: Key) -> Vec<Value> {
         let (index, len) = key.to_index_and_len();
-        self.internal_data().borrow().get(index..index + len).unwrap().to_vec()
+        self.internal_data().read().get(index..index + len).unwrap().to_vec()
     }
 
     /// Set the value at the given index in the value sequence corresponding to
@@ -525,7 +433,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     fn set_at_index(&self, key: Key, index: usize, new_value: Value) -> Value {
         let (starting_index, len) = key.to_index_and_len();
         assert!(index < len);
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let value_ref = data.get_mut(starting_index + index).unwrap();
         let old_value = value_ref.clone();
         *value_ref = new_value;
@@ -538,7 +446,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// Panics if the slice is not the same size as the existing value.
     fn set_from_slice_cloned(&self, key: Key, new_value_sequence: &[Value]) {
         assert!(key.len() == new_value_sequence.len());
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let value_slice_ref = data.get_mut(key.to_index_range()).unwrap();
         value_slice_ref.clone_from_slice(new_value_sequence);
     }
@@ -550,7 +458,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// otherwise there will be a panic. If you want to do this, consider using
     /// [`Self::map()`] instead.
     fn map_fast<T>(&self, key: Key, f: impl FnOnce(&[Value]) -> T) -> T {
-        let data = self.internal_data().borrow();
+        let data = self.internal_data().read();
         let (index, len) = key.to_index_and_len();
         let value = data.get(index..index + len).unwrap();
         f(value)
@@ -573,7 +481,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// otherwise there will be a panic. If you want to do this, consider using
     /// [`Self::modify_cloned()`] instead.
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut [Value]) -> T) -> T {
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let (index, len) = key.to_index_and_len();
         let value = data.get_mut(index..index + len).unwrap();
         f(value)
@@ -599,7 +507,7 @@ pub trait SequenceStoreCopy<Key: SequenceStoreKey, Value: Copy>: SequenceStore<K
     /// Panics if the slice is not the same size as the existing value.
     fn set_from_slice_copied(&self, key: Key, new_value_sequence: &[Value]) {
         assert!(key.len() == new_value_sequence.len());
-        let mut data = self.internal_data().borrow_mut();
+        let mut data = self.internal_data().write();
         let (index, len) = key.to_index_and_len();
         let value_slice_ref = data.get_mut(index..index + len).unwrap();
         value_slice_ref.copy_from_slice(new_value_sequence);
@@ -644,7 +552,7 @@ impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
     type Iter<'s> = impl Iterator<Item = Value> + 's where T: 's, Key: 's;
     fn iter(&self, key: Key) -> Self::Iter<'_> {
         key.to_index_range().map(move |index| {
-            self.internal_data().borrow().get(key.entry_index() + index).unwrap().clone()
+            self.internal_data().read().get(key.entry_index() + index).unwrap().clone()
         })
     }
 }
@@ -652,13 +560,13 @@ impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
 /// A default implementation of [`SequenceStore`].
 #[derive(Debug)]
 pub struct DefaultSequenceStore<K, V> {
-    data: RefCell<Vec<V>>,
+    data: SequenceStoreInternalData<V>,
     _phantom: PhantomData<K>,
 }
 
 impl<K, V> Default for DefaultSequenceStore<K, V> {
     fn default() -> Self {
-        Self { data: RefCell::new(Vec::new()), _phantom: PhantomData }
+        Self { data: RwLock::new(Vec::new()), _phantom: PhantomData }
     }
 }
 
@@ -669,10 +577,13 @@ impl<K, V> DefaultSequenceStore<K, V> {
 }
 
 impl<K: SequenceStoreKey, V: Clone> SequenceStore<K, V> for DefaultSequenceStore<K, V> {
-    fn internal_data(&self) -> &RefCell<Vec<V>> {
+    fn internal_data(&self) -> &SequenceStoreInternalData<V> {
         &self.data
     }
 }
+
+/// The internal data structure for a [`PartialStore`].
+pub type PartialStoreInternalData<Key, Value> = DashMap<Key, Value, FxBuildHasher>;
 
 /// A partial store, which provides a way to store values indexed by existing
 /// keys. Unlike [`Store`], not every instance of `Key` necessarily has a value
@@ -687,17 +598,17 @@ impl<K: SequenceStoreKey, V: Clone> SequenceStore<K, V> for DefaultSequenceStore
 /// *Warning*: The `Value`'s `Clone` implementation must not interact with the
 /// store, otherwise it might lead to a panic.
 pub trait PartialStore<Key: Copy + Eq + Hash, Value> {
-    fn internal_data(&self) -> &RefCell<FxHashMap<Key, Value>>;
+    fn internal_data(&self) -> &PartialStoreInternalData<Key, Value>;
 
     /// Insert a key-value pair inside the store, returning the old value if it
     /// exists.
     fn insert(&self, key: Key, value: Value) -> Option<Value> {
-        self.internal_data().borrow_mut().insert(key, value)
+        self.internal_data().insert(key, value)
     }
 
     /// Whether the store has the given key.
     fn has(&self, key: Key) -> bool {
-        self.internal_data().borrow().contains_key(&key)
+        self.internal_data().contains_key(&key)
     }
 
     /// Get a value by a key, and map it to another value given its reference,
@@ -707,9 +618,12 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value> {
     /// otherwise there will be a panic. If you want to do this, consider using
     /// [`Self::map()`] instead.
     fn map_fast<T>(&self, key: Key, f: impl FnOnce(Option<&Value>) -> T) -> T {
-        let data = self.internal_data().borrow();
+        let data = self.internal_data();
         let value = data.get(&key);
-        f(value)
+        match value {
+            Some(value) => f(Some(value.value())),
+            None => f(None),
+        }
     }
 
     /// Modify a value by a key, possibly returning another value, if it exists.
@@ -718,24 +632,27 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value> {
     /// otherwise there will be a panic. If you want to do this, consider using
     /// [`Self::modify()`] instead.
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(Option<&mut Value>) -> T) -> T {
-        let mut data = self.internal_data().borrow_mut();
+        let data = self.internal_data();
         let value = data.get_mut(&key);
-        f(value)
+        match value {
+            Some(mut value) => f(Some(value.value_mut())),
+            None => f(None),
+        }
     }
 
     /// The number of entries in the store.
     fn len(&self) -> usize {
-        self.internal_data().borrow().len()
+        self.internal_data().len()
     }
 
     /// Whether the store is empty.
     fn is_empty(&self) -> bool {
-        self.internal_data().borrow().is_empty()
+        self.internal_data().is_empty()
     }
 
     /// Clear the store of all key-value pairs.
     fn clear(&self) {
-        self.internal_data().borrow_mut().clear()
+        self.internal_data().clear()
     }
 }
 
@@ -743,7 +660,7 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value> {
 pub trait PartialCloneStore<Key: Copy + Eq + Hash, Value: Clone>: PartialStore<Key, Value> {
     /// Get a value by its key, if it exists.
     fn get(&self, key: Key) -> Option<Value> {
-        self.internal_data().borrow().get(&key).cloned()
+        self.internal_data().get(&key).map(|x| x.value().clone())
     }
 
     /// Get a value by a key, and map it to another value given its reference,
@@ -788,30 +705,30 @@ impl<Key: Copy + Eq + Hash, Value: Clone, T: PartialStore<Key, Value>> PartialCl
 
 /// A default implementation of [`PartialStore`].
 #[derive(Debug)]
-pub struct DefaultPartialStore<K, V> {
-    data: RefCell<FxHashMap<K, V>>,
+pub struct DefaultPartialStore<K: Eq + Hash, V> {
+    data: PartialStoreInternalData<K, V>,
 }
 
-impl<K, V> Default for DefaultPartialStore<K, V> {
+impl<K: Eq + Hash, V> Default for DefaultPartialStore<K, V> {
     fn default() -> Self {
-        Self { data: RefCell::new(FxHashMap::default()) }
+        Self { data: DashMap::with_hasher(FxBuildHasher::default()) }
     }
 }
 
-impl<K, V> DefaultPartialStore<K, V> {
+impl<K: Eq + Hash, V> DefaultPartialStore<K, V> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
 impl<K: Copy + Eq + Hash, V> PartialStore<K, V> for DefaultPartialStore<K, V> {
-    fn internal_data(&self) -> &RefCell<FxHashMap<K, V>> {
+    fn internal_data(&self) -> &PartialStoreInternalData<K, V> {
         &self.data
     }
 }
 
 /// This store uses [`AppendOnlyVec`] internally, rather than a
-/// [`RefCell<Vec<_>>`], so that there isn't additional overhead when
+/// [`StoreInternalData<_>`], so that there isn't additional overhead when
 /// reading/writing elements; you can take references out of it. The trade-off
 /// is that the value needs to implement [`Copy`].
 ///
@@ -986,8 +903,5 @@ mod test_super {
     use super::*;
     // Ensuring macros expand correctly:
     new_store_key!(pub TestK);
-    new_store!(pub Test<TestK, ()>);
     new_sequence_store_key!(pub TestSeqK);
-    new_sequence_store!(pub TestSeq<TestSeqK, ()>);
-    new_partial_store!(pub TestPartial<TestK, ()>);
 }

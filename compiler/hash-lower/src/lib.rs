@@ -213,7 +213,8 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // @@Future: support generic substitutions here.
         let empty_args = semantic_storage.stores.args().create_empty();
 
-        semantic_storage.stores.directives().internal_data().borrow().iter().for_each(|(id, directives)| {
+        semantic_storage.stores.directives().internal_data().iter().for_each(|entry| {
+            let (id, directives) = entry.pair();
             if directives.contains(IDENTS.layout_of) && let DirectiveTarget::DataDefId(data_def) = *id {
                 let ty = ctx.ty_from_tir_data(DataTy { args: empty_args, data_def });
 

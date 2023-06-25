@@ -5,7 +5,7 @@ use std::cell::RefCell;
 
 use hash_abi::{ArgAbi, FnAbi, FnAbiId};
 use hash_ir::ty::InstanceId;
-use hash_utils::store::{DefaultStore, FxHashMap, Store};
+use hash_utils::store::{DefaultStore, FxHashMap, Store, StoreInternalData};
 
 use super::{layout::LayoutMethods, BackendTypes, HasCtxMethods};
 use crate::lower::{abi::compute_fn_abi_from_instance, place::PlaceRef};
@@ -50,7 +50,7 @@ pub struct FnAbiStore {
 }
 
 impl Store<FnAbiId, FnAbi> for FnAbiStore {
-    fn internal_data(&self) -> &RefCell<Vec<FnAbi>> {
+    fn internal_data(&self) -> &StoreInternalData<FnAbi> {
         self.store.internal_data()
     }
 }

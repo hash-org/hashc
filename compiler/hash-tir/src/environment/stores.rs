@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 // @@Docs
 use super::super::{
     args::{ArgsStore, PatArgsStore},
@@ -113,10 +115,11 @@ impl Stores {
     }
 }
 
-thread_local! {
-    /// TIR stores are stored in a thread local variable, which is globally accessible.
-    /// For now, typechecking is single-threaded, so this is fine.
-    pub static STORES: Stores = Stores::new();
+/// Access the global `Stores` instance.
+pub fn stores() -> &'static Stores {
+    /// The global `Stores` instance.
+    static STORES: OnceLock<Stores> = OnceLock::new();
+    STORES.get_or_init(Stores::new)
 }
 
 /// A trait for a store ID which can be used to access a store in `STORES`.
@@ -167,23 +170,21 @@ macro_rules! impl_sequence_store_id {
             type ValueRef = [$value];
 
             fn value(self) -> Self::Value {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().get_vec(self))
+                $crate::environment::stores::stores().$store_name().get_vec(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().map_fast(self, f))
+                $crate::environment::stores::stores().$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().modify_fast(self, f))
+                $crate::environment::stores::stores().$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().set_from_slice_cloned(self, &value));
+                $crate::environment::stores::stores()
+                    .$store_name()
+                    .set_from_slice_cloned(self, &value);
             }
         }
 
@@ -199,8 +200,7 @@ macro_rules! impl_sequence_store_id {
             where
                 I::IntoIter: ExactSizeIterator,
             {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().create_from_iter_with(values))
+                $crate::environment::stores::stores().$store_name().create_from_iter_with(values)
             }
         }
 
@@ -209,23 +209,25 @@ macro_rules! impl_sequence_store_id {
             type ValueRef = $value;
 
             fn value(self) -> Self::Value {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().get_element(self))
+                $crate::environment::stores::stores().$store_name().get_element(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().map_fast(self.0, |v| f(&v[self.1])))
+                $crate::environment::stores::stores()
+                    .$store_name()
+                    .map_fast(self.0, |v| f(&v[self.1]))
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().modify_fast(self.0, |v| f(&mut v[self.1])))
+                $crate::environment::stores::stores()
+                    .$store_name()
+                    .modify_fast(self.0, |v| f(&mut v[self.1]))
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().set_at_index(self.0, self.1, value));
+                $crate::environment::stores::stores()
+                    .$store_name()
+                    .set_at_index(self.0, self.1, value);
             }
         }
     };
@@ -241,29 +243,25 @@ macro_rules! impl_single_store_id {
             type ValueRef = $value;
 
             fn value(self) -> Self::Value {
-                $crate::environment::stores::STORES.with(|stores| stores.$store_name().get(self))
+                $crate::environment::stores::stores().$store_name().get(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::Value) -> R) -> R {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().map_fast(self, f))
+                $crate::environment::stores::stores().$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::Value) -> R) -> R {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().modify_fast(self, f))
+                $crate::environment::stores::stores().$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().set(self, value));
+                $crate::environment::stores::stores().$store_name().set(self, value);
             }
         }
 
         impl $crate::environment::stores::SingleStoreId for $id {
             fn create_with<F: FnOnce(Self) -> Self::Value>(&self, value: F) -> Self {
-                $crate::environment::stores::STORES
-                    .with(|stores| stores.$store_name().create_with(value))
+                $crate::environment::stores::stores().$store_name().create_with(value)
             }
         }
     };

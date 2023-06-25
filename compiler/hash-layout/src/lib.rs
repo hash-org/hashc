@@ -25,7 +25,7 @@ use hash_target::{
 use hash_utils::{
     index_vec::IndexVec,
     new_store_key,
-    store::{CloneStore, DefaultStore, FxHashMap, Store},
+    store::{CloneStore, DefaultStore, FxHashMap, Store, StoreInternalData},
 };
 
 /// The [PointerKind] specifies what kind of pointer this is, whether
@@ -129,7 +129,7 @@ impl LayoutCtx {
 }
 
 impl Store<LayoutId, Layout> for LayoutCtx {
-    fn internal_data(&self) -> &RefCell<Vec<Layout>> {
+    fn internal_data(&self) -> &StoreInternalData<Layout> {
         self.data.internal_data()
     }
 }
@@ -189,7 +189,7 @@ pub struct TyInfo {
     /// The type reference.
     pub ty: IrTyId,
 
-    /// The layout information for the particular type.  
+    /// The layout information for the particular type.
     pub layout: LayoutId,
 }
 

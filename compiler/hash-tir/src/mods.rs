@@ -4,8 +4,8 @@ use std::fmt::Display;
 
 use hash_source::SourceId;
 use hash_utils::{
-    new_sequence_store_key, new_store, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, SequenceStore, Store},
+    new_sequence_store_key, new_store_key,
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
 use textwrap::indent;
 use utility_types::omit;
@@ -119,7 +119,7 @@ pub struct ModDef {
 }
 
 new_store_key!(pub ModDefId);
-new_store!(pub ModDefStore<ModDefId, ModDef>);
+pub type ModDefStore = DefaultStore<ModDefId, ModDef>;
 impl_single_store_id!(ModDefId, ModDef, mod_def);
 
 impl Display for WithEnv<'_, &ModDef> {

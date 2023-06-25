@@ -5,8 +5,8 @@ use core::fmt;
 use derive_more::From;
 use hash_ast::ast::RangeEnd;
 use hash_utils::{
-    new_sequence_store_key, new_store, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, SequenceStore, Store},
+    new_sequence_store_key, new_store_key,
+    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
 };
 
 use super::{
@@ -88,7 +88,7 @@ impl Pat {
 }
 
 new_store_key!(pub PatId);
-new_store!(pub PatStore<PatId, Pat>);
+pub type PatStore = DefaultStore<PatId, Pat>;
 impl_single_store_id!(PatId, Pat, pat);
 
 new_sequence_store_key!(pub PatListId);
