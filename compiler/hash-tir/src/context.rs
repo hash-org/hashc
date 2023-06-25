@@ -13,9 +13,9 @@ use hash_utils::{
 };
 use indexmap::IndexMap;
 
-use super::env::{AccessToEnv, WithEnv};
 use crate::{
     data::{CtorDefId, DataDefId},
+    environment::env::{AccessToEnv, WithEnv},
     fns::{FnDefId, FnTy},
     mods::ModDefId,
     scopes::StackId,
@@ -24,43 +24,6 @@ use crate::{
     tuples::TupleTy,
     tys::TyId,
 };
-
-/// All the places a parameter can come from.
-#[derive(Debug, Clone, Copy, From)]
-pub enum ParamOrigin {
-    /// A parameter in a function definition.
-    Fn(FnDefId),
-    /// A parameter in a function type.
-    FnTy(FnTy),
-    /// A parameter in a tuple type.
-    TupleTy(TupleTy),
-    /// A parameter in a constructor.
-    Ctor(CtorDefId),
-    /// A parameter in a data definition.
-    Data(DataDefId),
-}
-
-impl From<ParamOrigin> for ScopeKind {
-    fn from(value: ParamOrigin) -> Self {
-        match value {
-            ParamOrigin::Fn(fn_def_id) => ScopeKind::Fn(fn_def_id),
-            ParamOrigin::FnTy(fn_ty) => ScopeKind::FnTy(fn_ty),
-            ParamOrigin::TupleTy(tuple_ty) => ScopeKind::TupleTy(tuple_ty),
-            ParamOrigin::Ctor(ctor_def_id) => ScopeKind::Ctor(ctor_def_id),
-            ParamOrigin::Data(data_def_id) => ScopeKind::Data(data_def_id),
-        }
-    }
-}
-
-impl ParamOrigin {
-    /// A constant parameter is one that cannot depend on non-constant bindings.
-    pub fn is_constant(&self) -> bool {
-        match self {
-            ParamOrigin::Fn(_) | ParamOrigin::FnTy(_) | ParamOrigin::TupleTy(_) => false,
-            ParamOrigin::Ctor(_) | ParamOrigin::Data(_) => true,
-        }
-    }
-}
 
 /// A binding that contains a type and optional value.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]

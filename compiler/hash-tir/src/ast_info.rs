@@ -6,8 +6,8 @@ use parking_lot::RwLock;
 
 use crate::{
     args::ArgId,
+    context::Decl,
     data::{CtorDefId, DataDefId},
-    environment::context::Decl,
     fns::FnDefId,
     mods::{ModDefId, ModMemberId},
     params::ParamId,

@@ -4,9 +4,9 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
 use hash_tir::{
     args::{ArgsId, PatArgsId},
-    environment::{context::ParamOrigin, env::AccessToEnv},
+    environment::env::AccessToEnv,
     fns::FnCallTerm,
-    params::{ParamId, ParamsId, SomeParamsOrArgsId},
+    params::{ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
     terms::{Term, TermId},
     utils::common::CommonUtils,
@@ -102,6 +102,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Get the existing param id from the AST info store:
         let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+
         match resolved_ty {
             Some(resolved_ty) => {
                 self.stores().params().modify_fast(param_id.0, |params| {
@@ -174,7 +175,6 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn resolve_params_from_ast_ty_args(
         &self,
         params: &ast::AstNodes<ast::TyArg>,
-        origin: ParamOrigin,
     ) -> SemanticResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
@@ -184,7 +184,7 @@ impl<'tc> ResolutionPass<'tc> {
             match param_id {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
-                    self.scoping().add_param_binding(param_id, origin);
+                    self.scoping().add_param_binding(param_id);
                     params_id = Some(param_id.0);
                 }
                 None => {
@@ -210,7 +210,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         params: &ast::AstNodes<ast::Param>,
         implicit: bool,
-        origin: ParamOrigin,
+        _origin: ParamOrigin,
     ) -> SemanticResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
@@ -221,7 +221,7 @@ impl<'tc> ResolutionPass<'tc> {
             match param_id {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
-                    self.scoping().add_param_binding(param_id, origin);
+                    self.scoping().add_param_binding(param_id);
                     params_id = Some(param_id.0);
                 }
                 None => {

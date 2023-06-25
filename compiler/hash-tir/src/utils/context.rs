@@ -6,10 +6,8 @@ use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
     args::{ArgId, ArgsId},
-    environment::{
-        context::{Context, Decl, ScopeKind},
-        env::{AccessToEnv, Env},
-    },
+    context::{Context, Decl, ScopeKind},
+    environment::env::{AccessToEnv, Env},
     fns::FnDefId,
     impl_access_to_env,
     params::{ParamId, ParamsId},

@@ -9,6 +9,7 @@ pub mod arrays;
 pub mod ast_info;
 pub mod atom_info;
 pub mod casting;
+pub mod context;
 pub mod control;
 pub mod data;
 pub mod defs;

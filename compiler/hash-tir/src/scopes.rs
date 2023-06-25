@@ -18,7 +18,7 @@ use super::{
     terms::Term,
 };
 use crate::{
-    environment::context::Decl,
+    context::Decl,
     mods::ModDefId,
     pats::PatId,
     symbols::Symbol,

@@ -5,10 +5,7 @@ use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataDefId},
-    environment::{
-        context::ParamOrigin,
-        env::{AccessToEnv, Env},
-    },
+    environment::env::{AccessToEnv, Env},
     fns::FnTy,
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId},
@@ -197,7 +194,7 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a parameter to the current scope, also adding it to the
     /// `bindings_by_name` map.
-    pub(super) fn add_param_binding(&self, param_id: ParamId, _origin: ParamOrigin) {
+    pub(super) fn add_param_binding(&self, param_id: ParamId) {
         // Get the data of the parameter.
         let param_name = self.stores().params().get_element(param_id).name;
 
@@ -217,7 +214,7 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn add_data_params_and_ctors(&self, data_def_id: DataDefId) {
         let params = self.stores().data_def().map_fast(data_def_id, |def| def.params);
         for i in params.to_index_range() {
-            self.add_param_binding((params, i), data_def_id.into());
+            self.add_param_binding((params, i));
         }
         self.stores().data_def().map_fast(data_def_id, |data_def| {
             // Add all the constructors

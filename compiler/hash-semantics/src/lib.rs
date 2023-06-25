@@ -21,8 +21,9 @@ use hash_pipeline::{
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use hash_target::Target;
-use hash_tir::environment::{
-    context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores,
+use hash_tir::{
+    context::Context,
+    environment::{env::Env, source_info::CurrentSourceInfo, stores::global_stores},
 };
 use once_cell::unsync::OnceCell;
 use ops::{
@@ -87,7 +88,6 @@ pub trait SemanticAnalysisCtxQuery: CompilerInterface {
 /// From it, `Env` and `SemEnv` are constructed as ref-containing structs.
 pub struct SemanticStorage {
     /// TIR:
-    pub stores: Stores,
     pub context: Context,
 
     /// Diagnostics store.
@@ -107,7 +107,6 @@ pub struct SemanticStorage {
 impl SemanticStorage {
     pub fn new() -> Self {
         Self {
-            stores: Stores::new(),
             context: Context::new(),
             diagnostics: DiagnosticsStore::new(),
             prelude_or_unset: OnceCell::new(),
@@ -137,7 +136,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
 
         // Construct the core TIR environment.
         let env = Env::new(
-            &semantic_storage.stores,
+            global_stores(),
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,

@@ -253,5 +253,11 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
         });
     }
 
-    quote!(#(#functions)*).into()
+    quote! {
+        use rusty_fork::rusty_fork_test;
+        rusty_fork_test! {
+            #(#functions)*
+        }
+    }
+    .into()
 }

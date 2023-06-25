@@ -5,8 +5,8 @@ use std::{cell::Cell, collections::HashSet};
 use derive_more::Deref;
 use hash_tir::{
     args::ArgsId,
+    context::ScopeKind,
     data::DataDefCtors,
-    environment::context::ScopeKind,
     fns::{FnCallTerm, FnTy},
     holes::Hole,
     lits::Lit,
