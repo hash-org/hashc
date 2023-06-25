@@ -16,6 +16,26 @@ pub enum CharacterSet {
     Ascii,
 }
 
+impl CharacterSet {
+    /// Parse a string into a [CharacterSet].
+    pub fn parse(s: &str) -> Result<Self, String> {
+        match s {
+            "unicode" => Ok(Self::Unicode),
+            "ascii" => Ok(Self::Ascii),
+            _ => Err(format!("invalid character set: {}", s))
+        }
+    }
+}
+
+impl fmt::Display for CharacterSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unicode => write!(f, "unicode"),
+            Self::Ascii => write!(f, "ascii"),
+        }
+    }
+}
+
 /// A node in a tree, with a label and children.
 #[derive(Debug, Clone)]
 pub struct TreeNode {

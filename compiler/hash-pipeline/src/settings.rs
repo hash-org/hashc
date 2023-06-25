@@ -1,6 +1,7 @@
 //! Hash Compiler pipeline implementation. This file contains various structures
 //! and utilities representing settings and configurations that can be applied
 //! to the Compiler pipeline.
+use core::fmt;
 use std::{
     env::{self, temp_dir},
     fmt::Display,
@@ -8,21 +9,24 @@ use std::{
     str::FromStr,
 };
 
+use clap::{Args, Parser, ValueEnum};
 use hash_source::constant::CONSTANT_MAP;
-use hash_target::{Target, TargetInfo, HOST_TARGET_TRIPLE};
+use hash_target::{Target, HOST_TARGET_TRIPLE};
 use hash_utils::tree_writing::CharacterSet;
 
 use crate::{error::PipelineError, fs::resolve_path};
 
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
-#[derive(Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
+#[command(name = "hashc", version, about="", author)]
 pub struct CompilerSettings {
     /// An optionally specified entry point for the compiler.
     ///
     /// N.B. This path is the one that is specified via command-line arguments,
     /// it is not resolved and it is not guaranteed to exist. The resolved
     /// path can be accessed via [`CompilerSettings::entry_point`] API.
+    #[arg(short='i', long, default_value="None", help = "The entry point for the compiler. This will invoke the compile in a non-interactive mode.")]
     pub(crate) entry_point: Option<PathBuf>,
 
     /// An optionally specified output directory for compiler generated
@@ -31,61 +35,76 @@ pub struct CompilerSettings {
     /// N.B. This path is the one that is specified via command-line arguments,
     /// it is not resolved and it is not guaranteed to exist. The resolved
     /// path can be accessed via [`CompilerSettings::output_directory`] API.
+    #[arg(short='o', long, default_value="None")]
     pub output_directory: Option<PathBuf>,
 
     /// Whether debugging log statements are enabled.
+    #[arg(long, default_value_t = false)]
     pub debug: bool,
 
     /// Print metrics about each stage when the entire pipeline has completed.
     ///
     /// N.B: This flag has no effect if the compiler is not specified to run in
     ///      debug mode!
+    #[arg(long, default_value_t = false)]
     pub output_metrics: bool,
 
     /// Whether to output of each stage result.
+    #[arg(long, default_value_t = false)]
     pub output_stage_results: bool,
 
     /// The number of workers that the compiler pipeline should have access to.
     /// This value is used to determine the thread pool size that is then shared
     /// across arbitrary stages within the compiler.
+    #[arg(long, default_value_t = 2)]
     pub worker_count: usize,
 
     /// Whether the compiler should skip bootstrapping the prelude, this
     /// is set for testing purposes.
+    #[arg(long, default_value_t = false)]
     pub skip_prelude: bool,
 
     /// This specifies whether the `prelude` module should not be emitted
     /// when the compiler should emit things like `TIR` or `IR` in order
     /// to avoid noise in the unit tests. @@Hack: remove this somehow?
+    #[arg(long, default_value_t = false)]
     pub prelude_is_quiet: bool,
 
     /// Whether the pipeline should output errors and warnings to
     /// standard error
+    #[arg(long, default_value_t = false)]
     pub emit_errors: bool,
 
     /// Which character set to use when printing information
     /// to the terminal, this affects rendering of characters
     /// such as the arrow in the error messages.
+    #[arg(long, value_parser = CharacterSet::parse, required=false, default_value = "unicode", default_value_t = CharacterSet::Unicode)]
     pub character_set: CharacterSet,
 
     /// The optimisation level that is to be performed.
+    #[arg(long, default_value_t = OptimisationLevel::default())]
     pub optimisation_level: OptimisationLevel,
 
     /// All settings that relate to any AST traversing stages.
+    #[command(flatten)]
     pub ast_settings: AstSettings,
 
     /// All settings that relate to the lowering stage of the compiler.
+    #[command(flatten)]
     pub lowering_settings: LoweringSettings,
 
     /// All settings that relate to the semantic analysis stage.
+    #[command(flatten)]
     pub semantic_settings: SemanticSettings,
 
     /// All settings that relate to the code generation backends of the
     /// compiler.
+    #[command(flatten)]
     pub codegen_settings: CodeGenSettings,
 
     /// To what should the compiler run to, anywhere from parsing, typecheck, to
     /// code generation.
+    #[arg(long, default_value_t = CompilerStageKind::default())]
     pub stage: CompilerStageKind,
 }
 
@@ -244,7 +263,7 @@ impl Default for CompilerSettings {
 }
 
 /// What optimisation level the compiler should run at.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum OptimisationLevel {
     /// Run the compiler using the debug optimisation level. This will
     /// disable most optimisations that the compiler would otherwise do.
@@ -296,6 +315,8 @@ impl FromStr for OptimisationLevel {
         match s {
             "debug" => Ok(Self::Debug),
             "release" => Ok(Self::Release),
+            "size" => Ok(Self::Size),
+            "min-size" => Ok(Self::MinSize),
             _ => Err(PipelineError::InvalidValue("optimisation-level".to_string(), s.to_string())),
         }
     }
@@ -307,32 +328,42 @@ impl Default for OptimisationLevel {
     }
 }
 
+impl fmt::Display for OptimisationLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Settings that relate to stages that exclusively operate on the
 /// AST that is generated by the parsing, these could be stages that
 /// re-write the AST, analyse it or modify it in some way.
 ///
 /// N.B. By default, the AST is not dumped.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Args)]
 pub struct AstSettings {
     /// Whether to pretty-print all of the generated AST after the whole
     /// [Workspace] has been parsed.
+    #[arg(name = "ast-dump", long="ast-dump", default_value_t = false)]
     pub dump: bool,
 }
 
 /// Settings that relate to the IR stage of the compiler, these include if the
 /// IR should be dumped (and in which mode), whether the IR should be optimised,
 /// whether the IR should use `checked` operations, etc.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Args)]
 pub struct LoweringSettings {
     /// Whether the IR should dump all lowered bodies, rather than
     /// relying on user directives to select specific bodies.
+    #[arg(name = "ir-dump", long="ir-dump", default_value_t = false)]
     pub dump: bool,
 
     /// Whether the IR that is generated at the time should be dumped.
+    #[arg(long="ir-dump-mode", default_value_t = IrDumpMode::Pretty)]
     pub dump_mode: IrDumpMode,
 
     /// Use checked operations when emitting IR, this is usually derived whether
     /// the compiler is building a debug variant or not.
+    #[arg(long="ir-checked-operations", default_value_t = true)]
     pub checked_operations: bool,
 }
 
@@ -344,7 +375,7 @@ impl Default for LoweringSettings {
 
 /// Enum representing the different options for dumping the IR. It can either
 /// be emitted in the pretty-printing format, or in the `graphviz` format.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum IrDumpMode {
     /// Dump the generated IR using a pretty-printed format
     Pretty,
@@ -353,17 +384,29 @@ pub enum IrDumpMode {
     Graph,
 }
 
+impl fmt::Display for IrDumpMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Pretty => write!(f, "pretty"),
+            Self::Graph => write!(f, "graph"),
+        }
+    }
+}
+
 /// All settings related to semantic analysis and typechecking.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Args)]
 pub struct SemanticSettings {
     /// Whether the compiler should dump the generated TIR (typed intermediate
     /// representation).
+    #[arg(long="tir-dump", default_value_t = false)]
     pub dump_tir: bool,
 
-    /// Whether the compiler should evaluate the generated TIR
+    /// Whether the compiler should evaluate the generated TIR.
+    #[arg(long="tir-eval", default_value_t = false)]
     pub eval_tir: bool,
 
-    /// Whether the compiler should monomorphise the generated TIR
+    /// Whether the compiler should monomorphise the generated TIR.
+    #[arg(long="tir-mono", default_value_t = false)]
     pub mono_tir: bool,
 }
 
@@ -377,12 +420,13 @@ impl Default for SemanticSettings {
 ///
 /// N.B. some information that is stored here may be used by previous stages
 /// e.g. target information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Args)]
 pub struct CodeGenSettings {
     /// Information about the current "session" that the compiler is running
     /// in. This contains information about which target the compiler is
     /// compiling for, and other information that is used by the compiler
     /// to determine how to compile the source code.
+    #[command(flatten)]
     pub target_info: TargetInfo,
 
     /// This is only the "backend" for the global instance of code generation.
@@ -391,22 +435,46 @@ pub struct CodeGenSettings {
     /// be that some functions/expressions are evaluated at compile-time via the
     /// Hash VM which may mean that the code generation backend for that one
     /// might differ from the overall code generation backend.
+    #[arg(long="backend", default_value_t = CodeGenBackend::LLVM)]
     pub backend: CodeGenBackend,
 
     /// An optionally specified path to a file that should be used to
     /// write the executable to. If the path is [`None`], the executable
     /// path will be derived from the workspace.
+    #[arg(long="output-path", default_value = "None")]
     pub output_path: Option<PathBuf>,
 
     /// Emit the generated IR to standard output.
+    #[arg(long="bc-dump", default_value_t = false)]
     pub dump_bytecode: bool,
 
     /// Emit the generated ASM to standard output.
+    #[arg(long="asm-dump", default_value_t = false)]
     pub dump_assembly: bool,
 
     /// Emit the generated Link line for the project if the compiler
     /// pipeline specifies that something should be linked.
+    #[arg(long="link-line-dump", default_value_t = false)]
     pub dump_link_line: bool,
+}
+
+/// Holds information about various targets that are currently used by the
+/// compiler.
+#[derive(Debug, Clone, Args)]
+pub struct TargetInfo {
+    /// The target value of the host that the compiler is running
+    /// for.
+    #[arg(long, value_parser = target_value_parser, default_value_t = Target::default())]
+    pub host: Target,
+
+    /// The target that the compiler is compiling for.
+    #[arg(long, value_parser = target_value_parser, default_value_t = Target::default())]
+    pub target: Target,
+}
+
+/// FUnction is internally used to parse a target from a string.
+fn target_value_parser(s: &str) -> Result<Target, String> {
+    Target::search(s).ok_or_else(|| format!("unknown target: {}", s))
 }
 
 impl Default for CodeGenSettings {
@@ -429,7 +497,7 @@ impl Default for CodeGenSettings {
 
 /// All of the current possible code generation backends that
 /// are available.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum CodeGenBackend {
     /// The LLVM backend is target for code generation.
     LLVM,
@@ -444,9 +512,18 @@ impl Default for CodeGenBackend {
     }
 }
 
+impl fmt::Display for CodeGenBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LLVM => write!(f, "llvm"),
+            Self::VM => write!(f, "vm"),
+        }
+    }
+}
+
 /// Enum representing what mode the compiler should run in. Specifically, if the
 /// compiler should only run up to a particular stage within the pipeline.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, ValueEnum)]
 pub enum CompilerStageKind {
     /// Parse the source code into an AST.
     Parse,
