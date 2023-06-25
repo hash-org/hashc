@@ -1,7 +1,8 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::collections::HashMap;
 
 use hash_source::location::{SourceLocation, Span};
 use hash_utils::store::SequenceStoreKey;
+use parking_lot::RwLock;
 
 use super::{
     args::{ArgId, ArgsId, PatArgId, PatArgsId},
@@ -148,7 +149,7 @@ impl LocationStore {
         target: impl Into<LocationTarget>,
         location: SourceLocation,
     ) {
-        self.data.write().unwrap().insert(target.into(), location);
+        self.data.write().insert(target.into(), location);
     }
 
     /// Add a set of [SourceLocation]s to a specified [IndexedLocationTarget]
@@ -167,7 +168,7 @@ impl LocationStore {
 
     /// Get a [SourceLocation] from a specified [LocationTarget]
     pub fn get_location(&self, target: impl Into<LocationTarget>) -> Option<SourceLocation> {
-        self.data.read().unwrap().get(&target.into()).copied()
+        self.data.read().get(&target.into()).copied()
     }
 
     /// Get the associated [Span] with from the specified [LocationTarget]

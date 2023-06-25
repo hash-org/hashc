@@ -1,7 +1,8 @@
-use std::{hash::Hash, sync::RwLock};
+use std::hash::Hash;
 
 use bimap::BiMap;
 use hash_ast::ast::AstNodeId;
+use parking_lot::RwLock;
 
 use crate::{
     args::ArgId,
@@ -28,7 +29,7 @@ impl<T: Hash + Eq> AstMap<T> {
     }
 
     pub fn insert(&self, ast_id: AstNodeId, data: T) {
-        self.data.write().unwrap().insert(ast_id, data);
+        self.data.write().insert(ast_id, data);
     }
 }
 
@@ -40,11 +41,11 @@ impl<T: Hash + Eq> Default for AstMap<T> {
 
 impl<T: Hash + Eq + Copy> AstMap<T> {
     pub fn get_data_by_node(&self, ast_id: AstNodeId) -> Option<T> {
-        self.data.read().unwrap().get_by_left(&ast_id).copied()
+        self.data.read().get_by_left(&ast_id).copied()
     }
 
     pub fn get_node_by_data(&self, data: T) -> Option<AstNodeId> {
-        self.data.read().unwrap().get_by_right(&data).copied()
+        self.data.read().get_by_right(&data).copied()
     }
 }
 

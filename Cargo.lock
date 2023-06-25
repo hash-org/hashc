@@ -762,6 +762,7 @@ dependencies = [
  "indexmap",
  "lazy_static",
  "num-bigint",
+ "parking_lot",
  "textwrap",
  "typed-builder",
  "utility-types",
