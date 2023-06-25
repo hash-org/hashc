@@ -102,6 +102,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Get the existing param id from the AST info store:
         let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+
         match resolved_ty {
             Some(resolved_ty) => {
                 self.stores().params().modify_fast(param_id.0, |params| {

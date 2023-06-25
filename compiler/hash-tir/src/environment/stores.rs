@@ -1,6 +1,6 @@
+// @@Docs
 use std::sync::OnceLock;
 
-// @@Docs
 use super::super::{
     args::{ArgsStore, PatArgsStore},
     data::{CtorDefsStore, DataDefStore},
@@ -50,9 +50,6 @@ macro_rules! stores {
   }
 }
 
-// @@Performance: Most stores store copy types, why do we use ref-cells when we
-// can use cells?
-
 // All the stores that contain definitions for the typechecker.
 stores! {
     args: ArgsStore,
@@ -77,48 +74,11 @@ stores! {
     directives: AppliedDirectivesStore,
 }
 
-/// A reference to [`Stores`] alongside a value.
-///
-/// Used to implement traits for values where the trait implementation requires
-/// access to the [`Stores`] (for example formatting).
-pub struct WithStores<'s, T> {
-    stores: &'s Stores,
-    pub value: T,
-}
-
-impl<'s, T: Clone> Clone for WithStores<'s, T> {
-    fn clone(&self) -> Self {
-        Self { stores: self.stores, value: self.value.clone() }
-    }
-}
-impl<'s, T: Copy> Copy for WithStores<'s, T> {}
-
-impl<'s, T> WithStores<'s, T> {
-    pub fn new(stores: &'s Stores, value: T) -> Self {
-        Self { stores, value }
-    }
-
-    pub fn stores(&self) -> &Stores {
-        self.stores
-    }
-
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> WithStores<'s, U> {
-        WithStores { stores: self.stores, value: f(self.value) }
-    }
-}
-
-impl Stores {
-    /// Attach a value to a [`Stores`] reference, creating a [`WithStores`]
-    /// value.
-    pub fn with<T>(&self, value: T) -> WithStores<T> {
-        WithStores::new(self, value)
-    }
-}
+/// The global `Stores` instance.
+static STORES: OnceLock<Stores> = OnceLock::new();
 
 /// Access the global `Stores` instance.
-pub fn stores() -> &'static Stores {
-    /// The global `Stores` instance.
-    static STORES: OnceLock<Stores> = OnceLock::new();
+pub fn global_stores() -> &'static Stores {
     STORES.get_or_init(Stores::new)
 }
 
@@ -142,22 +102,30 @@ pub trait StoreId: Sized + Copy {
 
 /// A trait for a sequence store ID which can be used to access a store in
 /// `STORES`.
-pub trait SequenceStoreId: StoreId {
-    type ValueElement;
+pub trait SequenceStoreValue: Sized {
+    type Id: StoreId;
+
+    /// Create a new empty value in the store.
+    fn empty_seq() -> Self::Id;
 
     /// Create a new value in the store from the given iterator of functions.
-    fn create_with<F: FnOnce((Self, usize)) -> Self::ValueElement, I: IntoIterator<Item = F>>(
-        values: I,
-    ) -> Self
+    fn seq<F: FnOnce((Self::Id, usize)) -> Self, I: IntoIterator<Item = F>>(iter: I) -> Self::Id
     where
         I::IntoIter: ExactSizeIterator;
 }
 
 /// A trait for a store ID containing single items which can be used to access a
 /// store in `STORES`.
-pub trait SingleStoreId: StoreId {
+pub trait SingleStoreValue: Sized {
+    type Id: StoreId;
+
     /// Create a new value in the store from the given function.
-    fn create_with<F: FnOnce(Self) -> Self::Value>(&self, value: F) -> Self;
+    fn create(self) -> Self::Id {
+        Self::create_with(|_| self)
+    }
+
+    /// Create a new value in the store from the given function.
+    fn create_with<F: FnOnce(Self::Id) -> Self>(value: F) -> Self::Id;
 }
 
 /// Automatically implement `StoreId` and `SequenceStoreId` for a sequence store
@@ -170,37 +138,40 @@ macro_rules! impl_sequence_store_id {
             type ValueRef = [$value];
 
             fn value(self) -> Self::Value {
-                $crate::environment::stores::stores().$store_name().get_vec(self)
+                $crate::environment::stores::global_stores().$store_name().get_vec(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::stores().$store_name().map_fast(self, f)
+                $crate::environment::stores::global_stores().$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::stores().$store_name().modify_fast(self, f)
+                $crate::environment::stores::global_stores().$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::stores()
+                $crate::environment::stores::global_stores()
                     .$store_name()
                     .set_from_slice_cloned(self, &value);
             }
         }
 
-        impl $crate::environment::stores::SequenceStoreId for $id {
-            type ValueElement = $value;
+        impl $crate::environment::stores::SequenceStoreValue for $value {
+            type Id = $id;
 
-            fn create_with<
-                F: FnOnce((Self, usize)) -> Self::ValueElement,
-                I: IntoIterator<Item = F>,
-            >(
+            fn empty_seq() -> Self::Id {
+                $crate::environment::stores::global_stores().$store_name().create_from_slice(&[])
+            }
+
+            fn seq<F: FnOnce((Self::Id, usize)) -> Self, I: IntoIterator<Item = F>>(
                 values: I,
-            ) -> Self
+            ) -> Self::Id
             where
                 I::IntoIter: ExactSizeIterator,
             {
-                $crate::environment::stores::stores().$store_name().create_from_iter_with(values)
+                $crate::environment::stores::global_stores()
+                    .$store_name()
+                    .create_from_iter_with(values)
             }
         }
 
@@ -209,23 +180,23 @@ macro_rules! impl_sequence_store_id {
             type ValueRef = $value;
 
             fn value(self) -> Self::Value {
-                $crate::environment::stores::stores().$store_name().get_element(self)
+                $crate::environment::stores::global_stores().$store_name().get_element(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::stores()
+                $crate::environment::stores::global_stores()
                     .$store_name()
                     .map_fast(self.0, |v| f(&v[self.1]))
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::stores()
+                $crate::environment::stores::global_stores()
                     .$store_name()
                     .modify_fast(self.0, |v| f(&mut v[self.1]))
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::stores()
+                $crate::environment::stores::global_stores()
                     .$store_name()
                     .set_at_index(self.0, self.1, value);
             }
@@ -243,25 +214,26 @@ macro_rules! impl_single_store_id {
             type ValueRef = $value;
 
             fn value(self) -> Self::Value {
-                $crate::environment::stores::stores().$store_name().get(self)
+                $crate::environment::stores::global_stores().$store_name().get(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::Value) -> R) -> R {
-                $crate::environment::stores::stores().$store_name().map_fast(self, f)
+                $crate::environment::stores::global_stores().$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::Value) -> R) -> R {
-                $crate::environment::stores::stores().$store_name().modify_fast(self, f)
+                $crate::environment::stores::global_stores().$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::stores().$store_name().set(self, value);
+                $crate::environment::stores::global_stores().$store_name().set(self, value);
             }
         }
 
-        impl $crate::environment::stores::SingleStoreId for $id {
-            fn create_with<F: FnOnce(Self) -> Self::Value>(&self, value: F) -> Self {
-                $crate::environment::stores::stores().$store_name().create_with(value)
+        impl $crate::environment::stores::SingleStoreValue for $value {
+            type Id = $id;
+            fn create_with<F: FnOnce(Self::Id) -> Self>(value: F) -> Self::Id {
+                $crate::environment::stores::global_stores().$store_name().create_with(value)
             }
         }
     };

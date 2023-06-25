@@ -36,3 +36,6 @@ hash-vm = { path = "../compiler/hash-vm" }
 # Internal macros the that the tester uses
 hash-testing-macros = { path = "../tests/testing-macros" }
 hash-testing-internal = { path = "../tests/testing-internal" }
+
+[dev-dependencies]
+rusty-fork = "0.3"
