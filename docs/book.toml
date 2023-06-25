@@ -6,5 +6,5 @@ src = "src"
 title = "The Hash Programming Language"
 
 [output.html]
-git-repository-url = "https://github.com/hash-org/lang"
+git-repository-url = "https://github.com/hash-org/hashc"
 git-repository-icon = "fa-github"

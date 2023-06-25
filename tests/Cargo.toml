@@ -7,7 +7,7 @@ authors = ["The Hash Language authors"]
 edition = "2018"
 
 [[bin]]
-name = "hash-tests"
+name = "hashc-tests"
 path = "./lib.rs"
 
 [dependencies]

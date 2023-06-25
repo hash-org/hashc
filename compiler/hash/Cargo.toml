@@ -1,9 +1,13 @@
 [package]
-name = "hash"
+name = "hashc"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
-default-run = "hash"
+default-run = "hashc"
+
+[[bin]]
+name = "hashc"
+path = "./src/main.rs"
 
 [dependencies]
 backtrace = "0.3"
