@@ -21,8 +21,9 @@ use hash_pipeline::{
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
 use hash_target::Target;
-use hash_tir::environment::{
-    context::Context, env::Env, source_info::CurrentSourceInfo, stores::Stores,
+use hash_tir::{
+    context::Context,
+    environment::{env::Env, source_info::CurrentSourceInfo, stores::Stores},
 };
 use once_cell::unsync::OnceCell;
 use ops::{

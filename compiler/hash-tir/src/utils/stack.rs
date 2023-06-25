@@ -3,10 +3,8 @@ use derive_more::Constructor;
 use hash_utils::store::Store;
 
 use crate::{
-    environment::{
-        context::Decl,
-        env::{AccessToEnv, Env},
-    },
+    context::Decl,
+    environment::env::{AccessToEnv, Env},
     impl_access_to_env,
     mods::ModDefId,
     scopes::{Stack, StackId, StackMember, StackMemberData},

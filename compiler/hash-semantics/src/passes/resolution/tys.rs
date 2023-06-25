@@ -231,8 +231,7 @@ impl<'tc> ResolutionPass<'tc> {
             self.make_ty_from_ast_ty(node.entries[0].ty.ast_ref())
         } else {
             self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
-                tuple_ty.data =
-                    self.resolve_params_from_ast_ty_args(&node.entries, tuple_ty.into())?;
+                tuple_ty.data = self.resolve_params_from_ast_ty_args(&node.entries)?;
                 Ok(self.new_ty(tuple_ty))
             })
         }
@@ -321,8 +320,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         self.scoping().enter_fn_ty(node, |mut fn_ty| {
             // First, make the params
-            let params = self
-                .try_or_add_error(self.resolve_params_from_ast_ty_args(&node.params, fn_ty.into()));
+            let params = self.try_or_add_error(self.resolve_params_from_ast_ty_args(&node.params));
 
             // Add the params if they exist
             if let Some(params) = params {

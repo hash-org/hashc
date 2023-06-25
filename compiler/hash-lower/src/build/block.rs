@@ -10,8 +10,9 @@ use hash_ir::{
     ty::Mutability,
 };
 use hash_tir::{
+    context::ScopeKind,
     control::{LoopTerm, MatchTerm},
-    environment::{context::ScopeKind, env::AccessToEnv},
+    environment::env::AccessToEnv,
     scopes::BlockTerm,
     terms::{Term, TermId},
     utils::context::ContextUtils,

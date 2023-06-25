@@ -16,7 +16,15 @@ use super::{
     locations::IndexedLocationTarget,
     terms::TermId,
 };
-use crate::{impl_sequence_store_id, symbols::Symbol, tys::TyId};
+use crate::{
+    context::ScopeKind,
+    data::{CtorDefId, DataDefId},
+    fns::{FnDefId, FnTy},
+    impl_sequence_store_id,
+    symbols::Symbol,
+    tuples::TupleTy,
+    tys::TyId,
+};
 
 // @@Todo: examples
 
@@ -119,6 +127,43 @@ impl From<SomeParamsOrArgsId> for IndexedLocationTarget {
             SomeParamsOrArgsId::Params(id) => IndexedLocationTarget::Params(id),
             SomeParamsOrArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id),
             SomeParamsOrArgsId::Args(id) => IndexedLocationTarget::Args(id),
+        }
+    }
+}
+
+/// All the places a parameter can come from.
+#[derive(Debug, Clone, Copy, From)]
+pub enum ParamOrigin {
+    /// A parameter in a function definition.
+    Fn(FnDefId),
+    /// A parameter in a function type.
+    FnTy(FnTy),
+    /// A parameter in a tuple type.
+    TupleTy(TupleTy),
+    /// A parameter in a constructor.
+    Ctor(CtorDefId),
+    /// A parameter in a data definition.
+    Data(DataDefId),
+}
+
+impl From<ParamOrigin> for ScopeKind {
+    fn from(value: ParamOrigin) -> Self {
+        match value {
+            ParamOrigin::Fn(fn_def_id) => ScopeKind::Fn(fn_def_id),
+            ParamOrigin::FnTy(fn_ty) => ScopeKind::FnTy(fn_ty),
+            ParamOrigin::TupleTy(tuple_ty) => ScopeKind::TupleTy(tuple_ty),
+            ParamOrigin::Ctor(ctor_def_id) => ScopeKind::Ctor(ctor_def_id),
+            ParamOrigin::Data(data_def_id) => ScopeKind::Data(data_def_id),
+        }
+    }
+}
+
+impl ParamOrigin {
+    /// A constant parameter is one that cannot depend on non-constant bindings.
+    pub fn is_constant(&self) -> bool {
+        match self {
+            ParamOrigin::Fn(_) | ParamOrigin::FnTy(_) | ParamOrigin::TupleTy(_) => false,
+            ParamOrigin::Ctor(_) | ParamOrigin::Data(_) => true,
         }
     }
 }

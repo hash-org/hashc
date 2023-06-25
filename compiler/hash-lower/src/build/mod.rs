@@ -29,11 +29,9 @@ use hash_source::{
     SourceId,
 };
 use hash_tir::{
+    context::{Decl, ScopeKind},
     directives::DirectiveTarget,
-    environment::{
-        context::{Decl, ScopeKind},
-        env::{AccessToEnv, Env},
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     symbols::Symbol,
     terms::TermId,

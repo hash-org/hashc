@@ -17,8 +17,9 @@ use hash_ir::{
 };
 use hash_source::location::Span;
 use hash_tir::{
+    context::ScopeKind,
     control::{IfPat, MatchCasesId},
-    environment::{context::ScopeKind, env::AccessToEnv},
+    environment::env::AccessToEnv,
     pats::{Pat, PatId},
     terms::{Term, TermId},
     utils::context::ContextUtils,
@@ -318,7 +319,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// ```ignore
     /// 
     /// Some(x) if x > 10 => { ... }  Candidate #1
-    /// Some(x) => { ... }            Candidate #2  
+    /// Some(x) => { ... }            Candidate #2
     /// Some(x) if x < 7 => { ... }   Candidate #3
     /// ```
     ///

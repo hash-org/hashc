@@ -7,7 +7,7 @@ use hash_tir::{
     access::AccessTerm,
     args::{ArgsId, PatArgsId},
     atom_info::ItemInAtomInfo,
-    environment::context::Decl,
+    context::Decl,
     fns::FnBody,
     holes::Hole,
     mods::ModDefId,
