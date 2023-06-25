@@ -1,4 +1,4 @@
-// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+// stage=ir, args=--ir-dump --ir-dump-mode pretty
 
 
 Data := struct<T>(

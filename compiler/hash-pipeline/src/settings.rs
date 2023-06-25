@@ -115,8 +115,8 @@ pub struct CompilerSettings {
 
 impl CompilerSettings {
     /// Create a new [CompilerSettings].
-    pub fn new(worker_count: usize) -> Self {
-        Self { worker_count, ..Default::default() }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Get the entry point filename from the [CompilerSettings]. If
