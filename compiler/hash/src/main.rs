@@ -9,8 +9,8 @@ use std::{
     process::{Command, Stdio},
 };
 
+use clap::Parser;
 use hash_pipeline::{
-    args::parse_settings_from_args,
     interface::{CompilerInterface, CompilerOutputStream},
     settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
@@ -53,8 +53,7 @@ fn main() {
     // to report errors in the case that the compiler fails to start up. After the
     // workspace is initiated, it is replaced with the real source map.
     let source_map = SourceMap::new();
-
-    let settings: CompilerSettings = execute(&source_map, parse_settings_from_args);
+    let settings = CompilerSettings::parse();
 
     // We want to figure out the entry point of the compiler by checking if the
     // compiler has been specified to run in a specific mode.
