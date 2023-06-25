@@ -89,12 +89,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e196f430604fcd7503056c5aaa7dfc5bc570582b928240622b075b5cad3b90dd"
 
 [[package]]
-name = "boxcar"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38c99613cb3cd7429889a08dfcf651721ca971c86afa30798461f8eee994de47"
-
-[[package]]
 name = "bumpalo"
 version = "3.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -418,7 +412,6 @@ dependencies = [
  "hash-source",
  "hash-tree-def",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
@@ -426,10 +419,8 @@ name = "hash-backend"
 version = "0.1.0"
 dependencies = [
  "hash-codegen",
- "hash-codegen-bytecode",
  "hash-codegen-llvm",
  "hash-ir",
- "hash-link",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -499,7 +490,6 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-utils",
- "rayon",
  "rustyline",
 ]
 
@@ -621,11 +611,8 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-target",
- "hash-tir",
  "hash-utils",
  "num_cpus",
- "rayon",
- "slotmap",
 ]
 
 [[package]]
@@ -636,7 +623,6 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-utils",
- "thiserror",
 ]
 
 [[package]]
@@ -659,11 +645,8 @@ dependencies = [
  "hash-tree-def",
  "hash-typecheck",
  "hash-utils",
- "if_chain",
  "num-bigint",
  "once_cell",
- "rayon",
- "slotmap",
 ]
 
 [[package]]
@@ -676,7 +659,6 @@ dependencies = [
  "hash-ast-expand",
  "hash-backend",
  "hash-codegen",
- "hash-interactive",
  "hash-ir",
  "hash-layout",
  "hash-link",
@@ -725,7 +707,6 @@ dependencies = [
  "hash-pipeline",
  "itertools",
  "quote",
- "syn 1.0.107",
 ]
 
 [[package]]
@@ -801,7 +782,6 @@ name = "hash-tree-def"
 version = "0.1.0"
 dependencies = [
  "convert_case",
- "proc-macro-error",
  "proc-macro2",
  "quote",
  "syn 1.0.107",
@@ -818,18 +798,14 @@ dependencies = [
  "hash-ast",
  "hash-error-codes",
  "hash-intrinsics",
- "hash-pipeline",
  "hash-reporting",
  "hash-source",
  "hash-tir",
  "hash-tree-def",
  "hash-utils",
- "if_chain",
  "itertools",
  "num-bigint",
  "once_cell",
- "rayon",
- "slotmap",
 ]
 
 [[package]]
@@ -845,7 +821,6 @@ dependencies = [
  "hash-source",
  "hash-tree-def",
  "hash-utils",
- "if_chain",
  "rayon",
 ]
 
@@ -855,7 +830,6 @@ version = "0.1.0"
 dependencies = [
  "append-only-vec",
  "arrayvec",
- "boxcar",
  "dashmap",
  "fixedbitset",
  "fxhash",
@@ -874,12 +848,9 @@ name = "hash-vm"
 version = "0.1.0"
 dependencies = [
  "hash-alloc",
- "hash-ast",
- "hash-pipeline",
  "hash-reporting",
  "hash-source",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
@@ -938,12 +909,6 @@ checksum = "6d1ad449764d627e22bfd7cd5e8868264fc9236e07c752972b4080cd351cb476"
 dependencies = [
  "utf8-width",
 ]
-
-[[package]]
-name = "if_chain"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb56e1aa765b4b4f3aadfab769793b7087bb03a4ea4920644a6d238e2df5b9ed"
 
 [[package]]
 name = "index_vec"
@@ -1502,15 +1467,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "900fba806f70c630b0a382d0d825e17a0f19fcd059a2ade1ff237bcddf446b31"
 dependencies = [
  "lazy_static",
-]
-
-[[package]]
-name = "slotmap"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1e08e261d0e8f5c43123b7adf3e4ca1690d655377ac93a03b2c9d3e98de1342"
-dependencies = [
- "version_check",
 ]
 
 [[package]]

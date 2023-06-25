@@ -7,7 +7,6 @@ edition = "2021"
 [dependencies]
 bitflags = "2.0.0-rc.1"
 crossbeam-channel = "0.5.1"
-if_chain = "1.0.2"
 rayon = "1.5.0"
 
 hash-ast = { path = "../hash-ast" }

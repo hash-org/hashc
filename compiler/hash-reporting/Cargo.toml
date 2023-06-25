@@ -5,9 +5,7 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-thiserror = "1.0"
-
-hash-error-codes = {path = "../hash-error-codes" }
-hash-source = {path = "../hash-source" }
-hash-utils = {path = "../hash-utils" }
-hash-target= {path = "../hash-target" }
+hash-error-codes = { path = "../hash-error-codes" }
+hash-source = { path = "../hash-source" }
+hash-utils = { path = "../hash-utils" }
+hash-target = { path = "../hash-target" }
