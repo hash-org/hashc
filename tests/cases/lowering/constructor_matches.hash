@@ -1,4 +1,4 @@
-// stage=ir, args=-C dump=ir -C ir-dump-mode=pretty
+// stage=ir, args=--ir-dump --ir-dump-mode pretty
 
 maybe_add := (left: Option<i32>, right: Option<i32>) -> i32 => {
     match (left, right) {

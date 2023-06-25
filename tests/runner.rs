@@ -30,9 +30,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use clap::Parser;
 use hash_pipeline::{
-    args::parse_option, interface::CompilerOutputStream, settings::CompilerSettings,
-    workspace::Workspace, Compiler,
+    interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace, Compiler,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_session::{make_stages, CompilerSession};
@@ -291,7 +291,24 @@ fn handle_pass_case(
 
 /// Generic test handler in the event whether a case should pass or fail.
 fn handle_test(test: TestingInput) {
-    let mut settings = CompilerSettings::new(WORKER_COUNT);
+    // We also need to potentially apply any additional configuration options
+    // that are specified by the test onto the compiler settings
+    println!("args: {:#?}", test.metadata.args.items);
+    let mut settings = if !test.metadata.args.items.is_empty() {
+        // push an extra argument to the start of the list to pretend that it
+        // is the "program name" that is being executed.
+        let mut args = test.metadata.args.items.clone();
+        args.insert(0, String::from(""));
+
+        CompilerSettings::parse_from(&args)
+    } else {
+        CompilerSettings::new()
+    };
+
+    // We need at least 2 workers for the parsing loop in order so that the job
+    // queue can run within a worker and any other jobs can run inside another
+    // worker or workers.
+    settings.worker_count = WORKER_COUNT;
     settings.prelude_is_quiet = true;
     settings.set_emit_errors(false);
     settings.set_stage(test.metadata.stage);
@@ -300,31 +317,7 @@ fn handle_test(test: TestingInput) {
     // avoid creating "target" directories within the test runner tree.
     settings.output_directory = Some(Path::new("./target").to_path_buf());
 
-    // We also have to specify the output directory for compiler artifacts to
-    // be `tests/target` in order to avoid producing artifacts within the test
-    // runner tree.
-
     let workspace = Workspace::new(&settings).unwrap();
-
-    // We also need to potentially apply any additional configuration options
-    // that are specified by the test onto the compiler settings
-    if !test.metadata.args.items.is_empty() {
-        let mut args = test.metadata.args.items.clone().into_iter();
-
-        while let Some(arg) = args.next() {
-            if let Err(err) = parse_option(&mut settings, &mut args, arg.as_str()) {
-                panic!(
-                    "failed to parse compiler option `{}`:\n{}",
-                    arg,
-                    ReportWriter::new(vec![err.into()], &workspace.source_map)
-                )
-            }
-        }
-    }
-
-    // We need at least 2 workers for the parsing loop in order so that the job
-    // queue can run within a worker and any other jobs can run inside another
-    // worker or workers.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(WORKER_COUNT)
         .thread_name(|id| format!("compiler-worker-{id}"))

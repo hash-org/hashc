@@ -12,7 +12,7 @@ pub mod targets;
 use std::{
     borrow::Cow,
     env::consts::{ARCH, OS},
-    fmt::{Display, Formatter},
+    fmt::{self, Display, Formatter},
 };
 
 use abi::{Abi, Integer};
@@ -311,6 +311,12 @@ impl Default for Target {
     }
 }
 
+impl fmt::Display for Target {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
 /// Represents the available target architectures that the compiler can compiler
 /// for.
 #[derive(Debug, Clone, Copy)]
@@ -366,16 +372,4 @@ impl Display for TargetArch {
             TargetArch::Unknown => write!(f, "unknown"),
         }
     }
-}
-
-/// Holds information about various targets that are currently used by the
-/// compiler.
-#[derive(Debug, Clone)]
-pub struct TargetInfo {
-    /// The target value of the host that the compiler is running
-    /// for.
-    pub host: Target,
-
-    /// The target that the compiler is compiling for.
-    pub target: Target,
 }
