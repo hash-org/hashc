@@ -1,7 +1,7 @@
 # The Hash Programming Language
 
 The Hash Programming Language compiler and standard library sources.
-Get started by reading [the Hash book](https://hash-org.github.io/lang).
+Get started by reading [the Hash book](https://hash-org.github.io/hashc).
 
 ## Installation
 

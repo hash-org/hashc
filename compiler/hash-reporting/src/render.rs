@@ -205,7 +205,7 @@ impl ReportCodeBlock {
     ///
     /// ```text
     /// error: non-declarative expressions are not allowed in `module` pattern
-    ///   --> /Users/alex/Documents/hash-org/lang/examples/weird.hash:11:1
+    ///   --> /Users/alex/Documents/hash-org/hashc/examples/weird.hash:11:1
     ///  9 |    // };
     /// 10 |
     /// 11 |    IoError = struct(

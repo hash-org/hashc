@@ -5,7 +5,7 @@ use backtrace::Backtrace;
 
 const BUG_REPORT_MSG: &str = "This is an compiler bug, please file a bug report at";
 const BUG_REPORT_URI: &str =
-    "https://github.com/hash-org/lang/issues?labels=bug&template=bug_report";
+    "https://github.com/hash-org/hashc/issues?labels=bug&template=bug_report";
 
 pub(crate) fn panic_handler(info: &PanicInfo) {
     // keep track to ensure that we only panic once and multiple threads can exit
