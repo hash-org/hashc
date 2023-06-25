@@ -16,7 +16,7 @@ use super::{
     locations::IndexedLocationTarget,
     terms::TermId,
 };
-use crate::{symbols::Symbol, tys::TyId};
+use crate::{impl_sequence_store_id, symbols::Symbol, tys::TyId};
 
 // @@Todo: examples
 
@@ -44,6 +44,7 @@ impl From<Param> for ParamData {
 new_sequence_store_key!(pub ParamsId);
 pub type ParamId = (ParamsId, usize);
 pub type ParamsStore = DefaultSequenceStore<ParamsId, Param>;
+impl_sequence_store_id!(ParamsId, Param, params);
 
 /// An index of a parameter of a parameter list.
 ///

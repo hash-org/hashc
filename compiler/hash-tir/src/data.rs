@@ -5,7 +5,9 @@ use std::fmt::Display;
 
 use hash_utils::{
     new_sequence_store_key, new_store_key,
-    store::{DefaultSequenceStore, DefaultStore, SequenceStore, SequenceStoreKey, Store},
+    store::{
+        CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, SequenceStoreKey, Store,
+    },
 };
 use textwrap::indent;
 use utility_types::omit;
@@ -16,7 +18,9 @@ use super::{
     pats::Spread,
     tys::TyId,
 };
-use crate::{params::ParamsId, symbols::Symbol, terms::TermId};
+use crate::{
+    impl_sequence_store_id, impl_single_store_id, params::ParamsId, symbols::Symbol, terms::TermId,
+};
 
 /// A constructor of a data-type definition.
 ///
@@ -56,6 +60,7 @@ pub struct CtorDef {
 new_sequence_store_key!(pub CtorDefsId);
 pub type CtorDefsStore = DefaultSequenceStore<CtorDefsId, CtorDef>;
 pub type CtorDefId = (CtorDefsId, usize);
+impl_sequence_store_id!(CtorDefsId, CtorDef, ctor_defs);
 
 /// A constructor term.
 ///
@@ -172,6 +177,7 @@ pub struct DataDef {
 }
 new_store_key!(pub DataDefId);
 pub type DataDefStore = DefaultStore<DataDefId, DataDef>;
+impl_single_store_id!(DataDefId, DataDef, data_def);
 
 /// A type pointing to a data-type definition.
 ///

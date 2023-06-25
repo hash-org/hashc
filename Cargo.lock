@@ -773,6 +773,7 @@ dependencies = [
  "hash-target",
  "hash-utils",
  "indexmap",
+ "lazy_static",
  "num-bigint",
  "textwrap",
  "typed-builder",

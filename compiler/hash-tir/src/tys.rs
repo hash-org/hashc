@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use derive_more::From;
 use hash_utils::{
     new_store_key,
-    store::{CloneStore, DefaultStore},
+    store::{CloneStore, DefaultStore, Store},
 };
 
 use super::{
@@ -14,7 +14,9 @@ use super::{
     holes::Hole,
     symbols::Symbol,
 };
-use crate::{data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tuples::TupleTy};
+use crate::{
+    data::DataTy, fns::FnTy, impl_single_store_id, refs::RefTy, terms::TermId, tuples::TupleTy,
+};
 
 /// The type of types, i.e. a universe.
 #[derive(Debug, Clone, Copy)]
@@ -58,6 +60,7 @@ pub enum Ty {
 
 new_store_key!(pub TyId);
 pub type TyStore = DefaultStore<TyId, Ty>;
+impl_single_store_id!(TyId, Ty, ty);
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]

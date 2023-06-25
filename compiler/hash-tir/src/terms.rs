@@ -22,6 +22,7 @@ use crate::{
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
     fns::{FnCallTerm, FnDefId},
+    impl_sequence_store_id, impl_single_store_id,
     lits::Lit,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
@@ -102,9 +103,11 @@ pub enum Term {
 
 new_store_key!(pub TermId);
 pub type TermStore = DefaultStore<TermId, Term>;
+impl_single_store_id!(TermId, Term, term);
 
 new_sequence_store_key!(pub TermListId);
 pub type TermListStore = DefaultSequenceStore<TermListId, TermId>;
+impl_sequence_store_id!(TermListId, TermId, term_list);
 
 impl fmt::Display for WithEnv<'_, &UnsafeTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
