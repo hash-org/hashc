@@ -318,11 +318,6 @@ fn handle_test(test: TestingInput) {
     settings.output_directory = Some(Path::new("./target").to_path_buf());
 
     let workspace = Workspace::new(&settings).unwrap();
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(WORKER_COUNT)
-        .thread_name(|id| format!("compiler-worker-{id}"))
-        .build()
-        .unwrap();
 
     // we create an error and output stream so that we can later
     // compare the output of the compiler to the expected output
@@ -330,7 +325,6 @@ fn handle_test(test: TestingInput) {
 
     let session = CompilerSession::new(
         workspace,
-        pool,
         settings,
         // @@Future: we might want to directly compare `stderr` rather than
         // rendering diagnostics and then comparing them.

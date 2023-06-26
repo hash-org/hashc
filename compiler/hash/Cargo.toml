@@ -11,15 +11,12 @@ path = "./src/main.rs"
 
 [dependencies]
 backtrace = "0.3"
-num_cpus = "1.13.0"
 profiling = "1.0.6"
-rayon = "1.5.0"
 tracy-client = "0.13.2"
 clap = { version = "4.3.8", features = ["derive"] }
 
 hash-alloc = { path = "../hash-alloc" }
 hash-ast = { path = "../hash-ast" }
-hash-interactive = { path = "../hash-interactive" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
 hash-session = { path = "../hash-session" }

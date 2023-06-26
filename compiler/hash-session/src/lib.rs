@@ -115,11 +115,19 @@ impl CompilerSession {
     /// Create a new [CompilerSession].
     pub fn new(
         workspace: Workspace,
-        pool: rayon::ThreadPool,
         settings: CompilerSettings,
         error_stream: impl Fn() -> CompilerOutputStream + 'static,
         output_stream: impl Fn() -> CompilerOutputStream + 'static,
     ) -> Self {
+        // We need at least 2 workers for the parsing loop in order so that the job
+        // queue can run within a worker and any other jobs can run inside another
+        // worker or workers.
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(settings.worker_count + 1)
+            .thread_name(|id| format!("compiler-worker-{id}"))
+            .build()
+            .unwrap();
+
         let target = settings.target();
 
         // @@Fixme: ideally this error should be handled else-where

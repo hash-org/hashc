@@ -122,12 +122,19 @@ impl CompilerSettings {
     /// Get the entry point filename from the [CompilerSettings]. If
     /// [`None`] was provided, it is assumed that this is then an interactive
     /// session.
-    pub fn entry_point(&self) -> Option<Result<PathBuf, PipelineError>> {
+    pub fn try_entry_point(&self) -> Option<Result<PathBuf, PipelineError>> {
         self.entry_point.as_ref().map(|path| {
             let current_dir = env::current_dir().unwrap();
             let path = CONSTANT_MAP.create_string(path.to_str().unwrap());
             resolve_path(path, current_dir).map_err(PipelineError::ImportPath)
         })
+    }
+
+    /// Get the entry point from the [CompilerSettings] whilst asserting that
+    /// there must be a given entry point in this case. If the entrypoint is not
+    /// specified, a [`PipelineError::MissingEntryPoint`] is then returned.
+    pub fn entry_point(&self) -> Result<PathBuf, PipelineError> {
+        self.try_entry_point().transpose()?.ok_or(PipelineError::MissingEntryPoint)
     }
 
     /// Get the output directory from the [CompilerSettings]. The output path
