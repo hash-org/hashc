@@ -890,6 +890,7 @@ version = "0.1.0"
 dependencies = [
  "append-only-vec",
  "arrayvec",
+ "backtrace",
  "dashmap",
  "fixedbitset",
  "fxhash",

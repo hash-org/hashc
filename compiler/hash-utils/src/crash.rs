@@ -7,7 +7,20 @@ const BUG_REPORT_MSG: &str = "This is an compiler bug, please file a bug report 
 const BUG_REPORT_URI: &str =
     "https://github.com/hash-org/hashc/issues?labels=bug&template=bug_report";
 
-pub(crate) fn panic_handler(info: &PanicInfo) {
+/// The Hash compiler crash handler. This function should be used to register a
+/// `panic` handle for the compiler. It will ensure that only one thread can
+/// panic at a time, it will print the panic message, a backtrace, and a link to
+/// the bug report page.
+///
+/// # Registering the handler
+/// ```ignore
+/// use std::panic;
+/// use hash_utils::crash::crash_handler;
+/// ...
+///
+/// panic::set_hook(Box::new(crash_handler));
+/// ```
+pub fn crash_handler(info: &PanicInfo) {
     // keep track to ensure that we only panic once and multiple threads can exit
     // gracefully!
     static PANIC_ONCE: atomic::AtomicBool = atomic::AtomicBool::new(false);

@@ -1,6 +1,8 @@
-//! Hash main crate logging utilities
-use hash_reporting::highlight::{highlight, Colour, Modifier};
-use hash_utils::{
+//! Hash compiler logging utilities. This defines a simple logger with a
+//! style which should be used across the compiler to log and print messages.
+
+use crate::{
+    highlight::{highlight, Colour, Modifier},
     log::{Level, Log, Metadata, Record},
     stream_less_writeln,
 };

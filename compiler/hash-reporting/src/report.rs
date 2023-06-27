@@ -3,8 +3,7 @@ use std::{cell::Cell, fmt};
 
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::location::{RowColSpan, SourceLocation};
-
-use crate::highlight::{highlight, Colour, Modifier};
+use hash_utils::highlight::{highlight, Colour, Modifier};
 
 /// A data type representing a comment/message on a specific span in a code
 /// block.

@@ -1,9 +1,18 @@
 //! Hash compiler general utilities
-#![feature(type_alias_impl_trait, impl_trait_in_assoc_type, decl_macro, array_windows)]
+#![feature(
+    type_alias_impl_trait,
+    impl_trait_in_assoc_type,
+    decl_macro,
+    array_windows,
+    panic_info_message
+)]
 
 pub mod assert;
 pub mod counter;
+pub mod crash;
 pub mod graph;
+pub mod highlight;
+pub mod logging;
 pub mod path;
 pub mod printing;
 pub mod range_map;
