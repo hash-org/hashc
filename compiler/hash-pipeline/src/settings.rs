@@ -77,7 +77,7 @@ pub struct CompilerSettings {
 
     /// Whether the pipeline should output errors and warnings to
     /// standard error
-    #[arg(long, default_value_t = false)]
+    #[arg(long, default_value_t = true)]
     pub emit_errors: bool,
 
     /// Which character set to use when printing information
