@@ -543,6 +543,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-driver"
+version = "0.1.0"
+dependencies = [
+ "hash-alloc",
+ "hash-ast",
+ "hash-ast-desugaring",
+ "hash-ast-expand",
+ "hash-backend",
+ "hash-codegen",
+ "hash-ir",
+ "hash-layout",
+ "hash-link",
+ "hash-lower",
+ "hash-parser",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-semantics",
+ "hash-source",
+ "hash-tir",
+ "hash-tree-def",
+ "hash-untyped-semantics",
+ "hash-utils",
+ "num_cpus",
+ "rayon",
+]
+
+[[package]]
 name = "hash-error-codes"
 version = "0.1.0"
 
@@ -708,33 +735,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-session"
-version = "0.1.0"
-dependencies = [
- "hash-alloc",
- "hash-ast",
- "hash-ast-desugaring",
- "hash-ast-expand",
- "hash-backend",
- "hash-codegen",
- "hash-ir",
- "hash-layout",
- "hash-link",
- "hash-lower",
- "hash-parser",
- "hash-pipeline",
- "hash-reporting",
- "hash-semantics",
- "hash-source",
- "hash-tir",
- "hash-tree-def",
- "hash-untyped-semantics",
- "hash-utils",
- "num_cpus",
- "rayon",
-]
-
-[[package]]
 name = "hash-source"
 version = "0.1.0"
 dependencies = [
@@ -789,13 +789,13 @@ dependencies = [
  "hash-ast",
  "hash-ast-desugaring",
  "hash-ast-expand",
+ "hash-driver",
  "hash-lexer",
  "hash-lower",
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
  "hash-semantics",
- "hash-session",
  "hash-source",
  "hash-testing-internal",
  "hash-testing-macros",
@@ -931,9 +931,9 @@ dependencies = [
  "clap",
  "hash-alloc",
  "hash-ast",
+ "hash-driver",
  "hash-pipeline",
  "hash-reporting",
- "hash-session",
  "hash-source",
  "hash-target",
  "hash-utils",

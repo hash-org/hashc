@@ -8,9 +8,8 @@ mod error;
 use error::BackendError;
 use hash_codegen::backend::{BackendCtx, CompilerBackend};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerStage, StageMetrics},
+    interface::{CompilerInterface, CompilerResult, CompilerStage, StageMetrics},
     settings::{CodeGenBackend, CompilerStageKind},
-    CompilerResult,
 };
 use hash_source::SourceId;
 

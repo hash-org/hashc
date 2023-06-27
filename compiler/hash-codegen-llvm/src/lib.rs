@@ -30,10 +30,9 @@ use hash_codegen::{
 };
 use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
 use hash_pipeline::{
-    interface::{CompilerOutputStream, StageMetrics},
+    interface::{CompilerOutputStream, CompilerResult, StageMetrics},
     settings::CompilerSettings,
     workspace::Workspace,
-    CompilerResult,
 };
 use hash_reporting::writer::ReportWriter;
 use hash_source::{identifier::IDENTS, ModuleId};

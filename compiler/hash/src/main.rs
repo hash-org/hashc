@@ -10,11 +10,11 @@ use std::{
 };
 
 use clap::Parser;
+use hash_driver::CompilerBuilder;
 use hash_pipeline::{
     interface::CompilerInterface,
     settings::{CompilerSettings, CompilerStageKind},
 };
-use hash_session::CompilerBuilder;
 use hash_utils::log;
 use log::LevelFilter;
 use logger::CompilerLogger;
@@ -50,16 +50,15 @@ fn main() {
     // Now run on the filename that was specified by the user.
     compiler.run_on_entry_point();
 
-    let session = compiler.session();
     // If the stage is set to `exe`, this means that we want to run the
     // produced executable from the building process. This is essentially
     // a shorthand for `hash build <file> && ./<exe_path>`.
-    let workspace = session.workspace();
-    let settings = session.settings();
+    let workspace = compiler.workspace();
+    let settings = compiler.settings();
 
     if settings.stage == CompilerStageKind::Exe
         && workspace.yields_executable(settings)
-        && !session.has_errors()
+        && !compiler.has_errors()
     {
         let path = workspace.executable_path(settings);
 

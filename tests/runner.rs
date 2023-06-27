@@ -31,11 +31,13 @@ use std::{
 };
 
 use clap::Parser;
+use hash_driver::{Compiler, CompilerBuilder};
 use hash_pipeline::{
-    interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace,
+    interface::{CompilerInterface, CompilerOutputStream},
+    settings::CompilerSettings,
+    workspace::Workspace,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_session::{CompilerBuilder, DefaultCompilerInterface};
 use hash_testing_internal::{
     metadata::{HandleWarnings, TestResult},
     TestingInput,
@@ -324,7 +326,7 @@ fn handle_test(test: TestingInput) {
     // compare the output of the compiler to the expected output
     let output_stream = Arc::new(Mutex::new(Vec::new()));
 
-    let interface = DefaultCompilerInterface::with(
+    let interface = Compiler::with(
         workspace,
         settings,
         // @@Future: we might want to directly compare `stderr` rather than
@@ -341,11 +343,10 @@ fn handle_test(test: TestingInput) {
     // // Now parse the module and store the result
     compiler.run_on_entry_point();
 
-    let session = compiler.session();
-    let workspace = &session.workspace;
+    let workspace = compiler.workspace();
 
     // @@Copying: we shouldn't really need to clone the diagnostics here!!
-    let diagnostics = session.diagnostics.clone();
+    let diagnostics = compiler.diagnostics().to_owned();
 
     // Based on the specified metadata within the test case itself, we know
     // whether the test should fail or not
