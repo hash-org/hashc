@@ -17,9 +17,14 @@ use hash_source::{ModuleKind, SourceId};
 use hash_utils::{log, stream_writeln, timing::timed};
 
 /// The Hash Compiler interface. This interface allows a caller to create a
-/// [Compiler] with the specified components. This allows external tinkerers
-/// to add their own implementations of each compiler stage with relative ease
-/// instead of having to scratch their heads.
+/// [Driver] with a `compiler` and a collection of stages which will access
+/// information from the `compiler` via a [CompilerInterface] or a more
+/// specific interface.
+///
+/// @@Future: This should allow external tinkerers to add their own
+/// implementations of each compiler stage with relative ease instead of having
+/// to scratch their heads. However, it is still somewhat unclear how to make
+/// this as convenient as possible.
 pub struct Driver<I: CompilerInterface> {
     /// The session that the compiler is running in.
     compiler: I,
