@@ -23,6 +23,9 @@ pub enum PipelineError {
         error: io::Error,
     },
 
+    /// The requested pipeline configuration expected an entrypoint.
+    MissingEntryPoint,
+
     /// Errors that can occur from importing module paths
     /// when the compiler settings are still being processed.
     ImportPath(ImportError),
@@ -51,6 +54,7 @@ impl From<PipelineError> for Report {
                     },
                 )
             }
+            PipelineError::MissingEntryPoint => "no entry point was specified".to_string(),
             PipelineError::ImportPath(err) => err.to_string(),
             PipelineError::InvalidValue(key, value) => {
                 format!("invalid value `{value}` for configuration key `{key}`")

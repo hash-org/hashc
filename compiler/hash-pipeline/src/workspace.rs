@@ -201,7 +201,7 @@ impl Workspace {
         let output_directory = settings.output_directory()?;
 
         let name = settings
-            .entry_point()
+            .try_entry_point()
             .transpose()?
             .map(|f| f.file_stem().unwrap().to_str().unwrap().to_string())
             .unwrap_or_else(|| "main".to_string());

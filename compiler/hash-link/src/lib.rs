@@ -18,10 +18,11 @@ use std::{
 use command::{EscapeArg, LinkCommand};
 use error::{escape_returned_error, AdditionalFailureInfo, LinkerError};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerOutputStream, CompilerStage, StageMetrics},
+    interface::{
+        CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
+    },
     settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
-    CompilerResult,
 };
 use hash_source::SourceId;
 use hash_target::link::{Cc, LinkerFlavour, Lld};
@@ -30,7 +31,7 @@ use linker::{build_linker_args, get_linker};
 use platform::flush_linked_file;
 
 /// The linking context, which contains all of the information
-/// from the [CompilerSession] in order to perform
+/// from the [DefaultCompilerInterface] in order to perform
 /// the linking of an executable, or library.
 pub struct LinkerCtx<'ctx> {
     /// Reference to the current compiler workspace.
@@ -51,7 +52,7 @@ pub struct CompilerLinker {
     /// The metrics for this stage. This records the timings
     /// of various operations that the linker performs, including
     /// finding the linker tool, linking, and finally writing the
-    /// articfacts to disk.
+    /// artifacts to disk.
     metrics: StageMetrics,
 }
 

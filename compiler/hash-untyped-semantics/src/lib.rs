@@ -12,10 +12,9 @@ use crossbeam_channel::unbounded;
 use diagnostics::AnalysisDiagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMutSelf};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerStage},
+    interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::CompilerStageKind,
     workspace::{SourceStageInfo, Workspace},
-    CompilerResult,
 };
 use hash_reporting::reporter::Reports;
 use hash_source::SourceId;

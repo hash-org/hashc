@@ -8,8 +8,9 @@
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;
 use hash_pipeline::{
-    interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace,
-    CompilerResult,
+    interface::{CompilerOutputStream, CompilerResult},
+    settings::CompilerSettings,
+    workspace::Workspace,
 };
 
 use crate::traits::abi::FnAbiStore;

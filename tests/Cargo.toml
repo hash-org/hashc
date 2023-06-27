@@ -13,12 +13,11 @@ path = "./lib.rs"
 [dependencies]
 pretty_assertions = "1.2.1"
 regex = "1.5.6"
-rayon = "1.5.0"
 lazy_static = "1.4.0"
 
 hash-ast = { path = "../compiler/hash-ast" }
 hash-source = { path = "../compiler/hash-source" }
-hash-session = { path = "../compiler/hash-session" }
+hash-driver = { path = "../compiler/hash-driver" }
 hash-utils = { path = "../compiler/hash-utils" }
 hash-pipeline = { path = "../compiler/hash-pipeline" }
 hash-reporting = { path = "../compiler/hash-reporting" }

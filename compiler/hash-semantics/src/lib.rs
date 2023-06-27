@@ -13,10 +13,9 @@ use environment::{
     },
 };
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerStage},
+    interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::CompilerStageKind,
     workspace::Workspace,
-    CompilerResult,
 };
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;

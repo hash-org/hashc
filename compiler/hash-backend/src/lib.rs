@@ -8,9 +8,8 @@ mod error;
 use error::BackendError;
 use hash_codegen::backend::{BackendCtx, CompilerBackend};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerStage, StageMetrics},
+    interface::{CompilerInterface, CompilerResult, CompilerStage, StageMetrics},
     settings::{CodeGenBackend, CompilerStageKind},
-    CompilerResult,
 };
 use hash_source::SourceId;
 
@@ -59,16 +58,8 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
 
         // Create a new instance of a backend, and then run it...
         let mut backend = match settings.codegen_settings.backend {
-            CodeGenBackend::LLVM if settings.entry_point().is_some() => {
-                create_llvm_backend(ctx.data(), &mut self.metrics)
-            }
+            CodeGenBackend::LLVM => create_llvm_backend(ctx.data(), &mut self.metrics),
             CodeGenBackend::VM => unimplemented!(),
-
-            // If the backend is specified to be LLVM, but there is no entry
-            // then we can't do anything so we just skip this...
-            _ => {
-                return Ok(());
-            }
         };
 
         backend.run()
