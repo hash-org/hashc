@@ -2,9 +2,9 @@
 use std::fmt;
 
 use hash_source::SourceMap;
+use hash_utils::highlight::{highlight, Modifier};
 
 use crate::{
-    highlight::{highlight, Modifier},
     report::{Report, ReportElement},
     reporter::Reports,
 };

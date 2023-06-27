@@ -10,7 +10,6 @@ name = "hashc"
 path = "./src/main.rs"
 
 [dependencies]
-backtrace = "0.3"
 profiling = "1.0.6"
 tracy-client = "0.13.2"
 clap = { version = "4.3.8", features = ["derive"] }

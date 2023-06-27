@@ -17,12 +17,10 @@ use hash_source::{
     location::{RowCol, RowColSpan, SourceLocation},
     SourceMap,
 };
+use hash_utils::highlight::{highlight, Colour, Modifier};
 
-use crate::{
-    highlight::{highlight, Colour, Modifier},
-    report::{
-        ReportCodeBlock, ReportCodeBlockInfo, ReportElement, ReportKind, ReportNote, ReportNoteKind,
-    },
+use crate::report::{
+    ReportCodeBlock, ReportCodeBlockInfo, ReportElement, ReportKind, ReportNote, ReportNoteKind,
 };
 
 /// Character used to denote the span of the diagnostic for the `line` view.

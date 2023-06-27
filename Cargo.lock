@@ -890,6 +890,7 @@ version = "0.1.0"
 dependencies = [
  "append-only-vec",
  "arrayvec",
+ "backtrace",
  "dashmap",
  "fixedbitset",
  "fxhash",
@@ -926,7 +927,6 @@ dependencies = [
 name = "hashc"
 version = "0.1.0"
 dependencies = [
- "backtrace",
  "cargo-husky",
  "clap",
  "hash-alloc",
