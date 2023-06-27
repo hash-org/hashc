@@ -37,6 +37,7 @@ macro_rules! location_targets {
         }
 
         impl hash_utils::store::SequenceStoreKey for IndexedLocationTarget {
+            type ElementKey = (Self, usize);
             fn to_index_and_len(self) -> (usize, usize) {
                 match self {
                     $(
@@ -92,7 +93,7 @@ macro_rules! location_targets {
                 match ty {
                     $(
                         $(
-                            IndexedLocationTarget::$indexed_name(indexed_target) => Self::$name((indexed_target, index)),
+                            IndexedLocationTarget::$indexed_name(indexed_target) => Self::$name((indexed_target, index).into()),
                         )?
                     )*
                 }

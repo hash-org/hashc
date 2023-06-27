@@ -17,7 +17,7 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{CloneStore, SequenceStoreKey, Store};
+use hash_utils::store::{CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use once_cell::unsync::OnceCell;
 
 use crate::{

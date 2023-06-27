@@ -3,12 +3,7 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_utils::{
-    new_sequence_store_key, new_store_key,
-    store::{
-        CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, SequenceStoreKey, Store,
-    },
-};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
 use textwrap::indent;
 use utility_types::omit;
 
@@ -19,7 +14,7 @@ use super::{
     tys::TyId,
 };
 use crate::{
-    impl_sequence_store_id, impl_single_store_id, params::ParamsId, symbols::Symbol, terms::TermId,
+    params::ParamsId, symbols::Symbol, terms::TermId, tir_sequence_store_direct, tir_single_store,
 };
 
 /// A constructor of a data-type definition.
@@ -57,10 +52,13 @@ pub struct CtorDef {
     /// data type, with some given arguments for its parameters.
     pub result_args: ArgsId,
 }
-new_sequence_store_key!(pub CtorDefsId);
-pub type CtorDefsStore = DefaultSequenceStore<CtorDefsId, CtorDef>;
-pub type CtorDefId = (CtorDefsId, usize);
-impl_sequence_store_id!(CtorDefsId, CtorDef, ctor_defs);
+
+tir_sequence_store_direct!(
+    store = pub CtorDefsStore,
+    id = pub CtorDefsId[CtorDefId],
+    value = CtorDef,
+    store_name = ctor_defs
+);
 
 /// A constructor term.
 ///
@@ -175,9 +173,13 @@ pub struct DataDef {
     /// location in this list using a `usize` index.
     pub ctors: DataDefCtors,
 }
-new_store_key!(pub DataDefId);
-pub type DataDefStore = DefaultStore<DataDefId, DataDef>;
-impl_single_store_id!(DataDefId, DataDef, data_def);
+
+tir_single_store!(
+    store = pub DataDefStore,
+    id = pub DataDefId,
+    value = DataDef,
+    store_name = data_def
+);
 
 /// A type pointing to a data-type definition.
 ///

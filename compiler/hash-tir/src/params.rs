@@ -4,10 +4,7 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_source::identifier::Identifier;
-use hash_utils::{
-    new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey},
-};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialKeySequenceStore};
 use utility_types::omit;
 
 use super::{
@@ -20,8 +17,8 @@ use crate::{
     context::ScopeKind,
     data::{CtorDefId, DataDefId},
     fns::{FnDefId, FnTy},
-    impl_sequence_store_id,
     symbols::Symbol,
+    tir_sequence_store_direct,
     tuples::TupleTy,
     tys::TyId,
 };
@@ -49,10 +46,12 @@ impl From<Param> for ParamData {
     }
 }
 
-new_sequence_store_key!(pub ParamsId);
-pub type ParamId = (ParamsId, usize);
-pub type ParamsStore = DefaultSequenceStore<ParamsId, Param>;
-impl_sequence_store_id!(ParamsId, Param, params);
+tir_sequence_store_direct!(
+    store = pub ParamsStore,
+    id = pub ParamsId[ParamId],
+    value = Param,
+    store_name = params
+);
 
 /// An index of a parameter of a parameter list.
 ///

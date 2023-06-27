@@ -17,7 +17,7 @@ use hash_source::{
 use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},
-    new_sequence_store_key,
+    new_sequence_store_key_direct,
     smallvec::{smallvec, SmallVec},
     store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
 };
@@ -1441,7 +1441,7 @@ impl BodyInfo {
     }
 }
 
-new_sequence_store_key!(pub ProjectionId);
+new_sequence_store_key_direct!(pub ProjectionId, ProjectionElementId, derives = Debug);
 
 /// Stores all collections of projections that can occur on a place.
 ///

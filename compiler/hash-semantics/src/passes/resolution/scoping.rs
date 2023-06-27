@@ -18,7 +18,7 @@ use hash_tir::{
 };
 use hash_utils::{
     state::HeavyState,
-    store::{CloneStore, SequenceStore, SequenceStoreKey, Store},
+    store::{CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore},
 };
 
 use super::paths::NonTerminalResolvedPathComponent;
@@ -214,7 +214,7 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn add_data_params_and_ctors(&self, data_def_id: DataDefId) {
         let params = self.stores().data_def().map_fast(data_def_id, |def| def.params);
         for i in params.to_index_range() {
-            self.add_param_binding((params, i));
+            self.add_param_binding(ParamId(params, i));
         }
         self.stores().data_def().map_fast(data_def_id, |data_def| {
             // Add all the constructors

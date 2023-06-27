@@ -3,10 +3,7 @@
 use std::fmt::Display;
 
 use hash_source::SourceId;
-use hash_utils::{
-    new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
-};
+use hash_utils::store::{SequenceStore, Store};
 use textwrap::indent;
 use utility_types::omit;
 
@@ -15,7 +12,7 @@ use super::{
     environment::env::{AccessToEnv, WithEnv},
     fns::FnDefId,
 };
-use crate::{impl_sequence_store_id, impl_single_store_id, symbols::Symbol};
+use crate::{symbols::Symbol, tir_sequence_store_direct, tir_single_store};
 
 /// The kind of a module.
 ///
@@ -96,10 +93,12 @@ pub struct ModMember {
     pub value: ModMemberValue,
 }
 
-new_sequence_store_key!(pub ModMembersId);
-pub type ModMembersStore = DefaultSequenceStore<ModMembersId, ModMember>;
-pub type ModMemberId = (ModMembersId, usize);
-impl_sequence_store_id!(ModMembersId, ModMember, mod_members);
+tir_sequence_store_direct!(
+    store = pub ModMembersStore,
+    id = pub ModMembersId[ModMemberId],
+    value = ModMember,
+    store_name = mod_members
+);
 
 /// A module definition.
 ///
@@ -118,9 +117,12 @@ pub struct ModDef {
     pub members: ModMembersId,
 }
 
-new_store_key!(pub ModDefId);
-pub type ModDefStore = DefaultStore<ModDefId, ModDef>;
-impl_single_store_id!(ModDefId, ModDef, mod_def);
+tir_single_store!(
+    store = pub ModDefStore,
+    id = pub ModDefId,
+    value = ModDef,
+    store_name = mod_def
+);
 
 impl Display for WithEnv<'_, &ModDef> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

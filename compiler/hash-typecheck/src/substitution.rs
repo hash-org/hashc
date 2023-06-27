@@ -25,7 +25,7 @@ use hash_tir::{
 };
 use hash_utils::{
     log::warn,
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{Store, TrivialKeySequenceStore, TrivialSequenceStoreKey},
 };
 
 use crate::AccessToTypechecking;

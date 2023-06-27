@@ -82,7 +82,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
             hash_tir::data::DataDefCtors::Defined(ctors) => {
                 // Index 0 is true, 1 is false, see BootstrapOps
                 let idx = if value { 0 } else { 1 };
-                (ctors, idx)
+                CtorDefId(ctors, idx)
             }
             hash_tir::data::DataDefCtors::Primitive(_) => {
                 panic!("Found primitive data definition for bool")

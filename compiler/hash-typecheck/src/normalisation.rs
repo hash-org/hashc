@@ -12,6 +12,7 @@ use hash_tir::{
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
+    environment::stores::StoreId,
     fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
@@ -32,7 +33,9 @@ use hash_tir::{
 use hash_utils::{
     itertools::Itertools,
     log::info,
-    store::{CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
+    store::{
+        CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+    },
 };
 
 use crate::{
@@ -497,7 +500,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Get the parameter at the given index in the given argument list.
     fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
         for arg_i in args.iter() {
-            let arg = self.stores().args().get_element(arg_i);
+            let arg = arg_i.value();
             if arg.target == target || ParamIndex::Position(arg.id.1) == target {
                 return arg.value.into();
             }
@@ -509,7 +512,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn set_param_in_args(&self, args: ArgsId, target: ParamIndex, value: Atom) {
         let value = self.to_term(value);
         for arg_i in args.iter() {
-            let arg = self.stores().args().get_element(arg_i);
+            let arg = arg_i.value();
             if arg.target == target || ParamIndex::Position(arg.id.1) == target {
                 self.stores().args().modify_fast(arg_i.0, |args| args[arg_i.1].value = value);
                 return;
@@ -620,7 +623,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         match_term.subject = self.to_term(self.eval_and_record(match_term.subject.into(), &st)?);
 
         for case_id in match_term.cases.iter() {
-            let case = self.stores().match_cases().get_element(case_id);
+            let case = case_id.value();
             let mut outcome = None;
 
             self.context().enter_scope(case.stack_id.into(), || -> Result<(), Signal> {
@@ -1071,7 +1074,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             (_, Pat::Or(pats)) => {
                 // Try each alternative in turn:
                 for pat in pats.alternatives.iter() {
-                    let pat = self.stores().pat_list().get_element(pat);
                     // First collect the bindings locally
 
                     match self.match_value_and_get_binds(term_id, pat.assert_pat(), f)? {

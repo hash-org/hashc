@@ -1,7 +1,9 @@
 //! Contains context-related utilities.
 
 use derive_more::Constructor;
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{
+    CloneStore, SequenceStoreKey, Store, TrivialKeySequenceStore, TrivialSequenceStoreKey,
+};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{

@@ -33,7 +33,7 @@ use hash_tir::{
     terms::Term,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::SequenceStore;
+use hash_utils::store::TrivialKeySequenceStore;
 
 use super::{
     params::{AstArgGroup, ResolvedArgs},

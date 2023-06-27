@@ -4,10 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::{
-    new_store_key,
-    store::{CloneStore, DefaultStore, Store},
-};
+use hash_utils::store::{CloneStore, Store};
 
 use super::{
     environment::env::{AccessToEnv, WithEnv},
@@ -15,7 +12,7 @@ use super::{
     symbols::Symbol,
 };
 use crate::{
-    data::DataTy, fns::FnTy, impl_single_store_id, refs::RefTy, terms::TermId, tuples::TupleTy,
+    data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tir_single_store, tuples::TupleTy,
 };
 
 /// The type of types, i.e. a universe.
@@ -58,9 +55,12 @@ pub enum Ty {
     Universe(UniverseTy),
 }
 
-new_store_key!(pub TyId);
-pub type TyStore = DefaultStore<TyId, Ty>;
-impl_single_store_id!(TyId, Ty, ty);
+tir_single_store!(
+    store = pub TyStore,
+    id = pub TyId,
+    value = Ty,
+    store_name = ty
+);
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]

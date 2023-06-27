@@ -4,10 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::{
-    new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey},
-};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialKeySequenceStore};
 use utility_types::omit;
 
 use super::{
@@ -16,7 +13,7 @@ use super::{
     params::ParamIndex,
     pats::PatId,
 };
-use crate::{impl_sequence_store_id, terms::TermId};
+use crate::{terms::TermId, tir_sequence_store_direct};
 
 /// An argument to a parameter.
 ///
@@ -39,11 +36,12 @@ impl From<Arg> for ArgData {
     }
 }
 
-new_sequence_store_key!(pub ArgsId);
-pub type ArgId = (ArgsId, usize);
-pub type ArgsStore = DefaultSequenceStore<ArgsId, Arg>;
-
-impl_sequence_store_id!(ArgsId, Arg, args);
+tir_sequence_store_direct!(
+    store = pub ArgsStore,
+    id = pub ArgsId[ArgId],
+    value = Arg,
+    store_name = args
+);
 
 /// A pattern or a capture.
 ///
@@ -56,7 +54,7 @@ impl_sequence_store_id!(ArgsId, Arg, args);
 /// slots into `PatOrCapture::Capture` to indicate that the corresponding
 /// parameter is captured by the spread. After that point the spread is no
 /// longer needed (other than for errors).
-#[derive(Debug, Clone, Copy, From)]
+#[derive(Debug, Clone, Copy, From, PartialEq, Eq)]
 pub enum PatOrCapture {
     /// A pattern.
     Pat(PatId),
@@ -94,10 +92,12 @@ impl From<PatArg> for PatArgData {
     }
 }
 
-new_sequence_store_key!(pub PatArgsId);
-pub type PatArgId = (PatArgsId, usize);
-pub type PatArgsStore = DefaultSequenceStore<PatArgsId, PatArg>;
-impl_sequence_store_id!(PatArgsId, PatArg, pat_args);
+tir_sequence_store_direct!(
+    store = pub PatArgsStore,
+    id = pub PatArgsId[PatArgId],
+    value = PatArg,
+    store_name = pat_args
+);
 
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
@@ -111,6 +111,8 @@ pub enum SomeArgsId {
 pub struct SomeArgId(pub SomeArgsId, pub usize);
 
 impl SequenceStoreKey for SomeArgsId {
+    type ElementKey = (SomeArgsId, usize);
+
     fn to_index_and_len(self) -> (usize, usize) {
         match self {
             SomeArgsId::PatArgs(id) => id.to_index_and_len(),
@@ -147,8 +149,10 @@ impl From<SomeArgsId> for IndexedLocationTarget {
 impl From<SomeArgId> for LocationTarget {
     fn from(val: SomeArgId) -> Self {
         match val {
-            SomeArgId(SomeArgsId::PatArgs(id), index) => LocationTarget::PatArg((id, index)),
-            SomeArgId(SomeArgsId::Args(id), index) => LocationTarget::Arg((id, index)),
+            SomeArgId(SomeArgsId::PatArgs(id), index) => {
+                LocationTarget::PatArg(PatArgId(id, index))
+            }
+            SomeArgId(SomeArgsId::Args(id), index) => LocationTarget::Arg(ArgId(id, index)),
         }
     }
 }

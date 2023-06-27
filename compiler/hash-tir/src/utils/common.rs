@@ -4,7 +4,9 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     location::SourceLocation,
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{
+    CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
+};
 
 use super::traversing::Atom;
 use crate::{

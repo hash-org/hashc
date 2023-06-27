@@ -4,7 +4,10 @@
 //! complexity from types that are required for IR generation and
 //! analysis.
 
-use std::{cmp, fmt};
+use std::{
+    cmp,
+    fmt::{self, Debug},
+};
 
 use bitflags::bitflags;
 use hash_ast::ast;
@@ -21,7 +24,7 @@ use hash_target::{
 };
 use hash_utils::{
     index_vec::{self, index_vec, IndexVec},
-    new_sequence_store_key, new_store_key,
+    new_sequence_store_key_indirect, new_store_key,
     store::{
         CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store, StoreInternalData,
         StoreKey,
@@ -78,7 +81,7 @@ impl fmt::Display for Mutability {
     }
 }
 
-new_store_key!(pub InstanceId);
+new_store_key!(pub InstanceId, derives = Debug);
 
 /// This is a temporary struct that identifies a unique instance of a
 /// function within the generated code, and is later used to resolve
@@ -771,7 +774,7 @@ pub struct AdtField {
     pub ty: IrTyId,
 }
 
-new_store_key!(pub AdtId);
+new_store_key!(pub AdtId, derives = Debug);
 
 impl AdtId {
     /// The unit type always uses the first ID in the store.
@@ -865,7 +868,7 @@ impl fmt::Display for ForFormatting<'_, AdtId> {
     }
 }
 
-new_store_key!(pub IrTyId);
+new_store_key!(pub IrTyId, derives = Debug);
 
 /// Macro that is used to create the "common" IR types. Each
 /// entry has an associated name, and then followed by the type
@@ -1051,7 +1054,7 @@ impl fmt::Display for ForFormatting<'_, &IrTy> {
     }
 }
 
-new_sequence_store_key!(pub IrTyListId);
+new_sequence_store_key_indirect!(pub IrTyListId, IrTyId, derives = Debug);
 
 /// Define the [TyListStore], which is a sequence of [IrTy]s associated
 /// with a [IrTyListId].

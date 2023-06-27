@@ -4,10 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::{
-    new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
-};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 
 use super::{
     casting::CastTerm,
@@ -22,10 +19,10 @@ use crate::{
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
     fns::{FnCallTerm, FnDefId},
-    impl_sequence_store_id, impl_single_store_id,
     lits::Lit,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
+    tir_sequence_store_indirect, tir_single_store,
     tuples::TupleTerm,
     tys::TyId,
 };
@@ -101,13 +98,18 @@ pub enum Term {
     Hole(Hole),
 }
 
-new_store_key!(pub TermId);
-pub type TermStore = DefaultStore<TermId, Term>;
-impl_single_store_id!(TermId, Term, term);
+tir_single_store!(
+    store = pub TermStore,
+    id = pub TermId,
+    value = Term,
+    store_name = term
+);
 
-new_sequence_store_key!(pub TermListId);
-pub type TermListStore = DefaultSequenceStore<TermListId, TermId>;
-impl_sequence_store_id!(TermListId, TermId, term_list);
+tir_sequence_store_indirect!(
+    store = pub TermListStore,
+    id = pub TermListId[TermId],
+    store_name = term_list
+);
 
 impl fmt::Display for WithEnv<'_, &UnsafeTerm> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

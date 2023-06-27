@@ -3,13 +3,10 @@
 use std::fmt::Display;
 
 use hash_source::identifier::Identifier;
-use hash_utils::{
-    new_store_key,
-    store::{CloneStore, DefaultStore, Store, StoreKey},
-};
+use hash_utils::store::{Store, StoreKey};
 
 use super::environment::env::{AccessToEnv, WithEnv};
-use crate::impl_single_store_id;
+use crate::tir_single_store;
 
 /// The data carried by a symbol.
 ///
@@ -42,9 +39,12 @@ pub struct SymbolData {
     pub name: Option<Identifier>,
 }
 
-new_store_key!(pub Symbol);
-pub type SymbolStore = DefaultStore<Symbol, SymbolData>;
-impl_single_store_id!(Symbol, SymbolData, symbol);
+tir_single_store!(
+    store = pub SymbolStore,
+    id = pub Symbol,
+    value = SymbolData,
+    store_name = symbol
+);
 
 impl Display for WithEnv<'_, Symbol> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

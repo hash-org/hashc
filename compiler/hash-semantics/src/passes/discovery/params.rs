@@ -2,7 +2,7 @@
 use hash_ast::ast::{self};
 use hash_tir::{
     environment::env::AccessToEnv,
-    params::{ParamIndex, ParamsId},
+    params::{ParamId, ParamIndex, ParamsId},
     utils::{common::CommonUtils, AccessToUtils},
 };
 
@@ -32,7 +32,7 @@ impl<'tc> DiscoveryPass<'tc> {
             .add_locations_to_targets(params_id, |i| Some(self.source_location(params[i].span())));
 
         for (i, param) in params.iter().enumerate() {
-            self.ast_info().params().insert(param.id(), (params_id, i));
+            self.ast_info().params().insert(param.id(), ParamId(params_id, i));
         }
 
         params_id

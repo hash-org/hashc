@@ -2,10 +2,7 @@
 
 use core::fmt;
 
-use hash_utils::{
-    new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore},
-};
+use hash_utils::store::SequenceStore;
 use textwrap::indent;
 
 use super::{
@@ -14,7 +11,7 @@ use super::{
     scopes::StackId,
     utils::common::CommonUtils,
 };
-use crate::{scopes::BlockTerm, terms::TermId};
+use crate::{scopes::BlockTerm, terms::TermId, tir_sequence_store_direct};
 
 /// A loop term.
 ///
@@ -49,8 +46,12 @@ pub struct MatchCase {
     pub value: TermId,
 }
 
-new_sequence_store_key!(pub MatchCasesId);
-pub type MatchCasesStore = DefaultSequenceStore<MatchCasesId, MatchCase>;
+tir_sequence_store_direct!(
+    store = pub MatchCasesStore,
+    id = pub MatchCasesId[MatchCaseId],
+    value = MatchCase,
+    store_name = match_cases
+);
 
 /// A return term.
 ///

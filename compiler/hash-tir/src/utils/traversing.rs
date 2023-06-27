@@ -690,7 +690,7 @@ impl<'env> TraversingUtils<'env> {
             DataDefCtors::Defined(data_def_ctors_id) => {
                 // Traverse the constructors
                 for ctor_idx in data_def_ctors_id.to_index_range() {
-                    self.visit_ctor_def((data_def_ctors_id, ctor_idx), f)?;
+                    self.visit_ctor_def(CtorDefId(data_def_ctors_id, ctor_idx), f)?;
                 }
                 Ok(())
             }
@@ -742,7 +742,7 @@ impl<'env> TraversingUtils<'env> {
     ) -> Result<(), E> {
         let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
         for member_idx in members.to_index_range() {
-            self.visit_mod_member((members, member_idx), f)?;
+            self.visit_mod_member(ModMemberId(members, member_idx), f)?;
         }
         Ok(())
     }

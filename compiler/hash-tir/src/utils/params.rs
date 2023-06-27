@@ -2,7 +2,7 @@
 use derive_more::Constructor;
 use hash_utils::{
     itertools::Itertools,
-    store::{SequenceStore, SequenceStoreKey},
+    store::{SequenceStore, TrivialSequenceStoreKey},
 };
 
 use super::common::CommonUtils;

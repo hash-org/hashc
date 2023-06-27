@@ -2,10 +2,7 @@
 
 use std::fmt::Display;
 
-use hash_utils::{
-    new_store_key,
-    store::{CloneStore, DefaultStore, Store},
-};
+use hash_utils::store::Store;
 use typed_builder::TypedBuilder;
 use utility_types::omit;
 
@@ -16,7 +13,7 @@ use super::{
     utils::common::CommonUtils,
 };
 use crate::{
-    args::ArgsId, impl_single_store_id, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId,
+    args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tir_single_store, tys::TyId,
 };
 
 /// A function type.
@@ -110,11 +107,12 @@ impl FnDef {
     }
 }
 
-new_store_key!(pub FnDefId);
-
-/// Function definitions live in a store
-pub type FnDefStore = DefaultStore<FnDefId, FnDef>;
-impl_single_store_id!(FnDefId, FnDef, fn_def);
+tir_single_store!(
+    store = pub FnDefStore,
+    id = pub FnDefId,
+    value = FnDef,
+    store_name = fn_def
+);
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]

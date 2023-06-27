@@ -5,10 +5,7 @@
 
 use core::fmt;
 
-use hash_utils::{
-    new_store_key,
-    store::{DefaultStore, SequenceStore, Store},
-};
+use hash_utils::store::{SequenceStore, Store};
 use textwrap::indent;
 use utility_types::omit;
 
@@ -23,6 +20,7 @@ use crate::{
     pats::PatId,
     symbols::Symbol,
     terms::{TermId, TermListId},
+    tir_single_store,
     tys::TyId,
 };
 
@@ -109,8 +107,13 @@ pub struct Stack {
     pub local_mod_def: Option<ModDefId>,
 }
 
-new_store_key!(pub StackId);
-pub type StackStore = DefaultStore<StackId, Stack>;
+tir_single_store!(
+    store = pub StackStore,
+    id = pub StackId,
+    value = Stack,
+    store_name = stack
+);
+
 pub type StackMemberId = (StackId, usize);
 
 /// A block term.

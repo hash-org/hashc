@@ -18,7 +18,7 @@ use hash_tir::{
     tys::TyId,
     utils::{common::CommonUtils, traversing::Atom},
 };
-use hash_utils::store::SequenceStoreKey;
+use hash_utils::store::{SequenceStoreKey, TrivialSequenceStoreKey};
 
 use crate::params::ParamError;
 

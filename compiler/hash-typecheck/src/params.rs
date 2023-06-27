@@ -2,12 +2,16 @@ use std::collections::HashSet;
 
 use derive_more::{Constructor, Deref};
 use hash_tir::{
-    args::{ArgData, ArgsId, PatArgData, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
+    args::{
+        ArgData, ArgId, ArgsId, PatArgData, PatArgId, PatArgsId, PatOrCapture, SomeArgId,
+        SomeArgsId,
+    },
+    environment::stores::StoreId,
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
+use hash_utils::store::{SequenceStoreKey, TrivialSequenceStoreKey};
 
 use crate::{errors::TcResult, AccessToTypechecking};
 
@@ -169,7 +173,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         // or equal to the number of parameters
 
         for (j, arg_id) in args_id.iter().enumerate() {
-            let arg = self.stores().args().get_element(arg_id);
+            let arg = arg_id.value();
 
             match arg.target {
                 // Invariant: all positional arguments are before named
@@ -178,7 +182,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
                     result[j] = Some(ArgData {
                         // Add the name if present
-                        target: self.get_param_index((params_id, j)),
+                        target: self.get_param_index(ParamId(params_id, j)),
                         value: arg.value,
                     });
                 }
@@ -198,8 +202,8 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                                 // Duplicate argument name, must be from positional
                                 assert!(j != i);
                                 error_state.add_error(ParamError::DuplicateArg {
-                                    first: (args_id, i).into(),
-                                    second: (args_id, j).into(),
+                                    first: ArgId(args_id, i).into(),
+                                    second: ArgId(args_id, j).into(),
                                 });
                             } else {
                                 // Found an uncrossed parameter, add it to the result
@@ -226,7 +230,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         // Populate default values and catch missing arguments
         for i in params_id.to_index_range() {
             if result[i].is_none() {
-                let param_id = (params_id, i);
+                let param_id = ParamId(params_id, i);
                 let default = self.get_param_default(param_id);
 
                 if let Some(default) = default {
@@ -286,7 +290,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         // or equal to the number of parameters
 
         for (j, arg_id) in args_id.iter().enumerate() {
-            let arg = self.stores().pat_args().get_element(arg_id);
+            let arg = arg_id.value();
 
             match arg.target {
                 // Invariant: all positional arguments are before named
@@ -302,7 +306,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
                     result[j] = Some(PatArgData {
                         // Add the name if present
-                        target: self.get_param_index((params_id, j)),
+                        target: self.get_param_index(ParamId(params_id, j)),
                         pat: arg.pat,
                     });
                 }
@@ -322,8 +326,8 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                                 // Duplicate argument name, must be from positional
                                 assert!(j != i);
                                 error_state.add_error(ParamError::DuplicateArg {
-                                    first: (args_id, i).into(),
-                                    second: (args_id, j).into(),
+                                    first: PatArgId(args_id, i).into(),
+                                    second: PatArgId(args_id, j).into(),
                                 });
                             } else {
                                 // Found an uncrossed parameter, add it to the result
@@ -350,7 +354,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         // Populate missing arguments with captures
         for i in params_id.to_index_range() {
             if result[i].is_none() {
-                let param_id = (params_id, i);
+                let param_id = ParamId(params_id, i);
                 if spread.is_some() {
                     result[i] = Some(PatArgData {
                         target: self.get_param_index(param_id),

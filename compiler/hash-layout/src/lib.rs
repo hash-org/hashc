@@ -60,7 +60,7 @@ pub struct PointeeInfo {
 }
 
 // Define a new key to represent a particular layout.
-new_store_key!(pub LayoutId);
+new_store_key!(pub LayoutId, derives = Debug);
 
 /// Used to cache the [Layout]s that are created from [IrTyId]s.
 type LayoutCache<'c> = Ref<'c, FxHashMap<IrTyId, LayoutId>>;

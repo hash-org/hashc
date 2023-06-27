@@ -4,7 +4,10 @@ use hash_ast::ast::OwnsAstNode;
 use hash_source::{identifier::Identifier, ModuleId};
 use hash_utils::{
     itertools::Itertools,
-    store::{CloneStore, SequenceStore, SequenceStoreKey, Store, StoreKey},
+    store::{
+        CloneStore, SequenceStore, Store, StoreKey, TrivialKeySequenceStore,
+        TrivialSequenceStoreKey,
+    },
 };
 
 use super::common::CommonUtils;

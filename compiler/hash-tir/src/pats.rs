@@ -4,10 +4,7 @@ use core::fmt;
 
 use derive_more::From;
 use hash_ast::ast::RangeEnd;
-use hash_utils::{
-    new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
-};
+use hash_utils::store::{CloneStore, SequenceStore, Store};
 
 use super::{
     args::{PatArgsId, PatOrCapture},
@@ -19,7 +16,7 @@ use super::{
     symbols::Symbol,
     tuples::TuplePat,
 };
-use crate::{arrays::ArrayPat, impl_sequence_store_id, impl_single_store_id};
+use crate::{arrays::ArrayPat, tir_sequence_store_indirect, tir_single_store};
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.
@@ -87,13 +84,18 @@ impl Pat {
     }
 }
 
-new_store_key!(pub PatId);
-pub type PatStore = DefaultStore<PatId, Pat>;
-impl_single_store_id!(PatId, Pat, pat);
+tir_single_store!(
+    store = pub PatStore,
+    id = pub PatId,
+    value = Pat,
+    store_name = pat
+);
 
-new_sequence_store_key!(pub PatListId);
-pub type PatListStore = DefaultSequenceStore<PatListId, PatOrCapture>;
-impl_sequence_store_id!(PatListId, PatOrCapture, pat_list);
+tir_sequence_store_indirect!(
+    store = pub PatListStore,
+    id = pub PatListId[PatOrCapture],
+    store_name = pat_list
+);
 
 impl fmt::Display for WithEnv<'_, Spread> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
