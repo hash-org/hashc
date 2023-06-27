@@ -1,4 +1,10 @@
-use std::{collections::HashMap, env::current_dir, ops::Deref, path::Path, time::Duration};
+use std::{
+    collections::HashMap,
+    env::current_dir,
+    ops::{Deref, DerefMut},
+    path::Path,
+    time::Duration,
+};
 
 use hash_ast::node_map::{InteractiveBlock, ModuleEntry};
 use hash_pipeline::{
@@ -29,11 +35,18 @@ pub struct Driver<I: CompilerInterface> {
     /// that is required for the core of the language to work.
     bootstrapping: bool,
 }
+
 impl<I: CompilerInterface> Deref for Driver<I> {
     type Target = I;
 
     fn deref(&self) -> &Self::Target {
         &self.compiler
+    }
+}
+
+impl<I: CompilerInterface> DerefMut for Driver<I> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.compiler
     }
 }
 
