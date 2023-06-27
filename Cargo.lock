@@ -927,7 +927,6 @@ dependencies = [
 name = "hashc"
 version = "0.1.0"
 dependencies = [
- "backtrace",
  "cargo-husky",
  "clap",
  "hash-alloc",
