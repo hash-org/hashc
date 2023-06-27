@@ -360,7 +360,7 @@ pub struct AstSettings {
 
     /// What kind of dumping mode should it be, either being "pretty"
     /// or tree mode.
-    #[arg(long="ast-dump-mode", default_value_t = AstDumpMode::Tree)]
+    #[arg(name="ast-dump-mode", long="ast-dump-mode", default_value_t = AstDumpMode::Tree)]
     pub dump_mode: AstDumpMode,
 }
 
