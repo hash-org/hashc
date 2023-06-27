@@ -11,14 +11,10 @@ use std::{
 
 use clap::Parser;
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerOutputStream},
+    interface::CompilerInterface,
     settings::{CompilerSettings, CompilerStageKind},
-    workspace::Workspace,
-    Compiler,
 };
-use hash_reporting::report::Report;
-use hash_session::{emit_fatal_error, make_stages, CompilerSession};
-use hash_source::{ModuleKind, SourceMap};
+use hash_session::CompilerBuilder;
 use hash_utils::log;
 use log::LevelFilter;
 use logger::CompilerLogger;
@@ -27,20 +23,6 @@ use crate::crash_handler::panic_handler;
 
 /// The logger that is used by the compiler for `log!` statements.
 pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
-
-/// Perform some task that might fail and if it does, report the error and exit,
-/// otherwise return the result of the task.
-fn execute<T, E: Into<Report>>(f: impl FnOnce() -> Result<T, E>) -> T {
-    // @@Hack: we have to create a dummy source map here so that we can use it
-    // to report errors in the case that the compiler fails to start up. After the
-    // workspace is initiated, it is replaced with the real source map.
-    let source_map = SourceMap::new();
-
-    match f() {
-        Ok(value) => value,
-        Err(err) => emit_fatal_error(err, &source_map),
-    }
-}
 
 fn main() {
     // Initial grunt work, panic handler and logger setup...
@@ -56,11 +38,6 @@ fn main() {
 
     let settings = CompilerSettings::parse();
 
-    // We want to figure out the entry point of the compiler by checking if the
-    // compiler has been specified to run in a specific mode.
-    let entry_point = execute(|| settings.entry_point());
-    let workspace = execute(|| Workspace::new(&settings));
-
     // if debug is specified, we want to log everything that is debug level...
     if settings.debug {
         log::set_max_level(LevelFilter::Debug);
@@ -68,18 +45,12 @@ fn main() {
         log::set_max_level(LevelFilter::Info);
     }
 
-    let session = CompilerSession::new(
-        workspace,
-        settings,
-        || CompilerOutputStream::Stderr(std::io::stderr()),
-        || CompilerOutputStream::Stdout(std::io::stdout()),
-    );
-    let mut compiler = Compiler::new(make_stages());
-    let mut session = compiler.bootstrap(session);
+    let mut compiler = CompilerBuilder::build_with_settings(settings);
 
     // Now run on the filename that was specified by the user.
-    session = compiler.run_on_filename(entry_point, ModuleKind::EntryPoint, session);
+    compiler.run_on_entry_point();
 
+    let session = compiler.session();
     // If the stage is set to `exe`, this means that we want to run the
     // produced executable from the building process. This is essentially
     // a shorthand for `hash build <file> && ./<exe_path>`.

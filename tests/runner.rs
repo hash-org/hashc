@@ -32,11 +32,10 @@ use std::{
 
 use clap::Parser;
 use hash_pipeline::{
-    interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace, Compiler,
+    interface::CompilerOutputStream, settings::CompilerSettings, workspace::Workspace,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_session::{make_stages, CompilerSession};
-use hash_source::ModuleKind;
+use hash_session::{CompilerBuilder, DefaultCompilerInterface};
 use hash_testing_internal::{
     metadata::{HandleWarnings, TestResult},
     TestingInput,
@@ -104,7 +103,7 @@ fn strip_contents(contents: &str, test: &TestingInput) -> String {
 fn compare_emitted_diagnostics(
     input: &TestingInput,
     diagnostics: Vec<Report>,
-    sources: Workspace,
+    sources: &Workspace,
 ) -> std::io::Result<()> {
     // First, convert the diagnostics into a string.
     let contents = diagnostics
@@ -215,7 +214,7 @@ fn compare_stream(
 fn handle_failure_case(
     test: TestingInput,
     diagnostics: Vec<Report>,
-    sources: Workspace,
+    sources: &Workspace,
     output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
     // verify that the case failed, as in reports where generated
@@ -259,7 +258,7 @@ fn handle_failure_case(
 fn handle_pass_case(
     test: TestingInput,
     diagnostics: Vec<Report>,
-    sources: Workspace,
+    sources: &Workspace,
     output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
     let did_pass = match test.metadata.warnings {
@@ -293,9 +292,8 @@ fn handle_pass_case(
 fn handle_test(test: TestingInput) {
     // We also need to potentially apply any additional configuration options
     // that are specified by the test onto the compiler settings
-    println!("args: {:#?}", test.metadata.args.items);
     let mut settings = if !test.metadata.args.items.is_empty() {
-        // push an extra argument to the start of the list to pretend that it
+        // @@Hack: v push an extra argument to the start of the list to pretend that it
         // is the "program name" that is being executed.
         let mut args = test.metadata.args.items.clone();
         args.insert(0, String::from(""));
@@ -313,6 +311,9 @@ fn handle_test(test: TestingInput) {
     settings.set_emit_errors(false);
     settings.set_stage(test.metadata.stage);
 
+    // Specify the entrypoint of the compiler to be the current test path.
+    settings.entry_point = Some(test.path.clone());
+
     // We specify that the output directory should be `tests/target` in order to
     // avoid creating "target" directories within the test runner tree.
     settings.output_directory = Some(Path::new("./target").to_path_buf());
@@ -323,7 +324,7 @@ fn handle_test(test: TestingInput) {
     // compare the output of the compiler to the expected output
     let output_stream = Arc::new(Mutex::new(Vec::new()));
 
-    let session = CompilerSession::new(
+    let interface = DefaultCompilerInterface::with(
         workspace,
         settings,
         // @@Future: we might want to directly compare `stderr` rather than
@@ -335,20 +336,23 @@ fn handle_test(test: TestingInput) {
         },
     );
 
-    let mut compiler = Compiler::new(make_stages());
-    let mut compiler_state = compiler.bootstrap(session);
+    let mut compiler = CompilerBuilder::build_with_interface(interface);
 
     // // Now parse the module and store the result
-    compiler_state = compiler.run_on_filename(&test.path, ModuleKind::EntryPoint, compiler_state);
+    compiler.run_on_entry_point();
 
-    let diagnostics = compiler_state.diagnostics;
+    let session = compiler.session();
+    let workspace = &session.workspace;
+
+    // @@Copying: we shouldn't really need to clone the diagnostics here!!
+    let diagnostics = session.diagnostics.clone();
 
     // Based on the specified metadata within the test case itself, we know
     // whether the test should fail or not
     if test.metadata.completion == TestResult::Fail {
-        handle_failure_case(test, diagnostics, compiler_state.workspace, &output_stream).unwrap();
+        handle_failure_case(test, diagnostics, workspace, &output_stream).unwrap();
     } else {
-        handle_pass_case(test, diagnostics, compiler_state.workspace, &output_stream).unwrap();
+        handle_pass_case(test, diagnostics, workspace, &output_stream).unwrap();
     }
 }
 

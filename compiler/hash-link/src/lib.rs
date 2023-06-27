@@ -30,7 +30,7 @@ use linker::{build_linker_args, get_linker};
 use platform::flush_linked_file;
 
 /// The linking context, which contains all of the information
-/// from the [CompilerSession] in order to perform
+/// from the [DefaultCompilerInterface] in order to perform
 /// the linking of an executable, or library.
 pub struct LinkerCtx<'ctx> {
     /// Reference to the current compiler workspace.

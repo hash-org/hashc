@@ -31,7 +31,7 @@ pub struct CompilerSettings {
         long,
         help = "The entry point for the compiler. This will invoke the compile in a non-interactive mode."
     )]
-    pub(crate) entry_point: Option<PathBuf>,
+    pub entry_point: Option<PathBuf>,
 
     /// An optionally specified output directory for compiler generated
     /// information and artifacts.

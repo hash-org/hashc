@@ -27,9 +27,12 @@ pub type CompilerResult<T> = Result<T, Reports>;
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<I: CompilerInterface> {
+pub struct Compiler<Compiler: CompilerInterface> {
+    /// The session that the compiler is running in.
+    compiler: Compiler,
+
     /// The attached stages of the compiler pipeline.
-    stages: Vec<Box<dyn CompilerStage<I>>>,
+    stages: Vec<Box<dyn CompilerStage<Compiler>>>,
 
     /// A record of all of the stage metrics
     metrics: HashMap<CompilerStageKind, Duration>,
@@ -48,22 +51,27 @@ impl<I: CompilerInterface> Compiler<I> {
     ///are allowed to have the same[CompilerStageKind]s,
     ///but this will mean that they are treated as if
     /// they are one stage in some operations.
-    pub fn new(stages: Vec<Box<dyn CompilerStage<I>>>) -> Self {
-        // Assert that all the provided stages have a correct stage order, as in
+    pub fn new(session: I, stages: Vec<Box<dyn CompilerStage<I>>>) -> Self {
+        // Assert    that all the provided stages have a correct stage order, as in
         // each stage has the same level or a higher order stage than the previous
         // stage.
         assert!(stages.windows(2).all(|w| w[0].kind() <= w[1].kind()));
 
-        Self { stages, metrics: HashMap::new(), bootstrapping: false }
+        Self { compiler: session, stages, metrics: HashMap::new(), bootstrapping: false }
+    }
+
+    /// Get a reference to the session of the compiler.
+    pub fn session(&self) -> &I {
+        &self.compiler
     }
 
     /// Function to report the collected metrics on the stages within the
     /// compiler.
-    fn report_metrics(&self, ctx: &I) {
+    fn report_metrics(&self) {
         let mut total = Duration::new(0, 0);
 
         log::info!("compiler pipeline timings:");
-        let mut stderr = ctx.error_stream();
+        let mut stderr = self.compiler.error_stream();
 
         // Get the longest key in the stages
         let longest_key = self
@@ -82,7 +90,7 @@ impl<I: CompilerInterface> Compiler<I> {
             .unwrap_or(0);
 
         let report_stage_metrics = |stage: &dyn CompilerStage<I>| {
-            let mut stderr = ctx.error_stream();
+            let mut stderr = self.compiler.error_stream();
             let kind = stage.kind();
 
             for (item, duration) in stage.metrics().iter() {
@@ -149,17 +157,12 @@ impl<I: CompilerInterface> Compiler<I> {
         );
     }
 
-    fn run_stage(
-        &mut self,
-        entry_point: SourceId,
-        workspace: &mut I,
-        index: usize,
-    ) -> CompilerResult<()> {
+    fn run_stage(&mut self, entry_point: SourceId, index: usize) -> CompilerResult<()> {
         let stage = &mut self.stages[index];
         let stage_kind = stage.kind();
 
         timed(
-            || stage.run(entry_point, workspace),
+            || stage.run(entry_point, &mut self.compiler),
             log::Level::Info,
             |time| {
                 self.metrics
@@ -175,7 +178,7 @@ impl<I: CompilerInterface> Compiler<I> {
         // function since it will be invoked by the the second run of
         // the pipeline for the actual compilation.
         if !self.bootstrapping {
-            stage.cleanup(entry_point, workspace);
+            stage.cleanup(entry_point, &mut self.compiler);
         }
 
         Ok(())
@@ -183,13 +186,13 @@ impl<I: CompilerInterface> Compiler<I> {
 
     /// Helper function in order to check if the pipeline needs to terminate
     /// after any stage that is specified within the settings of the compiler.
-    fn maybe_terminate(&self, result: CompilerResult<()>, ctx: &mut I) -> Result<(), ()> {
+    fn maybe_terminate(&mut self, result: CompilerResult<()>) -> Result<(), ()> {
         if let Err(diagnostics) = result {
-            ctx.diagnostics_mut().extend(diagnostics.into_iter());
+            self.compiler.diagnostics_mut().extend(diagnostics.into_iter());
 
             // Some diagnostics might not be errors and all just warnings, in this
             // situation, we don't have to terminate execution
-            if ctx.diagnostics().iter().any(|r| r.is_error()) {
+            if self.compiler.diagnostics().iter().any(|r| r.is_error()) {
                 return Err(());
             }
         }
@@ -200,18 +203,18 @@ impl<I: CompilerInterface> Compiler<I> {
     /// Run a particular job within the pipeline. The function deals with
     /// executing the required stages in order as specified by the
     /// `job_parameters`
-    fn run_pipeline(&mut self, entry_point: SourceId, ctx: &mut I) -> Result<(), ()> {
+    fn run_pipeline(&mut self, entry_point: SourceId) -> Result<(), ()> {
         for stage in 0..self.stages.len() {
             let kind = self.stages[stage].kind();
 
             // Terminate the pipeline if we have reached a stage that is
             // beyond the currently specified stage.
-            if ctx.settings().stage < kind {
+            if self.compiler.settings().stage < kind {
                 return Err(());
             }
 
-            let result = self.run_stage(entry_point, ctx, stage);
-            self.maybe_terminate(result, ctx)?;
+            let result = self.run_stage(entry_point, stage);
+            self.maybe_terminate(result)?;
         }
 
         Ok(())
@@ -219,14 +222,14 @@ impl<I: CompilerInterface> Compiler<I> {
 
     /// Function to bootstrap the pipeline. This function invokes a job within
     /// the pipeline in order to load the prelude before any modules run.
-    pub fn bootstrap(&mut self, mut ctx: I) -> I {
-        if !ctx.settings().skip_prelude {
+    pub fn bootstrap(&mut self) {
+        if !self.compiler.settings().skip_prelude {
             self.bootstrapping = true;
 
             // Temporarily swap the settings with a patched settings in order
             // for the prelude bootstrap to run
-            let stage_kind = ctx.settings_mut().stage;
-            ctx.settings_mut().stage = CompilerStageKind::Analysis;
+            let stage_kind = self.compiler.settings_mut().stage;
+            self.compiler.settings_mut().stage = CompilerStageKind::Analysis;
 
             // We don't need to run the prelude in the full pipeline, just until
             // IR-gen since that will be dealt by the actual pipeline.
@@ -236,44 +239,42 @@ impl<I: CompilerInterface> Compiler<I> {
             let wd = match current_dir() {
                 Ok(wd) => wd,
                 Err(err) => {
-                    ctx.diagnostics_mut().push(err.into());
-                    return ctx;
+                    self.compiler.diagnostics_mut().push(err.into());
+                    return;
                 }
             };
 
             let path = match resolve_path(PRELUDE, wd) {
                 Ok(path) => path,
                 Err(err) => {
-                    ctx.diagnostics_mut().push(err.into());
-                    return ctx;
+                    self.compiler.diagnostics_mut().push(err.into());
+                    return;
                 }
             };
 
-            ctx = self.run_on_filename(path, ModuleKind::Prelude, ctx);
+            self.run_filename(path, ModuleKind::Prelude);
 
             // Reset the settings
-            ctx.settings_mut().stage = stage_kind;
+            self.compiler.settings_mut().stage = stage_kind;
 
             // The prelude shouldn't generate any errors, otherwise we just failed to
             // bootstrap
-            if ctx.diagnostics().iter().any(|r| r.is_error()) {
+            if self.compiler.diagnostics().iter().any(|r| r.is_error()) {
                 panic!("failed to bootstrap compiler");
             }
 
             self.bootstrapping = false;
         }
-
-        ctx
     }
 
     /// Emit diagnostics to the error stream with the applied settings.
-    pub fn emit_diagnostics(&self, ctx: &I) {
+    pub fn emit_diagnostics(&self) {
         let mut err_count = 0;
         let mut warn_count = 0;
-        let mut stderr = ctx.error_stream();
+        let mut stderr = self.compiler.error_stream();
 
         // @@Copying: Ideally, we would not want to copy here!
-        for diagnostic in ctx.diagnostics().iter().cloned() {
+        for diagnostic in self.compiler.diagnostics().iter().cloned() {
             if diagnostic.is_error() {
                 err_count += 1;
             }
@@ -282,7 +283,11 @@ impl<I: CompilerInterface> Compiler<I> {
                 warn_count += 1;
             }
 
-            stream_writeln!(stderr, "{}", ReportWriter::single(diagnostic, ctx.source_map()));
+            stream_writeln!(
+                stderr,
+                "{}",
+                ReportWriter::single(diagnostic, self.compiler.source_map())
+            );
         }
 
         // @@Hack: to prevent the compiler from printing this message when the pipeline
@@ -297,53 +302,62 @@ impl<I: CompilerInterface> Compiler<I> {
 
     /// Run a job within the compiler pipeline with the provided state, entry
     /// point and the specified job parameters.
-    pub fn run(&mut self, entry_point: SourceId, mut ctx: I) -> I {
-        let result = self.run_pipeline(entry_point, &mut ctx);
+    pub fn run(&mut self, source: SourceId) {
+        let result = self.run_pipeline(source);
 
         // we can print the diagnostics here
-        if ctx.settings().emit_errors && (!ctx.diagnostics().is_empty() || result.is_err()) {
-            self.emit_diagnostics(&ctx);
+        if self.compiler.settings().emit_errors
+            && (!self.compiler.diagnostics().is_empty() || result.is_err())
+        {
+            self.emit_diagnostics();
         }
 
         // Print compiler stage metrics if specified in the settings.
-        if ctx.settings().output_metrics && !self.bootstrapping {
-            self.report_metrics(&ctx);
+        if self.compiler.settings().output_metrics && !self.bootstrapping {
+            self.report_metrics();
         }
-
-        ctx
     }
 
     /// Run the compiler pipeline on a file specified by the path on the disk.
     /// This essentially performs the required steps of loading in a module
     /// off the disk, store it within the [Workspace] and invoke
     /// [`Self::run`]
-    pub fn run_on_filename(
-        &mut self,
-        filename: impl AsRef<Path>,
-        kind: ModuleKind,
-        mut ctx: I,
-    ) -> I {
+    pub fn run_filename(&mut self, filename: impl AsRef<Path>, kind: ModuleKind) {
         let contents = read_in_path(&filename);
 
         if let Err(err) = contents {
-            ctx.diagnostics_mut().push(err.into());
+            self.compiler.diagnostics_mut().push(err.into());
 
             // Since this a fatal error because we couldn't read the file, we
             // emit the diagnostics (if specified to emit) and terminate.
-            if ctx.settings().emit_errors {
-                self.emit_diagnostics(&ctx);
+            if self.compiler.settings().emit_errors {
+                self.emit_diagnostics();
             }
 
-            return ctx;
+            return;
         };
 
-        // Create the entry point and run!
-        let entry_point = ctx.workspace_mut().add_module(
+        // Create the module and run!
+        let module = self.compiler.workspace_mut().add_module(
             contents.unwrap(),
             ModuleEntry::new(filename.as_ref().to_path_buf()),
             kind,
         );
 
-        self.run(entry_point, ctx)
+        self.run(module)
+    }
+
+    /// Run the compiler pipeline on the entry point specified in the settings.
+    pub fn run_on_entry_point(&mut self) {
+        match self.compiler.settings().entry_point() {
+            Ok(entry_point) => self.run_filename(entry_point, ModuleKind::EntryPoint),
+            Err(err) => {
+                self.compiler.diagnostics_mut().push(err.into());
+
+                if self.compiler.settings().emit_errors {
+                    self.emit_diagnostics();
+                }
+            }
+        }
     }
 }
