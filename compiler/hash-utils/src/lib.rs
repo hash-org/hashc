@@ -22,11 +22,12 @@ pub mod store;
 pub mod timing;
 pub mod tree_writing;
 
-// Re-export commonly used vector packages
+// Re-export commonly crates across the compiler
 pub use arrayvec;
+pub use dashmap;
 pub use index_vec;
 pub use itertools;
-// Re-export logging utility
 pub use log;
+pub use parking_lot;
 pub use smallvec;
 pub use thin_vec;

@@ -6,7 +6,6 @@ edition = "2021"
 
 [dependencies]
 bimap = "0.6.2"
-dashmap = "5.1"
 derive_more = "0.99"
 fnv = "1.0.7"
 lazy_static = "1.4.0"

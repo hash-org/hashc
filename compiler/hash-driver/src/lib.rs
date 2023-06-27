@@ -340,7 +340,7 @@ impl LoweringCtxQuery for Compiler {
             layout_storage: &self.layout_storage,
             ir_storage: &mut self.ir_storage,
             stdout: output_stream,
-            _pool: &self.pool,
+            pool: &self.pool,
         }
     }
 }

@@ -5,10 +5,9 @@ use std::{
     thread_local,
 };
 
-use dashmap::DashMap;
 use fnv::FnvBuildHasher;
 use hash_alloc::{collections::string::BrickString, Castle, Wall};
-use hash_utils::counter;
+use hash_utils::{counter, dashmap::DashMap};
 use lazy_static::lazy_static;
 
 counter! {

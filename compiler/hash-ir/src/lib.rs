@@ -18,15 +18,17 @@ pub mod ty;
 pub mod visitor;
 pub mod write;
 
-use std::cell::{Ref, RefCell, RefMut};
-
 use hash_source::entry_point::EntryPointState;
 use hash_tir::{
     data::{DataDefId, DataTy},
     fns::FnDefId,
     tys::TyId,
 };
-use hash_utils::store::{FxHashMap, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::{
+    dashmap::DashMap,
+    parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard},
+    store::{SequenceStore, SequenceStoreKey, Store},
+};
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use lang_items::LangItems;
@@ -122,7 +124,7 @@ impl From<FnDefId> for TyCacheEntry {
 /// The type cache is used to store all of the [IrTyId]s that are created
 /// from [TyId]s or [DataTy]s. This is used to avoid re-computing the
 /// same type again.
-pub type TyCache = RefCell<FxHashMap<TyCacheEntry, IrTyId>>;
+pub type TyCache = DashMap<TyCacheEntry, IrTyId>;
 
 /// The [IrCtx] is used to store all interned information that
 /// IR [Body]s might use or reference. This includes IR types, place
@@ -148,11 +150,11 @@ pub struct IrCtx {
 
     /// A map of all "language" intrinsics that might need to be
     /// generated during the lowering process.
-    lang_items: RefCell<LangItems>,
+    lang_items: RwLock<LangItems>,
 
     /// A map of intrinsics that will be filled ion at the code generation
     /// stage based on the selected backend for the compiler.
-    intrinsics: RefCell<Intrinsics>,
+    intrinsics: RwLock<Intrinsics>,
 }
 
 impl IrCtx {
@@ -165,33 +167,33 @@ impl IrCtx {
 
         Self {
             projection_store: ProjectionStore::default(),
-            lang_items: RefCell::new(lang_items),
-            intrinsics: RefCell::new(intrinsics),
+            lang_items: RwLock::new(lang_items),
+            intrinsics: RwLock::new(intrinsics),
             ty_store,
             instances,
             adt_store: AdtStore::new(),
-            ty_cache: RefCell::new(FxHashMap::default()),
+            ty_cache: DashMap::new(),
         }
     }
 
     /// Get a reference to the [Intrinsics] map.
-    pub fn intrinsics(&self) -> Ref<Intrinsics> {
-        self.intrinsics.borrow()
+    pub fn intrinsics(&self) -> RwLockReadGuard<Intrinsics> {
+        self.intrinsics.read()
     }
 
     /// Get a mutable reference to the [Intrinsics] map.
-    pub fn intrinsics_mut(&self) -> RefMut<Intrinsics> {
-        self.intrinsics.borrow_mut()
+    pub fn intrinsics_mut(&self) -> RwLockWriteGuard<Intrinsics> {
+        self.intrinsics.write()
     }
 
     /// Get a reference to the [LangItems] map.
-    pub fn lang_items(&self) -> Ref<LangItems> {
-        self.lang_items.borrow()
+    pub fn lang_items(&self) -> RwLockReadGuard<LangItems> {
+        self.lang_items.read()
     }
 
     /// Get a mutable reference to the [LangItems] map.
-    pub fn lang_items_mut(&self) -> RefMut<LangItems> {
-        self.lang_items.borrow_mut()
+    pub fn lang_items_mut(&self) -> RwLockWriteGuard<LangItems> {
+        self.lang_items.write()
     }
 
     /// Get a reference to the [TyStore].

@@ -43,7 +43,7 @@ impl<'ir> BuilderCtx<'ir> {
     {
         // Check if the term is present within the cache, and if so, return the
         // cached value.
-        if let Some(ty) = self.lcx.ty_cache().borrow().get(&item.into()) {
+        if let Some(ty) = self.lcx.ty_cache().get(&item.into()) {
             return *ty;
         }
 
@@ -54,7 +54,7 @@ impl<'ir> BuilderCtx<'ir> {
         // adding the item into the cache, and we can skip it here. This is to allow
         // for recursive type definitions to be lowered.
         if add_to_cache {
-            self.lcx.ty_cache().borrow_mut().insert(item.into(), ty);
+            self.lcx.ty_cache().insert(item.into(), ty);
         }
 
         ty
@@ -265,7 +265,9 @@ impl<'ir> BuilderCtx<'ir> {
         // this type, and it will be updated once the type is fully defined.
         // Apply the arguments as the scope of the data type.
         let reserved_ty = self.lcx.tys().create(IrTy::Never);
-        self.lcx.ty_cache().borrow_mut().insert(ty.into(), reserved_ty);
+        {
+            self.lcx.ty_cache().insert(ty.into(), reserved_ty);
+        }
 
         // We want to add the arguments to the ADT, so that we can print them
         // out when the type is being displayed.

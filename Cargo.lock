@@ -566,7 +566,6 @@ dependencies = [
  "hash-tree-def",
  "hash-untyped-semantics",
  "hash-utils",
- "num_cpus",
  "rayon",
 ]
 
@@ -728,7 +727,6 @@ version = "0.1.0"
 dependencies = [
  "bimap",
  "bitflags 2.0.0-rc.1",
- "dashmap",
  "derive_more",
  "hash-alloc",
  "hash-ast",
@@ -752,7 +750,6 @@ version = "0.1.0"
 dependencies = [
  "bimap",
  "bytecount",
- "dashmap",
  "derive_more",
  "fnv",
  "hash-alloc",
@@ -864,7 +861,6 @@ name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
  "bimap",
- "dashmap",
  "derive_more",
  "hash-alloc",
  "hash-ast",

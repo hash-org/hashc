@@ -13,7 +13,7 @@ mod discover;
 mod lower_ty;
 mod optimise;
 
-use std::{collections::BTreeMap, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use build::BodyBuilder;
 use ctx::BuilderCtx;
@@ -52,7 +52,7 @@ use hash_utils::{
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };
-use optimise::Optimiser;
+use optimise::{Optimiser, OptimiserCtx};
 
 /// The Hash IR builder compiler stage.
 #[derive(Default)]
@@ -93,7 +93,7 @@ pub struct LoweringCtx<'ir> {
     pub stdout: CompilerOutputStream,
 
     /// Reference to the rayon thread pool.
-    pub _pool: &'ir rayon::ThreadPool,
+    pub pool: &'ir rayon::ThreadPool,
 }
 
 pub trait LoweringCtxQuery: CompilerInterface {
@@ -237,6 +237,8 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     }
 }
 
+const PARALLEL_THRESHOLD: usize = 1001;
+
 /// Compiler stage that is responsible for performing optimisations on the
 /// Hash IR. This will iterate over all of the bodies that have been generated
 /// and perform optimisations on them based on if they are applicable and the
@@ -270,26 +272,32 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let LoweringCtx { workspace, ir_storage, settings, .. } = ctx.data();
+        let LoweringCtx { workspace, ir_storage, settings, pool, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
 
-        let bodies = &mut ir_storage.bodies;
-        let body_data = &ir_storage.ctx;
-
+        println!("bodies to optimise {}", ir_storage.bodies.len());
         time_item(self, "optimise", |_| {
-            // @@Todo: think about making optimisation passes in parallel...
-            // pool.scope(|scope| {
-            //     for body in &mut ir_storage.generated_bodies {
-            //         scope.spawn(|_| {
-            //             let optimiser = Optimiser::new(body_data, source_map, settings);
-            //             optimiser.optimise(body);
-            //         });
-            //     }
-            // });
+            let optimiser = Optimiser::new(OptimiserCtx {
+                store: Arc::new(&ir_storage.ctx),
+                source_map: Arc::new(source_map),
+                settings: Arc::new(settings),
+            });
 
-            for body in bodies.iter_mut() {
-                let optimiser = Optimiser::new(body_data, source_map, settings);
-                optimiser.optimise(body);
+            // @@Todo: workout the most optimal configuration for when the optimisations
+            // passes should happen in parallel.
+            if ir_storage.bodies.len() < PARALLEL_THRESHOLD {
+                println!("using un-parallel optimisation");
+                for body in &mut ir_storage.bodies {
+                    optimiser.optimise(body);
+                }
+            } else {
+                pool.scope(|scope| {
+                    for body in &mut ir_storage.bodies {
+                        scope.spawn(|_| {
+                            optimiser.optimise(body);
+                        });
+                    }
+                });
             }
         });
 
