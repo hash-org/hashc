@@ -1,6 +1,7 @@
 //! Definitions related to patterns.
 
 use core::fmt;
+use std::fmt::Debug;
 
 use derive_more::From;
 use hash_ast::ast::RangeEnd;
@@ -16,7 +17,10 @@ use super::{
     symbols::Symbol,
     tuples::TuplePat,
 };
-use crate::{arrays::ArrayPat, tir_sequence_store_indirect, tir_single_store};
+use crate::{
+    arrays::ArrayPat, tir_debug_value_of_single_store_id, tir_sequence_store_indirect,
+    tir_single_store,
+};
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.
@@ -90,6 +94,8 @@ tir_single_store!(
     value = Pat,
     store_name = pat
 );
+
+tir_debug_value_of_single_store_id!(PatId);
 
 tir_sequence_store_indirect!(
     store = pub PatListStore,

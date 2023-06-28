@@ -31,7 +31,7 @@ impl<'env> ParamUtils<'env> {
     ) -> ParamsId {
         self.stores().params().create_from_iter_with(
             param_names
-                .map(|name| move |id| Param { id, name, ty: self.new_ty_hole(), default: None }),
+                .map(|name| move |_id| Param { name, ty: self.new_ty_hole(), default: None }),
         )
     }
 
@@ -52,15 +52,17 @@ impl<'env> ParamUtils<'env> {
         &self,
         params: impl Iterator<Item = ParamData> + ExactSizeIterator,
     ) -> ParamsId {
-        self.stores().params().create_from_iter_with(params.map(|data| {
-            move |id| Param { id, name: data.name, ty: data.ty, default: data.default }
-        }))
+        self.stores().params().create_from_iter_with(
+            params.map(|data| {
+                move |_id| Param { name: data.name, ty: data.ty, default: data.default }
+            }),
+        )
     }
 
     /// Create arguments from the given iterator of argument data.
     pub fn create_args(&self, args: impl Iterator<Item = ArgData> + ExactSizeIterator) -> ArgsId {
         self.stores().args().create_from_iter_with(
-            args.map(|data| move |id| Arg { id, target: data.target, value: data.value }),
+            args.map(|data| move |_id| Arg { target: data.target, value: data.value }),
         )
     }
 
@@ -70,7 +72,7 @@ impl<'env> ParamUtils<'env> {
         args: impl Iterator<Item = PatArgData> + ExactSizeIterator,
     ) -> PatArgsId {
         self.stores().pat_args().create_from_iter_with(
-            args.map(|data| move |id| PatArg { id, target: data.target, pat: data.pat }),
+            args.map(|data| move |_id| PatArg { target: data.target, pat: data.pat }),
         )
     }
 

@@ -12,7 +12,8 @@ use super::{
     symbols::Symbol,
 };
 use crate::{
-    data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tir_single_store, tuples::TupleTy,
+    data::DataTy, fns::FnTy, refs::RefTy, terms::TermId, tir_debug_value_of_single_store_id,
+    tir_single_store, tuples::TupleTy,
 };
 
 /// The type of types, i.e. a universe.
@@ -61,6 +62,8 @@ tir_single_store!(
     value = Ty,
     store_name = ty
 );
+
+tir_debug_value_of_single_store_id!(TyId);
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]

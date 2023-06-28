@@ -12,7 +12,9 @@ use super::{
     environment::env::{AccessToEnv, WithEnv},
     fns::FnDefId,
 };
-use crate::{symbols::Symbol, tir_sequence_store_direct, tir_single_store};
+use crate::{
+    symbols::Symbol, tir_debug_name_of_store_id, tir_sequence_store_direct, tir_single_store,
+};
 
 /// The kind of a module.
 ///
@@ -97,7 +99,8 @@ tir_sequence_store_direct!(
     store = pub ModMembersStore,
     id = pub ModMembersId[ModMemberId],
     value = ModMember,
-    store_name = mod_members
+    store_name = mod_members,
+    derives = Debug
 );
 
 /// A module definition.
@@ -123,6 +126,8 @@ tir_single_store!(
     value = ModDef,
     store_name = mod_def
 );
+
+tir_debug_name_of_store_id!(ModDefId);
 
 impl Display for WithEnv<'_, &ModDef> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

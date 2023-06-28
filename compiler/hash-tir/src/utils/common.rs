@@ -430,7 +430,7 @@ pub trait CommonUtils: AccessToEnv {
                 .iter()
                 .copied()
                 .enumerate()
-                .map(|(i, ty)| move |id| Param { id, name: self.new_symbol(i), ty, default: None }),
+                .map(|(i, ty)| move |_id| Param { name: self.new_symbol(i), ty, default: None }),
         )
     }
 
@@ -441,7 +441,7 @@ pub trait CommonUtils: AccessToEnv {
                 .iter()
                 .copied()
                 .enumerate()
-                .map(|(i, value)| move |id| Arg { id, target: ParamIndex::Position(i), value }),
+                .map(|(i, value)| move |_id| Arg { target: ParamIndex::Position(i), value }),
         )
     }
 

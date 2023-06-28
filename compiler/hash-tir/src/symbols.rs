@@ -6,7 +6,7 @@ use hash_source::identifier::Identifier;
 use hash_utils::store::{Store, StoreKey};
 
 use super::environment::env::{AccessToEnv, WithEnv};
-use crate::tir_single_store;
+use crate::{environment::stores::StoreId, tir_single_store};
 
 /// The data carried by a symbol.
 ///
@@ -45,6 +45,17 @@ tir_single_store!(
     value = SymbolData,
     store_name = symbol
 );
+
+impl std::fmt::Debug for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.value().name {
+            Some(name) => {
+                f.debug_tuple("Symbol").field(&self.index).field(&format!("{}", name)).finish()
+            }
+            None => f.debug_tuple("Symbol").field(&self.index).finish(),
+        }
+    }
+}
 
 impl Display for WithEnv<'_, Symbol> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

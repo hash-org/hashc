@@ -13,7 +13,9 @@ use super::{
     params::ParamIndex,
     pats::PatId,
 };
-use crate::{terms::TermId, tir_sequence_store_direct};
+use crate::{
+    terms::TermId, tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+};
 
 /// An argument to a parameter.
 ///
@@ -22,8 +24,6 @@ use crate::{terms::TermId, tir_sequence_store_direct};
 #[omit(ArgData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct Arg {
-    /// The ID of the argument in the argument list.
-    pub id: ArgId,
     /// Argument target (named or positional), if known.
     pub target: ParamIndex,
     /// The term that is the value of the argument.
@@ -42,6 +42,8 @@ tir_sequence_store_direct!(
     value = Arg,
     store_name = args
 );
+
+tir_debug_value_of_sequence_store_element_id!(ArgId);
 
 /// A pattern or a capture.
 ///
@@ -78,8 +80,6 @@ impl PatOrCapture {
 #[omit(PatArgData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct PatArg {
-    /// The ID of the argument in the argument pattern list.
-    pub id: PatArgId,
     /// Argument target (named or positional).
     pub target: ParamIndex,
     /// The pattern in place for this argument.
@@ -98,6 +98,8 @@ tir_sequence_store_direct!(
     value = PatArg,
     store_name = pat_args
 );
+
+tir_debug_value_of_sequence_store_element_id!(PatArgId);
 
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]

@@ -501,7 +501,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
         for arg_i in args.iter() {
             let arg = arg_i.value();
-            if arg.target == target || ParamIndex::Position(arg.id.1) == target {
+            if arg.target == target || ParamIndex::Position(arg_i.1) == target {
                 return arg.value.into();
             }
         }
@@ -513,7 +513,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let value = self.to_term(value);
         for arg_i in args.iter() {
             let arg = arg_i.value();
-            if arg.target == target || ParamIndex::Position(arg.id.1) == target {
+            if arg.target == target || ParamIndex::Position(arg_i.1) == target {
                 self.stores().args().modify_fast(arg_i.0, |args| args[arg_i.1].value = value);
                 return;
             }

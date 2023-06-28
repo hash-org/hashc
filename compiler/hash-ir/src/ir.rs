@@ -1441,7 +1441,7 @@ impl BodyInfo {
     }
 }
 
-new_sequence_store_key_direct!(pub ProjectionId, ProjectionElementId, derives = Debug);
+new_sequence_store_key_direct!(pub ProjectionId, ProjectionElementId, derives = [Debug], el_derives = [Debug]);
 
 /// Stores all collections of projections that can occur on a place.
 ///

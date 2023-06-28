@@ -22,7 +22,7 @@ use crate::{
     lits::Lit,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    tir_sequence_store_indirect, tir_single_store,
+    tir_debug_value_of_single_store_id, tir_sequence_store_indirect, tir_single_store,
     tuples::TupleTerm,
     tys::TyId,
 };
@@ -104,6 +104,8 @@ tir_single_store!(
     value = Term,
     store_name = term
 );
+
+tir_debug_value_of_single_store_id!(TermId);
 
 tir_sequence_store_indirect!(
     store = pub TermListStore,

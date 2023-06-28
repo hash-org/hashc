@@ -48,6 +48,17 @@ macro_rules! new_store_key {
     };
 }
 
+#[macro_export]
+macro_rules! impl_debug_for_store_key {
+    ($name:ident) => {
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($name)).field(&self.index).finish()
+            }
+        }
+    };
+}
+
 /// The internal data of a store.
 pub type StoreInternalData<Value> = RwLock<Vec<Value>>;
 
@@ -287,17 +298,42 @@ macro_rules! new_sequence_store_key_indirect {
     };
 }
 
+#[macro_export]
+macro_rules! impl_debug_for_sequence_store_key {
+    ($name:ident) => {
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($name)).field(&self.index).field(&self.len).finish()
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_debug_for_sequence_store_element_key {
+    ($name:ident) => {
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($name))
+                    .field(&(&self.0.index, &self.0.len))
+                    .field(&self.1)
+                    .finish()
+            }
+        }
+    };
+}
+
 /// Create a new [`SequenceStoreKey`] with the given name.
 #[macro_export]
 macro_rules! new_sequence_store_key_direct {
-    ($visibility:vis $name:ident, $el_name:ident $(, derives = $($extra_derives:ident),*)?) => {
+    ($visibility:vis $name:ident, $el_name:ident $(, derives = [$($extra_derives:ident),*])?  $(, el_derives = [$($extra_el_derives:ident),*])?) => {
         #[derive(PartialEq, Eq, Clone, Copy, Hash, $($($extra_derives),*)?)]
         $visibility struct $name {
             index: u32,
             len: u32,
         }
 
-        #[derive(PartialEq, Eq, Clone, Copy, Hash)]
+        #[derive(PartialEq, Eq, Clone, Copy, Hash, $($($extra_el_derives),*)?)]
         $visibility struct $el_name(pub $name, pub usize);
 
         impl From<$el_name> for ($name, usize) {

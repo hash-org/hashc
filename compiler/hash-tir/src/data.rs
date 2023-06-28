@@ -14,7 +14,8 @@ use super::{
     tys::TyId,
 };
 use crate::{
-    params::ParamsId, symbols::Symbol, terms::TermId, tir_sequence_store_direct, tir_single_store,
+    params::ParamsId, symbols::Symbol, terms::TermId, tir_debug_name_of_store_id,
+    tir_sequence_store_direct, tir_single_store,
 };
 
 /// A constructor of a data-type definition.
@@ -59,6 +60,8 @@ tir_sequence_store_direct!(
     value = CtorDef,
     store_name = ctor_defs
 );
+
+tir_debug_name_of_store_id!(CtorDefId);
 
 /// A constructor term.
 ///
@@ -180,6 +183,8 @@ tir_single_store!(
     value = DataDef,
     store_name = data_def
 );
+
+tir_debug_name_of_store_id!(DataDefId);
 
 /// A type pointing to a data-type definition.
 ///

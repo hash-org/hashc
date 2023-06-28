@@ -13,7 +13,8 @@ use super::{
     utils::common::CommonUtils,
 };
 use crate::{
-    args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tir_single_store, tys::TyId,
+    args::ArgsId, params::ParamsId, symbols::Symbol, terms::TermId, tir_debug_name_of_store_id,
+    tir_single_store, tys::TyId,
 };
 
 /// A function type.
@@ -113,6 +114,8 @@ tir_single_store!(
     value = FnDef,
     store_name = fn_def
 );
+
+tir_debug_name_of_store_id!(FnDefId);
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]

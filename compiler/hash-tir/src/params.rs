@@ -18,7 +18,7 @@ use crate::{
     data::{CtorDefId, DataDefId},
     fns::{FnDefId, FnTy},
     symbols::Symbol,
-    tir_sequence_store_direct,
+    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
     tuples::TupleTy,
     tys::TyId,
 };
@@ -30,8 +30,6 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 #[omit(ParamData, [id], [Debug, Clone, Copy])]
 pub struct Param {
-    /// The ID of the parameter in the parameter list.
-    pub id: ParamId,
     /// The name of the parameter.
     pub name: Symbol,
     /// The type of the parameter.
@@ -52,6 +50,8 @@ tir_sequence_store_direct!(
     value = Param,
     store_name = params
 );
+
+tir_debug_value_of_sequence_store_element_id!(ParamId);
 
 /// An index of a parameter of a parameter list.
 ///

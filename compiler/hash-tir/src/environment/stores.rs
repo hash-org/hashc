@@ -191,17 +191,11 @@ macro_rules! tir_sequence_store_indirect {
 
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                <Self as $crate::environment::stores::StoreId>::map(*self, |value| {
-                    for (i, el) in value.iter().enumerate() {
-                        if i > 0 {
-                            write!(f, ", ")?;
-                        }
-                        write!(f, "{:?}", el)?;
-                    }
-                    Ok(())
-                })
+                f.debug_list().entries(self.value().iter()).finish()
             }
         }
+
+        use $crate::environment::stores::StoreId;
 
         impl From<($id, usize)> for $el_id {
             fn from((id, index): ($id, usize)) -> Self {
@@ -215,9 +209,30 @@ macro_rules! tir_sequence_store_indirect {
 /// ID type.
 #[macro_export]
 macro_rules! tir_sequence_store_direct {
-    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident[$el_id:ident], value = $value:ty, store_name = $store_name:ident) => {
+    (
+        store = $store_vis:vis $store:ident,
+        id = $id_vis:vis $id:ident[$el_id:ident],
+        value = $value:ty,
+        store_name = $store_name:ident,
+        derives = Debug
+    ) => {
+        tir_sequence_store_direct! {
+            store = $store_vis $store,
+            id = $id_vis $id[$el_id],
+            value = $value,
+            store_name = $store_name
+        }
+        hash_utils::impl_debug_for_sequence_store_element_key!($el_id);
+    };
+    (
+        store = $store_vis:vis $store:ident,
+        id = $id_vis:vis $id:ident[$el_id:ident],
+        value = $value:ty,
+        store_name = $store_name:ident
+        $(, derives = $($extra_derives:ident),*)?
+    ) => {
         $store_vis type $store = hash_utils::store::DefaultSequenceStore<$id, $value>;
-        hash_utils::new_sequence_store_key_direct!($id_vis $id, $el_id);
+        hash_utils::new_sequence_store_key_direct!($id_vis $id, $el_id $(, el_derives = [$($extra_derives),*])?);
 
         impl $crate::environment::stores::StoreId for $id {
             type Value = Vec<$value>;
@@ -239,6 +254,16 @@ macro_rules! tir_sequence_store_direct {
                 $crate::environment::stores::global_stores()
                     .$store_name()
                     .set_from_slice_cloned(self, &value);
+            }
+        }
+
+        impl std::fmt::Debug for $id {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                use hash_utils::store::TrivialSequenceStoreKey;
+                let entries: Vec<_> = self.iter().collect();
+                f.debug_tuple(stringify!($id)).field(&self.index).field(&self.len)
+                    .field(&entries)
+                    .finish()
             }
         }
 
@@ -287,22 +312,6 @@ macro_rules! tir_sequence_store_direct {
                     .set_at_index(self.0, self.1, value);
             }
         }
-
-        impl std::fmt::Debug for $id {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                <Self as $crate::environment::stores::StoreId>::map(*self, |value| {
-                    write!(f, "{:?}", value)
-                })
-            }
-        }
-
-        impl std::fmt::Debug for $el_id {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                <Self as $crate::environment::stores::StoreId>::map(*self, |value| {
-                    write!(f, "{:?}", value)
-                })
-            }
-        }
     };
 }
 
@@ -310,9 +319,18 @@ macro_rules! tir_sequence_store_direct {
 /// type.
 #[macro_export]
 macro_rules! tir_single_store {
-    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident, value = $value:ty, store_name = $store_name:ident) => {
+    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident, value = $value:ty, store_name = $store_name:ident, derives = Debug) => {
+        tir_single_store! {
+            store = $store_vis $store,
+            id = $id_vis $id,
+            value = $value,
+            store_name = $store_name
+        }
+        hash_utils::impl_debug_for_store_key!($id);
+    };
+    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident, value = $value:ty, store_name = $store_name:ident $(, derives = $($extra_derives:ident),*)?) => {
         $store_vis type $store = hash_utils::store::DefaultStore<$id, $value>;
-        hash_utils::new_store_key!($id_vis $id);
+        hash_utils::new_store_key!($id_vis $id $(, derives = $($extra_derives),*)?);
 
         impl $crate::environment::stores::StoreId for $id {
             type Value = $value;
@@ -343,12 +361,44 @@ macro_rules! tir_single_store {
                 $crate::environment::stores::global_stores().$store_name().create_with(value)
             }
         }
+    };
+}
 
-        use $crate::environment::stores::StoreId;
-
+#[macro_export]
+macro_rules! tir_debug_value_of_sequence_store_element_id {
+    ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.map(|value| write!(f, "{:?}", value))
+                use $crate::environment::stores::StoreId;
+                f.debug_tuple(stringify!($id))
+                    .field(&(&self.0.index, &self.0.len))
+                    .field(&self.1)
+                    .field(&self.value())
+                    .finish()
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! tir_debug_value_of_single_store_id {
+    ($id:ident) => {
+        impl std::fmt::Debug for $id {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                use $crate::environment::stores::StoreId;
+                f.debug_tuple(stringify!($id)).field(&self.index).field(&self.value()).finish()
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! tir_debug_name_of_store_id {
+    ($id:ident) => {
+        impl std::fmt::Debug for $id {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                use $crate::environment::stores::StoreId;
+                f.debug_tuple(stringify!($id)).field(&self.value().name).finish()
             }
         }
     };

@@ -1,6 +1,7 @@
 //! Definitions related to control flow.
 
 use core::fmt;
+use std::fmt::Debug;
 
 use hash_utils::store::SequenceStore;
 use textwrap::indent;
@@ -11,7 +12,10 @@ use super::{
     scopes::StackId,
     utils::common::CommonUtils,
 };
-use crate::{scopes::BlockTerm, terms::TermId, tir_sequence_store_direct};
+use crate::{
+    scopes::BlockTerm, terms::TermId, tir_debug_value_of_sequence_store_element_id,
+    tir_sequence_store_direct,
+};
 
 /// A loop term.
 ///
@@ -52,6 +56,8 @@ tir_sequence_store_direct!(
     value = MatchCase,
     store_name = match_cases
 );
+
+tir_debug_value_of_sequence_store_element_id!(MatchCaseId);
 
 /// A return term.
 ///

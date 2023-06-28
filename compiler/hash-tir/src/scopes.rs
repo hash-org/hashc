@@ -111,7 +111,8 @@ tir_single_store!(
     store = pub StackStore,
     id = pub StackId,
     value = Stack,
-    store_name = stack
+    store_name = stack,
+    derives = Debug
 );
 
 pub type StackMemberId = (StackId, usize);
