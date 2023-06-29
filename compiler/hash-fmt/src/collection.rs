@@ -130,9 +130,9 @@ where
             print_item(self, item.ast_ref())?;
 
             if i != len - 1 {
-                self.write(format!("{separator}"))?;
+                self.write(separator)?;
             } else if let Some(separator) = ending_separator {
-                self.write(format!("{separator}"))?;
+                self.write(separator)?;
             }
 
             // We need to finish the line if an item should be printed per line.

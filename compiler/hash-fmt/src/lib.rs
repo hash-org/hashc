@@ -64,7 +64,7 @@ where
 
     fn indent(&mut self) -> std::io::Result<()> {
         let indentation = " ".repeat(self.state.indentation as usize);
-        self.write(format!("{}", indentation))
+        self.write(indentation)
     }
 }
 
