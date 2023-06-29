@@ -52,7 +52,7 @@ where
 
     /// Write a string to the output stream.
     fn write(&mut self, contents: impl AsRef<str>) -> std::io::Result<()> {
-        self.state.width += contents.as_ref().len() as u16;
+        self.state.width += contents.as_ref().len() as u32;
         write!(self.fmt, "{}", contents.as_ref())
     }
 
