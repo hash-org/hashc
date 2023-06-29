@@ -50,13 +50,13 @@ impl Display for ModMemberValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ModMemberValue::Data(data_def_id) => {
-                write!(f, "{}", (data_def_id))
+                write!(f, "{}", data_def_id)
             }
             ModMemberValue::Mod(mod_def_id) => {
-                write!(f, "{}", (mod_def_id))
+                write!(f, "{}", mod_def_id)
             }
             ModMemberValue::Fn(fn_def_id) => {
-                write!(f, "{}", (fn_def_id))
+                write!(f, "{}", fn_def_id)
             }
         }
     }
@@ -133,7 +133,7 @@ impl Display for ModDef {
         let members = (self.members).to_string();
         match self.kind {
             ModKind::ModBlock => {
-                write!(f, "mod [name={}, type=block] {{\n{}}}", (self.name), indent(&members, "  "))
+                write!(f, "mod [name={}, type=block] {{\n{}}}", self.name, indent(&members, "  "))
             }
             ModKind::Source(_source_id, source_name) => {
                 write!(
@@ -164,7 +164,7 @@ impl Display for ModDefId {
 
 impl Display for ModMember {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} := {}", (self.name), (self.value),)
+        write!(f, "{} := {}", self.name, self.value,)
     }
 }
 
@@ -177,7 +177,7 @@ impl Display for ModMemberId {
 impl Display for ModMembersId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for member in self.iter() {
-            writeln!(f, "{}", (member))?;
+            writeln!(f, "{}", member)?;
         }
         Ok(())
     }

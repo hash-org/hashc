@@ -201,13 +201,13 @@ pub struct DataTy {
 
 impl fmt::Display for CtorDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: ", (self.name))?;
+        write!(f, "{}: ", self.name)?;
         if self.params.len() > 0 {
-            write!(f, "({}) -> ", (self.params))?;
+            write!(f, "({}) -> ", self.params)?;
         }
 
         let data_ty = DataTy { args: self.result_args, data_def: self.data_def_id };
-        write!(f, "{}", (&data_ty))?;
+        write!(f, "{}", &data_ty)?;
 
         Ok(())
     }
@@ -222,7 +222,7 @@ impl fmt::Display for CtorDefId {
 impl fmt::Display for CtorDefsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for ctor_def in self.iter() {
-            writeln!(f, "{}", (ctor_def))?;
+            writeln!(f, "{}", ctor_def)?;
         }
         Ok(())
     }
@@ -234,11 +234,11 @@ impl Display for CtorTerm {
             (tir_get!(self.ctor, name), tir_get!(self.ctor, data_def_id));
 
         let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
-        write!(f, "{}::", (&data_ty))?;
+        write!(f, "{}::", &data_ty)?;
 
-        write!(f, "{}", (ctor_name))?;
+        write!(f, "{}", ctor_name)?;
         if self.ctor_args.len() > 0 {
-            write!(f, "({})", (self.ctor_args))?;
+            write!(f, "({})", self.ctor_args)?;
         }
 
         Ok(())
@@ -251,9 +251,9 @@ impl Display for CtorPat {
             (tir_get!(self.ctor, name), tir_get!(self.ctor, data_def_id));
 
         let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
-        write!(f, "{}::", (&data_ty))?;
+        write!(f, "{}::", &data_ty)?;
 
-        write!(f, "{}", (ctor_name))?;
+        write!(f, "{}", ctor_name)?;
         if self.ctor_pat_args.len() > 0 || self.ctor_pat_args_spread.is_some() {
             write!(
                 f,
@@ -295,7 +295,7 @@ impl Display for PrimitiveCtorInfo {
                 writeln!(f, "char")
             }
             PrimitiveCtorInfo::Array(list) => {
-                writeln!(f, "list [{}]", (list.element_ty))
+                writeln!(f, "list [{}]", list.element_ty)
             }
         }
     }
@@ -304,8 +304,8 @@ impl Display for PrimitiveCtorInfo {
 impl Display for DataDefCtors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DataDefCtors::Primitive(ctor) => write!(f, "{}", (&ctor)),
-            DataDefCtors::Defined(ctors) => write!(f, "{}", (ctors)),
+            DataDefCtors::Primitive(ctor) => write!(f, "{}", &ctor),
+            DataDefCtors::Defined(ctors) => write!(f, "{}", ctors),
         }
     }
 }
@@ -317,7 +317,7 @@ impl Display for DataDef {
             f,
             "datatype [name={}] {} {{\n{}}}",
             (self.name),
-            if self.params.len() > 0 { format!("<{}>", (self.params)) } else { "".to_string() },
+            if self.params.len() > 0 { format!("<{}>", self.params) } else { "".to_string() },
             indent(&ctors, "  ")
         )
     }
@@ -325,16 +325,16 @@ impl Display for DataDef {
 
 impl Display for DataDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", (self.value()))
+        write!(f, "{}", self.value())
     }
 }
 
 impl Display for DataTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data_def_name = tir_get!(self.data_def, name);
-        write!(f, "{}", (data_def_name))?;
+        write!(f, "{}", data_def_name)?;
         if self.args.len() > 0 {
-            write!(f, "<{}>", (self.args))?;
+            write!(f, "<{}>", self.args)?;
         }
         Ok(())
     }

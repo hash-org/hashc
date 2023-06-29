@@ -58,10 +58,10 @@ impl From<DefId> for LocationTarget {
 impl Display for DefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DefId::Mod(mod_id) => write!(f, "{}", (mod_id)),
-            DefId::Data(data_id) => write!(f, "{}", (data_id)),
-            DefId::Fn(fn_id) => write!(f, "{}", (fn_id)),
-            DefId::Stack(stack_id) => write!(f, "{}", (stack_id)),
+            DefId::Mod(mod_id) => write!(f, "{}", mod_id),
+            DefId::Data(data_id) => write!(f, "{}", data_id),
+            DefId::Fn(fn_id) => write!(f, "{}", fn_id),
+            DefId::Stack(stack_id) => write!(f, "{}", stack_id),
         }
     }
 }
@@ -73,7 +73,7 @@ impl<T> Display for DefMember<T> {
             "{}: {}{}",
             (self.name),
             (self.ty),
-            self.value.map(|x| format!(" = {}", (x))).unwrap_or_else(|| "".to_string())
+            self.value.map(|x| format!(" = {}", x)).unwrap_or_else(|| "".to_string())
         )
     }
 }
@@ -85,7 +85,7 @@ impl Display for DefMemberData {
             "{}: {}{}",
             (self.name),
             (self.ty),
-            self.value.map(|x| format!(" = {}", (x))).unwrap_or_else(|| "".to_string())
+            self.value.map(|x| format!(" = {}", x)).unwrap_or_else(|| "".to_string())
         )
     }
 }

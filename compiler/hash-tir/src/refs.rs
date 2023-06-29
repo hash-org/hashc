@@ -58,18 +58,18 @@ impl Display for RefKind {
 
 impl Display for RefTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}{}", self.kind, if self.mutable { "mut " } else { "" }, (self.ty))
+        write!(f, "{}{}{}", self.kind, if self.mutable { "mut " } else { "" }, self.ty)
     }
 }
 
 impl Display for RefTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}{}", self.kind, if self.mutable { "mut " } else { "" }, (self.subject))
+        write!(f, "{}{}{}", self.kind, if self.mutable { "mut " } else { "" }, self.subject)
     }
 }
 
 impl Display for DerefTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "*{}", (self.subject))
+        write!(f, "*{}", self.subject)
     }
 }

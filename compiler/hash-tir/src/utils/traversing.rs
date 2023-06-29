@@ -48,10 +48,10 @@ pub enum Atom {
 impl fmt::Display for Atom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Atom::Term(term_id) => write!(f, "{}", (term_id)),
-            Atom::Ty(ty_id) => write!(f, "{}", (ty_id)),
-            Atom::FnDef(fn_def_id) => write!(f, "{}", (fn_def_id)),
-            Atom::Pat(pat_id) => write!(f, "{}", (pat_id)),
+            Atom::Term(term_id) => write!(f, "{}", term_id),
+            Atom::Ty(ty_id) => write!(f, "{}", ty_id),
+            Atom::FnDef(fn_def_id) => write!(f, "{}", fn_def_id),
+            Atom::Pat(pat_id) => write!(f, "{}", pat_id),
         }
     }
 }

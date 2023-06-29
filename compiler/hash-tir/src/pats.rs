@@ -114,33 +114,33 @@ impl fmt::Display for Spread {
 
 impl fmt::Display for RangePat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", (self.start))?;
+        write!(f, "{}", self.start)?;
         match self.range_end {
             RangeEnd::Included => write!(f, "..=")?,
             RangeEnd::Excluded => write!(f, "..")?,
         }
-        write!(f, "{}", (self.end))
+        write!(f, "{}", self.end)
     }
 }
 
 impl fmt::Display for Pat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Pat::Binding(binding_pat) => write!(f, "{}", (binding_pat)),
-            Pat::Range(range_pat) => write!(f, "{}", (range_pat)),
-            Pat::Lit(lit_pat) => write!(f, "{}", (lit_pat)),
-            Pat::Tuple(tuple_pat) => write!(f, "{}", (tuple_pat)),
-            Pat::Ctor(ctor_pat) => write!(f, "{}", (ctor_pat)),
-            Pat::Or(or_pat) => write!(f, "{}", (or_pat)),
-            Pat::If(if_pat) => write!(f, "{}", (if_pat)),
-            Pat::Array(list_pat) => write!(f, "{}", (list_pat)),
+            Pat::Binding(binding_pat) => write!(f, "{}", binding_pat),
+            Pat::Range(range_pat) => write!(f, "{}", range_pat),
+            Pat::Lit(lit_pat) => write!(f, "{}", lit_pat),
+            Pat::Tuple(tuple_pat) => write!(f, "{}", tuple_pat),
+            Pat::Ctor(ctor_pat) => write!(f, "{}", ctor_pat),
+            Pat::Or(or_pat) => write!(f, "{}", or_pat),
+            Pat::If(if_pat) => write!(f, "{}", if_pat),
+            Pat::Array(list_pat) => write!(f, "{}", list_pat),
         }
     }
 }
 
 impl fmt::Display for PatId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", (self.value()))
+        write!(f, "{}", self.value())
     }
 }
 
@@ -156,7 +156,7 @@ impl fmt::Display for PatArgsWithSpread {
             self.pat_args.iter().map(|arg| (arg).to_string()).collect::<Vec<_>>();
 
         if let Some(spread) = self.spread {
-            pat_args_formatted.insert(spread.index, (spread).to_string());
+            pat_args_formatted.insert(spread.index, spread.to_string());
         }
 
         for (i, pat_arg) in pat_args_formatted.iter().enumerate() {

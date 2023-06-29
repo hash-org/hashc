@@ -38,7 +38,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// Get the [Span] of a given [PatId].
     pub(crate) fn span_of_pat(&self, id: PatId) -> Span {
         self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
-            log::debug!("expected pattern `{}` to have a location", (id));
+            log::debug!("expected pattern `{}` to have a location", id);
             DUMMY_SPAN
         })
     }
@@ -46,7 +46,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// Get the [Span] of a [FnDefId].
     pub(crate) fn span_of_def(&self, id: FnDefId) -> Span {
         self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
-            log::debug!("expected function definition `{}` to have a location", (id));
+            log::debug!("expected function definition `{}` to have a location", id);
             DUMMY_SPAN
         })
     }
@@ -54,7 +54,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// Get the [Span] of a given [TermId].
     pub(crate) fn span_of_term(&self, id: TermId) -> Span {
         self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
-            log::debug!("expected term `{:?}` to have a location", (id));
+            log::debug!("expected term `{:?}` to have a location", id);
             DUMMY_SPAN
         })
     }

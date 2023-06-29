@@ -87,14 +87,14 @@ impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::Eval(eval_ty) => {
-                write!(f, "{{{}}}", (*eval_ty))
+                write!(f, "{{{}}}", *eval_ty)
             }
-            Ty::Hole(hole) => write!(f, "{}", (*hole)),
-            Ty::Var(resolved_var) => write!(f, "{}", (*resolved_var)),
-            Ty::Tuple(tuple_ty) => write!(f, "{}", (tuple_ty)),
-            Ty::Fn(fn_ty) => write!(f, "{}", (fn_ty)),
-            Ty::Ref(ref_ty) => write!(f, "{}", (ref_ty)),
-            Ty::Data(data_ty) => write!(f, "{}", (data_ty)),
+            Ty::Hole(hole) => write!(f, "{}", *hole),
+            Ty::Var(resolved_var) => write!(f, "{}", *resolved_var),
+            Ty::Tuple(tuple_ty) => write!(f, "{}", tuple_ty),
+            Ty::Fn(fn_ty) => write!(f, "{}", fn_ty),
+            Ty::Ref(ref_ty) => write!(f, "{}", ref_ty),
+            Ty::Data(data_ty) => write!(f, "{}", data_ty),
             Ty::Universe(universe_ty) => write!(f, "{universe_ty}"),
         }
     }

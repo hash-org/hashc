@@ -340,10 +340,10 @@ impl fmt::Display for ScopeKind {
             ScopeKind::Mod(mod_def_id) => write!(f, "mod {}", tir_get!(*mod_def_id, name)),
             ScopeKind::Fn(fn_def_id) => write!(f, "fn {}", tir_get!(*fn_def_id, name)),
             ScopeKind::Data(data_def_id) => write!(f, "data {}", tir_get!(*data_def_id, name)),
-            ScopeKind::Ctor(ctor_def) => write!(f, "ctor {}", (ctor_def)),
+            ScopeKind::Ctor(ctor_def) => write!(f, "ctor {}", ctor_def),
             ScopeKind::Stack(stack_def_id) => write!(f, "stack {}", stack_def_id.to_index(),),
-            ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", (fn_ty)),
-            ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", (tuple_ty)),
+            ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", fn_ty),
+            ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", tuple_ty),
             ScopeKind::Sub => {
                 write!(f, "sub")
             }
@@ -353,7 +353,7 @@ impl fmt::Display for ScopeKind {
 
 impl fmt::Display for Scope {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}:", (self.kind))?;
+        writeln!(f, "{}:", self.kind)?;
         for decl in self.decls.borrow().values() {
             let result = (*decl).to_string();
             for line in result.lines() {
@@ -368,7 +368,7 @@ impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for scope_index in self.get_scope_indices() {
             let kind = self.get_scope(scope_index).kind;
-            writeln!(f, "({}) {}:", scope_index, (kind))?;
+            writeln!(f, "({}) {}:", scope_index, kind)?;
             self.try_for_decls_of_scope(scope_index, |decl| {
                 let result = (*decl).to_string();
                 for line in result.lines() {

@@ -106,14 +106,14 @@ pub struct OrPat {
 
 impl fmt::Display for LoopTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "loop {}", (&self.block))
+        write!(f, "loop {}", &self.block)
     }
 }
 
 impl fmt::Display for MatchTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "match {} {{", (self.subject))?;
-        write!(f, "{}", (self.cases))?;
+        writeln!(f, "match {} {{", self.subject)?;
+        write!(f, "{}", self.cases)?;
         write!(f, "}}")?;
         Ok(())
     }
@@ -122,7 +122,7 @@ impl fmt::Display for MatchTerm {
 impl fmt::Display for MatchCasesId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for case in self.iter() {
-            write!(f, "{}", (case))?;
+            write!(f, "{}", case)?;
         }
         Ok(())
     }
@@ -130,13 +130,13 @@ impl fmt::Display for MatchCasesId {
 
 impl fmt::Display for MatchCaseId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", (self.value()))
+        write!(f, "{}", self.value())
     }
 }
 
 impl fmt::Display for MatchCase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let case = format!("{} => {};\n", (self.bind_pat), (self.value));
+        let case = format!("{} => {};\n", self.bind_pat, self.value);
         let lines = indent(&case, "  ");
         write!(f, "{lines}")?;
         Ok(())
@@ -149,7 +149,7 @@ impl fmt::Display for ReturnTerm {
         {
             write!(f, "return")
         } else {
-            write!(f, "return {}", (self.expression))
+            write!(f, "return {}", self.expression)
         }
     }
 }
@@ -165,7 +165,7 @@ impl fmt::Display for LoopControlTerm {
 
 impl fmt::Display for IfPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} if {}", (self.pat), (self.condition))
+        write!(f, "{} if {}", self.pat, self.condition)
     }
 }
 

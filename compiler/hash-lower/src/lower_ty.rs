@@ -146,7 +146,7 @@ impl<'ir> BuilderCtx<'ir> {
             }
             ty @ Ty::Hole(_) => {
                 let message =
-                    format!("all types should be monomorphised before lowering, type: `{}`", (ty));
+                    format!("all types should be monomorphised before lowering, type: `{}`", ty);
 
                 if let Some(location) = self.get_location(id) {
                     panic_on_span!(location, self.source_map(), format!("{message}"))

@@ -150,7 +150,7 @@ impl Display for FnTy {
             write!(f, "(")?;
         }
 
-        write!(f, "{}", (self.params))?;
+        write!(f, "{}", self.params)?;
 
         if self.implicit {
             write!(f, ">")?;
@@ -158,7 +158,7 @@ impl Display for FnTy {
             write!(f, ")")?;
         }
 
-        write!(f, " -> {}", (self.return_ty))?;
+        write!(f, " -> {}", self.return_ty)?;
 
         Ok(())
     }
@@ -183,7 +183,7 @@ impl Display for FnDef {
                 write!(f, "(")?;
             }
 
-            write!(f, "{}", (self.ty.params))?;
+            write!(f, "{}", self.ty.params)?;
 
             if self.ty.implicit {
                 write!(f, ">")?;
@@ -191,12 +191,12 @@ impl Display for FnDef {
                 write!(f, ")")?;
             }
         } else {
-            write!(f, "{}", (&self.ty))?;
+            write!(f, "{}", &self.ty)?;
         };
         match self.body {
-            FnBody::Defined(term) => write!(f, " => {}", (term)),
+            FnBody::Defined(term) => write!(f, " => {}", term),
             FnBody::Intrinsic(intrinsic) => {
-                write!(f, " => intrinsic('{}')", (intrinsic.0))
+                write!(f, " => intrinsic('{}')", intrinsic.0)
             }
             FnBody::Axiom => write!(f, " => axiom"),
         }
@@ -205,13 +205,13 @@ impl Display for FnDef {
 
 impl Display for FnDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", (self.value()))
+        write!(f, "{}", self.value())
     }
 }
 
 impl Display for FnCallTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", (self.subject))?;
+        write!(f, "{}", self.subject)?;
 
         if self.implicit {
             write!(f, "<")?;
@@ -219,7 +219,7 @@ impl Display for FnCallTerm {
             write!(f, "(")?;
         }
 
-        write!(f, "{}", (self.args))?;
+        write!(f, "{}", self.args)?;
 
         if self.implicit {
             write!(f, ">")?;

@@ -116,10 +116,10 @@ impl fmt::Display for UnsafeTerm {
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Term::Tuple(tuple_term) => write!(f, "{}", (tuple_term)),
+            Term::Tuple(tuple_term) => write!(f, "{}", tuple_term),
             Term::Lit(lit) => write!(f, "{}", *lit),
-            Term::Ctor(ctor_term) => write!(f, "{}", (ctor_term)),
-            Term::FnCall(fn_call_term) => write!(f, "{}", (fn_call_term)),
+            Term::Ctor(ctor_term) => write!(f, "{}", ctor_term),
+            Term::FnCall(fn_call_term) => write!(f, "{}", fn_call_term),
             Term::FnRef(fn_def_id) => write!(
                 f,
                 "{}",
@@ -129,31 +129,31 @@ impl fmt::Display for Term {
                     (fn_def_id.map(|def| def.name)).to_string()
                 }
             ),
-            Term::Block(block_term) => write!(f, "{}", (block_term)),
-            Term::Var(resolved_var) => write!(f, "{}", (*resolved_var)),
-            Term::Loop(loop_term) => write!(f, "{}", (loop_term)),
+            Term::Block(block_term) => write!(f, "{}", block_term),
+            Term::Var(resolved_var) => write!(f, "{}", *resolved_var),
+            Term::Loop(loop_term) => write!(f, "{}", loop_term),
             Term::LoopControl(loop_control_term) => {
-                write!(f, "{}", (loop_control_term))
+                write!(f, "{}", loop_control_term)
             }
-            Term::Match(match_term) => write!(f, "{}", (match_term)),
-            Term::Return(return_term) => write!(f, "{}", (return_term)),
+            Term::Match(match_term) => write!(f, "{}", match_term),
+            Term::Return(return_term) => write!(f, "{}", return_term),
             Term::Decl(decl_stack_member_term) => {
-                write!(f, "{}", (decl_stack_member_term))
+                write!(f, "{}", decl_stack_member_term)
             }
-            Term::Assign(assign_term) => write!(f, "{}", (assign_term)),
-            Term::Unsafe(unsafe_term) => write!(f, "{}", (unsafe_term)),
-            Term::Access(access_term) => write!(f, "{}", (access_term)),
-            Term::Cast(cast_term) => write!(f, "{}", (cast_term)),
-            Term::TypeOf(type_of_term) => write!(f, "{}", (type_of_term)),
-            Term::Ty(ty) => write!(f, "type {}", (*ty)),
-            Term::Ref(ref_term) => write!(f, "{}", (ref_term)),
-            Term::Deref(deref_term) => write!(f, "{}", (deref_term)),
-            Term::Hole(hole) => write!(f, "{}", (*hole)),
+            Term::Assign(assign_term) => write!(f, "{}", assign_term),
+            Term::Unsafe(unsafe_term) => write!(f, "{}", unsafe_term),
+            Term::Access(access_term) => write!(f, "{}", access_term),
+            Term::Cast(cast_term) => write!(f, "{}", cast_term),
+            Term::TypeOf(type_of_term) => write!(f, "{}", type_of_term),
+            Term::Ty(ty) => write!(f, "type {}", *ty),
+            Term::Ref(ref_term) => write!(f, "{}", ref_term),
+            Term::Deref(deref_term) => write!(f, "{}", deref_term),
+            Term::Hole(hole) => write!(f, "{}", *hole),
             Term::Index(index) => {
-                write!(f, "{}", (index))
+                write!(f, "{}", index)
             }
             Term::Array(array) => {
-                write!(f, "{}", (array))
+                write!(f, "{}", array)
             }
         }
     }

@@ -19,6 +19,6 @@ pub struct CastTerm {
 
 impl fmt::Display for CastTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} as {})", (self.subject_term), (self.target_ty))
+        write!(f, "({} as {})", self.subject_term, self.target_ty)
     }
 }

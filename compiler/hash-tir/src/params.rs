@@ -78,7 +78,7 @@ impl fmt::Display for Param {
             (self.name),
             (self.ty),
             if let Some(default) = self.default {
-                format!(" = {}", (default))
+                format!(" = {}", default)
             } else {
                 "".to_string()
             }
@@ -179,7 +179,7 @@ impl fmt::Display for ParamsId {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}", (param))?;
+            write!(f, "{}", param)?;
         }
         Ok(())
     }
@@ -197,9 +197,9 @@ impl fmt::Display for ParamIndex {
 impl fmt::Display for SomeParamsOrArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SomeParamsOrArgsId::Params(id) => write!(f, "{}", (id)),
-            SomeParamsOrArgsId::PatArgs(id) => write!(f, "{}", (id)),
-            SomeParamsOrArgsId::Args(id) => write!(f, "{}", (id)),
+            SomeParamsOrArgsId::Params(id) => write!(f, "{}", id),
+            SomeParamsOrArgsId::PatArgs(id) => write!(f, "{}", id),
+            SomeParamsOrArgsId::Args(id) => write!(f, "{}", id),
         }
     }
 }

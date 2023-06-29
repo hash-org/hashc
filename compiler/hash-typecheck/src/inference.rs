@@ -1012,13 +1012,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     self.uni_ops().unify_tys(ty, annotation_ty)?;
                     Ok(())
                 } else if decl.value.is_some() {
-                    panic!("no type found for decl '{}'", (decl))
+                    panic!("no type found for decl '{}'", decl)
                 } else {
-                    panic!("Found declaration without type or value during inference: {}", (decl))
+                    panic!("Found declaration without type or value during inference: {}", decl)
                 }
             }
             None => {
-                panic!("no binding found for symbol '{}'", (term))
+                panic!("no binding found for symbol '{}'", term)
             }
         }
     }

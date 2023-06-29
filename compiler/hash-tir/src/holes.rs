@@ -50,13 +50,13 @@ pub struct HoleBinder {
 
 impl fmt::Display for Hole {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "hole{}", (self.0))
+        write!(f, "hole{}", self.0)
     }
 }
 
 impl fmt::Display for HoleBinder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.({})", HoleBinding::from((self.hole, self.kind)), (self.inner))
+        write!(f, "{}.({})", HoleBinding::from((self.hole, self.kind)), self.inner)
     }
 }
 
@@ -64,10 +64,10 @@ impl fmt::Display for HoleBinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
             HoleBinderKind::Hole(ty) => {
-                write!(f, "?{}:{}", (self.hole), (ty))
+                write!(f, "?{}:{}", self.hole, ty)
             }
             HoleBinderKind::Guess(guess, ty) => {
-                write!(f, "?{}={}:{}", (self.hole), (guess), (ty))
+                write!(f, "?{}={}:{}", self.hole, guess, ty)
             }
         }
     }

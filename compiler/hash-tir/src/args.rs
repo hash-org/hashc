@@ -162,8 +162,8 @@ impl From<SomeArgId> for LocationTarget {
 impl fmt::Display for SomeArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SomeArgsId::Args(id) => write!(f, "{}", (id)),
-            SomeArgsId::PatArgs(id) => write!(f, "{}", (id)),
+            SomeArgsId::Args(id) => write!(f, "{}", id),
+            SomeArgsId::PatArgs(id) => write!(f, "{}", id),
         }
     }
 }
@@ -172,9 +172,9 @@ impl fmt::Display for Arg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.target {
             ParamIndex::Name(name) => {
-                write!(f, "{} = {}", name, (self.value))
+                write!(f, "{} = {}", name, self.value)
             }
-            ParamIndex::Position(_) => write!(f, "{}", (self.value)),
+            ParamIndex::Position(_) => write!(f, "{}", self.value),
         }
     }
 }
@@ -191,7 +191,7 @@ impl fmt::Display for ArgsId {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}", (arg))?;
+            write!(f, "{}", arg)?;
         }
         Ok(())
     }
@@ -201,7 +201,7 @@ impl fmt::Display for PatOrCapture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PatOrCapture::Pat(pat) => {
-                write!(f, "{}", (pat))
+                write!(f, "{}", pat)
             }
             PatOrCapture::Capture => {
                 write!(f, "_")
@@ -214,9 +214,9 @@ impl fmt::Display for PatArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.target {
             ParamIndex::Name(name) => {
-                write!(f, "{} = {}", name, (self.pat))
+                write!(f, "{} = {}", name, self.pat)
             }
-            ParamIndex::Position(_) => write!(f, "{}", (self.pat)),
+            ParamIndex::Position(_) => write!(f, "{}", self.pat),
         }
     }
 }
@@ -233,7 +233,7 @@ impl fmt::Display for PatArgsId {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}", (pat_arg))?;
+            write!(f, "{}", pat_arg)?;
         }
         Ok(())
     }

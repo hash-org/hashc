@@ -418,7 +418,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 matches!(var, Decl { value: None, .. })
             }
             None => {
-                warn!("Not found var {} in current scope", (var));
+                warn!("Not found var {} in current scope", var);
                 false
             }
         }

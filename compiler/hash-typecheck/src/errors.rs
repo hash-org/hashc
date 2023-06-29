@@ -208,7 +208,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let error = reporter
                     .error()
                     .code(HashErrorCode::UnresolvedType)
-                    .title(format!("cannot infer the type of this term: `{}`", (*atom)));
+                    .title(format!("cannot infer the type of this term: `{}`", *atom));
 
                 if let Some(location) = self.get_location(atom) {
                     error
@@ -267,17 +267,14 @@ impl<'tc> TcErrorReporter<'tc> {
                 {
                     error.add_labelled_span(
                         location,
-                        format!("type `{}` inferred from here", (*actual)),
+                        format!("type `{}` inferred from here", *actual),
                     );
                 }
                 if let Some(location) = locations.get_location(expected) {
-                    error.add_labelled_span(
-                        location,
-                        format!("this expects type `{}`", (*expected)),
-                    );
+                    error.add_labelled_span(location, format!("this expects type `{}`", *expected));
                 }
                 if let Some(location) = locations.get_location(actual) {
-                    error.add_labelled_span(location, format!("this is of type `{}`", (*actual)));
+                    error.add_labelled_span(location, format!("this is of type `{}`", *actual));
                 }
             }
             TcError::UndecidableEquality { a, b } => {
@@ -296,7 +293,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     );
                 }
                 if let Some(location) = locations.get_location(b) {
-                    error.add_labelled_span(location, format!("`{}` from here", (*b)));
+                    error.add_labelled_span(location, format!("`{}` from here", *b));
                 }
             }
             TcError::InvalidRangePatternLiteral { location } => {
@@ -461,7 +458,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     WrongTermKind::NotARecord => "record".to_string(),
                     WrongTermKind::NotAnArray => "array".to_string(),
                     WrongTermKind::NotOfType { correct_ty } => {
-                        format!("value of type `{}`", (*correct_ty))
+                        format!("value of type `{}`", *correct_ty)
                     }
                 };
 
@@ -482,7 +479,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 if let Some(location) = locations.get_location(inferred_term_ty) {
                     error.add_labelled_span(
                         location,
-                        format!("this value has type `{}`", (*inferred_term_ty)),
+                        format!("this value has type `{}`", *inferred_term_ty),
                     );
                 }
             }
@@ -490,7 +487,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let error = reporter
                     .error()
                     .code(HashErrorCode::InvalidPropertyAccess)
-                    .title(format!("property `{}` not found on type `{}`", *property, (*term_ty)));
+                    .title(format!("property `{}` not found on type `{}`", *property, *term_ty));
                 if let Some(location) = locations.get_location(term) {
                     error.add_labelled_span(
                         location,
@@ -639,7 +636,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let error = reporter
                     .error()
                     .code(HashErrorCode::DisallowedType)
-                    .title(format!("cannot use locals from this block in type `{}`", (*ty)));
+                    .title(format!("cannot use locals from this block in type `{}`", *ty));
                 if let Some(location) = locations.get_location(ty) {
                     error.add_labelled_span(location, "type containing locals");
                 }

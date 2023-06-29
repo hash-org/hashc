@@ -74,21 +74,21 @@ pub type AppliedDirectivesStore = DefaultPartialStore<DirectiveTarget, AppliedDi
 impl std::fmt::Display for DirectiveTarget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DirectiveTarget::TermId(term) => write!(f, "{}", (term)),
-            DirectiveTarget::TyId(ty) => write!(f, "{}", (ty)),
-            DirectiveTarget::PatId(pat) => write!(f, "{}", (pat)),
+            DirectiveTarget::TermId(term) => write!(f, "{}", term),
+            DirectiveTarget::TyId(ty) => write!(f, "{}", ty),
+            DirectiveTarget::PatId(pat) => write!(f, "{}", pat),
             DirectiveTarget::ParamId(param) => {
-                write!(f, "{}", (param))
+                write!(f, "{}", param)
             }
-            DirectiveTarget::FnDefId(fn_def) => write!(f, "{}", (fn_def)),
+            DirectiveTarget::FnDefId(fn_def) => write!(f, "{}", fn_def),
             DirectiveTarget::DataDefId(data_def) => {
-                write!(f, "{}", (data_def))
+                write!(f, "{}", data_def)
             }
             DirectiveTarget::ModDefId(mod_def) => {
-                write!(f, "{}", (mod_def))
+                write!(f, "{}", mod_def)
             }
             DirectiveTarget::CtorDefId(ctor_def) => {
-                write!(f, "{}", (ctor_def))
+                write!(f, "{}", ctor_def)
             }
         }
     }

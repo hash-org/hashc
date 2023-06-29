@@ -87,7 +87,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
 
         // Interactive mode is always evaluated.
         let result = self.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
-        stream_less_writeln!("{}", (result));
+        stream_less_writeln!("{}", result);
 
         Ok(())
     }

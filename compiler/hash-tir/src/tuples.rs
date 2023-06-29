@@ -41,7 +41,7 @@ pub struct TuplePat {
 impl Display for TupleTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
-        write!(f, "{}", (self.data))?;
+        write!(f, "{}", self.data)?;
         write!(f, ")")
     }
 }
@@ -49,7 +49,7 @@ impl Display for TupleTy {
 impl Display for TupleTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
-        write!(f, "{}", (self.data))?;
+        write!(f, "{}", self.data)?;
         write!(f, ")")
     }
 }

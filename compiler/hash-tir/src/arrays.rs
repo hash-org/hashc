@@ -63,7 +63,7 @@ impl ArrayPat {
 
 impl fmt::Display for IndexTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[{}]", (self.subject), (self.index),)
+        write!(f, "{}[{}]", self.subject, self.index)
     }
 }
 
@@ -74,7 +74,7 @@ impl fmt::Display for ArrayPat {
             self.pats.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
 
         if let Some(spread) = self.spread {
-            pat_args_formatted.insert(spread.index, (spread).to_string());
+            pat_args_formatted.insert(spread.index, spread.to_string());
         }
 
         for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
@@ -89,6 +89,6 @@ impl fmt::Display for ArrayPat {
 
 impl Display for ArrayTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]", (self.elements))
+        write!(f, "[{}]", self.elements)
     }
 }
