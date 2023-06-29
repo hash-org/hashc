@@ -121,8 +121,8 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                 error.add_span(*merge_location).add_help("cannot use merge declarations yet");
             }
             SemanticError::SymbolNotFound { symbol, location, looking_in } => {
-                let def_name = format!("{}", self.sem_env().with(looking_in));
-                let search_name = self.sem_env().env().with(*symbol);
+                let def_name = format!("{}", looking_in);
+                let search_name = *symbol;
                 let noun = match looking_in {
                     ContextKind::Access(_, _) => "member",
                     ContextKind::Environment => "name",

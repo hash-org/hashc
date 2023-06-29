@@ -5,8 +5,6 @@ use hash_ast::ast;
 use hash_source::constant::{InternedFloat, InternedInt, InternedStr, CONSTANT_MAP};
 use num_bigint::BigInt;
 
-use super::environment::env::WithEnv;
-
 /// An integer literal.
 ///
 /// Uses the `ast` representation.
@@ -136,9 +134,9 @@ impl Display for FloatLit {
     }
 }
 
-impl Display for WithEnv<'_, &LitPat> {
+impl Display for LitPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.value {
+        match self {
             LitPat::Int(lit) => write!(f, "{lit}"),
             LitPat::Str(lit) => write!(f, "{lit}"),
             LitPat::Char(lit) => write!(f, "{lit}"),

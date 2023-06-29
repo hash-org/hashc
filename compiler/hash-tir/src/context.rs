@@ -7,20 +7,18 @@ use std::{
 };
 
 use derive_more::From;
-use hash_utils::{
-    itertools::Itertools,
-    store::{Store, StoreKey},
-};
+use hash_utils::{itertools::Itertools, store::StoreKey};
 use indexmap::IndexMap;
 
 use crate::{
     data::{CtorDefId, DataDefId},
-    environment::env::{AccessToEnv, WithEnv},
+    environment::env::AccessToEnv,
     fns::{FnDefId, FnTy},
     mods::ModDefId,
     scopes::StackId,
     symbols::Symbol,
     terms::TermId,
+    tir_get,
     tuples::TupleTy,
     tys::TyId,
 };
@@ -310,68 +308,42 @@ impl Context {
     }
 }
 
-impl fmt::Display for WithEnv<'_, EqualityJudgement> {
+impl fmt::Display for EqualityJudgement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} === {}", self.env().with(self.value.lhs), self.env().with(self.value.rhs))
+        write!(f, "{} === {}", self.lhs, self.rhs)
     }
 }
 
-impl fmt::Display for WithEnv<'_, Decl> {
+impl fmt::Display for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ty_or_unknown = {
-            if let Some(ty) = self.value.ty {
-                self.env().with(ty).to_string()
+            if let Some(ty) = self.ty {
+                ty.to_string()
             } else {
                 "unknown".to_string()
             }
         };
-        match self.value.value {
+        match self.value {
             Some(value) => {
-                write!(
-                    f,
-                    "{}: {} = {}",
-                    self.env().with(self.value.name),
-                    ty_or_unknown,
-                    self.env().with(value)
-                )
+                write!(f, "{}: {} = {}", self.name, ty_or_unknown, value,)
             }
             None => {
-                write!(f, "{}: {}", self.env().with(self.value.name), ty_or_unknown)
+                write!(f, "{}: {}", self.name, ty_or_unknown)
             }
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, ScopeKind> {
+impl fmt::Display for ScopeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            ScopeKind::Mod(mod_def_id) => write!(
-                f,
-                "mod {}",
-                self.stores()
-                    .mod_def()
-                    .map_fast(mod_def_id, |mod_def| self.env().with(mod_def.name))
-            ),
-            ScopeKind::Fn(fn_def_id) => write!(
-                f,
-                "fn {}",
-                self.stores().fn_def().map_fast(fn_def_id, |fn_def| self.env().with(fn_def.name))
-            ),
-            ScopeKind::Data(data_def_id) => write!(
-                f,
-                "data {}",
-                self.stores()
-                    .data_def()
-                    .map_fast(data_def_id, |data_def| self.env().with(data_def.name))
-            ),
-            ScopeKind::Ctor(ctor_def) => write!(f, "ctor {}", self.env().with(ctor_def)),
-            ScopeKind::Stack(stack_def_id) => write!(
-                f,
-                "stack {}",
-                self.stores().stack().map_fast(stack_def_id, |stack_def| stack_def.id.to_index())
-            ),
-            ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", self.env().with(&fn_ty)),
-            ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", self.env().with(&tuple_ty)),
+        match self {
+            ScopeKind::Mod(mod_def_id) => write!(f, "mod {}", tir_get!(*mod_def_id, name)),
+            ScopeKind::Fn(fn_def_id) => write!(f, "fn {}", tir_get!(*fn_def_id, name)),
+            ScopeKind::Data(data_def_id) => write!(f, "data {}", tir_get!(*data_def_id, name)),
+            ScopeKind::Ctor(ctor_def) => write!(f, "ctor {}", (ctor_def)),
+            ScopeKind::Stack(stack_def_id) => write!(f, "stack {}", stack_def_id.to_index(),),
+            ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", (fn_ty)),
+            ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", (tuple_ty)),
             ScopeKind::Sub => {
                 write!(f, "sub")
             }
@@ -379,11 +351,11 @@ impl fmt::Display for WithEnv<'_, ScopeKind> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Scope> {
+impl fmt::Display for Scope {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}:", self.env().with(self.value.kind))?;
-        for decl in self.value.decls.borrow().values() {
-            let result = self.env().with(*decl).to_string();
+        writeln!(f, "{}:", (self.kind))?;
+        for decl in self.decls.borrow().values() {
+            let result = (*decl).to_string();
             for line in result.lines() {
                 writeln!(f, "  {line}")?;
             }
@@ -392,13 +364,13 @@ impl fmt::Display for WithEnv<'_, &Scope> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Context> {
+impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for scope_index in self.value.get_scope_indices() {
-            let kind = self.value.get_scope(scope_index).kind;
-            writeln!(f, "({}) {}:", scope_index, self.env().with(kind))?;
-            self.value.try_for_decls_of_scope(scope_index, |decl| {
-                let result = self.env().with(*decl).to_string();
+        for scope_index in self.get_scope_indices() {
+            let kind = self.get_scope(scope_index).kind;
+            writeln!(f, "({}) {}:", scope_index, (kind))?;
+            self.try_for_decls_of_scope(scope_index, |decl| {
+                let result = (*decl).to_string();
                 for line in result.lines() {
                     writeln!(f, "  {line}")?;
                 }

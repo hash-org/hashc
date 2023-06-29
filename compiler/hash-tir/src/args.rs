@@ -4,17 +4,17 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialKeySequenceStore};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
 use utility_types::omit;
 
 use super::{
-    environment::env::{AccessToEnv, WithEnv},
     locations::{IndexedLocationTarget, LocationTarget},
     params::ParamIndex,
     pats::PatId,
 };
 use crate::{
-    terms::TermId, tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+    environment::stores::StoreId, terms::TermId, tir_debug_value_of_sequence_store_element_id,
+    tir_sequence_store_direct,
 };
 
 /// An argument to a parameter.
@@ -159,51 +159,49 @@ impl From<SomeArgId> for LocationTarget {
     }
 }
 
-impl fmt::Display for WithEnv<'_, SomeArgsId> {
+impl fmt::Display for SomeArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            SomeArgsId::Args(id) => write!(f, "{}", self.env().with(id)),
-            SomeArgsId::PatArgs(id) => write!(f, "{}", self.env().with(id)),
+        match self {
+            SomeArgsId::Args(id) => write!(f, "{}", (id)),
+            SomeArgsId::PatArgs(id) => write!(f, "{}", (id)),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Arg> {
+impl fmt::Display for Arg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value.target {
+        match self.target {
             ParamIndex::Name(name) => {
-                write!(f, "{} = {}", name, self.env().with(self.value.value))
+                write!(f, "{} = {}", name, (self.value))
             }
-            ParamIndex::Position(_) => write!(f, "{}", self.env().with(self.value.value)),
+            ParamIndex::Position(_) => write!(f, "{}", (self.value)),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, ArgId> {
+impl fmt::Display for ArgId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(&self.stores().args().get_element(self.value)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, ArgsId> {
+impl fmt::Display for ArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().args().map_fast(self.value, |args| {
-            for (i, arg) in args.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{}", self.env().with(arg))?;
+        for (i, arg) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
             }
-            Ok(())
-        })
+            write!(f, "{}", (arg))?;
+        }
+        Ok(())
     }
 }
 
-impl fmt::Display for WithEnv<'_, PatOrCapture> {
+impl fmt::Display for PatOrCapture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
+        match self {
             PatOrCapture::Pat(pat) => {
-                write!(f, "{}", self.env().with(pat))
+                write!(f, "{}", (pat))
             }
             PatOrCapture::Capture => {
                 write!(f, "_")
@@ -212,33 +210,31 @@ impl fmt::Display for WithEnv<'_, PatOrCapture> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &PatArg> {
+impl fmt::Display for PatArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value.target {
+        match self.target {
             ParamIndex::Name(name) => {
-                write!(f, "{} = {}", name, self.env().with(self.value.pat))
+                write!(f, "{} = {}", name, (self.pat))
             }
-            ParamIndex::Position(_) => write!(f, "{}", self.env().with(self.value.pat)),
+            ParamIndex::Position(_) => write!(f, "{}", (self.pat)),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, PatArgId> {
+impl fmt::Display for PatArgId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(&self.stores().pat_args().get_element(self.value)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, PatArgsId> {
+impl fmt::Display for PatArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().pat_args().map_fast(self.value, |pat_args| {
-            for (i, pat_arg) in pat_args.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{}", self.env().with(pat_arg))?;
+        for (i, pat_arg) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
             }
-            Ok(())
-        })
+            write!(f, "{}", (pat_arg))?;
+        }
+        Ok(())
     }
 }

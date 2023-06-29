@@ -2,12 +2,9 @@
 
 use core::fmt;
 
-use super::{
-    environment::env::{AccessToEnv, WithEnv},
-    symbols::Symbol,
-    terms::TermId,
-    tys::TyId,
-};
+use derive_more::From;
+
+use super::{symbols::Symbol, terms::TermId, tys::TyId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Hole(pub Symbol);
@@ -33,7 +30,7 @@ pub enum HoleBinderKind {
 }
 
 /// A hole binding. This is the first part of a hole binder.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
 pub struct HoleBinding {
     pub hole: Hole,
     pub kind: HoleBinderKind,
@@ -51,37 +48,26 @@ pub struct HoleBinder {
     pub inner: TermId,
 }
 
-impl fmt::Display for WithEnv<'_, Hole> {
+impl fmt::Display for Hole {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "hole{}", self.env().with(self.value.0))
+        write!(f, "hole{}", (self.0))
     }
 }
 
-impl fmt::Display for WithEnv<'_, HoleBinder> {
+impl fmt::Display for HoleBinder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}.({})",
-            self.env().with((self.value.hole, self.value.kind)),
-            self.env().with(self.value.inner)
-        )
+        write!(f, "{}.({})", HoleBinding::from((self.hole, self.kind)), (self.inner))
     }
 }
 
-impl fmt::Display for WithEnv<'_, (Hole, HoleBinderKind)> {
+impl fmt::Display for HoleBinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value.1 {
+        match self.kind {
             HoleBinderKind::Hole(ty) => {
-                write!(f, "?{}:{}", self.env().with(self.value.0), self.env().with(ty))
+                write!(f, "?{}:{}", (self.hole), (ty))
             }
             HoleBinderKind::Guess(guess, ty) => {
-                write!(
-                    f,
-                    "?{}={}:{}",
-                    self.env().with(self.value.0),
-                    self.env().with(guess),
-                    self.env().with(ty)
-                )
+                write!(f, "?{}={}:{}", (self.hole), (guess), (ty))
             }
         }
     }

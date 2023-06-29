@@ -112,7 +112,7 @@ impl<'env> ContextUtils<'env> {
     pub fn get_decl(&self, name: Symbol) -> Decl {
         self.context()
             .try_get_decl(name)
-            .unwrap_or_else(|| panic!("cannot get binding for {}", self.env().with(name),))
+            .unwrap_or_else(|| panic!("cannot get binding for {}", name,))
     }
 
     /// Get the value of a binding, if possible.
@@ -127,16 +127,14 @@ impl<'env> ContextUtils<'env> {
 
     /// Get the value of a binding.
     pub fn get_binding_value(&self, name: Symbol) -> TermId {
-        self.try_get_decl_value(name).unwrap_or_else(|| {
-            panic!("cannot get value of uninitialised binding {}", self.env().with(name))
-        })
+        self.try_get_decl_value(name)
+            .unwrap_or_else(|| panic!("cannot get value of uninitialised binding {}", name))
     }
 
     /// Get the type of a binding.
     pub fn get_binding_ty(&self, name: Symbol) -> TyId {
-        self.try_get_decl_ty(name).unwrap_or_else(|| {
-            panic!("cannot get type of untyped binding {}", self.env().with(name))
-        })
+        self.try_get_decl_ty(name)
+            .unwrap_or_else(|| panic!("cannot get type of untyped binding {}", name))
     }
 
     /// Add argument bindings from the given parameters, using the

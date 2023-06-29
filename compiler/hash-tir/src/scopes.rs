@@ -5,22 +5,19 @@
 
 use core::fmt;
 
-use hash_utils::store::{SequenceStore, Store};
+use hash_utils::store::{Store, TrivialSequenceStoreKey};
 use textwrap::indent;
 use utility_types::omit;
 
-use super::{
-    environment::env::{AccessToEnv, WithEnv},
-    pats::Pat,
-    terms::Term,
-};
+use super::{pats::Pat, terms::Term};
 use crate::{
     context::Decl,
+    environment::stores::StoreId,
     mods::ModDefId,
     pats::PatId,
     symbols::Symbol,
     terms::{TermId, TermListId},
-    tir_single_store,
+    tir_get, tir_single_store,
     tys::TyId,
 };
 
@@ -115,7 +112,29 @@ tir_single_store!(
     derives = Debug
 );
 
-pub type StackMemberId = (StackId, usize);
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct StackMemberId(pub StackId, pub usize);
+
+impl StoreId for StackMemberId {
+    type Value = Decl;
+    type ValueRef = Decl;
+
+    fn value(self) -> Self::Value {
+        self.0.map(|stack| stack.members[self.1])
+    }
+
+    fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
+        self.0.map(|stack| f(&stack.members[self.1]))
+    }
+
+    fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
+        self.0.modify(|stack| f(&mut stack.members[self.1]))
+    }
+
+    fn set(self, value: Self::Value) {
+        self.0.modify(|stack| stack.members[self.1] = value)
+    }
+}
 
 /// A block term.
 ///
@@ -127,91 +146,70 @@ pub struct BlockTerm {
     pub return_value: TermId,
 }
 
-impl fmt::Display for WithEnv<'_, &BindingPat> {
+impl fmt::Display for BindingPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}{}",
-            if self.value.is_mutable { "mut " } else { "" },
-            self.env().with(self.value.name),
-        )
+        write!(f, "{}{}", if self.is_mutable { "mut " } else { "" }, self.name)
     }
 }
 
-impl fmt::Display for WithEnv<'_, &DeclTerm> {
+impl fmt::Display for DeclTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let value = match self.value.value {
-            Some(term_id) => self.stores().pat().map_fast(self.value.bind_pat, |pat| match pat {
-                Pat::Binding(binding_pat) => {
-                    self.stores().term().map_fast(term_id, |term| {
-                        match term {
-                            // If a function is being declared, print the body, otherwise just its
-                            // name.
+        let value = match self.value {
+            Some(term_id) => {
+                match self.bind_pat.value() {
+                    Pat::Binding(binding_pat) => {
+                        match term_id.value() {
+                            // If a function is being declared, print the body, otherwise just
+                            // its name.
                             Term::FnRef(fn_def_id)
-                                if self.stores().fn_def().map_fast(*fn_def_id, |fn_def| {
-                                    fn_def.name == binding_pat.name
-                                }) =>
+                                if fn_def_id.map(|def| def.name == binding_pat.name) =>
                             {
-                                self.env().with(*fn_def_id).to_string()
+                                fn_def_id.to_string()
                             }
-                            _ => self.env().with(term_id).to_string(),
+                            _ => term_id.to_string(),
                         }
-                    })
+                    }
+                    _ => term_id.to_string(),
                 }
-                _ => self.env().with(term_id).to_string(),
-            }),
+            }
             None => "{uninitialised}".to_string(),
         };
 
-        write!(
-            f,
-            "{}: {} = {}",
-            self.env().with(self.value.bind_pat),
-            self.env().with(self.value.ty),
-            value,
-        )
+        write!(f, "{}: {} = {}", self.bind_pat, self.ty, value,)
     }
 }
 
-impl fmt::Display for WithEnv<'_, &AssignTerm> {
+impl fmt::Display for AssignTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = {}", self.env().with(self.value.subject), self.env().with(self.value.value),)
+        write!(f, "{} = {}", self.subject, self)
     }
 }
 
-impl fmt::Display for WithEnv<'_, &StackMember> {
+impl fmt::Display for StackMember {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}{}: {}",
-            if self.value.is_mutable { "mut " } else { "" },
-            self.env().with(self.value.name),
-            self.env().with(self.value.ty),
-        )
+        write!(f, "{}{}: {}", if self.is_mutable { "mut " } else { "" }, self.name, self.ty)
     }
 }
 
-impl fmt::Display for WithEnv<'_, StackMemberId> {
+impl fmt::Display for StackMemberId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().stack().map_fast(self.value.0, |stack| {
-            write!(f, "{}", self.env().with(stack.members[self.value.1]))
-        })
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Stack> {
+impl fmt::Display for Stack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{{")?;
 
-        if let Some(mod_def_members) = self.value.local_mod_def.map(|mod_def_id| {
-            self.stores().mod_def().map_fast(mod_def_id, |mod_def| mod_def.members)
-        }) {
-            let members = self.env().with(mod_def_members).to_string();
+        if let Some(mod_def_members) =
+            self.local_mod_def.map(|mod_def_id| tir_get!(mod_def_id, members))
+        {
+            let members = (mod_def_members).to_string();
             write!(f, "{}", indent(&members, "  "))?;
         }
 
-        for member in self.value.members.iter() {
-            let member = self.env().with(*member).to_string();
+        for member in self.members.iter() {
+            let member = (*member).to_string();
             write!(f, "{}", indent(&member, "  "))?;
         }
 
@@ -219,33 +217,30 @@ impl fmt::Display for WithEnv<'_, &Stack> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, StackId> {
+impl fmt::Display for StackId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().stack().map_fast(self.value, |stack| write!(f, "{}", self.env().with(stack)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, &BlockTerm> {
+impl fmt::Display for BlockTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{{")?;
 
-        let stack_local_mod_def =
-            self.stores().stack().map_fast(self.value.stack_id, |stack| stack.local_mod_def);
-        if let Some(mod_def_members) = stack_local_mod_def.map(|mod_def_id| {
-            self.stores().mod_def().map_fast(mod_def_id, |mod_def| mod_def.members)
-        }) {
-            let members = self.env().with(mod_def_members).to_string();
+        let stack_local_mod_def = tir_get!(self.stack_id, local_mod_def);
+        if let Some(mod_def_members) =
+            stack_local_mod_def.map(|mod_def_id| tir_get!(mod_def_id, members))
+        {
+            let members = mod_def_members.to_string();
             write!(f, "{}", indent(&members, "  "))?;
         }
 
-        self.stores().term_list().map_fast(self.value.statements, |list| {
-            for term in list {
-                let term = self.env().with(*term).to_string();
-                writeln!(f, "{};", indent(&term, "  "))?;
-            }
-            Ok(())
-        })?;
-        let return_value = self.env().with(self.value.return_value).to_string();
+        for term in self.statements.iter() {
+            let term = term.to_string();
+            writeln!(f, "{};", indent(&term, "  "))?;
+        }
+
+        let return_value = (self.return_value).to_string();
         writeln!(f, "{}", indent(&return_value, "  "))?;
 
         write!(f, "}}")

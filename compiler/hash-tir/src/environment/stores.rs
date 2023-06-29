@@ -403,3 +403,10 @@ macro_rules! tir_debug_name_of_store_id {
         }
     };
 }
+
+#[macro_export]
+macro_rules! tir_get {
+    ($id:expr, $member:ident) => {{
+        $crate::environment::stores::StoreId::map($id, |x| x.$member)
+    }};
+}

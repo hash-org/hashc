@@ -3,19 +3,19 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use textwrap::indent;
 use utility_types::omit;
 
 use super::{
     args::{ArgsId, PatArgsId},
-    environment::env::{AccessToEnv, WithEnv},
+    environment::stores::StoreId,
     pats::Spread,
     tys::TyId,
 };
 use crate::{
-    params::ParamsId, symbols::Symbol, terms::TermId, tir_debug_name_of_store_id,
-    tir_sequence_store_direct, tir_single_store,
+    params::ParamsId, pats::PatArgsWithSpread, symbols::Symbol, terms::TermId,
+    tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct, tir_single_store,
 };
 
 /// A constructor of a data-type definition.
@@ -199,74 +199,69 @@ pub struct DataTy {
     pub args: ArgsId,
 }
 
-impl fmt::Display for WithEnv<'_, &CtorDef> {
+impl fmt::Display for CtorDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: ", self.env().with(self.value.name))?;
-        if self.value.params.len() > 0 {
-            write!(f, "({}) -> ", self.env().with(self.value.params))?;
+        write!(f, "{}: ", (self.name))?;
+        if self.params.len() > 0 {
+            write!(f, "({}) -> ", (self.params))?;
         }
 
-        let data_ty = DataTy { args: self.value.result_args, data_def: self.value.data_def_id };
-        write!(f, "{}", self.env().with(&data_ty))?;
+        let data_ty = DataTy { args: self.result_args, data_def: self.data_def_id };
+        write!(f, "{}", (&data_ty))?;
 
         Ok(())
     }
 }
 
-impl fmt::Display for WithEnv<'_, CtorDefId> {
+impl fmt::Display for CtorDefId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().ctor_defs().map_fast(self.value.0, |ctor_defs| {
-            write!(f, "{}", self.env().with(&ctor_defs[self.value.1]))
-        })
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, CtorDefsId> {
+impl fmt::Display for CtorDefsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().ctor_defs().map_fast(self.value, |ctor_defs| {
-            for ctor_def in ctor_defs.iter() {
-                writeln!(f, "{}", self.env().with(ctor_def))?;
-            }
-            Ok(())
-        })
+        for ctor_def in self.iter() {
+            writeln!(f, "{}", (ctor_def))?;
+        }
+        Ok(())
     }
 }
 
-impl Display for WithEnv<'_, &CtorTerm> {
+impl Display for CtorTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (ctor_name, data_def_id) =
-            self.stores().ctor_defs().map_fast(self.value.ctor.0, |ctors| {
-                (ctors[self.value.ctor.1].name, ctors[self.value.ctor.1].data_def_id)
-            });
+            (tir_get!(self.ctor, name), tir_get!(self.ctor, data_def_id));
 
-        let data_ty = DataTy { args: self.value.data_args, data_def: data_def_id };
-        write!(f, "{}::", self.env().with(&data_ty))?;
+        let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
+        write!(f, "{}::", (&data_ty))?;
 
-        write!(f, "{}", self.env().with(ctor_name))?;
-        if self.value.ctor_args.len() > 0 {
-            write!(f, "({})", self.env().with(self.value.ctor_args))?;
+        write!(f, "{}", (ctor_name))?;
+        if self.ctor_args.len() > 0 {
+            write!(f, "({})", (self.ctor_args))?;
         }
 
         Ok(())
     }
 }
 
-impl Display for WithEnv<'_, &CtorPat> {
+impl Display for CtorPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (ctor_name, data_def_id) =
-            self.stores().ctor_defs().map_fast(self.value.ctor.0, |ctors| {
-                (ctors[self.value.ctor.1].name, ctors[self.value.ctor.1].data_def_id)
-            });
+            (tir_get!(self.ctor, name), tir_get!(self.ctor, data_def_id));
 
-        let data_ty = DataTy { args: self.value.data_args, data_def: data_def_id };
-        write!(f, "{}::", self.env().with(&data_ty))?;
+        let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
+        write!(f, "{}::", (&data_ty))?;
 
-        write!(f, "{}", self.env().with(ctor_name))?;
-        if self.value.ctor_pat_args.len() > 0 || self.value.ctor_pat_args_spread.is_some() {
+        write!(f, "{}", (ctor_name))?;
+        if self.ctor_pat_args.len() > 0 || self.ctor_pat_args_spread.is_some() {
             write!(
                 f,
                 "({})",
-                self.env().with((self.value.ctor_pat_args, self.value.ctor_pat_args_spread))
+                PatArgsWithSpread {
+                    pat_args: self.ctor_pat_args,
+                    spread: self.ctor_pat_args_spread
+                }
             )?;
         }
 
@@ -283,9 +278,9 @@ impl Display for NumericCtorBits {
     }
 }
 
-impl Display for WithEnv<'_, &PrimitiveCtorInfo> {
+impl Display for PrimitiveCtorInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.value {
+        match self {
             PrimitiveCtorInfo::Numeric(numeric) => {
                 writeln!(
                     f,
@@ -300,50 +295,46 @@ impl Display for WithEnv<'_, &PrimitiveCtorInfo> {
                 writeln!(f, "char")
             }
             PrimitiveCtorInfo::Array(list) => {
-                writeln!(f, "list [{}]", self.env().with(list.element_ty))
+                writeln!(f, "list [{}]", (list.element_ty))
             }
         }
     }
 }
 
-impl Display for WithEnv<'_, DataDefCtors> {
+impl Display for DataDefCtors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.value {
-            DataDefCtors::Primitive(ctor) => write!(f, "{}", self.env().with(&ctor)),
-            DataDefCtors::Defined(ctors) => write!(f, "{}", self.env().with(ctors)),
+        match self {
+            DataDefCtors::Primitive(ctor) => write!(f, "{}", (&ctor)),
+            DataDefCtors::Defined(ctors) => write!(f, "{}", (ctors)),
         }
     }
 }
 
-impl Display for WithEnv<'_, &DataDef> {
+impl Display for DataDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ctors = self.env().with(self.value.ctors).to_string();
+        let ctors = (self.ctors).to_string();
         write!(
             f,
             "datatype [name={}] {} {{\n{}}}",
-            self.env().with(self.value.name),
-            if self.value.params.len() > 0 {
-                format!("<{}>", self.env().with(self.value.params))
-            } else {
-                "".to_string()
-            },
+            (self.name),
+            if self.params.len() > 0 { format!("<{}>", (self.params)) } else { "".to_string() },
             indent(&ctors, "  ")
         )
     }
 }
 
-impl Display for WithEnv<'_, DataDefId> {
+impl Display for DataDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.stores().data_def().map_fast(self.value, |def| write!(f, "{}", self.env().with(def)))
+        write!(f, "{}", (self.value()))
     }
 }
 
-impl Display for WithEnv<'_, &DataTy> {
+impl Display for DataTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let data_def_name = self.stores().data_def().map_fast(self.value.data_def, |def| def.name);
-        write!(f, "{}", self.env().with(data_def_name))?;
-        if self.value.args.len() > 0 {
-            write!(f, "<{}>", self.env().with(self.value.args))?;
+        let data_def_name = tir_get!(self.data_def, name);
+        write!(f, "{}", (data_def_name))?;
+        if self.args.len() > 0 {
+            write!(f, "<{}>", (self.args))?;
         }
         Ok(())
     }

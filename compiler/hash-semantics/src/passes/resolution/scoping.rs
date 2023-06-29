@@ -24,7 +24,7 @@ use hash_utils::{
 use super::paths::NonTerminalResolvedPathComponent;
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
-    environment::sem_env::{AccessToSemEnv, SemEnv, WithSemEnv},
+    environment::sem_env::{AccessToSemEnv, SemEnv},
     ops::common::CommonOps,
     passes::ast_utils::AstUtils,
 };
@@ -45,11 +45,11 @@ pub enum ContextKind {
     Environment,
 }
 
-impl fmt::Display for WithSemEnv<'_, &ContextKind> {
+impl fmt::Display for ContextKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
+        match self {
             ContextKind::Access(non_terminal, _loc) => {
-                write!(f, "`{}`", self.sem_env().with(non_terminal))
+                write!(f, "`{}`", non_terminal)
             }
             ContextKind::Environment => write!(f, "the current scope"),
         }

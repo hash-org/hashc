@@ -1012,16 +1012,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     self.uni_ops().unify_tys(ty, annotation_ty)?;
                     Ok(())
                 } else if decl.value.is_some() {
-                    panic!("no type found for decl '{}'", self.env().with(decl))
+                    panic!("no type found for decl '{}'", (decl))
                 } else {
-                    panic!(
-                        "Found declaration without type or value during inference: {}",
-                        self.env().with(decl)
-                    )
+                    panic!("Found declaration without type or value during inference: {}", (decl))
                 }
             }
             None => {
-                panic!("no binding found for symbol '{}'", self.env().with(term))
+                panic!("no binding found for symbol '{}'", (term))
             }
         }
     }
@@ -1879,7 +1876,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.stores().directives().get(target).map(|d| d.contains(IDENTS.dump_tir))
                 == Some(true);
         if has_dump_dir {
-            self.dump_tir(self.env().with(target));
+            self.dump_tir(target);
         }
     }
 

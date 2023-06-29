@@ -7,7 +7,7 @@ use crate::{
     environment::env::{AccessToEnv, Env},
     impl_access_to_env,
     mods::ModDefId,
-    scopes::{Stack, StackId, StackMember, StackMemberData},
+    scopes::{Stack, StackId, StackMember, StackMemberData, StackMemberId},
 };
 
 /// Operations related to the stack.
@@ -49,7 +49,7 @@ impl<'tc> StackUtils<'tc> {
         I::IntoIter: ExactSizeIterator,
     {
         data.into_iter().enumerate().map(move |(index, data)| StackMember {
-            id: (stack_id, index),
+            id: StackMemberId(stack_id, index),
             is_mutable: data.is_mutable,
             name: data.name,
             ty: data.ty,

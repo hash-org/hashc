@@ -5,8 +5,7 @@ use std::fmt::Display;
 use hash_source::identifier::Identifier;
 use hash_utils::store::{Store, StoreKey};
 
-use super::environment::env::{AccessToEnv, WithEnv};
-use crate::{environment::stores::StoreId, tir_single_store};
+use crate::{environment::stores::StoreId, tir_get, tir_single_store};
 
 /// The data carried by a symbol.
 ///
@@ -57,11 +56,11 @@ impl std::fmt::Debug for Symbol {
     }
 }
 
-impl Display for WithEnv<'_, Symbol> {
+impl Display for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.stores().symbol().map_fast(self.value, |data| match data.name {
+        match tir_get!(*self, name) {
             Some(name) => write!(f, "{name}"),
-            None => write!(f, "s{}", data.symbol.to_index()),
-        })
+            None => write!(f, "s{}", self.to_index()),
+        }
     }
 }

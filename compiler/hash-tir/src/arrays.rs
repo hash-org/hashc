@@ -1,10 +1,10 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_utils::store::SequenceStore;
+use hash_utils::store::{SequenceStore, TrivialSequenceStoreKey};
 
 use crate::{
-    environment::env::{AccessToEnv, WithEnv},
+    environment::env::AccessToEnv,
     pats::{PatId, PatListId, Spread},
     terms::{TermId, TermListId},
 };
@@ -61,37 +61,34 @@ impl ArrayPat {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &IndexTerm> {
+impl fmt::Display for IndexTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[{}]", self.env().with(self.value.subject), self.env().with(self.value.index),)
+        write!(f, "{}[{}]", (self.subject), (self.index),)
     }
 }
 
-impl fmt::Display for WithEnv<'_, &ArrayPat> {
+impl fmt::Display for ArrayPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
-        self.stores().pat_list().map_fast(self.value.pats, |pat_list| {
-            let mut pat_args_formatted =
-                pat_list.iter().map(|arg| self.env().with(*arg).to_string()).collect::<Vec<_>>();
+        let mut pat_args_formatted =
+            self.pats.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
 
-            if let Some(spread) = self.value.spread {
-                pat_args_formatted.insert(spread.index, self.env().with(spread).to_string());
-            }
+        if let Some(spread) = self.spread {
+            pat_args_formatted.insert(spread.index, (spread).to_string());
+        }
 
-            for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{pat_arg}")?;
+        for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
             }
-            Ok(())
-        })?;
+            write!(f, "{pat_arg}")?;
+        }
         write!(f, "]")
     }
 }
 
-impl Display for WithEnv<'_, &ArrayTerm> {
+impl Display for ArrayTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]", self.env().with(self.value.elements))
+        write!(f, "[{}]", (self.elements))
     }
 }

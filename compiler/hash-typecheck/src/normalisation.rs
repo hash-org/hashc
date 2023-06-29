@@ -265,26 +265,23 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     /// Normalise the given atom, and try to use it as a term.
     pub fn to_term(&self, atom: Atom) -> TermId {
-        self.maybe_to_term(atom)
-            .unwrap_or_else(|| panic!("Cannot convert {} to a term", self.env().with(atom)))
+        self.maybe_to_term(atom).unwrap_or_else(|| panic!("Cannot convert {} to a term", (atom)))
     }
 
     /// Normalise the given atom, and try to use it as a function definition.
     pub fn to_fn_def(&self, atom: Atom) -> FnDefId {
         self.maybe_to_fn_def(atom)
-            .unwrap_or_else(|| panic!("Cannot convert {} to an fn def", self.env().with(atom)))
+            .unwrap_or_else(|| panic!("Cannot convert {} to an fn def", (atom)))
     }
 
     /// Try to use the given atom as a type.
     pub fn to_ty(&self, atom: Atom) -> TyId {
-        self.maybe_to_ty(atom)
-            .unwrap_or_else(|| panic!("Cannot convert {} to a type", self.env().with(atom)))
+        self.maybe_to_ty(atom).unwrap_or_else(|| panic!("Cannot convert {} to a type", (atom)))
     }
 
     /// Try to use the given atom as a pattern.
     pub fn to_pat(&self, atom: Atom) -> PatId {
-        self.maybe_to_pat(atom)
-            .unwrap_or_else(|| panic!("Cannot convert {} to a pattern", self.env().with(atom)))
+        self.maybe_to_pat(atom).unwrap_or_else(|| panic!("Cannot convert {} to a pattern", (atom)))
     }
 
     fn atom_has_effects_once(
@@ -343,7 +340,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                                     // pure
                                     info!(
                                         "Found a function term that is not typed as a function: {}",
-                                        self.env().with(fn_call.subject)
+                                        (fn_call.subject)
                                     );
                                     Ok(ControlFlow::Break(()))
                                 }
@@ -505,7 +502,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 return arg.value.into();
             }
         }
-        panic!("Out of bounds index for access: {}", self.env().with(target))
+        panic!("Out of bounds index for access: {}", (target))
     }
 
     /// Set the parameter at the given index in the given argument list.
@@ -518,7 +515,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 return;
             }
         }
-        panic!("Out of bounds index for access: {}", self.env().with(target))
+        panic!("Out of bounds index for access: {}", (target))
     }
 
     /// Get the term at the given index in the given term list.
@@ -611,7 +608,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             Term::Var(var) => {
                 self.context_utils().modify_assignment(var, assign_term.value);
             }
-            _ => panic!("Invalid assign {}", self.env().with(&assign_term)),
+            _ => panic!("Invalid assign {}", (&assign_term)),
         }
 
         full_evaluation_to(self.new_void_term())
@@ -651,7 +648,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             }
         }
 
-        panic!("Non-exhaustive match: {}", self.env().with(&match_term))
+        panic!("Non-exhaustive match: {}", (&match_term))
     }
 
     /// Evaluate a declaration term.
@@ -675,15 +672,15 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     evaluation_to(self.new_void_term())
                 }
                 MatchResult::Failed => {
-                    panic!("Non-exhaustive let-binding: {}", self.env().with(&decl_term))
+                    panic!("Non-exhaustive let-binding: {}", (&decl_term))
                 }
                 MatchResult::Stuck => {
-                    info!("Stuck evaluating let-binding: {}", self.env().with(&decl_term));
+                    info!("Stuck evaluating let-binding: {}", (&decl_term));
                     evaluation_if(|| self.new_term(decl_term), &st)
                 }
             },
             None => {
-                panic!("Let binding with no value: {}", self.env().with(&decl_term))
+                panic!("Let binding with no value: {}", (&decl_term))
             }
         }
     }

@@ -4,15 +4,9 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::store::{CloneStore, SequenceStore, Store};
+use hash_utils::store::{SequenceStore, Store, TrivialSequenceStoreKey};
 
-use super::{
-    casting::CastTerm,
-    environment::env::{AccessToEnv, WithEnv},
-    holes::Hole,
-    symbols::Symbol,
-    tys::TypeOfTerm,
-};
+use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
 use crate::{
     access::AccessTerm,
     arrays::{ArrayTerm, IndexTerm},
@@ -113,82 +107,72 @@ tir_sequence_store_indirect!(
     store_name = term_list
 );
 
-impl fmt::Display for WithEnv<'_, &UnsafeTerm> {
+impl fmt::Display for UnsafeTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unsafe {}", self.env().with(self.value.inner))
+        write!(f, "unsafe {}", self.inner)
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Term> {
+impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            Term::Tuple(tuple_term) => write!(f, "{}", self.env().with(tuple_term)),
+        match self {
+            Term::Tuple(tuple_term) => write!(f, "{}", (tuple_term)),
             Term::Lit(lit) => write!(f, "{}", *lit),
-            Term::Ctor(ctor_term) => write!(f, "{}", self.env().with(ctor_term)),
-            Term::FnCall(fn_call_term) => write!(f, "{}", self.env().with(fn_call_term)),
+            Term::Ctor(ctor_term) => write!(f, "{}", (ctor_term)),
+            Term::FnCall(fn_call_term) => write!(f, "{}", (fn_call_term)),
             Term::FnRef(fn_def_id) => write!(
                 f,
                 "{}",
-                self.stores().fn_def().map_fast(*fn_def_id, |fn_def| {
-                    if self.stores().symbol().map_fast(fn_def.name, |sym| sym.name).is_none() {
-                        self.env().with(*fn_def_id).to_string()
-                    } else {
-                        self.env().with(fn_def.name).to_string()
-                    }
-                })
+                if fn_def_id.map(|fn_def| fn_def.name.map(|sym| sym.name.is_none())) {
+                    (*fn_def_id).to_string()
+                } else {
+                    (fn_def_id.map(|def| def.name)).to_string()
+                }
             ),
-            Term::Block(block_term) => write!(f, "{}", self.env().with(block_term)),
-            Term::Var(resolved_var) => write!(f, "{}", self.env().with(*resolved_var)),
-            Term::Loop(loop_term) => write!(f, "{}", self.env().with(loop_term)),
+            Term::Block(block_term) => write!(f, "{}", (block_term)),
+            Term::Var(resolved_var) => write!(f, "{}", (*resolved_var)),
+            Term::Loop(loop_term) => write!(f, "{}", (loop_term)),
             Term::LoopControl(loop_control_term) => {
-                write!(f, "{}", self.env().with(loop_control_term))
+                write!(f, "{}", (loop_control_term))
             }
-            Term::Match(match_term) => write!(f, "{}", self.env().with(match_term)),
-            Term::Return(return_term) => write!(f, "{}", self.env().with(return_term)),
+            Term::Match(match_term) => write!(f, "{}", (match_term)),
+            Term::Return(return_term) => write!(f, "{}", (return_term)),
             Term::Decl(decl_stack_member_term) => {
-                write!(f, "{}", self.env().with(decl_stack_member_term))
+                write!(f, "{}", (decl_stack_member_term))
             }
-            Term::Assign(assign_term) => write!(f, "{}", self.env().with(assign_term)),
-            Term::Unsafe(unsafe_term) => write!(f, "{}", self.env().with(unsafe_term)),
-            Term::Access(access_term) => write!(f, "{}", self.env().with(access_term)),
-            Term::Cast(cast_term) => write!(f, "{}", self.env().with(cast_term)),
-            Term::TypeOf(type_of_term) => write!(f, "{}", self.env().with(type_of_term)),
-            Term::Ty(ty) => write!(f, "type {}", self.env().with(*ty)),
-            Term::Ref(ref_term) => write!(f, "{}", self.env().with(ref_term)),
-            Term::Deref(deref_term) => write!(f, "{}", self.env().with(deref_term)),
-            Term::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
+            Term::Assign(assign_term) => write!(f, "{}", (assign_term)),
+            Term::Unsafe(unsafe_term) => write!(f, "{}", (unsafe_term)),
+            Term::Access(access_term) => write!(f, "{}", (access_term)),
+            Term::Cast(cast_term) => write!(f, "{}", (cast_term)),
+            Term::TypeOf(type_of_term) => write!(f, "{}", (type_of_term)),
+            Term::Ty(ty) => write!(f, "type {}", (*ty)),
+            Term::Ref(ref_term) => write!(f, "{}", (ref_term)),
+            Term::Deref(deref_term) => write!(f, "{}", (deref_term)),
+            Term::Hole(hole) => write!(f, "{}", (*hole)),
             Term::Index(index) => {
-                write!(f, "{}", self.env().with(index))
+                write!(f, "{}", (index))
             }
             Term::Array(array) => {
-                write!(f, "{}", self.env().with(array))
+                write!(f, "{}", (array))
             }
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, TermId> {
+impl fmt::Display for TermId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(&self.env().stores().term().get(self.value)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, TermListId> {
+impl fmt::Display for TermListId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().term_list().map_fast(self.value, |list| {
-            for (i, term) in list.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{}", self.env().with(*term))?;
+        for (i, term) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
             }
-            Ok(())
-        })
-    }
-}
-
-impl fmt::Debug for WithEnv<'_, TermId> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.env().stores().term().get(self.value))
+            write!(f, "{}", term)?;
+        }
+        Ok(())
     }
 }

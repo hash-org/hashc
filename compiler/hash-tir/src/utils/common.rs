@@ -85,11 +85,7 @@ pub trait CommonUtils: AccessToEnv {
     /// This will panic if the index does not exist.
     fn get_param_by_index(&self, params_id: ParamsId, index: ParamIndex) -> Param {
         self.try_get_param_by_index(params_id, index).unwrap_or_else(|| {
-            panic!(
-                "Parameter with name `{}` does not exist in `{}`",
-                index,
-                self.env().with(params_id)
-            )
+            panic!("Parameter with name `{}` does not exist in `{}`", index, params_id)
         })
     }
 

@@ -2,7 +2,6 @@
 
 use std::fmt::Display;
 
-use super::environment::env::{AccessToEnv, WithEnv};
 use crate::{terms::TermId, tys::TyId};
 
 // @@Todo: explanations about semantics
@@ -57,32 +56,20 @@ impl Display for RefKind {
     }
 }
 
-impl Display for WithEnv<'_, &RefTy> {
+impl Display for RefTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}{}{}",
-            self.value.kind,
-            if self.value.mutable { "mut " } else { "" },
-            self.env().with(self.value.ty)
-        )
+        write!(f, "{}{}{}", self.kind, if self.mutable { "mut " } else { "" }, (self.ty))
     }
 }
 
-impl Display for WithEnv<'_, &RefTerm> {
+impl Display for RefTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}{}{}",
-            self.value.kind,
-            if self.value.mutable { "mut " } else { "" },
-            self.env().with(self.value.subject)
-        )
+        write!(f, "{}{}{}", self.kind, if self.mutable { "mut " } else { "" }, (self.subject))
     }
 }
 
-impl Display for WithEnv<'_, &DerefTerm> {
+impl Display for DerefTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "*{}", self.env().with(self.value.subject))
+        write!(f, "*{}", (self.subject))
     }
 }
