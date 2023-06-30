@@ -120,9 +120,11 @@ pub(crate) struct TreeDefOpts {
     /// The base method name to use for getting a reference to a node from a
     /// node
     pub(crate) get_ref_from_node_function_base_name: syn::Ident,
+
     /// The base method name to use for changing a node reference's body from
     /// one value to another.
     pub(crate) ref_change_body_function_base_name: syn::Ident,
+
     /// The full path of the module in which the `define_tree` macro is being
     /// invoked. Needed to be able to generate macro definitions.
     pub(crate) root_module: syn::Path,

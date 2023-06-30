@@ -6,7 +6,11 @@ use hash_ast::{
     tree::AstTreeGenerator,
     visitor::{walk_mut_self, AstVisitor, AstVisitorMutSelf},
 };
-use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
+use hash_fmt::AstPrinter;
+use hash_pipeline::{
+    interface::CompilerOutputStream,
+    settings::{AstDumpMode, CompilerSettings},
+};
 use hash_source::{
     identifier::IDENTS,
     location::{SourceLocation, Span},
@@ -62,14 +66,7 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         let _ = walk_mut_self::walk_directive_expr(self, node);
 
         let mut write_tree = |index| {
-            let mut tree = AstTreeGenerator.visit_expr(node.subject.ast_ref()).unwrap();
-
-            // Since this might be a non-singular directive, we also might
-            // need to wrap the tree in a any of the directives that were specified
-            // after the `dump_ast` directive.
-            for directive in node.directives.iter().skip(index + 1).rev() {
-                tree = TreeNode::branch(format!("directive \"{}\"", directive.ident), vec![tree]);
-            }
+            let ast_settings = self.settings.ast_settings();
 
             // We want to get the total span of the subject, so we must
             // include the span of the directives that come after the `dump_ast` directive.
@@ -82,15 +79,39 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
             };
             let location = self.source_location(directive_span);
 
-            stream_writeln!(
-                self.stdout,
-                "AST dump for {}\n{}",
-                self.source_map.fmt_location(location),
-                TreeWriter::new_with_config(
-                    &tree,
-                    TreeWriterConfig::from_character_set(self.settings.character_set)
-                )
-            );
+            stream_writeln!(self.stdout, "AST dump for {}", self.source_map.fmt_location(location));
+
+            match ast_settings.dump_mode {
+                AstDumpMode::Pretty => {
+                    let mut printer = AstPrinter::new(&mut self.stdout);
+                    printer.visit_expr(node.subject.ast_ref()).unwrap();
+
+                    // @@Hack: terminate the line with a newline.
+                    stream_writeln!(self.stdout, "");
+                }
+                AstDumpMode::Tree => {
+                    let mut tree = AstTreeGenerator.visit_expr(node.subject.ast_ref()).unwrap();
+
+                    // Since this might be a non-singular directive, we also might
+                    // need to wrap the tree in a any of the directives that were specified
+                    // after the `dump_ast` directive.
+                    for directive in node.directives.iter().skip(index + 1).rev() {
+                        tree = TreeNode::branch(
+                            format!("directive \"{}\"", directive.ident),
+                            vec![tree],
+                        );
+                    }
+
+                    stream_writeln!(
+                        self.stdout,
+                        "{}",
+                        TreeWriter::new_with_config(
+                            &tree,
+                            TreeWriterConfig::from_character_set(self.settings.character_set)
+                        )
+                    );
+                }
+            }
         };
 
         // for the `dump_ast` directive, we essentially "dump" the generated tree

@@ -12,10 +12,11 @@ use std::{
 
 use bitflags::bitflags;
 use hash_ast::{
-    ast::{AstVisitor, OwnsAstNode},
+    ast::{AstVisitor, AstVisitorMutSelf, OwnsAstNode},
     node_map::{InteractiveBlock, ModuleEntry, NodeMap},
     tree::AstTreeGenerator,
 };
+use hash_fmt::AstPrinter;
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_utils::{
     store::{FxHashMap, FxHashSet},
@@ -24,7 +25,7 @@ use hash_utils::{
 
 use crate::{
     error::PipelineError,
-    settings::{CompilerSettings, CompilerStageKind},
+    settings::{AstDumpMode, CompilerSettings, CompilerStageKind},
 };
 
 bitflags! {
@@ -342,18 +343,24 @@ impl Workspace {
             let config = TreeWriterConfig::from_character_set(settings.character_set);
             writeln!(writer, "{}", TreeWriter::new_with_config(&tree, config))
         } else {
+            let ast_settings = settings.ast_settings();
+
             // If this is a module, we want to print all of the generated modules from the
             // parsing stage
-            for generated_module in self.node_map.iter_modules() {
-                let tree = AstTreeGenerator.visit_module(generated_module.node_ref()).unwrap();
+            for module in self.node_map.iter_modules() {
+                writeln!(writer, "AST for `{}`:", module.canonicalised_path(),)?;
 
-                let config = TreeWriterConfig::from_character_set(settings.character_set);
-                writeln!(
-                    writer,
-                    "AST for `{}`:\n{}",
-                    generated_module.canonicalised_path(),
-                    TreeWriter::new_with_config(&tree, config)
-                )?;
+                match ast_settings.dump_mode {
+                    AstDumpMode::Pretty => {
+                        let mut printer = AstPrinter::new(writer);
+                        printer.visit_module(module.node_ref())?;
+                    }
+                    AstDumpMode::Tree => {
+                        let tree = AstTreeGenerator.visit_module(module.node_ref()).unwrap();
+                        let config = TreeWriterConfig::from_character_set(settings.character_set);
+                        writeln!(writer, "{}", TreeWriter::new_with_config(&tree, config))?;
+                    }
+                }
             }
 
             Ok(())

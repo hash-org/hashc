@@ -476,6 +476,7 @@ name = "hash-ast-expand"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-fmt",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -576,6 +577,16 @@ version = "0.1.0"
 [[package]]
 name = "hash-exhaustiveness"
 version = "0.1.0"
+
+[[package]]
+name = "hash-fmt"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-source",
+ "hash-token",
+ "hash-utils",
+]
 
 [[package]]
 name = "hash-intrinsics"
@@ -693,6 +704,7 @@ dependencies = [
  "clap",
  "const_format",
  "hash-ast",
+ "hash-fmt",
  "hash-reporting",
  "hash-source",
  "hash-target",
@@ -1345,9 +1357,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.59"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6aeca18b86b413c660b781aa319e4e2648a3e6f9eadc9b47e9038e6fe9f3451b"
+checksum = "7b368fba921b0dce7e60f5e04ec15e565b3303972b42bcfde1d0713b881959eb"
 dependencies = [
  "unicode-ident",
 ]

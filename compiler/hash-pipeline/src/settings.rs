@@ -351,12 +351,23 @@ impl fmt::Display for OptimisationLevel {
 /// re-write the AST, analyse it or modify it in some way.
 ///
 /// N.B. By default, the AST is not dumped.
-#[derive(Debug, Clone, Copy, Default, Args)]
+#[derive(Debug, Clone, Copy, Args)]
 pub struct AstSettings {
     /// Whether to pretty-print all of the generated AST after the whole
     /// [Workspace] has been parsed.
     #[arg(name = "ast-dump", long = "ast-dump", default_value_t = false)]
     pub dump: bool,
+
+    /// What kind of dumping mode should it be, either being "pretty"
+    /// or tree mode.
+    #[arg(name="ast-dump-mode", long="ast-dump-mode", default_value_t = AstDumpMode::Tree)]
+    pub dump_mode: AstDumpMode,
+}
+
+impl Default for AstSettings {
+    fn default() -> Self {
+        Self { dump: false, dump_mode: AstDumpMode::Tree }
+    }
 }
 
 /// Settings that relate to the IR stage of the compiler, these include if the
@@ -369,7 +380,8 @@ pub struct LoweringSettings {
     #[arg(name = "ir-dump", long = "ir-dump", default_value_t = false)]
     pub dump: bool,
 
-    /// Whether the IR that is generated at the time should be dumped.
+    /// What kind of dumping mode should it be, either being "pretty"
+    /// or "graphviz" mode.
     #[arg(long="ir-dump-mode", default_value_t = IrDumpMode::Pretty)]
     pub dump_mode: IrDumpMode,
 
@@ -382,6 +394,26 @@ pub struct LoweringSettings {
 impl Default for LoweringSettings {
     fn default() -> Self {
         Self { dump_mode: IrDumpMode::Pretty, checked_operations: true, dump: false }
+    }
+}
+
+/// Enum representing the different options for dumping the IR. It can either
+/// be emitted in the pretty-printing format, or in the `graphviz` format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum AstDumpMode {
+    /// Dump the AST using a pretty-printed format
+    Pretty,
+
+    /// Dump the AST using the `tree` format
+    Tree,
+}
+
+impl fmt::Display for AstDumpMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Pretty => write!(f, "pretty"),
+            Self::Tree => write!(f, "tree"),
+        }
     }
 }
 
