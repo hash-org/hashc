@@ -188,26 +188,26 @@ impl<'tc> ResolutionPass<'tc> {
                 self.current_source_info().with_source_id(source_id, || {
                     ResolutionPass::new(self.sem_env()).pass_source()
                 })?;
-                self.new_void_term()
+                Term::void()
             }
 
             // No-ops (not supported or handled earlier):
             ast::Expr::TraitDef(_)
             | ast::Expr::MergeDeclaration(_)
             | ast::Expr::ImplDef(_)
-            | ast::Expr::TraitImpl(_) => self.new_void_term(),
+            | ast::Expr::TraitImpl(_) => Term::void(),
 
             ast::Expr::StructDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
-                self.new_void_term()
+                Term::void()
             }
             ast::Expr::EnumDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
-                self.new_void_term()
+                Term::void()
             }
             ast::Expr::ModDef(mod_def) => {
                 self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?;
-                self.new_void_term()
+                Term::void()
             }
         };
 
@@ -594,7 +594,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let expression = match node.expr.as_ref() {
             Some(expr) => self.make_term_from_ast_expr(expr.ast_ref())?,
-            None => self.new_void_term(),
+            None => Term::void(),
         };
         Ok(self.new_term(Term::Return(ReturnTerm { expression })))
     }
@@ -742,7 +742,7 @@ impl<'tc> ResolutionPass<'tc> {
                     }
                     (None, true) => {
                         let statements = self.new_term_list(statements);
-                        let return_value = self.new_void_term();
+                        let return_value = Term::void();
                         Ok(self.new_term(Term::Block(BlockTerm {
                             statements,
                             return_value,

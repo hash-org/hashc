@@ -4,14 +4,16 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::store::{SequenceStore, Store, TrivialSequenceStoreKey};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 
 use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
 use crate::{
     access::AccessTerm,
+    args::{Arg, ArgsId},
     arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
+    environment::stores::{SequenceStoreValue, SingleStoreValue},
     fns::{FnCallTerm, FnDefId},
     lits::Lit,
     refs::{DerefTerm, RefTerm},
@@ -174,5 +176,15 @@ impl fmt::Display for TermListId {
             write!(f, "{}", term)?;
         }
         Ok(())
+    }
+}
+
+impl Term {
+    pub fn is_void(&self) -> bool {
+        matches!(self, Term::Tuple(tuple_term) if tuple_term.data.is_empty())
+    }
+
+    pub fn void() -> TermId {
+        Term::create(Term::Tuple(TupleTerm { data: Arg::empty_seq() }))
     }
 }

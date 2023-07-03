@@ -471,11 +471,6 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().ty().create(Ty::Tuple(TupleTy { data: self.new_empty_params() }))
     }
 
-    /// Create a new empty tuple term.
-    fn new_void_term(&self) -> TermId {
-        self.stores().term().create(Term::Tuple(TupleTerm { data: self.new_empty_args() }))
-    }
-
     /// Create a new variable type.
     fn new_var_ty(&self, symbol: Symbol) -> TyId {
         self.stores().ty().create(Ty::Var(symbol))
