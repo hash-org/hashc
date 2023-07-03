@@ -11,10 +11,15 @@ use std::{
 };
 
 use append_only_vec::AppendOnlyVec;
-use dashmap::DashMap;
+use dashmap::{
+    mapref::one::{Ref, RefMut},
+    DashMap,
+};
 use fxhash::FxBuildHasher;
 pub use fxhash::{FxHashMap, FxHashSet};
-use parking_lot::RwLock;
+use parking_lot::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
+};
 
 /// Represents a key that can be used to index a [`Store`].
 pub trait StoreKey: Copy + Eq {
@@ -61,6 +66,8 @@ macro_rules! impl_debug_for_store_key {
 
 /// The internal data of a store.
 pub type StoreInternalData<Value> = RwLock<Vec<Value>>;
+pub type StoreBorrowHandle<'a, Value> = MappedRwLockReadGuard<'a, Value>;
+pub type StoreBorrowMutHandle<'a, Value> = MappedRwLockWriteGuard<'a, Value>;
 
 /// A store, which provides a way to efficiently store values indexed by opaque
 /// generated keys.
@@ -124,6 +131,20 @@ pub trait Store<Key: StoreKey, Value> {
         let values =
             keys.into_iter().map(|key| data.get(key.to_index()).unwrap()).collect::<Vec<_>>();
         f(&values)
+    }
+
+    /// Borrow a value mutably, given a key. Returns an appropriate handle which
+    /// implements `DerefMut` to the value.
+    fn borrow_mut(&self, key: Key) -> StoreBorrowMutHandle<'_, Value> {
+        let data = self.internal_data().write();
+        RwLockWriteGuard::map(data, |d| d.get_mut(key.to_index()).unwrap())
+    }
+
+    /// Borrow a value, given a key. Returns an appropriate handle which
+    /// implements `Deref` to the value.
+    fn borrow(&self, key: Key) -> StoreBorrowHandle<'_, Value> {
+        let data = self.internal_data().read();
+        RwLockReadGuard::map(data, |d| d.get(key.to_index()).unwrap())
     }
 
     /// Modify a value by a key, possibly returning another value.
@@ -364,6 +385,8 @@ macro_rules! new_sequence_store_key_direct {
 
 /// The internal data of a store.
 pub type SequenceStoreInternalData<Value> = RwLock<Vec<Value>>;
+pub type SequenceStoreBorrowHandle<'a, Value> = MappedRwLockReadGuard<'a, Value>;
+pub type SequenceStoreBorrowMutHandle<'a, Value> = MappedRwLockWriteGuard<'a, Value>;
 
 /// A sequence store, which provides a way to efficiently store sequences of
 /// contiguous values by an opaque generated key.
@@ -566,6 +589,22 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         f(value)
     }
 
+    /// Borrow a value sequence mutably, given a key. Returns an appropriate
+    /// handle which implements `DerefMut` to the value slice.
+    fn borrow_mut(&self, key: Key) -> SequenceStoreBorrowMutHandle<'_, [Value]> {
+        let (index, len) = key.to_index_and_len();
+        let data = self.internal_data().write();
+        RwLockWriteGuard::map(data, |d| d.get_mut(index..index + len).unwrap())
+    }
+
+    /// Borrow a value sequence, given a key. Returns an appropriate handle
+    /// which implements `Deref` to the value slice.
+    fn borrow(&self, key: Key) -> SequenceStoreBorrowHandle<'_, [Value]> {
+        let (index, len) = key.to_index_and_len();
+        let data = self.internal_data().read();
+        RwLockReadGuard::map(data, |d| d.get(index..index + len).unwrap())
+    }
+
     /// Get a value sequence by a key, and map it to another value given its
     /// slice.
     ///
@@ -665,6 +704,17 @@ pub trait TrivialKeySequenceStore<Key: SequenceStoreKey, Value: Clone>:
     /// Same as [`SequenceStore::get_at_index`] but takes the element key and
     /// index as a tuple.
     fn get_element(&self, element_id: Key::ElementKey) -> Value;
+
+    /// Borrow a value, given a key. Returns an appropriate handle
+    /// which implements `Deref` to the value.
+    fn borrow_element(&self, element_id: Key::ElementKey) -> SequenceStoreBorrowHandle<'_, Value>;
+
+    /// Borrow a value mutably, given a key. Returns an appropriate
+    /// handle which implements `DerefMut` to the value.
+    fn borrow_element_mut(
+        &self,
+        element_id: Key::ElementKey,
+    ) -> SequenceStoreBorrowMutHandle<'_, Value>;
 }
 
 impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
@@ -675,6 +725,23 @@ where
     fn get_element(&self, element_id: Key::ElementKey) -> Value {
         let (key, index) = element_id.into();
         self.get_at_index(key, index)
+    }
+
+    fn borrow_element(&self, element_id: Key::ElementKey) -> SequenceStoreBorrowHandle<'_, Value> {
+        let (key, index) = element_id.into();
+        let (starting_index, _) = key.to_index_and_len();
+        let data = self.internal_data().read();
+        RwLockReadGuard::map(data, |d| d.get(starting_index + index).unwrap())
+    }
+
+    fn borrow_element_mut(
+        &self,
+        element_id: Key::ElementKey,
+    ) -> SequenceStoreBorrowMutHandle<'_, Value> {
+        let (key, index) = element_id.into();
+        let (starting_index, _) = key.to_index_and_len();
+        let data = self.internal_data().write();
+        RwLockWriteGuard::map(data, |d| d.get_mut(starting_index + index).unwrap())
     }
 }
 
@@ -705,6 +772,8 @@ impl<K: SequenceStoreKey, V: Clone> SequenceStore<K, V> for DefaultSequenceStore
 
 /// The internal data structure for a [`PartialStore`].
 pub type PartialStoreInternalData<Key, Value> = DashMap<Key, Value, FxBuildHasher>;
+pub type PartialStoreBorrowHandle<'a, Key, Value> = Ref<'a, Key, Value, FxBuildHasher>;
+pub type PartialStoreBorrowMutHandle<'a, Key, Value> = RefMut<'a, Key, Value, FxBuildHasher>;
 
 /// A partial store, which provides a way to store values indexed by existing
 /// keys. Unlike [`Store`], not every instance of `Key` necessarily has a value
@@ -759,6 +828,18 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value> {
             Some(mut value) => f(Some(value.value_mut())),
             None => f(None),
         }
+    }
+
+    /// Borrow a value mutably, given a key. Returns an appropriate handle which
+    /// implements `DerefMut` to the value.
+    fn borrow_mut(&self, key: Key) -> PartialStoreBorrowMutHandle<'_, Key, Value> {
+        self.internal_data().get_mut(&key).unwrap()
+    }
+
+    /// Borrow a value, given a key. Returns an appropriate handle which
+    /// implements `Deref` to the value.
+    fn borrow(&self, key: Key) -> PartialStoreBorrowHandle<'_, Key, Value> {
+        self.internal_data().get(&key).unwrap()
     }
 
     /// The number of entries in the store.

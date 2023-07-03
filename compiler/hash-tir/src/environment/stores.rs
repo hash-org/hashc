@@ -1,5 +1,9 @@
 // @@Docs
-use std::{marker::PhantomData, sync::OnceLock};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    sync::OnceLock,
+};
 
 use hash_utils::store::{SequenceStore, SequenceStoreInternalData, SequenceStoreKey};
 use parking_lot::RwLock;
@@ -89,6 +93,12 @@ pub fn global_stores() -> &'static Stores {
 pub trait StoreId: Sized + Copy {
     type Value;
     type ValueRef: ?Sized;
+    type ValueBorrow: Deref<Target = Self::ValueRef>;
+    type ValueBorrowMut: DerefMut<Target = Self::ValueRef>;
+
+    fn borrow(self) -> Self::ValueBorrow;
+
+    fn borrow_mut(self) -> Self::ValueBorrowMut;
 
     /// Get the value associated with this ID.
     fn value(self) -> Self::Value;
@@ -169,6 +179,16 @@ macro_rules! tir_sequence_store_indirect {
         impl $crate::environment::stores::StoreId for $id {
             type Value = Vec<$el_id>;
             type ValueRef = [$el_id];
+            type ValueBorrow = hash_utils::store::SequenceStoreBorrowHandle<'static, [$el_id]>;
+            type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, [$el_id]>;
+
+            fn borrow(self) -> Self::ValueBorrow {
+                $crate::environment::stores::global_stores().$store_name().borrow(self)
+            }
+
+            fn borrow_mut(self) -> Self::ValueBorrowMut {
+                $crate::environment::stores::global_stores().$store_name().borrow_mut(self)
+            }
 
             fn value(self) -> Self::Value {
                 $crate::environment::stores::global_stores().$store_name().get_vec(self)
@@ -237,6 +257,16 @@ macro_rules! tir_sequence_store_direct {
         impl $crate::environment::stores::StoreId for $id {
             type Value = Vec<$value>;
             type ValueRef = [$value];
+            type ValueBorrow = hash_utils::store::SequenceStoreBorrowHandle<'static, [$value]>;
+            type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, [$value]>;
+
+            fn borrow(self) -> Self::ValueBorrow {
+                $crate::environment::stores::global_stores().$store_name().borrow(self)
+            }
+
+            fn borrow_mut(self) -> Self::ValueBorrowMut {
+                $crate::environment::stores::global_stores().$store_name().borrow_mut(self)
+            }
 
             fn value(self) -> Self::Value {
                 $crate::environment::stores::global_stores().$store_name().get_vec(self)
@@ -288,6 +318,18 @@ macro_rules! tir_sequence_store_direct {
         impl $crate::environment::stores::StoreId for $el_id {
             type Value = $value;
             type ValueRef = $value;
+            type ValueBorrow = hash_utils::store::SequenceStoreBorrowHandle<'static, $value>;
+            type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, $value>;
+
+            fn borrow(self) -> Self::ValueBorrow {
+                use hash_utils::store::TrivialKeySequenceStore;
+                $crate::environment::stores::global_stores().$store_name().borrow_element(self)
+            }
+
+            fn borrow_mut(self) -> Self::ValueBorrowMut {
+                use hash_utils::store::TrivialKeySequenceStore;
+                $crate::environment::stores::global_stores().$store_name().borrow_element_mut(self)
+            }
 
             fn value(self) -> Self::Value {
                 use hash_utils::store::TrivialKeySequenceStore;
@@ -335,6 +377,16 @@ macro_rules! tir_single_store {
         impl $crate::environment::stores::StoreId for $id {
             type Value = $value;
             type ValueRef = $value;
+            type ValueBorrow = hash_utils::store::StoreBorrowHandle<'static, $value>;
+            type ValueBorrowMut = hash_utils::store::StoreBorrowMutHandle<'static, $value>;
+
+            fn borrow(self) -> Self::ValueBorrow {
+                $crate::environment::stores::global_stores().$store_name().borrow(self)
+            }
+
+            fn borrow_mut(self) -> Self::ValueBorrowMut {
+                $crate::environment::stores::global_stores().$store_name().borrow_mut(self)
+            }
 
             fn value(self) -> Self::Value {
                 use hash_utils::store::CloneStore;
