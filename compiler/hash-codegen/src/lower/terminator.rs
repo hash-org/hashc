@@ -588,14 +588,14 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
         // we need to convert the assert into a message.
         let (bytes, len) = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
-        let args = &[bytes, len];
+        let args: [Builder::Value; 2] = (bytes, len).into();
 
         // Get the `panic` lang item.
         let (instance, fn_ptr) = self.resolve_lang_item(builder, LangItem::Panic);
         let abi = self.ctx.cg_ctx().abis().create_fn_abi(builder, instance);
 
         // Finally we emit this as a call to panic...
-        self.codegen_fn_call(builder, abi, fn_ptr, args, &[], None, false)
+        self.codegen_fn_call(builder, abi, fn_ptr, &args, &[], None, false)
     }
 
     /// Function that prepares a function call to be generated, and the emits

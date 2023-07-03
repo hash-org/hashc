@@ -188,7 +188,7 @@ impl<'ir> GraphSimplifier<'ir> {
         // be in the chain and update our `predecessor_count` to reflect
         // their removal.
         while let Some((current, mut terminator)) = terminators.pop() {
-            let Terminator { kind: TerminatorKind::Goto (ref mut target), .. } = terminator else {
+            let Terminator { kind: TerminatorKind::Goto(ref mut target), .. } = terminator else {
                 unreachable!();
             };
 

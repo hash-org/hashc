@@ -248,9 +248,11 @@ impl DefinedPrimitives {
                     default: None,
                 }));
 
-                let refl_result_args = env.param_utils().create_positional_args(
-                    [env.new_term(t_sym), env.new_term(x_sym), env.new_term(x_sym)].into_iter(),
-                );
+                let refl_result_args = env.param_utils().create_positional_args([
+                    env.new_term(t_sym),
+                    env.new_term(x_sym),
+                    env.new_term(x_sym),
+                ]);
 
                 env.data_utils().create_data_def(eq_sym, params, |_| {
                     vec![(refl_sym, refl_params, Some(refl_result_args))]

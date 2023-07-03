@@ -627,7 +627,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let terminator_kind = if self.ctx().map_ty(ty, |ty| *ty == IrTy::Bool) {
                     debug_assert!(options.len() == 2);
 
-                    let [first_block, second_block]= *target_blocks else {
+                    let [first_block, second_block] = *target_blocks else {
                         panic!("expected two target blocks for boolean switch");
                     };
 
@@ -668,8 +668,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // operation on the value, and then switch on the result
                 if is_scalar {
                     let [success, fail] = *make_target_blocks(self) else {
-                            panic!("expected two target blocks for `Eq` test");
-                        };
+                        panic!("expected two target blocks for `Eq` test");
+                    };
 
                     let expected = Operand::Const(value.into());
                     let actual = place.into();

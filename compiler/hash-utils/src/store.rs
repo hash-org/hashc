@@ -318,7 +318,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         };
 
         let mut data = self.internal_data().write();
-        data.extend(values_computed.into_iter());
+        data.extend(values_computed);
         key
     }
 

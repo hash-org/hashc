@@ -111,9 +111,7 @@ impl<I: CompilerInterface> Driver<I> {
         };
 
         let mut stages = self.stages.iter().peekable();
-        let Some(mut kind) = stages.peek().map(|stage| stage.kind()) else {
-            return
-        };
+        let Some(mut kind) = stages.peek().map(|stage| stage.kind()) else { return };
 
         let mut stage_count = 0;
 
@@ -195,7 +193,7 @@ impl<I: CompilerInterface> Driver<I> {
     /// after any stage that is specified within the settings of the compiler.
     fn maybe_terminate(&mut self, result: CompilerResult<()>) -> Result<(), ()> {
         if let Err(diagnostics) = result {
-            self.compiler.diagnostics_mut().extend(diagnostics.into_iter());
+            self.compiler.diagnostics_mut().extend(diagnostics);
 
             // Some diagnostics might not be errors and all just warnings, in this
             // situation, we don't have to terminate execution

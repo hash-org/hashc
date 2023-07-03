@@ -526,9 +526,7 @@ impl LayoutWriterHelper<'_> {
 
         // Now we write the connectors to the formatter.
         for connector_pair in merged_connectors.windows(2) {
-            let [first, second] = connector_pair else {
-                unreachable!()
-            };
+            let [first, second] = connector_pair else { unreachable!() };
 
             // Subtract one since we don't actually care about the "connector"
             // symbol.

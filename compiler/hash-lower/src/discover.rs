@@ -134,9 +134,7 @@ impl FnDiscoverer<'_> {
                         if self.fn_needs_to_be_lowered(fn_def_id, &fn_def) {
                             fns.add_fn(fn_def_id);
 
-                            let FnBody::Defined(body) = fn_def.body else {
-                                unreachable!()
-                            };
+                            let FnBody::Defined(body) = fn_def.body else { unreachable!() };
 
                             // Add all nested functions too
                             let inferred_body = self.get_inferred_value(body);

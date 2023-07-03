@@ -108,7 +108,7 @@ pub struct AstNodeRef<'t, T> {
 
 impl<T> Clone for AstNodeRef<'_, T> {
     fn clone(&self) -> Self {
-        Self { body: self.body, span: self.span, id: self.id }
+        *self
     }
 }
 

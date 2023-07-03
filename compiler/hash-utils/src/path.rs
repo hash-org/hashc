@@ -11,7 +11,7 @@ pub fn adjust_canonicalisation<P: AsRef<Path>>(p: P) -> String {
 /// Function to apply formatting onto a path when printing it.
 #[cfg(target_os = "windows")]
 pub fn adjust_canonicalisation<P: AsRef<Path>>(p: P) -> String {
-    const VERBATIM_PREFIX: &str = r#"\\?\"#;
+    const VERBATIM_PREFIX: &str = r"\\?\";
     let path =
         canonicalize(p.as_ref()).unwrap_or_else(|_| p.as_ref().to_path_buf()).display().to_string();
 
