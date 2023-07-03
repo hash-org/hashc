@@ -181,7 +181,7 @@ impl fmt::Display for DeclTerm {
 
 impl fmt::Display for AssignTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = {}", self.subject, self)
+        write!(f, "{} = {}", self.subject, self.value)
     }
 }
 
