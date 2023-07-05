@@ -25,7 +25,7 @@ use hash_tir::{
 };
 use hash_utils::{
     log::warn,
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{Store, TrivialKeySequenceStore, TrivialSequenceStoreKey},
 };
 
 use crate::AccessToTypechecking;
@@ -418,7 +418,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 matches!(var, Decl { value: None, .. })
             }
             None => {
-                warn!("Not found var {} in current scope", self.env().with(var));
+                warn!("Not found var {} in current scope", var);
                 false
             }
         }
@@ -504,9 +504,9 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// same names but prefixed with the access subject.
     pub fn create_sub_from_param_access(&self, params: ParamsId, access_subject: TermId) -> Sub {
         let mut sub = Sub::identity();
-        for src in params.iter() {
-            let src = self.stores().params().get_element(src);
-            if let Some(ident) = self.get_param_name_ident(src.id) {
+        for src_id in params.iter() {
+            let src = self.stores().params().get_element(src_id);
+            if let Some(ident) = self.get_param_name_ident(src_id) {
                 sub.insert(
                     src.name,
                     self.new_term(AccessTerm {

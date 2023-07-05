@@ -1,25 +1,25 @@
 //! Definitions related to patterns.
 
 use core::fmt;
+use std::fmt::Debug;
 
 use derive_more::From;
 use hash_ast::ast::RangeEnd;
-use hash_utils::{
-    new_sequence_store_key, new_store_key,
-    store::{CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store},
-};
+use hash_utils::store::{SequenceStore, Store, TrivialSequenceStoreKey};
 
 use super::{
     args::{PatArgsId, PatOrCapture},
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::env::{AccessToEnv, WithEnv},
     lits::LitPat,
     scopes::BindingPat,
     symbols::Symbol,
     tuples::TuplePat,
 };
-use crate::{arrays::ArrayPat, impl_sequence_store_id, impl_single_store_id};
+use crate::{
+    arrays::ArrayPat, tir_debug_value_of_single_store_id, tir_get, tir_sequence_store_indirect,
+    tir_single_store,
+};
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.
@@ -87,18 +87,24 @@ impl Pat {
     }
 }
 
-new_store_key!(pub PatId);
-pub type PatStore = DefaultStore<PatId, Pat>;
-impl_single_store_id!(PatId, Pat, pat);
+tir_single_store!(
+    store = pub PatStore,
+    id = pub PatId,
+    value = Pat,
+    store_name = pat
+);
 
-new_sequence_store_key!(pub PatListId);
-pub type PatListStore = DefaultSequenceStore<PatListId, PatOrCapture>;
-impl_sequence_store_id!(PatListId, PatOrCapture, pat_list);
+tir_debug_value_of_single_store_id!(PatId);
 
-impl fmt::Display for WithEnv<'_, Spread> {
+tir_sequence_store_indirect!(
+    store = pub PatListStore,
+    id = pub PatListId[PatOrCapture],
+    store_name = pat_list
+);
+
+impl fmt::Display for Spread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let symbol_data = self.stores().symbol().get(self.value.name);
-        if let Some(name) = symbol_data.name {
+        if let Some(name) = tir_get!(self.name, name) {
             write!(f, "...{name}")
         } else {
             write!(f, "...")
@@ -106,55 +112,59 @@ impl fmt::Display for WithEnv<'_, Spread> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &RangePat> {
+impl fmt::Display for RangePat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(&self.value.start))?;
-        match self.value.range_end {
+        write!(f, "{}", self.start)?;
+        match self.range_end {
             RangeEnd::Included => write!(f, "..=")?,
             RangeEnd::Excluded => write!(f, "..")?,
         }
-        write!(f, "{}", self.env().with(&self.value.end))
+        write!(f, "{}", self.end)
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Pat> {
+impl fmt::Display for Pat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            Pat::Binding(binding_pat) => write!(f, "{}", self.env().with(binding_pat)),
-            Pat::Range(range_pat) => write!(f, "{}", self.env().with(range_pat)),
-            Pat::Lit(lit_pat) => write!(f, "{}", self.env().with(lit_pat)),
-            Pat::Tuple(tuple_pat) => write!(f, "{}", self.env().with(tuple_pat)),
-            Pat::Ctor(ctor_pat) => write!(f, "{}", self.env().with(ctor_pat)),
-            Pat::Or(or_pat) => write!(f, "{}", self.env().with(or_pat)),
-            Pat::If(if_pat) => write!(f, "{}", self.env().with(if_pat)),
-            Pat::Array(list_pat) => write!(f, "{}", self.env().with(list_pat)),
+        match self {
+            Pat::Binding(binding_pat) => write!(f, "{}", binding_pat),
+            Pat::Range(range_pat) => write!(f, "{}", range_pat),
+            Pat::Lit(lit_pat) => write!(f, "{}", lit_pat),
+            Pat::Tuple(tuple_pat) => write!(f, "{}", tuple_pat),
+            Pat::Ctor(ctor_pat) => write!(f, "{}", ctor_pat),
+            Pat::Or(or_pat) => write!(f, "{}", or_pat),
+            Pat::If(if_pat) => write!(f, "{}", if_pat),
+            Pat::Array(list_pat) => write!(f, "{}", list_pat),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, PatId> {
+impl fmt::Display for PatId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().pat().map_fast(self.value, |pat| write!(f, "{}", self.env().with(pat)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, (PatArgsId, Option<Spread>)> {
+#[derive(Clone, Debug, From)]
+pub struct PatArgsWithSpread {
+    pub pat_args: PatArgsId,
+    pub spread: Option<Spread>,
+}
+
+impl fmt::Display for PatArgsWithSpread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().pat_args().map_fast(self.value.0, |pat_args| {
-            let mut pat_args_formatted =
-                pat_args.iter().map(|arg| self.env().with(arg).to_string()).collect::<Vec<_>>();
+        let mut pat_args_formatted =
+            self.pat_args.iter().map(|arg| (arg).to_string()).collect::<Vec<_>>();
 
-            if let Some(spread) = self.value.1 {
-                pat_args_formatted.insert(spread.index, self.env().with(spread).to_string());
-            }
+        if let Some(spread) = self.spread {
+            pat_args_formatted.insert(spread.index, spread.to_string());
+        }
 
-            for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{pat_arg}")?;
+        for (i, pat_arg) in pat_args_formatted.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
             }
-            Ok(())
-        })
+            write!(f, "{pat_arg}")?;
+        }
+        Ok(())
     }
 }

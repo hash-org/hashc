@@ -4,10 +4,10 @@ use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_tir::{
     context::Decl,
-    data::{CtorDefData, DataDefId},
+    data::{CtorDefData, CtorDefId, DataDefId},
     defs::DefId,
     environment::env::AccessToEnv,
-    mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
+    mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberId, ModMemberValue},
     scopes::StackId,
     symbols::Symbol,
     tys::TyId,
@@ -169,7 +169,7 @@ impl<'tc> DiscoveryPass<'tc> {
                         {
                             ast_info
                                 .mod_members()
-                                .insert(*node_id, (mod_members, mod_member_index));
+                                .insert(*node_id, ModMemberId(mod_members, mod_member_index));
                         }
                     }
                 })
@@ -193,7 +193,9 @@ impl<'tc> DiscoveryPass<'tc> {
                         for ((node_id, _), data_ctor_index) in
                             members.iter().zip(data_members.to_index_range())
                         {
-                            ast_info.ctor_defs().insert(*node_id, (data_members, data_ctor_index));
+                            ast_info
+                                .ctor_defs()
+                                .insert(*node_id, CtorDefId(data_members, data_ctor_index));
                         }
                     }
                 })

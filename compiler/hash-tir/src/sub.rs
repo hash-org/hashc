@@ -3,7 +3,6 @@ use std::fmt::{self, Display, Formatter};
 
 use hash_utils::smallvec::SmallVec;
 
-use super::environment::env::AccessToEnv;
 use crate::{environment::env::WithEnv, symbols::Symbol, terms::TermId};
 
 /// An entry in a substitution.
@@ -119,7 +118,7 @@ impl Display for WithEnv<'_, &Sub> {
                 write!(f, ", ")?;
             }
 
-            write!(f, "{} ~> {}", self.env().with(from), self.env().with(to))?;
+            write!(f, "{} ~> {}", from, to)?;
         }
         write!(f, "}}")
     }

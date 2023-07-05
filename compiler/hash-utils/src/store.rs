@@ -5,7 +5,7 @@
 // smaller modules.
 use std::{
     hash::Hash,
-    iter::{repeat, Repeat, Zip},
+    iter::{repeat, Map, Repeat, Zip},
     marker::PhantomData,
     ops::Range,
 };
@@ -17,7 +17,7 @@ pub use fxhash::{FxHashMap, FxHashSet};
 use parking_lot::RwLock;
 
 /// Represents a key that can be used to index a [`Store`].
-pub trait StoreKey: Copy + Eq + Hash {
+pub trait StoreKey: Copy + Eq {
     /// Turn the key into an index.
     fn to_index(self) -> usize;
     /// Create a key from an index.
@@ -29,8 +29,8 @@ pub trait StoreKey: Copy + Eq + Hash {
 /// Create a new [`StoreKey`] with the given name.
 #[macro_export]
 macro_rules! new_store_key {
-    ($visibility:vis $name:ident) => {
-        #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug)]
+    ($visibility:tt $name:ident $(, derives = $($extra_derives:ident),*)?) => {
+        #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, $($($extra_derives),*)?)]
         $visibility struct $name {
             index: u32,
         }
@@ -43,6 +43,17 @@ macro_rules! new_store_key {
 
             fn from_index_unchecked(index: usize) -> Self {
                 Self { index: index.try_into().unwrap() }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_debug_for_store_key {
+    ($name:ident) => {
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($name)).field(&self.index).finish()
             }
         }
     };
@@ -193,8 +204,21 @@ impl<K: StoreKey, V: Clone> Store<K, V> for DefaultStore<K, V> {
     }
 }
 
+#[derive(Copy, Clone, Default, PartialEq, Eq, Hash)]
+pub struct SequenceStoreElement<T>(pub T, pub usize);
+
+impl<T> From<(T, usize)> for SequenceStoreElement<T> {
+    fn from(value: (T, usize)) -> Self {
+        SequenceStoreElement(value.0, value.1)
+    }
+}
+
+pub type SequenceStoreKeyIter<T, K> = Map<Zip<Repeat<T>, Range<usize>>, fn((T, usize)) -> K>;
+
 /// Represents a key that can be used to index a [`SequenceStore`].
-pub trait SequenceStoreKey: Copy + Eq + Hash {
+pub trait SequenceStoreKey: Copy + Eq {
+    type ElementKey: Copy + Eq;
+
     /// Turn the key into an index and a length.
     fn to_index_and_len(self) -> (usize, usize);
 
@@ -209,11 +233,6 @@ pub trait SequenceStoreKey: Copy + Eq + Hash {
     /// [`SequenceStore::get_at_index()`].
     fn to_index_range(self) -> Range<usize> {
         0..self.len()
-    }
-
-    /// Turn the key into a range `(key, 0)..(key, len)`.
-    fn iter(self) -> Zip<Repeat<Self>, Range<usize>> {
-        repeat(self).zip(self.to_index_range())
     }
 
     /// Get the length of the entry corresponding to the key.
@@ -239,17 +258,99 @@ pub trait SequenceStoreKey: Copy + Eq + Hash {
     }
 }
 
+pub trait TrivialSequenceStoreKey: SequenceStoreKey {
+    type Iter: Iterator<Item = Self::ElementKey>;
+    /// Turn the key into a range `(key, 0)..(key, len)`.
+    fn iter(self) -> Self::Iter;
+}
+
+impl<T: SequenceStoreKey> TrivialSequenceStoreKey for T
+where
+    T::ElementKey: From<(T, usize)>,
+{
+    type Iter = SequenceStoreKeyIter<T, T::ElementKey>;
+    fn iter(self) -> Self::Iter {
+        repeat(self).zip(self.to_index_range()).map(Self::ElementKey::from)
+    }
+}
+
 /// Create a new [`SequenceStoreKey`] with the given name.
 #[macro_export]
-macro_rules! new_sequence_store_key {
-    ($visibility:vis $name:ident) => {
-        #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+macro_rules! new_sequence_store_key_indirect {
+    ($visibility:vis $name:ident, $el_name:ident $(, derives = $($extra_derives:ident),*)?) => {
+        #[derive(PartialEq, Eq, Clone, Copy, Hash, $($($extra_derives),*)?)]
         $visibility struct $name {
             index: u32,
             len: u32,
         }
 
         impl $crate::store::SequenceStoreKey for $name {
+            type ElementKey = $el_name;
+
+            fn to_index_and_len(self) -> (usize, usize) {
+                (self.index.try_into().unwrap(), self.len.try_into().unwrap())
+            }
+
+            fn from_index_and_len_unchecked(index: usize, len: usize) -> Self {
+                Self { index: index.try_into().unwrap(), len: len.try_into().unwrap() }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_debug_for_sequence_store_key {
+    ($name:ident) => {
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($name)).field(&self.index).field(&self.len).finish()
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_debug_for_sequence_store_element_key {
+    ($name:ident) => {
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($name))
+                    .field(&(&self.0.index, &self.0.len))
+                    .field(&self.1)
+                    .finish()
+            }
+        }
+    };
+}
+
+/// Create a new [`SequenceStoreKey`] with the given name.
+#[macro_export]
+macro_rules! new_sequence_store_key_direct {
+    ($visibility:vis $name:ident, $el_name:ident $(, derives = [$($extra_derives:ident),*])?  $(, el_derives = [$($extra_el_derives:ident),*])?) => {
+        #[derive(PartialEq, Eq, Clone, Copy, Hash, $($($extra_derives),*)?)]
+        $visibility struct $name {
+            index: u32,
+            len: u32,
+        }
+
+        #[derive(PartialEq, Eq, Clone, Copy, Hash, $($($extra_el_derives),*)?)]
+        $visibility struct $el_name(pub $name, pub usize);
+
+        impl From<$el_name> for ($name, usize) {
+            fn from(value: $el_name) -> Self {
+                (value.0, value.1)
+            }
+        }
+
+        impl From<($name, usize)> for $el_name {
+            fn from(value: ($name, usize)) -> Self {
+                Self(value.0, value.1)
+            }
+        }
+
+        impl $crate::store::SequenceStoreKey for $name {
+            type ElementKey = $el_name;
+
             fn to_index_and_len(self) -> (usize, usize) {
                 (self.index.try_into().unwrap(), self.len.try_into().unwrap())
             }
@@ -302,19 +403,26 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// key and index.
     ///
     /// The given iterator must support [`ExactSizeIterator`].
-    fn create_from_iter_with<F: FnOnce((Key, usize)) -> Value, I: IntoIterator<Item = F>>(
+    fn create_from_iter_with<F: FnOnce(Key::ElementKey) -> Value, I: IntoIterator<Item = F>>(
         &self,
         values: I,
     ) -> Key
     where
         I::IntoIter: ExactSizeIterator,
+        Key::ElementKey: From<(Key, usize)>,
     {
         let starting_index = self.internal_data().read().len();
 
         let (key, values_computed) = {
             let values = values.into_iter();
             let key = Key::from_index_and_len_unchecked(starting_index, values.len());
-            (key, values.enumerate().map(|(i, f)| f((key, i))).collect::<Vec<_>>())
+            (
+                key,
+                values
+                    .enumerate()
+                    .map(|(i, f)| f(Key::ElementKey::from((key, i))))
+                    .collect::<Vec<_>>(),
+            )
         };
 
         let mut data = self.internal_data().write();
@@ -393,12 +501,6 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     ) -> Result<Key, E> {
         let values = values.into_iter().collect::<Result<Vec<_>, _>>()?;
         Ok(self.create_from_slice(&values))
-    }
-
-    /// Same as [`SequenceStore::get_at_index`] but takes the element key and
-    /// index as a tuple.
-    fn get_element(&self, element_id: (Key, usize)) -> Value {
-        self.get_at_index(element_id.0, element_id.1)
     }
 
     /// Get the value at the given index in the value sequence corresponding to
@@ -554,6 +656,25 @@ impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
         key.to_index_range().map(move |index| {
             self.internal_data().read().get(key.entry_index() + index).unwrap().clone()
         })
+    }
+}
+
+pub trait TrivialKeySequenceStore<Key: SequenceStoreKey, Value: Clone>:
+    SequenceStore<Key, Value>
+{
+    /// Same as [`SequenceStore::get_at_index`] but takes the element key and
+    /// index as a tuple.
+    fn get_element(&self, element_id: Key::ElementKey) -> Value;
+}
+
+impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
+    TrivialKeySequenceStore<Key, Value> for T
+where
+    Key::ElementKey: Into<(Key, usize)>,
+{
+    fn get_element(&self, element_id: Key::ElementKey) -> Value {
+        let (key, index) = element_id.into();
+        self.get_at_index(key, index)
     }
 }
 
@@ -822,19 +943,20 @@ pub trait SequenceAppendOnlyStore<Key: SequenceStoreKey, Value: Copy> {
     /// key and index.
     ///
     /// The given iterator must support [`ExactSizeIterator`].
-    fn create_from_iter_with<F: FnOnce((Key, usize)) -> Value, I: IntoIterator<Item = F>>(
+    fn create_from_iter_with<F: FnOnce(Key::ElementKey) -> Value, I: IntoIterator<Item = F>>(
         &self,
         values: I,
     ) -> Key
     where
         I::IntoIter: ExactSizeIterator,
+        Key::ElementKey: From<(Key, usize)>,
     {
         let starting_index = self.internal_data().len();
 
         let (key, values_computed) = {
             let values = values.into_iter();
             let key = Key::from_index_and_len_unchecked(starting_index, values.len());
-            (key, values.enumerate().map(move |(i, f)| f((key, i))))
+            (key, values.enumerate().map(move |(i, f)| f(Key::ElementKey::from((key, i)))))
         };
 
         let data = self.internal_data();
@@ -853,12 +975,6 @@ pub trait SequenceAppendOnlyStore<Key: SequenceStoreKey, Value: Copy> {
             data.push(value);
         }
         Key::from_index_and_len_unchecked(starting_index, data.len() - starting_index)
-    }
-
-    /// Same as [`SequenceStore::get_at_index`] but takes the element key and
-    /// index as a tuple.
-    fn get_element(&self, element_id: (Key, usize)) -> &Value {
-        self.get_at_index(element_id.0, element_id.1)
     }
 
     /// Get the value at the given index in the value sequence corresponding to
@@ -903,5 +1019,5 @@ mod test_super {
     use super::*;
     // Ensuring macros expand correctly:
     new_store_key!(pub TestK);
-    new_sequence_store_key!(pub TestSeqK);
+    new_sequence_store_key_direct!(pub TestSeqK, TestKK);
 }

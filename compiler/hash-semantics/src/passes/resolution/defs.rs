@@ -8,7 +8,7 @@ use std::cell::Cell;
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_tir::{
-    data::DataDefCtors,
+    data::{CtorDefId, DataDefCtors},
     directives::AppliedDirectives,
     environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberValue},
@@ -82,7 +82,7 @@ impl<'tc> ResolutionPass<'tc> {
                             DataDefCtors::Defined(id) => {
                                 // There should only be one variant
                                 assert!(id.len() == 1);
-                                (id, 0)
+                                CtorDefId(id, 0)
                             },
                             DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
                         });
@@ -123,14 +123,14 @@ impl<'tc> ResolutionPass<'tc> {
                                 attempt(self.resolve_params_from_ast_params(
                                     &variant.fields,
                                     false,
-                                    (data_def_ctors, i).into(),
+                                    CtorDefId(data_def_ctors, i).into(),
                                 ));
 
                                 // Variant type
                                 attempt(self.resolve_params_from_ast_params(
                                     &variant.fields,
                                     false,
-                                    (data_def_ctors, i).into(),
+                                    CtorDefId(data_def_ctors, i).into(),
                                 ));
 
                                 // Variant indices

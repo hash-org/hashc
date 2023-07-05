@@ -5,12 +5,7 @@ use std::fmt::Display;
 use derive_more::From;
 
 use super::{
-    data::DataDefId,
-    environment::env::{AccessToEnv, WithEnv},
-    fns::FnDefId,
-    locations::LocationTarget,
-    mods::ModDefId,
-    scopes::StackId,
+    data::DataDefId, fns::FnDefId, locations::LocationTarget, mods::ModDefId, scopes::StackId,
 };
 use crate::{symbols::Symbol, terms::TermId, tys::TyId};
 
@@ -60,43 +55,37 @@ impl From<DefId> for LocationTarget {
     }
 }
 
-impl Display for WithEnv<'_, DefId> {
+impl Display for DefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.value {
-            DefId::Mod(mod_id) => write!(f, "{}", self.env().with(mod_id)),
-            DefId::Data(data_id) => write!(f, "{}", self.env().with(data_id)),
-            DefId::Fn(fn_id) => write!(f, "{}", self.env().with(fn_id)),
-            DefId::Stack(stack_id) => write!(f, "{}", self.env().with(stack_id)),
+        match self {
+            DefId::Mod(mod_id) => write!(f, "{}", mod_id),
+            DefId::Data(data_id) => write!(f, "{}", data_id),
+            DefId::Fn(fn_id) => write!(f, "{}", fn_id),
+            DefId::Stack(stack_id) => write!(f, "{}", stack_id),
         }
     }
 }
 
-impl<T> Display for WithEnv<'_, &DefMember<T>> {
+impl<T> Display for DefMember<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}: {}{}",
-            self.env().with(self.value.name),
-            self.env().with(self.value.ty),
-            self.value
-                .value
-                .map(|x| format!(" = {}", self.env().with(x)))
-                .unwrap_or_else(|| "".to_string())
+            (self.name),
+            (self.ty),
+            self.value.map(|x| format!(" = {}", x)).unwrap_or_else(|| "".to_string())
         )
     }
 }
 
-impl Display for WithEnv<'_, &DefMemberData> {
+impl Display for DefMemberData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}: {}{}",
-            self.env().with(self.value.name),
-            self.env().with(self.value.ty),
-            self.value
-                .value
-                .map(|x| format!(" = {}", self.env().with(x)))
-                .unwrap_or_else(|| "".to_string())
+            (self.name),
+            (self.ty),
+            self.value.map(|x| format!(" = {}", x)).unwrap_or_else(|| "".to_string())
         )
     }
 }

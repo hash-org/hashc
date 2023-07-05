@@ -750,8 +750,8 @@ impl DefinedIntrinsics {
                 .params(env.new_params(&[env.new_data_ty(prim.str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
-            |env, args| {
-                stream_less_writeln!("{}", env.env().with(args[1]));
+            |_env, args| {
+                stream_less_writeln!("{}", args[1]);
                 process::exit(1);
             },
         );
@@ -784,7 +784,7 @@ impl DefinedIntrinsics {
                 "debug_print",
                 FnTy::builder().params(params).return_ty(ret).build(),
                 |env, args| {
-                    stream_less_writeln!("{}", env.env().with(args[1]));
+                    stream_less_writeln!("{}", args[1]);
                     Ok(env.new_void_term())
                 },
             )

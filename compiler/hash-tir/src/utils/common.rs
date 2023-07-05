@@ -4,7 +4,9 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     location::SourceLocation,
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{
+    CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
+};
 
 use super::traversing::Atom;
 use crate::{
@@ -83,11 +85,7 @@ pub trait CommonUtils: AccessToEnv {
     /// This will panic if the index does not exist.
     fn get_param_by_index(&self, params_id: ParamsId, index: ParamIndex) -> Param {
         self.try_get_param_by_index(params_id, index).unwrap_or_else(|| {
-            panic!(
-                "Parameter with name `{}` does not exist in `{}`",
-                index,
-                self.env().with(params_id)
-            )
+            panic!("Parameter with name `{}` does not exist in `{}`", index, params_id)
         })
     }
 
@@ -428,7 +426,7 @@ pub trait CommonUtils: AccessToEnv {
                 .iter()
                 .copied()
                 .enumerate()
-                .map(|(i, ty)| move |id| Param { id, name: self.new_symbol(i), ty, default: None }),
+                .map(|(i, ty)| move |_id| Param { name: self.new_symbol(i), ty, default: None }),
         )
     }
 
@@ -439,7 +437,7 @@ pub trait CommonUtils: AccessToEnv {
                 .iter()
                 .copied()
                 .enumerate()
-                .map(|(i, value)| move |id| Arg { id, target: ParamIndex::Position(i), value }),
+                .map(|(i, value)| move |_id| Arg { target: ParamIndex::Position(i), value }),
         )
     }
 

@@ -82,12 +82,12 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
 
         // Potentially dump the TIR and evaluate it depending on flags.
         if self.flags().dump_tir {
-            self.dump_tir(self.env().with(term));
+            self.dump_tir(term);
         }
 
         // Interactive mode is always evaluated.
         let result = self.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
-        stream_less_writeln!("{}", self.env().with(result));
+        stream_less_writeln!("{}", result);
 
         Ok(())
     }
@@ -102,7 +102,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         // Potentially dump the TIR and evaluate it depending on flags.
 
         if self.flags().dump_tir {
-            self.dump_tir(self.env().with(mod_def_id));
+            self.dump_tir(mod_def_id);
         }
 
         if self.flags().eval_tir {

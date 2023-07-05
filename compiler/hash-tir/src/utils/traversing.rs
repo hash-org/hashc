@@ -13,7 +13,7 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::env::{AccessToEnv, Env, WithEnv},
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
     impl_access_to_env,
     locations::LocationTarget,
@@ -45,13 +45,13 @@ pub enum Atom {
     Pat(PatId),
 }
 
-impl fmt::Display for WithEnv<'_, Atom> {
+impl fmt::Display for Atom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            Atom::Term(term_id) => write!(f, "{}", self.env().with(term_id)),
-            Atom::Ty(ty_id) => write!(f, "{}", self.env().with(ty_id)),
-            Atom::FnDef(fn_def_id) => write!(f, "{}", self.env().with(fn_def_id)),
-            Atom::Pat(pat_id) => write!(f, "{}", self.env().with(pat_id)),
+        match self {
+            Atom::Term(term_id) => write!(f, "{}", term_id),
+            Atom::Ty(ty_id) => write!(f, "{}", ty_id),
+            Atom::FnDef(fn_def_id) => write!(f, "{}", fn_def_id),
+            Atom::Pat(pat_id) => write!(f, "{}", pat_id),
         }
     }
 }
@@ -690,7 +690,7 @@ impl<'env> TraversingUtils<'env> {
             DataDefCtors::Defined(data_def_ctors_id) => {
                 // Traverse the constructors
                 for ctor_idx in data_def_ctors_id.to_index_range() {
-                    self.visit_ctor_def((data_def_ctors_id, ctor_idx), f)?;
+                    self.visit_ctor_def(CtorDefId(data_def_ctors_id, ctor_idx), f)?;
                 }
                 Ok(())
             }
@@ -742,7 +742,7 @@ impl<'env> TraversingUtils<'env> {
     ) -> Result<(), E> {
         let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
         for member_idx in members.to_index_range() {
-            self.visit_mod_member((members, member_idx), f)?;
+            self.visit_mod_member(ModMemberId(members, member_idx), f)?;
         }
         Ok(())
     }

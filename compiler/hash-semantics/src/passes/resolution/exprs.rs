@@ -36,7 +36,10 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    store::{PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
+    store::{
+        PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+        TrivialSequenceStoreKey,
+    },
 };
 
 use super::{

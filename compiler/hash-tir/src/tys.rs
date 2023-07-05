@@ -4,18 +4,12 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::{
-    new_store_key,
-    store::{CloneStore, DefaultStore, Store},
-};
+use hash_utils::store::Store;
 
-use super::{
-    environment::env::{AccessToEnv, WithEnv},
-    holes::Hole,
-    symbols::Symbol,
-};
+use super::{holes::Hole, symbols::Symbol};
 use crate::{
-    data::DataTy, fns::FnTy, impl_single_store_id, refs::RefTy, terms::TermId, tuples::TupleTy,
+    data::DataTy, environment::stores::StoreId, fns::FnTy, refs::RefTy, terms::TermId,
+    tir_debug_value_of_single_store_id, tir_single_store, tuples::TupleTy,
 };
 
 /// The type of types, i.e. a universe.
@@ -58,9 +52,14 @@ pub enum Ty {
     Universe(UniverseTy),
 }
 
-new_store_key!(pub TyId);
-pub type TyStore = DefaultStore<TyId, Ty>;
-impl_single_store_id!(TyId, Ty, ty);
+tir_single_store!(
+    store = pub TyStore,
+    id = pub TyId,
+    value = Ty,
+    store_name = ty
+);
+
+tir_debug_value_of_single_store_id!(TyId);
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]
@@ -68,7 +67,7 @@ pub struct TypeOfTerm {
     pub term: TermId,
 }
 
-impl fmt::Display for &UniverseTy {
+impl fmt::Display for UniverseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.size {
             None => write!(f, "Type(*)"),
@@ -78,31 +77,31 @@ impl fmt::Display for &UniverseTy {
     }
 }
 
-impl fmt::Display for WithEnv<'_, TyId> {
+impl fmt::Display for TyId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(&self.env().stores().ty().get(self.value)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Ty> {
+impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
+        match self {
             Ty::Eval(eval_ty) => {
-                write!(f, "{{{}}}", self.env().with(*eval_ty))
+                write!(f, "{{{}}}", *eval_ty)
             }
-            Ty::Hole(hole) => write!(f, "{}", self.env().with(*hole)),
-            Ty::Var(resolved_var) => write!(f, "{}", self.env().with(*resolved_var)),
-            Ty::Tuple(tuple_ty) => write!(f, "{}", self.env().with(tuple_ty)),
-            Ty::Fn(fn_ty) => write!(f, "{}", self.env().with(fn_ty)),
-            Ty::Ref(ref_ty) => write!(f, "{}", self.env().with(ref_ty)),
-            Ty::Data(data_ty) => write!(f, "{}", self.env().with(data_ty)),
+            Ty::Hole(hole) => write!(f, "{}", *hole),
+            Ty::Var(resolved_var) => write!(f, "{}", *resolved_var),
+            Ty::Tuple(tuple_ty) => write!(f, "{}", tuple_ty),
+            Ty::Fn(fn_ty) => write!(f, "{}", fn_ty),
+            Ty::Ref(ref_ty) => write!(f, "{}", ref_ty),
+            Ty::Data(data_ty) => write!(f, "{}", data_ty),
             Ty::Universe(universe_ty) => write!(f, "{universe_ty}"),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, &TypeOfTerm> {
+impl fmt::Display for TypeOfTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "typeof {}", self.env().with(self.value.term))
+        write!(f, "typeof {}", self.term)
     }
 }

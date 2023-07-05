@@ -4,19 +4,18 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::{
-    new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey},
-};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
 use utility_types::omit;
 
 use super::{
-    environment::env::{AccessToEnv, WithEnv},
     locations::{IndexedLocationTarget, LocationTarget},
     params::ParamIndex,
     pats::PatId,
 };
-use crate::{impl_sequence_store_id, terms::TermId};
+use crate::{
+    environment::stores::StoreId, terms::TermId, tir_debug_value_of_sequence_store_element_id,
+    tir_sequence_store_direct,
+};
 
 /// An argument to a parameter.
 ///
@@ -25,8 +24,6 @@ use crate::{impl_sequence_store_id, terms::TermId};
 #[omit(ArgData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct Arg {
-    /// The ID of the argument in the argument list.
-    pub id: ArgId,
     /// Argument target (named or positional), if known.
     pub target: ParamIndex,
     /// The term that is the value of the argument.
@@ -39,11 +36,14 @@ impl From<Arg> for ArgData {
     }
 }
 
-new_sequence_store_key!(pub ArgsId);
-pub type ArgId = (ArgsId, usize);
-pub type ArgsStore = DefaultSequenceStore<ArgsId, Arg>;
+tir_sequence_store_direct!(
+    store = pub ArgsStore,
+    id = pub ArgsId[ArgId],
+    value = Arg,
+    store_name = args
+);
 
-impl_sequence_store_id!(ArgsId, Arg, args);
+tir_debug_value_of_sequence_store_element_id!(ArgId);
 
 /// A pattern or a capture.
 ///
@@ -56,7 +56,7 @@ impl_sequence_store_id!(ArgsId, Arg, args);
 /// slots into `PatOrCapture::Capture` to indicate that the corresponding
 /// parameter is captured by the spread. After that point the spread is no
 /// longer needed (other than for errors).
-#[derive(Debug, Clone, Copy, From)]
+#[derive(Debug, Clone, Copy, From, PartialEq, Eq)]
 pub enum PatOrCapture {
     /// A pattern.
     Pat(PatId),
@@ -80,8 +80,6 @@ impl PatOrCapture {
 #[omit(PatArgData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct PatArg {
-    /// The ID of the argument in the argument pattern list.
-    pub id: PatArgId,
     /// Argument target (named or positional).
     pub target: ParamIndex,
     /// The pattern in place for this argument.
@@ -94,10 +92,14 @@ impl From<PatArg> for PatArgData {
     }
 }
 
-new_sequence_store_key!(pub PatArgsId);
-pub type PatArgId = (PatArgsId, usize);
-pub type PatArgsStore = DefaultSequenceStore<PatArgsId, PatArg>;
-impl_sequence_store_id!(PatArgsId, PatArg, pat_args);
+tir_sequence_store_direct!(
+    store = pub PatArgsStore,
+    id = pub PatArgsId[PatArgId],
+    value = PatArg,
+    store_name = pat_args
+);
+
+tir_debug_value_of_sequence_store_element_id!(PatArgId);
 
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
@@ -111,6 +113,8 @@ pub enum SomeArgsId {
 pub struct SomeArgId(pub SomeArgsId, pub usize);
 
 impl SequenceStoreKey for SomeArgsId {
+    type ElementKey = (SomeArgsId, usize);
+
     fn to_index_and_len(self) -> (usize, usize) {
         match self {
             SomeArgsId::PatArgs(id) => id.to_index_and_len(),
@@ -147,57 +151,57 @@ impl From<SomeArgsId> for IndexedLocationTarget {
 impl From<SomeArgId> for LocationTarget {
     fn from(val: SomeArgId) -> Self {
         match val {
-            SomeArgId(SomeArgsId::PatArgs(id), index) => LocationTarget::PatArg((id, index)),
-            SomeArgId(SomeArgsId::Args(id), index) => LocationTarget::Arg((id, index)),
+            SomeArgId(SomeArgsId::PatArgs(id), index) => {
+                LocationTarget::PatArg(PatArgId(id, index))
+            }
+            SomeArgId(SomeArgsId::Args(id), index) => LocationTarget::Arg(ArgId(id, index)),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, SomeArgsId> {
+impl fmt::Display for SomeArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            SomeArgsId::Args(id) => write!(f, "{}", self.env().with(id)),
-            SomeArgsId::PatArgs(id) => write!(f, "{}", self.env().with(id)),
+        match self {
+            SomeArgsId::Args(id) => write!(f, "{}", id),
+            SomeArgsId::PatArgs(id) => write!(f, "{}", id),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Arg> {
+impl fmt::Display for Arg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value.target {
+        match self.target {
             ParamIndex::Name(name) => {
-                write!(f, "{} = {}", name, self.env().with(self.value.value))
+                write!(f, "{} = {}", name, self.value)
             }
-            ParamIndex::Position(_) => write!(f, "{}", self.env().with(self.value.value)),
+            ParamIndex::Position(_) => write!(f, "{}", self.value),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, ArgId> {
+impl fmt::Display for ArgId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(&self.stores().args().get_element(self.value)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, ArgsId> {
+impl fmt::Display for ArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().args().map_fast(self.value, |args| {
-            for (i, arg) in args.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{}", self.env().with(arg))?;
+        for (i, arg) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
             }
-            Ok(())
-        })
+            write!(f, "{}", arg)?;
+        }
+        Ok(())
     }
 }
 
-impl fmt::Display for WithEnv<'_, PatOrCapture> {
+impl fmt::Display for PatOrCapture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
+        match self {
             PatOrCapture::Pat(pat) => {
-                write!(f, "{}", self.env().with(pat))
+                write!(f, "{}", pat)
             }
             PatOrCapture::Capture => {
                 write!(f, "_")
@@ -206,33 +210,31 @@ impl fmt::Display for WithEnv<'_, PatOrCapture> {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &PatArg> {
+impl fmt::Display for PatArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value.target {
+        match self.target {
             ParamIndex::Name(name) => {
-                write!(f, "{} = {}", name, self.env().with(self.value.pat))
+                write!(f, "{} = {}", name, self.pat)
             }
-            ParamIndex::Position(_) => write!(f, "{}", self.env().with(self.value.pat)),
+            ParamIndex::Position(_) => write!(f, "{}", self.pat),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, PatArgId> {
+impl fmt::Display for PatArgId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(&self.stores().pat_args().get_element(self.value)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, PatArgsId> {
+impl fmt::Display for PatArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().pat_args().map_fast(self.value, |pat_args| {
-            for (i, pat_arg) in pat_args.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{}", self.env().with(pat_arg))?;
+        for (i, pat_arg) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
             }
-            Ok(())
-        })
+            write!(f, "{}", pat_arg)?;
+        }
+        Ok(())
     }
 }

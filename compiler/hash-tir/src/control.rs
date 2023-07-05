@@ -1,20 +1,20 @@
 //! Definitions related to control flow.
 
 use core::fmt;
+use std::fmt::Debug;
 
-use hash_utils::{
-    new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore},
-};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
 use textwrap::indent;
 
 use super::{
-    environment::env::{AccessToEnv, WithEnv},
     pats::{PatId, PatListId},
     scopes::StackId,
-    utils::common::CommonUtils,
+    terms::Term,
 };
-use crate::{scopes::BlockTerm, terms::TermId};
+use crate::{
+    environment::stores::StoreId, scopes::BlockTerm, terms::TermId,
+    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+};
 
 /// A loop term.
 ///
@@ -49,8 +49,14 @@ pub struct MatchCase {
     pub value: TermId,
 }
 
-new_sequence_store_key!(pub MatchCasesId);
-pub type MatchCasesStore = DefaultSequenceStore<MatchCasesId, MatchCase>;
+tir_sequence_store_direct!(
+    store = pub MatchCasesStore,
+    id = pub MatchCasesId[MatchCaseId],
+    value = MatchCase,
+    store_name = match_cases
+);
+
+tir_debug_value_of_sequence_store_element_id!(MatchCaseId);
 
 /// A return term.
 ///
@@ -98,87 +104,81 @@ pub struct OrPat {
     pub alternatives: PatListId,
 }
 
-impl fmt::Display for WithEnv<'_, &LoopTerm> {
+impl fmt::Display for LoopTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "loop {}", self.env().with(&self.value.block))
+        write!(f, "loop {}", &self.block)
     }
 }
 
-impl fmt::Display for WithEnv<'_, &MatchTerm> {
+impl fmt::Display for MatchTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "match {} {{", self.env().with(self.value.subject))?;
-        write!(f, "{}", self.env().with(self.value.cases))?;
+        writeln!(f, "match {} {{", self.subject)?;
+        write!(f, "{}", self.cases)?;
         write!(f, "}}")?;
         Ok(())
     }
 }
 
-impl fmt::Display for WithEnv<'_, MatchCasesId> {
+impl fmt::Display for MatchCasesId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().match_cases().map_fast(self.value, |cases| {
-            for case in cases {
-                write!(f, "{}", self.env().with(case))?;
-            }
-            Ok(())
-        })
+        for case in self.iter() {
+            write!(f, "{}", case)?;
+        }
+        Ok(())
     }
 }
 
-impl fmt::Display for WithEnv<'_, &MatchCase> {
+impl fmt::Display for MatchCaseId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let case = format!(
-            "{} => {};\n",
-            self.env().with(self.value.bind_pat),
-            self.env().with(self.value.value)
-        );
+        write!(f, "{}", self.value())
+    }
+}
+
+impl fmt::Display for MatchCase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let case = format!("{} => {};\n", self.bind_pat, self.value);
         let lines = indent(&case, "  ");
         write!(f, "{lines}")?;
         Ok(())
     }
 }
 
-impl fmt::Display for WithEnv<'_, &ReturnTerm> {
+impl fmt::Display for ReturnTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.term_is_void(self.value.expression) {
+        if matches!(self.expression.value(), Term::Tuple(tuple_term) if tuple_term.data.is_empty())
+        {
             write!(f, "return")
         } else {
-            write!(f, "return {}", self.env().with(self.value.expression))
+            write!(f, "return {}", self.expression)
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, &LoopControlTerm> {
+impl fmt::Display for LoopControlTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
+        match self {
             LoopControlTerm::Break => write!(f, "break"),
             LoopControlTerm::Continue => write!(f, "continue"),
         }
     }
 }
 
-impl fmt::Display for WithEnv<'_, &IfPat> {
+impl fmt::Display for IfPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} if {}",
-            self.env().with(self.value.pat),
-            self.env().with(self.value.condition)
-        )
+        write!(f, "{} if {}", self.pat, self.condition)
     }
 }
 
-impl fmt::Display for WithEnv<'_, &OrPat> {
+impl fmt::Display for OrPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().pat_list().map_fast(self.value.alternatives, |alternatives| {
-            let mut first = true;
-            for pat in alternatives {
-                if !first {
-                    write!(f, " | ")?;
-                }
-                write!(f, "{}", self.env().with(*pat))?;
-                first = false;
+        let mut first = true;
+        for pat in self.alternatives.iter() {
+            if !first {
+                write!(f, " | ")?;
             }
-            Ok(())
-        })
+            write!(f, "{}", pat)?;
+            first = false;
+        }
+        Ok(())
     }
 }

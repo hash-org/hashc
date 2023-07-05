@@ -2,21 +2,14 @@
 
 use std::fmt::Display;
 
-use hash_utils::{
-    new_store_key,
-    store::{CloneStore, DefaultStore, Store},
-};
+use hash_utils::store::Store;
 use typed_builder::TypedBuilder;
 use utility_types::omit;
 
-use super::{
-    environment::env::{AccessToEnv, WithEnv},
-    intrinsics::IntrinsicId,
-    tys::Ty,
-    utils::common::CommonUtils,
-};
+use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
-    args::ArgsId, impl_single_store_id, params::ParamsId, symbols::Symbol, terms::TermId, tys::TyId,
+    args::ArgsId, environment::stores::StoreId, params::ParamsId, symbols::Symbol, terms::TermId,
+    tir_debug_name_of_store_id, tir_single_store, tys::TyId,
 };
 
 /// A function type.
@@ -110,11 +103,14 @@ impl FnDef {
     }
 }
 
-new_store_key!(pub FnDefId);
+tir_single_store!(
+    store = pub FnDefStore,
+    id = pub FnDefId,
+    value = FnDef,
+    store_name = fn_def
+);
 
-/// Function definitions live in a store
-pub type FnDefStore = DefaultStore<FnDefId, FnDef>;
-impl_single_store_id!(FnDefId, FnDef, fn_def);
+tir_debug_name_of_store_id!(FnDefId);
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]
@@ -136,98 +132,96 @@ pub struct FnCallTerm {
     // @@Design: optional conditions
 }
 
-impl Display for WithEnv<'_, &FnTy> {
+impl Display for FnTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.value.is_unsafe {
+        if self.is_unsafe {
             write!(f, "unsafe ")?;
         }
-        if self.value.pure && !self.value.implicit {
+        if self.pure && !self.implicit {
             write!(f, "pure ")?;
         }
-        if !self.value.pure && self.value.implicit {
+        if !self.pure && self.implicit {
             write!(f, "impure ")?;
         }
 
-        if self.value.implicit {
+        if self.implicit {
             write!(f, "<")?;
         } else {
             write!(f, "(")?;
         }
 
-        write!(f, "{}", self.env().with(self.value.params))?;
+        write!(f, "{}", self.params)?;
 
-        if self.value.implicit {
+        if self.implicit {
             write!(f, ">")?;
         } else {
             write!(f, ")")?;
         }
 
-        write!(f, " -> {}", self.env().with(self.value.return_ty))?;
+        write!(f, " -> {}", self.return_ty)?;
 
         Ok(())
     }
 }
 
-impl Display for WithEnv<'_, &FnDef> {
+impl Display for FnDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if matches!(self.env().get_ty(self.value.ty.return_ty), Ty::Fn(_)) {
-            if self.value.ty.is_unsafe {
+        if matches!(self.ty.return_ty.value(), Ty::Fn(_)) {
+            if self.ty.is_unsafe {
                 write!(f, "unsafe ")?;
             }
-            if self.value.ty.pure && !self.value.ty.implicit {
+            if self.ty.pure && !self.ty.implicit {
                 write!(f, "pure ")?;
             }
-            if !self.value.ty.pure && self.value.ty.implicit {
+            if !self.ty.pure && self.ty.implicit {
                 write!(f, "impure ")?;
             }
 
-            if self.value.ty.implicit {
+            if self.ty.implicit {
                 write!(f, "<")?;
             } else {
                 write!(f, "(")?;
             }
 
-            write!(f, "{}", self.env().with(self.value.ty.params))?;
+            write!(f, "{}", self.ty.params)?;
 
-            if self.value.ty.implicit {
+            if self.ty.implicit {
                 write!(f, ">")?;
             } else {
                 write!(f, ")")?;
             }
         } else {
-            write!(f, "{}", self.env().with(&self.value.ty))?;
+            write!(f, "{}", &self.ty)?;
         };
-        match self.value.body {
-            FnBody::Defined(term) => write!(f, " => {}", self.env().with(term)),
+        match self.body {
+            FnBody::Defined(term) => write!(f, " => {}", term),
             FnBody::Intrinsic(intrinsic) => {
-                write!(f, " => intrinsic('{}')", self.env().with(intrinsic.0))
+                write!(f, " => intrinsic('{}')", intrinsic.0)
             }
             FnBody::Axiom => write!(f, " => axiom"),
         }
     }
 }
 
-impl Display for WithEnv<'_, FnDefId> {
+impl Display for FnDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.stores()
-            .fn_def()
-            .map_fast(self.value, |fn_def| write!(f, "{}", self.env().with(fn_def)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl Display for WithEnv<'_, &FnCallTerm> {
+impl Display for FnCallTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.env().with(self.value.subject))?;
+        write!(f, "{}", self.subject)?;
 
-        if self.value.implicit {
+        if self.implicit {
             write!(f, "<")?;
         } else {
             write!(f, "(")?;
         }
 
-        write!(f, "{}", self.env().with(self.value.args))?;
+        write!(f, "{}", self.args)?;
 
-        if self.value.implicit {
+        if self.implicit {
             write!(f, ">")?;
         } else {
             write!(f, ")")?;

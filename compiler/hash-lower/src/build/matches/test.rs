@@ -220,7 +220,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                                     span.into_location(self.source_id),
                                     self.source_map(),
                                     "attempt to test simplify-able pattern, `{}`",
-                                    self.env().with(pair.pat)
+                                    (pair.pat)
                                 )
                             }
 
@@ -275,7 +275,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     span.into_location(self.source_id),
                     self.source_map(),
                     "attempt to test simplify-able pattern, `{}`",
-                    self.env().with(pair.pat)
+                    (pair.pat)
                 )
             }
         }

@@ -4,8 +4,7 @@ use std::fmt::Display;
 
 use super::{
     args::PatArgsId,
-    environment::env::{AccessToEnv, WithEnv},
-    pats::Spread,
+    pats::{PatArgsWithSpread, Spread},
 };
 use crate::{args::ArgsId, params::ParamsId};
 
@@ -39,26 +38,26 @@ pub struct TuplePat {
     pub data_spread: Option<Spread>,
 }
 
-impl Display for WithEnv<'_, &TupleTy> {
+impl Display for TupleTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
-        write!(f, "{}", self.env().with(self.value.data))?;
+        write!(f, "{}", self.data)?;
         write!(f, ")")
     }
 }
 
-impl Display for WithEnv<'_, &TupleTerm> {
+impl Display for TupleTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
-        write!(f, "{}", self.env().with(self.value.data))?;
+        write!(f, "{}", self.data)?;
         write!(f, ")")
     }
 }
 
-impl Display for WithEnv<'_, &TuplePat> {
+impl Display for TuplePat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
-        write!(f, "{}", self.env().with((self.value.data, self.value.data_spread)))?;
+        write!(f, "{}", PatArgsWithSpread::from((self.data, self.data_spread)))?;
         write!(f, ")")
     }
 }

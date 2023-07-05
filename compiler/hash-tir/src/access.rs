@@ -4,11 +4,7 @@ use core::fmt;
 
 use hash_ast::ast;
 
-use super::{
-    environment::env::{AccessToEnv, WithEnv},
-    params::ParamIndex,
-    terms::TermId,
-};
+use super::{params::ParamIndex, terms::TermId};
 
 /// Term to access a nested value.
 #[derive(Debug, Clone, Copy)]
@@ -19,14 +15,14 @@ pub struct AccessTerm {
     pub field: ParamIndex,
 }
 
-impl fmt::Display for WithEnv<'_, &AccessTerm> {
+impl fmt::Display for AccessTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}.{}",
-            self.env().with(self.value.subject),
+            self.subject,
             // op,
-            self.env().with(self.value.field)
+            self.field
         )
     }
 }

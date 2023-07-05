@@ -3,13 +3,9 @@
 use std::fmt::Display;
 
 use hash_source::identifier::Identifier;
-use hash_utils::{
-    new_store_key,
-    store::{CloneStore, DefaultStore, Store, StoreKey},
-};
+use hash_utils::store::{Store, StoreKey};
 
-use super::environment::env::{AccessToEnv, WithEnv};
-use crate::impl_single_store_id;
+use crate::{environment::stores::StoreId, tir_get, tir_single_store};
 
 /// The data carried by a symbol.
 ///
@@ -42,15 +38,29 @@ pub struct SymbolData {
     pub name: Option<Identifier>,
 }
 
-new_store_key!(pub Symbol);
-pub type SymbolStore = DefaultStore<Symbol, SymbolData>;
-impl_single_store_id!(Symbol, SymbolData, symbol);
+tir_single_store!(
+    store = pub SymbolStore,
+    id = pub Symbol,
+    value = SymbolData,
+    store_name = symbol
+);
 
-impl Display for WithEnv<'_, Symbol> {
+impl std::fmt::Debug for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.stores().symbol().map_fast(self.value, |data| match data.name {
+        match self.value().name {
+            Some(name) => {
+                f.debug_tuple("Symbol").field(&self.index).field(&format!("{}", name)).finish()
+            }
+            None => f.debug_tuple("Symbol").field(&self.index).finish(),
+        }
+    }
+}
+
+impl Display for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match tir_get!(*self, name) {
             Some(name) => write!(f, "{name}"),
-            None => write!(f, "s{}", data.symbol.to_index()),
-        })
+            None => write!(f, "s{}", self.to_index()),
+        }
     }
 }

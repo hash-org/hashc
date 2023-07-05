@@ -4,15 +4,12 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_source::identifier::Identifier;
-use hash_utils::{
-    new_sequence_store_key,
-    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey},
-};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
 use utility_types::omit;
 
 use super::{
     args::{ArgsId, PatArgsId},
-    environment::env::{AccessToEnv, WithEnv},
+    environment::stores::StoreId,
     locations::IndexedLocationTarget,
     terms::TermId,
 };
@@ -20,8 +17,8 @@ use crate::{
     context::ScopeKind,
     data::{CtorDefId, DataDefId},
     fns::{FnDefId, FnTy},
-    impl_sequence_store_id,
     symbols::Symbol,
+    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
     tuples::TupleTy,
     tys::TyId,
 };
@@ -33,8 +30,6 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 #[omit(ParamData, [id], [Debug, Clone, Copy])]
 pub struct Param {
-    /// The ID of the parameter in the parameter list.
-    pub id: ParamId,
     /// The name of the parameter.
     pub name: Symbol,
     /// The type of the parameter.
@@ -49,10 +44,14 @@ impl From<Param> for ParamData {
     }
 }
 
-new_sequence_store_key!(pub ParamsId);
-pub type ParamId = (ParamsId, usize);
-pub type ParamsStore = DefaultSequenceStore<ParamsId, Param>;
-impl_sequence_store_id!(ParamsId, Param, params);
+tir_sequence_store_direct!(
+    store = pub ParamsStore,
+    id = pub ParamsId[ParamId],
+    value = Param,
+    store_name = params
+);
+
+tir_debug_value_of_sequence_store_element_id!(ParamId);
 
 /// An index of a parameter of a parameter list.
 ///
@@ -71,15 +70,15 @@ impl From<ParamId> for ParamIndex {
     }
 }
 
-impl fmt::Display for WithEnv<'_, &Param> {
+impl fmt::Display for Param {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}: {}{}",
-            self.env().with(self.value.name),
-            self.env().with(self.value.ty),
-            if let Some(default) = self.value.default {
-                format!(" = {}", self.env().with(default))
+            (self.name),
+            (self.ty),
+            if let Some(default) = self.default {
+                format!(" = {}", default)
             } else {
                 "".to_string()
             }
@@ -168,23 +167,21 @@ impl ParamOrigin {
     }
 }
 
-impl fmt::Display for WithEnv<'_, ParamId> {
+impl fmt::Display for ParamId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.env().with(&self.stores().params().get_element(self.value)))
+        write!(f, "{}", self.value())
     }
 }
 
-impl fmt::Display for WithEnv<'_, ParamsId> {
+impl fmt::Display for ParamsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stores().params().map_fast(self.value, |params| {
-            for (i, param) in params.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{}", self.env().with(param))?;
+        for (i, param) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
             }
-            Ok(())
-        })
+            write!(f, "{}", param)?;
+        }
+        Ok(())
     }
 }
 
@@ -197,18 +194,12 @@ impl fmt::Display for ParamIndex {
     }
 }
 
-impl fmt::Display for WithEnv<'_, ParamIndex> {
+impl fmt::Display for SomeParamsOrArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
-
-impl fmt::Display for WithEnv<'_, SomeParamsOrArgsId> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            SomeParamsOrArgsId::Params(id) => write!(f, "{}", self.env().with(id)),
-            SomeParamsOrArgsId::PatArgs(id) => write!(f, "{}", self.env().with(id)),
-            SomeParamsOrArgsId::Args(id) => write!(f, "{}", self.env().with(id)),
+        match self {
+            SomeParamsOrArgsId::Params(id) => write!(f, "{}", id),
+            SomeParamsOrArgsId::PatArgs(id) => write!(f, "{}", id),
+            SomeParamsOrArgsId::Args(id) => write!(f, "{}", id),
         }
     }
 }

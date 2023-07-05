@@ -4,7 +4,10 @@ use hash_ast::ast::OwnsAstNode;
 use hash_source::{identifier::Identifier, ModuleId};
 use hash_utils::{
     itertools::Itertools,
-    store::{CloneStore, SequenceStore, SequenceStoreKey, Store, StoreKey},
+    store::{
+        CloneStore, SequenceStore, Store, StoreKey, TrivialKeySequenceStore,
+        TrivialSequenceStoreKey,
+    },
 };
 
 use super::common::CommonUtils;
@@ -38,7 +41,19 @@ impl<'tc> ModUtils<'tc> {
                 let module_name: Identifier = self.source_map().source_name(source_id).into();
                 let mod_def_id = self.create_mod_def(ModDefData {
                     name: self.new_symbol(module_name),
-                    kind: ModKind::Source(source_id),
+                    kind: ModKind::Source(
+                        source_id,
+                        // @@Hack: leak the path to still allow ModKind to implement Copy.
+                        // We need the path inside ModKind so that we can print it without
+                        // requiring access to source map. Ideally SourceMap should be static so
+                        // that this is not needed.
+                        Box::leak(
+                            self.source_map()
+                                .source_path(source_id)
+                                .to_path_buf()
+                                .into_boxed_path(),
+                        ),
+                    ),
                     members: self.create_empty_mod_members(),
                 });
                 self.stores().ast_info().mod_defs().insert(source_node_id, mod_def_id);

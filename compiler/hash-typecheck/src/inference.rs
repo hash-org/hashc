@@ -13,7 +13,7 @@ use hash_source::{
 };
 use hash_tir::{
     access::AccessTerm,
-    args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
+    args::{ArgData, ArgId, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
@@ -39,7 +39,10 @@ use hash_tir::{
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{
+    CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
+    TrivialSequenceStoreKey,
+};
 
 use crate::{
     errors::{TcError, TcResult, WrongTermKind},
@@ -1009,16 +1012,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     self.uni_ops().unify_tys(ty, annotation_ty)?;
                     Ok(())
                 } else if decl.value.is_some() {
-                    panic!("no type found for decl '{}'", self.env().with(decl))
+                    panic!("no type found for decl '{}'", decl)
                 } else {
-                    panic!(
-                        "Found declaration without type or value during inference: {}",
-                        self.env().with(decl)
-                    )
+                    panic!("Found declaration without type or value during inference: {}", decl)
                 }
             }
             None => {
-                panic!("no binding found for symbol '{}'", self.env().with(term))
+                panic!("no binding found for symbol '{}'", term)
             }
         }
     }
@@ -1162,8 +1162,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let mut diverges = false;
 
             for statement in block_term.statements.iter() {
-                let statement = self.stores().term_list().get_element(statement);
-
                 let statement_ty = self.new_ty_hole_of(statement);
                 self.infer_term(statement, statement_ty)?;
 
@@ -1537,6 +1535,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.potentially_run_expr(term_id, annotation_ty)?;
         self.potentially_dump_tir(term_id);
 
+        println!("Inferred term {:#?} to have type {:#?}", term_id, annotation_ty);
+
         Ok(())
     }
 
@@ -1595,7 +1595,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Data(data) if data.data_def == self.primitives().list() => {
                 // Type is already checked
                 assert!(data.args.len() == 1);
-                let inner_term = self.stores().args().get_element((data.args, 0)).value;
+                let inner_term = self.stores().args().get_element(ArgId(data.args, 0)).value;
                 term_as_variant!(self, self.get_term(inner_term), Ty)
             }
             Ty::Hole(_) => self.new_ty_hole(),
@@ -1836,8 +1836,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                     // Infer each member
                     for ctor_idx in data_def_ctors_id.to_index_range() {
-                        let _ = error_state
-                            .try_or_add_error(self.infer_ctor_def((data_def_ctors_id, ctor_idx)));
+                        let _ = error_state.try_or_add_error(
+                            self.infer_ctor_def(CtorDefId(data_def_ctors_id, ctor_idx)),
+                        );
                     }
 
                     self.return_or_register_errors(|| Ok(()), error_state)
@@ -1875,7 +1876,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.stores().directives().get(target).map(|d| d.contains(IDENTS.dump_tir))
                 == Some(true);
         if has_dump_dir {
-            self.dump_tir(self.env().with(target));
+            self.dump_tir(target);
         }
     }
 
@@ -1916,8 +1917,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let mut error_state = self.new_error_state();
             // Infer each member signature
             for member_idx in members.to_index_range() {
-                let _ = error_state
-                    .try_or_add_error(self.infer_mod_member((members, member_idx), fn_mode));
+                let _ = error_state.try_or_add_error(
+                    self.infer_mod_member(ModMemberId(members, member_idx), fn_mode),
+                );
             }
 
             self.return_or_register_errors(|| Ok(()), error_state)
