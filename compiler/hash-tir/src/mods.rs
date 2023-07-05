@@ -139,7 +139,7 @@ impl Display for ModDef {
                 write!(
                     f,
                     "mod [name={}, type=file, src=\"{:?}\"] {{\n{}}}",
-                    (self.name),
+                    self.name,
                     source_name,
                     indent(&members, "  ")
                 )
@@ -148,7 +148,7 @@ impl Display for ModDef {
                 write!(
                     f,
                     "mod [name={}, type=transparent] {{\n{}}}",
-                    (self.name),
+                    self.name,
                     indent(&members, "  ")
                 )
             }

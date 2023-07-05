@@ -339,7 +339,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                                     // pure
                                     info!(
                                         "Found a function term that is not typed as a function: {}",
-                                        (fn_call.subject)
+                                        fn_call.subject
                                     );
                                     Ok(ControlFlow::Break(()))
                                 }

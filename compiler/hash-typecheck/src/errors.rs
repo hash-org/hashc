@@ -252,17 +252,16 @@ impl<'tc> TcErrorReporter<'tc> {
                         location,
                         format!(
                             "cannot use this as a subject of a dereference operation. It is of type `{}` which is not a reference type.",
-                            (*actual_subject_ty)
+                            *actual_subject_ty
                         )
                     );
                 }
             }
             TcError::MismatchingTypes { expected, actual, inferred_from } => {
-                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
-                    "expected type `{}` but got `{}`",
-                    (*expected),
-                    (*actual),
-                ));
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::TypeMismatch)
+                    .title(format!("expected type `{}` but got `{}`", *expected, *actual,));
                 if let Some(location) = inferred_from.and_then(|term| locations.get_location(term))
                 {
                     error.add_labelled_span(
@@ -280,8 +279,7 @@ impl<'tc> TcErrorReporter<'tc> {
             TcError::UndecidableEquality { a, b } => {
                 let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
                     "cannot determine if expressions `{}` and `{}` are equal",
-                    (*a),
-                    (*b),
+                    *a, *b,
                 ));
                 if let Some(location) = locations.get_location(a) {
                     error.add_labelled_span(
@@ -465,8 +463,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let error =
                     reporter.error().code(HashErrorCode::InvalidCallSubject).title(format!(
                         "expected a {}, but got type `{}` instead",
-                        kind_name,
-                        (*inferred_term_ty)
+                        kind_name, *inferred_term_ty
                     ));
 
                 if let Some(location) = locations.get_location(term) {
@@ -493,8 +490,7 @@ impl<'tc> TcErrorReporter<'tc> {
                         location,
                         format!(
                             "term has type `{}`. Property `{}` is not present on this type",
-                            (*term_ty),
-                            *property,
+                            *term_ty, *property,
                         ),
                     );
                 }
@@ -545,8 +541,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let error =
                     reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
                         "expected array of length {} but got array of length {}",
-                        (*expected_len),
-                        (*got_len)
+                        *expected_len, *got_len
                     ));
                 if let Some(location) = locations.get_location(expected_len) {
                     error.add_labelled_span(location, "expected array length");
@@ -570,11 +565,10 @@ impl<'tc> TcErrorReporter<'tc> {
                 }
             }
             TcError::MismatchingPats { a, b } => {
-                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
-                    "expected pattern `{}`, but got pattern `{}`",
-                    (*a),
-                    (*b)
-                ));
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::TypeMismatch)
+                    .title(format!("expected pattern `{}`, but got pattern `{}`", *a, *b));
                 if let Some(location) = locations.get_location(a) {
                     error.add_labelled_span(location, "expected pattern");
                 }
@@ -585,8 +579,8 @@ impl<'tc> TcErrorReporter<'tc> {
             TcError::MismatchingFns { a, b } => {
                 let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
                     "expected function `{}`, but got function `{}`. Functions are only equal if they refer to the same function definition",
-                    (*a),
-                    (*b)
+                    *a,
+                    *b
                 ));
                 if let Some(location) = locations.get_location(a) {
                     error.add_labelled_span(location, "expected function");
@@ -620,11 +614,10 @@ impl<'tc> TcErrorReporter<'tc> {
                 }
             }
             TcError::NeedMoreTypeAnnotationsToUnify { src, target } => {
-                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
-                    "cannot unify `{}` with `{}`",
-                    (*src),
-                    (*target)
-                ));
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::TypeMismatch)
+                    .title(format!("cannot unify `{}` with `{}`", *src, *target));
                 if let Some(location) = locations.get_location(src) {
                     error.add_labelled_span(location, "cannot unify this type");
                 }
