@@ -75,8 +75,8 @@ impl fmt::Display for Param {
         write!(
             f,
             "{}: {}{}",
-            (self.name),
-            (self.ty),
+            self.name,
+            self.ty,
             if let Some(default) = self.default {
                 format!(" = {}", default)
             } else {

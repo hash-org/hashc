@@ -316,7 +316,7 @@ impl Display for DataDef {
         write!(
             f,
             "datatype [name={}] {} {{\n{}}}",
-            (self.name),
+            self.name,
             if self.params.len() > 0 { format!("<{}>", self.params) } else { "".to_string() },
             indent(&ctors, "  ")
         )
