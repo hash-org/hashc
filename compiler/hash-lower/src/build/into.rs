@@ -364,9 +364,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         statement: &Term,
         span: Span,
     ) -> BlockAnd<()> {
-        let Term::Assign(AssignTerm { subject, value }) = statement else {
-            unreachable!()
-        };
+        let Term::Assign(AssignTerm { subject, value }) = statement else { unreachable!() };
 
         // Lower the subject and the value of the assignment in RTL
         // and then assign the value into the subject

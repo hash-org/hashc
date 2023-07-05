@@ -77,7 +77,7 @@ impl PlaceBuilder {
     pub(crate) fn into_place(self, ctx: &IrCtx) -> Place {
         Place {
             local: self.base,
-            projections: ctx.projections().create_from_iter_fast(self.projections.into_iter()),
+            projections: ctx.projections().create_from_iter_fast(self.projections),
         }
     }
 }

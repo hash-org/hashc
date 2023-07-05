@@ -70,7 +70,7 @@ impl ResolutionPass<'_> {
             .iter()
             .map(|pat| Ok(PatOrCapture::Pat(self.make_pat_from_ast_pat(pat.ast_ref())?)))
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.stores().pat_list().create_from_iter_fast(pats.into_iter()))
+        Ok(self.stores().pat_list().create_from_iter_fast(pats))
     }
 
     /// Create a [`Spread`] from the given [`ast::SpreadPat`].

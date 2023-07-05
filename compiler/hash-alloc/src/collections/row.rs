@@ -202,7 +202,7 @@ impl<'c, T> Row<'c, T> {
 
     /// Create a new [Row] from a [`Vec<T>`].
     pub fn from_vec(vec: Vec<T>, wall: &Wall<'c>) -> Self {
-        Self::from_iter(vec.into_iter(), wall)
+        Self::from_iter(vec, wall)
     }
 
     /// Construct a `Row` from an iterator of [`Result`]s, allocating inside the

@@ -53,7 +53,7 @@ impl AstVisitor for AstTreeGenerator {
             "entry",
             name.map(|t| TreeNode::branch("name", vec![t]))
                 .into_iter()
-                .chain(ty.map(|t| TreeNode::branch("type", vec![t])).into_iter())
+                .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
                 .chain(iter::once(TreeNode::branch("value", vec![value])))
                 .collect(),
         ))

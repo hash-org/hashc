@@ -198,13 +198,16 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let value = condition.into_int_value();
 
         // Create all of the case-branch pairs.
-        let cases = cases.map(|(value, block)| {
-            let AnyValueEnum::IntValue(val) = self.const_uint_big(condition.get_type(), value) else {
-                unreachable!()
-            };
+        let cases = cases
+            .map(|(value, block)| {
+                let AnyValueEnum::IntValue(val) = self.const_uint_big(condition.get_type(), value)
+                else {
+                    unreachable!()
+                };
 
-            (val, block)
-        }).collect::<Vec<_>>();
+                (val, block)
+            })
+            .collect::<Vec<_>>();
 
         self.builder.build_switch(value, otherwise_block, &cases);
     }

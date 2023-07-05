@@ -206,8 +206,8 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                     // Now we need to create sub-candidates for each of the or-patterns
                     let Pat::Or(sub_pats) = self.stores().pat().get(pair.pat) else {
-                            unreachable!()
-                        };
+                        unreachable!()
+                    };
 
                     // @@Temporary: We need to load in the alternatives for the or pat...
                     let sub_pats = self

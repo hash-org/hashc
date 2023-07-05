@@ -852,7 +852,8 @@ impl<'l> LayoutComputer<'l> {
 
             for (field_layouts, variant_layout) in field_layouts.iter().zip(variant_layouts) {
                 // All variant layouts must be a struct
-                let LayoutShape::Aggregate { fields: ref offsets, .. } = variant_layout.shape else {
+                let LayoutShape::Aggregate { fields: ref offsets, .. } = variant_layout.shape
+                else {
                     panic!("layout of enum variant is non-aggregate");
                 };
 
