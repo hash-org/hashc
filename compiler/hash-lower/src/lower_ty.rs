@@ -24,7 +24,7 @@ use hash_tir::{
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::{
     index_vec::index_vec,
@@ -135,7 +135,7 @@ impl<'ir> BuilderCtx<'ir> {
             Ty::Var(sym) => {
                 // @@Temporary
                 if self.context().try_get_decl(*sym).is_some() {
-                    let term = self.context_utils().get_binding_value(*sym);
+                    let term = self.context().get_binding_value(*sym);
                     return self.map_ty(self.use_term_as_ty(term), |ty| {
                         self.uncached_ty_from_tir_ty(id, ty)
                     });
@@ -344,7 +344,7 @@ impl<'ir> BuilderCtx<'ir> {
                 }
 
                 self.context().enter_scope(ty.data_def.into(), || {
-                    self.context_utils().add_arg_bindings(data_def.params, ty.args);
+                    self.context().add_arg_bindings(data_def.params, ty.args);
                     self.adt_ty_from_data(ty, &data_def, ctor_defs)
                 })
             }
@@ -399,7 +399,7 @@ impl<'ir> BuilderCtx<'ir> {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo { element_ty, length }) => {
                         // Apply the arguments as the scope of the data type.
                         self.context().enter_scope(ty.data_def.into(), || {
-                            self.context_utils().add_arg_bindings(data_def.params, ty.args);
+                            self.context().add_arg_bindings(data_def.params, ty.args);
 
                             let ty = match length.and_then(|l| self.try_use_term_as_integer_lit(l))
                             {
