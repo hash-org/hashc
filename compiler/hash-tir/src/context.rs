@@ -309,6 +309,17 @@ impl Context {
         self.scopes.borrow_mut().clear();
     }
 
+    /// Replace the current context with a new one, for a scoped duration.
+    ///
+    /// Returns the new scope after running the given function `f`.
+    pub fn replace_scoped<T>(&self, new: Context, f: impl FnOnce() -> T) -> (Context, T) {
+        let new_scopes = new.scopes;
+        let old_context = self.scopes.replace(new_scopes.into_inner());
+        let result = f();
+        let new_scopes = self.scopes.replace(old_context);
+        (Context { scopes: RefCell::new(new_scopes) }, result)
+    }
+
     /// Add a parameter binding
     ///
     /// This should be used when entering a scope that has parameters. Ensure
