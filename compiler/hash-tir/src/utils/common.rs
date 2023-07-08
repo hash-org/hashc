@@ -21,7 +21,7 @@ use crate::{
     scopes::StackMemberId,
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId, TermListId},
-    tuples::{TupleTerm, TupleTy},
+    tuples::TupleTy,
     tys::{Ty, TyId, UniverseTy},
 };
 

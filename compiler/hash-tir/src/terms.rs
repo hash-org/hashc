@@ -9,7 +9,7 @@ use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceS
 use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
 use crate::{
     access::AccessTerm,
-    args::{Arg, ArgsId},
+    args::Arg,
     arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,

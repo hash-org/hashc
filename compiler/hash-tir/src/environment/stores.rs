@@ -96,8 +96,10 @@ pub trait StoreId: Sized + Copy {
     type ValueBorrow: Deref<Target = Self::ValueRef>;
     type ValueBorrowMut: DerefMut<Target = Self::ValueRef>;
 
+    /// Borrow the value associated with this ID.
     fn borrow(self) -> Self::ValueBorrow;
 
+    /// Borrow the value associated with this ID mutably.
     fn borrow_mut(self) -> Self::ValueBorrowMut;
 
     /// Get the value associated with this ID.
