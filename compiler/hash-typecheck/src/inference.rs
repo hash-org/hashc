@@ -1535,8 +1535,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.potentially_run_expr(term_id, annotation_ty)?;
         self.potentially_dump_tir(term_id);
 
-        println!("Inferred term {:#?} to have type {:#?}", term_id, annotation_ty);
-
         Ok(())
     }
 
