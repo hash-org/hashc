@@ -6,6 +6,7 @@
 use core::fmt;
 
 use hash_utils::store::{Store, TrivialSequenceStoreKey};
+use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
 use utility_types::omit;
 
@@ -118,6 +119,16 @@ pub struct StackMemberId(pub StackId, pub usize);
 impl StoreId for StackMemberId {
     type Value = Decl;
     type ValueRef = Decl;
+    type ValueBorrow = MappedRwLockReadGuard<'static, Decl>;
+    type ValueBorrowMut = MappedRwLockWriteGuard<'static, Decl>;
+
+    fn borrow(self) -> Self::ValueBorrow {
+        MappedRwLockReadGuard::map(self.0.borrow(), |stack| &stack.members[self.1])
+    }
+
+    fn borrow_mut(self) -> Self::ValueBorrowMut {
+        MappedRwLockWriteGuard::map(self.0.borrow_mut(), |stack| &mut stack.members[self.1])
+    }
 
     fn value(self) -> Self::Value {
         self.0.map(|stack| stack.members[self.1])

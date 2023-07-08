@@ -21,7 +21,7 @@ use crate::{
     scopes::StackMemberId,
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId, TermListId},
-    tuples::{TupleTerm, TupleTy},
+    tuples::TupleTy,
     tys::{Ty, TyId, UniverseTy},
 };
 
@@ -469,11 +469,6 @@ pub trait CommonUtils: AccessToEnv {
     /// Create a new empty tuple type.
     fn new_void_ty(&self) -> TyId {
         self.stores().ty().create(Ty::Tuple(TupleTy { data: self.new_empty_params() }))
-    }
-
-    /// Create a new empty tuple term.
-    fn new_void_term(&self) -> TermId {
-        self.stores().term().create(Term::Tuple(TupleTerm { data: self.new_empty_args() }))
     }
 
     /// Create a new variable type.

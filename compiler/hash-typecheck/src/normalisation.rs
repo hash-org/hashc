@@ -610,7 +610,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             _ => panic!("Invalid assign {}", &assign_term),
         }
 
-        full_evaluation_to(self.new_void_term())
+        full_evaluation_to(Term::void())
     }
 
     /// Evaluate a match term.
@@ -668,7 +668,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             )? {
                 MatchResult::Successful => {
                     // All good
-                    evaluation_to(self.new_void_term())
+                    evaluation_to(Term::void())
                 }
                 MatchResult::Failed => {
                     panic!("Non-exhaustive let-binding: {}", &decl_term)
@@ -699,7 +699,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Err(e) => return Err(e),
             }
         }
-        full_evaluation_to(self.new_void_term())
+        full_evaluation_to(Term::void())
     }
 
     /// Evaluate a term and use it as a type.

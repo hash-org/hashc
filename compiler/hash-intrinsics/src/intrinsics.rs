@@ -780,14 +780,10 @@ impl DefinedIntrinsics {
                 .into_iter(),
             );
             let ret = env.new_void_ty();
-            add(
-                "debug_print",
-                FnTy::builder().params(params).return_ty(ret).build(),
-                |env, args| {
-                    stream_less_writeln!("{}", args[1]);
-                    Ok(env.new_void_term())
-                },
-            )
+            add("debug_print", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
+                stream_less_writeln!("{}", args[1]);
+                Ok(Term::void())
+            })
         };
 
         let print_fn_directives = {
@@ -810,7 +806,7 @@ impl DefinedIntrinsics {
                             env.stores().directives().get(fn_def_id.into()).unwrap_or_default();
                         stream_less_writeln!("{:?}", directives.directives);
                     }
-                    Ok(env.new_void_term())
+                    Ok(Term::void())
                 },
             )
         };
