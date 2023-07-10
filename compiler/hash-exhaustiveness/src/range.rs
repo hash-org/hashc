@@ -245,21 +245,7 @@ impl SplitIntRange {
     }
 }
 
-// pub struct IntRangeOps<'tc> {
-//     env: Env<'tc>,
-// }
-
-// impl<'tc> AccessToEnv for IntRangeOps<'tc> {
-//     fn env(&self) -> &Env {
-//         &self.env
-//     }
-// }
-
 impl<'tc> ExhaustivenessChecker<'tc> {
-    // pub fn new(env: Env<'tc>) -> Self {
-    //     Self { env }
-    // }
-
     /// Attempt to build a [IntRange] from a provided constant.
     #[inline]
     pub fn make_range_from_constant(&self, constant: Constant) -> IntRange {

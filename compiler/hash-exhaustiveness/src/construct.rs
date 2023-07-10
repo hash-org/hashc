@@ -28,10 +28,10 @@ use std::fmt::Debug;
 
 use hash_source::constant::InternedStr;
 use hash_tir::{
-    data::{self, DataTy},
+    data::{CtorDefId, DataTy},
+    environment::stores::StoreId,
     tuples::TupleTy,
     tys::Ty,
-    utils::common::CommonUtils,
 };
 use hash_utils::{
     smallvec::{smallvec, SmallVec},
@@ -115,7 +115,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 // if it a tuple, get the length and that is the arity
                 // if it is a struct or enum, then we get that variant and
                 // we can count the fields from that variant or struct.
-                match self.get_ty(ctx.ty) {
+                match ctx.ty.value() {
                     Ty::Data(DataTy { data_def, .. }) => {
                         // We need to extract the variant index from the constructor
                         let variant_idx = match ctor {
@@ -124,12 +124,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                             _ => unreachable!(),
                         };
 
-                        let ctor_id = self.map_data_def(data_def, |def| match def.ctors {
-                            data::DataDefCtors::Defined(ctor_def_id) => ctor_def_id,
-                            data::DataDefCtors::Primitive(_) => unreachable!(),
-                        });
-
-                        self.get_ctor_def((ctor_id, variant_idx)).params.len()
+                        let ctor_id = data_def.borrow().ctors.assert_defined();
+                        CtorDefId(ctor_id, variant_idx).borrow().params.len()
                     }
                     Ty::Tuple(TupleTy { data }) => data.len(),
                     ty => panic!("Unexpected type `{ty:?}` when computing arity"),

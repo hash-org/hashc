@@ -7,12 +7,12 @@
 //! [Fields] with the typechecker context available for reading and creating
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
 
+use hash_intrinsics::utils::PrimitiveUtils;
 use hash_tir::{
-    data::{ArrayCtorInfo, DataDefCtors, DataTy, PrimitiveCtorInfo},
+    data::{CtorDefId, DataDefCtors, DataTy},
+    environment::stores::StoreId,
     tuples::TupleTy,
-    ty_as_variant,
     tys::{Ty, TyId},
-    utils::common::CommonUtils,
 };
 use hash_utils::{itertools::Itertools, store::Store};
 
@@ -75,12 +75,9 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
         match ctor {
             ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
-                match self.get_ty(ctx.ty) {
+                match ctx.ty.value() {
                     Ty::Tuple(TupleTy { data }) => {
-                        let tys = self.map_params(data, |params| {
-                            params.iter().map(|member| member.ty).collect_vec()
-                        });
-
+                        let tys = data.borrow().iter().map(|member| member.ty).collect_vec();
                         self.wildcards_from_tys(tys)
                     }
                     Ty::Data(DataTy { data_def, .. }) => {
@@ -88,18 +85,14 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                         let variant_idx =
                             if let DeconstructedCtor::Variant(idx) = ctor { idx } else { 0 };
 
-                        let def = self.get_data_def(data_def);
-
                         // We know that this has to be a non-primitive, so we can immediately get
                         // the variant from the data definition
-                        let DataDefCtors::Defined(variants) = def.ctors else {
+                        let DataDefCtors::Defined(variants_id) = data_def.borrow().ctors else {
                             panic!("expected a non-primitive data type")
                         };
 
-                        let variant = self.get_ctor_def((variants, variant_idx));
-                        let tys = self.map_params(variant.params, |params| {
-                            params.iter().map(|member| member.ty).collect_vec()
-                        });
+                        let ctor = CtorDefId(variants_id, variant_idx).borrow();
+                        let tys = ctor.params.borrow().iter().map(|member| member.ty).collect_vec();
 
                         self.wildcards_from_tys(tys)
                     }
@@ -111,17 +104,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             }
             DeconstructedCtor::Array(list) => {
                 let arity = list.arity();
-
-                let ty = ty_as_variant!(self, self.get_ty(ctx.ty), Data);
-                let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                    element_ty,
-                    ..
-                })) = self.get_data_def(ty.data_def).ctors
-                else {
-                    panic!("provided ty is not list as expected: {:?}", ctx.ty)
-                };
-
-                self.wildcards_from_tys((0..arity).map(|_| element_ty))
+                let array_ty = self.try_use_ty_as_array_ty(ctx.ty).unwrap();
+                self.wildcards_from_tys((0..arity).map(|_| array_ty.element_ty))
             }
             DeconstructedCtor::Str(..)
             | DeconstructedCtor::IntRange(..)

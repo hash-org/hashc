@@ -33,16 +33,16 @@ pub struct Spread {
     pub index: usize,
 }
 
-/// A range pattern containing two bounds `start` and `end`.
+/// A range pattern containing two bounds `lo` and `hi`.
 ///
-/// The `start` and `end` values must be either both [`LitPat::Int`], or both
+/// The `lo` and `hi` values must be either both [`LitPat::Int`], or both
 /// [`LitPat::Char`].
 #[derive(Copy, Clone, Debug)]
 pub struct RangePat {
     /// The beginning of the range.
     pub lo: LitPat,
 
-    /// The end of the range.]
+    /// The end of the range.
     pub hi: LitPat,
 
     /// If the range includes the `end` or not.

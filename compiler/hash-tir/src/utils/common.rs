@@ -90,16 +90,6 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().ty().map(ty_id, f)
     }
 
-    /// Map a [DataDef] by its ID.
-    fn map_data_def<T>(&self, data_def_id: DataDefId, f: impl FnOnce(&DataDef) -> T) -> T {
-        self.stores().data_def().map(data_def_id, f)
-    }
-
-    /// Map a data constructor [CtorDef] by its ID.
-    fn map_ctor_def<T>(&self, ctor_def_id: CtorDefId, f: impl FnOnce(&CtorDef) -> T) -> T {
-        self.stores().ctor_defs().map_fast(ctor_def_id.0, |ctors| f(&ctors[ctor_def_id.1]))
-    }
-
     /// Map args by their IDs.
     fn map_args<T>(&self, args_id: ArgsId, f: impl FnOnce(&[Arg]) -> T) -> T {
         self.stores().args().map(args_id, f)

@@ -8,12 +8,13 @@ use hash_intrinsics::utils::PrimitiveUtils;
 use hash_target::size::Size;
 use hash_tir::{
     data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
+    environment::stores::StoreId,
     tys::Ty,
     utils::common::CommonUtils,
 };
 use hash_utils::{
     smallvec::{smallvec, SmallVec},
-    store::{SequenceStoreKey, Store},
+    store::{SequenceStoreKey, Store, TrivialSequenceStoreKey},
 };
 
 /// A [DeconstructedCtor::Wildcard] that we split relative to the constructors
@@ -64,7 +65,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         // we need make sure to omit constructors that are statically impossible. E.g.,
         // for `Option<!>`, we do not include `Some(_)` in the returned list of
         // constructors.
-        let all_ctors = match self.get_ty(ctx.ty) {
+        let all_ctors = match ctx.ty.value() {
             Ty::Data(DataTy { data_def, .. }) => {
                 let def = self.get_data_def(data_def);
 

@@ -6,13 +6,8 @@
 //! [DeconstructedPat]s stored within the  `fields` parameter of the structure.
 use std::{cell::Cell, fmt::Debug};
 
-use hash_tir::{
-    data::{ArrayCtorInfo, DataDefCtors, PrimitiveCtorInfo},
-    pats::PatId,
-    ty_as_variant,
-    tys::TyId,
-    utils::common::CommonUtils,
-};
+use hash_intrinsics::utils::PrimitiveUtils;
+use hash_tir::{pats::PatId, tys::TyId};
 use hash_utils::{itertools::Itertools, smallvec::SmallVec, store::Store};
 
 use super::{construct::DeconstructedCtor, fields::Fields};
@@ -136,22 +131,12 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 match this_list.kind {
                     ArrayKind::Fixed(_) => panic!("{this_list:?} cannot cover {other_list:?}"),
                     ArrayKind::Var(prefix, suffix) => {
-                        // we will need to get the inner `ty` of the list
-                        //
-                        // @@Refactor into a function, and do we need to deal with `List<T>` ?
-                        let ty = ty_as_variant!(self, self.get_ty(ctx.ty), Data);
-                        let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                            element_ty,
-                            ..
-                        })) = self.get_data_def(ty.data_def).ctors
-                        else {
-                            panic!("provided ty is not list as expected: {:?}", ctx.ty)
-                        };
+                        let array_ty = self.try_use_ty_as_array_ty(ctx.ty).unwrap();
 
                         let prefix = pat.fields.fields[..prefix].to_vec();
                         let suffix = pat.fields.fields[this_list.arity() - suffix..].to_vec();
 
-                        let wildcard = self.wildcard_from_ty(element_ty);
+                        let wildcard = self.wildcard_from_ty(array_ty.element_ty);
 
                         let extra_wildcards = other_list.arity() - this_list.arity();
                         let extra_wildcards = (0..extra_wildcards)

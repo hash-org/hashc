@@ -12,8 +12,8 @@ use hash_tir::{
     args::{PatArgData, PatArgsId},
     arrays::ArrayPat,
     control::{IfPat, OrPat},
-    data::{ArrayCtorInfo, CtorPat, DataTy},
-    environment::env::AccessToEnv,
+    data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
+    environment::{env::AccessToEnv, stores::StoreId},
     lits::{CharLit, IntLit, LitPat, StrLit},
     params::ParamsId,
     pats::{Pat, PatId, RangePat, Spread},
@@ -26,7 +26,7 @@ use hash_tir::{
 use hash_utils::{
     itertools::Itertools,
     smallvec::SmallVec,
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{SequenceStoreKey, Store, TrivialSequenceStoreKey},
 };
 
 use super::{
@@ -38,6 +38,28 @@ use super::{
     range::IntRange,
 };
 use crate::{storage::DeconstructedPatId, usefulness::MatchArm, ExhaustivenessChecker};
+
+/// Expand an `or` pattern into a passed [Vec], whilst also
+/// applying the same operation on children patterns.
+fn expand_or_pat(id: PatId, vec: &mut Vec<PatId>) {
+    if let Pat::Or(OrPat { alternatives }) = id.value() {
+        for alternative in alternatives.iter() {
+            expand_or_pat(alternative.assert_pat(), vec);
+        }
+    } else {
+        vec.push(id)
+    }
+}
+
+/// Internal use for expanding an [Pat::Or] into children
+/// patterns. This will also expand any children that are `or`
+/// patterns.
+fn flatten_or_pat(pat: PatId) -> Vec<PatId> {
+    let mut pats = Vec::new();
+    expand_or_pat(pat, &mut pats);
+
+    pats
+}
 
 /// Representation of a field within a collection of patterns.
 #[derive(Debug, Clone)]
@@ -56,14 +78,12 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     pub(crate) fn lower_pats_to_arms(&self, pats: &[PatId], ty: TyId) -> Vec<MatchArm> {
         pats.iter()
             .map(|id| {
-                let prim_pat = self.get_pat(*id);
-
                 let destructed_pat = self.deconstruct_pat(ty, *id);
                 let pat = self.deconstructed_pat_store().create(destructed_pat);
 
                 MatchArm {
                     deconstructed_pat: pat,
-                    has_guard: matches!(prim_pat, Pat::If(_)),
+                    has_guard: matches!(id.value(), Pat::If(_)),
                     id: *id,
                 }
             })
@@ -72,7 +92,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
     /// Convert a [Pat] into a [DeconstructedPat].
     pub(crate) fn deconstruct_pat(&self, ty_id: TyId, pat_id: PatId) -> DeconstructedPat {
-        let (ctor, fields) = match self.get_pat(pat_id) {
+        let (ctor, fields) = match pat_id.value() {
             Pat::Binding(_) => (DeconstructedCtor::Wildcard, vec![]),
             Pat::Range(range) => {
                 let range = self.lower_pat_range(ty_id, range);
@@ -94,13 +114,16 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             Pat::Tuple(TuplePat { data, .. }) => {
                 // We need to read the tuple type from the ctx type and then create
                 // wildcard fields for all of the inner types
-                let tuple_ty = ty_as_variant!(ty, self.get_ty(ty_id), Tuple);
+                let tuple_ty = ty_as_variant!(ty, ty_id.value(), Tuple);
                 let fields = self.deconstruct_pat_fields(data, tuple_ty.data);
 
                 // Create wild-cards for all of the tuple inner members
-                let mut wilds: SmallVec<[_; 2]> = self.map_params(tuple_ty.data, |params| {
-                    params.iter().map(|param| self.wildcard_from_ty(param.ty)).collect()
-                });
+                let mut wilds: SmallVec<[_; 2]> = tuple_ty
+                    .data
+                    .borrow()
+                    .iter()
+                    .map(|param| self.wildcard_from_ty(param.ty))
+                    .collect();
 
                 // For each provided field, we want to recurse and lower the pattern further
                 for field in fields {
@@ -110,7 +133,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 (DeconstructedCtor::Single, wilds.to_vec())
             }
             Pat::Ctor(CtorPat { ctor, ctor_pat_args: args, .. }) => {
-                let params = self.get_ctor_def(ctor).params;
+                let params = ctor.borrow().params;
 
                 // Lower the fields by resolving what positions the
                 // actual fields are with the reference of the
@@ -118,9 +141,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 let fields = self.deconstruct_pat_fields(args, params);
 
                 // Create wild-cards for all of the tuple inner members
-                let mut wilds: SmallVec<[_; 2]> = self.map_params(params, |params| {
-                    params.iter().map(|param| self.wildcard_from_ty(param.ty)).collect()
-                });
+                let mut wilds: SmallVec<[_; 2]> =
+                    params.borrow().iter().map(|param| self.wildcard_from_ty(param.ty)).collect();
 
                 // For each provided field, we want to recurse and lower
                 // the pattern further
@@ -128,7 +150,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     wilds[field.index] = self.deconstruct_pat(wilds[field.index].ty, field.pat);
                 }
 
-                let (ctor_defs, index) = ctor;
+                let CtorDefId(ctor_defs, index) = ctor;
                 let ctor = if index != 0 || ctor_defs.len() > 1 {
                     DeconstructedCtor::Variant(ctor.1)
                 } else {
@@ -149,17 +171,17 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 let spread_index =
                     if let Some(Spread { index, .. }) = spread { index as isize } else { -1 };
 
-                self.map_pat_list(pats, |pats| {
-                    for (index, pat) in pats.iter().enumerate() {
-                        let deconstructed_pat = self.deconstruct_pat(element_ty, pat.assert_pat());
+                for (index, pat) in pats.borrow().iter().enumerate() {
+                    let deconstructed_pat = self.deconstruct_pat(element_ty, pat.assert_pat());
 
-                        if (index as isize) > spread_index {
-                            prefix.push(deconstructed_pat);
-                        } else {
-                            suffix.push(deconstructed_pat);
-                        }
+                    // If the index is `-1`, this will always push to the prefix which
+                    // is what should happen if no spread pattern is present.
+                    if (index as isize) > spread_index {
+                        prefix.push(deconstructed_pat);
+                    } else {
+                        suffix.push(deconstructed_pat);
                     }
-                });
+                }
 
                 // If we saw a `...` then we can't be sure of the list length and
                 // so it is now considered to be variable length
@@ -178,7 +200,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 // here, we need to expand the or pattern, so that all of the
                 // children patterns of the `or` become fields of the
                 // deconstructed  pat.
-                let pats = self.flatten_or_pat(pat_id);
+                let pats = flatten_or_pat(pat_id);
 
                 // @@Correctness: does it make sense to pass in this `ctx` since the
                 // type is the type of the `or` pattern and not each pat itself, but also
@@ -198,11 +220,14 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let ctor = self.ctor_store().create(ctor);
 
         // Now we need to put them in the store...
-        let fields = Fields::from_iter(
-            fields.into_iter().map(|field| self.deconstructed_pat_store().create(field)),
-        );
-
-        DeconstructedPat::new(ctor, fields, ty_id, Some(pat_id))
+        DeconstructedPat::new(
+            ctor,
+            Fields::from_iter(
+                fields.into_iter().map(|field| self.deconstructed_pat_store().create(field)),
+            ),
+            ty_id,
+            Some(pat_id),
+        )
     }
 
     // Convert a [DeconstructedPat] into a [Pat].
@@ -221,10 +246,9 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             ctor_store.map_fast(deconstructed.ctor, |ctor| {
                 let pat = match ctor {
                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                        match self.get_ty(*ty) {
+                        match ty.value() {
                             Ty::Data(DataTy { data_def, args }) => {
-                                let def = self.get_data_def(data_def);
-                                let ctor_def_id = def.ctors.assert_defined();
+                                let ctor_def_id = data_def.borrow().ctors.assert_defined();
 
                                 // We need to reconstruct the ctor-def-id...
                                 let variant_idx = match ctor {
@@ -232,9 +256,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                                     DeconstructedCtor::Variant(idx) => *idx,
                                     _ => unreachable!()
                                 };
-                                let ctor = (ctor_def_id, variant_idx);
-                                let data = self.map_ctor_def(ctor, |ctor| ctor.params);
-                                let (pats, spread) = self.construct_pat_args(fields, data);
+                                let ctor = CtorDefId(ctor_def_id, variant_idx);
+                                let (pats, spread) = self.construct_pat_args(fields, ctor.borrow().params);
 
                                 Pat::Ctor(CtorPat { ctor, ctor_pat_args: pats, ctor_pat_args_spread: spread, data_args: args })
                             }
@@ -285,7 +308,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .enumerate()
             .filter(|(_, p)| !self.get_deconstructed_pat_ctor(*p).is_wildcard())
             .map(|(index, p)| PatArgData {
-                target: self.get_param_index((params, index)),
+                target: self.get_param_index((params, index).into()),
                 pat: self.construct_pat(p).into(),
             })
             .collect_vec();
@@ -422,40 +445,14 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         RangePat { lo, hi, end: RangeEnd::Included }
     }
 
-    /// Expand an `or` pattern into a passed [Vec], whilst also
-    /// applying the same operation on children patterns.
-    fn expand(&self, id: PatId, vec: &mut Vec<PatId>) {
-        let pat = self.get_pat(id);
-
-        if let Pat::Or(OrPat { alternatives }) = pat {
-            for alternative in alternatives.iter() {
-                let inner_pat = self.stores().pat_list().get_element(alternative).assert_pat();
-                self.expand(inner_pat, vec);
-            }
-        } else {
-            vec.push(id)
-        }
-    }
-
-    /// Internal use for expanding an [Pat::Or] into children
-    /// patterns. This will also expand any children that are `or`
-    /// patterns.
-    pub fn flatten_or_pat(&self, pat: PatId) -> Vec<PatId> {
-        let mut pats = Vec::new();
-        self.expand(pat, &mut pats);
-
-        pats
-    }
-
     /// Function to lower a collection of pattern fields. This is used for
     /// tuple and constructor patterns. This function takes account of whether
     /// fields are named or not, and properly computes the `index` of each
     /// field based on the definition position and whether or not it is a
     /// named argument.
     pub fn deconstruct_pat_fields(&self, fields: PatArgsId, params_id: ParamsId) -> Vec<FieldPat> {
-        self.stores()
-            .pat_args()
-            .get_vec(fields)
+        fields
+            .borrow()
             .iter()
             .enumerate()
             // This tries to resolve the `index` of the argument that is being passed

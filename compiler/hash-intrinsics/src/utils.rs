@@ -4,7 +4,7 @@ use hash_source::constant::{
 };
 use hash_tir::{
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::StoreId},
     lits::{CharLit, FloatLit, IntLit, Lit},
     pats::{Pat, PatId},
     refs::{RefKind, RefTy},
@@ -158,10 +158,10 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     /// Get the given type as a primitive array type if possible.
     fn try_use_ty_as_array_ty(&self, ty: TyId) -> Option<ArrayCtorInfo> {
         match self.get_ty(ty) {
-            Ty::Data(data) => self.map_data_def(data.data_def, |def| match def.ctors {
+            Ty::Data(data) => match data.data_def.borrow().ctors {
                 DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array)) => Some(array),
                 _ => None,
-            }),
+            },
             _ => None,
         }
     }
