@@ -235,6 +235,11 @@ impl CompilerSettings {
         &mut self.ast_settings
     }
 
+    /// Get a reference to the [SemanticSettings].
+    pub fn semantic_settings(&self) -> &SemanticSettings {
+        &self.semantic_settings
+    }
+
     /// Get a reference to [LoweringSettings].
     pub fn lowering_settings(&self) -> &LoweringSettings {
         &self.lowering_settings

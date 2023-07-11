@@ -14,12 +14,11 @@ use environment::{
 };
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
-    settings::CompilerStageKind,
+    settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
 };
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::SourceId;
-use hash_target::Target;
 use hash_tir::{
     context::Context,
     environment::{env::Env, source_info::CurrentSourceInfo, stores::global_stores},
@@ -41,22 +40,6 @@ pub mod passes;
 #[derive(Default)]
 pub struct SemanticAnalysis;
 
-/// Flags to the semantic analysis stage.
-#[derive(Debug, Clone, Copy)]
-pub struct Flags {
-    /// Evaluate the generated TIR.
-    pub eval_tir: bool,
-
-    /// Dump the generated TIR.
-    pub dump_tir: bool,
-
-    /// Monomorphise the generated TIR.
-    pub mono_tir: bool,
-
-    /// The compiler stage to run to
-    pub run_to_stage: CompilerStageKind,
-}
-
 /// The [SemanticAnalysisCtx] represents all of the information that is required
 /// from the compiler state for the semantic analysis stage to operate.
 pub struct SemanticAnalysisCtx<'tc> {
@@ -71,10 +54,7 @@ pub struct SemanticAnalysisCtx<'tc> {
     pub semantic_storage: &'tc mut SemanticStorage,
 
     /// The user-given settings to semantic analysis.
-    pub flags: Flags,
-
-    /// Target info
-    pub target: &'tc Target,
+    pub settings: &'tc CompilerSettings,
 }
 
 pub trait SemanticAnalysisCtxQuery: CompilerInterface {
@@ -130,7 +110,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
     }
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let SemanticAnalysisCtx { workspace, semantic_storage, flags, target } = ctx.data();
+        let SemanticAnalysisCtx { workspace, semantic_storage, settings } = ctx.data();
         let current_source_info = CurrentSourceInfo::new(entry_point);
 
         // Construct the core TIR environment.
@@ -139,7 +119,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,
-            target,
+            settings.target(),
             &current_source_info,
         );
 
@@ -153,7 +133,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &semantic_storage.intrinsics_or_unset,
             &semantic_storage.root_mod_or_unset,
             &semantic_storage.analysis_progress,
-            &flags,
+            settings,
         );
 
         // Visit the sources
