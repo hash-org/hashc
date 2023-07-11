@@ -24,7 +24,7 @@
 //!
 //! In other words, all the possible (valid) values of the `char` type.
 //! A similar process occurs with all other wildcard types,
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use hash_source::constant::InternedStr;
 use hash_tir::{
@@ -38,14 +38,11 @@ use hash_utils::{
     store::{SequenceStoreKey, Store},
 };
 
-use super::{
-    range::{IntRange, SplitIntRange},
-    PreparePatForFormatting,
-};
+use super::range::{IntRange, SplitIntRange};
 use crate::{
     list::{Array, ArrayKind, SplitVarList},
     storage::DeconstructedCtorId,
-    ExhaustivenessChecker, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// The [DeconstructedCtor] represents the type of constructor that a pattern
@@ -286,11 +283,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 }
 
-impl PreparePatForFormatting for DeconstructedCtorId {}
-
-// impl Debug for PatForFormatting<'_, DeconstructedCtorId> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         let ctor = self.deconstructed_ctor_store.get(self.item);
-//         write!(f, "{ctor:?}")
-//     }
-// }
+impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedCtorId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.checker.get_deconstructed_ctor(self.item))
+    }
+}

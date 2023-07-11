@@ -4,10 +4,12 @@
 //! that occur on the [Matrix] when the typechecker context
 //! is required.
 
-use super::{stack::PatStack, PreparePatForFormatting};
+use std::fmt;
+
+use super::stack::PatStack;
 use crate::{
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A 2D matrix which is used to represent the
@@ -83,50 +85,46 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 }
 
-impl PreparePatForFormatting for Matrix {}
+/// Pretty-printer for matrices of patterns, example:
+///
+/// ```text
+/// | _     | []                |
+/// | true  | [First]           |
+/// | true  | [Second(true)]    |
+/// | false | [_]               |
+/// | _     | [_, _, ...tail]   |
+/// ```
+impl fmt::Debug for ExhaustivenessFmtCtx<'_, Matrix> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f)?;
 
-// /// Pretty-printer for matrices of patterns, example:
-// ///
-// /// ```text
-// /// | _     | []                |
-// /// | true  | [First]           |
-// /// | true  | [Second(true)]    |
-// /// | false | [_]               |
-// /// | _     | [_, _, ...tail]   |
-// /// ```
-// impl Debug for PatForFormatting<'_, Matrix> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         writeln!(f)?;
+        let Matrix { patterns: m, .. } = &self.item;
 
-//         let Matrix { patterns: m, .. } = &self.item;
+        // Firstly, get all the patterns within the matrix as strings...
+        let pretty_printed_matrix: Vec<Vec<String>> = m
+            .iter()
+            .map(|row| row.iter().map(|pat| format!("{:?}", self.with(*pat))).collect())
+            .collect();
 
-//         // Firstly, get all the patterns within the matrix as strings...
-//         let pretty_printed_matrix: Vec<Vec<String>> = m
-//             .iter()
-//             .map(|row| {
-//                 row.iter().map(|pat| format!("{:?}",
-// pat.for_formatting(self.env))).collect()             })
-//             .collect();
+        let column_count = m.iter().map(|row| row.len()).next().unwrap_or(0);
 
-//         let column_count = m.iter().map(|row| row.len()).next().unwrap_or(0);
+        // Ensure that all of the rows have the same length
+        assert!(m.iter().all(|row| row.len() == column_count));
 
-//         // Ensure that all of the rows have the same length
-//         assert!(m.iter().all(|row| row.len() == column_count));
+        let column_widths: Vec<usize> = (0..column_count)
+            .map(|col| pretty_printed_matrix.iter().map(|row| row[col].len()).max().unwrap_or(0))
+            .collect();
 
-//         let column_widths: Vec<usize> = (0..column_count)
-//             .map(|col| pretty_printed_matrix.iter().map(|row|
-// row[col].len()).max().unwrap_or(0))             .collect();
+        for row in pretty_printed_matrix {
+            write!(f, "|")?;
+            for (column, pat_str) in row.into_iter().enumerate() {
+                write!(f, " ")?;
+                write!(f, "{:1$}", pat_str, column_widths[column])?;
+                write!(f, " |")?;
+            }
+            writeln!(f)?;
+        }
 
-//         for row in pretty_printed_matrix {
-//             write!(f, "|")?;
-//             for (column, pat_str) in row.into_iter().enumerate() {
-//                 write!(f, " ")?;
-//                 write!(f, "{:1$}", pat_str, column_widths[column])?;
-//                 write!(f, " |")?;
-//             }
-//             writeln!(f)?;
-//         }
-
-//         Ok(())
-//     }
-// }
+        Ok(())
+    }
+}

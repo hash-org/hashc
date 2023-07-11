@@ -4,14 +4,13 @@
 //! transformations, and [StackOps] contains functions
 //! that are relevant to the usefulness and exhaustiveness
 //! algorithm.
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use hash_utils::smallvec::{smallvec, SmallVec};
 
-use super::PreparePatForFormatting;
 use crate::{
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A row of a [super::matrix::Matrix]. Rows of len 1 are very common, which is
@@ -97,21 +96,19 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 }
 
-impl PreparePatForFormatting for PatStack {}
+impl fmt::Debug for ExhaustivenessFmtCtx<'_, PatStack> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "|")?;
 
-// impl Debug for PatForFormatting<'_, PatStack> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "|")?;
+        for pat in self.item.iter() {
+            write!(f, " {:?} |", self.with(*pat))?;
+        }
 
-//         for pat in self.item.iter() {
-//             write!(f, " {:?} |", pat.for_formatting(self.env))?;
-//         }
+        // Just in case if the pattern stack was empty
+        if self.item.is_empty() {
+            write!(f, "|")?;
+        }
 
-//         // Just in case if the pattern stack was empty
-//         if self.item.is_empty() {
-//             write!(f, "|")?;
-//         }
-
-//         Ok(())
-//     }
-// }
+        Ok(())
+    }
+}

@@ -191,7 +191,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 
     /// Checks whether the given [PatId] is irrefutable in terms of the provided
-    /// [TermId] which will be used as the subject type of the refutability
+    /// [TyId] which will be used as the subject type of the refutability
     /// check.
     ///
     /// The function takes a list of [PatId]s because some of the cases that
@@ -237,27 +237,31 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 }
 
-/// Wraps a type `T` in a structure that contains information to be able to
-/// format `T` using [TcFormatter][hash_tir::old::fmt::TcFormatter].
-///
-/// This can wrap any type, but only types that have corresponding `fmt_*`
-/// methods in [TcFormatter][hash_tir::old::fmt::TcFormatter] are useful with
-/// it.
-pub struct PatForFormatting<'tc, T> {
+/// Wraps a type `T` to provide access to the [ExhaustivenessChecker] that
+/// created it. This is used to print and convert various types and data which
+/// depends on a specific [ExhaustivenessChecker] to be available.
+pub struct ExhaustivenessFmtCtx<'tc, T> {
+    /// The item that is wrapped.
     pub item: T,
-    pub env: Env<'tc>,
+
+    /// The checker to which this item belongs to.
+    pub checker: &'tc ExhaustivenessChecker<'tc>,
 }
 
-/// Convenience trait to create a `ForFormatting<T>` given a `T`.
-pub trait PreparePatForFormatting: Sized {
-    /// Create a [`PatForFormatting<T>`] given a `T`.
-    fn for_formatting(self, env: Env<'_>) -> PatForFormatting<Self> {
-        PatForFormatting { item: self, env }
+impl<'tc, T> ExhaustivenessFmtCtx<'tc, T> {
+    /// Create a new [ExhaustivenessFmtCtx] from the given item and checker.
+    pub fn new(item: T, checker: &'tc ExhaustivenessChecker<'tc>) -> Self {
+        Self { item, checker }
     }
 
-    /// Create a [`PatForFormatting<T>`] given a `T`, and provide an out
-    /// parameter for the `is_atomic` check.
-    fn pat_for_formatting_with_opts(self, env: Env<'_>) -> PatForFormatting<Self> {
-        PatForFormatting { item: self, env }
+    /// Create a new [ExhaustivenessFmtCtx] from the given item and checker.
+    pub fn with<U>(&self, item: U) -> ExhaustivenessFmtCtx<'tc, U> {
+        ExhaustivenessFmtCtx::new(item, self.checker)
+    }
+}
+
+impl<'tc, T> AccessToEnv for ExhaustivenessFmtCtx<'tc, T> {
+    fn env(&self) -> &Env {
+        self.checker.env()
     }
 }

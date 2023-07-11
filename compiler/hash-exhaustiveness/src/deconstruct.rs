@@ -4,17 +4,25 @@
 //! [DeconstructedPat] is essentially a tree representation of a `pat` with any
 //! of the inner fields of the pat being represented as child
 //! [DeconstructedPat]s stored within the  `fields` parameter of the structure.
-use std::{cell::Cell, fmt::Debug};
+use std::{
+    cell::Cell,
+    fmt::{self, Debug},
+};
 
 use hash_intrinsics::utils::PrimitiveUtils;
-use hash_tir::{pats::PatId, tys::TyId};
+use hash_tir::{
+    data::{CtorDefId, DataTy},
+    environment::stores::StoreId,
+    pats::PatId,
+    tys::{Ty, TyId},
+};
 use hash_utils::{itertools::Itertools, smallvec::SmallVec, store::Store};
 
 use super::{construct::DeconstructedCtor, fields::Fields};
 use crate::{
     list::ArrayKind,
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A [DeconstructedPat] is a representation of a [DeconstructedCtor] that is
@@ -174,156 +182,101 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 }
 
-// impl PreparePatForFormatting for DeconstructedPatId {}
+impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pat_store = self.checker.deconstructed_pat_store();
+        let ctor_store = self.checker.ctor_store();
 
-// impl Debug for PatForFormatting<'_, DeconstructedPatId> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         let pat_store =
-// &self.storage.exhaustiveness_storage.deconstructed_pat_store;         let
-// ctor_store = &self.storage.exhaustiveness_storage.deconstructed_ctor_store;
+        // Utility for printing a joined list of things...
+        let mut first = true;
+        let mut start_or_continue = |s| {
+            if first {
+                first = false;
+                ""
+            } else {
+                s
+            }
+        };
 
-//         // Utility for printing a joined list of things...
-//         let mut first = true;
-//         let mut start_or_continue = |s| {
-//             if first {
-//                 first = false;
-//                 ""
-//             } else {
-//                 s
-//             }
-//         };
+        pat_store.map_fast(self.item, |pat| {
+            ctor_store.map_fast(pat.ctor, |ctor| {
+                match ctor {
+                    DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
+                        match pat.ty.value() {
+                            Ty::Tuple(_) => {}
+                            Ty::Data(ty @ DataTy { data_def, .. }) => {
+                                write!(f, "{ty}")?;
 
-//         pat_store.map_fast(self.item, |pat| {
-//             ctor_store.map_fast(pat.ctor, |ctor| {
-//                 match ctor {
-//                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_)
-// => {                         self.storage.term_store().map_fast(pat.ty, |ty|
-// {                             // If it is a `struct` or an `enum` then try
-// and get the                             // variant name...
-//                             match ty {
-//
-// Term::Level1(Level1Term::NominalDef(nominal_def)) => {
-// // get the variant index                                     let variant_idx
-// = match ctor {
-// DeconstructedCtor::Single => 0,
-// DeconstructedCtor::Variant(index) => *index,
-// _ => unreachable!(),                                     };
+                                // If we have a variant, we print the specific variant that is
+                                // currently active.
+                                if let DeconstructedCtor::Variant(index) = ctor {
+                                    let ctors = data_def.borrow().ctors.assert_defined();
+                                    let ctor_name = CtorDefId(ctors, *index).borrow().name;
+                                    write!(f, "::{ctor_name}")?;
+                                }
+                            }
+                            _ => {
+                                panic!("unexpected ty `{}` when printing deconstructed pat", pat.ty)
+                            }
+                        };
 
-//
-// self.storage.nominal_def_store().map_fast(*nominal_def, |def| {
-// match def {
-// NominalDef::Struct(struct_def) => {
-// if let Some(name) = struct_def.name {
-// write!(f, "{name}")?;                                                 }
+                        write!(f, "(")?;
 
-//                                                 Ok(())
-//                                             }
-//                                             NominalDef::Unit(unit_def) => {
-//                                                 if let Some(name) =
-// unit_def.name {                                                     write!(f,
-// "{name}")?;                                                 }
+                        for p in pat.fields.iter_patterns() {
+                            write!(f, "{}", start_or_continue(", "))?;
+                            write!(f, "{:?}", self.with(p))?;
+                        }
+                        write!(f, ")")
+                    }
+                    DeconstructedCtor::IntRange(range) => write!(f, "{range:?}"),
+                    DeconstructedCtor::Str(value) => write!(f, "{value}"),
+                    DeconstructedCtor::Array(list) => {
+                        let mut sub_patterns = pat.fields.iter_patterns();
 
-//                                                 Ok(())
-//                                             }
-//                                             NominalDef::Enum(enum_def) => {
-//                                                 let variant_name = enum_def
-//
-// .get_variant_by_idx(variant_idx)
-// .expect("invalid variant index")
-// .name;
+                        write!(f, "[")?;
 
-//                                                 if let Some(name) =
-// enum_def.name {                                                     write!(f,
-// "{name}::")?;                                                 }
+                        match list.kind {
+                            ArrayKind::Fixed(_) => {
+                                for p in sub_patterns {
+                                    write!(f, "{}{p:?}", start_or_continue(","))?;
+                                }
+                            }
+                            ArrayKind::Var(prefix, _) => {
+                                for p in sub_patterns.by_ref().take(prefix) {
+                                    write!(f, "{}{:?}", start_or_continue(", "), self.with(p))?;
+                                }
+                                write!(f, "{}", start_or_continue(", "))?;
+                                write!(f, "..")?;
+                                for p in sub_patterns {
+                                    write!(f, "{}{:?}", start_or_continue(", "), self.with(p))?;
+                                }
+                            }
+                        }
 
-//                                                 write!(f, "{variant_name}")
-//                                             }
-//                                         }
-//                                     })
-//                                 }
-//                                 _ => panic!(
-//                                     "unexpected ty `{}` when printing
-// deconstructed pat",
-// pat.ty.for_formatting(self.storage.global_storage)
-// ),                             }
-//                         })?;
+                        write!(f, "]")
+                    }
+                    DeconstructedCtor::Or => {
+                        for pat in pat.fields.iter_patterns() {
+                            write!(f, "{}{:?}", start_or_continue(" | "), self.with(pat))?;
+                        }
+                        Ok(())
+                    }
+                    ctor @ (DeconstructedCtor::Wildcard
+                    | DeconstructedCtor::Missing
+                    | DeconstructedCtor::NonExhaustive) => {
+                        // Just for clarity, we want to also print what specific `wildcard`
+                        // constructor it is
+                        let prefix = match ctor {
+                            DeconstructedCtor::Wildcard => "_",
+                            DeconstructedCtor::Missing => "?",
+                            DeconstructedCtor::NonExhaustive => "∞",
+                            _ => unreachable!(),
+                        };
 
-//                         write!(f, "(")?;
-
-//                         for p in pat.fields.iter_patterns() {
-//                             write!(f, "{}", start_or_continue(", "))?;
-//                             write!(f, "{:?}",
-// p.for_formatting(self.storage))?;                         }
-//                         write!(f, ")")
-//                     }
-//                     DeconstructedCtor::IntRange(range) => write!(f,
-// "{range:?}"),                     DeconstructedCtor::Str(value) => write!(f,
-// "{value}"),                     DeconstructedCtor::Array(list) => {
-//                         let mut subpatterns = pat.fields.iter_patterns();
-
-//                         write!(f, "[")?;
-
-//                         match list.kind {
-//                             ArrayKind::Fixed(_) => {
-//                                 for p in subpatterns {
-//                                     write!(f, "{}{p:?}", start_or_continue(",
-// "))?;                                 }
-//                             }
-//                             ArrayKind::Var(prefix, _) => {
-//                                 for p in subpatterns.by_ref().take(prefix) {
-//                                     write!(
-//                                         f,
-//                                         "{}{:?}",
-//                                         start_or_continue(", "),
-//                                         p.for_formatting(self.storage)
-//                                     )?;
-//                                 }
-//                                 write!(f, "{}", start_or_continue(", "))?;
-//                                 write!(f, "..")?;
-//                                 for p in subpatterns {
-//                                     write!(
-//                                         f,
-//                                         "{}{:?}",
-//                                         start_or_continue(", "),
-//                                         p.for_formatting(self.storage)
-//                                     )?;
-//                                 }
-//                             }
-//                         }
-
-//                         write!(f, "]")
-//                     }
-//                     DeconstructedCtor::Or => {
-//                         for pat in pat.fields.iter_patterns() {
-//                             write!(
-//                                 f,
-//                                 "{}{:?}",
-//                                 start_or_continue(" | "),
-//                                 pat.for_formatting(self.storage)
-//                             )?;
-//                         }
-//                         Ok(())
-//                     }
-//                     ctor @ (DeconstructedCtor::Wildcard
-//                     | DeconstructedCtor::Missing
-//                     | DeconstructedCtor::NonExhaustive) => {
-//                         // Just for clarity, we want to also print what
-// specific `wildcard`                         // constructor it is
-//                         let prefix = match ctor {
-//                             DeconstructedCtor::Wildcard => "",
-//                             DeconstructedCtor::Missing => "m",
-//                             DeconstructedCtor::NonExhaustive => "ne",
-//                             _ => unreachable!(),
-//                         };
-
-//                         write!(
-//                             f,
-//                             "{prefix}_ : {}",
-//
-// pat.ty.for_formatting(self.storage.global_storage)                         )
-//                     }
-//                 }
-//             })
-//         })
-//     }
-// }
+                        write!(f, "{prefix} : {}", pat.ty)
+                    }
+                }
+            })
+        })
+    }
+}
