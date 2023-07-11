@@ -66,7 +66,7 @@ use deconstruct::DeconstructedPat;
 use diagnostics::{ExhaustivenessDiagnostics, ExhaustivenessError, ExhaustivenessWarning};
 use hash_ast::ast::MatchOrigin;
 use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::{diagnostic::Diagnostics, reporter::Reports};
 use hash_source::location::SourceLocation;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
@@ -150,6 +150,14 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             ecx: ExhaustivenessCtx::new(),
             diagnostics: ExhaustivenessDiagnostics::new(),
         }
+    }
+
+    /// Convert the [ExhaustivenessChecker] into a reports instance.
+    pub fn into_reports(self) -> Reports {
+        self.diagnostics.into_reports(
+            |err| ExhaustivenessFmtCtx::new(&err, &self).into(),
+            |warn| ExhaustivenessFmtCtx::new(&warn, &self).into(),
+        )
     }
 
     /// Checks whether a `match` block is exhaustive from the provided patterns

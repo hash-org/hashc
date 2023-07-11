@@ -2,9 +2,20 @@
 //! for pattern matching.
 
 use hash_ast::ast::{MatchOrigin, RangeEnd};
-use hash_reporting::diagnostic::DiagnosticCellStore;
+use hash_error_codes::error_codes::HashErrorCode;
+use hash_reporting::{
+    diagnostic::DiagnosticCellStore,
+    reporter::{Reporter, Reports},
+};
 use hash_source::location::SourceLocation;
-use hash_tir::{lits::LitPat, pats::PatId};
+use hash_tir::{lits::LitPat, pats::PatId, utils::common::CommonUtils};
+use hash_utils::{
+    itertools::Itertools,
+    pluralise,
+    printing::{SequenceDisplay, SequenceDisplayOptions, SequenceJoinMode},
+};
+
+use crate::ExhaustivenessFmtCtx;
 
 pub type ExhaustivenessDiagnostics =
     DiagnosticCellStore<ExhaustivenessError, ExhaustivenessWarning>;
@@ -56,6 +67,79 @@ pub enum ExhaustivenessError {
     },
 }
 
+impl<'tc> From<ExhaustivenessFmtCtx<'tc, &ExhaustivenessError>> for Reports {
+    fn from(ctx: ExhaustivenessFmtCtx<'tc, &ExhaustivenessError>) -> Self {
+        let mut builder = Reporter::new();
+        ctx.convert_into_report(&mut builder);
+        builder.into_reports()
+    }
+}
+
+impl<'tc> ExhaustivenessFmtCtx<'tc, &ExhaustivenessError> {
+    /// Adds the given [ExhaustivenessError] to the report builder.
+    fn convert_into_report(&self, reporter: &mut Reporter) {
+        match self.item {
+            ExhaustivenessError::RefutablePat { pat, origin, uncovered_pats } => {
+                let origin = match origin {
+                    Some(kind) => match kind {
+                        MatchOrigin::Match => "`match`",
+                        MatchOrigin::If => "`if`",
+                        MatchOrigin::For => "for-loop",
+                        MatchOrigin::While => "`while` binding",
+                    },
+                    None => "declaration",
+                };
+
+                // Prepare patterns for printing
+                let uncovered = uncovered_pats.iter().map(|pat| format!("{pat}")).collect_vec();
+                let pats = SequenceDisplay::new(
+                    &uncovered,
+                    SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 3),
+                );
+
+                reporter
+                    .error()
+                    .code(HashErrorCode::RefutablePat)
+                    .title(format!("refutable pattern in {origin} binding: {pats} not covered"))
+                    .add_labelled_span(
+                        self.checker.get_location(pat).unwrap(),
+                        format!("pattern{} {pats} not covered", pluralise!(uncovered_pats.len())),
+                    );
+            }
+            ExhaustivenessError::NonExhaustiveMatch { location, uncovered_pats } => {
+                let uncovered = uncovered_pats.iter().map(|pat| format!("{pat}")).collect_vec();
+                let pats = SequenceDisplay::new(
+                    &uncovered,
+                    SequenceDisplayOptions::with_limit(SequenceJoinMode::All, 3),
+                );
+
+                reporter
+                    .error()
+                    .code(HashErrorCode::NonExhaustiveMatch)
+                    .title(format!("non-exhaustive patterns: {pats} not covered"))
+                    .add_labelled_span(
+                        *location,
+                        format!("pattern{} {pats} not covered", pluralise!(uncovered_pats.len())),
+                    );
+            }
+            ExhaustivenessError::InvalidRangePatBoundaries { end, pat } => {
+                let message = match end {
+                    RangeEnd::Included => {
+                        "lower range bound must be less than or equal to the upper bound"
+                    }
+                    RangeEnd::Excluded => "lower range bound must be less than upper bound",
+                };
+
+                reporter
+                    .error()
+                    .code(HashErrorCode::InvalidRangePatBoundaries)
+                    .title(message)
+                    .add_labelled_span(self.checker.get_location(pat).unwrap(), "");
+            }
+        }
+    }
+}
+
 /// Warnings that can be emitted by the exhaustiveness checker.
 #[derive(Debug, Clone)]
 pub enum ExhaustivenessWarning {
@@ -88,4 +172,48 @@ pub enum ExhaustivenessWarning {
         /// The specific term that is overlapping between the two ranges.
         overlapping_term: LitPat,
     },
+}
+
+impl<'tc> From<ExhaustivenessFmtCtx<'tc, &ExhaustivenessWarning>> for Reports {
+    fn from(ctx: ExhaustivenessFmtCtx<'tc, &ExhaustivenessWarning>) -> Self {
+        let mut builder = Reporter::new();
+        ctx.convert_into_report(&mut builder);
+        builder.into_reports()
+    }
+}
+
+impl<'tc> ExhaustivenessFmtCtx<'tc, &ExhaustivenessWarning> {
+    fn convert_into_report(&self, reporter: &mut Reporter) {
+        match self.item {
+            ExhaustivenessWarning::UselessMatchCase { pat, location } => {
+                reporter
+                    .warning()
+                    .title(format!("match case `{pat}` is redundant when matching on subject"))
+                    .add_labelled_span(*location, "the match subject is given here...")
+                    .add_labelled_span(
+                        self.checker.get_location(pat).unwrap(),
+                        "... and this pattern will never match the subject",
+                    );
+            }
+            ExhaustivenessWarning::UnreachablePat { pat } => {
+                reporter
+                    .warning()
+                    .title("pattern is unreachable")
+                    .add_labelled_span(self.checker.get_location(pat).unwrap(), "");
+            }
+            ExhaustivenessWarning::OverlappingRangeEnd { range, overlaps, overlapping_term } => {
+                reporter
+                    .warning()
+                    .title("range pattern has an overlap with another pattern")
+                    .add_labelled_span(
+                        self.checker.get_location(range).unwrap(),
+                        format!("this range overlaps on `{overlapping_term}`..."),
+                    )
+                    .add_labelled_span(
+                        self.checker.get_location(overlaps).unwrap(),
+                        "...with this range",
+                    );
+            }
+        }
+    }
 }
