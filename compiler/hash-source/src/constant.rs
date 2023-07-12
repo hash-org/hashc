@@ -298,6 +298,23 @@ impl IntConstantValue {
         }
     }
 
+    /// Get the [BigInt] representation of the value.
+    pub fn as_big(&self) -> BigInt {
+        match self {
+            Self::I8(inner) => BigInt::from(*inner),
+            Self::I16(inner) => BigInt::from(*inner),
+            Self::I32(inner) => BigInt::from(*inner),
+            Self::I64(inner) => BigInt::from(*inner),
+            Self::I128(inner) => BigInt::from(*inner),
+            Self::U8(inner) => BigInt::from(*inner),
+            Self::U16(inner) => BigInt::from(*inner),
+            Self::U32(inner) => BigInt::from(*inner),
+            Self::U64(inner) => BigInt::from(*inner),
+            Self::U128(inner) => BigInt::from(*inner),
+            Self::Big(inner) => *(*inner).clone(),
+        }
+    }
+
     /// Create a new [IntConstantValue] from little endian ordered bytes.
     pub fn from_le_bytes(bytes: &[u8], signed: bool) -> Self {
         match bytes.len() {

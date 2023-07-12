@@ -257,13 +257,16 @@ impl Display for CtorTerm {
 
 impl Display for CtorPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (ctor_name, data_def_id) =
-            (tir_get!(self.ctor, name), tir_get!(self.ctor, data_def_id));
-
+        let data_def_id = tir_get!(self.ctor, data_def_id);
         let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
-        write!(f, "{}::", &data_ty)?;
 
-        write!(f, "{}", ctor_name)?;
+        if data_def_id.borrow().ctors.assert_defined().len() == 1 {
+            write!(f, "{}", &data_ty)?;
+        } else {
+            let ctor_name = tir_get!(self.ctor, name);
+            write!(f, "{}::{}", &data_ty, ctor_name)?;
+        }
+
         if self.ctor_pat_args.len() > 0 || self.ctor_pat_args_spread.is_some() {
             write!(
                 f,
