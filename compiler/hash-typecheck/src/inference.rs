@@ -4,7 +4,9 @@ use std::{cell::Cell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
+use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_intrinsics::utils::PrimitiveUtils;
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
     entry_point::EntryPointKind,
@@ -43,6 +45,7 @@ use hash_utils::store::{
     CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
     TrivialSequenceStoreKey,
 };
+use itertools::Itertools;
 
 use crate::{
     errors::{TcError, TcResult, WrongTermKind},
@@ -91,6 +94,32 @@ pub struct InferenceWithSub<X, T> {
 pub struct InferenceOps<'a, T: AccessToTypechecking>(&'a T);
 
 impl<T: AccessToTypechecking> InferenceOps<'_, T> {
+    /// Create a new [ExhaustivenessChecker] so it can be used to check
+    /// refutability or exhaustiveness of patterns.
+    fn exhaustiveness_checker<U: Into<LocationTarget>>(
+        &self,
+        subject: U,
+    ) -> ExhaustivenessChecker<'_> {
+        let location = self.get_location(subject).unwrap();
+        ExhaustivenessChecker::new(location, self.env(), self.primitives())
+    }
+
+    /// Merge all of the produced diagnostics into the current diagnostics.
+    ///
+    /// @@Hack: remove this when we have a better way to send exhaustiveness
+    /// jobs and add them to general tc diagnostics.
+    fn append_exhaustiveness_diagnostics(&self, checker: ExhaustivenessChecker<'_>) {
+        let (errors, warnings) = checker.into_diagnostics().into_diagnostics();
+
+        for error in errors {
+            self.diagnostics().add_error(self.convert_exhaustiveness_error(error))
+        }
+
+        for warning in warnings {
+            self.diagnostics().add_warning(self.convert_exhaustiveness_warning(warning))
+        }
+    }
+
     /// Infer the given generic arguments (specialised
     /// for args and pat args below).
     ///
@@ -1262,6 +1291,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         };
         self.infer_pat(decl_term.bind_pat, decl_term.ty, decl_term.value)?;
         self.check_by_unify(Ty::void(), annotation_ty)?;
+
+        // Check that the binding pattern of the declaration is irrefutable.
+        let eck = self.exhaustiveness_checker(decl_term.bind_pat);
+        eck.is_pat_irrefutable(&[decl_term.bind_pat], decl_term.ty, None);
+        self.append_exhaustiveness_diagnostics(eck);
+
         Ok(())
     }
 
@@ -1465,6 +1500,17 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         }
 
         self.check_by_unify(unified_ty, annotation_ty)?;
+
+        // @@Cowbunga: check if the match-term has already been queued/processed for
+        // exhaustiveness.
+        //
+        // @@Todo: If it hasn't, we can use/make a new ExhaustivenessChecker and then
+        // add the job.
+        let pats = match_term.cases.borrow().iter().map(|case| case.bind_pat).collect_vec();
+        let eck = self.exhaustiveness_checker(match_term.subject);
+        eck.is_pat_irrefutable(&pats, unified_ty, Some(match_term.origin));
+        self.append_exhaustiveness_diagnostics(eck);
+
         Ok(())
     }
 
