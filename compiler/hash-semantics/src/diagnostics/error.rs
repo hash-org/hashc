@@ -96,8 +96,8 @@ impl From<TcError> for SemanticError {
 }
 
 impl From<ExhaustivenessError> for SemanticError {
-    fn from(value: ExhaustivenessError) -> Self {
-        Self::ExhaustivenessError { error: value.into() }
+    fn from(error: ExhaustivenessError) -> Self {
+        Self::ExhaustivenessError { error }
     }
 }
 

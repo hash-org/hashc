@@ -139,8 +139,8 @@ impl fmt::Display for RangePat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.lo)?;
         match self.end {
-            RangeEnd::Included => write!(f, "..=")?,
-            RangeEnd::Excluded => write!(f, "..")?,
+            RangeEnd::Included => write!(f, "..")?,
+            RangeEnd::Excluded => write!(f, "..<")?,
         }
         write!(f, "{}", self.hi)
     }
