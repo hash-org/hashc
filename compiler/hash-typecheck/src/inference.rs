@@ -1501,14 +1501,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         self.check_by_unify(unified_ty, annotation_ty)?;
 
-        // @@Cowbunga: check if the match-term has already been queued/processed for
-        // exhaustiveness.
-        //
         // @@Todo: If it hasn't, we can use/make a new ExhaustivenessChecker and then
         // add the job.
         let pats = match_term.cases.borrow().iter().map(|case| case.bind_pat).collect_vec();
         let eck = self.exhaustiveness_checker(match_term.subject);
-        eck.is_pat_irrefutable(&pats, unified_ty, Some(match_term.origin));
+        eck.is_match_exhaustive(&pats, match_subject_ty);
         self.append_exhaustiveness_diagnostics(eck);
 
         Ok(())
