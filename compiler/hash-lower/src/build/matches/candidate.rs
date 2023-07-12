@@ -306,7 +306,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 Ok(())
             }
-            Pat::Range(RangePat { start, end, range_end }) => {
+            Pat::Range(RangePat { lo, hi, end }) => {
                 let ptr_width = self.settings.target().ptr_size();
 
                 // get the range and bias of this range pattern from
@@ -344,14 +344,14 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // we have to convert the `lo` term into the actual value, by getting
                     // the literal term from this term, and then converting the stored value
                     // into a u128...
-                    let lo_val = self.evaluate_const_pat(start).1 ^ bias;
+                    let lo_val = self.evaluate_const_pat(lo).1 ^ bias;
 
                     if lo_val <= min {
-                        let hi_val = self.evaluate_const_pat(end).1 ^ bias;
+                        let hi_val = self.evaluate_const_pat(hi).1 ^ bias;
 
                         // In this situation, we have an irrefutable pattern, so we can
                         // always go down this path
-                        if hi_val > max || hi_val == max && range_end == ast::RangeEnd::Excluded {
+                        if hi_val > max || hi_val == max && end == ast::RangeEnd::Excluded {
                             return Ok(());
                         }
                     }

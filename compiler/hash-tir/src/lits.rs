@@ -14,6 +14,11 @@ pub struct IntLit {
 }
 
 impl IntLit {
+    /// Create a new [IntLit] from an [InternedInt].
+    pub fn from_value(value: InternedInt) -> Self {
+        Self { underlying: ast::IntLit { value, kind: ast::IntLitKind::Unsuffixed } }
+    }
+
     /// Get the interned value of the literal.
     pub fn interned_value(&self) -> InternedInt {
         self.underlying.value
@@ -42,6 +47,12 @@ impl StrLit {
     /// Return the value of the string literal.
     pub fn value(&self) -> &'static str {
         CONSTANT_MAP.lookup_string(self.underlying.data)
+    }
+}
+
+impl From<InternedStr> for StrLit {
+    fn from(value: InternedStr) -> Self {
+        Self { underlying: ast::StrLit { data: value } }
     }
 }
 
@@ -74,6 +85,11 @@ pub struct CharLit {
 }
 
 impl CharLit {
+    /// Create a new [CharLit] from a literal character value.
+    pub fn from_literal(data: char) -> Self {
+        Self { underlying: ast::CharLit { data } }
+    }
+
     /// Return the value of the character literal.
     pub fn value(&self) -> char {
         self.underlying.data

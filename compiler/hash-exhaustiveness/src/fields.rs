@@ -6,21 +6,20 @@
 //! from a provided [PatCtx]. [FieldOps] defines methods that operate on
 //! [Fields] with the typechecker context available for reading and creating
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
-use hash_tir::old::{
-    nominals::{NominalDef, StructFields},
-    terms::{Level1Term, Term, TermId, TupleTy},
+
+use hash_tir::{
+    data::{ArrayCtorInfo, DataDefCtors, DataTy, PrimitiveCtorInfo},
+    tuples::TupleTy,
+    ty_as_variant,
+    tys::{Ty, TyId},
+    utils::common::CommonUtils,
 };
 use hash_utils::{itertools::Itertools, store::Store};
 
-use super::{construct::DeconstructedCtor, AccessToUsefulnessOps};
-use crate::old::{
-    diagnostics::macros::tc_panic,
-    exhaustiveness::PatCtx,
-    ops::AccessToOps,
-    storage::{
-        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
-        AccessToStorage, StorageRef,
-    },
+use super::construct::DeconstructedCtor;
+use crate::{
+    storage::{DeconstructedCtorId, DeconstructedPatId},
+    ExhaustivenessChecker, PatCtx,
 };
 
 /// Representation of the `fields` that are stored by
@@ -60,99 +59,69 @@ impl FromIterator<DeconstructedPatId> for Fields {
     }
 }
 
-pub struct FieldOps<'tc> {
-    storage: StorageRef<'tc>,
-}
-
-impl<'tc> AccessToStorage for FieldOps<'tc> {
-    fn storages(&self) -> StorageRef {
-        self.storage.storages()
-    }
-}
-
-impl<'tc> FieldOps<'tc> {
-    /// Create a new [FieldOps].
-    pub fn new(storage: StorageRef<'tc>) -> Self {
-        Self { storage }
-    }
-
-    /// Create [Fields] from an [Iterator] of [Term]s.
-    pub fn wildcards_from_tys(&self, tys: impl IntoIterator<Item = TermId>) -> Fields {
+impl<'tc> ExhaustivenessChecker<'tc> {
+    /// Create [Fields] from an [Iterator] of [Ty]s.
+    pub fn wildcards_from_tys(&self, tys: impl IntoIterator<Item = TyId>) -> Fields {
         Fields::from_iter(tys.into_iter().map(|ty| {
-            let pat = self.deconstruct_pat_ops().wildcard(ty);
+            let pat = self.wildcard_from_ty(ty);
             self.deconstructed_pat_store().create(pat)
         }))
     }
 
     /// Creates a new list of wildcard fields for a given constructor. The
     /// result will have a length of `ctor.arity()`.
-    pub(super) fn wildcards(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> Fields {
-        let reader = self.reader();
-        let ctor = reader.get_deconstructed_ctor(ctor);
+    pub(super) fn wildcards_from_ctor(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> Fields {
+        let ctor = self.get_deconstructed_ctor(ctor);
 
         match ctor {
             ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
-                match reader.get_term(ctx.ty) {
-                    Term::Level1(Level1Term::Tuple(TupleTy { members })) => {
-                        let members = reader.get_params_owned(members);
-                        let tys = members.positional().iter().map(|member| member.ty).collect_vec();
+                match self.get_ty(ctx.ty) {
+                    Ty::Tuple(TupleTy { data }) => {
+                        let tys = self.map_params(data, |params| {
+                            params.iter().map(|member| member.ty).collect_vec()
+                        });
 
                         self.wildcards_from_tys(tys)
                     }
-                    Term::Level1(Level1Term::NominalDef(def)) => {
+                    Ty::Data(DataTy { data_def, .. }) => {
                         // get the variant index from the deconstructed ctor
                         let variant_idx =
                             if let DeconstructedCtor::Variant(idx) = ctor { idx } else { 0 };
 
-                        reader.nominal_def_store().map_fast(def, |def| {
-                            match def {
-                                NominalDef::Struct(struct_def) => match struct_def.fields {
-                                    StructFields::Explicit(params) => {
-                                        let tys = reader.params_store().map_as_param_list_fast(params, |params| {
-                                            params.positional().iter().map(|param| param.ty).collect_vec()
-                                        });
+                        let def = self.get_data_def(data_def);
 
-                                        self.wildcards_from_tys(tys)
-                                    }
-                                    StructFields::Opaque => tc_panic!(
-                                        ctx.ty,
-                                        self,
-                                        "Unexpected ty `{}` when getting wildcards in Fields::wildcards",
-                                        self.for_fmt(ctx.ty),
-                                    ),
-                                },
-                                NominalDef::Unit(_) => Fields::empty(),
-                                NominalDef::Enum(enum_def) => {
-                                    match enum_def.get_variant_by_idx(variant_idx).unwrap().fields {
-                                        Some(fields) => {
-                                            let tys = reader.params_store().map_as_param_list_fast(fields, |params| {
-                                                params.positional().iter().map(|param| param.ty).collect_vec()
-                                            });
-                                            self.wildcards_from_tys(tys)
-                                        }
-                                        _ => Fields::empty(),
-                                    }
-                                },
-                            }
-                        })
+                        // We know that this has to be a non-primitive, so we can immediately get
+                        // the variant from the data definition
+                        let DataDefCtors::Defined(variants) = def.ctors else {
+                            panic!("expected a non-primitive data type")
+                        };
+
+                        let variant = self.get_ctor_def((variants, variant_idx));
+                        let tys = self.map_params(variant.params, |params| {
+                            params.iter().map(|member| member.ty).collect_vec()
+                        });
+
+                        self.wildcards_from_tys(tys)
                     }
-                    _ => tc_panic!(
+                    _ => panic!(
+                        "Unexpected ty `{:?}` when getting wildcards in Fields::wildcards",
                         ctx.ty,
-                        self,
-                        "Unexpected ty `{}` when getting wildcards in Fields::wildcards",
-                        self.for_fmt(ctx.ty),
                     ),
                 }
             }
             DeconstructedCtor::Array(list) => {
                 let arity = list.arity();
 
-                // Use the oracle to get the inner term `T` for the type...
-                let Some(ty) = self.oracle().term_as_list_ty(ctx.ty) else {
-                        panic!("provided ty is not list as expected: {}", self.for_fmt(ctx.ty))
+                let ty = ty_as_variant!(self, self.get_ty(ctx.ty), Data);
+                let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(ArrayCtorInfo {
+                    element_ty,
+                    ..
+                })) = self.get_data_def(ty.data_def).ctors
+                else {
+                    panic!("provided ty is not list as expected: {:?}", ctx.ty)
                 };
 
-                self.wildcards_from_tys((0..arity).map(|_| ty))
+                self.wildcards_from_tys((0..arity).map(|_| element_ty))
             }
             DeconstructedCtor::Str(..)
             | DeconstructedCtor::IntRange(..)

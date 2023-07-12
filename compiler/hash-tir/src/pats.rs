@@ -40,11 +40,13 @@ pub struct Spread {
 #[derive(Copy, Clone, Debug)]
 pub struct RangePat {
     /// The beginning of the range.
-    pub start: LitPat,
-    /// The end of the range.
-    pub end: LitPat,
+    pub lo: LitPat,
+
+    /// The end of the range.]
+    pub hi: LitPat,
+
     /// If the range includes the `end` or not.
-    pub range_end: RangeEnd,
+    pub end: RangeEnd,
 }
 
 /// Represents a pattern.
@@ -52,13 +54,34 @@ pub struct RangePat {
 /// Check the documentation of each member for more information.
 #[derive(Copy, Clone, Debug, From)]
 pub enum Pat {
+    /// A binding pattern, which assigns a name, and optionally specifies if
+    /// the binding is mutable or not.
     Binding(BindingPat),
+
+    /// A range pattern, which specifies a numerical range which will match
+    /// between two numerical values, with an option to specify if the range
+    /// is inclusive or not.
     Range(RangePat),
+
+    /// A literal pattern, character, string, number, etc.
     Lit(LitPat),
+
+    /// A tuple collection of patterns, e.g. `('A', 2)`, with an option to add a
+    /// spread pattern.
     Tuple(TuplePat),
+
+    /// An array pattern, with an option to specify a spread pattern.
     Array(ArrayPat),
+
+    /// A constructor pattern, either being a struct or an enum variant, e.g.
+    /// `Some(3)`.
     Ctor(CtorPat),
+
+    /// A choice pattern, specifying a number of children patterns which are all
+    /// matchable.
     Or(OrPat),
+
+    /// A guarded pattern with a specified condition.
     If(IfPat),
 }
 
@@ -114,12 +137,12 @@ impl fmt::Display for Spread {
 
 impl fmt::Display for RangePat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.start)?;
-        match self.range_end {
+        write!(f, "{}", self.lo)?;
+        match self.end {
             RangeEnd::Included => write!(f, "..=")?,
             RangeEnd::Excluded => write!(f, "..")?,
         }
-        write!(f, "{}", self.end)
+        write!(f, "{}", self.hi)
     }
 }
 

@@ -151,6 +151,16 @@ pub enum DataDefCtors {
     Primitive(PrimitiveCtorInfo),
 }
 
+impl DataDefCtors {
+    /// Assert that the [DataDefCtors] is non-primitive.
+    pub fn assert_defined(self) -> CtorDefsId {
+        match self {
+            DataDefCtors::Defined(ctors) => ctors,
+            DataDefCtors::Primitive(_) => panic!("expected defined data type"),
+        }
+    }
+}
+
 /// A data-type definition.
 ///
 /// This is a "nominal" inductively defined data type, which is how user-defined

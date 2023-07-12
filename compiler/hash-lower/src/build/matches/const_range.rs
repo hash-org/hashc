@@ -27,10 +27,10 @@ pub(super) struct ConstRange {
 impl ConstRange {
     /// Create a [ConstRange] from [RangePat].
     pub fn from_range(range: &RangePat, builder: &BodyBuilder) -> Self {
-        let (lo, _) = builder.evaluate_const_pat(range.start);
-        let (hi, _) = builder.evaluate_const_pat(range.end);
+        let (lo, _) = builder.evaluate_const_pat(range.lo);
+        let (hi, _) = builder.evaluate_const_pat(range.hi);
 
-        Self { lo, hi, end: range.range_end }
+        Self { lo, hi, end: range.end }
     }
 
     /// Check if a [Const] is within the range.

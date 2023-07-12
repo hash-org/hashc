@@ -577,6 +577,15 @@ version = "0.1.0"
 [[package]]
 name = "hash-exhaustiveness"
 version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-intrinsics",
+ "hash-reporting",
+ "hash-source",
+ "hash-target",
+ "hash-tir",
+ "hash-utils",
+]
 
 [[package]]
 name = "hash-fmt"
