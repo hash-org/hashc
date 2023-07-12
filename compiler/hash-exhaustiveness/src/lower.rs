@@ -9,7 +9,7 @@ use hash_source::{
     identifier::IDENTS,
 };
 use hash_tir::{
-    args::{PatArgData, PatArgsId},
+    args::{PatArgData, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
@@ -455,6 +455,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .borrow()
             .iter()
             .enumerate()
+            .filter(|(_, arg)| matches!(arg.pat, PatOrCapture::Pat(_)))
             // This tries to resolve the `index` of the argument that is being passed
             // within the tuple field. If the tuple has named arguments, then we have
             // to use the parameter list in order to resolve the index. By now it should be
