@@ -1,3 +1,4 @@
+use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
     primitives::{AccessToPrimitives, DefinedPrimitives},
@@ -128,6 +129,20 @@ impl<'tc> AccessToTypechecking for SemEnv<'tc> {
         error.into()
     }
 
+    fn convert_exhaustiveness_error(
+        &self,
+        error: ExhaustivenessError,
+    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Error {
+        error.into()
+    }
+
+    fn convert_exhaustiveness_warning(
+        &self,
+        warning: ExhaustivenessWarning,
+    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Warning {
+        warning.into()
+    }
+
     fn entry_point(&self) -> &EntryPointState<FnDefId> {
         self.entry_point
     }
@@ -180,6 +195,20 @@ impl<'tc, T> AccessToDiagnostics for WithSemEnv<'tc, T> {
 impl<'tc, T> AccessToTypechecking for WithSemEnv<'tc, T> {
     fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
+    }
+
+    fn convert_exhaustiveness_error(
+        &self,
+        error: ExhaustivenessError,
+    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Error {
+        error.into()
+    }
+
+    fn convert_exhaustiveness_warning(
+        &self,
+        warning: ExhaustivenessWarning,
+    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Warning {
+        warning.into()
     }
 
     fn entry_point(&self) -> &EntryPointState<FnDefId> {
@@ -262,6 +291,20 @@ macro_rules! impl_access_to_sem_env {
                 error: hash_typecheck::errors::TcError,
             ) -> <Self::Diagnostics as hash_reporting::diagnostic::Diagnostics>::Error {
                 error.into()
+            }
+
+            fn convert_exhaustiveness_error(
+                &self,
+                error: hash_exhaustiveness::diagnostics::ExhaustivenessError,
+            ) -> <Self::Diagnostics as hash_reporting::diagnostic::Diagnostics>::Error {
+                error.into()
+            }
+
+            fn convert_exhaustiveness_warning(
+                &self,
+                warning: hash_exhaustiveness::diagnostics::ExhaustivenessWarning,
+            ) -> <Self::Diagnostics as hash_reporting::diagnostic::Diagnostics>::Warning {
+                warning.into()
             }
 
             fn entry_point(

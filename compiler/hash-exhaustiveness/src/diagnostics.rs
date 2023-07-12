@@ -3,19 +3,14 @@
 
 use hash_ast::ast::{MatchOrigin, RangeEnd};
 use hash_error_codes::error_codes::HashErrorCode;
-use hash_reporting::{
-    diagnostic::DiagnosticCellStore,
-    reporter::{Reporter, Reports},
-};
+use hash_reporting::{diagnostic::DiagnosticCellStore, reporter::Reporter};
 use hash_source::location::SourceLocation;
-use hash_tir::{lits::LitPat, pats::PatId, utils::common::CommonUtils};
+use hash_tir::{environment::env::Env, lits::LitPat, pats::PatId, utils::common::CommonUtils};
 use hash_utils::{
     itertools::Itertools,
     pluralise,
     printing::{SequenceDisplay, SequenceDisplayOptions, SequenceJoinMode},
 };
-
-use crate::ExhaustivenessFmtCtx;
 
 pub type ExhaustivenessDiagnostics =
     DiagnosticCellStore<ExhaustivenessError, ExhaustivenessWarning>;
@@ -67,18 +62,10 @@ pub enum ExhaustivenessError {
     },
 }
 
-impl<'tc> From<ExhaustivenessFmtCtx<'tc, &ExhaustivenessError>> for Reports {
-    fn from(ctx: ExhaustivenessFmtCtx<'tc, &ExhaustivenessError>) -> Self {
-        let mut builder = Reporter::new();
-        ctx.convert_into_report(&mut builder);
-        builder.into_reports()
-    }
-}
-
-impl<'tc> ExhaustivenessFmtCtx<'tc, &ExhaustivenessError> {
+impl ExhaustivenessError {
     /// Adds the given [ExhaustivenessError] to the report builder.
-    fn convert_into_report(&self, reporter: &mut Reporter) {
-        match self.item {
+    pub fn add_to_reports(&self, env: &Env, reporter: &mut Reporter) {
+        match self {
             ExhaustivenessError::RefutablePat { pat, origin, uncovered_pats } => {
                 let origin = match origin {
                     Some(kind) => match kind {
@@ -102,7 +89,7 @@ impl<'tc> ExhaustivenessFmtCtx<'tc, &ExhaustivenessError> {
                     .code(HashErrorCode::RefutablePat)
                     .title(format!("refutable pattern in {origin} binding: {pats} not covered"))
                     .add_labelled_span(
-                        self.checker.get_location(pat).unwrap(),
+                        env.get_location(pat).unwrap(),
                         format!("pattern{} {pats} not covered", pluralise!(uncovered_pats.len())),
                     );
             }
@@ -134,7 +121,7 @@ impl<'tc> ExhaustivenessFmtCtx<'tc, &ExhaustivenessError> {
                     .error()
                     .code(HashErrorCode::InvalidRangePatBoundaries)
                     .title(message)
-                    .add_labelled_span(self.checker.get_location(pat).unwrap(), "");
+                    .add_labelled_span(env.get_location(pat).unwrap(), "");
             }
         }
     }
@@ -174,24 +161,16 @@ pub enum ExhaustivenessWarning {
     },
 }
 
-impl<'tc> From<ExhaustivenessFmtCtx<'tc, &ExhaustivenessWarning>> for Reports {
-    fn from(ctx: ExhaustivenessFmtCtx<'tc, &ExhaustivenessWarning>) -> Self {
-        let mut builder = Reporter::new();
-        ctx.convert_into_report(&mut builder);
-        builder.into_reports()
-    }
-}
-
-impl<'tc> ExhaustivenessFmtCtx<'tc, &ExhaustivenessWarning> {
-    fn convert_into_report(&self, reporter: &mut Reporter) {
-        match self.item {
+impl ExhaustivenessWarning {
+    pub fn add_to_reports(&self, env: &Env, reporter: &mut Reporter) {
+        match self {
             ExhaustivenessWarning::UselessMatchCase { pat, location } => {
                 reporter
                     .warning()
                     .title(format!("match case `{pat}` is redundant when matching on subject"))
                     .add_labelled_span(*location, "the match subject is given here...")
                     .add_labelled_span(
-                        self.checker.get_location(pat).unwrap(),
+                        env.get_location(pat).unwrap(),
                         "... and this pattern will never match the subject",
                     );
             }
@@ -199,20 +178,17 @@ impl<'tc> ExhaustivenessFmtCtx<'tc, &ExhaustivenessWarning> {
                 reporter
                     .warning()
                     .title("pattern is unreachable")
-                    .add_labelled_span(self.checker.get_location(pat).unwrap(), "");
+                    .add_labelled_span(env.get_location(pat).unwrap(), "");
             }
             ExhaustivenessWarning::OverlappingRangeEnd { range, overlaps, overlapping_term } => {
                 reporter
                     .warning()
                     .title("range pattern has an overlap with another pattern")
                     .add_labelled_span(
-                        self.checker.get_location(range).unwrap(),
+                        env.get_location(range).unwrap(),
                         format!("this range overlaps on `{overlapping_term}`..."),
                     )
-                    .add_labelled_span(
-                        self.checker.get_location(overlaps).unwrap(),
-                        "...with this range",
-                    );
+                    .add_labelled_span(env.get_location(overlaps).unwrap(), "...with this range");
             }
         }
     }
