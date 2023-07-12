@@ -2,7 +2,7 @@ use hash_exhaustiveness::diagnostics::ExhaustivenessWarning;
 use hash_reporting::reporter::{Reporter, Reports};
 use hash_tir::environment::env::AccessToEnv;
 
-use crate::environment::sem_env::{WithSemEnv, AccessToSemEnv};
+use crate::environment::sem_env::{AccessToSemEnv, WithSemEnv};
 
 /// Warnings that can originate from the semantic analysis phase.
 #[derive(Clone, Debug)]

@@ -146,11 +146,15 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             let mut reports: Reports = Vec::with_capacity(errors.len() + warnings.len());
 
             if !errors.is_empty() {
-                reports.extend::<Reports>(visitor.sem_env().with(&SemanticError::Compound { errors }).into());
+                reports.extend::<Reports>(
+                    visitor.sem_env().with(&SemanticError::Compound { errors }).into(),
+                );
             }
 
             if !warnings.is_empty() {
-                reports.extend::<Reports>(visitor.sem_env().with(&SemanticWarning::Compound { warnings }).into());
+                reports.extend::<Reports>(
+                    visitor.sem_env().with(&SemanticWarning::Compound { warnings }).into(),
+                );
             }
 
             Err(reports)

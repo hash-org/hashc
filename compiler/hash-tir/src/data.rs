@@ -259,7 +259,6 @@ impl Display for CtorPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data_def_id = tir_get!(self.ctor, data_def_id);
         let data_def_name = tir_get!(data_def_id, name);
-        
 
         if data_def_id.borrow().ctors.assert_defined().len() == 1 {
             write!(f, "{data_def_name}")?;
