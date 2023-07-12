@@ -229,11 +229,33 @@ pub trait IrVisitorMut<'ir>: Sized {
         &mut self,
         condition: &Operand,
         expected: bool,
-        kind: AssertKind,
+        kind: &AssertKind,
         target: BasicBlock,
         reference: IrRef,
     ) {
         walk_mut::walk_assert_terminator(self, condition, expected, kind, target, reference);
+    }
+
+    fn visit_assert_kind(&mut self, kind: &AssertKind, reference: IrRef) {
+        match kind {
+            AssertKind::DivisionByZero { operand } => {
+                walk_mut::walk_operand(self, operand, reference);
+            }
+            AssertKind::RemainderByZero { operand } => {
+                walk_mut::walk_operand(self, operand, reference);
+            }
+            AssertKind::Overflow { lhs, rhs, .. } => {
+                walk_mut::walk_operand(self, lhs, reference);
+                walk_mut::walk_operand(self, rhs, reference)
+            }
+            AssertKind::NegativeOverflow { operand } => {
+                walk_mut::walk_operand(self, operand, reference);
+            }
+            AssertKind::BoundsCheck { len, index } => {
+                walk_mut::walk_operand(self, len, reference);
+                walk_mut::walk_operand(self, index, reference);
+            }
+        }
     }
 
     fn visit_operand(&mut self, operand: &Operand, reference: IrRef) {
@@ -353,7 +375,7 @@ pub mod walk_mut {
                 visitor.visit_switch_terminator(value, targets, reference)
             }
             TerminatorKind::Assert { condition, expected, kind, target } => {
-                visitor.visit_assert_terminator(condition, *expected, *kind, *target, reference)
+                visitor.visit_assert_terminator(condition, *expected, kind, *target, reference)
             }
         }
     }
@@ -389,11 +411,12 @@ pub mod walk_mut {
         visitor: &mut V,
         condition: &Operand,
         _: bool,
-        _: AssertKind,
+        kind: &AssertKind,
         _: BasicBlock,
         reference: IrRef,
     ) {
-        visitor.visit_operand(condition, reference)
+        visitor.visit_operand(condition, reference);
+        visitor.visit_assert_kind(kind, reference);
     }
 
     pub fn walk_rvalue<'ir, V: IrVisitorMut<'ir>>(
@@ -687,6 +710,28 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         walk_modifying::walk_assert_terminator(self, condition, expected, kind, target, reference);
     }
 
+    fn visit_assert_kind(&self, kind: &mut AssertKind, reference: IrRef) {
+        match kind {
+            AssertKind::DivisionByZero { operand } => {
+                walk_modifying::walk_operand(self, operand, reference);
+            }
+            AssertKind::RemainderByZero { operand } => {
+                walk_modifying::walk_operand(self, operand, reference);
+            }
+            AssertKind::Overflow { lhs, rhs, .. } => {
+                walk_modifying::walk_operand(self, lhs, reference);
+                walk_modifying::walk_operand(self, rhs, reference)
+            }
+            AssertKind::NegativeOverflow { operand } => {
+                walk_modifying::walk_operand(self, operand, reference);
+            }
+            AssertKind::BoundsCheck { len, index } => {
+                walk_modifying::walk_operand(self, len, reference);
+                walk_modifying::walk_operand(self, index, reference);
+            }
+        }
+    }
+
     fn visit_operand(&self, operand: &mut Operand, reference: IrRef) {
         walk_modifying::walk_operand(self, operand, reference);
     }
@@ -843,11 +888,12 @@ pub mod walk_modifying {
         visitor: &V,
         condition: &mut Operand,
         _: &mut bool,
-        _: &mut AssertKind,
+        assert: &mut AssertKind,
         _: &mut BasicBlock,
         reference: IrRef,
     ) {
-        visitor.visit_operand(condition, reference)
+        visitor.visit_operand(condition, reference);
+        visitor.visit_assert_kind(assert, reference);
     }
 
     pub fn walk_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
