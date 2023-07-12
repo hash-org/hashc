@@ -2,11 +2,14 @@ use hash_exhaustiveness::diagnostics::ExhaustivenessWarning;
 use hash_reporting::reporter::{Reporter, Reports};
 use hash_tir::environment::env::AccessToEnv;
 
-use crate::environment::sem_env::WithSemEnv;
+use crate::environment::sem_env::{WithSemEnv, AccessToSemEnv};
 
 /// Warnings that can originate from the semantic analysis phase.
 #[derive(Clone, Debug)]
 pub enum SemanticWarning {
+    /// Compounded warnings.
+    Compound { warnings: Vec<SemanticWarning> },
+
     /// A warning that comes from exhaustive pattern checking and
     /// analysis.
     ExhaustivenessWarning { warning: ExhaustivenessWarning },
@@ -32,6 +35,11 @@ impl<'tc> WithSemEnv<'tc, &SemanticWarning> {
         match self.value {
             SemanticWarning::ExhaustivenessWarning { warning } => {
                 warning.add_to_reports(self.env(), reporter);
+            }
+            SemanticWarning::Compound { warnings } => {
+                for warning in warnings {
+                    self.sem_env().with(warning).add_to_reporter(reporter);
+                }
             }
         }
     }
