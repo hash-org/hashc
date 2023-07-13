@@ -54,34 +54,28 @@ pub struct RangePat {
 /// Check the documentation of each member for more information.
 #[derive(Copy, Clone, Debug, From)]
 pub enum Pat {
-    /// A binding pattern, which assigns a name, and optionally specifies if
-    /// the binding is mutable or not.
+    /// A binding pattern, `mut k`, `k`, or `_`.
     Binding(BindingPat),
 
-    /// A range pattern, which specifies a numerical range which will match
-    /// between two numerical values, with an option to specify if the range
-    /// is inclusive or not.
+    /// A range pattern, `1..10` or `'a'..<'z'`.
     Range(RangePat),
 
-    /// A literal pattern, character, string, number, etc.
+    /// A literal pattern, `3`, `'a'`, or `"мир"`.
     Lit(LitPat),
 
-    /// A tuple collection of patterns, e.g. `('A', 2)`, with an option to add a
-    /// spread pattern.
+    /// A tuple collection of patterns, e.g. `('A', 2)`, `(1, 2, ...)`.
     Tuple(TuplePat),
 
-    /// An array pattern, with an option to specify a spread pattern.
+    /// An array pattern, e.g. `[1, 2, 3]`, [1, ...]`.
     Array(ArrayPat),
 
-    /// A constructor pattern, either being a struct or an enum variant, e.g.
-    /// `Some(3)`.
+    /// A constructor pattern, `Some(3)`, `X(name = "y", age = 12)`.
     Ctor(CtorPat),
 
-    /// A choice pattern, specifying a number of children patterns which are all
-    /// matchable.
+    /// A choice pattern, `a | b | c`.
     Or(OrPat),
 
-    /// A guarded pattern with a specified condition.
+    /// A guarded pattern with a specified condition, `a if a > 0`.
     If(IfPat),
 }
 

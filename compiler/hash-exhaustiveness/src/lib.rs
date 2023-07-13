@@ -22,7 +22,7 @@
 //! ```
 //!
 //! So in this example, for `x` which is of type `Option<i32>`, will the
-//! patterns: [`Some(_)`, `None`] cover all cases of `Option<i32>`. In this
+//! patterns: [`Some(_)`, `None`] cover all cases of `Option<i32>`? In this
 //! situation yes, because both variants and their inner constructors because of
 //! the wildcard `_`. However, a case where this property does not hold can be
 //! easily constructed:

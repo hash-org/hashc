@@ -1501,7 +1501,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         self.check_by_unify(unified_ty, annotation_ty)?;
 
-        // @@Todo: If it hasn't, we can use/make a new ExhaustivenessChecker and then
+        // @@Caching: Check if the MatchTerm has already been queued for exhaustiveness,
+        // if it hasn't, we can use/make a new ExhaustivenessChecker and then
         // add the job.
         let pats = match_term.cases.borrow().iter().map(|case| case.bind_pat).collect_vec();
         let eck = self.exhaustiveness_checker(match_term.subject);
