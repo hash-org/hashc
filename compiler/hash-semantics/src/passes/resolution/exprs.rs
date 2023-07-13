@@ -485,7 +485,7 @@ impl<'tc> ResolutionPass<'tc> {
         // Type annotation:
         let ty = match node.ty.as_ref() {
             Some(ty) => self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())),
-            None => Some(self.new_ty_hole()),
+            None => Some(Ty::hole()),
         };
 
         match (pat, ty, value) {

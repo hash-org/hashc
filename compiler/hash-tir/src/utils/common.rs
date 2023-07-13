@@ -9,8 +9,8 @@ use hash_utils::store::{CloneStore, SequenceStore, Store, TrivialKeySequenceStor
 use super::traversing::Atom;
 use crate::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
-    data::{CtorDef, CtorDefId, DataDef, DataDefId, DataTy},
-    environment::{env::AccessToEnv, stores::SequenceStoreValue},
+    data::{CtorDef, CtorDefId, DataDef, DataDefId},
+    environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
     holes::Hole,
     locations::LocationTarget,
@@ -19,8 +19,7 @@ use crate::{
     scopes::StackMemberId,
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId, TermListId},
-    tuples::TupleTy,
-    tys::{Ty, TyId, UniverseTy},
+    tys::{Ty, TyId},
 };
 
 /// Assert that the given term is of the given variant, and return it.
@@ -260,19 +259,19 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().pat_list().create_from_slice(&pats)
     }
 
-    fn new_hole(&self) -> Hole {
-        Hole(Symbol::fresh())
-    }
+    // fn new_hole(&self) -> Hole {
+    //     Hole(Symbol::fresh())
+    // }
 
     /// Create a new term hole.
-    fn new_term_hole(&self) -> TermId {
-        self.stores().term().create_with(|_| Term::Hole(self.new_hole()))
-    }
+    // fn new_term_hole(&self) -> TermId {
+    //     self.stores().term().create_with(|_| Term::Hole(Hole::new_te()))
+    // }
 
-    /// Create a new type hole.
-    fn new_ty_hole(&self) -> TyId {
-        self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()))
-    }
+    // /// Create a new type hole.
+    // fn new_ty_hole(&self) -> TyId {
+    //     self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()))
+    // }
 
     /// Create a new expected type for typing the given term.
     fn new_expected_ty_of_ty(&self, ty: TyId, ty_of_ty: TyId) -> TyId {
@@ -332,13 +331,13 @@ pub trait CommonUtils: AccessToEnv {
 
     /// Create a new type hole for typing the given term.
     fn new_ty_hole_of_ty(&self, src: TyId) -> TyId {
-        let ty = self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()));
+        let ty = self.stores().ty().create_with(|_| Ty::Hole(Hole::fresh()));
         self.new_expected_ty_of_ty(src, ty)
     }
 
     /// Create a new type hole for typing the given term.
     fn new_ty_hole_of(&self, src: TermId) -> TyId {
-        let ty = self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()));
+        let ty = self.stores().ty().create_with(|_| Ty::Hole(Hole::fresh()));
         self.new_expected_ty_of(src, ty)
     }
 
@@ -369,40 +368,40 @@ pub trait CommonUtils: AccessToEnv {
         )
     }
 
-    /// Create a new data type with no arguments.
-    fn new_data_ty(&self, data_def: DataDefId) -> TyId {
-        self.stores().ty().create(Ty::Data(DataTy { data_def, args: self.new_empty_args() }))
-    }
+    // /// Create a new data type with no arguments.
+    // fn new_data_ty(&self, data_def: DataDefId) -> TyId {
+    //     self.stores().ty().create(Ty::Data(DataTy { data_def, args:
+    // self.new_empty_args() })) }
 
     /// Create a new empty pattern argument list.
     fn new_empty_pat_args(&self) -> PatArgsId {
         self.stores().pat_args().create_from_slice(&[])
     }
 
-    /// Create a type of types, i.e. small `Type`.
-    fn new_small_universe_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Universe(UniverseTy { size: Some(0) }))
-    }
+    // /// Create a type of types, i.e. small `Type`.
+    // fn new_small_universe_ty(&self) -> TyId {
+    //     self.stores().ty().create(Ty::Universe(UniverseTy { size: Some(0) }))
+    // }
 
-    /// Create a large type of types, i.e. `Type(n)` for some natural number
-    /// `n`.
-    fn new_universe_ty(&self, n: usize) -> TyId {
-        self.stores().ty().create(Ty::Universe(UniverseTy { size: Some(n) }))
-    }
+    // /// Create a large type of types, i.e. `Type(n)` for some natural number
+    // /// `n`.
+    // fn new_universe_ty(&self, n: usize) -> TyId {
+    //     self.stores().ty().create(Ty::Universe(UniverseTy { size: Some(n) }))
+    // }
 
-    fn new_flexible_universe_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Universe(UniverseTy { size: None }))
-    }
+    // fn new_flexible_universe_ty(&self) -> TyId {
+    //     self.stores().ty().create(Ty::Universe(UniverseTy { size: None }))
+    // }
 
-    /// Create a new empty tuple type.
-    fn new_void_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Tuple(TupleTy { data: Param::empty_seq() }))
-    }
+    // /// Create a new empty tuple type.
+    // fn new_void_ty(&self) -> TyId {
+    //     self.stores().ty().create(Ty::Tuple(TupleTy { data: Param::empty_seq()
+    // })) }
 
-    /// Create a new variable type.
-    fn new_var_ty(&self, symbol: Symbol) -> TyId {
-        self.stores().ty().create(Ty::Var(symbol))
-    }
+    // /// Create a new variable type.
+    // fn new_var_ty(&self, symbol: Symbol) -> TyId {
+    //     self.stores().ty().create(Ty::Var(symbol))
+    // }
 
     /// Try to use the given term as a type.
     fn try_use_term_as_ty(&self, term: TermId) -> Option<TyId> {

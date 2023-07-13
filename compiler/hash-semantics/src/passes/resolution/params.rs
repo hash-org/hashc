@@ -9,6 +9,7 @@ use hash_tir::{
     params::{Param, ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
     terms::{Term, TermId},
+    tys::Ty,
     utils::common::CommonUtils,
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
@@ -141,7 +142,7 @@ impl<'tc> ResolutionPass<'tc> {
                 .or_else(|| {
                     if implicit {
                         // Default as "Type"
-                        Some(Ok(self.new_small_universe_ty()))
+                        Some(Ok(Ty::flexible_universe()))
                     } else {
                         None
                     }

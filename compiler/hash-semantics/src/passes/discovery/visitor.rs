@@ -12,7 +12,9 @@ use hash_tir::{
     fns::{FnBody, FnDefData, FnTy},
     mods::{ModDefData, ModKind},
     symbols::sym,
+    terms::Term,
     tuples::TupleTy,
+    tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::itertools::Itertools;
@@ -235,13 +237,13 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Create a function definition
         let fn_def_id = self.fn_utils().create_fn_def(FnDefData {
             name: fn_def_name,
-            body: FnBody::Defined(self.new_term_hole()),
+            body: FnBody::Defined(Term::hole()),
             ty: FnTy {
                 implicit: false,
                 is_unsafe: false,
                 params: self.create_hole_params(&node.params),
                 pure: false,
-                return_ty: self.new_ty_hole(),
+                return_ty: Ty::hole(),
             },
         });
 
@@ -264,13 +266,13 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Create a function definition
         let fn_def_id = self.fn_utils().create_fn_def(FnDefData {
             name: fn_def_name,
-            body: FnBody::Defined(self.new_term_hole()),
+            body: FnBody::Defined(Term::hole()),
             ty: FnTy {
                 implicit: true,
                 is_unsafe: false,
                 params: self.create_hole_params(&node.params),
                 pure: true,
-                return_ty: self.new_ty_hole(),
+                return_ty: Ty::hole(),
             },
         });
 
@@ -325,7 +327,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             is_unsafe: false,
             params: self.create_hole_params(&node.params),
             pure: true,
-            return_ty: self.new_ty_hole(),
+            return_ty: Ty::hole(),
         });
 
         // Traverse the type function body
@@ -342,7 +344,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             is_unsafe: false,
             params: self.create_hole_params_from(&node.params, |params| &params.name),
             pure: false,
-            return_ty: self.new_ty_hole(),
+            return_ty: Ty::hole(),
         });
 
         // Traverse the function body

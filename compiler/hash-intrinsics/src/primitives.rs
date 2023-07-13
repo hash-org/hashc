@@ -10,6 +10,7 @@ use hash_tir::{
     mods::{ModMemberData, ModMemberValue},
     params::{Param, ParamData},
     symbols::sym,
+    tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::store::Store;
@@ -137,12 +138,12 @@ impl DefinedPrimitives {
                 let t_sym = sym("T");
                 let params = env.param_utils().create_params(once(ParamData {
                     name: t_sym,
-                    ty: env.new_small_universe_ty(),
+                    ty: Ty::flexible_universe(),
                     default: None,
                 }));
                 env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                        element_ty: env.new_var_ty(t_sym),
+                        element_ty: Ty::var(t_sym),
                         length: None,
                     })
                 })
@@ -153,14 +154,14 @@ impl DefinedPrimitives {
                 let n_sym = sym("n");
                 let params = env.param_utils().create_params(
                     [
-                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
-                        ParamData { name: n_sym, ty: env.new_data_ty(usize), default: None },
+                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                        ParamData { name: n_sym, ty: Ty::data(usize), default: None },
                     ]
                     .into_iter(),
                 );
                 env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                        element_ty: env.new_var_ty(t_sym),
+                        element_ty: Ty::var(t_sym),
                         length: Some(env.new_term(n_sym)),
                     })
                 })
@@ -174,12 +175,12 @@ impl DefinedPrimitives {
                 let t_sym = sym("T");
                 let params = env.param_utils().create_params(once(ParamData {
                     name: t_sym,
-                    ty: env.new_small_universe_ty(),
+                    ty: Ty::flexible_universe(),
                     default: None,
                 }));
                 let some_params = env.param_utils().create_params(once(ParamData {
                     name: sym("value"),
-                    ty: env.new_var_ty(t_sym),
+                    ty: Ty::var(t_sym),
                     default: None,
                 }));
                 env.data_utils().create_enum_def(option_sym, params, |_| {
@@ -196,19 +197,19 @@ impl DefinedPrimitives {
                 let e_sym = sym("E");
                 let params = env.param_utils().create_params(
                     [
-                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
-                        ParamData { name: e_sym, ty: env.new_small_universe_ty(), default: None },
+                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                        ParamData { name: e_sym, ty: Ty::flexible_universe(), default: None },
                     ]
                     .into_iter(),
                 );
                 let ok_params = env.param_utils().create_params(once(ParamData {
                     name: sym("value"),
-                    ty: env.new_var_ty(t_sym),
+                    ty: Ty::var(t_sym),
                     default: None,
                 }));
                 let err_params = env.param_utils().create_params(once(ParamData {
                     name: sym("error"),
-                    ty: env.new_var_ty(e_sym),
+                    ty: Ty::var(e_sym),
                     default: None,
                 }));
                 env.data_utils().create_enum_def(result_sym, params, |_| {
@@ -227,15 +228,15 @@ impl DefinedPrimitives {
 
                 let params = env.param_utils().create_params(
                     [
-                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
-                        ParamData { name: a_sym, ty: env.new_var_ty(t_sym), default: None },
-                        ParamData { name: b_sym, ty: env.new_var_ty(t_sym), default: None },
+                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                        ParamData { name: a_sym, ty: Ty::var(t_sym), default: None },
+                        ParamData { name: b_sym, ty: Ty::var(t_sym), default: None },
                     ]
                     .into_iter(),
                 );
                 let refl_params = env.param_utils().create_params(once(ParamData {
                     name: x_sym,
-                    ty: env.new_var_ty(t_sym),
+                    ty: Ty::var(t_sym),
                     default: None,
                 }));
 

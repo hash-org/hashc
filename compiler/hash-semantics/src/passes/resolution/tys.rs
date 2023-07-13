@@ -187,9 +187,9 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::NamedTy`].
     fn make_ty_from_ast_named_ty(&self, node: AstNodeRef<ast::NamedTy>) -> SemanticResult<TyId> {
         if node.name.is(IDENTS.Type) {
-            Ok(self.new_small_universe_ty())
+            Ok(Ty::flexible_universe())
         } else if node.name.is(IDENTS.underscore) {
-            Ok(self.new_ty_hole())
+            Ok(Ty::hole())
         } else {
             let path = self.named_ty_as_ast_path(node)?;
             let resolved_path = self.resolve_ast_path(&path)?;

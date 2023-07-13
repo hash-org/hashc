@@ -12,7 +12,8 @@ use crate::{
     impl_access_to_env,
     params::{Param, ParamData, ParamIndex, ParamsId},
     symbols::Symbol,
-    terms::TermId,
+    terms::{Term, TermId},
+    tys::Ty,
 };
 
 #[derive(Constructor)]
@@ -30,8 +31,7 @@ impl<'env> ParamUtils<'env> {
         param_names: impl Iterator<Item = Symbol> + ExactSizeIterator,
     ) -> ParamsId {
         self.stores().params().create_from_iter_with(
-            param_names
-                .map(|name| move |_id| Param { name, ty: self.new_ty_hole(), default: None }),
+            param_names.map(|name| move |_id| Param { name, ty: Ty::hole(), default: None }),
         )
     }
 
@@ -98,10 +98,7 @@ impl<'env> ParamUtils<'env> {
             params
                 .iter()
                 .enumerate()
-                .map(|(i, _)| ArgData {
-                    target: ParamIndex::Position(i),
-                    value: self.new_term_hole(),
-                })
+                .map(|(i, _)| ArgData { target: ParamIndex::Position(i), value: Term::hole() })
                 .collect_vec()
                 .into_iter(),
         )
