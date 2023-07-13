@@ -19,6 +19,7 @@ use crate::{
         ModDef, ModDefData, ModDefId, ModKind, ModMember, ModMemberData, ModMemberValue,
         ModMembersId,
     },
+    symbols::Symbol,
 };
 
 /// Operations related to module definitions.
@@ -40,7 +41,7 @@ impl<'tc> ModUtils<'tc> {
                 let source_id = module_id.into();
                 let module_name: Identifier = self.source_map().source_name(source_id).into();
                 let mod_def_id = self.create_mod_def(ModDefData {
-                    name: self.new_symbol(module_name),
+                    name: Symbol::from_name(module_name),
                     kind: ModKind::Source(
                         source_id,
                         // @@Hack: leak the path to still allow ModKind to implement Copy.

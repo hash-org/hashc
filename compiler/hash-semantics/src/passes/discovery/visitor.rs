@@ -11,6 +11,7 @@ use hash_tir::{
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnTy},
     mods::{ModDefData, ModKind},
+    symbols::sym,
     tuples::TupleTy,
     utils::{common::CommonUtils, AccessToUtils},
 };
@@ -49,7 +50,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     ) -> Result<Self::DeclarationRet, Self::Error> {
         let walk_with_name_hint = || -> Result<_, Self::Error> {
             let name = match node.pat.body() {
-                ast::Pat::Binding(binding) => Some(self.new_symbol(binding.name.ident)),
+                ast::Pat::Binding(binding) => Some(sym(binding.name.ident)),
                 // If the pattern is not a binding, we don't know the name of the declaration
                 _ => None,
             };
@@ -214,11 +215,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 node.entries
                     .iter()
                     .map(|variant| {
-                        (
-                            self.new_symbol(variant.name.ident),
-                            self.create_hole_params(&variant.fields),
-                            None,
-                        )
+                        (sym(variant.name.ident), self.create_hole_params(&variant.fields), None)
                     })
                     .collect_vec()
             },

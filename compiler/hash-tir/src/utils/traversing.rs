@@ -3,7 +3,7 @@ use core::fmt;
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{From, TryInto};
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store};
+use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
@@ -13,7 +13,10 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::StoreId,
+    },
     fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
     impl_access_to_env,
     locations::LocationTarget,
@@ -353,9 +356,10 @@ impl<'env> TraversingUtils<'env> {
     }
 
     pub fn fmap_params<E, F: Mapper<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
-        let new_params = self.map_params(params_id, |params| {
-            let mut new_params = Vec::with_capacity(params.len());
-            for param in params {
+        let new_params = {
+            let mut new_params = Vec::with_capacity(params_id.len());
+            for param in params_id.iter() {
+                let param = param.value();
                 new_params.push(ParamData {
                     name: param.name,
                     ty: self.fmap_ty(param.ty, f)?,
@@ -363,7 +367,7 @@ impl<'env> TraversingUtils<'env> {
                 });
             }
             Ok(self.param_utils().create_params(new_params.into_iter()))
-        })?;
+        }?;
 
         self.stores().location().copy_locations(params_id, new_params);
         Ok(new_params)
@@ -614,15 +618,14 @@ impl<'env> TraversingUtils<'env> {
     }
 
     pub fn visit_params<E, F: Visitor<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
-        self.map_params(params_id, |params| {
-            for &param in params {
-                self.visit_ty(param.ty, f)?;
-                if let Some(default) = param.default {
-                    self.visit_term(default, f)?;
-                }
+        for param in params_id.iter() {
+            let param = param.value();
+            self.visit_ty(param.ty, f)?;
+            if let Some(default) = param.default {
+                self.visit_term(default, f)?;
             }
-            Ok(())
-        })
+        }
+        Ok(())
     }
 
     pub fn visit_pat_args<E, F: Visitor<E>>(

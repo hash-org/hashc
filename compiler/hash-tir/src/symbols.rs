@@ -5,7 +5,10 @@ use std::fmt::Display;
 use hash_source::identifier::Identifier;
 use hash_utils::store::{Store, StoreKey};
 
-use crate::{environment::stores::StoreId, tir_get, tir_single_store};
+use crate::{
+    environment::stores::{SingleStoreValue, StoreId},
+    tir_get, tir_single_store,
+};
 
 /// The data carried by a symbol.
 ///
@@ -44,6 +47,23 @@ tir_single_store!(
     value = SymbolData,
     store_name = symbol
 );
+
+/// Shorthand for `Symbol::from_name`.
+pub fn sym(name: impl Into<Identifier>) -> Symbol {
+    Symbol::from_name(name)
+}
+
+impl Symbol {
+    /// Create a new symbol from a name.
+    pub fn from_name(name: impl Into<Identifier>) -> Self {
+        SymbolData::create_with(|symbol| SymbolData { symbol, name: Some(name.into()) })
+    }
+
+    /// Create a new symbol without a name.
+    pub fn fresh() -> Self {
+        SymbolData::create_with(|symbol| SymbolData { symbol, name: None })
+    }
+}
 
 impl std::fmt::Debug for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

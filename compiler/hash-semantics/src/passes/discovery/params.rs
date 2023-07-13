@@ -3,7 +3,7 @@ use hash_ast::ast::{self};
 use hash_tir::{
     environment::env::AccessToEnv,
     params::{ParamId, ParamIndex, ParamsId},
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::AccessToUtils,
 };
 
 use super::DiscoveryPass;
@@ -25,7 +25,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     Some(name) => ParamIndex::Name(name.ident),
                     None => ParamIndex::Position(i),
                 })
-                .map(|index| self.new_symbol_from_param_index(index)),
+                .map(|index| index.into_symbol()),
         );
         self.stores()
             .location()

@@ -9,7 +9,10 @@ use super::{common::CommonUtils, AccessToUtils};
 use crate::{
     args::{ArgId, ArgsId},
     context::{Context, Decl, ScopeKind},
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::StoreId,
+    },
     fns::FnDefId,
     impl_access_to_env,
     params::{ParamId, ParamsId},
@@ -34,7 +37,7 @@ impl<'env> ContextUtils<'env> {
     /// This should be used when entering a scope that has parameters. Ensure
     /// that the given parameter belongs to the current scope.
     pub fn add_param_binding(&self, param_id: ParamId) {
-        let param = self.get_param(param_id);
+        let param = param_id.borrow();
         self.context().add_decl(param.name, Some(param.ty), None);
     }
 
@@ -104,7 +107,7 @@ impl<'env> ContextUtils<'env> {
     /// a function call, tuple, constructor.
     pub fn add_arg_binding(&self, arg_id: ArgId, param_id: ParamId) {
         let arg = self.get_arg(arg_id);
-        let param = self.get_param(param_id);
+        let param = param_id.borrow();
         self.context().add_decl(param.name, Some(param.ty), Some(arg.value));
     }
 

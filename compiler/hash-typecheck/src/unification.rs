@@ -7,6 +7,7 @@ use hash_tir::{
     args::ArgsId,
     context::ScopeKind,
     data::DataDefCtors,
+    environment::stores::StoreId,
     fns::{FnCallTerm, FnTy},
     holes::Hole,
     lits::Lit,
@@ -461,8 +462,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for (src_param_id, target_param_id) in src_id.iter().zip(target_id.iter()) {
-                    let src_param = self.get_param(src_param_id);
-                    let target_param = self.get_param(target_param_id);
+                    let src_param = src_param_id.value();
+                    let target_param = target_param_id.value();
 
                     // Substitute the names
                     self.context_utils().add_assignment(

@@ -8,6 +8,7 @@ use hash_tir::{
     args::{ArgsId, PatArgsId},
     atom_info::ItemInAtomInfo,
     context::Decl,
+    environment::stores::StoreId,
     fns::FnBody,
     holes::Hole,
     mods::ModDefId,
@@ -50,7 +51,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     ) -> HashSet<Symbol> {
         let mut seen = var_matches.clone();
         for param in params.iter() {
-            let param = self.get_param(param);
+            let param = param.value();
             if self.atom_contains_vars(param.ty.into(), &seen) {
                 *can_apply = true;
                 return seen;
@@ -69,7 +70,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     fn apply_sub_to_params_and_get_shadowed(&self, params: ParamsId, sub: &Sub) -> Sub {
         let mut shadowed_sub = sub.clone();
         for param in params.iter() {
-            let param = self.get_param(param);
+            let param = param.value();
             self.apply_sub_to_ty_in_place(param.ty, &shadowed_sub);
             shadowed_sub.remove(param.name);
             if let Some(default) = param.default {
@@ -542,8 +543,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// Hide the given set of parameters from the substitution.
     pub fn hide_param_binds(&self, params: impl IntoIterator<Item = ParamId>, sub: &Sub) -> Sub {
         let mut shadowed_sub = Sub::identity();
-        let param_names =
-            params.into_iter().map(|p| self.get_param(p).name).collect::<HashSet<_>>();
+        let param_names = params.into_iter().map(|p| p.borrow().name).collect::<HashSet<_>>();
 
         for (name, value) in sub.iter() {
             // If the substitution is from that parameter, skip it.

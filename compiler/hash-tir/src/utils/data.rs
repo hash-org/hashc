@@ -11,9 +11,12 @@ use super::{common::CommonUtils, AccessToUtils};
 use crate::{
     args::{ArgData, ArgsId},
     data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::SequenceStoreValue,
+    },
     impl_access_to_env,
-    params::{ParamIndex, ParamsId},
+    params::{Param, ParamIndex, ParamsId},
     symbols::Symbol,
     terms::Term,
 };
@@ -65,7 +68,7 @@ impl<'tc> DataUtils<'tc> {
         self.stores().data_def().create_with(|id| DataDef {
             id,
             name,
-            params: self.new_empty_params(),
+            params: Param::empty_seq(),
             ctors: DataDefCtors::Primitive(info),
         })
     }

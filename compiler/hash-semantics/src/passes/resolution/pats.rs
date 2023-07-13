@@ -20,6 +20,7 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
+    symbols::Symbol,
     tuples::TuplePat,
     utils::{common::CommonUtils, AccessToUtils},
 };
@@ -93,7 +94,7 @@ impl ResolutionPass<'_> {
                         .unwrap()
                         .0
                 }
-                None => self.new_fresh_symbol(),
+                None => Symbol::fresh(),
             };
             Spread { name: symbol, index: node.position }
         }))
@@ -327,10 +328,9 @@ impl ResolutionPass<'_> {
                 condition: self.make_term_from_ast_expr(if_pat.condition.ast_ref())?,
                 pat: self.make_pat_from_ast_pat(if_pat.pat.ast_ref())?,
             })),
-            ast::Pat::Wild(_) => self.new_pat(Pat::Binding(BindingPat {
-                name: self.new_fresh_symbol(),
-                is_mutable: false,
-            })),
+            ast::Pat::Wild(_) => {
+                self.new_pat(Pat::Binding(BindingPat { name: Symbol::fresh(), is_mutable: false }))
+            }
             ast::Pat::Range(range_pat) => {
                 let start = self.make_lit_pat_from_non_bool_ast_lit(range_pat.lo.ast_ref());
                 let end = self.make_lit_pat_from_non_bool_ast_lit(range_pat.hi.ast_ref());

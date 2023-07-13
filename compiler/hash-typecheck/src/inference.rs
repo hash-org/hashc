@@ -21,7 +21,7 @@ use hash_tir::{
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     directives::DirectiveTarget,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::StoreId},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -106,7 +106,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for (arg, param_id) in args.zip(annotation_params.iter()) {
-                    let param = self.get_param(param_id);
+                    let param = param_id.value();
                     let param_ty = self.sub_ops().copy_ty(param.ty);
                     infer_arg(&arg, param_ty)?;
                     self.sub_ops().apply_sub_to_atom_from_context(param_ty);
@@ -223,7 +223,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn try_use_pat_as_term(&self, pat_id: PatId) -> Option<TermId> {
         match self.get_pat(pat_id) {
             Pat::Binding(var) => Some(self.new_term(var.name)),
-            Pat::Range(_) => Some(self.new_term(self.new_fresh_symbol())),
+            Pat::Range(_) => Some(self.new_term(Symbol::fresh())),
             Pat::Lit(lit) => Some(self.new_term(Term::Lit(lit.into()))),
             Pat::Ctor(ctor_pat) => Some(self.new_term(CtorTerm {
                 ctor: ctor_pat.ctor,
@@ -287,7 +287,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
             for param_id in params.iter() {
-                let param = self.get_param(param_id);
+                let param = param_id.value();
                 self.context_utils().add_typing(param.name, param.ty);
             }
             f()
@@ -306,7 +306,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for param_id in params.iter() {
-                    let param = self.get_param(param_id);
+                    let param = param_id.value();
                     self.infer_ty(param.ty, self.new_flexible_universe_ty())?;
                     self.context_utils().add_typing(param.name, param.ty);
                 }
@@ -1311,14 +1311,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
         };
 
-        if let Some(param) = self.try_get_param_by_index(params, access_term.field) {
+        if let Some(param) = params.at_index(access_term.field) {
             // Create a substitution that maps the parameters of the record
             // type to the corresponding fields of the record term.
             //
             // i.e. `x: (T: Type, t: T);  x.t: x.T`
             let param_access_sub =
                 self.sub_ops().create_sub_from_param_access(params, access_term.subject);
-            let subbed_param_ty = self.sub_ops().apply_sub_to_ty(param.ty, &param_access_sub);
+            let subbed_param_ty =
+                self.sub_ops().apply_sub_to_ty(param.borrow().ty, &param_access_sub);
             self.check_by_unify(subbed_param_ty, annotation_ty)?;
             Ok(())
         } else {
