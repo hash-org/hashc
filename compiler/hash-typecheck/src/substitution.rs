@@ -404,7 +404,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         let mut sub = HashSet::new();
         let current_scope_index = self.context().get_current_scope_index();
         self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
-            if self.context_utils().try_get_decl_value(binding.name).is_none() {
+            if self.context().try_get_decl_value(binding.name).is_none() {
                 sub.insert(binding.name);
             }
         });
@@ -431,7 +431,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
 
         let current_scope_index = self.context().get_current_scope_index();
         self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
-            if let Some(value) = self.context_utils().try_get_decl_value(binding.name) {
+            if let Some(value) = self.context().try_get_decl_value(binding.name) {
                 self.insert_to_sub_if_needed(&mut sub, binding.name, value);
             }
         });

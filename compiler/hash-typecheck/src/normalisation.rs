@@ -461,7 +461,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     /// Evaluate a variable.
     fn eval_var(&self, var: Symbol) -> AtomEvaluation {
-        match self.context_utils().try_get_decl_value(var) {
+        match self.context().try_get_decl_value(var) {
             Some(result) => {
                 if matches!(self.get_term(result), Term::Var(v) if v == var) {
                     already_evaluated()
@@ -605,7 +605,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 }
             }
             Term::Var(var) => {
-                self.context_utils().modify_assignment(var, assign_term.value);
+                self.context().modify_assignment(var, assign_term.value);
             }
             _ => panic!("Invalid assign {}", &assign_term),
         }
@@ -626,7 +626,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 match self.match_value_and_get_binds(
                     match_term.subject,
                     case.bind_pat,
-                    &mut |name, term_id| self.context_utils().add_untyped_assignment(name, term_id),
+                    &mut |name, term_id| self.context().add_untyped_assignment(name, term_id),
                 )? {
                     MatchResult::Successful => {
                         let result = self.eval_and_record(case.value.into(), &st)?;
@@ -664,7 +664,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             Some(value) => match self.match_value_and_get_binds(
                 value,
                 decl_term.bind_pat,
-                &mut |name, term_id| self.context_utils().add_untyped_assignment(name, term_id),
+                &mut |name, term_id| self.context().add_untyped_assignment(name, term_id),
             )? {
                 MatchResult::Successful => {
                     // All good
@@ -751,7 +751,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     FnBody::Defined(defined_fn_def) => {
                         return self.context().enter_scope(fn_def_id.into(), || {
                             // Add argument bindings:
-                            self.context_utils().add_arg_bindings(fn_def.ty.params, fn_call.args);
+                            self.context().add_arg_bindings(fn_def.ty.params, fn_call.args);
 
                             // Evaluate result:
                             match self.eval(defined_fn_def.into()) {

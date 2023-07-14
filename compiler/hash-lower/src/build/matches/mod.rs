@@ -17,12 +17,11 @@ use hash_ir::{
 };
 use hash_source::location::Span;
 use hash_tir::{
-    context::ScopeKind,
+    context::{Context, ScopeKind},
     control::{IfPat, MatchCasesId},
     environment::env::AccessToEnv,
     pats::{Pat, PatId},
     terms::{Term, TermId},
-    utils::context::ContextUtils,
 };
 use hash_utils::{
     itertools::Itertools,
@@ -193,15 +192,11 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         for (arm, candidate) in arm_candidates {
             // Each match-case creates its own scope, so we need to enter it here...
-            ContextUtils::<'_>::enter_resolved_scope_mut(
-                self,
-                ScopeKind::Stack(arm.stack_id),
-                |this| {
-                    this.declare_bindings(arm.bind_pat);
-                    let arm_block = this.bind_pat(subject_span, arm.bind_pat, candidate);
-                    lowered_arms_edges.push(this.term_into_dest(destination, arm_block, arm.value));
-                },
-            )
+            Context::enter_resolved_scope_mut(self, ScopeKind::Stack(arm.stack_id), |this| {
+                this.declare_bindings(arm.bind_pat);
+                let arm_block = this.bind_pat(subject_span, arm.bind_pat, candidate);
+                lowered_arms_edges.push(this.term_into_dest(destination, arm_block, arm.value));
+            })
         }
 
         // After the execution of the match, all branches end up here...

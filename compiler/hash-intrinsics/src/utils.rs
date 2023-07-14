@@ -10,7 +10,7 @@ use hash_tir::{
     refs::{RefKind, RefTy},
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::store::Store;
 use num_bigint::BigInt;
@@ -244,7 +244,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
         match self.get_term(term) {
             Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),
             Term::Var(sym) => self
-                .context_utils()
+                .context()
                 .try_get_decl_value(sym)
                 .and_then(|result| self.try_use_term_as_integer_lit(result)),
 

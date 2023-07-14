@@ -16,7 +16,7 @@ use hash_tir::{
     symbols::Symbol,
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
+    utils::{common::CommonUtils, traversing::Atom},
 };
 use hash_utils::store::{CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use once_cell::unsync::OnceCell;
@@ -85,7 +85,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     /// Add the given substitutions to the context.
     pub fn add_unification_from_sub(&self, sub: &Sub) {
         if self.add_to_ctx.get() {
-            self.context_utils().add_sub_to_scope(sub);
+            self.context().add_sub_to_scope(sub);
         }
     }
 
@@ -466,7 +466,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     let target_param = target_param_id.value();
 
                     // Substitute the names
-                    self.context_utils().add_assignment(
+                    self.context().add_assignment(
                         src_param.name,
                         src_param.ty,
                         self.new_term(target_param.name),

@@ -111,7 +111,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     infer_arg(&arg, param_ty)?;
                     self.sub_ops().apply_sub_to_atom_from_context(param_ty);
                     if let Some(value) = get_arg_value(&arg) {
-                        self.context_utils().add_assignment(param.name, param_ty, value);
+                        self.context().add_assignment(param.name, param_ty, value);
                     }
                 }
                 let result = in_arg_scope()?;
@@ -288,7 +288,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
             for param_id in params.iter() {
                 let param = param_id.value();
-                self.context_utils().add_typing(param.name, param.ty);
+                self.context().add_typing(param.name, param.ty);
             }
             f()
         })
@@ -308,7 +308,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 for param_id in params.iter() {
                     let param = param_id.value();
                     self.infer_ty(param.ty, Ty::flexible_universe())?;
-                    self.context_utils().add_typing(param.name, param.ty);
+                    self.context().add_typing(param.name, param.ty);
                 }
 
                 let result = in_param_scope()?;
@@ -1030,7 +1030,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
         original_term: TermId,
     ) -> TcResult<()> {
-        let closest_fn_def = self.context_utils().get_first_fn_def_in_scope();
+        let closest_fn_def = self.context().get_first_fn_def_in_scope();
         match closest_fn_def {
             Some(closest_fn_def) => {
                 // Get the closest fn def in scope, and unify the
@@ -1426,11 +1426,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 if let Some(match_subject_var) = match_subject_var {
                     if let Some(pat_term) = self.try_use_pat_as_term(case_data.bind_pat) {
-                        self.context_utils().add_assignment(
-                            match_subject_var,
-                            subject_ty_copy,
-                            pat_term,
-                        );
+                        self.context().add_assignment(match_subject_var, subject_ty_copy, pat_term);
                     }
                 }
 
@@ -1759,7 +1755,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.new_expected_ty_of(pat.condition, Ty::data(self.primitives().bool()));
         self.infer_term(pat.condition, expected_condition_ty)?;
         if let Term::Var(v) = self.get_term(pat.condition) {
-            self.context_utils().add_assignment(v, expected_condition_ty, self.new_bool_term(true));
+            self.context().add_assignment(v, expected_condition_ty, self.new_bool_term(true));
         }
         Ok(())
     }
@@ -1780,14 +1776,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     Some(value)
                         if self.norm_ops().atom_has_effects(value.into()) == Some(false) =>
                     {
-                        self.context_utils().add_assignment_to_closest_stack(
+                        self.context().add_assignment_to_closest_stack(
                             var.name,
                             annotation_ty,
                             value,
                         );
                     }
                     _ => {
-                        self.context_utils().add_typing_to_closest_stack(var.name, annotation_ty);
+                        self.context().add_typing_to_closest_stack(var.name, annotation_ty);
                     }
                 }
             }

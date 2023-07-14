@@ -10,12 +10,11 @@ use hash_ir::{
     ty::Mutability,
 };
 use hash_tir::{
-    context::ScopeKind,
+    context::{Context, ScopeKind},
     control::{LoopTerm, MatchTerm},
     environment::env::AccessToEnv,
     scopes::BlockTerm,
     terms::{Term, TermId},
-    utils::context::ContextUtils,
 };
 use hash_utils::store::{CloneStore, SequenceStore};
 
@@ -81,7 +80,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             return block.unit();
         }
 
-        ContextUtils::<'_>::enter_resolved_scope_mut(self, ScopeKind::Stack(*stack_id), |this| {
+        Context::enter_resolved_scope_mut(self, ScopeKind::Stack(*stack_id), |this| {
             // Essentially walk all of the statement in the block, and then set
             // the return type of this block as the last expression, or an empty
             // unit if there is no expression.
