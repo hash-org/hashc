@@ -1,0 +1,24 @@
+// run=pass, stage=typecheck
+
+Direction := enum(
+    South,
+    North,
+    West,
+    East
+)
+
+Pos := struct(
+    x: usize,
+    y: usize
+)
+
+next_pos := (pos: Pos, dir: Direction, end: Pos) -> Option<Pos> => {
+    match dir {
+        Direction::South if pos.y != end.y => Option::Some(Pos(pos.x, pos.y + 1)),
+        Direction::North if pos.y != 0 => Option::Some(Pos(pos.x, pos.y - 1)),
+        Direction::East if pos.x != end.x => Option::Some(Pos(pos.x + 1, pos.y)),
+        Direction::West if pos.x != 0 => Option::Some(Pos(pos.x - 1, pos.y)),
+        _ => Option::None
+    }
+}
+
