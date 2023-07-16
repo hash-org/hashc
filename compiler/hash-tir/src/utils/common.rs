@@ -157,7 +157,7 @@ pub trait CommonUtils: AccessToEnv {
     fn make_param_name_from_arg_index(&self, index: ParamIndex) -> Symbol {
         match index {
             ParamIndex::Name(name) => Symbol::from_name(name),
-            ParamIndex::Position(i) => Symbol::from_name(i.to_string()),
+            ParamIndex::Position(_) => Symbol::fresh(),
         }
     }
 
