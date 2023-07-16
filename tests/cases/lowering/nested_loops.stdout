@@ -1,5 +1,5 @@
 
-IR dump for function `main` defined at $DIR/nested_loops.hash:5:9-30:2
+IR dump for function `main` defined at $DIR/nested_loops.hash:3:9-28:2
 main := () -> () {
     mut _0: ();
     _1: i32;	// parameter `t`
@@ -61,7 +61,7 @@ main := () -> () {
 
     bb10 {
         _8 = CheckedSub(_4, const 1_i32);
-        assert((_8.1), false, "attempt to compute `_9 - const 1_i32`, which would overflow") -> bb11;
+        assert((_8.1), false, "attempt to compute `_4 - const 1_i32`, which would overflow") -> bb11;
     }
 
     bb11 {
