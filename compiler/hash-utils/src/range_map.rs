@@ -259,12 +259,10 @@ mod test_super {
         // Insert a 11-14 range with 'b'
         map.insert(11..=14, 'd');
         assert_eq!(map.find(12), Some(&'d'));
-        println!("{}", map);
 
         // Insert into empty map
         let mut map = RangeMap::new();
         map.insert(0..=10, 'a');
-        println!("{}", map);
     }
 
     #[test]
@@ -276,19 +274,12 @@ mod test_super {
         //
         // @@Note: this should panic since the map disallows overlapping ranges.
         map.insert(10..=14, 'd');
-        println!("{}", map);
     }
 
     #[test]
     #[should_panic]
     fn test_invalid_range_map() {
         // @@Note: this should panic since the provided ranges overlap.
-        let map = RangeMap::populated(vec![
-            (0..=10, 'a'),
-            (10..=14, 'd'),
-            (15..=20, 'c'),
-            (21..=30, 'd'),
-        ]);
-        println!("{}", map);
+        RangeMap::populated(vec![(0..=10, 'a'), (10..=14, 'd'), (15..=20, 'c'), (21..=30, 'd')]);
     }
 }
