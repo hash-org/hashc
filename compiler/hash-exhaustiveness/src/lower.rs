@@ -4,10 +4,7 @@ use std::mem::size_of;
 
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
-use hash_source::{
-    constant::{u128_to_int_const, CONSTANT_MAP},
-    identifier::IDENTS,
-};
+use hash_source::constant::{u128_to_int_const, CONSTANT_MAP};
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
@@ -18,6 +15,7 @@ use hash_tir::{
     params::ParamsId,
     pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,
+    symbols::Symbol,
     tuples::{TuplePat, TupleTy},
     ty_as_variant,
     tys::{Ty, TyId},
@@ -279,11 +277,11 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                                 Pat::Array(ArrayPat { pats, spread: None })
                             }
                             ArrayKind::Var(prefix, _) => {
-                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: self.new_symbol(IDENTS.underscore), index: *prefix }) })
+                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: Symbol::fresh_underscore(), index: *prefix }) })
                             }
                         }
                     }
-                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: self.new_symbol(IDENTS.underscore), is_mutable: false }),
+                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: Symbol::fresh_underscore(), is_mutable: false }),
                     DeconstructedCtor::Or => {
                         panic!("cannot convert an `or` deconstructed pat back into pat")
                     }
@@ -316,11 +314,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let field_count = fields.len();
         let args = self.param_utils().create_pat_args(fields.into_iter());
 
-        // @@Todo: we need to add a spread pattern if the number of added fields
-        // mismatches the total number of params in order to signify that some
-        // number of fields were omitted for display purposes.
         if field_count != params.len() {
-            (args, Some(Spread { name: self.new_fresh_symbol(), index: field_count }))
+            (args, Some(Spread { name: Symbol::fresh(), index: field_count }))
         } else {
             (args, None)
         }
@@ -463,7 +458,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             // creates an ambiguous ordering of arguments.
             .map(|(index, arg)| -> FieldPat {
                 let field = if let Some(arg_index) =
-                    self.try_get_actual_param_index(params_id, arg.target)
+                    self.param_utils().try_get_actual_param_index(params_id, arg.target)
                 {
                     arg_index
                 } else {

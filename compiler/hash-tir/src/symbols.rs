@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use hash_source::identifier::Identifier;
+use hash_source::identifier::{Identifier, IDENTS};
 use hash_utils::store::{Store, StoreKey};
 
 use crate::{
@@ -62,6 +62,11 @@ impl Symbol {
     /// Create a new symbol without a name.
     pub fn fresh() -> Self {
         SymbolData::create_with(|symbol| SymbolData { symbol, name: None })
+    }
+
+    /// Create a new symbol with an `_` as its name.
+    pub fn fresh_underscore() -> Self {
+        SymbolData::create_with(|symbol| SymbolData { symbol, name: Some(IDENTS.underscore) })
     }
 }
 

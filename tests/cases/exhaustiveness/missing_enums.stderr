@@ -1,8 +1,8 @@
-error[0083]: non-exhaustive patterns: `(0 = Option::None, 1 = Option::None)` not covered
+error[0083]: non-exhaustive patterns: `(Option::None, Option::None)` not covered
  --> $DIR/missing_enums.hash:6:18
 5 |     loop {
 6 |       return match (left, right) {
-  |                    ^^^^^^^^^^^^^ pattern `(0 = Option::None, 1 = Option::None)` not covered
+  |                    ^^^^^^^^^^^^^ pattern `(Option::None, Option::None)` not covered
 7 |         (Option::Some(a), Option::Some(b)) => a + b,
 
 error[0083]: non-exhaustive patterns: `Direction::South`, and `Direction::East` not covered
@@ -12,9 +12,9 @@ error[0083]: non-exhaustive patterns: `Direction::South`, and `Direction::East` 
    |                  ^^^ patterns `Direction::South`, and `Direction::East` not covered
 26 |       Direction::North => 1,
 
-error[0083]: non-exhaustive patterns: `(0 = Direction::South, 1 = Direction::South)`, `(0 = Direction::South, 1 = Direction::West)`, `(0 = Direction::South, 1 = Direction::East)` and 9 more not covered
+error[0083]: non-exhaustive patterns: `(Direction::South, Direction::South)`, `(Direction::South, Direction::West)`, `(Direction::South, Direction::East)` and 9 more not covered
   --> $DIR/missing_enums.hash:33:11
 32 |   join_directions := (dir: Direction, other: Direction) -> Direction => {
 33 |       match (dir, other) {
-   |             ^^^^^^^^^^^^ patterns `(0 = Direction::South, 1 = Direction::South)`, `(0 = Direction::South, 1 = Direction::West)`, `(0 = Direction::South, 1 = Direction::East)` and 9 more not covered
+   |             ^^^^^^^^^^^^ patterns `(Direction::South, Direction::South)`, `(Direction::South, Direction::West)`, `(Direction::South, Direction::East)` and 9 more not covered
 34 |           (Direction::North, Direction::South) => Direction::North,
