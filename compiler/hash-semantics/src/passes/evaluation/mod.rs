@@ -59,8 +59,8 @@ impl EvaluationPass<'_> {
                         // We only care about this error if we're running to
                         // the evaluation stage, or if
                         // we are continuing after lowering
-                        if self.flags().run_to_stage > CompilerStageKind::Lower
-                            || self.flags().eval_tir
+                        if self.settings().stage > CompilerStageKind::Lower
+                            || self.settings().semantic_settings.eval_tir
                         {
                             Err(SemanticError::EntryPointNotFound)
                         } else {
@@ -81,7 +81,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
 
         // Potentially dump the TIR and evaluate it depending on flags.
-        if self.flags().dump_tir {
+        if self.settings().semantic_settings.dump_tir {
             self.dump_tir(term);
         }
 
@@ -100,12 +100,13 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         let main_call_term = self.find_and_construct_main_call()?;
 
         // Potentially dump the TIR and evaluate it depending on flags.
+        let settings = self.settings().semantic_settings();
 
-        if self.flags().dump_tir {
+        if settings.dump_tir {
             self.dump_tir(mod_def_id);
         }
 
-        if self.flags().eval_tir {
+        if settings.eval_tir {
             if let Some(term) = main_call_term {
                 let _ =
                     self.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;

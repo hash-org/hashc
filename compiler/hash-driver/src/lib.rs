@@ -30,7 +30,7 @@ use hash_pipeline::{
 };
 use hash_reporting::report::Report;
 use hash_semantics::{
-    Flags, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
+    SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
 };
 use hash_source::{SourceId, SourceMap};
 use hash_untyped_semantics::{
@@ -319,13 +319,7 @@ impl SemanticAnalysisCtxQuery for Compiler {
         SemanticAnalysisCtx {
             workspace: &mut self.workspace,
             semantic_storage: &mut self.semantic_storage,
-            flags: Flags {
-                dump_tir: self.settings.semantic_settings.dump_tir,
-                eval_tir: self.settings.semantic_settings.eval_tir,
-                mono_tir: self.settings.semantic_settings.mono_tir,
-                run_to_stage: self.settings.stage,
-            },
-            target: self.settings.target(),
+            settings: &self.settings,
         }
     }
 }
