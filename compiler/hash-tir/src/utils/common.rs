@@ -4,7 +4,10 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     location::SourceLocation,
 };
-use hash_utils::store::{CloneStore, SequenceStore, Store, TrivialKeySequenceStore};
+use hash_utils::{
+    store::{CloneStore, SequenceStore, Store, TrivialKeySequenceStore},
+    stream_less_writeln,
+};
 
 use super::traversing::Atom;
 use crate::{
@@ -389,7 +392,7 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     fn dump_tir(&self, value: impl ToString) {
-        println!("[TIR dump]:\n{}", value.to_string());
+        stream_less_writeln!("[TIR dump]:\n{}", value.to_string());
     }
 }
 

@@ -73,7 +73,7 @@ boo := (_1: i32, _2: i32) -> i32 {
 
     bb13 {
         _8 = CheckedAdd(_6, _7);
-        assert((_8.1), false, "attempt to compute `_12 + _13`, which would overflow") -> bb14;
+        assert((_8.1), false, "attempt to compute `_6 + _7`, which would overflow") -> bb14;
     }
 
     bb14 {

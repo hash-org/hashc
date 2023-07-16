@@ -2,6 +2,7 @@ use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
+use hash_pipeline::settings::CompilerSettings;
 use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
 use hash_source::entry_point::EntryPointState;
 // @@Docs
@@ -17,7 +18,6 @@ use super::analysis_progress::AnalysisProgress;
 use crate::{
     diagnostics::{error::SemanticError, warning::SemanticWarning},
     ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
-    Flags,
 };
 
 macro_rules! sem_env {
@@ -83,7 +83,7 @@ sem_env! {
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
     root_mod_or_unset: RootModOrUnset,
     analysis_progress: AnalysisProgress,
-    flags: Flags,
+    settings: CompilerSettings,
 }
 
 impl<'tc> AccessToSemEnv for SemEnv<'tc> {
@@ -133,7 +133,7 @@ impl<'tc> AccessToTypechecking for SemEnv<'tc> {
     }
 
     fn should_monomorphise(&self) -> bool {
-        self.flags.mono_tir
+        self.settings.semantic_settings.mono_tir
     }
 }
 
