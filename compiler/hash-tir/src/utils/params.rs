@@ -40,10 +40,7 @@ impl<'env> ParamUtils<'env> {
     pub fn create_hole_params_from_args(&self, args: impl Into<SomeArgsId>) -> ParamsId {
         let args = args.into();
         self.create_hole_params(
-            args.iter()
-                .map(|arg| self.make_param_name_from_arg_index(self.get_arg_index(arg)))
-                .collect_vec()
-                .into_iter(),
+            args.iter().map(|arg| self.get_arg_index(arg).into_symbol()).collect_vec().into_iter(),
         )
     }
 

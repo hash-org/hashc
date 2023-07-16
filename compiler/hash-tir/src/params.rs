@@ -71,10 +71,12 @@ impl From<ParamId> for ParamIndex {
 }
 
 impl ParamIndex {
+    /// Get the name of the parameter, if it is named, or a fresh symbol
+    /// otherwise.
     pub fn into_symbol(&self) -> Symbol {
         match self {
             ParamIndex::Name(name) => Symbol::from_name(*name),
-            ParamIndex::Position(i) => Symbol::from_name(*i),
+            ParamIndex::Position(_) => Symbol::fresh(),
         }
     }
 }
