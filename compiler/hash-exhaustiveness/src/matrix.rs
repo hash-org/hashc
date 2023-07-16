@@ -3,18 +3,13 @@
 //! set of patterns. [MatrixOps] is a collection of operations
 //! that occur on the [Matrix] when the typechecker context
 //! is required.
-use std::fmt::Debug;
 
-use hash_utils::store::CloneStore;
+use std::fmt;
 
-use super::{stack::PatStack, AccessToUsefulnessOps, PatForFormatting, PreparePatForFormatting};
-use crate::old::{
-    exhaustiveness::PatCtx,
-    ops::AccessToOps,
-    storage::{
-        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
-        AccessToStorage, StorageRef,
-    },
+use super::stack::PatStack;
+use crate::{
+    storage::{DeconstructedCtorId, DeconstructedPatId},
+    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A 2D matrix which is used to represent the
@@ -48,31 +43,15 @@ impl Matrix {
     }
 }
 
-/// Contains functions related to operations on [Matrix]
-pub struct MatrixOps<'tc> {
-    storage: StorageRef<'tc>,
-}
-
-impl<'tc> AccessToStorage for MatrixOps<'tc> {
-    fn storages(&self) -> StorageRef {
-        self.storage.storages()
-    }
-}
-
-impl<'tc> MatrixOps<'tc> {
-    pub fn new(storage: StorageRef<'tc>) -> Self {
-        Self { storage }
-    }
-
+impl<'tc> ExhaustivenessChecker<'tc> {
     /// Pushes a new row to the matrix. If the row starts with an or-pattern,
     /// this recursively expands it.
-    pub(crate) fn push(&self, matrix: &mut Matrix, row: PatStack) {
+    pub(crate) fn push_matrix_row(&self, matrix: &mut Matrix, row: PatStack) {
         if !row.is_empty() {
-            let reader = self.reader();
-            let pat = reader.get_deconstructed_pat(row.head());
+            let pat = self.get_deconstructed_pat(row.head());
 
-            if self.deconstruct_pat_ops().is_or_pat(&pat) {
-                return matrix.patterns.extend(self.stack_ops().expand_or_pat(&row));
+            if self.is_or_pat(&pat) {
+                return matrix.patterns.extend(self.expand_or_pat(&row));
             }
         }
 
@@ -87,27 +66,24 @@ impl<'tc> MatrixOps<'tc> {
         ctor_id: DeconstructedCtorId,
     ) -> Matrix {
         let mut specialised_matrix = Matrix::empty();
-        let ctor = self.constructor_store().get(ctor_id);
-        let reader = self.reader();
+        let ctor = self.get_deconstructed_ctor(ctor_id);
 
         // Iterate on each row, and specialise the `head` of
         // each row within the matrix with the provided constructor,
         // the results of the specialisation as new rows in
         // the matrix.
         for row in &matrix.patterns {
-            let row_head_ctor = reader.get_deconstructed_pat_ctor(row.head());
+            let row_head_ctor = self.get_deconstructed_pat_ctor(row.head());
 
-            if self.constructor_ops().is_covered_by(&ctor, &row_head_ctor) {
-                let new_row = self.stack_ops().pop_head_constructor(ctx, row, ctor_id);
-                self.push(&mut specialised_matrix, new_row);
+            if self.is_ctor_covered_by(&ctor, &row_head_ctor) {
+                let new_row = self.pop_head_ctor(ctx, row, ctor_id);
+                self.push_matrix_row(&mut specialised_matrix, new_row);
             }
         }
 
         specialised_matrix
     }
 }
-
-impl PreparePatForFormatting for Matrix {}
 
 /// Pretty-printer for matrices of patterns, example:
 ///
@@ -118,8 +94,8 @@ impl PreparePatForFormatting for Matrix {}
 /// | false | [_]               |
 /// | _     | [_, _, ...tail]   |
 /// ```
-impl Debug for PatForFormatting<'_, Matrix> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for ExhaustivenessFmtCtx<'_, Matrix> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f)?;
 
         let Matrix { patterns: m, .. } = &self.item;
@@ -127,9 +103,7 @@ impl Debug for PatForFormatting<'_, Matrix> {
         // Firstly, get all the patterns within the matrix as strings...
         let pretty_printed_matrix: Vec<Vec<String>> = m
             .iter()
-            .map(|row| {
-                row.iter().map(|pat| format!("{:?}", pat.for_formatting(self.storage))).collect()
-            })
+            .map(|row| row.iter().map(|pat| format!("{:?}", self.with(*pat))).collect())
             .collect();
 
         let column_count = m.iter().map(|row| row.len()).next().unwrap_or(0);

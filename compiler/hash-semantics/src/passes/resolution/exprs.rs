@@ -658,7 +658,9 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Create a term if all ok
         match (subject, cases.len() == node.cases.len()) {
-            (Some(subject), true) => Ok(self.new_term(Term::Match(MatchTerm { subject, cases }))),
+            (Some(subject), true) => {
+                Ok(self.new_term(Term::Match(MatchTerm { subject, cases, origin: node.origin })))
+            }
             _ => Err(SemanticError::Signal),
         }
     }

@@ -1,0 +1,39 @@
+// run=fail, stage=typecheck
+
+// ~ERROR: patterns not covered
+maybe_add := (left: Option<i32>, right: Option<i32>) -> i32 => {
+  loop {
+    return match (left, right) {
+      (Option::Some(a), Option::Some(b)) => a + b,
+      (Option::Some(a), Option::None) => a,
+      (Option::None, Option::Some(a)) => {a},
+    }
+  };
+
+  0
+}
+
+Direction := enum(
+    South,
+    North,
+    West,
+    East
+)
+
+// ~ERROR: patterns not covered
+direction_to_int := (dir: Direction) -> i32 => {
+  return match dir {
+    Direction::North => 1,
+    Direction::West => 2,
+  }
+}
+
+// ~ERROR: patterns not covered
+join_directions := (dir: Direction, other: Direction) -> Direction => {
+    match (dir, other) {
+        (Direction::North, Direction::South) => Direction::North,
+        (Direction::South, Direction::North) => Direction::North,
+        (Direction::West, Direction::East) => Direction::West,
+        (Direction::East, Direction::West) => Direction::West,
+    }
+}

@@ -1139,27 +1139,27 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
             // Ranges
             (Term::Lit(lit_term), Pat::Range(range_pat)) => {
-                match (lit_term, range_pat.start, range_pat.end) {
+                match (lit_term, range_pat.lo, range_pat.hi) {
                     (Lit::Int(value), LitPat::Int(start), LitPat::Int(end)) => Ok(self
                         .match_literal_to_range(
                             value.value(),
                             start.value(),
                             end.value(),
-                            range_pat.range_end,
+                            range_pat.end,
                         )),
                     (Lit::Str(value), LitPat::Str(start), LitPat::Str(end)) => Ok(self
                         .match_literal_to_range(
                             value.value(),
                             start.value(),
                             end.value(),
-                            range_pat.range_end,
+                            range_pat.end,
                         )),
                     (Lit::Char(value), LitPat::Char(start), LitPat::Char(end)) => Ok(self
                         .match_literal_to_range(
                             value.value(),
                             start.value(),
                             end.value(),
-                            range_pat.range_end,
+                            range_pat.end,
                         )),
                     _ => Ok(MatchResult::Stuck),
                 }

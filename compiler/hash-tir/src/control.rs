@@ -3,6 +3,7 @@
 use core::fmt;
 use std::fmt::Debug;
 
+use hash_ast::ast::MatchOrigin;
 use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
 use textwrap::indent;
 
@@ -36,6 +37,10 @@ pub struct LoopTerm {
 pub struct MatchTerm {
     pub subject: TermId,
     pub cases: MatchCasesId,
+
+    /// The origin of the match term, and where it came from, i.e. a `match`
+    /// case an `if` block, `while` block, or a `for` loop.
+    pub origin: MatchOrigin,
 }
 
 /// A single case in a match term.

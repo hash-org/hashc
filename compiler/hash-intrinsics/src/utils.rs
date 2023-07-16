@@ -3,8 +3,8 @@ use hash_source::constant::{
     FloatTy, IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
 };
 use hash_tir::{
-    data::{CtorDefId, CtorPat, CtorTerm, DataTy},
-    environment::env::AccessToEnv,
+    data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
+    environment::{env::AccessToEnv, stores::StoreId},
     lits::{CharLit, FloatLit, IntLit, Lit},
     pats::{Pat, PatId},
     refs::{RefKind, RefTy},
@@ -149,6 +149,17 @@ pub trait PrimitiveUtils: AccessToPrimitives {
             Ty::Data(data) => match data.data_def {
                 d if d == self.primitives().f32() => Some(FloatTy::F32),
                 d if d == self.primitives().f64() => Some(FloatTy::F64),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get the given type as a primitive array type if possible.
+    fn try_use_ty_as_array_ty(&self, ty: TyId) -> Option<ArrayCtorInfo> {
+        match self.get_ty(ty) {
+            Ty::Data(data) => match data.data_def.borrow().ctors {
+                DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array)) => Some(array),
                 _ => None,
             },
             _ => None,

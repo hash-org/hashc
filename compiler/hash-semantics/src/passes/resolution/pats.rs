@@ -334,7 +334,7 @@ impl ResolutionPass<'_> {
             ast::Pat::Range(range_pat) => {
                 let start = self.make_lit_pat_from_non_bool_ast_lit(range_pat.lo.ast_ref());
                 let end = self.make_lit_pat_from_non_bool_ast_lit(range_pat.hi.ast_ref());
-                self.new_pat(Pat::Range(RangePat { start, end, range_end: range_pat.end }))
+                self.new_pat(Pat::Range(RangePat { lo: start, hi: end, end: range_pat.end }))
             }
         };
 

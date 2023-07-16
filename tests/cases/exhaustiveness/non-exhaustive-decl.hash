@@ -4,5 +4,7 @@ get_name := () -> str => {
     "a name"
 }
 
-a := get_name()
-"str" := a
+main := () => {
+    a := get_name()
+    "str" := a
+}

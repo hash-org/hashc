@@ -577,6 +577,16 @@ version = "0.1.0"
 [[package]]
 name = "hash-exhaustiveness"
 version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-error-codes",
+ "hash-intrinsics",
+ "hash-reporting",
+ "hash-source",
+ "hash-target",
+ "hash-tir",
+ "hash-utils",
+]
 
 [[package]]
 name = "hash-fmt"
@@ -733,6 +743,7 @@ dependencies = [
  "hash-alloc",
  "hash-ast",
  "hash-error-codes",
+ "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-pipeline",
  "hash-reporting",
@@ -869,6 +880,7 @@ dependencies = [
  "hash-alloc",
  "hash-ast",
  "hash-error-codes",
+ "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-reporting",
  "hash-source",

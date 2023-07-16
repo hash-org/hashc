@@ -9,6 +9,7 @@
 )]
 
 use errors::{TcError, TcErrorState, TcResult};
+use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, IntrinsicAbilities},
     primitives::{AccessToPrimitives, DefinedPrimitives},
@@ -36,11 +37,23 @@ pub trait AccessToTypechecking:
 {
     /// Convert a typechecking error to a diagnostic error.
     ///
-    /// Provided by the implementor.
+    /// Provided by the implementer.
     fn convert_tc_error(
         &self,
         error: TcError,
     ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Error;
+
+    /// Convert an exhaustiveness error to a diagnostic error.
+    fn convert_exhaustiveness_error(
+        &self,
+        error: ExhaustivenessError,
+    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Error;
+
+    /// Convert an exhaustiveness warning to a diagnostic warning.
+    fn convert_exhaustiveness_warning(
+        &self,
+        warning: ExhaustivenessWarning,
+    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Warning;
 
     /// Create a new error state.
     fn new_error_state(&self) -> TcErrorState {

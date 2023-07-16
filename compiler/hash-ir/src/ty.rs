@@ -248,7 +248,7 @@ pub enum IrTy {
     /// or `&raw T`, or `Rc<T>`.
     Ref(IrTyId, Mutability, RefKind),
 
-    /// A slice type
+    /// A slice type, `&[T]`.
     Slice(IrTyId),
 
     /// An array type with a specified length, i.e. `[T; N]`

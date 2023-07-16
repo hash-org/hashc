@@ -33,18 +33,20 @@ pub struct Spread {
     pub index: usize,
 }
 
-/// A range pattern containing two bounds `start` and `end`.
+/// A range pattern containing two bounds `lo` and `hi`.
 ///
-/// The `start` and `end` values must be either both [`LitPat::Int`], or both
+/// The `lo` and `hi` values must be either both [`LitPat::Int`], or both
 /// [`LitPat::Char`].
 #[derive(Copy, Clone, Debug)]
 pub struct RangePat {
     /// The beginning of the range.
-    pub start: LitPat,
+    pub lo: LitPat,
+
     /// The end of the range.
-    pub end: LitPat,
+    pub hi: LitPat,
+
     /// If the range includes the `end` or not.
-    pub range_end: RangeEnd,
+    pub end: RangeEnd,
 }
 
 /// Represents a pattern.
@@ -52,13 +54,28 @@ pub struct RangePat {
 /// Check the documentation of each member for more information.
 #[derive(Copy, Clone, Debug, From)]
 pub enum Pat {
+    /// A binding pattern, `mut k`, `k`, or `_`.
     Binding(BindingPat),
+
+    /// A range pattern, `1..10` or `'a'..<'z'`.
     Range(RangePat),
+
+    /// A literal pattern, `3`, `'a'`, or `"мир"`.
     Lit(LitPat),
+
+    /// A tuple collection of patterns, e.g. `('A', 2)`, `(1, 2, ...)`.
     Tuple(TuplePat),
+
+    /// An array pattern, e.g. `[1, 2, 3]`, [1, ...]`.
     Array(ArrayPat),
+
+    /// A constructor pattern, `Some(3)`, `X(name = "y", age = 12)`.
     Ctor(CtorPat),
+
+    /// A choice pattern, `a | b | c`.
     Or(OrPat),
+
+    /// A guarded pattern with a specified condition, `a if a > 0`.
     If(IfPat),
 }
 
@@ -114,12 +131,12 @@ impl fmt::Display for Spread {
 
 impl fmt::Display for RangePat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.start)?;
-        match self.range_end {
-            RangeEnd::Included => write!(f, "..=")?,
-            RangeEnd::Excluded => write!(f, "..")?,
+        write!(f, "{}", self.lo)?;
+        match self.end {
+            RangeEnd::Included => write!(f, "..")?,
+            RangeEnd::Excluded => write!(f, "..<")?,
         }
-        write!(f, "{}", self.end)
+        write!(f, "{}", self.hi)
     }
 }
 

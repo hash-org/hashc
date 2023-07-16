@@ -4,7 +4,6 @@
 //! is located in `matches.rs`.
 use std::mem;
 
-use hash_ast::ast::MatchOrigin;
 use hash_ir::{
     ir::{BasicBlock, Place},
     ty::Mutability,
@@ -58,11 +57,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     next_block.unit()
                 })
             }
-            Term::Match(MatchTerm { subject, cases }) => {
-                // @@TodoTIR: we should be able to get the origin from the
-                // match term.
-                let origin = MatchOrigin::Match;
-                self.lower_match_term(place, block, span, *subject, *cases, origin)
+            Term::Match(MatchTerm { subject, cases, origin }) => {
+                self.lower_match_term(place, block, span, *subject, *cases, *origin)
             }
             _ => unreachable!(),
         }

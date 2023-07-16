@@ -4,19 +4,17 @@
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::RangeEnd;
-use hash_tir::old::{
-    nominals::NominalDef,
-    terms::{Level1Term, Term},
+use hash_intrinsics::utils::PrimitiveUtils;
+use hash_target::size::Size;
+use hash_tir::{
+    data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
+    environment::stores::StoreId,
+    tys::Ty,
+    utils::common::CommonUtils,
 };
 use hash_utils::{
     smallvec::{smallvec, SmallVec},
-    store::Store,
-};
-
-use crate::old::{
-    exhaustiveness::PatCtx,
-    ops::AccessToOps,
-    storage::{exhaustiveness::DeconstructedCtorId, AccessToStorage, StorageRef},
+    store::{SequenceStoreKey, Store, TrivialSequenceStoreKey},
 };
 
 /// A [DeconstructedCtor::Wildcard] that we split relative to the constructors
@@ -46,31 +44,14 @@ pub struct SplitWildcard {
 use super::{
     construct::DeconstructedCtor,
     list::{Array, ArrayKind},
-    AccessToUsefulnessOps,
 };
+use crate::{storage::DeconstructedCtorId, ExhaustivenessChecker, PatCtx};
 
-pub struct SplitWildcardOps<'tc> {
-    storage: StorageRef<'tc>,
-}
-
-impl<'tc> AccessToStorage for SplitWildcardOps<'tc> {
-    fn storages(&self) -> StorageRef {
-        self.storage.storages()
-    }
-}
-
-impl<'tc> SplitWildcardOps<'tc> {
-    /// Create a new [SplitWildcardOps].
-    pub fn new(storage: StorageRef<'tc>) -> Self {
-        Self { storage }
-    }
-
+impl<'tc> ExhaustivenessChecker<'tc> {
     /// Create a [SplitWildcard] from the current context.
-    pub(super) fn from(&self, ctx: PatCtx) -> SplitWildcard {
-        let reader = self.reader();
-
+    pub(super) fn split_wildcard_from_pat_ctx(&self, ctx: PatCtx) -> SplitWildcard {
         let make_range = |start, end| {
-            DeconstructedCtor::IntRange(self.int_range_ops().make_range(
+            DeconstructedCtor::IntRange(self.make_int_range(
                 ctx.ty,
                 start,
                 end,
@@ -84,105 +65,87 @@ impl<'tc> SplitWildcardOps<'tc> {
         // we need make sure to omit constructors that are statically impossible. E.g.,
         // for `Option<!>`, we do not include `Some(_)` in the returned list of
         // constructors.
-        let all_ctors = if let Some(int_kind) = self.oracle().term_as_int_ty(ctx.ty) {
-            match int_kind {
-                // @@Future: Maybe in the future, we can have a compiler setting/project
-                // setting that allows a user to say `it's ok to use the `target`
-                // pointer width`
-                kind if kind.is_big_sized_integral() || kind.is_ptr_sized_integral() => {
-                    smallvec![DeconstructedCtor::NonExhaustive]
-                }
-                kind if kind.is_signed() => {
-                    // Safe to unwrap since we deal with `ibig` and `ubig` variants...
-                    let ptr_width = self.global_storage().pointer_width;
-                    let bits = kind.size(ptr_width).unwrap().bits() as u128;
-                    let min = 1u128 << (bits - 1);
-                    let max = min - 1;
+        let all_ctors = match ctx.ty.value() {
+            Ty::Data(DataTy { data_def, .. }) => {
+                let def = self.get_data_def(data_def);
 
-                    // i_kind::MIN..=_kind::MAX
-                    smallvec![make_range(min, max)]
-                }
-                kind => {
-                    // Safe to unwrap since we deal with `ibig` and `ubig` variants...
-                    let ptr_width = self.global_storage().pointer_width;
-                    let size = kind.size(ptr_width).unwrap();
-                    let max = size.truncate(u128::MAX);
+                match def.ctors {
+                    DataDefCtors::Defined(ctors) => {
+                        if ctors.len() == 1 {
+                            smallvec![DeconstructedCtor::Single]
+                        } else {
+                            // The exception is if the pattern is at the top level, because
+                            // we want empty matches to
+                            // be considered exhaustive.
+                            let is_secretly_empty = ctors.is_empty() && !ctx.is_top_level;
 
-                    smallvec![make_range(0, max)]
-                }
-            }
-        } else {
-            match ctx.ty {
-                ty if self.oracle().term_as_list_ty(ty).is_some() => {
-                    // For lists, we just default to a variable length list
-                    smallvec![DeconstructedCtor::Array(Array { kind: ArrayKind::Var(0, 0) })]
-                }
-                ty if self.oracle().term_is_char_ty(ty) => {
-                    smallvec![
-                        // The valid Unicode Scalar Value ranges.
-                        make_range('\u{0000}' as u128, '\u{D7FF}' as u128),
-                        make_range('\u{E000}' as u128, '\u{10FFFF}' as u128),
-                    ]
-                }
-                ty if self.oracle().term_is_never_ty(ty) => {
-                    // If our subject is the never type, we cannot
-                    // expose its emptiness. The exception is if the pattern
-                    // is at the top level, because we want empty matches
-                    // to be considered exhaustive.
-                    if !ctx.is_top_level {
-                        smallvec![DeconstructedCtor::NonExhaustive]
-                    } else {
-                        smallvec![]
-                    }
-                }
-                ty if self.oracle().term_is_str_ty(ty) => {
-                    smallvec![DeconstructedCtor::NonExhaustive]
-                }
-                ty => match reader.get_term(ty) {
-                    Term::Level1(Level1Term::NominalDef(def)) => {
-                        match reader.get_nominal_def(def) {
-                            NominalDef::Struct(_) => smallvec![DeconstructedCtor::Single],
-                            NominalDef::Enum(enum_def) => {
-                                // The exception is if the pattern is at the top level, because we
-                                // want empty matches to be considered exhaustive.
-                                let is_secretly_empty =
-                                    enum_def.variants.is_empty() && !ctx.is_top_level;
+                            let mut ctors: SmallVec<[_; 1]> = ctors
+                                .iter()
+                                .enumerate()
+                                .map(|(index, _)| DeconstructedCtor::Variant(index))
+                                .collect();
 
-                                let mut ctors: SmallVec<[_; 1]> = enum_def
-                                    .variants
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(index, _)| DeconstructedCtor::Variant(index))
-                                    .collect();
-
-                                if is_secretly_empty {
-                                    ctors.push(DeconstructedCtor::NonExhaustive);
-                                }
-
-                                ctors
+                            if is_secretly_empty {
+                                ctors.push(DeconstructedCtor::NonExhaustive);
                             }
-                            NominalDef::Unit(_) => {
-                                smallvec![DeconstructedCtor::Single]
-                            }
+
+                            ctors
                         }
                     }
-                    Term::Level1(Level1Term::Tuple(_)) => smallvec![DeconstructedCtor::Single],
-                    _ => smallvec![DeconstructedCtor::NonExhaustive],
-                },
+                    DataDefCtors::Primitive(ctor) => match ctor {
+                        PrimitiveCtorInfo::Numeric(ctor_info) => {
+                            if let NumericCtorBits::Bounded(bits) = ctor_info.bits && !ctor_info.is_float {
+                                if ctor_info.is_signed {
+                                    let min = 1u128 << (bits - 1);
+                                    let max = min - 1;
+
+                                    // i_kind::MIN..=_kind::MAX
+                                    smallvec![make_range(min, max)]
+                                } else {
+                                    let size = Size::from_bits(bits as u64);
+                                    let max = size.truncate(u128::MAX);
+
+                                    smallvec![make_range(0, max)]
+                                }
+                            } else {
+                                // This is then either a `ubig` or `ibig` which are un-bounded and
+                                // hence non-exhaustive.
+                                smallvec![DeconstructedCtor::NonExhaustive]
+                            }
+                        }
+                        PrimitiveCtorInfo::Str => {
+                            smallvec![DeconstructedCtor::NonExhaustive]
+                        }
+                        PrimitiveCtorInfo::Char => smallvec![
+                            // The valid Unicode Scalar Value ranges.
+                            make_range('\u{0000}' as u128, '\u{D7FF}' as u128),
+                            make_range('\u{E000}' as u128, '\u{10FFFF}' as u128),
+                        ],
+                        PrimitiveCtorInfo::Array(_) =>
+                        // @@Todo: investigate what should happen here, we should probably use a
+                        // fixed array here.
+                        {
+                            smallvec![DeconstructedCtor::Array(Array {
+                                kind: ArrayKind::Var(0, 0)
+                            })]
+                        }
+                    },
+                }
             }
+            Ty::Tuple(..) => smallvec![DeconstructedCtor::Single],
+            _ => smallvec![DeconstructedCtor::NonExhaustive],
         };
 
         // Now we have to allocate `all_ctors` into storage
-        let all_ctors =
-            all_ctors.into_iter().map(|ctor| self.constructor_store().create(ctor)).collect();
+        let all_ctors = all_ctors.into_iter().map(|ctor| self.ctor_store().create(ctor)).collect();
 
         SplitWildcard { matrix_ctors: Vec::new(), all_ctors }
     }
 
     /// Perform a split on a [SplitWildcard], take `all_ctors` on the
     /// current [SplitWildcard] and split them with the provided constructors.
-    pub(super) fn split(
-        &mut self,
+    pub(super) fn split_wildcard(
+        &self,
         ctx: PatCtx,
         ctor: &mut SplitWildcard,
         ctors: impl Iterator<Item = DeconstructedCtorId> + Clone,
@@ -191,28 +154,30 @@ impl<'tc> SplitWildcardOps<'tc> {
         ctor.all_ctors = ctor
             .all_ctors
             .iter()
-            .flat_map(|ctor| self.constructor_ops().split(ctx, *ctor, ctors.clone()))
+            .flat_map(|ctor| self.split_ctor(ctx, *ctor, ctors.clone()))
             .collect();
 
         ctor.matrix_ctors =
-            ctors.filter(|c| !self.constructor_store().map_fast(*c, |c| c.is_wildcard())).collect();
+            ctors.filter(|c| !self.ctor_store().map_fast(*c, |c| c.is_wildcard())).collect();
     }
 
     /// Whether there are any value constructors for this type that are not
     /// present in the matrix.
     fn any_missing(&self, wildcard: &SplitWildcard) -> bool {
-        self.iter_missing(wildcard).next().is_some()
+        self.iter_missing_ctors(wildcard).next().is_some()
     }
 
     /// Iterate over the constructors for this type that are not present in the
     /// matrix.
-    pub(super) fn iter_missing<'a>(
+    pub(super) fn iter_missing_ctors<'a>(
         &'a self,
         wildcard: &'a SplitWildcard,
     ) -> impl Iterator<Item = DeconstructedCtorId> + 'a {
-        wildcard.all_ctors.iter().copied().filter(move |ctor| {
-            !self.constructor_ops().is_covered_by_any(*ctor, &wildcard.matrix_ctors)
-        })
+        wildcard
+            .all_ctors
+            .iter()
+            .copied()
+            .filter(move |ctor| !self.is_ctor_covered_by_any(*ctor, &wildcard.matrix_ctors))
     }
 
     /// Convert the current [SplitWildcard] into it's respective constructors.
@@ -259,14 +224,14 @@ impl<'tc> SplitWildcardOps<'tc> {
             // we sometimes prefer reporting the list of constructors instead of
             // just `_`.
             let ctor = if !wildcard.matrix_ctors.is_empty()
-                || (ctx.is_top_level && self.oracle().term_as_int_ty(ctx.ty).is_none())
+                || (ctx.is_top_level && self.try_use_ty_as_int_ty(ctx.ty).is_none())
             {
                 DeconstructedCtor::Missing
             } else {
                 DeconstructedCtor::Wildcard
             };
 
-            let ctor = self.constructor_store().create(ctor);
+            let ctor = self.ctor_store().create(ctor);
             return smallvec![ctor];
         }
 

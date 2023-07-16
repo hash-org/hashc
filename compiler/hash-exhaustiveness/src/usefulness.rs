@@ -7,20 +7,16 @@
 //! is detailed within [super].
 use std::iter::once;
 
-use hash_tir::old::{pats::PatId, terms::TermId};
+use hash_tir::{pats::PatId, tys::TyId};
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack, store::Store};
 
 use super::{
     construct::DeconstructedCtor, deconstruct::DeconstructedPat, fields::Fields, matrix::Matrix,
-    stack::PatStack, AccessToUsefulnessOps,
+    stack::PatStack,
 };
-use crate::old::{
-    exhaustiveness::PatCtx,
-    ops::AccessToOps,
-    storage::{
-        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
-        AccessToStorage, StorageRef,
-    },
+use crate::{
+    storage::{DeconstructedCtorId, DeconstructedPatId},
+    ExhaustivenessChecker, PatCtx,
 };
 
 /// Collection of patterns that were `witnessed` when traversing
@@ -50,7 +46,7 @@ pub enum Usefulness {
 
 impl Usefulness {
     /// Create a `useful` [Usefulness] report.
-    pub fn new_useful(preference: MatchArmKind) -> Self {
+    pub(crate) fn new_useful(preference: MatchArmKind) -> Self {
         match preference {
             // A single (empty) witness of reachability.
             MatchArmKind::ExhaustiveWildcard => Usefulness::WithWitnesses(vec![Witness(vec![])]),
@@ -59,7 +55,7 @@ impl Usefulness {
     }
 
     /// Create a `useless` [Usefulness] report.
-    pub fn new_not_useful(preference: MatchArmKind) -> Self {
+    pub(crate) fn new_not_useful(preference: MatchArmKind) -> Self {
         match preference {
             MatchArmKind::ExhaustiveWildcard => Usefulness::WithWitnesses(vec![]),
             MatchArmKind::Real => Usefulness::NoWitnesses { useful: false },
@@ -67,7 +63,7 @@ impl Usefulness {
     }
 
     /// Check if the [Usefulness] report specifies that the pattern is  useful.
-    pub fn is_useful(&self) -> bool {
+    pub(crate) fn is_useful(&self) -> bool {
         match self {
             Usefulness::NoWitnesses { useful } => *useful,
             Usefulness::WithWitnesses(witnesses) => !witnesses.is_empty(),
@@ -97,7 +93,7 @@ impl Usefulness {
 /// inject a `dummy` match-arm to collect witnesses of patterns
 /// that the branch will capture.
 #[derive(Debug, Clone, Copy)]
-pub enum MatchArmKind {
+pub(crate) enum MatchArmKind {
     /// This is used as a `dummy` kind of arm in order to
     /// detect any witnesses that haven't been picked up when
     /// walking through the the arms of a match block.
@@ -110,13 +106,14 @@ pub enum MatchArmKind {
 /// The arm of a match expression.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct MatchArm {
-    /// The pattern must have been lowered through
-    /// `check_match::MatchVisitor::lower_pattern`.
+    /// Deconstructed pattern of the arm.
     pub(crate) deconstructed_pat: DeconstructedPatId,
-    /// Whether the arm has an `if-guard`
+
+    /// Whether the arm has an `if-guard`.
     pub(crate) has_guard: bool,
-    /// The corresponding [hash_tir::old::Pat] with this
-    /// match arm
+
+    /// The corresponding [hash_tir::pats::Pat] with this
+    /// match arm.
     pub(crate) id: PatId,
 }
 
@@ -128,6 +125,7 @@ pub(crate) enum Reachability {
     /// arm being reachable. Used only in the presence of or-patterns,
     /// otherwise it stays empty.
     Reachable(Vec<PatId>),
+
     /// The arm is unreachable.
     Unreachable,
 }
@@ -142,22 +140,7 @@ pub(crate) struct UsefulnessReport {
     pub(crate) non_exhaustiveness_witnesses: Vec<PatId>,
 }
 
-pub struct UsefulnessOps<'tc> {
-    storage: StorageRef<'tc>,
-}
-
-impl<'tc> AccessToStorage for UsefulnessOps<'tc> {
-    fn storages(&self) -> StorageRef {
-        self.storage.storages()
-    }
-}
-
-impl<'tc> UsefulnessOps<'tc> {
-    /// Create a new instance of [UsefulnessOps].
-    pub fn new(storage: StorageRef<'tc>) -> Self {
-        Self { storage }
-    }
-
+impl<'tc> ExhaustivenessChecker<'tc> {
     /// Constructs a partial witness for a pattern given a list of
     /// patterns expanded by the specialisation step.
     ///
@@ -180,7 +163,7 @@ impl<'tc> UsefulnessOps<'tc> {
     ) -> Witness {
         let pat = {
             let len = witness.0.len();
-            let arity = self.constructor_ops().arity(ctx, ctor);
+            let arity = self.ctor_arity(ctx, ctor);
 
             let pats = witness.0.drain((len - arity)..).rev();
             let fields = Fields::from_iter(pats);
@@ -197,7 +180,7 @@ impl<'tc> UsefulnessOps<'tc> {
     /// reconstruct a usefulness that makes sense for the matrix
     /// pre-specialization. This new usefulness can then be merged
     /// with the results of specializing with the other constructors.
-    fn apply_constructor(
+    fn apply_ctor(
         &self,
         ctx: PatCtx,
         usefulness: Usefulness,
@@ -209,25 +192,23 @@ impl<'tc> UsefulnessOps<'tc> {
             Usefulness::WithWitnesses(ref witnesses) if witnesses.is_empty() => usefulness,
             Usefulness::WithWitnesses(witnesses) => {
                 let new_witnesses = if self
-                    .constructor_store()
+                    .ctor_store()
                     .map_fast(ctor_id, |ctor| matches!(ctor, DeconstructedCtor::Missing))
                 {
                     // We got the special `Missing` constructor, so each of the missing constructors
                     // gives a new  pattern that is not caught by the match. We
                     // list those patterns.
-                    let mut wildcard = self.split_wildcard_ops().from(ctx);
+                    let mut wildcard = self.split_wildcard_from_pat_ctx(ctx);
 
-                    let reader = self.reader();
-                    let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor);
+                    let ctors = matrix.heads().map(|id| self.get_deconstructed_pat(id).ctor);
 
-                    self.split_wildcard_ops().split(ctx, &mut wildcard, ctors);
+                    self.split_wildcard(ctx, &mut wildcard, ctors);
 
                     // Get all the missing constructors for the current type
                     let new_pats = self
-                        .split_wildcard_ops()
-                        .iter_missing(&wildcard)
+                        .iter_missing_ctors(&wildcard)
                         .map(|missing_ctor| {
-                            let pat = self.deconstruct_pat_ops().wild_from_ctor(ctx, missing_ctor);
+                            let pat = self.wildcard_from_ctor(ctx, missing_ctor);
                             self.deconstructed_pat_store().create(pat)
                         })
                         .collect_vec();
@@ -247,14 +228,12 @@ impl<'tc> UsefulnessOps<'tc> {
                     // id collections, and copy them within the store
                     ids.iter()
                         .map(|new_witness_pats| {
-                            let reader = self.reader();
-
                             let copied_pats = new_witness_pats
                                 .iter()
                                 .map(|pat| {
                                     // Clone and forget the `pat` and then forget that that it is
                                     // reachable
-                                    let new_pat = reader.get_deconstructed_pat(*pat);
+                                    let new_pat = self.get_deconstructed_pat(*pat);
                                     new_pat.reachable.set(false);
 
                                     self.deconstructed_pat_store().create(new_pat)
@@ -301,7 +280,7 @@ impl<'tc> UsefulnessOps<'tc> {
     /// exhaustiveness checking (if a wildcard pattern is useful in relation
     /// to a matrix, the matrix isn't exhaustive).
     fn is_useful(
-        &mut self,
+        &self,
         matrix: &Matrix,
         v: &PatStack,
         arm_kind: MatchArmKind,
@@ -322,8 +301,7 @@ impl<'tc> UsefulnessOps<'tc> {
             return ret;
         }
 
-        let reader = self.reader();
-        let head = reader.get_deconstructed_pat(v.head());
+        let head = self.get_deconstructed_pat(v.head());
 
         let DeconstructedPat { ty, .. } = head;
 
@@ -332,11 +310,11 @@ impl<'tc> UsefulnessOps<'tc> {
         let mut report = Usefulness::new_not_useful(arm_kind);
 
         // If the first pattern is an or-pattern, expand it.
-        if self.deconstruct_pat_ops().is_or_pat(&head) {
+        if self.is_or_pat(&head) {
             // We try each or-pattern branch in turn.
             let mut matrix = matrix.clone();
 
-            for v in self.stack_ops().expand_or_pat(v) {
+            for v in self.expand_or_pat(v) {
                 let usefulness = ensure_sufficient_stack(|| {
                     self.is_useful(&matrix, &v, arm_kind, is_under_guard, false)
                 });
@@ -352,20 +330,19 @@ impl<'tc> UsefulnessOps<'tc> {
                 // ``` Ok(_) | Ok(3) => ...; ```
                 //
                 if !is_under_guard {
-                    self.matrix_ops().push(&mut matrix, v);
+                    self.push_matrix_row(&mut matrix, v);
                 }
             }
         } else {
-            let reader = self.reader();
-            let ctors = matrix.heads().map(|id| reader.get_deconstructed_pat(id).ctor);
+            let ctors = matrix.heads().map(|id| self.get_deconstructed_pat(id).ctor);
 
             let v_ctor = head.ctor;
 
             // check that int ranges don't overlap here, in case
             // they're partially covered by other ranges.
-            if let DeconstructedCtor::IntRange(range) = reader.get_deconstructed_ctor(v_ctor) {
+            if let DeconstructedCtor::IntRange(range) = self.get_deconstructed_ctor(v_ctor) {
                 if let Some(head_id) = head.id {
-                    self.int_range_ops().check_for_overlapping_endpoints(
+                    self.check_for_overlapping_endpoints(
                         head_id,
                         range,
                         matrix.heads(),
@@ -376,21 +353,21 @@ impl<'tc> UsefulnessOps<'tc> {
             }
 
             // We split the head constructor of `v`.
-            let split_ctors = self.constructor_ops().split(ctx, v_ctor, ctors);
+            let split_ctors = self.split_ctor(ctx, v_ctor, ctors);
             let start_matrix = &matrix;
 
             // For each constructor, we compute whether there's a value that starts with it
             // that would witness the usefulness of `v`.
             for ctor in split_ctors {
                 // cache the result of `Fields::wildcards` because it is used a lot.
-                let spec_matrix = self.matrix_ops().specialise_ctor(ctx, start_matrix, ctor);
+                let spec_matrix = self.specialise_ctor(ctx, start_matrix, ctor);
 
-                let v = self.stack_ops().pop_head_constructor(ctx, v, ctor);
+                let v = self.pop_head_ctor(ctx, v, ctor);
                 let usefulness = ensure_sufficient_stack(|| {
                     self.is_useful(&spec_matrix, &v, arm_kind, is_under_guard, false)
                 });
 
-                let usefulness = self.apply_constructor(ctx, usefulness, start_matrix, ctor);
+                let usefulness = self.apply_ctor(ctx, usefulness, start_matrix, ctor);
                 report.extend(usefulness);
             }
         }
@@ -408,8 +385,8 @@ impl<'tc> UsefulnessOps<'tc> {
     /// Note: the input patterns must have been lowered through
     /// [super::lower::LowerPatOps]
     pub(crate) fn compute_match_usefulness(
-        &mut self,
-        subject: TermId,
+        &self,
+        subject: TyId,
         arms: &[MatchArm],
     ) -> UsefulnessReport {
         let mut matrix = Matrix::empty();
@@ -426,14 +403,13 @@ impl<'tc> UsefulnessOps<'tc> {
                 // add them into the matrix since we can't guarantee that they
                 // yield all possible conditions
                 if !arm.has_guard {
-                    self.matrix_ops().push(&mut matrix, v);
+                    self.push_matrix_row(&mut matrix, v);
                 }
 
-                let reader = self.reader();
-                let pat = reader.get_deconstructed_pat(arm.deconstructed_pat);
+                let pat = self.get_deconstructed_pat(arm.deconstructed_pat);
 
                 let reachability = if pat.is_reachable() {
-                    Reachability::Reachable(self.deconstruct_pat_ops().unreachable_pats(&pat))
+                    Reachability::Reachable(self.compute_unreachable_pats(&pat))
                 } else {
                     Reachability::Unreachable
                 };
@@ -441,8 +417,7 @@ impl<'tc> UsefulnessOps<'tc> {
             })
             .collect();
 
-        let wildcard =
-            self.deconstructed_pat_store().create(self.deconstruct_pat_ops().wildcard(subject));
+        let wildcard = self.deconstructed_pat_store().create(self.wildcard_from_ty(subject));
         let v = PatStack::singleton(wildcard);
         let usefulness = self.is_useful(&matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
 
@@ -451,7 +426,7 @@ impl<'tc> UsefulnessOps<'tc> {
         // set of patterns that are provided in the match block are exhaustive.
         let non_exhaustiveness_witnesses = match usefulness {
             Usefulness::WithWitnesses(pats) => {
-                pats.into_iter().map(|w| self.pat_lowerer().construct_pat(w.single_pat())).collect()
+                pats.into_iter().map(|w| self.construct_pat(w.single_pat())).collect()
             }
             Usefulness::NoWitnesses { .. } => panic!(),
         };

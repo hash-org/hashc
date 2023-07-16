@@ -151,6 +151,16 @@ pub enum DataDefCtors {
     Primitive(PrimitiveCtorInfo),
 }
 
+impl DataDefCtors {
+    /// Assert that the [DataDefCtors] is non-primitive.
+    pub fn assert_defined(self) -> CtorDefsId {
+        match self {
+            DataDefCtors::Defined(ctors) => ctors,
+            DataDefCtors::Primitive(_) => panic!("expected defined data type"),
+        }
+    }
+}
+
 /// A data-type definition.
 ///
 /// This is a "nominal" inductively defined data type, which is how user-defined
@@ -247,13 +257,16 @@ impl Display for CtorTerm {
 
 impl Display for CtorPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (ctor_name, data_def_id) =
-            (tir_get!(self.ctor, name), tir_get!(self.ctor, data_def_id));
+        let data_def_id = tir_get!(self.ctor, data_def_id);
+        let data_def_name = tir_get!(data_def_id, name);
 
-        let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
-        write!(f, "{}::", &data_ty)?;
+        if data_def_id.borrow().ctors.assert_defined().len() == 1 {
+            write!(f, "{data_def_name}")?;
+        } else {
+            let ctor_name = tir_get!(self.ctor, name);
+            write!(f, "{data_def_name}::{}", ctor_name)?;
+        }
 
-        write!(f, "{}", ctor_name)?;
         if self.ctor_pat_args.len() > 0 || self.ctor_pat_args_spread.is_some() {
             write!(
                 f,

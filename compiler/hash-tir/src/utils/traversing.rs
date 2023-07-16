@@ -172,7 +172,7 @@ impl<'env> TraversingUtils<'env> {
                             Ok(MatchCase { bind_pat, value, stack_id: case.stack_id })
                         }))
                     })?;
-                    Ok(self.new_term(MatchTerm { cases, subject }))
+                    Ok(self.new_term(MatchTerm { cases, subject, origin: match_term.origin }))
                 }
                 Term::Return(return_term) => {
                     let expression = self.fmap_term(return_term.expression, f)?;

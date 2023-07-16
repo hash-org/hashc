@@ -1,5 +1,6 @@
 //! Error-related data structures for errors that occur during typechecking.
 use hash_error_codes::error_codes::HashErrorCode;
+use hash_exhaustiveness::diagnostics::ExhaustivenessError;
 use hash_reporting::{
     self,
     reporter::{Reporter, Reports},
@@ -20,46 +21,70 @@ use crate::{
 pub enum SemanticError {
     /// A series of errors.
     Compound { errors: Vec<SemanticError> },
+
     /// An error exists, this is just a signal to stop typechecking.
     Signal,
+
     /// More type annotations are needed to infer the type of the given term.
     NeedMoreTypeAnnotationsToInfer { term: TermId },
+
     /// Traits are not yet supported.
     TraitsNotSupported { trait_location: SourceLocation },
+
     /// Merge declarations are not yet supported.
     MergeDeclarationsNotSupported { merge_location: SourceLocation },
+
     /// Module patterns are not yet supported.
     ModulePatternsNotSupported { location: SourceLocation },
+
     /// Some specified symbol was not found.
     SymbolNotFound { symbol: Symbol, location: SourceLocation, looking_in: ContextKind },
+
     /// Cannot use a module in a value position.
     CannotUseModuleInValuePosition { location: SourceLocation },
+
     /// Cannot use a module in a type position.
     CannotUseModuleInTypePosition { location: SourceLocation },
+
     /// Cannot use a module in a pattern position.
     CannotUseModuleInPatternPosition { location: SourceLocation },
+
     /// Cannot use a data type in a value position.
     CannotUseDataTypeInValuePosition { location: SourceLocation },
+
     /// Cannot use a data type in a pattern position.
     CannotUseDataTypeInPatternPosition { location: SourceLocation },
+
     /// Cannot use a constructor in a type position.
     CannotUseConstructorInTypePosition { location: SourceLocation },
+
     /// Cannot use a function in type position.
     CannotUseFunctionInTypePosition { location: SourceLocation },
+
     /// Cannot use a function in a pattern position.
     CannotUseFunctionInPatternPosition { location: SourceLocation },
+
     /// Cannot use a non-constant item in constant position.
     CannotUseNonConstantItem { location: SourceLocation },
+
     /// Cannot use the subject as a namespace.
     InvalidNamespaceSubject { location: SourceLocation },
+
     /// Cannot use arguments here.
     UnexpectedArguments { location: SourceLocation },
+
     /// Type error, forwarded from the typechecker.
     TypeError { error: TcError },
+
+    /// Error from exhaustiveness checking.
+    ExhaustivenessError { error: ExhaustivenessError },
+
     /// Type error, forwarded from the typechecker.
     EnumTypeAnnotationMustBeOfDefiningType { location: SourceLocation },
+
     /// Given data definition is not a singleton.
     DataDefIsNotSingleton { location: SourceLocation },
+
     /// An entry point was not found in the entry module.
     EntryPointNotFound,
 }
@@ -67,6 +92,12 @@ pub enum SemanticError {
 impl From<TcError> for SemanticError {
     fn from(value: TcError) -> Self {
         Self::TypeError { error: value }
+    }
+}
+
+impl From<ExhaustivenessError> for SemanticError {
+    fn from(error: ExhaustivenessError) -> Self {
+        Self::ExhaustivenessError { error }
     }
 }
 
@@ -294,6 +325,9 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                 error.add_span(*location).add_info(
                     "cannot use this type annotation as it is not the defining type of the enum",
                 );
+            }
+            SemanticError::ExhaustivenessError { error } => {
+                error.add_to_reports(self.env(), reporter)
             }
         }
     }

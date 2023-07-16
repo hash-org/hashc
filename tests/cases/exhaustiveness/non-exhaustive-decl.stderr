@@ -1,0 +1,6 @@
+error[0082]: refutable pattern in declaration binding: `_` not covered
+  --> $DIR/non-exhaustive-decl.hash:9:5
+ 8 |       a := get_name()
+ 9 |       "str" := a
+   |       ^^^^^ pattern `_` not covered
+10 |   }
