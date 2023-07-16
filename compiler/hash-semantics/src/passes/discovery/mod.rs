@@ -5,7 +5,7 @@ use hash_ast::{
     ast::{self},
     visitor::AstVisitor,
 };
-use hash_tir::{environment::env::AccessToEnv, symbols::Symbol, utils::common::CommonUtils};
+use hash_tir::{environment::env::AccessToEnv, symbols::Symbol};
 use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
@@ -75,6 +75,6 @@ impl<'tc> DiscoveryPass<'tc> {
 
     /// Take the currently set name hint, or create a new internal name.
     fn take_name_hint_or_create_internal_name(&self) -> Symbol {
-        self.name_hint.take().unwrap_or_else(|| self.new_fresh_symbol())
+        self.name_hint.take().unwrap_or_else(Symbol::fresh)
     }
 }

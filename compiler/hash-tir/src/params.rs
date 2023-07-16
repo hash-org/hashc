@@ -70,19 +70,14 @@ impl From<ParamId> for ParamIndex {
     }
 }
 
-impl fmt::Display for Param {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}: {}{}",
-            self.name,
-            self.ty,
-            if let Some(default) = self.default {
-                format!(" = {}", default)
-            } else {
-                "".to_string()
-            }
-        )
+impl ParamIndex {
+    /// Get the name of the parameter, if it is named, or a fresh symbol
+    /// otherwise.
+    pub fn into_symbol(&self) -> Symbol {
+        match self {
+            ParamIndex::Name(name) => Symbol::from_name(*name),
+            ParamIndex::Position(_) => Symbol::fresh(),
+        }
     }
 }
 
@@ -164,6 +159,39 @@ impl ParamOrigin {
             ParamOrigin::Fn(_) | ParamOrigin::FnTy(_) | ParamOrigin::TupleTy(_) => false,
             ParamOrigin::Ctor(_) | ParamOrigin::Data(_) => true,
         }
+    }
+}
+
+impl ParamsId {
+    pub fn at_index(self, index: ParamIndex) -> Option<ParamId> {
+        match index {
+            ParamIndex::Name(name) => self
+                .iter()
+                .find(|param| matches!(param.borrow().name.borrow().name, Some(n) if n == name)),
+            ParamIndex::Position(pos) => self.at(pos),
+        }
+    }
+
+    pub fn at_valid_index(self, index: ParamIndex) -> ParamId {
+        self.at_index(index).unwrap_or_else(|| {
+            panic!("Parameter with name `{}` does not exist in `{}`", index, self)
+        })
+    }
+}
+
+impl fmt::Display for Param {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: {}{}",
+            self.name,
+            self.ty,
+            if let Some(default) = self.default {
+                format!(" = {}", default)
+            } else {
+                "".to_string()
+            }
+        )
     }
 }
 

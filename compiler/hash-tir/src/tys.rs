@@ -8,8 +8,15 @@ use hash_utils::store::Store;
 
 use super::{holes::Hole, symbols::Symbol};
 use crate::{
-    data::DataTy, environment::stores::StoreId, fns::FnTy, refs::RefTy, terms::TermId,
-    tir_debug_value_of_single_store_id, tir_single_store, tuples::TupleTy,
+    args::Arg,
+    data::{DataDefId, DataTy},
+    environment::stores::{SequenceStoreValue, SingleStoreValue, StoreId},
+    fns::FnTy,
+    params::Param,
+    refs::RefTy,
+    terms::TermId,
+    tir_debug_value_of_single_store_id, tir_single_store,
+    tuples::TupleTy,
 };
 
 /// The type of types, i.e. a universe.
@@ -22,6 +29,17 @@ pub struct UniverseTy {
     ///
     /// Root universe is Universe(0).
     pub size: Option<usize>,
+}
+
+impl UniverseTy {
+    /// A flexible universe.
+    ///
+    /// In other words, a universe Type(w) where w is determined at
+    /// each usage.
+    // @@Todo: figure out what "flexible" really means.
+    pub fn is_flexible(&self) -> bool {
+        self.size.is_none()
+    }
 }
 
 /// Represents a type in a Hash program.
@@ -65,6 +83,46 @@ tir_debug_value_of_single_store_id!(TyId);
 #[derive(Debug, Clone, Copy)]
 pub struct TypeOfTerm {
     pub term: TermId,
+}
+
+impl Ty {
+    /// Create a type of types, i.e. small `Type`.
+    pub fn small_universe() -> TyId {
+        Ty::create(Ty::Universe(UniverseTy { size: Some(0) }))
+    }
+
+    /// Create a large type of types, i.e. `Type(n)` for some natural number
+    /// `n`.
+    pub fn universe(n: usize) -> TyId {
+        Ty::create(Ty::Universe(UniverseTy { size: Some(n) }))
+    }
+
+    /// Create a type of types, with a flexible universe size.
+    ///
+    /// This is the default when `Type` is used in a type signature.
+    pub fn flexible_universe() -> TyId {
+        Ty::create(Ty::Universe(UniverseTy { size: None }))
+    }
+
+    /// Create a new empty tuple type.
+    pub fn void() -> TyId {
+        Ty::create(Ty::Tuple(TupleTy { data: Param::empty_seq() }))
+    }
+
+    /// Create a new variable type.
+    pub fn var(symbol: Symbol) -> TyId {
+        Ty::create(Ty::Var(symbol))
+    }
+
+    /// Create a new hole type.
+    pub fn hole() -> TyId {
+        Ty::create(Ty::Hole(Hole::fresh()))
+    }
+
+    /// Create a new data type with no arguments.
+    pub fn data(data_def: DataDefId) -> TyId {
+        Ty::create(Ty::Data(DataTy { data_def, args: Arg::empty_seq() }))
+    }
 }
 
 impl fmt::Display for UniverseTy {

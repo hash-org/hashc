@@ -3,13 +3,17 @@ use std::{fmt::Debug, process};
 
 use hash_source::identifier::Identifier;
 use hash_tir::{
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::SequenceStoreValue,
+    },
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
     lits::Lit,
     mods::{ModMemberData, ModMemberValue},
-    params::ParamData,
+    params::{Param, ParamData},
     refs::RefKind,
+    symbols::Symbol,
     terms::{Term, TermId},
     tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
@@ -220,17 +224,13 @@ impl DefinedIntrinsics {
 
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
-        let t_sym = env.new_symbol("T");
-        let op_sym = env.new_symbol("op");
-        let a_sym = env.new_symbol("a");
+        let t_sym = Symbol::from_name("T");
+        let op_sym = Symbol::from_name("op");
+        let a_sym = Symbol::from_name("a");
         let params = env.param_utils().create_params(
             [
-                ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
-                ParamData {
-                    default: None,
-                    name: op_sym,
-                    ty: env.new_data_ty(env.primitives().u8()),
-                },
+                ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                ParamData { default: None, name: op_sym, ty: Ty::data(env.primitives().u8()) },
                 ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
             ]
             .into_iter(),
@@ -334,20 +334,16 @@ impl DefinedIntrinsics {
         env: T,
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
-        let t_sym = env.new_symbol("T");
-        let op_sym = env.new_symbol("op");
-        let a_sym = env.new_symbol("a");
-        let b_sym = env.new_symbol("b");
-        let ty = env.new_data_ty(env.primitives().bool());
+        let t_sym = Symbol::from_name("T");
+        let op_sym = Symbol::from_name("op");
+        let a_sym = Symbol::from_name("a");
+        let b_sym = Symbol::from_name("b");
+        let ty = Ty::data(env.primitives().bool());
 
         let params = env.param_utils().create_params(
             [
-                ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
-                ParamData {
-                    default: None,
-                    name: op_sym,
-                    ty: env.new_data_ty(env.primitives().u8()),
-                },
+                ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                ParamData { default: None, name: op_sym, ty: Ty::data(env.primitives().u8()) },
                 ParamData { default: None, name: a_sym, ty },
                 ParamData { default: None, name: b_sym, ty },
             ]
@@ -401,24 +397,20 @@ impl DefinedIntrinsics {
         env: T,
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
-        let t_sym = env.new_symbol("T");
-        let op_sym = env.new_symbol("op");
-        let a_sym = env.new_symbol("a");
-        let b_sym = env.new_symbol("b");
+        let t_sym = Symbol::from_name("T");
+        let op_sym = Symbol::from_name("op");
+        let a_sym = Symbol::from_name("a");
+        let b_sym = Symbol::from_name("b");
         let params = env.param_utils().create_params(
             [
-                ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
-                ParamData {
-                    default: None,
-                    name: op_sym,
-                    ty: env.new_data_ty(env.primitives().u8()),
-                },
+                ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                ParamData { default: None, name: op_sym, ty: Ty::data(env.primitives().u8()) },
                 ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
                 ParamData { default: None, name: b_sym, ty: env.new_ty(t_sym) },
             ]
             .into_iter(),
         );
-        let ret = env.new_data_ty(env.primitives().bool());
+        let ret = Ty::data(env.primitives().bool());
 
         Self::add_intrinsic(
             env,
@@ -553,18 +545,14 @@ impl DefinedIntrinsics {
         env: T,
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
-        let t_sym = env.new_symbol("T");
-        let op_sym = env.new_symbol("op");
-        let a_sym = env.new_symbol("a");
-        let b_sym = env.new_symbol("b");
+        let t_sym = Symbol::from_name("T");
+        let op_sym = Symbol::from_name("op");
+        let a_sym = Symbol::from_name("a");
+        let b_sym = Symbol::from_name("b");
         let params = env.param_utils().create_params(
             [
-                ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
-                ParamData {
-                    default: None,
-                    name: op_sym,
-                    ty: env.new_data_ty(env.primitives().u8()),
-                },
+                ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                ParamData { default: None, name: op_sym, ty: Ty::data(env.primitives().u8()) },
                 ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
                 ParamData { default: None, name: b_sym, ty: env.new_ty(t_sym) },
             ]
@@ -695,8 +683,8 @@ impl DefinedIntrinsics {
         env: T,
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
-        let ty = env.new_small_universe_ty();
-        let bool_ty = env.new_data_ty(env.primitives().bool());
+        let ty = Ty::flexible_universe();
+        let bool_ty = Ty::data(env.primitives().bool());
         let bin_op_name = "prim_type_eq".to_string();
 
         Self::add_intrinsic(
@@ -739,7 +727,7 @@ impl DefinedIntrinsics {
         // Aborting
         let abort = add(
             "abort",
-            FnTy::builder().params(env.new_empty_params()).return_ty(env.new_never_ty()).build(),
+            FnTy::builder().params(Param::empty_seq()).return_ty(env.new_never_ty()).build(),
             |_, _| process::exit(1),
         );
 
@@ -747,7 +735,7 @@ impl DefinedIntrinsics {
         let panic = add(
             "panic",
             FnTy::builder()
-                .params(env.new_params(&[env.new_data_ty(prim.str())]))
+                .params(env.new_params(&[Ty::data(prim.str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
             |_env, args| {
@@ -760,7 +748,7 @@ impl DefinedIntrinsics {
         let user_error = add(
             "user_error",
             FnTy::builder()
-                .params(env.new_params(&[env.new_data_ty(prim.str())]))
+                .params(env.new_params(&[Ty::data(prim.str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
             |env, args| match env.get_term(args[0]) {
@@ -770,16 +758,16 @@ impl DefinedIntrinsics {
         );
 
         let debug_print = {
-            let t_sym = env.new_symbol("T");
-            let a_sym = env.new_symbol("a");
+            let t_sym = Symbol::from_name("T");
+            let a_sym = Symbol::from_name("a");
             let params = env.param_utils().create_params(
                 [
-                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
                     ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
                 ]
                 .into_iter(),
             );
-            let ret = env.new_void_ty();
+            let ret = Ty::void();
             add("debug_print", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
                 stream_less_writeln!("{}", args[1]);
                 Ok(Term::void())
@@ -787,16 +775,16 @@ impl DefinedIntrinsics {
         };
 
         let print_fn_directives = {
-            let t_sym = env.new_symbol("T");
-            let a_sym = env.new_symbol("a");
+            let t_sym = Symbol::from_name("T");
+            let a_sym = Symbol::from_name("a");
             let params = env.param_utils().create_params(
                 [
-                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
                     ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
                 ]
                 .into_iter(),
             );
-            let ret = env.new_void_ty();
+            let ret = Ty::void();
             add(
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
@@ -812,11 +800,11 @@ impl DefinedIntrinsics {
         };
 
         let eval = {
-            let t_sym = env.new_symbol("T");
-            let a_sym = env.new_symbol("a");
+            let t_sym = Symbol::from_name("T");
+            let a_sym = Symbol::from_name("a");
             let params = env.param_utils().create_params(
                 [
-                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
                     ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
                 ]
                 .into_iter(),
@@ -845,12 +833,11 @@ impl DefinedIntrinsics {
 
         // Size of
         let size_of = {
-            let t_sym = env.new_symbol("T");
+            let t_sym = Symbol::from_name("T");
             let params = env.param_utils().create_params(
-                [ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() }]
-                    .into_iter(),
+                [ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() }].into_iter(),
             );
-            let ret = env.new_data_ty(prim.usize());
+            let ret = Ty::data(prim.usize());
             add("size_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`size_of` intrinsic evaluation")
             })
@@ -858,25 +845,24 @@ impl DefinedIntrinsics {
 
         // Align of
         let align_of = {
-            let t_sym = env.new_symbol("T");
+            let t_sym = Symbol::from_name("T");
             let params = env.param_utils().create_params(
-                [ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() }]
-                    .into_iter(),
+                [ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() }].into_iter(),
             );
-            let ret = env.new_data_ty(prim.usize());
+            let ret = Ty::data(prim.usize());
             add("align_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`align_of` intrinsic evaluation")
             })
         };
 
-        let u8 = env.new_data_ty(prim.u8());
-        let usize = env.new_data_ty(prim.usize());
+        let u8 = Ty::data(prim.u8());
+        let usize = Ty::data(prim.usize());
         let raw_ptr_ty = env.new_ref_ty(u8, RefKind::Raw, false);
 
         // ptr_offset
         let ptr_offset = {
-            let t_sym = env.new_symbol("bytes");
-            let a_sym = env.new_symbol("len");
+            let t_sym = Symbol::from_name("bytes");
+            let a_sym = Symbol::from_name("len");
 
             let params = env.param_utils().create_params(
                 [
@@ -894,13 +880,13 @@ impl DefinedIntrinsics {
         };
 
         let transmute = {
-            let t_sym = env.new_symbol("T");
-            let a_sym = env.new_symbol("item");
-            let u_sym = env.new_symbol("U");
+            let t_sym = Symbol::from_name("T");
+            let a_sym = Symbol::from_name("item");
+            let u_sym = Symbol::from_name("U");
             let params = env.param_utils().create_params(
                 [
-                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
-                    ParamData { default: None, name: u_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                    ParamData { default: None, name: u_sym, ty: Ty::flexible_universe() },
                     ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
                 ]
                 .into_iter(),
@@ -914,13 +900,13 @@ impl DefinedIntrinsics {
         };
 
         let cast = {
-            let t_sym = env.new_symbol("T");
-            let a_sym = env.new_symbol("item");
-            let u_sym = env.new_symbol("U");
+            let t_sym = Symbol::from_name("T");
+            let a_sym = Symbol::from_name("item");
+            let u_sym = Symbol::from_name("U");
             let params = env.param_utils().create_params(
                 [
-                    ParamData { default: None, name: t_sym, ty: env.new_small_universe_ty() },
-                    ParamData { default: None, name: u_sym, ty: env.new_small_universe_ty() },
+                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                    ParamData { default: None, name: u_sym, ty: Ty::flexible_universe() },
                     ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
                 ]
                 .into_iter(),
@@ -962,7 +948,7 @@ impl DefinedIntrinsics {
         implementation: IntrinsicImpl,
     ) -> FnDefId {
         let name = name.into();
-        let intrinsic_id = IntrinsicId(env.new_symbol(name));
+        let intrinsic_id = IntrinsicId(Symbol::from_name(name));
 
         let fn_def = env.stores().fn_def().create_with(|id| {
             FnDef::builder()

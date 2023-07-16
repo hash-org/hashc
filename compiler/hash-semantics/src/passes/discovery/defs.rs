@@ -9,9 +9,9 @@ use hash_tir::{
     environment::env::AccessToEnv,
     mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberId, ModMemberValue},
     scopes::StackId,
-    symbols::Symbol,
+    symbols::{sym, Symbol},
     tys::TyId,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::AccessToUtils,
 };
 use hash_utils::{
     smallvec::{smallvec, SmallVec},
@@ -237,7 +237,7 @@ impl<'tc> DiscoveryPass<'tc> {
                         if !mod_members.is_empty() {
                             let local_mod_def_id = self.mod_utils().create_mod_def(ModDefData {
                                 kind: ModKind::ModBlock,
-                                name: self.new_symbol(format!("stack_mod_{}", stack_id.to_index())),
+                                name: sym(format!("stack_mod_{}", stack_id.to_index())),
                                 members: self.mod_utils().create_empty_mod_members(),
                             });
                             stack_utils.set_local_mod_def(stack_id, local_mod_def_id);
@@ -423,7 +423,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     buf.push((
                         name.id(),
                         Decl {
-                            name: self.new_symbol(name.ident),
+                            name: sym(name.ident),
                             // is_mutable: false,
                             ty: None,
                             value: None,
@@ -437,7 +437,7 @@ impl<'tc> DiscoveryPass<'tc> {
                 buf.push((
                     node.id(),
                     Decl {
-                        name: self.new_symbol(binding.name.ident),
+                        name: sym(binding.name.ident),
                         // is_mutable: binding.mutability.as_ref().map(|m| *m.body())
                         //     == Some(ast::Mutability::Mutable),
                         ty: None,
@@ -492,7 +492,7 @@ impl<'tc> DiscoveryPass<'tc> {
             ast::Pat::Wild(_) => buf.push((
                 node.id(),
                 Decl {
-                    name: self.new_fresh_symbol(),
+                    name: Symbol::fresh(),
                     // is_mutable: false,
                     ty: None,
                     value: None,

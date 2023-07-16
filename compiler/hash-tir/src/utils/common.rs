@@ -5,14 +5,14 @@ use hash_source::{
     location::SourceLocation,
 };
 use hash_utils::{
-    store::{CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore},
+    store::{CloneStore, SequenceStore, Store, TrivialKeySequenceStore},
     stream_less_writeln,
 };
 
 use super::traversing::Atom;
 use crate::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
-    data::{CtorDef, CtorDefId, DataDef, DataDefId, DataTy},
+    data::{CtorDef, CtorDefId, DataDef, DataDefId},
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId},
     holes::Hole,
@@ -22,8 +22,7 @@ use crate::{
     scopes::StackMemberId,
     symbols::{Symbol, SymbolData},
     terms::{Term, TermId, TermListId},
-    tuples::TupleTy,
-    tys::{Ty, TyId, UniverseTy},
+    tys::{Ty, TyId},
 };
 
 /// Assert that the given term is of the given variant, and return it.
@@ -53,61 +52,6 @@ macro_rules! ty_as_variant {
 }
 
 pub trait CommonUtils: AccessToEnv {
-    /// Check whether the given term is a void term (i.e. empty tuple).
-    fn term_is_void(&self, term_id: TermId) -> bool {
-        matches! {
-          self.stores().term().get(term_id),
-          Term::Tuple(tuple_term) if tuple_term.data.is_empty()
-        }
-    }
-
-    /// Try to get the parameter of the given parameters ID and index which is
-    /// either symbolic or positional.
-    fn try_get_param_by_index(&self, params_id: ParamsId, index: ParamIndex) -> Option<Param> {
-        match index {
-            ParamIndex::Name(name) => self.stores().params().map_fast(params_id, |params| {
-                params.iter().find_map(|x| {
-                    if self.stores().symbol().get(x.name).name? == name {
-                        Some(*x)
-                    } else {
-                        None
-                    }
-                })
-            }),
-            ParamIndex::Position(i) => {
-                self.stores().params().map_fast(params_id, |params| params.get(i).copied())
-            }
-        }
-    }
-
-    /// Get the parameter of the given parameters ID and index which is
-    /// either symbolic or positional.
-    ///
-    /// This will panic if the index does not exist.
-    fn get_param_by_index(&self, params_id: ParamsId, index: ParamIndex) -> Param {
-        self.try_get_param_by_index(params_id, index).unwrap_or_else(|| {
-            panic!("Parameter with name `{}` does not exist in `{}`", index, params_id)
-        })
-    }
-
-    /// Create a new symbol with the given name.
-    fn new_symbol(&self, name: impl Into<Identifier>) -> Symbol {
-        self.stores().symbol().create_with(|symbol| SymbolData { name: Some(name.into()), symbol })
-    }
-
-    /// Create a new symbol from the given parameter index.
-    fn new_symbol_from_param_index(&self, index: ParamIndex) -> Symbol {
-        match index {
-            ParamIndex::Name(name) => self.new_symbol(name),
-            ParamIndex::Position(i) => self.new_symbol(i),
-        }
-    }
-
-    /// Create a new empty parameter list.
-    fn new_empty_params(&self) -> ParamsId {
-        self.stores().params().create_from_slice(&[])
-    }
-
     /// Get a term by its ID.
     fn get_term(&self, term_id: TermId) -> Term {
         self.stores().term().get(term_id)
@@ -141,11 +85,6 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().pat_args().get_element(arg_id)
     }
 
-    /// Get a parameter by its ID.
-    fn get_param(&self, param_id: ParamId) -> Param {
-        self.stores().params().get_element(param_id)
-    }
-
     /// Map a type by its ID.
     fn map_ty<T>(&self, ty_id: TyId, f: impl FnOnce(&Ty) -> T) -> T {
         self.stores().ty().map(ty_id, f)
@@ -161,16 +100,9 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().pat_args().map(args_id, f)
     }
 
-    /// Map params by their IDs.
-    fn map_params<T>(&self, params_id: ParamsId, f: impl FnOnce(&[Param]) -> T) -> T {
-        self.stores().params().map(params_id, f)
-    }
-
     fn map_pat<T>(&self, pat_id: PatId, f: impl FnOnce(&Pat) -> T) -> T {
         self.stores().pat().map(pat_id, f)
     }
-
-    /// Get a type by its ID.
 
     /// Get a pattern by its ID.
     fn get_pat(&self, pat_id: PatId) -> Pat {
@@ -219,14 +151,6 @@ pub trait CommonUtils: AccessToEnv {
             SomeArgsId::Args(args_id) => {
                 self.stores().args().map_fast(args_id, |args| args[arg_id.1].target)
             }
-        }
-    }
-
-    /// Make a parameter name from an argument index
-    fn make_param_name_from_arg_index(&self, index: ParamIndex) -> Symbol {
-        match index {
-            ParamIndex::Name(name) => self.new_symbol(name),
-            ParamIndex::Position(i) => self.new_symbol(i.to_string()),
         }
     }
 
@@ -328,25 +252,6 @@ pub trait CommonUtils: AccessToEnv {
         self.stores().pat_list().create_from_slice(&pats)
     }
 
-    /// Create a new internal symbol.
-    fn new_fresh_symbol(&self) -> Symbol {
-        self.stores().symbol().create_with(|symbol| SymbolData { name: None, symbol })
-    }
-
-    fn new_hole(&self) -> Hole {
-        Hole(self.new_fresh_symbol())
-    }
-
-    /// Create a new term hole.
-    fn new_term_hole(&self) -> TermId {
-        self.stores().term().create_with(|_| Term::Hole(self.new_hole()))
-    }
-
-    /// Create a new type hole.
-    fn new_ty_hole(&self) -> TyId {
-        self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()))
-    }
-
     /// Create a new expected type for typing the given term.
     fn new_expected_ty_of_ty(&self, ty: TyId, ty_of_ty: TyId) -> TyId {
         self.stores().location().copy_location(ty, ty_of_ty);
@@ -405,13 +310,13 @@ pub trait CommonUtils: AccessToEnv {
 
     /// Create a new type hole for typing the given term.
     fn new_ty_hole_of_ty(&self, src: TyId) -> TyId {
-        let ty = self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()));
+        let ty = self.stores().ty().create_with(|_| Ty::Hole(Hole::fresh()));
         self.new_expected_ty_of_ty(src, ty)
     }
 
     /// Create a new type hole for typing the given term.
     fn new_ty_hole_of(&self, src: TermId) -> TyId {
-        let ty = self.stores().ty().create_with(|_| Ty::Hole(self.new_hole()));
+        let ty = self.stores().ty().create_with(|_| Ty::Hole(Hole::fresh()));
         self.new_expected_ty_of(src, ty)
     }
 
@@ -427,7 +332,7 @@ pub trait CommonUtils: AccessToEnv {
                 .iter()
                 .copied()
                 .enumerate()
-                .map(|(i, ty)| move |_id| Param { name: self.new_symbol(i), ty, default: None }),
+                .map(|(i, ty)| move |_id| Param { name: Symbol::from_name(i), ty, default: None }),
         )
     }
 
@@ -442,39 +347,9 @@ pub trait CommonUtils: AccessToEnv {
         )
     }
 
-    /// Create a new data type with no arguments.
-    fn new_data_ty(&self, data_def: DataDefId) -> TyId {
-        self.stores().ty().create(Ty::Data(DataTy { data_def, args: self.new_empty_args() }))
-    }
-
     /// Create a new empty pattern argument list.
     fn new_empty_pat_args(&self) -> PatArgsId {
         self.stores().pat_args().create_from_slice(&[])
-    }
-
-    /// Create a type of types, i.e. small `Type`.
-    fn new_small_universe_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Universe(UniverseTy { size: Some(0) }))
-    }
-
-    /// Create a large type of types, i.e. `Type(n)` for some natural number
-    /// `n`.
-    fn new_universe_ty(&self, n: usize) -> TyId {
-        self.stores().ty().create(Ty::Universe(UniverseTy { size: Some(n) }))
-    }
-
-    fn new_flexible_universe_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Universe(UniverseTy { size: None }))
-    }
-
-    /// Create a new empty tuple type.
-    fn new_void_ty(&self) -> TyId {
-        self.stores().ty().create(Ty::Tuple(TupleTy { data: self.new_empty_params() }))
-    }
-
-    /// Create a new variable type.
-    fn new_var_ty(&self, symbol: Symbol) -> TyId {
-        self.stores().ty().create(Ty::Var(symbol))
     }
 
     /// Try to use the given term as a type.

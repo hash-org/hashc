@@ -3,9 +3,14 @@ use std::iter::once;
 
 use hash_tir::{
     data::{ArrayCtorInfo, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::SequenceStoreValue,
+    },
     mods::{ModMemberData, ModMemberValue},
-    params::ParamData,
+    params::{Param, ParamData},
+    symbols::sym,
+    tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::store::Store;
@@ -79,7 +84,7 @@ impl DefinedPrimitives {
         // Helper function to create a numeric primitive.
         let numeric = |name, bits, signed, float| {
             env.data_utils().create_primitive_data_def(
-                env.new_symbol(name),
+                sym(name),
                 PrimitiveCtorInfo::Numeric(NumericCtorInfo {
                     bits: if bits == 0 {
                         NumericCtorBits::Unbounded
@@ -96,21 +101,12 @@ impl DefinedPrimitives {
 
         DefinedPrimitives {
             // Never
-            never: env
-                .data_utils()
-                .new_empty_data_def(env.new_symbol("never"), env.param_utils().new_empty_params()),
+            never: env.data_utils().new_empty_data_def(sym("never"), Param::empty_seq()),
 
             // bool
-            bool: env.data_utils().create_enum_def(
-                env.new_symbol("bool"),
-                env.new_empty_params(),
-                |_| {
-                    vec![
-                        (env.new_symbol("true"), env.new_empty_params()),
-                        (env.new_symbol("false"), env.new_empty_params()),
-                    ]
-                },
-            ),
+            bool: env.data_utils().create_enum_def(sym("bool"), Param::empty_seq(), |_| {
+                vec![(sym("true"), Param::empty_seq()), (sym("false"), Param::empty_seq())]
+            }),
 
             // numerics
             i8: numeric("i8", 8, true, false),
@@ -133,43 +129,39 @@ impl DefinedPrimitives {
             f64: numeric("f64", 64, false, true),
 
             // str and char
-            str: env
-                .data_utils()
-                .create_primitive_data_def(env.new_symbol("str"), PrimitiveCtorInfo::Str),
-            char: env
-                .data_utils()
-                .create_primitive_data_def(env.new_symbol("char"), PrimitiveCtorInfo::Char),
+            str: env.data_utils().create_primitive_data_def(sym("str"), PrimitiveCtorInfo::Str),
+            char: env.data_utils().create_primitive_data_def(sym("char"), PrimitiveCtorInfo::Char),
 
             // list
             list: {
-                let list_sym = env.new_symbol("List");
-                let t_sym = env.new_symbol("T");
+                let list_sym = sym("List");
+                let t_sym = sym("T");
                 let params = env.param_utils().create_params(once(ParamData {
                     name: t_sym,
-                    ty: env.new_small_universe_ty(),
+                    ty: Ty::flexible_universe(),
                     default: None,
                 }));
                 env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                        element_ty: env.new_var_ty(t_sym),
+                        element_ty: Ty::var(t_sym),
                         length: None,
                     })
                 })
             },
             array: {
-                let list_sym = env.new_symbol("Array");
-                let t_sym = env.new_symbol("T");
-                let n_sym = env.new_symbol("n");
+                let list_sym = sym("Array");
+                let t_sym = sym("T");
+                let n_sym = sym("n");
                 let params = env.param_utils().create_params(
                     [
-                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
-                        ParamData { name: n_sym, ty: env.new_data_ty(usize), default: None },
+                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                        ParamData { name: n_sym, ty: Ty::data(usize), default: None },
                     ]
                     .into_iter(),
                 );
                 env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                        element_ty: env.new_var_ty(t_sym),
+                        element_ty: Ty::var(t_sym),
                         length: Some(env.new_term(n_sym)),
                     })
                 })
@@ -177,47 +169,47 @@ impl DefinedPrimitives {
 
             // option
             option: {
-                let option_sym = env.new_symbol("Option");
-                let none_sym = env.new_symbol("None");
-                let some_sym = env.new_symbol("Some");
-                let t_sym = env.new_symbol("T");
+                let option_sym = sym("Option");
+                let none_sym = sym("None");
+                let some_sym = sym("Some");
+                let t_sym = sym("T");
                 let params = env.param_utils().create_params(once(ParamData {
                     name: t_sym,
-                    ty: env.new_small_universe_ty(),
+                    ty: Ty::flexible_universe(),
                     default: None,
                 }));
                 let some_params = env.param_utils().create_params(once(ParamData {
-                    name: env.new_symbol("value"),
-                    ty: env.new_var_ty(t_sym),
+                    name: sym("value"),
+                    ty: Ty::var(t_sym),
                     default: None,
                 }));
                 env.data_utils().create_enum_def(option_sym, params, |_| {
-                    vec![(none_sym, env.new_empty_params()), (some_sym, some_params)]
+                    vec![(none_sym, Param::empty_seq()), (some_sym, some_params)]
                 })
             },
 
             // result
             result: {
-                let result_sym = env.new_symbol("Result");
-                let ok_sym = env.new_symbol("Ok");
-                let err_sym = env.new_symbol("Err");
-                let t_sym = env.new_symbol("T");
-                let e_sym = env.new_symbol("E");
+                let result_sym = sym("Result");
+                let ok_sym = sym("Ok");
+                let err_sym = sym("Err");
+                let t_sym = sym("T");
+                let e_sym = sym("E");
                 let params = env.param_utils().create_params(
                     [
-                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
-                        ParamData { name: e_sym, ty: env.new_small_universe_ty(), default: None },
+                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                        ParamData { name: e_sym, ty: Ty::flexible_universe(), default: None },
                     ]
                     .into_iter(),
                 );
                 let ok_params = env.param_utils().create_params(once(ParamData {
-                    name: env.new_symbol("value"),
-                    ty: env.new_var_ty(t_sym),
+                    name: sym("value"),
+                    ty: Ty::var(t_sym),
                     default: None,
                 }));
                 let err_params = env.param_utils().create_params(once(ParamData {
-                    name: env.new_symbol("error"),
-                    ty: env.new_var_ty(e_sym),
+                    name: sym("error"),
+                    ty: Ty::var(e_sym),
                     default: None,
                 }));
                 env.data_utils().create_enum_def(result_sym, params, |_| {
@@ -225,26 +217,26 @@ impl DefinedPrimitives {
                 })
             },
             equal: {
-                let eq_sym = env.new_symbol("Equal");
-                let refl_sym = env.new_symbol("Refl");
+                let eq_sym = sym("Equal");
+                let refl_sym = sym("Refl");
 
-                let t_sym = env.new_symbol("T");
-                let a_sym = env.new_symbol("a");
-                let b_sym = env.new_symbol("b");
+                let t_sym = sym("T");
+                let a_sym = sym("a");
+                let b_sym = sym("b");
 
-                let x_sym = env.new_symbol("x");
+                let x_sym = sym("x");
 
                 let params = env.param_utils().create_params(
                     [
-                        ParamData { name: t_sym, ty: env.new_small_universe_ty(), default: None },
-                        ParamData { name: a_sym, ty: env.new_var_ty(t_sym), default: None },
-                        ParamData { name: b_sym, ty: env.new_var_ty(t_sym), default: None },
+                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                        ParamData { name: a_sym, ty: Ty::var(t_sym), default: None },
+                        ParamData { name: b_sym, ty: Ty::var(t_sym), default: None },
                     ]
                     .into_iter(),
                 );
                 let refl_params = env.param_utils().create_params(once(ParamData {
                     name: x_sym,
-                    ty: env.new_var_ty(t_sym),
+                    ty: Ty::var(t_sym),
                     default: None,
                 }));
 

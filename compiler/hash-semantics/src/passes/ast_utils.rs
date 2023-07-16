@@ -3,7 +3,7 @@ use hash_ast::{
     node_map::SourceRef,
 };
 use hash_source::location::{SourceLocation, Span};
-use hash_tir::{symbols::Symbol, utils::common::CommonUtils};
+use hash_tir::symbols::{sym, Symbol};
 
 use crate::{diagnostics::error::SemanticResult, environment::sem_env::AccessToSemEnv};
 
@@ -55,8 +55,8 @@ pub trait AstUtils: AccessToSemEnv {
     /// name is provided.
     fn new_symbol_from_ast_name(&self, name: Option<&ast::AstNode<ast::Name>>) -> Symbol {
         match name {
-            Some(name) => self.new_symbol(name.ident),
-            None => self.new_fresh_symbol(),
+            Some(name) => sym(name.ident),
+            None => Symbol::fresh(),
         }
     }
 }

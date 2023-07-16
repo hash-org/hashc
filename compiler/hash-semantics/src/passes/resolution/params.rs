@@ -4,11 +4,12 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
 use hash_tir::{
     args::{ArgsId, PatArgsId},
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::SequenceStoreValue},
     fns::FnCallTerm,
-    params::{ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
+    params::{Param, ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
     terms::{Term, TermId},
+    tys::Ty,
     utils::common::CommonUtils,
 };
 use hash_utils::store::{SequenceStore, SequenceStoreKey};
@@ -141,7 +142,7 @@ impl<'tc> ResolutionPass<'tc> {
                 .or_else(|| {
                     if implicit {
                         // Default as "Type"
-                        Some(Ok(self.new_small_universe_ty()))
+                        Some(Ok(Ty::flexible_universe()))
                     } else {
                         None
                     }
@@ -198,7 +199,7 @@ impl<'tc> ResolutionPass<'tc> {
         if found_error {
             Err(SemanticError::Signal)
         } else {
-            Ok(params_id.unwrap_or_else(|| self.new_empty_params()))
+            Ok(params_id.unwrap_or_else(Param::empty_seq))
         }
     }
 
@@ -235,7 +236,7 @@ impl<'tc> ResolutionPass<'tc> {
         if found_error {
             Err(SemanticError::Signal)
         } else {
-            Ok(params_id.unwrap_or_else(|| self.new_empty_params()))
+            Ok(params_id.unwrap_or_else(Param::empty_seq))
         }
     }
 

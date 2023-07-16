@@ -7,6 +7,7 @@ use hash_tir::{
     args::ArgsId,
     context::ScopeKind,
     data::DataDefCtors,
+    environment::stores::StoreId,
     fns::{FnCallTerm, FnTy},
     holes::Hole,
     lits::Lit,
@@ -15,7 +16,7 @@ use hash_tir::{
     symbols::Symbol,
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
+    utils::{common::CommonUtils, traversing::Atom},
 };
 use hash_utils::store::{CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use once_cell::unsync::OnceCell;
@@ -84,7 +85,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     /// Add the given substitutions to the context.
     pub fn add_unification_from_sub(&self, sub: &Sub) {
         if self.add_to_ctx.get() {
-            self.context_utils().add_sub_to_scope(sub);
+            self.context().add_sub_to_scope(sub);
         }
     }
 
@@ -461,11 +462,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for (src_param_id, target_param_id) in src_id.iter().zip(target_id.iter()) {
-                    let src_param = self.get_param(src_param_id);
-                    let target_param = self.get_param(target_param_id);
+                    let src_param = src_param_id.value();
+                    let target_param = target_param_id.value();
 
                     // Substitute the names
-                    self.context_utils().add_assignment(
+                    self.context().add_assignment(
                         src_param.name,
                         src_param.ty,
                         self.new_term(target_param.name),

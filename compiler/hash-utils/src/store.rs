@@ -283,6 +283,9 @@ pub trait TrivialSequenceStoreKey: SequenceStoreKey {
     type Iter: Iterator<Item = Self::ElementKey>;
     /// Turn the key into a range `(key, 0)..(key, len)`.
     fn iter(self) -> Self::Iter;
+
+    /// Get the key corresponding to the given index.
+    fn at(self, index: usize) -> Option<Self::ElementKey>;
 }
 
 impl<T: SequenceStoreKey> TrivialSequenceStoreKey for T
@@ -292,6 +295,14 @@ where
     type Iter = SequenceStoreKeyIter<T, T::ElementKey>;
     fn iter(self) -> Self::Iter {
         repeat(self).zip(self.to_index_range()).map(Self::ElementKey::from)
+    }
+
+    fn at(self, index: usize) -> Option<Self::ElementKey> {
+        if index < self.len() {
+            Some(Self::ElementKey::from((self, index)))
+        } else {
+            None
+        }
     }
 }
 

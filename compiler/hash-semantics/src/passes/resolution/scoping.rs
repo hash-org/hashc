@@ -11,7 +11,7 @@ use hash_tir::{
     mods::{ModDefId, ModMemberId},
     params::ParamId,
     scopes::StackId,
-    symbols::Symbol,
+    symbols::{sym, Symbol},
     tuples::TupleTy,
     ty_as_variant,
     utils::common::CommonUtils,
@@ -151,7 +151,7 @@ impl<'tc> Scoping<'tc> {
         let name = name.into();
         let symbol =
             self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
-                symbol: self.new_symbol(name),
+                symbol: sym(name),
                 location: self.source_location(span),
                 looking_in,
             })?;

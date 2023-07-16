@@ -109,6 +109,20 @@ tir_sequence_store_indirect!(
     store_name = term_list
 );
 
+impl Term {
+    pub fn is_void(&self) -> bool {
+        matches!(self, Term::Tuple(tuple_term) if tuple_term.data.is_empty())
+    }
+
+    pub fn void() -> TermId {
+        Term::create(Term::Tuple(TupleTerm { data: Arg::empty_seq() }))
+    }
+
+    pub fn hole() -> TermId {
+        Term::create(Term::Hole(Hole::fresh()))
+    }
+}
+
 impl fmt::Display for UnsafeTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "unsafe {}", self.inner)
@@ -176,15 +190,5 @@ impl fmt::Display for TermListId {
             write!(f, "{}", term)?;
         }
         Ok(())
-    }
-}
-
-impl Term {
-    pub fn is_void(&self) -> bool {
-        matches!(self, Term::Tuple(tuple_term) if tuple_term.data.is_empty())
-    }
-
-    pub fn void() -> TermId {
-        Term::create(Term::Tuple(TupleTerm { data: Arg::empty_seq() }))
     }
 }

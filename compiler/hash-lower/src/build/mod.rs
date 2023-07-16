@@ -29,13 +29,13 @@ use hash_source::{
     SourceId,
 };
 use hash_tir::{
-    context::{Decl, ScopeKind},
+    context::{Context, Decl, ScopeKind},
     directives::DirectiveTarget,
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     symbols::Symbol,
     terms::TermId,
-    utils::{common::CommonUtils, context::ContextUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::{
     index_vec::IndexVec,
@@ -341,7 +341,7 @@ impl<'ctx> BodyBuilder<'ctx> {
         let fn_def = self.item.as_fn_def();
         let FnDef { ty, body, .. } = self.get_fn_def(fn_def);
 
-        ContextUtils::<'_>::enter_resolved_scope_mut(self, ScopeKind::Fn(fn_def), |this| {
+        Context::enter_resolved_scope_mut(self, ScopeKind::Fn(fn_def), |this| {
             // The type must be a function type...
             let FnTy { params, .. } = ty;
 
