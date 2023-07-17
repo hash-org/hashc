@@ -323,13 +323,13 @@ impl<'tcx> BodyBuilder<'tcx> {
                         (Some(('\u{0000}' as u128, '\u{10FFFF}' as u128, Size::from_bytes(4))), 0)
                     }
                     IrTy::Int(int_ty) => {
-                        let size = int_ty.size(ptr_width).unwrap();
+                        let size = int_ty.size(ptr_width);
                         let max = size.truncate(u128::MAX);
                         let bias = 1u128 << (size.bits() - 1);
                         (Some((0, max, size)), bias)
                     }
                     IrTy::UInt(uint_ty) => {
-                        let size = uint_ty.size(ptr_width).unwrap();
+                        let size = uint_ty.size(ptr_width);
                         let max = size.truncate(u128::MAX);
                         (Some((0, max, size)), 0)
                     }

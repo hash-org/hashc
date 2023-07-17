@@ -64,15 +64,15 @@ pub enum UIntTy {
 impl UIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub fn size(&self, ptr_width: Size) -> Option<Size> {
+    pub fn size(&self, ptr_width: Size) -> Size {
         match self {
-            UIntTy::U8 => Some(Size::from_bytes(1)),
-            UIntTy::U16 => Some(Size::from_bytes(2)),
-            UIntTy::U32 => Some(Size::from_bytes(4)),
-            UIntTy::U64 => Some(Size::from_bytes(8)),
-            UIntTy::USize => Some(ptr_width),
-            UIntTy::U128 => Some(Size::from_bytes(16)),
-            UIntTy::UBig => None,
+            UIntTy::U8 => Size::from_bytes(1),
+            UIntTy::U16 => Size::from_bytes(2),
+            UIntTy::U32 => Size::from_bytes(4),
+            UIntTy::U64 => Size::from_bytes(8),
+            UIntTy::USize => ptr_width,
+            UIntTy::U128 => Size::from_bytes(16),
+            UIntTy::UBig => panic!("ubig has no defined size"),
         }
     }
 
@@ -95,18 +95,18 @@ impl UIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self, ptr_width: Size) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: Size) -> BigInt {
         match self {
-            UIntTy::U8 => Some(BigInt::from(u8::MAX)),
-            UIntTy::U16 => Some(BigInt::from(u16::MAX)),
-            UIntTy::U32 => Some(BigInt::from(u32::MAX)),
-            UIntTy::U64 => Some(BigInt::from(u64::MAX)),
-            UIntTy::U128 => Some(BigInt::from(u128::MAX)),
+            UIntTy::U8 => BigInt::from(u8::MAX),
+            UIntTy::U16 => BigInt::from(u16::MAX),
+            UIntTy::U32 => BigInt::from(u32::MAX),
+            UIntTy::U64 => BigInt::from(u64::MAX),
+            UIntTy::U128 => BigInt::from(u128::MAX),
             UIntTy::USize => {
                 let max = !0u64 >> (64 - (ptr_width.bits()));
-                Some(BigInt::from(max))
+                BigInt::from(max)
             }
-            UIntTy::UBig => None,
+            UIntTy::UBig => panic!("ubig has no defined max"),
         }
     }
 
@@ -192,15 +192,15 @@ pub enum SIntTy {
 impl SIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub fn size(&self, ptr_width: Size) -> Option<Size> {
+    pub fn size(&self, ptr_width: Size) -> Size {
         match self {
-            SIntTy::I8 => Some(Size::from_bytes(1)),
-            SIntTy::I16 => Some(Size::from_bytes(2)),
-            SIntTy::I32 => Some(Size::from_bytes(4)),
-            SIntTy::I64 => Some(Size::from_bytes(8)),
-            SIntTy::ISize => Some(ptr_width),
-            SIntTy::I128 => Some(Size::from_bytes(16)),
-            SIntTy::IBig => None,
+            SIntTy::I8 => Size::from_bytes(1),
+            SIntTy::I16 => Size::from_bytes(2),
+            SIntTy::I32 => Size::from_bytes(4),
+            SIntTy::I64 => Size::from_bytes(8),
+            SIntTy::ISize => ptr_width,
+            SIntTy::I128 => Size::from_bytes(16),
+            SIntTy::IBig => panic!("Cannot get size of IBig"),
         }
     }
 
@@ -223,37 +223,37 @@ impl SIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self, ptr_width: Size) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: Size) -> BigInt {
         match self {
-            SIntTy::I8 => Some(BigInt::from(i8::MAX)),
-            SIntTy::I16 => Some(BigInt::from(i16::MAX)),
-            SIntTy::I32 => Some(BigInt::from(i32::MAX)),
-            SIntTy::I64 => Some(BigInt::from(i64::MAX)),
-            SIntTy::I128 => Some(BigInt::from(i128::MAX)),
+            SIntTy::I8 => BigInt::from(i8::MAX),
+            SIntTy::I16 => BigInt::from(i16::MAX),
+            SIntTy::I32 => BigInt::from(i32::MAX),
+            SIntTy::I64 => BigInt::from(i64::MAX),
+            SIntTy::I128 => BigInt::from(i128::MAX),
             SIntTy::ISize => {
                 // convert the size to a signed integer
                 let max = (1u64 << (ptr_width.bits() - 1)) - 1;
-                Some(BigInt::from(max))
+                BigInt::from(max)
             }
-            SIntTy::IBig => None,
+            SIntTy::IBig => panic!("Cannot get max of IBig"),
         }
     }
 
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self, ptr_width: Size) -> Option<BigInt> {
+    pub fn min(&self, ptr_width: Size) -> BigInt {
         match self {
-            SIntTy::I8 => Some(BigInt::from(i8::MIN)),
-            SIntTy::I16 => Some(BigInt::from(i16::MIN)),
-            SIntTy::I32 => Some(BigInt::from(i32::MIN)),
-            SIntTy::I64 => Some(BigInt::from(i64::MIN)),
-            SIntTy::I128 => Some(BigInt::from(i128::MIN)),
+            SIntTy::I8 => BigInt::from(i8::MIN),
+            SIntTy::I16 => BigInt::from(i16::MIN),
+            SIntTy::I32 => BigInt::from(i32::MIN),
+            SIntTy::I64 => BigInt::from(i64::MIN),
+            SIntTy::I128 => BigInt::from(i128::MIN),
             SIntTy::ISize => {
                 let min = (i64::MAX) << (ptr_width.bits() - 1);
-                Some(BigInt::from(min))
+                BigInt::from(min)
             }
-            SIntTy::IBig => None,
+            SIntTy::IBig => panic!("Cannot get min of IBig"),
         }
     }
 
@@ -345,10 +345,36 @@ impl IntTy {
         }
     }
 
+    /// Compute the `numeric` min of a given [IntTy] which is the smallest
+    /// integer that can be written for the int. The [u128] is used as an
+    /// encoding to represent both signed and unsigned integers. In order
+    /// to compute the true value of the min, the bias from the `IntTy`
+    /// must be applied to the value.
+    pub fn numeric_min(&self, ptr_size: Size) -> u128 {
+        let size = self.size(ptr_size);
+
+        match self {
+            IntTy::Int(_) => size.truncate(size.signed_int_min() as u128),
+            IntTy::UInt(_) => 0,
+        }
+    }
+
+    /// Compute the `numeric` max of a given [IntTy] which is the largest
+    /// integer that can be written for the int. The [u128] is used as an
+    /// encoding to represent both signed and unsigned integers. In order
+    /// to compute the true value of the max, the bias from the `IntTy`
+    /// must be applied to the value.
+    pub fn numeric_max(&self, ptr_size: Size) -> u128 {
+        match self {
+            IntTy::Int(_) => self.size(ptr_size).signed_int_max() as u128,
+            IntTy::UInt(_) => self.size(ptr_size).unsigned_int_max(),
+        }
+    }
+
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self, ptr_width: Size) -> Option<BigInt> {
+    pub fn max(&self, ptr_width: Size) -> BigInt {
         match self {
             IntTy::Int(ty) => ty.max(ptr_width),
             IntTy::UInt(ty) => ty.max(ptr_width),
@@ -358,15 +384,15 @@ impl IntTy {
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self, ptr_width: Size) -> Option<BigInt> {
+    pub fn min(&self, ptr_width: Size) -> BigInt {
         match self {
             IntTy::Int(ty) => ty.min(ptr_width),
-            IntTy::UInt(ty) => Some(ty.min()),
+            IntTy::UInt(ty) => ty.min(),
         }
     }
 
     /// Function to get the size of the integer type in bytes.
-    pub fn size(&self, ptr_width: Size) -> Option<Size> {
+    pub fn size(&self, ptr_width: Size) -> Size {
         match self {
             IntTy::Int(ty) => ty.size(ptr_width),
             IntTy::UInt(ty) => ty.size(ptr_width),
@@ -384,7 +410,7 @@ impl IntTy {
     }
 
     /// Check if the type is a [BigInt] variant, i.e. `ibig` or `ubig`.
-    pub fn is_big_sized_integral(self) -> bool {
+    pub fn is_bigint(self) -> bool {
         matches!(self, IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig))
     }
 

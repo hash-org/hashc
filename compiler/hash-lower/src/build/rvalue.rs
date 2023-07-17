@@ -146,7 +146,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn min_value_of_ty(&self, ty: IrTy) -> Operand {
         let value = if let IrTy::Int(signed_ty) = ty {
             let ptr_width = self.settings.target().ptr_size();
-            let size = signed_ty.size(ptr_width).unwrap().bits();
+            let size = signed_ty.size(ptr_width).bits();
             let n = 1 << (size - 1);
 
             // Create and intern the constant
