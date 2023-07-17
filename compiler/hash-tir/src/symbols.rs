@@ -68,6 +68,15 @@ impl Symbol {
     pub fn fresh_underscore() -> Self {
         SymbolData::create_with(|symbol| SymbolData { symbol, name: Some(IDENTS.underscore) })
     }
+
+    /// Get an [Identifier] name for this symbol. If the symbol does not have a
+    /// name, then a `_` is returned.
+    pub fn ident(&self) -> Identifier {
+        match self.borrow().name {
+            Some(name) => name,
+            None => IDENTS.underscore,
+        }
+    }
 }
 
 impl std::fmt::Debug for Symbol {

@@ -19,15 +19,11 @@ use hash_source::location::Span;
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{IfPat, MatchCasesId},
-    environment::env::AccessToEnv,
+    environment::stores::StoreId,
     pats::{Pat, PatId},
     terms::{Term, TermId},
 };
-use hash_utils::{
-    itertools::Itertools,
-    stack::ensure_sufficient_stack,
-    store::{CloneStore, SequenceStore, Store},
-};
+use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 
 use self::{
     candidate::{traverse_candidate, Binding, Candidate, Candidates},
@@ -84,18 +80,17 @@ impl<'tcx> BodyBuilder<'tcx> {
         subject_place: &PlaceBuilder,
         arms: MatchCasesId,
     ) -> Vec<Candidates<'tcx>> {
-        self.stores().match_cases().map_fast(arms, |arms| {
-            arms.iter()
-                .copied()
-                .map(|arm| {
-                    let span = self.span_of_pat(arm.bind_pat);
-                    let has_guard = self.stores().pat().map_fast(arm.bind_pat, Pat::is_if);
+        arms.borrow()
+            .iter()
+            .copied()
+            .map(|arm| {
+                let span = self.span_of_pat(arm.bind_pat);
+                let has_guard = arm.bind_pat.borrow().is_if();
 
-                    let candidate = Candidate::new(span, arm.bind_pat, subject_place, has_guard);
-                    (arm, candidate)
-                })
-                .collect()
-        })
+                let candidate = Candidate::new(span, arm.bind_pat, subject_place, has_guard);
+                (arm, candidate)
+            })
+            .collect()
     }
 
     /// This function is used to create a `then-else` block sequence for a
@@ -109,11 +104,10 @@ impl<'tcx> BodyBuilder<'tcx> {
         expr: TermId,
     ) -> BlockAnd<()> {
         let span = self.span_of_term(expr);
-        let term = self.stores().term().get(expr);
 
         // If this is a `&&`, we can create a `then-else` block sequence
         // that respects the short-circuiting behaviour of `&&`.
-        if let Term::FnCall(ref fn_call) = term {
+        if let Term::FnCall(ref fn_call) = expr.value() {
             if let FnCallTermKind::LogicalBinOp(LogicalBinOp::And, lhs, rhs) =
                 self.classify_fn_call_term(fn_call)
             {
@@ -385,11 +379,9 @@ impl<'tcx> BodyBuilder<'tcx> {
         // sorted them by priority (all or-patterns go to the end)
         let (first, remaining) = candidates.split_first_mut().unwrap();
 
-        let is_or_pat = self.stores().pat().map_fast(first.pairs[0].pat, |pat| pat.is_or());
-
         // If this is the case, it means that we have no or-patterns
         // here... since we sorted them
-        if !is_or_pat {
+        if !first.pairs[0].pat.borrow().is_or() {
             self.test_candidates(span, candidates, block, otherwise_block);
             return;
         }
@@ -401,19 +393,11 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         for pair in pairs {
             let or_span = self.span_of_pat(pair.pat);
+            let Pat::Or(pats) = pair.pat.value() else {
+                unreachable!("`or` pattern expected after candidate sorting")
+            };
 
-            let pats = self.stores().pat().map_fast(pair.pat, |pat| {
-                let Pat::Or(pats) = pat else {
-                    unreachable!("`or` pattern expected after candidate sorting")
-                };
-
-                self.stores()
-                    .pat_list()
-                    .get_vec(pats.alternatives)
-                    .into_iter()
-                    .map(|pat| pat.assert_pat())
-                    .collect_vec()
-            });
+            let pats = pats.alternatives.borrow().iter().map(|pat| pat.assert_pat()).collect_vec();
 
             first.visit_leaves(|leaf| {
                 self.test_or_pat(leaf, &mut otherwise, &pair.place, &pats, or_span);
@@ -596,10 +580,10 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// This function is responsible for putting all of the declared bindings
     /// into scope.
     fn bind_pat(&mut self, span: Span, pat: PatId, candidate: Candidate) -> BasicBlock {
-        let guard = self.stores().pat().map_fast(pat, |pat| match pat {
-            Pat::If(IfPat { condition, .. }) => Some(*condition),
+        let guard = match pat.value() {
+            Pat::If(IfPat { condition, .. }) => Some(condition),
             _ => None,
-        });
+        };
 
         if candidate.sub_candidates.is_empty() {
             // We don't need generate another `BasicBlock` when we only have
@@ -693,7 +677,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // soundness of later match checks.
         for binding in bindings {
             let value_place =
-                Place::from_local(self.lookup_local_symbol(binding.name).unwrap(), self.ctx());
+                Place::from_local(self.lookup_local(binding.name).unwrap(), self.ctx());
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
@@ -725,7 +709,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // Now resolve where the binding place from, and then push
             // an assign onto the binding source.
             let value_place =
-                Place::from_local(self.lookup_local_symbol(binding.name).unwrap(), self.ctx());
+                Place::from_local(self.lookup_local(binding.name).unwrap(), self.ctx());
 
             self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }

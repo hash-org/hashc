@@ -9,13 +9,16 @@ use hash_pipeline::workspace::StageInfo;
 use hash_source::identifier::IDENTS;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::StoreId,
+    },
     fns::{FnBody, FnDef, FnDefId},
     mods::{ModKind, ModMemberValue},
     terms::TermId,
-    utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
+    utils::{traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{PartialCloneStore, Store};
+use hash_utils::store::PartialStore;
 use indexmap::IndexSet;
 
 use crate::ctx::BuilderCtx;
@@ -88,13 +91,13 @@ impl FnDiscoverer<'_> {
             FnBody::Defined(_) => {
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.
-                if let Some(entry) = self.env().stores().directives().get(def_id.into()) {
-                    if entry.directives.contains(&IDENTS.foreign) {
-                        return false;
+                self.stores().directives().map_fast(def_id.into(), |maybe_directives| {
+                    if let Some(directives) = maybe_directives && directives.contains(IDENTS.foreign) {
+                        false
+                    } else {
+                        true
                     }
-                }
-
-                true
+                })
             }
 
             // Intrinsics and axioms have no effect on the IR lowering
@@ -107,20 +110,18 @@ impl FnDiscoverer<'_> {
     pub fn discover_fns(&self) -> DiscoveredFns {
         let mut fns = DiscoveredFns::new();
 
-        for mod_def_id in self.mod_utils().iter_all_mods() {
+        for mod_def in self.mod_utils().iter_all_mods() {
             // Check if we can skip this module as it may of already been queued before
             // during some other pipeline run.
             //
             // @@Incomplete: mod-blocks that are already lowered won't be caught by
             // the queue-deduplication.
-            if self.stores().mod_def().map_fast(mod_def_id, |def| match def.kind {
-                ModKind::Source(id, _) => self.stage_info.get(id).is_lowered(),
-                _ => false,
-            }) {
-                continue;
-            }
+            match mod_def.borrow().kind {
+                ModKind::Source(id, _) if !self.stage_info.get(id).is_lowered() => {}
+                _ => continue,
+            };
 
-            for member in self.mod_utils().iter_mod_members(mod_def_id) {
+            for member in self.mod_utils().iter_mod_members(mod_def) {
                 match member.value {
                     ModMemberValue::Mod(_) => {
                         // Will be handled later in the loop
@@ -129,7 +130,7 @@ impl FnDiscoverer<'_> {
                         // We don't need to discover anything in data types
                     }
                     ModMemberValue::Fn(fn_def_id) => {
-                        let fn_def = self.get_fn_def(fn_def_id);
+                        let fn_def = fn_def_id.value();
 
                         if self.fn_needs_to_be_lowered(fn_def_id, &fn_def) {
                             fns.add_fn(fn_def_id);
@@ -158,12 +159,10 @@ impl FnDiscoverer<'_> {
             .visit_term::<!, _>(term, &mut |atom: Atom| match atom {
                 Atom::Term(_) => Ok(ControlFlow::Continue(())),
                 Atom::Ty(_) => Ok(ControlFlow::Break(())),
-                Atom::FnDef(def_id) => {
+                Atom::FnDef(fn_def) => {
                     // @@Todo: this doesn't deal with captures.
-                    let fn_def = self.get_fn_def(def_id);
-
-                    if self.fn_needs_to_be_lowered(def_id, &fn_def) {
-                        fns.add_fn(def_id);
+                    if self.fn_needs_to_be_lowered(fn_def, &fn_def.value()) {
+                        fns.add_fn(fn_def);
 
                         Ok(ControlFlow::Continue(()))
                     } else {
