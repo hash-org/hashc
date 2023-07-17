@@ -40,10 +40,10 @@ pub struct Spread {
 #[derive(Copy, Clone, Debug)]
 pub struct RangePat {
     /// The beginning of the range.
-    pub lo: LitPat,
+    pub lo: Option<LitPat>,
 
     /// The end of the range.
-    pub hi: LitPat,
+    pub hi: Option<LitPat>,
 
     /// If the range includes the `end` or not.
     pub end: RangeEnd,
@@ -131,12 +131,14 @@ impl fmt::Display for Spread {
 
 impl fmt::Display for RangePat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.lo)?;
+        self.lo.map_or(Ok(()), |lo| write!(f, "{}", lo))?;
+
         match self.end {
             RangeEnd::Included => write!(f, "..")?,
             RangeEnd::Excluded => write!(f, "..<")?,
         }
-        write!(f, "{}", self.hi)
+
+        self.hi.map_or(Ok(()), |hi| write!(f, "{}", hi))
     }
 }
 

@@ -29,7 +29,7 @@ macro_rules! utils {
 utils! {
   data_utils: DataUtils,
   def_utils: DefUtils,
-  param_utils: ParamUtils     ,
+  param_utils: ParamUtils,
   fn_utils: FnUtils,
   mod_utils: ModUtils,
   stack_utils: StackUtils,
