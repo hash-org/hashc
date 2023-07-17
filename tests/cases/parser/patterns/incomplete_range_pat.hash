@@ -1,7 +1,0 @@
-// run=fail, stage=parse
-
-main := () => {
-    match k {
-        1.. => {};
-    }
-};
