@@ -37,7 +37,6 @@ use hash_utils::{
         CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
     },
 };
-use num_bigint::BigInt;
 
 use crate::{
     errors::{TcError, TcResult},
@@ -1038,20 +1037,29 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn match_literal_to_range<U: PartialOrd>(
         &self,
         value: U,
-        start: U,
-        end: U,
+        maybe_start: Option<U>,
+        maybe_end: Option<U>,
         range_end: RangeEnd,
     ) -> MatchResult {
+        // If the start isn't provided, we don't need to check
+        // that the value is larger than the start, as it will
+        // always succeed.
+        if let Some(start) = maybe_start && start < value {
+            return MatchResult::Failed;
+        }
+
+        // If the end isn't provided, we can assume that the subject will
+        // always match.
         if range_end == RangeEnd::Included {
-            if start <= value && value <= end {
-                MatchResult::Successful
-            } else {
+            if let Some(end) = maybe_end && end > value {
                 MatchResult::Failed
+            } else {
+                MatchResult::Successful
             }
-        } else if start <= value && value < end {
-            MatchResult::Successful
-        } else {
+        } else if let Some(end) = maybe_end && end >= value {
             MatchResult::Failed
+        } else {
+            MatchResult::Successful
         }
     }
 
@@ -1143,63 +1151,44 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 // If we know both of the range ends, then we can simply evaluate it
                 // using the value. If not, we then create the `min` or `max` values
                 // that are missing based on the type of the literal.
-                if let Some(lo) = lo && let Some(hi) = hi {
-                    match (lit_term, lo, hi) {
-                        (Lit::Int(value), LitPat::Int(lo), LitPat::Int(hi)) => Ok(self
-                            .match_literal_to_range(
-                                value.value(),
-                                lo.value(),
-                                hi.value(),
-                                end
-                            )),
-                        (Lit::Char(value), LitPat::Char(lo), LitPat::Char(hi)) => Ok(self
-                            .match_literal_to_range(
-                                value.value(),
-                                lo.value(),
-                                hi.value(),
-                                end
-                            )),
-                        _ => Ok(MatchResult::Stuck),
-                    }
-                } else {
-                    // @@Future: ideally, we shouldn't need to compute min/max intervals here. We could just 
-                    // compute them as the term structure is being traversed, maybe this is something to 
-                    // do later on?
-                    let get_int_ty = || {
-                        let ty = self.try_get_inferred_ty(evaluated_id).unwrap();
-                        self.try_use_ty_as_int_ty(ty).unwrap()
-                    };
 
-                    // It is an invariant for this to be a big-int, since you cannot have 
-                    // open ranges on big ints.
-                    let (value, lo, hi) = match (lit_term, lo, hi) {
-                        (Lit::Int(value), Some(LitPat::Int(lo)), None) => {
-                            let int_ty = get_int_ty();
-                            let ptr_size = self.target().ptr_size();
-                            (value.value(), lo.value(), int_ty.max(ptr_size))
-                        }
-                        (Lit::Int(value), None, Some(LitPat::Int(hi))) => {
-                            let int_ty = get_int_ty();
-                            let ptr_size = self.target().ptr_size();
-                            (value.value(), int_ty.min(ptr_size), hi.value())
-                        }
-                        (Lit::Char(value), Some(LitPat::Char(lo)), None) => {
-                            (BigInt::from(value.value() as u128), BigInt::from(lo.value() as u128), BigInt::from(std::char::MAX as u128))
-                        }
-                        (Lit::Char(value), None, Some(LitPat::Char(hi))) => {
-                            (BigInt::from(value.value() as u128), BigInt::from(0), BigInt::from(hi.value() as u128))
-                        }
-                        _ => return Ok(MatchResult::Stuck),
-                    };
-
-                    Ok(self
-                        .match_literal_to_range(
-                            value,
-                            lo,
-                            hi,
-                            end
-                        ))
+                // Disallow open excluded ranges to be parameterless. This isn't strictly
+                // necessary, but it is strange to write `..<` and mean to match
+                // everything but the end. This is checked and reported as an
+                // error in untyped-semantics.
+                if end == RangeEnd::Excluded {
+                    debug_assert!(hi.is_some())
                 }
+
+                Ok(match (lit_term, lo, hi) {
+                    (Lit::Int(value), Some(LitPat::Int(lo)), Some(LitPat::Int(hi))) => self
+                        .match_literal_to_range(
+                            value.value(),
+                            Some(lo.value()),
+                            Some(hi.value()),
+                            end,
+                        ),
+                    (Lit::Char(value), Some(LitPat::Char(lo)), Some(LitPat::Char(hi))) => self
+                        .match_literal_to_range(
+                            value.value(),
+                            Some(lo.value()),
+                            Some(hi.value()),
+                            end,
+                        ),
+                    (Lit::Int(value), Some(LitPat::Int(lo)), None) => {
+                        self.match_literal_to_range(value.value(), Some(lo.value()), None, end)
+                    }
+                    (Lit::Int(value), None, Some(LitPat::Int(hi))) => {
+                        self.match_literal_to_range(value.value(), None, Some(hi.value()), end)
+                    }
+                    (Lit::Char(value), Some(LitPat::Char(lo)), None) => {
+                        self.match_literal_to_range(value.value(), Some(lo.value()), None, end)
+                    }
+                    (Lit::Char(value), None, Some(LitPat::Char(hi))) => {
+                        self.match_literal_to_range(value.value(), None, Some(hi.value()), end)
+                    }
+                    _ => MatchResult::Stuck,
+                })
             }
             (_, Pat::Range(_)) => Ok(MatchResult::Stuck),
 
