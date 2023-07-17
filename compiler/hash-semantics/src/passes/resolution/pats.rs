@@ -331,10 +331,12 @@ impl ResolutionPass<'_> {
             ast::Pat::Wild(_) => {
                 self.new_pat(Pat::Binding(BindingPat { name: Symbol::fresh(), is_mutable: false }))
             }
-            ast::Pat::Range(range_pat) => {
-                let start = self.make_lit_pat_from_non_bool_ast_lit(range_pat.lo.ast_ref());
-                let end = self.make_lit_pat_from_non_bool_ast_lit(range_pat.hi.ast_ref());
-                self.new_pat(Pat::Range(RangePat { lo: start, hi: end, end: range_pat.end }))
+            ast::Pat::Range(ast::RangePat { lo, hi, end }) => {
+                let lo =
+                    lo.as_ref().map(|lo| self.make_lit_pat_from_non_bool_ast_lit(lo.ast_ref()));
+                let hi =
+                    hi.as_ref().map(|hi| self.make_lit_pat_from_non_bool_ast_lit(hi.ast_ref()));
+                self.new_pat(Pat::Range(RangePat { lo, hi, end: *end }))
             }
         };
 

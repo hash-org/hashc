@@ -1578,8 +1578,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer a range pattern.
     pub fn infer_range_pat(&self, range_pat: RangePat, annotation_ty: TyId) -> TcResult<()> {
-        self.infer_lit(&range_pat.lo.into(), annotation_ty)?;
-        self.infer_lit(&range_pat.hi.into(), annotation_ty)?;
+        let RangePat { lo, hi, .. } = range_pat;
+
+        lo.map(|lo| self.infer_lit(&lo.into(), annotation_ty)).transpose()?;
+        hi.map(|hi| self.infer_lit(&hi.into(), annotation_ty)).transpose()?;
+
         Ok(())
     }
 
