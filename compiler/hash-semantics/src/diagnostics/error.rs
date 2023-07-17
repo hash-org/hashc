@@ -303,7 +303,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
             SemanticError::EntryPointNotFound => {
                 let error = reporter.error().title("no entry point specified");
                 error.add_note(
-                    "when operating in `run` mode, an entry point must be specified in the source.\nThis can be done by using the `main` keyword, or by using the `#entry_point` directive."
+                    "when building an executable, an entry point must be specified in the source.\nThis can be done by using the `main` keyword, or by using the `#entry_point` directive."
                 );
             }
             SemanticError::ModulePatternsNotSupported { location } => {
