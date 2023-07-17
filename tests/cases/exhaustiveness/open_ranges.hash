@@ -7,12 +7,6 @@ match_int := (value: i32) -> i32 => {
     }
 }
 
-match_int := (value: i32) -> i32 => {
-    match value {
-        ..< => 0, // ~ERROR: pattern `i32::MAX` not covered
-    }
-}
-
 
 match_int2 := (value: i32) -> i32 => {
     match value {
@@ -25,6 +19,6 @@ match_int2 := (value: i32) -> i32 => {
 match_char := (value: char) -> i32 => {
     match value {
         'a'.. => 0,
-        'c'..< => 1, // ~WARNING: unreachable pattern
+        'c'.. => 1, // ~WARNING: unreachable pattern
     }
 }

@@ -7,8 +7,9 @@ use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
     ast::{
-        walk_mut_self, AstNodeRef, AstVisitorMutSelf, BindingPat, Block, BlockExpr, Declaration,
-        DirectiveExpr, EnumDef, Expr, LitExpr, Mutability, Name, ParamOrigin, StructDef,
+        self, walk_mut_self, AstNodeRef, AstVisitorMutSelf, BindingPat, Block, BlockExpr,
+        Declaration, DirectiveExpr, EnumDef, Expr, LitExpr, Mutability, Name, ParamOrigin,
+        StructDef,
     },
     ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
@@ -288,6 +289,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         TraitImpl,
         LitPat,
         BindingPat,
+        RangePat,
         Module,
         StructDef
     );
@@ -641,6 +643,22 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
                 },
                 visibility_annotation.ast_ref(),
             );
+        }
+
+        Ok(())
+    }
+
+    type RangePatRet = ();
+
+    fn visit_range_pat(
+        &mut self,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RangePat>,
+    ) -> Result<Self::RangePatRet, Self::Error> {
+        let _ = walk_mut_self::walk_range_pat(self, node);
+
+        // Check that the range pattern is not used in a constant block.
+        if node.body().end == ast::RangeEnd::Excluded && node.body().hi.is_none() {
+            self.append_error(AnalysisErrorKind::ExclusiveRangeWithNoEnding, node)
         }
 
         Ok(())

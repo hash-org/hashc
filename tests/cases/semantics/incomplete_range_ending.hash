@@ -1,0 +1,10 @@
+// stage=semantic, run=fail
+
+main := () => {
+  t := 1;
+
+  match t {
+    5..< => {},
+    _ => {}
+  }
+}
