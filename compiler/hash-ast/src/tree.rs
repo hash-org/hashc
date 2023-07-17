@@ -1035,15 +1035,16 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::RangePat>,
     ) -> Result<Self::RangePatRet, Self::Error> {
         let walk::RangePat { lo, hi } = walk::walk_range_pat(self, node)?;
+        let mut branches = vec![];
 
-        Ok(TreeNode::branch(
-            "range",
-            vec![
-                TreeNode::branch("lo", vec![lo]),
-                TreeNode::branch("hi", vec![hi]),
-                TreeNode::leaf(labelled("end", format!("{}", node.body().end), "`")),
-            ],
-        ))
+        if let Some(lo) = lo {
+            branches.push(TreeNode::branch("lo", vec![lo]))
+        }
+        if let Some(hi) = hi {
+            branches.push(TreeNode::branch("hi", vec![hi]))
+        }
+        branches.push(TreeNode::leaf(labelled("end", format!("{}", node.body().end), "`")));
+        Ok(TreeNode::branch("range", branches))
     }
 
     type OrPatRet = TreeNode;
