@@ -41,14 +41,14 @@ use hash_tir::{
     data::DataTy,
     directives::DirectiveTarget,
     environment::{
-        env::{AccessToEnv, Env},
+        env::Env,
         source_info::CurrentSourceInfo,
-        stores::{global_stores, SequenceStoreValue},
+        stores::{global_stores, SequenceStoreValue, StoreId},
     },
     utils::common::CommonUtils,
 };
 use hash_utils::{
-    store::{CloneStore, PartialStore, Store},
+    store::{CloneStore, PartialStore},
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };
@@ -153,8 +153,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         time_item(self, "build", |_| {
             for func in items.iter() {
-                let symbol = env.stores().fn_def().map_fast(*func, |func| func.name);
-                let name = env.symbol_name(symbol);
+                let name = func.borrow().name.ident();
 
                 // Get the source of the symbol therefore that way
                 // we can get the source id of the function.

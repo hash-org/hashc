@@ -20,7 +20,7 @@ use hash_tir::{
     context::Context,
     control::{LoopControlTerm, ReturnTerm},
     data::CtorTerm,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::StoreId},
     fns::FnCallTerm,
     params::ParamIndex,
     refs::{self, RefTerm},
@@ -28,13 +28,13 @@ use hash_tir::{
     terms::{Term, TermId, UnsafeTerm},
     tuples::TupleTerm,
     ty_as_variant,
-    utils::common::CommonUtils,
 };
-use hash_utils::store::{CloneStore, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::{
+    itertools::Itertools,
+    store::{CloneStore, SequenceStoreKey, Store},
+};
 
-use super::{
-    ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LocalKey, LoopBlockInfo,
-};
+use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Compile the given [Term] and place the value of the [Term]
@@ -43,34 +43,33 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        term_id: TermId,
+        term: TermId,
     ) -> BlockAnd<()> {
-        let term = self.stores().term().get(term_id);
-        let span = self.span_of_term(term_id);
+        let span = self.span_of_term(term);
 
-        let block_and = match &term {
+        let block_and = match term.value() {
             // // This includes `loop { ... } `, `{ ... }`, `match { ... }`
             Term::Block(_) | Term::Match(_) | Term::Loop(_) => {
-                self.block_into_dest(destination, block, term_id)
+                self.block_into_dest(destination, block, term)
             }
 
             Term::Tuple(TupleTerm { data }) => {
-                let ty = self.ty_id_from_tir_term(term_id);
+                let ty = self.ty_id_from_tir_term(term);
                 let adt = self.ctx().map_ty_as_adt(ty, |_, id| id);
                 let aggregate_kind = AggregateKind::Tuple(adt);
 
-                let args = self.stores().args().map_fast(*data, |args| {
-                    args.iter()
-                        .map(|element| {
-                            let name = match element.target {
-                                ParamIndex::Name(name) => name,
-                                ParamIndex::Position(pos) => pos.into(),
-                            };
+                let args = data
+                    .borrow()
+                    .iter()
+                    .map(|element| {
+                        let name = match element.target {
+                            ParamIndex::Name(name) => name,
+                            ParamIndex::Position(pos) => pos.into(),
+                        };
 
-                            (name, element.value)
-                        })
-                        .collect::<Vec<_>>()
-                });
+                        (name, element.value)
+                    })
+                    .collect::<Vec<_>>();
 
                 self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
             }
@@ -83,17 +82,17 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Term::Array(ArrayTerm { elements }) => {
                 // We lower literal arrays and tuples as aggregates.
-                let ty_id = self.ty_id_from_tir_term(term_id);
+                let ty_id = self.ty_id_from_tir_term(term);
                 let ty = self.ctx().tys().get(ty_id);
 
                 let aggregate_kind = AggregateKind::Array(ty_id);
-                let args = self.stores().term_list().map_fast(*elements, |elements| {
-                    elements
-                        .iter()
-                        .enumerate()
-                        .map(|(index, element)| (index.into(), *element))
-                        .collect::<Vec<_>>()
-                });
+                let args = elements
+                    .borrow()
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .map(|(index, element)| (index.into(), element))
+                    .collect_vec();
 
                 // If it is a list, we have to initialise it with the array elements...
                 if !ty.is_array() {
@@ -111,7 +110,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
 
             Term::Ctor(ref ctor) => {
-                let id = self.ty_id_from_tir_term(term_id);
+                let id = self.ty_id_from_tir_term(term);
                 let ty = self.ctx().tys().get(id);
 
                 match ty {
@@ -139,25 +138,25 @@ impl<'tcx> BodyBuilder<'tcx> {
                     }
                 }
             }
-            Term::FnCall(term @ FnCallTerm { subject, args, .. }) => {
-                match self.classify_fn_call_term(term) {
+            Term::FnCall(ref fn_term @ FnCallTerm { subject, args, .. }) => {
+                match self.classify_fn_call_term(fn_term) {
                     FnCallTermKind::Call(_) => {
                         // Get the type of the function into or to to get the
                         // fn-type so that we can enter the scope.
-                        let ty = self.get_inferred_ty(*subject);
-                        let fn_ty = ty_as_variant!(self, self.get_ty(ty), Fn);
+                        let ty = self.get_inferred_ty(subject);
+                        let fn_ty = ty_as_variant!(self, ty.value(), Fn);
 
                         // Try and create the ir_type from a function definition, otherwise
                         // if it is just a function, then we make the the type from the function.
 
                         Context::enter_scope_mut(self, fn_ty.into(), |this| {
-                            this.fn_call_into_dest(destination, block, *subject, *args, span)
+                            this.fn_call_into_dest(destination, block, subject, args, span)
                         })
                     }
                     FnCallTermKind::Cast(..)
                     | FnCallTermKind::UnaryOp(_, _)
                     | FnCallTermKind::BinaryOp(_, _, _) => {
-                        let rvalue = unpack!(block = self.as_rvalue(block, term_id));
+                        let rvalue = unpack!(block = self.as_rvalue(block, term));
                         self.control_flow_graph.push_assign(block, destination, rvalue, span);
                         block.unit()
                     }
@@ -193,15 +192,12 @@ impl<'tcx> BodyBuilder<'tcx> {
                     //  | dest = true  |----------------+-->| join |
                     //  +--------------+                    +------+
                     // ```
-                    FnCallTermKind::LogicalBinOp(op, _, _) => {
+                    FnCallTermKind::LogicalBinOp(op, lhs_term, rhs_term) => {
                         let (short_circuiting_block, mut else_block, join_block) = (
                             self.control_flow_graph.start_new_block(),
                             self.control_flow_graph.start_new_block(),
                             self.control_flow_graph.start_new_block(),
                         );
-
-                        let lhs_term = self.stores().args().get_at_index(*args, 1).value;
-                        let rhs_term = self.stores().args().get_at_index(*args, 2).value;
 
                         let lhs =
                             unpack!(block = self.as_operand(block, lhs_term, Mutability::Mutable));
@@ -249,11 +245,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
             }
             Term::Var(symbol) => {
-                let binding = self.context().get_decl(*symbol);
-
-                let local_key = LocalKey::from(binding);
-                let local = *(self.declaration_map.get(&local_key).unwrap());
-
+                let local = self.lookup_local(symbol).unwrap();
                 let place = Place::from_local(local, self.ctx());
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);
 
@@ -288,8 +280,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Term::Return(ReturnTerm { expression }) => {
                 unpack!(
-                    block =
-                        self.term_into_dest(Place::return_place(self.ctx()), block, *expression)
+                    block = self.term_into_dest(Place::return_place(self.ctx()), block, expression)
                 );
 
                 // In either case, we want to mark that the function has reached the
@@ -310,9 +301,9 @@ impl<'tcx> BodyBuilder<'tcx> {
             // to locals..., but this expression should never return any value
             // so we should just return a unit block here
             Term::Decl(ref decl) => self.lower_declaration(block, decl, span),
-            Term::Assign(_) => {
+            Term::Assign(assign_term) => {
                 // Deal with the actual assignment
-                block = unpack!(self.lower_assign_term(block, &term, span));
+                block = unpack!(self.lower_assign_term(block, assign_term, span));
 
                 // Assign the `value` of the assignment into the `tmp_place`
                 let const_value = ir::Const::zero(self.ctx());
@@ -320,9 +311,9 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 block.unit()
             }
-            Term::Unsafe(UnsafeTerm { inner }) => self.term_into_dest(destination, block, *inner),
+            Term::Unsafe(UnsafeTerm { inner }) => self.term_into_dest(destination, block, inner),
             Term::Ref(RefTerm { kind, mutable, subject }) => {
-                let mutability = if *mutable { Mutability::Mutable } else { Mutability::Immutable };
+                let mutability = if mutable { Mutability::Mutable } else { Mutability::Immutable };
 
                 // @@Todo: This is not the full picture here, if the user only specifies a
                 // `Normal` ref, this still might become a `SmartRef` based on
@@ -334,7 +325,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     refs::RefKind::Rc => RefKind::Rc,
                 };
 
-                let place = unpack!(block = self.as_place(block, *subject, mutability));
+                let place = unpack!(block = self.as_place(block, subject, mutability));
 
                 // Create an RValue for this reference
                 let addr_of = RValue::Ref(mutability, place, kind);
@@ -342,7 +333,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block.unit()
             }
             Term::Index(_) | Term::Deref(_) | Term::Access(_) => {
-                let place = unpack!(block = self.as_place(block, term_id, Mutability::Immutable));
+                let place = unpack!(block = self.as_place(block, term, Mutability::Immutable));
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);
 
                 block.unit()
@@ -361,15 +352,13 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn lower_assign_term(
         &mut self,
         mut block: BasicBlock,
-        statement: &Term,
+        assignment: AssignTerm,
         span: Span,
     ) -> BlockAnd<()> {
-        let Term::Assign(AssignTerm { subject, value }) = statement else { unreachable!() };
-
         // Lower the subject and the value of the assignment in RTL
         // and then assign the value into the subject
-        let value = unpack!(block = self.as_rvalue(block, *value));
-        let place = unpack!(block = self.as_place(block, *subject, Mutability::Mutable));
+        let value = unpack!(block = self.as_rvalue(block, assignment.value));
+        let place = unpack!(block = self.as_place(block, assignment.subject, Mutability::Mutable));
 
         self.control_flow_graph.push_assign(block, place, value, span);
         block.unit()
@@ -403,10 +392,8 @@ impl<'tcx> BodyBuilder<'tcx> {
         //     }
         // }
 
-        let args = self
-            .stores()
-            .args()
-            .get_vec(args)
+        let args = args
+            .borrow()
             .iter()
             .map(|arg| unpack!(block = self.as_operand(block, arg.value, Mutability::Immutable)))
             .collect::<Vec<_>>();
@@ -480,18 +467,18 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
         }
 
-        let args = self.stores().args().map_fast(*ctor_args, |args| {
-            args.iter()
-                .map(|arg| {
-                    let name = match arg.target {
-                        ParamIndex::Name(name) => name,
-                        ParamIndex::Position(pos) => pos.into(),
-                    };
+        let args = (*ctor_args)
+            .borrow()
+            .iter()
+            .map(|arg| {
+                let name = match arg.target {
+                    ParamIndex::Name(name) => name,
+                    ParamIndex::Position(pos) => pos.into(),
+                };
 
-                    (name, arg.value)
-                })
-                .collect::<Vec<_>>()
-        });
+                (name, arg.value)
+            })
+            .collect::<Vec<_>>();
 
         self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
     }

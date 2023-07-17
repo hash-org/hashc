@@ -17,7 +17,7 @@ use hash_source::constant::CONSTANT_MAP;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     data::DataTy,
-    environment::env::AccessToEnv,
+    environment::stores::StoreId,
     fns::{FnCallTerm, FnDefId},
     lits::LitPat,
     pats::PatId,
@@ -25,7 +25,7 @@ use hash_tir::{
     tys::TyId,
     utils::common::CommonUtils,
 };
-use hash_utils::store::SequenceStore;
+use hash_utils::store::TrivialSequenceStoreKey;
 
 use super::BodyBuilder;
 
@@ -94,14 +94,12 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn classify_fn_call_term(&self, term: &FnCallTerm) -> FnCallTermKind {
         let FnCallTerm { subject, args, .. } = term;
 
-        match self.get_term(*subject) {
+        match subject.value() {
             Term::FnRef(fn_def) => {
                 // Check if the fn_def is a `un_op` intrinsic
                 if fn_def == self.intrinsics().un_op() {
-                    let (op, subject) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                    );
+                    let (op, subject) =
+                        (args.at(1).unwrap().borrow().value, args.at(2).unwrap().borrow().value);
 
                     // Parse the operator from the starting term as defined in `hash-intrinsics`
                     let parsed_op =
@@ -111,9 +109,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                     FnCallTermKind::UnaryOp(parsed_op.into(), subject)
                 } else if fn_def == self.intrinsics().short_circuiting_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                        self.stores().args().get_at_index(*args, 3).value,
+                        args.at(1).unwrap().borrow().value,
+                        args.at(2).unwrap().borrow().value,
+                        args.at(3).unwrap().borrow().value,
                     );
 
                     let op = ShortCircuitBinOp::try_from(
@@ -124,9 +122,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                     FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().endo_bin_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                        self.stores().args().get_at_index(*args, 3).value,
+                        args.at(1).unwrap().borrow().value,
+                        args.at(2).unwrap().borrow().value,
+                        args.at(3).unwrap().borrow().value,
                     );
 
                     let op =
@@ -135,9 +133,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                     FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().bool_bin_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                        self.stores().args().get_at_index(*args, 3).value,
+                        args.at(1).unwrap().borrow().value,
+                        args.at(2).unwrap().borrow().value,
+                        args.at(3).unwrap().borrow().value,
                     );
 
                     let op =
@@ -145,10 +143,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                             .unwrap();
                     FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().cast() {
-                    let (to_ty, value) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                    );
+                    let (to_ty, value) =
+                        (args.at(1).unwrap().borrow().value, args.at(2).unwrap().borrow().value);
 
                     // Convert the `to_ty` into an IR type and
                     let to_ty = self.use_term_as_ty(to_ty);

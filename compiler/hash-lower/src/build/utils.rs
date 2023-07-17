@@ -24,7 +24,7 @@ use hash_tir::{
 };
 use hash_utils::{log, store::SequenceStore};
 
-use super::{BodyBuilder, LocalKey};
+use super::BodyBuilder;
 
 // @@Temporary: use this for terms that don't have a location
 const DUMMY_SPAN: Span = Span::new(0, 0);
@@ -59,20 +59,9 @@ impl<'tcx> BodyBuilder<'tcx> {
         })
     }
 
-    /// Create a [LocalKey] from a [Symbol].
-    pub(crate) fn local_key_from_symbol(&self, symbol: Symbol) -> LocalKey {
-        self.context().get_decl(symbol).into()
-    }
-
-    /// Lookup a local by its [LocalKey].
-    pub(crate) fn lookup_local(&self, key: &LocalKey) -> Option<Local> {
-        self.declaration_map.get(key).copied()
-    }
-
     /// Lookup a [Local] by a specified [Symbol].
-    pub(crate) fn lookup_local_symbol(&self, symbol: Symbol) -> Option<Local> {
-        let key = self.context().get_decl(symbol).into();
-        self.lookup_local(&key)
+    pub(crate) fn lookup_local(&self, symbol: Symbol) -> Option<Local> {
+        self.declaration_map.get(&symbol).copied()
     }
 
     /// Lookup the definition of an item within the prelude defined

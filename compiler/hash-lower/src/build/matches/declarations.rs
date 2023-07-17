@@ -11,25 +11,24 @@ use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::StoreId},
     pats::{Pat, PatId},
     scopes::{BindingPat, DeclTerm},
     symbols::Symbol,
     terms::TermId,
     tuples::TuplePat,
-    utils::common::CommonUtils,
 };
-use hash_utils::store::{CloneStore, SequenceStore};
+use hash_utils::store::TrivialSequenceStoreKey;
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};
-use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend, LocalKey};
+use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend};
 
 impl<'tcx> BodyBuilder<'tcx> {
-    /// Push a [LocalDecl] in the current [Builder] with the associated
-    /// [LocalKey]. This will put the [LocalDecl] into the declarations, and
+    /// Push a [LocalDecl] in the current [BodyBuilder] with the associated
+    /// [Symbol]. This will put the [LocalDecl] into the declarations, and
     /// create an entry in the lookup map so that the [Local] can be looked up
     /// via the name of the local and the scope that it is in.
-    pub(crate) fn push_local(&mut self, decl: LocalDecl, key: LocalKey) -> Local {
+    pub(crate) fn push_local(&mut self, key: Symbol, decl: LocalDecl) -> Local {
         let is_named = decl.name.is_some();
         let index = self.declarations.push(decl);
 
@@ -76,35 +75,30 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// pattern level.
     pub(super) fn declare_bindings(&mut self, pat: PatId) {
         self.visit_primary_pattern_bindings(pat, &mut |this, mutability, name, _span, ty| {
-            let key = this.local_key_from_symbol(name);
-            let name = this.symbol_name(name);
-            let local = LocalDecl::new(name, mutability, ty);
-            this.push_local(local, key);
+            let local = LocalDecl::new(name.ident(), mutability, ty);
+            this.push_local(name, local);
         })
     }
 
     fn visit_primary_pattern_bindings(
         &mut self,
-        pat_id: PatId,
+        pat: PatId,
         f: &mut impl FnMut(&mut Self, Mutability, Symbol, Span, IrTyId),
     ) {
-        let span = self.span_of_pat(pat_id);
-        let pat = self.stores().pat().get(pat_id);
+        let span = self.span_of_pat(pat);
 
-        match pat {
+        match pat.value() {
             Pat::Binding(BindingPat { name, is_mutable, .. }) => {
-                let binding = self.get_symbol(name).name;
-
                 // If the symbol has no associated name, then it is not binding
                 // anything...
-                if binding.is_none() {
+                if name.borrow().name.is_none() {
                     return;
                 }
 
                 // @@Future: when we support `k @ ...` patterns, we need to know
                 // when this is a primary pattern or not.
 
-                let ty = self.ty_id_from_tir_pat(pat_id);
+                let ty = self.ty_id_from_tir_pat(pat);
                 let mutability =
                     if is_mutable { Mutability::Mutable } else { Mutability::Immutable };
 
@@ -112,13 +106,13 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Pat::Ctor(CtorPat { ctor_pat_args: fields, ctor_pat_args_spread: spread, .. })
             | Pat::Tuple(TuplePat { data: fields, data_spread: spread }) => {
-                self.stores().pat_args().get_vec(fields).iter().for_each(|field| {
+                fields.borrow().iter().for_each(|field| {
                     self.visit_primary_pattern_bindings(field.pat.assert_pat(), f);
                 });
 
                 if let Some(spread_pat) = spread {
                     //@@Todo: we need to get the type of the spread.
-                    let ty = self.ty_id_from_tir_pat(pat_id);
+                    let ty = self.ty_id_from_tir_pat(pat);
 
                     f(
                         self,
@@ -137,7 +131,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                     // Create the fields into an iterator, and only take the `prefix`
                     // amount of fields to iterate
-                    let pats = self.stores().pat_list().get_vec(pats);
+                    let pats = pats.value();
 
                     let prefix_fields = pats.iter().take(index);
                     for field in prefix_fields {
@@ -145,7 +139,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     }
 
                     //@@TodoTIR: we need to get the type of the spread.
-                    let ty = self.ty_id_from_tir_pat(pat_id);
+                    let ty = self.ty_id_from_tir_pat(pat);
 
                     f(
                         self,
@@ -164,7 +158,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         self.visit_primary_pattern_bindings(field.assert_pat(), f);
                     }
                 } else {
-                    self.stores().pat_list().get_vec(pats).iter().for_each(|pat| {
+                    pats.borrow().iter().for_each(|pat| {
                         self.visit_primary_pattern_bindings(pat.assert_pat(), f);
                     });
                 }
@@ -172,7 +166,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             Pat::Or(OrPat { alternatives }) => {
                 // We only need to visit the first variant since we already
                 // check that the variant bindings are all the same.
-                if let Some(pat) = self.stores().pat_list().try_get_at_index(alternatives, 0) {
+                if let Some(pat) = alternatives.at(0) {
                     self.visit_primary_pattern_bindings(pat.assert_pat(), f);
                 }
             }
@@ -190,22 +184,20 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn tir_term_into_pat(
         &mut self,
         mut block: BasicBlock,
-        pat_id: PatId,
+        pat: PatId,
         term: TermId,
     ) -> BlockAnd<()> {
-        let pat = self.stores().pat().get(pat_id);
-
         let mut place_into_pat = |this: &mut Self| {
             let place_builder =
                 unpack!(block = this.as_place_builder(block, term, Mutability::Mutable));
-            this.place_into_pat(block, pat_id, place_builder)
+            this.place_into_pat(block, pat, place_builder)
         };
 
-        match pat {
+        match pat.value() {
             Pat::Binding(BindingPat { name, .. }) => {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.
-                if let Some(local) = self.lookup_local_symbol(name) {
+                if let Some(local) = self.lookup_local(name) {
                     let place = Place::from_local(local, self.ctx());
 
                     unpack!(block = self.term_into_dest(place, block, term));

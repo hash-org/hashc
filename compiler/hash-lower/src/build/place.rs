@@ -5,17 +5,15 @@ use hash_ir::{
     ty::{IrTyId, Mutability, VariantIdx},
     IrCtx,
 };
-use hash_source::identifier::IDENTS;
 use hash_tir::{
     access::AccessTerm,
     arrays::IndexTerm,
-    environment::env::AccessToEnv,
+    environment::stores::StoreId,
     params::ParamIndex,
     refs::DerefTerm,
     terms::{Term, TermId},
-    utils::common::CommonUtils,
 };
-use hash_utils::store::{CloneStore, SequenceStore};
+use hash_utils::store::SequenceStore;
 
 use super::{unpack, BlockAnd, BlockAndExtend, BodyBuilder};
 
@@ -102,22 +100,17 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn as_place_builder(
         &mut self,
         mut block: BasicBlock,
-        term_id: TermId,
+        term: TermId,
         mutability: Mutability,
     ) -> BlockAnd<PlaceBuilder> {
-        let term = self.stores().term().get(term_id);
-
-        match term {
+        match term.value() {
             Term::Var(variable) => {
                 // Get the current scope, and resolve the variable within the scope. This will
                 // get us the scope that this variable comes from. Using the id and the name, we
                 // can then lookup the local that this variable is bound to.
-                let name = self.get_symbol(variable).name;
-                let local_key = self.local_key_from_symbol(variable);
-
-                let local = self.lookup_local(&local_key).unwrap_or_else(|| {
-                    panic!("failed to lookup local `{}`", name.unwrap_or(IDENTS.underscore))
-                });
+                let local = self
+                    .lookup_local(variable)
+                    .unwrap_or_else(|| panic!("failed to lookup local `{}`", variable.ident()));
                 block.and(PlaceBuilder::from(local))
             }
             Term::Access(AccessTerm { subject, field }) => {
@@ -174,7 +167,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Hole(_) => {
                 // These expressions are not places, so we need to create a temporary
                 // and then deal with it.
-                let temp = unpack!(block = self.term_into_temp(block, term_id, mutability));
+                let temp = unpack!(block = self.term_into_temp(block, term, mutability));
                 block.and(PlaceBuilder::from(temp))
             }
         }

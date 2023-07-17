@@ -9,9 +9,10 @@ boo := (_1: i32, _2: i32) -> i32 {
     mut _3: bool;
     mut _4: bool;
     mut _5: bool;
-    mut _6: i32;
+    mut _6: bool;
     mut _7: i32;
-    _8: (i32, bool);
+    mut _8: i32;
+    _9: (i32, bool);
 
     bb0 {
         _3 = Eq(_1, const 0_i32);
@@ -32,7 +33,8 @@ boo := (_1: i32, _2: i32) -> i32 {
     }
 
     bb4 {
-        switch(const 0_u8) [false -> bb7, otherwise -> bb6];
+        _5 = Gt(_1, const 10_i32);
+        switch(_5) [false -> bb7, otherwise -> bb6];
     }
 
     bb5 {
@@ -45,8 +47,8 @@ boo := (_1: i32, _2: i32) -> i32 {
     }
 
     bb7 {
-        _5 = Gt(_1, const 10_i32);
-        _4 = _5;
+        _6 = Gt(_2, const 10_i32);
+        _4 = _6;
         goto -> bb8;
     }
 
@@ -64,20 +66,20 @@ boo := (_1: i32, _2: i32) -> i32 {
     }
 
     bb11 {
-        _6 = foo(_1) -> bb12;
+        _7 = foo(_1) -> bb12;
     }
 
     bb12 {
-        _7 = foo(_2) -> bb13;
+        _8 = foo(_2) -> bb13;
     }
 
     bb13 {
-        _8 = CheckedAdd(_6, _7);
-        assert((_8.1), false, "attempt to compute `_6 + _7`, which would overflow") -> bb14;
+        _9 = CheckedAdd(_7, _8);
+        assert((_9.1), false, "attempt to compute `_7 + _8`, which would overflow") -> bb14;
     }
 
     bb14 {
-        _0 = (_8.0);
+        _0 = (_9.0);
         return;
     }
 }
