@@ -4,7 +4,7 @@ use std::mem::size_of;
 
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
-use hash_source::constant::{u128_to_int_const, CONSTANT_MAP};
+use hash_source::constant::InternedInt;
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
@@ -328,18 +328,23 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     pub fn lower_pat_range(&self, ty: TyId, range: RangePat) -> IntRange {
         let RangePat { lo, hi, end } = range;
 
-        let term_to_u128 = |lit| {
+        let lit_to_u128 = |lit, at_end| {
             // The only types we support we support within ranges is currently a
             // `char` and `int` types
             match lit {
-                LitPat::Char(char) => Constant::from_char(char.value(), ty).data(),
-                LitPat::Int(int) => Constant::from_int(int.interned_value(), ty).data(),
-                _ => unreachable!(),
+                Some(pat) => match pat {
+                    LitPat::Char(char) => char.value() as u128,
+                    LitPat::Int(int) => Constant::from_int(int.interned_value(), ty).data(),
+                    _ => unreachable!(),
+                },
+                None if at_end => self.numeric_max_val_of_lit(ty).unwrap(),
+                None => self.numeric_min_val_of_lit(ty).unwrap(),
             }
         };
 
-        let lo = term_to_u128(lo);
-        let hi = term_to_u128(hi);
+        let lo = lit_to_u128(lo, false);
+        let hi = lit_to_u128(hi, true);
+
         self.make_int_range(ty, lo, hi, &end)
     }
 
@@ -351,21 +356,15 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             // a singleton, and in fact the range will never be constructed from a
             // `ubig` or `ibig` type.
             match self.try_use_ty_as_lit_ty(ty).unwrap() {
-                LitTy::I8
-                | LitTy::U8
-                | LitTy::I16
-                | LitTy::U16
-                | LitTy::I32
-                | LitTy::U32
-                | LitTy::I64
-                | LitTy::U64
-                | LitTy::I128
-                | LitTy::U128 => {
+                LitTy::UBig | LitTy::IBig => unreachable!(),
+                ty if ty.is_int() => {
                     let (lo, _) = range.boundaries();
                     let bias = range.bias;
                     let lo = lo ^ bias;
 
-                    Pat::Lit(LitPat::Int(IntLit::from_value(CONSTANT_MAP.create_int(lo.into()))))
+                    let ptr_size = self.target().ptr_size();
+                    let val = InternedInt::from_u128(lo, ty.into(), ptr_size);
+                    Pat::Lit(LitPat::Int(IntLit::from_value(val)))
                 }
                 LitTy::Char => {
                     let (lo, _) = range.boundaries();
@@ -407,8 +406,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 let kind = self.try_use_ty_as_int_ty(ty).unwrap();
                 let ptr_width = self.target().ptr_size();
 
-                let lo_val = u128_to_int_const(lo, kind, ptr_width);
-                let hi_val = u128_to_int_const(hi, kind, ptr_width);
+                let lo_val = InternedInt::from_u128(lo, kind, ptr_width);
+                let hi_val = InternedInt::from_u128(hi, kind, ptr_width);
                 let lo = LitPat::Int(IntLit::from_value(lo_val));
                 let hi = LitPat::Int(IntLit::from_value(hi_val));
 
@@ -437,7 +436,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             _ => unreachable!(),
         };
 
-        RangePat { lo, hi, end: RangeEnd::Included }
+        RangePat { lo: Some(lo), hi: Some(hi), end: RangeEnd::Included }
     }
 
     /// Function to lower a collection of pattern fields. This is used for
@@ -445,7 +444,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// fields are named or not, and properly computes the `index` of each
     /// field based on the definition position and whether or not it is a
     /// named argument.
-    pub fn deconstruct_pat_fields(&self, fields: PatArgsId, params_id: ParamsId) -> Vec<FieldPat> {
+    fn deconstruct_pat_fields(&self, fields: PatArgsId, params_id: ParamsId) -> Vec<FieldPat> {
         fields
             .borrow()
             .iter()

@@ -274,7 +274,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// the bias is set to be just at the end of the signed boundary
     /// of the integer size, in other words at the position where the
     /// last byte is that identifies the sign.
-    fn signed_bias(&self, ty: TyId) -> u128 {
+    pub(crate) fn signed_bias(&self, ty: TyId) -> u128 {
         if let Some(ty) = self.try_use_ty_as_int_ty(ty) {
             if ty.is_signed() && !ty.is_bigint() {
                 let size = ty.size(self.target().ptr_size());
@@ -350,7 +350,9 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             self.diagnostics.add_warning(ExhaustivenessWarning::OverlappingRangeEnd {
                 range: id,
                 overlaps: pat,
-                overlapping_term: hi,
+                // `hi` will always be present since it is artificially constructed, and hence
+                // the `unwrap` is safe.
+                overlapping_term: hi.unwrap(),
             })
         }
     }

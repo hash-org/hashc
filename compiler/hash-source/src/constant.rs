@@ -695,6 +695,17 @@ counter! {
     method_visibility:,
 }
 
+impl InternedInt {
+    /// Convert a bias encoded `u128` value with an associated [IntTy] and
+    /// convert it into an IntConstantValue.
+    pub fn from_u128(value: u128, kind: IntTy, ptr_size: Size) -> Self {
+        let size = kind.size(ptr_size).bytes() as usize;
+        let is_signed = kind.is_signed();
+        let value = IntConstantValue::from_le_bytes(&value.to_le_bytes()[0..size], is_signed);
+        CONSTANT_MAP.create_int(IntConstant { value, suffix: None })
+    }
+}
+
 impl fmt::Display for IntConstantValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -739,16 +750,6 @@ impl fmt::Display for InternedInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", CONSTANT_MAP.lookup_int(*self))
     }
-}
-
-/// Convert a given `i128` value with an associated [IntTy] and convert
-/// it into an IntConstantValue.
-pub fn u128_to_int_const(value: u128, kind: IntTy, ptr_width: Size) -> InternedInt {
-    let size = kind.size(ptr_width).bytes() as usize;
-    let is_signed = kind.is_signed();
-
-    let value = IntConstantValue::from_le_bytes(&value.to_le_bytes()[0..size], is_signed);
-    CONSTANT_MAP.create_int(IntConstant { value, suffix: None })
 }
 
 // -------------------- Strings --------------------
