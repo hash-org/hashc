@@ -169,10 +169,14 @@ impl Display for LitPat {
                 // integer constant don't store usize values.
                 let dummy_size = Size::ZERO;
 
-                if let Some(min) = kind.min(dummy_size) && min == value {
-                    write!(f, "{kind}::MIN")
-                } else if let Some(max) = kind.max(dummy_size) && max == value {
-                    write!(f, "{kind}::MAX")
+                if !kind.is_bigint() {
+                    if kind.min(dummy_size) == value {
+                        write!(f, "{kind}::MIN")
+                    } else if kind.max(dummy_size) == value {
+                        write!(f, "{kind}::MAX")
+                    } else {
+                        write!(f, "{lit}")
+                    }
                 } else {
                     write!(f, "{lit}")
                 }

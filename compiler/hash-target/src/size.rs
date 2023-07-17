@@ -69,6 +69,20 @@ impl Size {
         self.value * 8
     }
 
+    /// Performs a truncation on `value` to `self` bits, and then sign extends
+    /// it to 128 bits.
+    pub fn sign_extend(self, value: u128) -> u128 {
+        let size = self.bits();
+
+        // Can't sign extend to 0 bits.
+        if size == 0 {
+            return 0;
+        }
+
+        let shift = 128 - size;
+        (((value << shift) as i128) >> shift) as u128
+    }
+
     /// Truncates `value` to `self` bits.
     #[inline]
     pub fn truncate(self, value: u128) -> u128 {
@@ -84,11 +98,24 @@ impl Size {
         (value << shift) >> shift
     }
 
+    /// Get the maximum signed integer value that is
+    /// representable within this size.
+    #[inline]
+    pub fn signed_int_max(&self) -> i128 {
+        i128::MAX >> (128 - self.bits())
+    }
+
     /// Get the maximum unsigned integer value that is
     /// representable within this size.
     #[inline]
     pub fn unsigned_int_max(&self) -> u128 {
         u128::MAX >> (128 - self.bits())
+    }
+
+    /// Get the minimum signed integer value that is
+    /// representable within this size.
+    pub fn signed_int_min(&self) -> i128 {
+        self.sign_extend(1_u128 << (self.bits() - 1)) as i128
     }
 
     /// Take the current [Size] and align it to a specified [Alignment].
