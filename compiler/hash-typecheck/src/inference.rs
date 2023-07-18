@@ -1278,7 +1278,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let params = match self.get_ty(subject_ty) {
             Ty::Tuple(tuple_ty) => tuple_ty.data,
             Ty::Data(data_ty) => {
-                match self.data_utils().get_single_ctor_of_data_def(data_ty.data_def) {
+                match data_ty.data_def.borrow().get_single_ctor() {
                     Some(ctor) => {
                         let data_def = self.get_data_def(data_ty.data_def);
                         let sub = self

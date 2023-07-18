@@ -219,7 +219,7 @@ tir_debug_name_of_store_id!(DataDefId);
 
 impl DataDef {
     /// Create an empty data definition.
-    pub fn no_ctors(name: Symbol, params: ParamsId) -> DataDefId {
+    pub fn empty(name: Symbol, params: ParamsId) -> DataDefId {
         DataDef::create_with(|id| DataDef {
             id,
             name,

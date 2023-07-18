@@ -4,9 +4,9 @@ use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_tir::{
     context::Decl,
-    data::{CtorDefData, CtorDefId, DataDefId},
+    data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
     defs::DefId,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::StoreId},
     mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberId, ModMemberValue},
     scopes::StackId,
     symbols::{sym, Symbol},
@@ -178,24 +178,21 @@ impl<'tc> DiscoveryPass<'tc> {
                 self.def_state().data_ctors.modify_fast(data_def_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let data_utils = self.data_utils();
 
                         // Set data constructors.
-                        let data_members = data_utils.set_data_def_ctors(
+                        let ctors = CtorDef::seq_from_data(
                             data_def_id,
-                            data_utils.create_data_ctors(
-                                data_def_id,
-                                members.iter().map(|(_, data)| data).copied(),
-                            ),
+                            members.iter().map(|(_, data)| data).copied(),
                         );
+                        data_def_id.borrow_mut().ctors = DataDefCtors::Defined(ctors);
 
                         // Set node for each data constructor.
                         for ((node_id, _), data_ctor_index) in
-                            members.iter().zip(data_members.to_index_range())
+                            members.iter().zip(ctors.to_index_range())
                         {
                             ast_info
                                 .ctor_defs()
-                                .insert(*node_id, CtorDefId(data_members, data_ctor_index));
+                                .insert(*node_id, CtorDefId(ctors, data_ctor_index));
                         }
                     }
                 })

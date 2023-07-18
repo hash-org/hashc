@@ -2,7 +2,9 @@
 use std::iter::once;
 
 use hash_tir::{
-    data::{ArrayCtorInfo, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
+    data::{
+        ArrayCtorInfo, DataDef, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
+    },
     environment::{
         env::{AccessToEnv, Env},
         stores::SequenceStoreValue,
@@ -83,7 +85,7 @@ impl DefinedPrimitives {
     pub fn create<T: AccessToEnv>(env: &T) -> Self {
         // Helper function to create a numeric primitive.
         let numeric = |name, bits, signed, float| {
-            env.data_utils().create_primitive_data_def(
+            DataDef::primitive(
                 sym(name),
                 PrimitiveCtorInfo::Numeric(NumericCtorInfo {
                     bits: if bits == 0 {
@@ -101,10 +103,10 @@ impl DefinedPrimitives {
 
         DefinedPrimitives {
             // Never
-            never: env.data_utils().new_empty_data_def(sym("never"), Param::empty_seq()),
+            never: DataDef::empty(sym("never"), Param::empty_seq()),
 
             // bool
-            bool: env.data_utils().create_enum_def(sym("bool"), Param::empty_seq(), |_| {
+            bool: DataDef::enum_def(sym("bool"), Param::empty_seq(), |_| {
                 vec![(sym("true"), Param::empty_seq()), (sym("false"), Param::empty_seq())]
             }),
 
@@ -129,8 +131,8 @@ impl DefinedPrimitives {
             f64: numeric("f64", 64, false, true),
 
             // str and char
-            str: env.data_utils().create_primitive_data_def(sym("str"), PrimitiveCtorInfo::Str),
-            char: env.data_utils().create_primitive_data_def(sym("char"), PrimitiveCtorInfo::Char),
+            str: DataDef::primitive(sym("str"), PrimitiveCtorInfo::Str),
+            char: DataDef::primitive(sym("char"), PrimitiveCtorInfo::Char),
 
             // list
             list: {
@@ -141,7 +143,7 @@ impl DefinedPrimitives {
                     ty: Ty::flexible_universe(),
                     default: None,
                 }));
-                env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
+                DataDef::primitive_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
                         element_ty: Ty::var(t_sym),
                         length: None,
@@ -159,7 +161,7 @@ impl DefinedPrimitives {
                     ]
                     .into_iter(),
                 );
-                env.data_utils().create_primitive_data_def_with_params(list_sym, params, |_| {
+                DataDef::primitive_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
                         element_ty: Ty::var(t_sym),
                         length: Some(env.new_term(n_sym)),
@@ -183,7 +185,7 @@ impl DefinedPrimitives {
                     ty: Ty::var(t_sym),
                     default: None,
                 }));
-                env.data_utils().create_enum_def(option_sym, params, |_| {
+                DataDef::enum_def(option_sym, params, |_| {
                     vec![(none_sym, Param::empty_seq()), (some_sym, some_params)]
                 })
             },
@@ -212,7 +214,7 @@ impl DefinedPrimitives {
                     ty: Ty::var(e_sym),
                     default: None,
                 }));
-                env.data_utils().create_enum_def(result_sym, params, |_| {
+                DataDef::enum_def(result_sym, params, |_| {
                     vec![(ok_sym, ok_params), (err_sym, err_params)]
                 })
             },
@@ -246,7 +248,7 @@ impl DefinedPrimitives {
                     env.new_term(x_sym),
                 ]);
 
-                env.data_utils().create_data_def(eq_sym, params, |_| {
+                DataDef::indexed_enum_def(eq_sym, params, |_| {
                     vec![(refl_sym, refl_params, Some(refl_result_args))]
                 })
             },

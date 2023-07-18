@@ -7,6 +7,7 @@ use hash_ast::{
 };
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_tir::{
+    data::DataDef,
     defs::DefId,
     environment::env::AccessToEnv,
     fns::{FnBody, FnDefData, FnTy},
@@ -186,7 +187,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let struct_name = self.take_name_hint_or_create_internal_name();
 
         // Create a data definition for the struct
-        let struct_def_id = self.data_utils().create_struct_def(
+        let struct_def_id = DataDef::struct_def(
             struct_name,
             self.create_hole_params(&node.ty_params),
             self.create_hole_params(&node.fields),
@@ -210,18 +211,15 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
         // Create a data definition for the enum
 
-        let enum_def_id = self.data_utils().create_data_def(
-            enum_name,
-            self.create_hole_params(&node.ty_params),
-            |_| {
+        let enum_def_id =
+            DataDef::indexed_enum_def(enum_name, self.create_hole_params(&node.ty_params), |_| {
                 node.entries
                     .iter()
                     .map(|variant| {
                         (sym(variant.name.ident), self.create_hole_params(&variant.fields), None)
                     })
                     .collect_vec()
-            },
-        );
+            });
 
         // Traverse the enum; the variants have already been created.
         self.enter_item(node, ItemId::Def(enum_def_id.into()), || walk::walk_enum_def(self, node))?;

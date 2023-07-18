@@ -26,12 +26,12 @@ use hash_source::{identifier::Identifier, location::Span};
 use hash_tir::{
     args::ArgsId,
     data::{CtorPat, CtorTerm, DataDefId},
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::StoreId},
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
     symbols::Symbol,
     terms::Term,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::store::TrivialKeySequenceStore;
 
@@ -194,8 +194,7 @@ impl<'tc> ResolutionPass<'tc> {
                 let mod_member = self.stores().mod_members().get_element(mod_member_id);
                 match mod_member.value {
                     ModMemberValue::Data(data_def_id) => {
-                        let data_def_single_ctor =
-                            self.data_utils().get_single_ctor_of_data_def(data_def_id);
+                        let data_def_single_ctor = data_def_id.borrow().get_single_ctor();
 
                         let (data_args, ctor_args): (ResolvedArgs, Option<ResolvedArgs>) =
                             match &component.args[..] {
