@@ -9,8 +9,8 @@ use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_tir::{
     data::DataDef,
     defs::DefId,
-    environment::env::AccessToEnv,
-    fns::{FnBody, FnDefData, FnTy},
+    environment::{env::AccessToEnv, stores::SingleStoreValue},
+    fns::{FnBody, FnDef, FnTy},
     mods::{ModDefData, ModKind},
     symbols::sym,
     terms::Term,
@@ -233,7 +233,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_name = self.take_name_hint_or_create_internal_name();
 
         // Create a function definition
-        let fn_def_id = self.fn_utils().create_fn_def(FnDefData {
+        let fn_def_id = FnDef::create_with(|id| FnDef {
+            id,
             name: fn_def_name,
             body: FnBody::Defined(Term::hole()),
             ty: FnTy {
@@ -262,7 +263,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_name = self.take_name_hint_or_create_internal_name();
 
         // Create a function definition
-        let fn_def_id = self.fn_utils().create_fn_def(FnDefData {
+        let fn_def_id = FnDef::create_with(|id| FnDef {
+            id,
             name: fn_def_name,
             body: FnBody::Defined(Term::hole()),
             ty: FnTy {

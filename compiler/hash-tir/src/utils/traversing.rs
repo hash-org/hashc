@@ -15,9 +15,9 @@ use crate::{
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     environment::{
         env::{AccessToEnv, Env},
-        stores::StoreId,
+        stores::{SingleStoreValue, StoreId},
     },
-    fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
+    fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
     impl_access_to_env,
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
@@ -425,21 +425,23 @@ impl<'env> TraversingUtils<'env> {
                 let fn_def = self.get_fn_def(fn_def_id);
 
                 match fn_def.body {
-                    FnBody::Defined(defined) => Ok(self.fn_utils().create_fn_def(FnDefData {
-                        name: fn_def.name,
-
-                        ty: {
-                            let fn_ty = fn_def.ty;
-                            FnTy {
-                                params: self.fmap_params(fn_ty.params, f)?,
-                                return_ty: self.fmap_ty(fn_ty.return_ty, f)?,
-                                implicit: fn_ty.implicit,
-                                is_unsafe: fn_ty.is_unsafe,
-                                pure: fn_ty.pure,
-                            }
-                        },
-                        body: FnBody::Defined(self.fmap_term(defined, f)?),
-                    })),
+                    FnBody::Defined(defined) => {
+                        let params = self.fmap_params(fn_def.ty.params, f)?;
+                        let return_ty = self.fmap_ty(fn_def.ty.return_ty, f)?;
+                        let body = FnBody::Defined(self.fmap_term(defined, f)?);
+                        Ok(FnDef::create_with(|id| FnDef {
+                            id,
+                            name: fn_def.name,
+                            ty: FnTy {
+                                params,
+                                return_ty,
+                                implicit: fn_def.ty.implicit,
+                                is_unsafe: fn_def.ty.is_unsafe,
+                                pure: fn_def.ty.pure,
+                            },
+                            body,
+                        }))
+                    }
                     FnBody::Intrinsic(_) | FnBody::Axiom => Ok(fn_def_id),
                 }
             }
