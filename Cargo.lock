@@ -87,12 +87,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "append-only-vec"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5608767d94038891df4c7bb82f6b1beb55fe3d204735985e20de329bc35d5fee"
-
-[[package]]
 name = "arrayvec"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -912,7 +906,6 @@ dependencies = [
 name = "hash-utils"
 version = "0.1.0"
 dependencies = [
- "append-only-vec",
  "arrayvec",
  "backtrace",
  "dashmap",
