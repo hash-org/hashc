@@ -263,7 +263,7 @@ macro_rules! tir_sequence_store_direct {
             type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, [$value]>;
 
             fn borrow(self) -> Self::ValueBorrow {
-                $crate::environment::stores::global_stores().$store_name().borrow(self)
+                hash_utils::store::SequenceStore::borrow($crate::environment::stores::global_stores().$store_name(), self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
@@ -383,7 +383,7 @@ macro_rules! tir_single_store {
             type ValueBorrowMut = hash_utils::store::StoreBorrowMutHandle<'static, $value>;
 
             fn borrow(self) -> Self::ValueBorrow {
-                $crate::environment::stores::global_stores().$store_name().borrow(self)
+                hash_utils::store::Store::borrow($crate::environment::stores::global_stores().$store_name(), self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {

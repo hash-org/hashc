@@ -63,6 +63,12 @@ impl Symbol {
     pub fn fresh() -> Self {
         SymbolData::create_with(|symbol| SymbolData { symbol, name: None })
     }
+
+    /// Create a new symbol with the same name as this one.
+    pub fn duplicate(&self) -> Symbol {
+        let name = self.borrow().name;
+        SymbolData::create_with(|symbol| SymbolData { symbol, name })
+    }
 }
 
 impl std::fmt::Debug for Symbol {

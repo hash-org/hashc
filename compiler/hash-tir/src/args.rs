@@ -4,7 +4,10 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_utils::{
+    itertools::Itertools,
+    store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+};
 use utility_types::omit;
 
 use super::{
@@ -13,8 +16,10 @@ use super::{
     pats::PatId,
 };
 use crate::{
-    environment::stores::StoreId, terms::TermId, tir_debug_value_of_sequence_store_element_id,
-    tir_sequence_store_direct,
+    environment::stores::{SequenceStoreValue, SingleStoreValue, StoreId},
+    params::ParamsId,
+    terms::{Term, TermId},
+    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
 };
 
 /// An argument to a parameter.
@@ -44,6 +49,32 @@ tir_sequence_store_direct!(
 );
 
 tir_debug_value_of_sequence_store_element_id!(ArgId);
+
+impl Arg {
+    /// From the given parameters, create arguments that directly refer to the
+    /// parameters using `Term::Var`.
+    ///
+    /// Example:
+    /// ```notrust
+    /// X := datatype <A: Type, B: Type, C: Type> { foo: () -> X<A, B, C> }
+    ///                                                         ^^^^^^^^^ this is what this function creates
+    /// ```
+    pub fn seq_from_param_names_as_vars(params_id: ParamsId) -> ArgsId {
+        Arg::seq(
+            // For each parameter, create an argument referring to it
+            params_id
+                .iter()
+                .enumerate()
+                .map(|(i, param)| {
+                    move |_| Arg {
+                        target: ParamIndex::Position(i),
+                        value: Term::create(Term::Var(param.borrow().name)),
+                    }
+                })
+                .collect_vec(),
+        )
+    }
+}
 
 /// A pattern or a capture.
 ///

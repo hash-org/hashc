@@ -1,9 +1,12 @@
 //! Definitions related to user-defined data-types.
 
 use core::fmt;
-use std::fmt::Display;
+use std::{borrow::Borrow, fmt::Display, iter::once};
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_utils::{
+    itertools::Itertools,
+    store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey},
+};
 use textwrap::indent;
 use utility_types::omit;
 
@@ -14,7 +17,12 @@ use super::{
     tys::TyId,
 };
 use crate::{
-    params::ParamsId, pats::PatArgsWithSpread, symbols::Symbol, terms::TermId,
+    args::Arg,
+    environment::stores::{SequenceStoreValue, SingleStoreValue},
+    params::{Param, ParamsId},
+    pats::PatArgsWithSpread,
+    symbols::Symbol,
+    terms::TermId,
     tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct, tir_single_store,
 };
 
@@ -151,6 +159,29 @@ pub enum DataDefCtors {
     Primitive(PrimitiveCtorInfo),
 }
 
+impl CtorDef {
+    /// Create data constructors from the given iterator, for the given data
+    /// definition.
+    pub fn seq_from_data<I: IntoIterator<Item = CtorDefData>>(
+        data_def_id: DataDefId,
+        data: I,
+    ) -> CtorDefsId
+    where
+        I::IntoIter: ExactSizeIterator,
+    {
+        CtorDef::seq(data.into_iter().enumerate().map(|(index, data)| {
+            move |id| CtorDef {
+                id,
+                name: data.name,
+                data_def_id,
+                data_def_ctor_index: index,
+                params: data.params,
+                result_args: data.result_args,
+            }
+        }))
+    }
+}
+
 /// A data-type definition.
 ///
 /// This is a "nominal" inductively defined data type, which is how user-defined
@@ -185,6 +216,146 @@ tir_single_store!(
 );
 
 tir_debug_name_of_store_id!(DataDefId);
+
+impl DataDef {
+    /// Create an empty data definition.
+    pub fn no_ctors(name: Symbol, params: ParamsId) -> DataDefId {
+        DataDef::create_with(|id| DataDef {
+            id,
+            name,
+            params,
+            ctors: DataDefCtors::Defined(CtorDef::empty_seq()),
+        })
+    }
+
+    /// Create a primitive data definition.
+    pub fn primitive(name: Symbol, info: PrimitiveCtorInfo) -> DataDefId {
+        DataDef::create_with(|id| DataDef {
+            id,
+            name,
+            params: Param::empty_seq(),
+            ctors: DataDefCtors::Primitive(info),
+        })
+    }
+
+    /// Create a primitive data definition with parameters.
+    ///
+    /// These may be referenced in `info`.
+    pub fn primitive_with_params(
+        name: Symbol,
+        params: ParamsId,
+        info: impl FnOnce(DataDefId) -> PrimitiveCtorInfo,
+    ) -> DataDefId {
+        DataDef::create_with(|id| DataDef {
+            id,
+            name,
+            params,
+            ctors: DataDefCtors::Primitive(info(id)),
+        })
+    }
+
+    /// Get the single constructor of the given data definition, if it is indeed
+    /// a single constructor.
+    pub fn get_single_ctor(&self) -> Option<CtorDef> {
+        match self.borrow().ctors {
+            DataDefCtors::Defined(ctors) => {
+                if ctors.len() == 1 {
+                    Some(ctors.borrow()[0])
+                } else {
+                    None
+                }
+            }
+            DataDefCtors::Primitive(_) => None,
+        }
+    }
+
+    /// Create a struct data definition, with some parameters.
+    ///
+    /// The fields are given as an iterator of `ParamData`s, which are the names
+    /// and types of the fields.
+    ///
+    /// This will create a data definition with a single constructor, which
+    /// takes the fields as parameters and returns the data type.
+    pub fn struct_def(name: Symbol, params: ParamsId, fields_params: ParamsId) -> DataDefId {
+        // Create the arguments for the constructor, which are the type
+        // parameters given.
+        let result_args = Arg::seq_from_param_names_as_vars(params);
+
+        // Create the data definition
+        DataDef::create_with(|id| DataDef {
+            id,
+            name,
+            params,
+            ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
+                id,
+                once({
+                    CtorDefData {
+                        // Name of the constructor is the same as the data definition, though we
+                        // need to create a new symbol for it
+                        name: name.duplicate(),
+                        // The constructor is the only one
+                        params: fields_params,
+                        result_args,
+                    }
+                }),
+            )),
+        })
+    }
+
+    /// Create an enum definition, with some parameters, where each variant has
+    /// specific result arguments.
+    pub fn indexed_enum_def(
+        name: Symbol,
+        params: ParamsId,
+        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId, Option<ArgsId>)>,
+    ) -> DataDefId {
+        // Create the data definition for the enum
+        DataDef::create_with(|id| DataDef {
+            id,
+            name,
+            params,
+            ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
+                id,
+                variants(id)
+                    .into_iter()
+                    .map(|(variant_name, fields_params, result_args)| {
+                        // Create a constructor for each variant
+                        CtorDefData {
+                            name: variant_name,
+                            params: fields_params,
+                            result_args: result_args.unwrap_or_else(|| {
+                                // Create the arguments for the constructor, which are the type
+                                // parameters given.
+                                Arg::seq_from_param_names_as_vars(params)
+                            }),
+                        }
+                    })
+                    .collect_vec(),
+            )),
+        })
+    }
+
+    /// Create an enum definition, with some parameters.
+    ///
+    /// The variants are given as an iterator of `(Symbol, Iter<ParamData>)`,
+    /// which are the names and fields of the variants.
+    ///
+    /// This will create a data definition with a constructor for each variant,
+    /// which takes the variant fields as parameters and returns the data
+    /// type.
+    pub fn enum_def(
+        name: Symbol,
+        params: ParamsId,
+        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId)>,
+    ) -> DataDefId {
+        Self::indexed_enum_def(name, params, |def_id| {
+            variants(def_id)
+                .into_iter()
+                .map(|(variant_name, fields_params)| (variant_name, fields_params, None))
+                .collect_vec()
+        })
+    }
+}
 
 /// A type pointing to a data-type definition.
 ///
