@@ -68,12 +68,12 @@ use hash_ast::ast::MatchOrigin;
 use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::SourceLocation;
+use hash_storage::store::CloneStore;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
     pats::PatId,
     tys::TyId,
 };
-use hash_utils::store::CloneStore;
 use storage::{
     DeconstructedCtorId, DeconstructedCtorStore, DeconstructedPatId, DeconstructedPatStore,
     ExhaustivenessCtx,

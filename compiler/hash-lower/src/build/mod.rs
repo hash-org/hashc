@@ -28,21 +28,16 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId,
 };
+use hash_storage::store::{statics::StoreId, FxHashMap, PartialCloneStore, SequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     directives::DirectiveTarget,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::StoreId,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     symbols::Symbol,
     terms::TermId,
 };
-use hash_utils::{
-    index_vec::IndexVec,
-    store::{FxHashMap, PartialCloneStore, SequenceStoreKey},
-};
+use hash_utils::index_vec::IndexVec;
 
 use crate::{cfg::ControlFlowGraph, ctx::BuilderCtx};
 

@@ -3,8 +3,8 @@
 
 use hash_abi::ArgAbi;
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::InstanceId};
+use hash_storage::store::Store;
 use hash_target::abi::{AbiRepresentation, ScalarKind};
-use hash_utils::store::Store;
 
 use super::{locals::LocalRef, operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::{

@@ -7,8 +7,9 @@
 //! is detailed within [super].
 use std::iter::once;
 
+use hash_storage::store::Store;
 use hash_tir::{pats::PatId, tys::TyId};
-use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack, store::Store};
+use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 
 use super::{
     construct::DeconstructedCtor, deconstruct::DeconstructedPat, fields::Fields, matrix::Matrix,

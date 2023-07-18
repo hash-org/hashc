@@ -13,24 +13,23 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{attributes::Attribute, identifier::IDENTS};
+use hash_storage::store::{
+    statics::StoreId, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+};
 use hash_target::size::Size;
 use hash_tir::{
     data::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::{FnDef, FnDefId, FnTy},
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
     utils::common::CommonUtils,
 };
-use hash_utils::{
-    index_vec::index_vec,
-    itertools::Itertools,
-    store::{PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
-};
+use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
 use crate::ctx::BuilderCtx;
 

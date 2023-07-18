@@ -7,6 +7,7 @@ use std::cell::Cell;
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
+use hash_storage::store::{PartialStore, SequenceStore, SequenceStoreKey, Store};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors},
     directives::AppliedDirectives,
@@ -15,7 +16,6 @@ use hash_tir::{
     tys::Ty,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{PartialStore, SequenceStore, SequenceStoreKey, Store};
 
 use super::{scoping::ContextKind, ResolutionPass};
 use crate::{

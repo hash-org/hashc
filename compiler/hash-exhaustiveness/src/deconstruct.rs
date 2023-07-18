@@ -10,13 +10,13 @@ use std::{
 };
 
 use hash_intrinsics::utils::PrimitiveUtils;
+use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataTy},
-    environment::stores::StoreId,
     pats::PatId,
     tys::{Ty, TyId},
 };
-use hash_utils::{itertools::Itertools, smallvec::SmallVec, store::Store};
+use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
 use super::{construct::DeconstructedCtor, fields::Fields};
 use crate::{

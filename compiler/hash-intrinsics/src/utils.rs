@@ -2,9 +2,10 @@ use hash_ast::ast::{self};
 use hash_source::constant::{
     FloatTy, IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
 };
+use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     lits::{CharLit, FloatLit, IntLit, Lit},
     pats::{Pat, PatId},
     refs::{RefKind, RefTy},
@@ -12,7 +13,6 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::common::CommonUtils,
 };
-use hash_utils::store::Store;
 use num_bigint::BigInt;
 
 use crate::primitives::AccessToPrimitives;

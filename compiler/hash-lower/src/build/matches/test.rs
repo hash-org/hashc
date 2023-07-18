@@ -19,17 +19,17 @@ use hash_source::{
     constant::{IntConstant, IntConstantValue, CONSTANT_MAP},
     location::Span,
 };
+use hash_storage::store::{statics::StoreId, CloneStore, Store};
 use hash_tir::{
     args::PatArgsId,
     atom_info::ItemInAtomInfo,
     control::IfPat,
     data::CtorPat,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     lits::LitPat,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
-use hash_utils::store::{CloneStore, Store};
 use indexmap::IndexMap;
 
 use super::{

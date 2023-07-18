@@ -4,6 +4,10 @@ use std::{cell::Cell, ops::ControlFlow};
 use derive_more::{Deref, From};
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
+use hash_storage::store::{
+    statics::StoreId, CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+    TrivialSequenceStoreKey,
+};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
@@ -12,7 +16,6 @@ use hash_tir::{
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    environment::stores::StoreId,
     fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
@@ -30,13 +33,7 @@ use hash_tir::{
         AccessToUtils,
     },
 };
-use hash_utils::{
-    itertools::Itertools,
-    log::info,
-    store::{
-        CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
-    },
-};
+use hash_utils::{itertools::Itertools, log::info};
 
 use crate::{
     errors::{TcError, TcResult},

@@ -23,6 +23,7 @@ use std::fmt;
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
+use hash_storage::store::TrivialKeySequenceStore;
 use hash_tir::{
     args::ArgsId,
     data::{CtorPat, CtorTerm, DataDefId},
@@ -33,7 +34,6 @@ use hash_tir::{
     terms::Term,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::TrivialKeySequenceStore;
 
 use super::{
     params::{AstArgGroup, ResolvedArgs},

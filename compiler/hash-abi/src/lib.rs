@@ -4,12 +4,12 @@
 //! information to code generation backends about how values are represented.
 
 use hash_layout::{compute::LayoutComputer, LayoutId, TyInfo};
+use hash_storage::{new_store_key, store::Store};
 use hash_target::{
     abi::{Abi, AbiRepresentation, Scalar},
     size::Size,
     Target,
 };
-use hash_utils::{new_store_key, store::Store};
 
 /// Defines the available calling conventions that can be
 /// used when invoking functions with the ABI.

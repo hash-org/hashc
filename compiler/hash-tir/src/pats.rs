@@ -5,7 +5,10 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_ast::ast::RangeEnd;
-use hash_utils::store::{SequenceStore, Store, TrivialSequenceStoreKey};
+use hash_storage::{
+    static_sequence_store_indirect, static_single_store,
+    store::{SequenceStore, Store, TrivialSequenceStoreKey},
+};
 
 use super::{
     args::{PatArgsId, PatOrCapture},
@@ -17,8 +20,7 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, tir_debug_value_of_single_store_id, tir_get, tir_sequence_store_indirect,
-    tir_single_store,
+    arrays::ArrayPat, environment::stores::tir_stores, tir_debug_value_of_single_store_id, tir_get,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -104,19 +106,21 @@ impl Pat {
     }
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub PatStore,
     id = pub PatId,
     value = Pat,
-    store_name = pat
+    store_name = pat,
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_single_store_id!(PatId);
 
-tir_sequence_store_indirect!(
+static_sequence_store_indirect!(
     store = pub PatListStore,
     id = pub PatListId[PatOrCapture],
-    store_name = pat_list
+    store_name = pat_list,
+    store_source = tir_stores()
 );
 
 impl fmt::Display for Spread {

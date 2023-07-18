@@ -87,12 +87,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "append-only-vec"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5608767d94038891df4c7bb82f6b1beb55fe3d204735985e20de329bc35d5fee"
-
-[[package]]
 name = "arrayvec"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -436,16 +430,9 @@ dependencies = [
  "hash-ir",
  "hash-layout",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-utils",
-]
-
-[[package]]
-name = "hash-alloc"
-version = "0.1.0"
-dependencies = [
- "bumpalo",
- "bumpalo-herd",
 ]
 
 [[package]]
@@ -511,6 +498,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-utils",
  "rayon",
@@ -537,6 +525,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-utils",
  "inkwell",
  "llvm-sys",
@@ -547,7 +536,6 @@ dependencies = [
 name = "hash-driver"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
  "hash-ast",
  "hash-ast-desugaring",
  "hash-ast-expand",
@@ -583,6 +571,7 @@ dependencies = [
  "hash-intrinsics",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-utils",
@@ -605,6 +594,7 @@ dependencies = [
  "derive_more",
  "hash-ast",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-utils",
@@ -618,10 +608,10 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.0.0-rc.1",
  "fixedbitset",
- "hash-alloc",
  "hash-ast",
  "hash-intrinsics",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-utils",
@@ -634,6 +624,7 @@ version = "0.1.0"
 dependencies = [
  "fixedbitset",
  "hash-ir",
+ "hash-storage",
  "hash-target",
  "hash-utils",
 ]
@@ -678,6 +669,7 @@ dependencies = [
  "hash-reporting",
  "hash-semantics",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-tree-def",
@@ -740,7 +732,6 @@ dependencies = [
  "bitflags 2.0.0-rc.1",
  "dashmap",
  "derive_more",
- "hash-alloc",
  "hash-ast",
  "hash-error-codes",
  "hash-exhaustiveness",
@@ -748,6 +739,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-tree-def",
@@ -766,12 +758,24 @@ dependencies = [
  "dashmap",
  "derive_more",
  "fnv",
- "hash-alloc",
+ "hash-storage",
  "hash-target",
  "hash-utils",
  "lazy_static",
  "num-bigint",
  "once_cell",
+]
+
+[[package]]
+name = "hash-storage"
+version = "0.1.0"
+dependencies = [
+ "bumpalo",
+ "bumpalo-herd",
+ "dashmap",
+ "fxhash",
+ "itertools",
+ "parking_lot",
 ]
 
 [[package]]
@@ -839,6 +843,7 @@ dependencies = [
  "derive_more",
  "hash-ast",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-utils",
  "indexmap",
@@ -854,7 +859,6 @@ dependencies = [
 name = "hash-token"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
  "hash-source",
  "smallvec",
  "strum_macros",
@@ -877,13 +881,13 @@ dependencies = [
  "bimap",
  "dashmap",
  "derive_more",
- "hash-alloc",
  "hash-ast",
  "hash-error-codes",
  "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-tir",
  "hash-tree-def",
  "hash-utils",
@@ -912,7 +916,6 @@ dependencies = [
 name = "hash-utils"
 version = "0.1.0"
 dependencies = [
- "append-only-vec",
  "arrayvec",
  "backtrace",
  "dashmap",
@@ -932,7 +935,6 @@ dependencies = [
 name = "hash-vm"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
  "hash-reporting",
  "hash-source",
  "hash-utils",
@@ -953,7 +955,6 @@ version = "0.1.0"
 dependencies = [
  "cargo-husky",
  "clap",
- "hash-alloc",
  "hash-ast",
  "hash-driver",
  "hash-pipeline",

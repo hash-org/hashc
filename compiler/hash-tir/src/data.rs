@@ -3,19 +3,21 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_storage::{
+    static_sequence_store_direct, static_single_store,
+    store::{statics::StoreId, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey},
+};
 use textwrap::indent;
 use utility_types::omit;
 
 use super::{
     args::{ArgsId, PatArgsId},
-    environment::stores::StoreId,
     pats::Spread,
     tys::TyId,
 };
 use crate::{
-    params::ParamsId, pats::PatArgsWithSpread, symbols::Symbol, terms::TermId,
-    tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct, tir_single_store,
+    environment::stores::tir_stores, params::ParamsId, pats::PatArgsWithSpread, symbols::Symbol,
+    terms::TermId, tir_debug_name_of_store_id, tir_get,
 };
 
 /// A constructor of a data-type definition.
@@ -54,11 +56,12 @@ pub struct CtorDef {
     pub result_args: ArgsId,
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub CtorDefsStore,
     id = pub CtorDefsId[CtorDefId],
     value = CtorDef,
-    store_name = ctor_defs
+    store_name = ctor_defs,
+    store_source = tir_stores()
 );
 
 tir_debug_name_of_store_id!(CtorDefId);
@@ -187,11 +190,12 @@ pub struct DataDef {
     pub ctors: DataDefCtors,
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub DataDefStore,
     id = pub DataDefId,
     value = DataDef,
-    store_name = data_def
+    store_name = data_def,
+    store_source = tir_stores()
 );
 
 tir_debug_name_of_store_id!(DataDefId);

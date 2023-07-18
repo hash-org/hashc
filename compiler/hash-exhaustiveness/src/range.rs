@@ -38,12 +38,12 @@ use std::{
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::diagnostic::Diagnostics;
+use hash_storage::store::Store;
 use hash_tir::{
     environment::env::AccessToEnv,
     pats::{PatId, RangePat},
     tys::TyId,
 };
-use hash_utils::store::Store;
 
 use crate::{
     constant::Constant, diagnostics::ExhaustivenessWarning, storage::DeconstructedPatId,

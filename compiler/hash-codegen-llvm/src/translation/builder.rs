@@ -24,7 +24,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
-use hash_utils::store::Store;
+use hash_storage::store::Store;
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},

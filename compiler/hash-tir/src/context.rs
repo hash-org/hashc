@@ -7,16 +7,14 @@ use std::{
 };
 
 use derive_more::From;
-use hash_utils::{
-    itertools::Itertools,
-    store::{SequenceStoreKey, StoreKey, TrivialSequenceStoreKey},
-};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey};
+use hash_utils::itertools::Itertools;
 use indexmap::IndexMap;
 
 use crate::{
     args::{ArgId, ArgsId},
     data::{CtorDefId, DataDefId},
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::{FnDefId, FnTy},
     mods::ModDefId,
     params::{ParamId, ParamsId},

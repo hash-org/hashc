@@ -5,15 +5,14 @@ use hash_ir::{
     ty::{IrTyId, Mutability, VariantIdx},
     IrCtx,
 };
+use hash_storage::store::{statics::StoreId, SequenceStore};
 use hash_tir::{
     access::AccessTerm,
     arrays::IndexTerm,
-    environment::stores::StoreId,
     params::ParamIndex,
     refs::DerefTerm,
     terms::{Term, TermId},
 };
-use hash_utils::store::SequenceStore;
 
 use super::{unpack, BlockAnd, BlockAndExtend, BodyBuilder};
 

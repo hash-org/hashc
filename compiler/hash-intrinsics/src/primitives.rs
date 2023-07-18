@@ -1,19 +1,16 @@
 //! Definition and lookup of primitive types.
 use std::iter::once;
 
+use hash_storage::store::{statics::SequenceStoreValue, Store};
 use hash_tir::{
     data::{ArrayCtorInfo, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::SequenceStoreValue,
-    },
+    environment::env::{AccessToEnv, Env},
     mods::{ModMemberData, ModMemberValue},
     params::{Param, ParamData},
     symbols::sym,
     tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::Store;
 
 macro_rules! defined_primitives {
     ($($name:ident),* $(,)?) => {

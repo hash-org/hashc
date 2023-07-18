@@ -1,17 +1,16 @@
 use std::collections::HashSet;
 
 use derive_more::{Constructor, Deref};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     args::{
         ArgData, ArgId, ArgsId, PatArgData, PatArgId, PatArgsId, PatOrCapture, SomeArgId,
         SomeArgsId,
     },
-    environment::stores::StoreId,
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{SequenceStoreKey, TrivialSequenceStoreKey};
 
 use crate::{errors::TcResult, AccessToTypechecking};
 

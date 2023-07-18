@@ -4,7 +4,7 @@
 //! this module provides the [CastKind] type which is used to classify
 //! casts at the top level within RValue positions.
 
-use hash_utils::store::CloneStore;
+use hash_storage::store::CloneStore;
 
 use crate::{
     ty::{IrTy, IrTyId},

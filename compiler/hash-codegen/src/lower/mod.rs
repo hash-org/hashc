@@ -12,7 +12,8 @@ use hash_ir::{
     traversal,
     ty::InstanceId,
 };
-use hash_utils::{index_vec::IndexVec, store::Store};
+use hash_storage::store::Store;
+use hash_utils::index_vec::IndexVec;
 
 use self::{abi::FnAbiError, locals::LocalRef, operands::OperandRef, place::PlaceRef};
 use crate::traits::{

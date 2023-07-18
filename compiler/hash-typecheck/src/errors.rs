@@ -7,6 +7,7 @@ use hash_reporting::{
     writer::ReportWriter,
 };
 use hash_source::location::SourceLocation;
+use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
     fns::FnDefId,
@@ -18,7 +19,6 @@ use hash_tir::{
     tys::TyId,
     utils::{common::CommonUtils, traversing::Atom},
 };
-use hash_utils::store::{SequenceStoreKey, TrivialSequenceStoreKey};
 
 use crate::params::ParamError;
 

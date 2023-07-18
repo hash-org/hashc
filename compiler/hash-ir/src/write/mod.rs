@@ -10,7 +10,7 @@ pub mod pretty;
 
 use std::fmt;
 
-use hash_utils::store::{SequenceStore, Store};
+use hash_storage::store::{SequenceStore, Store};
 
 use super::ir::*;
 use crate::{

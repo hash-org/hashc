@@ -13,6 +13,10 @@ use hash_source::{
     identifier::IDENTS,
     ModuleKind,
 };
+use hash_storage::store::{
+    statics::StoreId, CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store,
+    TrivialKeySequenceStore, TrivialSequenceStoreKey,
+};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgId, ArgsId, PatArgsId, PatOrCapture},
@@ -23,7 +27,7 @@ use hash_tir::{
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     directives::DirectiveTarget,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -40,10 +44,6 @@ use hash_tir::{
     ty_as_variant,
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
-};
-use hash_utils::store::{
-    CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
-    TrivialSequenceStoreKey,
 };
 use itertools::Itertools;
 

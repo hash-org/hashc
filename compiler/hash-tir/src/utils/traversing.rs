@@ -3,7 +3,9 @@ use core::fmt;
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{From, TryInto};
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::StoreId, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
@@ -13,10 +15,7 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::StoreId,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnCallTerm, FnDefData, FnDefId, FnTy},
     impl_access_to_env,
     locations::LocationTarget,

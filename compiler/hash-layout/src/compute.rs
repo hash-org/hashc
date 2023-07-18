@@ -9,6 +9,7 @@ use hash_ir::{
     ty::{AdtData, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
     IrCtx,
 };
+use hash_storage::store::{CloneStore, Store, StoreInternalData};
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
@@ -16,10 +17,7 @@ use hash_target::{
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
-use hash_utils::{
-    index_vec::IndexVec,
-    store::{CloneStore, Store, StoreInternalData},
-};
+use hash_utils::index_vec::IndexVec;
 
 use crate::{
     CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape, PointeeInfo, PointerKind,

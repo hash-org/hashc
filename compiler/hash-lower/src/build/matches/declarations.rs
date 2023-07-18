@@ -7,18 +7,18 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     pats::{Pat, PatId},
     scopes::{BindingPat, DeclTerm},
     symbols::Symbol,
     terms::TermId,
     tuples::TuplePat,
 };
-use hash_utils::store::TrivialSequenceStoreKey;
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};
 use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend};

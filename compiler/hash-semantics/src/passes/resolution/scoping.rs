@@ -3,6 +3,9 @@ use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
+use hash_storage::store::{
+    CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
+};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataDefId},
     environment::env::{AccessToEnv, Env},
@@ -16,10 +19,7 @@ use hash_tir::{
     ty_as_variant,
     utils::common::CommonUtils,
 };
-use hash_utils::{
-    state::HeavyState,
-    store::{CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore},
-};
+use hash_utils::state::HeavyState;
 
 use super::paths::NonTerminalResolvedPathComponent;
 use crate::{

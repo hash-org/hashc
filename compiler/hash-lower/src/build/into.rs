@@ -13,6 +13,7 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{constant::CONSTANT_MAP, identifier::Identifier, location::Span};
+use hash_storage::store::{statics::StoreId, CloneStore, SequenceStoreKey, Store};
 use hash_tir::{
     args::ArgsId,
     arrays::ArrayTerm,
@@ -20,7 +21,7 @@ use hash_tir::{
     context::Context,
     control::{LoopControlTerm, ReturnTerm},
     data::CtorTerm,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::FnCallTerm,
     params::ParamIndex,
     refs::{self, RefTerm},
@@ -29,10 +30,7 @@ use hash_tir::{
     tuples::TupleTerm,
     ty_as_variant,
 };
-use hash_utils::{
-    itertools::Itertools,
-    store::{CloneStore, SequenceStoreKey, Store},
-};
+use hash_utils::itertools::Itertools;
 
 use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
 

@@ -10,7 +10,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_utils::store::CloneStore;
+use hash_storage::store::CloneStore;
 use inkwell::values::{AnyValueEnum, UnnamedAddress};
 
 use super::LLVMBuilder;

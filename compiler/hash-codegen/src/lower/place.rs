@@ -7,11 +7,11 @@ use hash_ir::{
     write::WriteIr,
 };
 use hash_layout::{LayoutShape, Variants};
+use hash_storage::store::SequenceStore;
 use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
     alignment::Alignment,
 };
-use hash_utils::store::SequenceStore;
 
 use super::{locals::LocalRef, FnBuilder};
 use crate::{
