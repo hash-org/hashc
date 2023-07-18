@@ -114,9 +114,9 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         // the variant, and then store it within the specified field.
         if let Some(field) = maybe_field {
             let ptr = self.project_field(builder, field);
-            let (_, value) = builder.ir_ctx().map_ty(self.info.ty, |ty| {
-                ty.discriminant_for_variant(builder.ir_ctx(), discriminant).unwrap()
-            });
+            let (_, value) = builder
+                .ir_ctx()
+                .map_ty(self.info.ty, |ty| ty.discriminant_for_variant(discriminant).unwrap());
 
             builder.store(
                 builder.const_uint_big(builder.backend_ty_from_info(ptr.info), value),
@@ -150,7 +150,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         match variants {
             Variants::Single { index } => {
                 let value = builder.ir_ctx().map_ty(self.info.ty, |ty| {
-                    ty.discriminant_for_variant(builder.ir_ctx(), index)
+                    ty.discriminant_for_variant(index)
                         .map_or(index.raw() as u128, |(_, value)| value)
                 });
 

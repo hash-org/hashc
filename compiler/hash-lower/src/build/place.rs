@@ -5,7 +5,7 @@ use hash_ir::{
     ty::{IrTyId, Mutability, VariantIdx},
     IrCtx,
 };
-use hash_storage::store::{statics::StoreId, SequenceStore};
+use hash_storage::store::{statics::StoreId, SequenceStore, Store};
 use hash_tir::{
     access::AccessTerm,
     arrays::IndexTerm,
@@ -176,7 +176,8 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// using a [ParamIndex]. This function assumes that the underlying type
     /// is a [IrTy::Adt].
     fn lookup_field_index(&mut self, ty: IrTyId, field: ParamIndex) -> usize {
-        self.ctx().map_ty_as_adt(ty, |adt, _| {
+        let adt = self.ctx().tys().borrow(ty).as_adt();
+        adt.map(|adt| {
             // @@Todo: deal with unions here.
             if adt.flags.is_struct() || adt.flags.is_tuple() {
                 // So we get the first variant of the ADT since structs, tuples always

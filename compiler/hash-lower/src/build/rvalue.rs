@@ -223,7 +223,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         if self.settings.lowering_settings().checked_operations {
             if op.is_checkable() && actual_ty.is_integral() {
                 // Create a new tuple that contains the result of the operation
-                let ty = IrTy::tuple(self.ctx(), &[ty, self.ctx().tys().common_tys.bool]);
+                let ty = IrTy::tuple(&[ty, self.ctx().tys().common_tys.bool]);
                 let ty_id = self.ctx().tys().create(ty);
 
                 let temp = self.temp_place(ty_id);

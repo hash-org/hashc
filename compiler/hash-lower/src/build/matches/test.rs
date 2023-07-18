@@ -208,7 +208,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         emit_const_test(value, ty_id)
                     }
                     IrTy::Adt(id) => {
-                        let (variant_count, adt) = self.ctx().map_adt(*id, |id, adt| {
+                        let (variant_count, adt) = id.map(|adt| {
                             // Structs can be simplified...
                             if adt.flags.is_struct() {
                                 panic_on_span!(
@@ -219,7 +219,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                                 )
                             }
 
-                            (adt.variants.len(), id)
+                            (adt.variants.len(), *id)
                         });
 
                         Test {
@@ -312,7 +312,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // variant patterns, bu nothing else.
                 let test_adt = self.ty_id_from_tir_ty(pat_ty);
 
-                let variant_index = self.ctx().map_ty_as_adt(test_adt, |adt, _| {
+                let variant_index = self.ctx().tys().borrow(test_adt).as_adt().map(|adt| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {

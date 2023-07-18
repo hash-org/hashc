@@ -28,7 +28,7 @@ use hash_ir::{
     ty::{IrTy, VariantIdx},
     write::WriteIr,
 };
-use hash_storage::store::Store;
+use hash_storage::store::{statics::StoreId, Store};
 use hash_target::{abi::AbiRepresentation, size::Size};
 use hash_utils::tree_writing::CharacterSet;
 
@@ -685,7 +685,7 @@ impl<'l> LayoutWriter<'l> {
                 // on the type that is being stored.
                 let field_titles = match (layout.abi, ty) {
                     (_, IrTy::Adt(adt)) => {
-                        self.ctx.ir_ctx().map_adt(*adt, |_, adt| {
+                        adt.map(|adt| {
                             // we load in the variant that is specified in the
                             // "layouts" of the type.
                             let variant = match layout.variants {

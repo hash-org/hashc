@@ -53,7 +53,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             Term::Tuple(TupleTerm { data }) => {
                 let ty = self.ty_id_from_tir_term(term);
-                let adt = self.ctx().map_ty_as_adt(ty, |_, id| id);
+                let adt = self.ctx().tys().borrow(ty).as_adt();
                 let aggregate_kind = AggregateKind::Tuple(adt);
 
                 let args = data

@@ -15,6 +15,7 @@ use hash_codegen::{
     traits::{layout::LayoutMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::IrTy;
+use hash_storage::store::statics::StoreId;
 use hash_utils::smallvec::{smallvec, SmallVec};
 use inkwell as llvm;
 use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};
@@ -348,7 +349,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
                         // of LLVM builds.
                         let name: Option<String> = match ty {
                             IrTy::Adt(adt) => {
-                                ctx.ir_ctx().map_adt(*adt, |_, adt| {
+                                adt.map(|adt| {
                                     // We don't create a name for tuple types, they are just
                                     // regarded
                                     // as opaque structs

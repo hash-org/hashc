@@ -365,9 +365,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // If the type is a boolean, then we can't simplify this pattern any further...
                 let adt = self.ctx().map_ty(ty, |ty| match ty {
                     IrTy::Bool => None,
-                    IrTy::Adt(id) => {
-                        self.ctx().map_adt(*id, |id, adt| adt.flags.is_struct().then_some(id))
-                    }
+                    IrTy::Adt(id) => id.map(|adt| adt.flags.is_struct().then_some(*id)),
                     ty => panic!("unexpected type: {ty:?}"),
                 });
 

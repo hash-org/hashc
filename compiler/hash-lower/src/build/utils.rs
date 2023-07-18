@@ -12,7 +12,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_source::{constant::CONSTANT_MAP, location::Span};
-use hash_storage::store::SequenceStore;
+use hash_storage::store::{SequenceStore, Store};
 use hash_tir::{
     data::DataTy,
     environment::env::AccessToEnv,
@@ -114,7 +114,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         ptr: Operand,
         metadata: usize,
     ) -> RValue {
-        let id = self.ctx().map_ty_as_adt(ty, |_, id| id);
+        let id = self.ctx().tys().borrow(ty).as_adt();
 
         let ptr_width = self.settings.target().ptr_size();
         let metadata =

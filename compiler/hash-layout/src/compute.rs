@@ -9,7 +9,7 @@ use hash_ir::{
     ty::{AdtData, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
     IrCtx,
 };
-use hash_storage::store::{CloneStore, Store, StoreInternalData};
+use hash_storage::store::{statics::StoreId, CloneStore, Store, StoreInternalData};
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
@@ -250,7 +250,7 @@ impl<'l> LayoutComputer<'l> {
                 }))
             }
             IrTy::Array { ty, length: size } => self.compute_layout_of_array(*ty, *size as u64),
-            IrTy::Adt(adt) => self.ir_ctx.map_adt(*adt, |_id, adt| -> Result<_, LayoutError> {
+            IrTy::Adt(adt) => adt.map(|adt| -> Result<_, LayoutError> {
                 // We have to compute the layouts of all of the variants
                 // and all of the fields of the variants
                 let field_layout_table = adt

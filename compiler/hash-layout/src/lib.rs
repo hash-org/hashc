@@ -17,7 +17,7 @@ use hash_ir::{
 };
 use hash_storage::{
     new_store_key,
-    store::{CloneStore, DefaultStore, FxHashMap, Store, StoreInternalData},
+    store::{statics::StoreId, CloneStore, DefaultStore, FxHashMap, Store, StoreInternalData},
 };
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
@@ -259,11 +259,7 @@ impl TyInfo {
             IrTy::Slice(element) | IrTy::Array { ty: element, .. } => *element,
             IrTy::Adt(id) => match layout.variants {
                 Variants::Single { index } => {
-                    let field_ty = ctx
-                        .ir_ctx()
-                        .map_adt(*id, |_, adt| adt.variants[index].fields[field_index].ty);
-
-                    field_ty
+                    id.map(|adt| adt.variants[index].fields[field_index].ty)
                 }
                 Variants::Multiple { tag, .. } => tag.kind().to_ir_ty(ctx.ir_ctx()),
             },
@@ -297,7 +293,8 @@ impl TyInfo {
                 self.layout
             }
             Variants::Single { .. } => {
-                let fields = ctx.ir_ctx().map_ty_as_adt(self.ty, |adt, _| {
+                let adt = ctx.ir_ctx().tys().get(self.ty).as_adt();
+                let fields = adt.map(|adt| {
                     if adt.variants.is_empty() {
                         panic!("layout::for_variant called on a zero-variant enum")
                     }

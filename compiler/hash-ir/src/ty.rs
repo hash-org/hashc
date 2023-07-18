@@ -18,8 +18,9 @@ use hash_source::{
     SourceId,
 };
 use hash_storage::{
-    new_sequence_store_key_indirect, new_store_key,
+    new_sequence_store_key_indirect, new_store_key, static_single_store,
     store::{
+        statics::{SingleStoreValue, StoreId},
         CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store, StoreInternalData,
         StoreKey,
     },
@@ -33,6 +34,7 @@ use hash_utils::index_vec::{self, index_vec, IndexVec};
 
 use crate::{
     ir::{LocalDecls, Place, PlaceProjection},
+    ir_stores,
     write::{ForFormatting, WriteIr},
     IrCtx,
 };
@@ -282,7 +284,7 @@ pub enum IrTy {
 
 impl IrTy {
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
-    pub fn tuple(ctx: &IrCtx, tys: &[IrTyId]) -> Self {
+    pub fn tuple(tys: &[IrTyId]) -> Self {
         let variants = index_vec![AdtVariant {
             name: 0usize.into(),
             fields: tys
@@ -293,9 +295,8 @@ impl IrTy {
                 .collect(),
         }];
         let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ctx.adts().create(adt);
 
-        Self::Adt(adt_id)
+        Self::Adt(AdtData::create(adt))
     }
 
     /// Create a reference type to the provided [IrTy].
@@ -399,14 +400,9 @@ impl IrTy {
     /// Get the type of this [IrTy] if a field access is performed on it.
     /// Optionally, the function can be supplied a [VariantIdx] in order to
     /// access a particular variant of the ADT (for `enum`s and `union`s).
-    pub fn on_field_access(
-        &self,
-        field: usize,
-        variant: Option<VariantIdx>,
-        ctx: &IrCtx,
-    ) -> Option<IrTyId> {
+    pub fn on_field_access(&self, field: usize, variant: Option<VariantIdx>) -> Option<IrTyId> {
         match self {
-            IrTy::Adt(id) => ctx.map_adt(*id, |_, adt| {
+            IrTy::Adt(id) => id.map(|adt| {
                 let variant = match variant {
                     Some(variant) => adt.variant(variant),
                     None => adt.univariant(),
@@ -420,29 +416,23 @@ impl IrTy {
 
     /// Compute the discriminant value for a particular [IrTy] and
     /// evaluate it to a raw value.
-    pub fn discriminant_for_variant(
-        &self,
-        ctx: &IrCtx,
-        variant: VariantIdx,
-    ) -> Option<(IntTy, u128)> {
+    pub fn discriminant_for_variant(&self, variant: VariantIdx) -> Option<(IntTy, u128)> {
         match self {
             IrTy::Adt(id) => {
-                ctx.adts().map_fast(*id, |data| {
-                    if !data.flags.is_enum() || data.variants.is_empty() {
-                        None
-                    } else {
-                        // We get the offset of the current discriminant and then
-                        // we also compute the "initial" value of the discriminant
-                        // for this type. Currently, this is quite trivial to do
-                        // since the user cannot (yet) modify what the discriminant
-                        // of each enum variant is, and thus we don't need to account
-                        // for this.
-                        let discriminant_value = data.discriminant_value_for(variant);
-                        let discriminant_type = data.discriminant_ty();
+                if !id.borrow().flags.is_enum() || id.borrow().variants.is_empty() {
+                    None
+                } else {
+                    // We get the offset of the current discriminant and then
+                    // we also compute the "initial" value of the discriminant
+                    // for this type. Currently, this is quite trivial to do
+                    // since the user cannot (yet) modify what the discriminant
+                    // of each enum variant is, and thus we don't need to account
+                    // for this.
+                    let discriminant_value = id.borrow().discriminant_value_for(variant);
+                    let discriminant_type = id.borrow().discriminant_ty();
 
-                        Some((discriminant_type, discriminant_value as u128))
-                    }
-                })
+                    Some((discriminant_type, discriminant_value as u128))
+                }
             }
             _ => None,
         }
@@ -454,13 +444,13 @@ impl IrTy {
     /// all other types is considered to be `0`, and thus a `u8` is sufficient.
     pub fn discriminant_ty(&self, ctx: &IrCtx) -> IrTyId {
         match self {
-            IrTy::Adt(id) => ctx.map_adt(*id, |_, data| {
-                if data.flags.is_enum() {
-                    data.discriminant_ty().to_ir_ty(ctx)
+            IrTy::Adt(id) => {
+                if id.borrow().flags.is_enum() {
+                    id.borrow().discriminant_ty().to_ir_ty(ctx)
                 } else {
                     ctx.tys().common_tys.u8
                 }
-            }),
+            }
             IrTy::Int(_)
             | IrTy::UInt(_)
             | IrTy::Float(_)
@@ -774,7 +764,14 @@ pub struct AdtField {
     pub ty: IrTyId,
 }
 
-new_store_key!(pub AdtId, derives = Debug);
+static_single_store!(
+    store = pub AdtStore,
+    id = pub AdtId,
+    value = AdtData,
+    store_name = adts,
+    store_source = ir_stores(),
+    derives = Debug
+);
 
 impl AdtId {
     /// The unit type always uses the first ID in the store.
@@ -786,85 +783,86 @@ impl AdtId {
 /// and any other additional attributes.
 ///
 /// [AdtData]s are accessed by an ID, of type [AdtId].
-pub struct AdtStore {
-    /// The underlying store.
-    store: DefaultStore<AdtId, AdtData>,
-}
+// pub struct AdtStore {
+//     /// The underlying store.
+//     store: DefaultStore<AdtId, AdtData>,
+// }
 
-impl AdtStore {
-    /// Create a new [AdtStore], and initialise the store
-    /// with the unit type.
-    pub fn new() -> AdtStore {
-        let store = DefaultStore::new();
+// impl AdtStore {
+//     /// Create a new [AdtStore], and initialise the store
+//     /// with the unit type.
+//     pub fn new() -> AdtStore {
+//         let store = DefaultStore::new();
 
-        let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
-        let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
+//         let variants = index_vec![AdtVariant { name: 0usize.into(), fields:
+// vec![] }];         let adt = AdtData::new_with_flags("unit".into(), variants,
+// AdtFlags::TUPLE);
 
-        let id = store.create(adt);
-        assert!(AdtId::UNIT == id);
+//         let id = store.create(adt);
+//         assert!(AdtId::UNIT == id);
 
-        Self { store }
-    }
-}
+//         Self { store }
+//     }
+// }
 
-impl Default for AdtStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// impl Default for AdtStore {
+//     fn default() -> Self {
+//         Self::new()
+//     }
+// }
 
-impl Store<AdtId, AdtData> for AdtStore {
-    fn internal_data(&self) -> &StoreInternalData<AdtData> {
-        self.store.internal_data()
-    }
-}
+// impl Store<AdtId, AdtData> for AdtStore {
+//     fn internal_data(&self) -> &StoreInternalData<AdtData> {
+//         self.store.internal_data()
+//     }
+// }
 
 impl fmt::Display for ForFormatting<'_, AdtId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.ctx.adts().map_fast(self.item, |adt| {
-            match adt.flags {
-                AdtFlags::TUPLE => {
-                    assert!(adt.variants.len() == 1);
-                    let variant = &adt.variants[0];
+        let adt = self.item.value();
 
-                    write!(f, "(")?;
-                    for (i, field) in variant.fields.iter().enumerate() {
-                        if i != 0 {
-                            write!(f, ", ")?;
-                        }
+        match adt.flags {
+            AdtFlags::TUPLE => {
+                assert!(adt.variants.len() == 1);
+                let variant = &adt.variants[0];
 
-                        write!(f, "{}", field.ty.for_fmt(self.ctx))?;
+                write!(f, "(")?;
+                for (i, field) in variant.fields.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
                     }
 
-                    write!(f, ")")
+                    write!(f, "{}", field.ty.for_fmt(self.ctx))?;
                 }
-                _ => {
-                    // We just write the name of the underlying ADT
-                    write!(f, "{}", adt.name)?;
 
-                    // If there are type arguments, then we write them
-                    // out as well.
-                    if let Some(args) = adt.substitutions {
-                        write!(f, "<")?;
-                        self.ctx.tls().map_fast(args, |args| {
-                            for (i, arg) in args.iter().enumerate() {
-                                if i != 0 {
-                                    write!(f, ", ")?;
-                                }
+                write!(f, ")")
+            }
+            _ => {
+                // We just write the name of the underlying ADT
+                write!(f, "{}", adt.name)?;
 
-                                write!(f, "{}", arg.for_fmt(self.ctx))?;
+                // If there are type arguments, then we write them
+                // out as well.
+                if let Some(args) = adt.substitutions {
+                    write!(f, "<")?;
+                    self.ctx.tls().map_fast(args, |args| {
+                        for (i, arg) in args.iter().enumerate() {
+                            if i != 0 {
+                                write!(f, ", ")?;
                             }
 
-                            Ok(())
-                        })?;
+                            write!(f, "{}", arg.for_fmt(self.ctx))?;
+                        }
 
-                        write!(f, ">")?;
-                    }
+                        Ok(())
+                    })?;
 
-                    Ok(())
+                    write!(f, ">")?;
                 }
+
+                Ok(())
             }
-        })
+        }
     }
 }
 
@@ -1104,7 +1102,7 @@ impl PlaceTy {
             PlaceProjection::Field(index) => {
                 let ty = ctx
                     .tys()
-                    .map_fast(self.ty, |ty| ty.on_field_access(index, self.index, ctx))
+                    .map_fast(self.ty, |ty| ty.on_field_access(index, self.index))
                     .unwrap_or_else(|| panic!("expected an ADT, got {self:?}"));
 
                 PlaceTy { ty, index: None }

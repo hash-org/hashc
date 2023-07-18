@@ -1,6 +1,8 @@
 // @@Docs
 use std::sync::OnceLock;
 
+use hash_storage::stores;
+
 use super::super::{
     args::{ArgsStore, PatArgsStore},
     data::{CtorDefsStore, DataDefStore},
@@ -18,37 +20,6 @@ use crate::{
     ast_info::AstInfo, atom_info::AtomInfoStore, control::MatchCasesStore,
     directives::AppliedDirectivesStore,
 };
-
-/// This macro creates a storages struct, as well as accompanying creation and
-/// access methods, for the given sequence of stores.
-macro_rules! stores {
-  ($store_name:ident; $($name:ident: $ty:ty),* $(,)?) => {
-    #[derive(Debug)]
-    pub struct $store_name {
-        $($name: $ty),*
-    }
-
-    impl $store_name {
-        pub fn new() -> Self {
-            Self {
-                $($name: <$ty>::new()),*
-            }
-        }
-
-        $(
-            pub fn $name(&self) -> & $ty {
-                &self.$name
-            }
-        )*
-    }
-
-    impl Default for $store_name {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
-  }
-}
 
 // All the stores that contain definitions for the typechecker.
 stores! {
