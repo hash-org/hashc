@@ -18,8 +18,9 @@ use crate::{
     data::{CtorDefId, DataDefId},
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
+    static_sequence_store_direct,
     symbols::Symbol,
-    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+    tir_debug_value_of_sequence_store_element_id,
     tuples::TupleTy,
     tys::TyId,
 };
@@ -45,7 +46,7 @@ impl From<Param> for ParamData {
     }
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub ParamsStore,
     id = pub ParamsId[ParamId],
     value = Param,

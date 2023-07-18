@@ -14,9 +14,9 @@ use super::{
     tys::TyId,
 };
 use crate::{
-    environment::stores::tir_stores, params::ParamsId, pats::PatArgsWithSpread, symbols::Symbol,
-    terms::TermId, tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct,
-    tir_single_store,
+    environment::stores::tir_stores, params::ParamsId, pats::PatArgsWithSpread,
+    static_sequence_store_direct, static_single_store, symbols::Symbol, terms::TermId,
+    tir_debug_name_of_store_id, tir_get,
 };
 
 /// A constructor of a data-type definition.
@@ -55,7 +55,7 @@ pub struct CtorDef {
     pub result_args: ArgsId,
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub CtorDefsStore,
     id = pub CtorDefsId[CtorDefId],
     value = CtorDef,
@@ -189,7 +189,7 @@ pub struct DataDef {
     pub ctors: DataDefCtors,
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub DataDefStore,
     id = pub DataDefId,
     value = DataDef,

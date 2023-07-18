@@ -570,7 +570,6 @@ impl<K: SequenceStoreKey, V: Clone> SequenceStore<K, V> for DefaultSequenceStore
     }
 }
 
-
 #[cfg(test)]
 mod test_super {
     use super::*;

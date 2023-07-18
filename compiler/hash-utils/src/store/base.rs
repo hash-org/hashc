@@ -209,7 +209,7 @@ impl<K, V> DefaultStore<K, V> {
 impl<K: StoreKey, V: Clone> Store<K, V> for DefaultStore<K, V> {
     fn internal_data(&self) -> &StoreInternalData<V> {
         &self.data
-    }   
+    }
 }
 
 #[cfg(test)]

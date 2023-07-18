@@ -16,9 +16,10 @@ use crate::{
     environment::stores::{tir_stores, StoreId},
     mods::ModDefId,
     pats::PatId,
+    static_single_store,
     symbols::Symbol,
     terms::{TermId, TermListId},
-    tir_get, tir_single_store,
+    tir_get,
     tys::TyId,
 };
 
@@ -105,7 +106,7 @@ pub struct Stack {
     pub local_mod_def: Option<ModDefId>,
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub StackStore,
     id = pub StackId,
     value = Stack,

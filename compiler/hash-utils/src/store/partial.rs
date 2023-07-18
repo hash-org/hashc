@@ -1,7 +1,7 @@
-//! Defines a partial store which may or may not have a value for every key. This 
-//! is useful for storing partial information that is filled in as the something 
-//! is being processed, or to only store information for items that require such 
-//! storage.
+//! Defines a partial store which may or may not have a value for every key.
+//! This is useful for storing partial information that is filled in as the
+//! something is being processed, or to only store information for items that
+//! require such storage.
 
 use std::hash::Hash;
 

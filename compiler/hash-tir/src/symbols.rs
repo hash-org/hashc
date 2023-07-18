@@ -7,7 +7,7 @@ use hash_utils::store::{Store, StoreKey};
 
 use crate::{
     environment::stores::{tir_stores, SingleStoreValue, StoreId},
-    tir_get, tir_single_store,
+    static_single_store, tir_get,
 };
 
 /// The data carried by a symbol.
@@ -41,7 +41,7 @@ pub struct SymbolData {
     pub name: Option<Identifier>,
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub SymbolStore,
     id = pub Symbol,
     value = SymbolData,

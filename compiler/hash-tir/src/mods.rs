@@ -10,8 +10,9 @@ use utility_types::omit;
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
     environment::stores::{tir_stores, StoreId},
+    static_sequence_store_direct, static_single_store,
     symbols::Symbol,
-    tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct, tir_single_store,
+    tir_debug_name_of_store_id, tir_get,
 };
 
 /// The kind of a module.
@@ -95,7 +96,7 @@ pub struct ModMember {
     pub value: ModMemberValue,
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub ModMembersStore,
     id = pub ModMembersId[ModMemberId],
     value = ModMember,
@@ -121,7 +122,7 @@ pub struct ModDef {
     pub members: ModMembersId,
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub ModDefStore,
     id = pub ModDefId,
     value = ModDef,

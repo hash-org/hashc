@@ -18,7 +18,7 @@ use crate::{
     lits::Lit,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    tir_debug_value_of_single_store_id, tir_sequence_store_indirect, tir_single_store,
+    static_sequence_store_indirect, static_single_store, tir_debug_value_of_single_store_id,
     tuples::TupleTerm,
     tys::TyId,
 };
@@ -94,7 +94,7 @@ pub enum Term {
     Hole(Hole),
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub TermStore,
     id = pub TermId,
     value = Term,
@@ -104,7 +104,7 @@ tir_single_store!(
 
 tir_debug_value_of_single_store_id!(TermId);
 
-tir_sequence_store_indirect!(
+static_sequence_store_indirect!(
     store = pub TermListStore,
     id = pub TermListId[TermId],
     store_name = term_list,

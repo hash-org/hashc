@@ -5,8 +5,7 @@ use std::{
     sync::OnceLock,
 };
 
-
-use hash_utils::store::sequence::{SequenceStoreKey, SequenceStore, SequenceStoreInternalData};
+use hash_utils::store::sequence::{SequenceStore, SequenceStoreInternalData, SequenceStoreKey};
 use parking_lot::RwLock;
 
 use super::super::{
@@ -175,7 +174,7 @@ impl<K: SequenceStoreKey<ElementKey = V>, V: Clone> SequenceStore<K, V>
 /// Automatically implement `StoreId` and `SequenceStoreId` for a sequence store
 /// ID type.
 #[macro_export]
-macro_rules! tir_sequence_store_indirect {
+macro_rules! static_sequence_store_indirect {
     (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident[$el_id:ident], store_name = $store_name:ident, store_source = $store_source:expr) => {
         $store_vis type $store = $crate::environment::stores::DefaultIndirectSequenceStore<$id, $el_id>;
         hash_utils::new_sequence_store_key_indirect!($id_vis $id, $el_id);
@@ -227,12 +226,10 @@ macro_rules! tir_sequence_store_indirect {
     };
 }
 
-// $crate::environment::stores::global_stores()
-
 /// Automatically implement `StoreId` and `SequenceStoreId` for a sequence store
 /// ID type.
 #[macro_export]
-macro_rules! tir_sequence_store_direct {
+macro_rules! static_sequence_store_direct {
     (
         store = $store_vis:vis $store:ident,
         id = $id_vis:vis $id:ident[$el_id:ident],
@@ -241,7 +238,7 @@ macro_rules! tir_sequence_store_direct {
         store_source = $store_source:expr,
         derives = Debug
     ) => {
-        tir_sequence_store_direct! {
+        static_sequence_store_direct! {
             store = $store_vis $store,
             id = $id_vis $id[$el_id],
             value = $value,
@@ -357,7 +354,7 @@ macro_rules! tir_sequence_store_direct {
 /// Automatically implement `StoreId` and `SingleStoreId` for a single store ID
 /// type.
 #[macro_export]
-macro_rules! tir_single_store {
+macro_rules! static_single_store {
     (
         store = $store_vis:vis $store:ident,
         id = $id_vis:vis $id:ident,
@@ -366,7 +363,7 @@ macro_rules! tir_single_store {
         store_source = $store_source:expr,
         derives = Debug
     ) => {
-        tir_single_store! {
+        static_single_store! {
             store = $store_vis $store,
             id = $id_vis $id,
             value = $value,

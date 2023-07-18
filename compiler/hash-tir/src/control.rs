@@ -15,8 +15,9 @@ use super::{
 use crate::{
     environment::stores::{tir_stores, StoreId},
     scopes::BlockTerm,
+    static_sequence_store_direct,
     terms::TermId,
-    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+    tir_debug_value_of_sequence_store_element_id,
 };
 
 /// A loop term.
@@ -56,7 +57,7 @@ pub struct MatchCase {
     pub value: TermId,
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub MatchCasesStore,
     id = pub MatchCasesId[MatchCaseId],
     value = MatchCase,

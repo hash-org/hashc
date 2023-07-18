@@ -14,8 +14,9 @@ use crate::{
     fns::FnTy,
     params::Param,
     refs::RefTy,
+    static_single_store,
     terms::TermId,
-    tir_debug_value_of_single_store_id, tir_single_store,
+    tir_debug_value_of_single_store_id,
     tuples::TupleTy,
 };
 
@@ -70,7 +71,7 @@ pub enum Ty {
     Universe(UniverseTy),
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub TyStore,
     id = pub TyId,
     value = Ty,

@@ -17,8 +17,8 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, environment::stores::tir_stores, tir_debug_value_of_single_store_id, tir_get,
-    tir_sequence_store_indirect, tir_single_store,
+    arrays::ArrayPat, environment::stores::tir_stores, static_sequence_store_indirect,
+    static_single_store, tir_debug_value_of_single_store_id, tir_get,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -104,7 +104,7 @@ impl Pat {
     }
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub PatStore,
     id = pub PatId,
     value = Pat,
@@ -114,7 +114,7 @@ tir_single_store!(
 
 tir_debug_value_of_single_store_id!(PatId);
 
-tir_sequence_store_indirect!(
+static_sequence_store_indirect!(
     store = pub PatListStore,
     id = pub PatListId[PatOrCapture],
     store_name = pat_list,

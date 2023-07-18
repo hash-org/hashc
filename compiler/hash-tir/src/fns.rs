@@ -11,9 +11,10 @@ use crate::{
     args::ArgsId,
     environment::stores::{tir_stores, StoreId},
     params::ParamsId,
+    static_single_store,
     symbols::Symbol,
     terms::TermId,
-    tir_debug_name_of_store_id, tir_single_store,
+    tir_debug_name_of_store_id,
     tys::TyId,
 };
 
@@ -108,7 +109,7 @@ impl FnDef {
     }
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub FnDefStore,
     id = pub FnDefId,
     value = FnDef,

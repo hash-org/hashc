@@ -14,8 +14,9 @@ use super::{
 };
 use crate::{
     environment::stores::{tir_stores, StoreId},
+    static_sequence_store_direct,
     terms::TermId,
-    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+    tir_debug_value_of_sequence_store_element_id,
 };
 
 /// An argument to a parameter.
@@ -37,7 +38,7 @@ impl From<Arg> for ArgData {
     }
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub ArgsStore,
     id = pub ArgsId[ArgId],
     value = Arg,
@@ -94,7 +95,7 @@ impl From<PatArg> for PatArgData {
     }
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub PatArgsStore,
     id = pub PatArgsId[PatArgId],
     value = PatArg,
