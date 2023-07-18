@@ -8,5 +8,4 @@ edition = "2021"
 strum_macros = "0.21"
 smallvec = "1.9.0"
 
-hash-alloc = {path = "../hash-alloc" }
 hash-source = {path = "../hash-source" }

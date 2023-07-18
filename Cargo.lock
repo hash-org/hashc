@@ -435,14 +435,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-alloc"
-version = "0.1.0"
-dependencies = [
- "bumpalo",
- "bumpalo-herd",
-]
-
-[[package]]
 name = "hash-ast"
 version = "0.1.0"
 dependencies = [
@@ -541,7 +533,6 @@ dependencies = [
 name = "hash-driver"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
  "hash-ast",
  "hash-ast-desugaring",
  "hash-ast-expand",
@@ -612,7 +603,6 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.0.0-rc.1",
  "fixedbitset",
- "hash-alloc",
  "hash-ast",
  "hash-intrinsics",
  "hash-source",
@@ -734,7 +724,6 @@ dependencies = [
  "bitflags 2.0.0-rc.1",
  "dashmap",
  "derive_more",
- "hash-alloc",
  "hash-ast",
  "hash-error-codes",
  "hash-exhaustiveness",
@@ -760,12 +749,20 @@ dependencies = [
  "dashmap",
  "derive_more",
  "fnv",
- "hash-alloc",
+ "hash-storage",
  "hash-target",
  "hash-utils",
  "lazy_static",
  "num-bigint",
  "once_cell",
+]
+
+[[package]]
+name = "hash-storage"
+version = "0.1.0"
+dependencies = [
+ "bumpalo",
+ "bumpalo-herd",
 ]
 
 [[package]]
@@ -848,7 +845,6 @@ dependencies = [
 name = "hash-token"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
  "hash-source",
  "smallvec",
  "strum_macros",
@@ -871,7 +867,6 @@ dependencies = [
  "bimap",
  "dashmap",
  "derive_more",
- "hash-alloc",
  "hash-ast",
  "hash-error-codes",
  "hash-exhaustiveness",
@@ -925,7 +920,6 @@ dependencies = [
 name = "hash-vm"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
  "hash-reporting",
  "hash-source",
  "hash-utils",
@@ -946,7 +940,6 @@ version = "0.1.0"
 dependencies = [
  "cargo-husky",
  "clap",
- "hash-alloc",
  "hash-ast",
  "hash-driver",
  "hash-pipeline",
