@@ -29,13 +29,13 @@ use crate::{
 /// This macro creates the `Stores` struct, as well as accompanying creation and
 /// access methods, for the given sequence of stores.
 macro_rules! stores {
-  ($($name:ident: $ty:ty),* $(,)?) => {
+  ($store_name:ident; $($name:ident: $ty:ty),* $(,)?) => {
     #[derive(Debug)]
-    pub struct Stores {
+    pub struct $store_name {
         $($name: $ty),*
     }
 
-    impl Stores {
+    impl $store_name {
         pub fn new() -> Self {
             Self {
                 $($name: <$ty>::new()),*
@@ -49,7 +49,7 @@ macro_rules! stores {
         )*
     }
 
-    impl Default for Stores {
+    impl Default for $store_name {
         fn default() -> Self {
             Self::new()
         }
@@ -59,6 +59,7 @@ macro_rules! stores {
 
 // All the stores that contain definitions for the typechecker.
 stores! {
+    Stores;
     args: ArgsStore,
     ctor_defs: CtorDefsStore,
     data_def: DataDefStore,
@@ -81,15 +82,15 @@ stores! {
     directives: AppliedDirectivesStore,
 }
 
-/// The global `Stores` instance.
+/// The global [`Stores`] instance.
 static STORES: OnceLock<Stores> = OnceLock::new();
 
-/// Access the global `Stores` instance.
+/// Access the global [`Stores`] instance.
 pub fn tir_stores() -> &'static Stores {
     STORES.get_or_init(Stores::new)
 }
 
-/// A trait for a store ID which can be used to access a store in `STORES`.
+/// A trait for a store ID which can be used to access a store in a store.
 pub trait StoreId: Sized + Copy {
     type Value;
     type ValueRef: ?Sized;
