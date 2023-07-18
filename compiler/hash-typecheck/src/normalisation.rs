@@ -12,7 +12,6 @@ use hash_tir::{
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    environment::stores::StoreId,
     fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
@@ -34,7 +33,8 @@ use hash_utils::{
     itertools::Itertools,
     log::info,
     store::{
-        CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+        statics::StoreId, CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+        TrivialSequenceStoreKey,
     },
 };
 

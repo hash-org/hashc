@@ -29,13 +29,12 @@ use std::fmt::{self, Debug};
 use hash_source::constant::InternedStr;
 use hash_tir::{
     data::{CtorDefId, DataTy},
-    environment::stores::StoreId,
     tuples::TupleTy,
     tys::Ty,
 };
 use hash_utils::{
     smallvec::{smallvec, SmallVec},
-    store::{SequenceStoreKey, Store},
+    store::{statics::StoreId, SequenceStoreKey, Store},
 };
 
 use super::range::{IntRange, SplitIntRange};

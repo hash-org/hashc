@@ -4,17 +4,22 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::store::Store;
+use hash_utils::{
+    static_single_store,
+    store::{
+        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+        Store,
+    },
+};
 
 use super::{holes::Hole, symbols::Symbol};
 use crate::{
     args::Arg,
     data::{DataDefId, DataTy},
-    environment::stores::{tir_stores, SequenceStoreValue, SingleStoreValue, StoreId},
+    environment::stores::tir_stores,
     fns::FnTy,
     params::Param,
     refs::RefTy,
-    static_single_store,
     terms::TermId,
     tir_debug_value_of_single_store_id,
     tuples::TupleTy,

@@ -4,7 +4,10 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_ast::ast::MatchOrigin;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_utils::{
+    static_sequence_store_direct,
+    store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+};
 use textwrap::indent;
 
 use super::{
@@ -13,10 +16,7 @@ use super::{
     terms::Term,
 };
 use crate::{
-    environment::stores::{tir_stores, StoreId},
-    scopes::BlockTerm,
-    static_sequence_store_direct,
-    terms::TermId,
+    environment::stores::tir_stores, scopes::BlockTerm, terms::TermId,
     tir_debug_value_of_sequence_store_element_id,
 };
 

@@ -6,12 +6,11 @@ use hash_tir::{
         ArgData, ArgId, ArgsId, PatArgData, PatArgId, PatArgsId, PatOrCapture, SomeArgId,
         SomeArgsId,
     },
-    environment::stores::StoreId,
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_utils::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 
 use crate::{errors::TcResult, AccessToTypechecking};
 

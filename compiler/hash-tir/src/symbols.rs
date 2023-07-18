@@ -3,12 +3,15 @@
 use std::fmt::Display;
 
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_utils::store::{Store, StoreKey};
-
-use crate::{
-    environment::stores::{tir_stores, SingleStoreValue, StoreId},
-    static_single_store, tir_get,
+use hash_utils::{
+    static_single_store,
+    store::{
+        statics::{SingleStoreValue, StoreId},
+        Store, StoreKey,
+    },
 };
+
+use crate::{environment::stores::tir_stores, tir_get};
 
 /// The data carried by a symbol.
 ///

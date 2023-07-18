@@ -9,16 +9,13 @@ use hash_pipeline::workspace::StageInfo;
 use hash_source::identifier::IDENTS;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::StoreId,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId},
     mods::{ModKind, ModMemberValue},
     terms::TermId,
     utils::{traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::PartialStore;
+use hash_utils::store::{statics::StoreId, PartialStore};
 use indexmap::IndexSet;
 
 use crate::ctx::BuilderCtx;

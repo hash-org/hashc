@@ -4,7 +4,13 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_utils::{
+    static_sequence_store_indirect, static_single_store,
+    store::{
+        statics::{SequenceStoreValue, SingleStoreValue},
+        SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+    },
+};
 
 use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
 use crate::{
@@ -13,12 +19,12 @@ use crate::{
     arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
-    environment::stores::{tir_stores, SequenceStoreValue, SingleStoreValue},
+    environment::stores::tir_stores,
     fns::{FnCallTerm, FnDefId},
     lits::Lit,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    static_sequence_store_indirect, static_single_store, tir_debug_value_of_single_store_id,
+    tir_debug_value_of_single_store_id,
     tuples::TupleTerm,
     tys::TyId,
 };

@@ -5,7 +5,10 @@
 
 use core::fmt;
 
-use hash_utils::store::{Store, TrivialSequenceStoreKey};
+use hash_utils::{
+    static_single_store,
+    store::{statics::StoreId, Store, TrivialSequenceStoreKey},
+};
 use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
 use utility_types::omit;
@@ -13,10 +16,9 @@ use utility_types::omit;
 use super::{pats::Pat, terms::Term};
 use crate::{
     context::Decl,
-    environment::stores::{tir_stores, StoreId},
+    environment::stores::tir_stores,
     mods::ModDefId,
     pats::PatId,
-    static_single_store,
     symbols::Symbol,
     terms::{TermId, TermListId},
     tir_get,

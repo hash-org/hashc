@@ -4,7 +4,7 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
 use hash_tir::{
     args::{ArgsId, PatArgsId},
-    environment::{env::AccessToEnv, stores::SequenceStoreValue},
+    environment::env::AccessToEnv,
     fns::FnCallTerm,
     params::{Param, ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
@@ -12,7 +12,7 @@ use hash_tir::{
     tys::Ty,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
+use hash_utils::store::{statics::SequenceStoreValue, SequenceStore, SequenceStoreKey};
 
 use super::ResolutionPass;
 use crate::{

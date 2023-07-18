@@ -23,7 +23,7 @@ use hash_tir::{
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     directives::DirectiveTarget,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -42,8 +42,8 @@ use hash_tir::{
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
 use hash_utils::store::{
-    CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
-    TrivialSequenceStoreKey,
+    statics::StoreId, CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store,
+    TrivialKeySequenceStore, TrivialSequenceStoreKey,
 };
 use itertools::Itertools;
 

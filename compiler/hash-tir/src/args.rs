@@ -4,7 +4,10 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_utils::{
+    static_sequence_store_direct,
+    store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+};
 use utility_types::omit;
 
 use super::{
@@ -13,10 +16,7 @@ use super::{
     pats::PatId,
 };
 use crate::{
-    environment::stores::{tir_stores, StoreId},
-    static_sequence_store_direct,
-    terms::TermId,
-    tir_debug_value_of_sequence_store_element_id,
+    environment::stores::tir_stores, terms::TermId, tir_debug_value_of_sequence_store_element_id,
 };
 
 /// An argument to a parameter.

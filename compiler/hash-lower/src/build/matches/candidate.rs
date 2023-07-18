@@ -25,7 +25,6 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     control::{IfPat, MatchCase},
     data::CtorPat,
-    environment::stores::StoreId,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat},
     scopes::BindingPat,
@@ -35,7 +34,7 @@ use hash_tir::{
 use hash_utils::{
     itertools::Itertools,
     smallvec::{smallvec, SmallVec},
-    store::{CloneStore, Store},
+    store::{statics::StoreId, CloneStore, Store},
 };
 
 use crate::build::{place::PlaceBuilder, BodyBuilder};

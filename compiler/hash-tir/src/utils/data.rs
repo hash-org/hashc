@@ -4,17 +4,14 @@ use std::iter::once;
 use derive_more::Constructor;
 use hash_utils::{
     itertools::Itertools,
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{statics::SequenceStoreValue, SequenceStore, SequenceStoreKey, Store},
 };
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
     args::{ArgData, ArgsId},
     data::{CtorDef, CtorDefData, CtorDefsId, DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::SequenceStoreValue,
-    },
+    environment::env::{AccessToEnv, Env},
     impl_access_to_env,
     params::{Param, ParamIndex, ParamsId},
     symbols::Symbol,

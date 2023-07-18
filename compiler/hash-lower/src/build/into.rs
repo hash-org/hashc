@@ -20,7 +20,7 @@ use hash_tir::{
     context::Context,
     control::{LoopControlTerm, ReturnTerm},
     data::CtorTerm,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::FnCallTerm,
     params::ParamIndex,
     refs::{self, RefTerm},
@@ -31,7 +31,7 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    store::{CloneStore, SequenceStoreKey, Store},
+    store::{statics::StoreId, CloneStore, SequenceStoreKey, Store},
 };
 
 use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};

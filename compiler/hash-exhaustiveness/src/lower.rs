@@ -10,7 +10,7 @@ use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     lits::{CharLit, IntLit, LitPat, StrLit},
     params::ParamsId,
     pats::{Pat, PatId, RangePat, Spread},
@@ -24,7 +24,7 @@ use hash_tir::{
 use hash_utils::{
     itertools::Itertools,
     smallvec::SmallVec,
-    store::{SequenceStoreKey, Store, TrivialSequenceStoreKey},
+    store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey},
 };
 
 use super::{

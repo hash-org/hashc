@@ -11,11 +11,10 @@ use hash_ir::{
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{LoopTerm, MatchTerm},
-    environment::stores::StoreId,
     scopes::BlockTerm,
     terms::{Term, TermId},
 };
-use hash_utils::store::TrivialSequenceStoreKey;
+use hash_utils::store::{statics::StoreId, TrivialSequenceStoreKey};
 
 use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
 use crate::build::unpack;

@@ -19,11 +19,10 @@ use hash_source::location::Span;
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{IfPat, MatchCasesId},
-    environment::stores::StoreId,
     pats::{Pat, PatId},
     terms::{Term, TermId},
 };
-use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
+use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack, store::statics::StoreId};
 
 use self::{
     candidate::{traverse_candidate, Binding, Candidate, Candidates},

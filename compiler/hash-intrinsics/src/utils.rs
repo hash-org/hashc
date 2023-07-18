@@ -4,7 +4,7 @@ use hash_source::constant::{
 };
 use hash_tir::{
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     lits::{CharLit, FloatLit, IntLit, Lit},
     pats::{Pat, PatId},
     refs::{RefKind, RefTy},
@@ -12,7 +12,7 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::common::CommonUtils,
 };
-use hash_utils::store::Store;
+use hash_utils::store::{statics::StoreId, Store};
 use num_bigint::BigInt;
 
 use crate::primitives::AccessToPrimitives;

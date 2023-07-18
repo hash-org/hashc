@@ -4,12 +4,14 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_source::identifier::Identifier;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_utils::{
+    static_sequence_store_direct,
+    store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+};
 use utility_types::omit;
 
 use super::{
     args::{ArgsId, PatArgsId},
-    environment::stores::StoreId,
     locations::IndexedLocationTarget,
     terms::TermId,
 };
@@ -18,7 +20,6 @@ use crate::{
     data::{CtorDefId, DataDefId},
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
-    static_sequence_store_direct,
     symbols::Symbol,
     tir_debug_value_of_sequence_store_element_id,
     tuples::TupleTy,

@@ -18,7 +18,7 @@ use hash_target::primitives::IntTy;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     data::DataTy,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::{FnCallTerm, FnDefId},
     lits::LitPat,
     pats::PatId,
@@ -26,7 +26,7 @@ use hash_tir::{
     tys::TyId,
     utils::common::CommonUtils,
 };
-use hash_utils::store::TrivialSequenceStoreKey;
+use hash_utils::store::{statics::StoreId, TrivialSequenceStoreKey};
 
 use super::BodyBuilder;
 

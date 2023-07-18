@@ -3,16 +3,16 @@
 use std::{fmt::Display, path::Path};
 
 use hash_source::SourceId;
-use hash_utils::store::{SequenceStore, Store, TrivialSequenceStoreKey};
+use hash_utils::{
+    static_sequence_store_direct, static_single_store,
+    store::{statics::StoreId, SequenceStore, Store, TrivialSequenceStoreKey},
+};
 use textwrap::indent;
 use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::{tir_stores, StoreId},
-    static_sequence_store_direct, static_single_store,
-    symbols::Symbol,
-    tir_debug_name_of_store_id, tir_get,
+    environment::stores::tir_stores, symbols::Symbol, tir_debug_name_of_store_id, tir_get,
 };
 
 /// The kind of a module.

@@ -19,7 +19,7 @@ use hash_tir::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::{FnDef, FnDefId, FnTy},
     refs::RefTy,
     tuples::TupleTy,
@@ -29,7 +29,9 @@ use hash_tir::{
 use hash_utils::{
     index_vec::index_vec,
     itertools::Itertools,
-    store::{PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
+    store::{
+        statics::StoreId, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+    },
 };
 
 use crate::ctx::BuilderCtx;

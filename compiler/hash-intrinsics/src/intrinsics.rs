@@ -3,10 +3,7 @@ use std::{fmt::Debug, process};
 
 use hash_source::identifier::Identifier;
 use hash_tir::{
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::SequenceStoreValue,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
     lits::Lit,
@@ -19,7 +16,10 @@ use hash_tir::{
     utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{
-    store::{DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store},
+    store::{
+        statics::SequenceStoreValue, DefaultPartialStore, PartialCloneStore, PartialStore,
+        SequenceStoreKey, Store,
+    },
     stream_less_writeln,
 };
 use num_bigint::{BigInt, BigUint};

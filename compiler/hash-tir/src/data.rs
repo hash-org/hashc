@@ -3,20 +3,21 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_utils::{
+    static_sequence_store_direct, static_single_store,
+    store::{statics::StoreId, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey},
+};
 use textwrap::indent;
 use utility_types::omit;
 
 use super::{
     args::{ArgsId, PatArgsId},
-    environment::stores::StoreId,
     pats::Spread,
     tys::TyId,
 };
 use crate::{
-    environment::stores::tir_stores, params::ParamsId, pats::PatArgsWithSpread,
-    static_sequence_store_direct, static_single_store, symbols::Symbol, terms::TermId,
-    tir_debug_name_of_store_id, tir_get,
+    environment::stores::tir_stores, params::ParamsId, pats::PatArgsWithSpread, symbols::Symbol,
+    terms::TermId, tir_debug_name_of_store_id, tir_get,
 };
 
 /// A constructor of a data-type definition.

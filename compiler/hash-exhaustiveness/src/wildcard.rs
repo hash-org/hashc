@@ -8,13 +8,12 @@ use hash_intrinsics::utils::PrimitiveUtils;
 use hash_target::size::Size;
 use hash_tir::{
     data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
-    environment::stores::StoreId,
     tys::Ty,
     utils::common::CommonUtils,
 };
 use hash_utils::{
     smallvec::{smallvec, SmallVec},
-    store::{SequenceStoreKey, Store, TrivialSequenceStoreKey},
+    store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey},
 };
 
 /// A [DeconstructedCtor::Wildcard] that we split relative to the constructors

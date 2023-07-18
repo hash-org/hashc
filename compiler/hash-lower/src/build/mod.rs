@@ -31,17 +31,14 @@ use hash_source::{
 use hash_tir::{
     context::{Context, ScopeKind},
     directives::DirectiveTarget,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::StoreId,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     symbols::Symbol,
     terms::TermId,
 };
 use hash_utils::{
     index_vec::IndexVec,
-    store::{FxHashMap, PartialCloneStore, SequenceStoreKey},
+    store::{statics::StoreId, FxHashMap, PartialCloneStore, SequenceStoreKey},
 };
 
 use crate::{cfg::ControlFlowGraph, ctx::BuilderCtx};

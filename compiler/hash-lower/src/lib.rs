@@ -40,15 +40,14 @@ use hash_tir::{
     args::Arg,
     data::DataTy,
     directives::DirectiveTarget,
-    environment::{
-        env::Env,
-        source_info::CurrentSourceInfo,
-        stores::{tir_stores, SequenceStoreValue, StoreId},
-    },
+    environment::{env::Env, source_info::CurrentSourceInfo, stores::tir_stores},
     utils::common::CommonUtils,
 };
 use hash_utils::{
-    store::{CloneStore, PartialStore},
+    store::{
+        statics::{SequenceStoreValue, StoreId},
+        CloneStore, PartialStore,
+    },
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };

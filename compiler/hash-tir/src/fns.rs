@@ -2,20 +2,17 @@
 
 use std::fmt::Display;
 
-use hash_utils::store::Store;
+use hash_utils::{
+    static_single_store,
+    store::{statics::StoreId, Store},
+};
 use typed_builder::TypedBuilder;
 use utility_types::omit;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
-    args::ArgsId,
-    environment::stores::{tir_stores, StoreId},
-    params::ParamsId,
-    static_single_store,
-    symbols::Symbol,
-    terms::TermId,
-    tir_debug_name_of_store_id,
-    tys::TyId,
+    args::ArgsId, environment::stores::tir_stores, params::ParamsId, symbols::Symbol,
+    terms::TermId, tir_debug_name_of_store_id, tys::TyId,
 };
 
 /// A function type.

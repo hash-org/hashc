@@ -24,12 +24,12 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     control::IfPat,
     data::CtorPat,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     lits::LitPat,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
-use hash_utils::store::{CloneStore, Store};
+use hash_utils::store::{statics::StoreId, CloneStore, Store};
 use indexmap::IndexMap;
 
 use super::{

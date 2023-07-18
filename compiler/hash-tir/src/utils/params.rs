@@ -2,16 +2,13 @@
 use derive_more::Constructor;
 use hash_utils::{
     itertools::Itertools,
-    store::{SequenceStore, TrivialSequenceStoreKey},
+    store::{statics::StoreId, SequenceStore, TrivialSequenceStoreKey},
 };
 
 use super::common::CommonUtils;
 use crate::{
     args::{Arg, ArgData, ArgsId, PatArg, PatArgData, PatArgsId, SomeArgsId},
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::StoreId,
-    },
+    environment::env::{AccessToEnv, Env},
     impl_access_to_env,
     params::{Param, ParamData, ParamIndex, ParamsId},
     symbols::Symbol,

@@ -8,7 +8,6 @@ use hash_tir::{
     args::{ArgsId, PatArgsId},
     atom_info::ItemInAtomInfo,
     context::Decl,
-    environment::stores::StoreId,
     fns::FnBody,
     holes::Hole,
     mods::ModDefId,
@@ -26,7 +25,7 @@ use hash_tir::{
 };
 use hash_utils::{
     log::warn,
-    store::{Store, TrivialKeySequenceStore, TrivialSequenceStoreKey},
+    store::{statics::StoreId, Store, TrivialKeySequenceStore, TrivialSequenceStoreKey},
 };
 
 use crate::AccessToTypechecking;

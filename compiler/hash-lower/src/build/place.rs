@@ -8,12 +8,11 @@ use hash_ir::{
 use hash_tir::{
     access::AccessTerm,
     arrays::IndexTerm,
-    environment::stores::StoreId,
     params::ParamIndex,
     refs::DerefTerm,
     terms::{Term, TermId},
 };
-use hash_utils::store::SequenceStore;
+use hash_utils::store::{statics::StoreId, SequenceStore};
 
 use super::{unpack, BlockAnd, BlockAndExtend, BodyBuilder};
 

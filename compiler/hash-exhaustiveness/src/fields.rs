@@ -10,11 +10,13 @@
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataTy},
-    environment::stores::StoreId,
     tuples::TupleTy,
     tys::{Ty, TyId},
 };
-use hash_utils::{itertools::Itertools, store::Store};
+use hash_utils::{
+    itertools::Itertools,
+    store::{statics::StoreId, Store},
+};
 
 use super::construct::DeconstructedCtor;
 use crate::{
