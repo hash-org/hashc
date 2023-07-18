@@ -44,7 +44,7 @@ pub struct PlaceRef<V> {
 impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     /// Create a new [PlaceRef] from an existant value.
     pub fn new<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
-        builder: &mut Builder,
+        builder: &Builder,
         value: V,
         info: TyInfo,
     ) -> Self {
@@ -309,7 +309,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
 impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Compute the type and layout of a [ir::Place]. This deals with
     /// all projections that occur on the [ir::Place].
-    pub fn compute_place_ty_info(&self, builder: &mut Builder, place: ir::Place) -> TyInfo {
+    pub fn compute_place_ty_info(&self, builder: &Builder, place: ir::Place) -> TyInfo {
         let place_ty = PlaceTy::from_place(place, &self.body.declarations, self.ctx.ir_ctx());
         builder.layout_of(place_ty.ty)
     }

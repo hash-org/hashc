@@ -984,7 +984,7 @@ pub mod walk_modifying {
 
     pub fn walk_ref_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
-        mutability: &mut Mutability,
+        mutability: &Mutability,
         place: &mut Place,
         _: &mut RefKind,
         reference: IrRef,

@@ -166,7 +166,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     let memory_locals = locals::compute_non_ssa_locals(&fn_builder);
 
     fn_builder.locals = {
-        let args = allocate_argument_locals(&mut fn_builder, &mut builder, &memory_locals);
+        let args = allocate_argument_locals(&fn_builder, &mut builder, &memory_locals);
 
         let mut allocate = |local: Local| {
             // we need to get the type and layout from the local
@@ -175,7 +175,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 
             if local == ir::RETURN_PLACE && is_return_indirect {
                 let value = builder.get_param(0);
-                return LocalRef::Place(PlaceRef::new(&mut builder, value, info));
+                return LocalRef::Place(PlaceRef::new(&builder, value, info));
             }
 
             // If this is a memory local, then we need to use a place, otherwise
@@ -183,7 +183,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
             if memory_locals.contains(local.index()) {
                 LocalRef::Place(PlaceRef::new_stack(&mut builder, info))
             } else {
-                LocalRef::new_operand(&mut builder, info)
+                LocalRef::new_operand(&builder, info)
             }
         };
 
@@ -211,7 +211,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 /// when dealing with ABI specifications, and possibly (in the future)
 /// variadic arguments that are passed to the function.
 fn allocate_argument_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
-    fn_ctx: &mut FnBuilder<'a, 'b, Builder>,
+    fn_ctx: &FnBuilder<'a, 'b, Builder>,
     builder: &mut Builder,
     memory_locals: &FixedBitSet,
 ) -> Vec<LocalRef<Builder::Value>> {

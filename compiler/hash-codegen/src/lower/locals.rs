@@ -38,10 +38,7 @@ pub enum LocalRef<V: std::fmt::Debug> {
 
 impl<'b, V: CodeGenObject> LocalRef<V> {
     /// Create a new [LocalRef::Operand] instance.
-    pub fn new_operand<Builder: Codegen<'b, Value = V>>(
-        builder: &mut Builder,
-        layout: TyInfo,
-    ) -> Self {
+    pub fn new_operand<Builder: Codegen<'b, Value = V>>(builder: &Builder, layout: TyInfo) -> Self {
         if layout.is_zst(builder.layout_computer()) {
             LocalRef::Operand(Some(OperandRef::new_zst(builder, layout)))
         } else {

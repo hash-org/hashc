@@ -462,7 +462,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn create_sub_candidates(
         &mut self,
         subject: &PlaceBuilder,
-        candidate: &mut Candidate,
+        candidate: &Candidate,
         sub_pats: &[PatId],
     ) -> Vec<Candidate> {
         sub_pats
