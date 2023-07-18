@@ -5,7 +5,8 @@ use std::{
     sync::OnceLock,
 };
 
-use hash_utils::store::{SequenceStore, SequenceStoreInternalData, SequenceStoreKey};
+
+use hash_utils::store::sequence::{SequenceStoreKey, SequenceStore, SequenceStoreInternalData};
 use parking_lot::RwLock;
 
 use super::super::{
@@ -26,7 +27,7 @@ use crate::{
     directives::AppliedDirectivesStore,
 };
 
-/// This macro creates the `Stores` struct, as well as accompanying creation and
+/// This macro creates a storages struct, as well as accompanying creation and
 /// access methods, for the given sequence of stores.
 macro_rules! stores {
   ($store_name:ident; $($name:ident: $ty:ty),* $(,)?) => {
@@ -182,8 +183,8 @@ macro_rules! tir_sequence_store_indirect {
         impl $crate::environment::stores::StoreId for $id {
             type Value = Vec<$el_id>;
             type ValueRef = [$el_id];
-            type ValueBorrow = hash_utils::store::SequenceStoreBorrowHandle<'static, [$el_id]>;
-            type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, [$el_id]>;
+            type ValueBorrow = hash_utils::store::sequence::SequenceStoreBorrowHandle<'static, [$el_id]>;
+            type ValueBorrowMut = hash_utils::store::sequence::SequenceStoreBorrowMutHandle<'static, [$el_id]>;
 
             fn borrow(self) -> Self::ValueBorrow {
                 $store_source.$store_name().borrow(self)
@@ -257,14 +258,14 @@ macro_rules! tir_sequence_store_direct {
         store_source = $store_source:expr
         $(, derives = $($extra_derives:ident),*)?
     ) => {
-        $store_vis type $store = hash_utils::store::DefaultSequenceStore<$id, $value>;
+        $store_vis type $store = hash_utils::store::sequence::DefaultSequenceStore<$id, $value>;
         hash_utils::new_sequence_store_key_direct!($id_vis $id, $el_id $(, el_derives = [$($extra_derives),*])?);
 
         impl $crate::environment::stores::StoreId for $id {
             type Value = Vec<$value>;
             type ValueRef = [$value];
-            type ValueBorrow = hash_utils::store::SequenceStoreBorrowHandle<'static, [$value]>;
-            type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, [$value]>;
+            type ValueBorrow = hash_utils::store::sequence::SequenceStoreBorrowHandle<'static, [$value]>;
+            type ValueBorrowMut = hash_utils::store::sequence::SequenceStoreBorrowMutHandle<'static, [$value]>;
 
             fn borrow(self) -> Self::ValueBorrow {
                 $store_source.$store_name().borrow(self)
@@ -293,7 +294,7 @@ macro_rules! tir_sequence_store_direct {
 
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_utils::store::TrivialSequenceStoreKey;
+                use hash_utils::store::sequence::TrivialSequenceStoreKey;
                 let entries: Vec<_> = self.iter().collect();
                 f.debug_tuple(stringify!($id)).field(&self.index).field(&self.len)
                     .field(&entries)
@@ -320,21 +321,21 @@ macro_rules! tir_sequence_store_direct {
         impl $crate::environment::stores::StoreId for $el_id {
             type Value = $value;
             type ValueRef = $value;
-            type ValueBorrow = hash_utils::store::SequenceStoreBorrowHandle<'static, $value>;
-            type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, $value>;
+            type ValueBorrow = hash_utils::store::sequence::SequenceStoreBorrowHandle<'static, $value>;
+            type ValueBorrowMut = hash_utils::store::sequence::SequenceStoreBorrowMutHandle<'static, $value>;
 
             fn borrow(self) -> Self::ValueBorrow {
-                use hash_utils::store::TrivialKeySequenceStore;
+                use hash_utils::store::sequence::TrivialKeySequenceStore;
                 $store_source.$store_name().borrow_element(self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
-                use hash_utils::store::TrivialKeySequenceStore;
+                use hash_utils::store::sequence::TrivialKeySequenceStore;
                 $store_source.$store_name().borrow_element_mut(self)
             }
 
             fn value(self) -> Self::Value {
-                use hash_utils::store::TrivialKeySequenceStore;
+                use hash_utils::store::sequence::TrivialKeySequenceStore;
                 $store_source.$store_name().get_element(self.into())
             }
 
