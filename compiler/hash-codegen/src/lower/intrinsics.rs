@@ -19,7 +19,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Resolve a reference to an [LangItem].
     pub(super) fn resolve_lang_item(
         &mut self,
-        builder: &mut Builder,
+        builder: &Builder,
         item: LangItem,
     ) -> (InstanceId, Builder::Function) {
         let instance = self.ctx.ir_ctx().lang_items().get(item).unwrap();
