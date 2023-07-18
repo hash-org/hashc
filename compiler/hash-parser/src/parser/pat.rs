@@ -134,12 +134,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// produces a [Pat::Range].
     fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
         let start = self.next_location();
-        let token = self
+        let mut has_range_pat = false;
+        let token = *self
             .peek()
             .ok_or_else(|| self.make_err(ParseErrorKind::UnExpected, None, None, None))?;
 
         let pat = match token {
-            Token { kind: TokenKind::Ident(ident), .. } if *ident == IDENTS.underscore => {
+            Token { kind: TokenKind::Ident(ident), .. } if ident == IDENTS.underscore => {
                 self.skip_token();
                 Pat::Wild(WildPat {})
             }
@@ -164,28 +165,41 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
                 Pat::Lit(LitPat { data: self.parse_primitive_lit()? })
             }
+            // Potentially a range pattern
+            token @ Token { kind: TokenKind::Dot, .. } => match self.maybe_parse_range_pat(None) {
+                Some(pat) => {
+                    has_range_pat = true;
+                    Pat::Range(pat)
+                }
+                None => self.err_with_location(
+                    ParseErrorKind::ExpectedPat,
+                    None,
+                    Some(token.kind),
+                    token.span,
+                )?,
+            },
+
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
                 self.skip_token();
-                let tree = self.token_trees.get(*tree_index as usize).unwrap();
+                let tree = self.token_trees.get(tree_index as usize).unwrap();
 
-                return Ok((self.parse_tuple_pat(tree, *span)?, true));
+                return Ok((self.parse_tuple_pat(tree, span)?, true));
             }
             // Namespace patterns
             Token { kind: TokenKind::Tree(Delimiter::Brace, tree_index), span } => {
                 self.skip_token();
-                let tree = self.token_trees.get(*tree_index as usize).unwrap();
-
-                let pat = self.parse_module_pat(tree, *span)?;
+                let tree = self.token_trees.get(tree_index as usize).unwrap();
+                let pat = self.parse_module_pat(tree, span)?;
 
                 Pat::Module(pat)
             }
             // Array pattern
             Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
                 self.skip_token();
-                let tree = self.token_trees.get(*tree_index as usize).unwrap();
+                let tree = self.token_trees.get(tree_index as usize).unwrap();
 
-                return Ok((self.parse_array_pat(tree, *span)?, true));
+                return Ok((self.parse_array_pat(tree, span)?, true));
             }
             token => self.err_with_location(
                 ParseErrorKind::ExpectedPat,
@@ -198,10 +212,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // The only valid `range` pattern prefixes are either a bind, or a numeric
         // literal, bindings are later reported as erroneous anyway, but it's better
         // for error-reporting to defer this until later
-        let (pat, can_continue) = if let Pat::Lit(LitPat { data: lit }) = &pat {
+        let (pat, can_continue) = if let Pat::Lit(LitPat { data: lit }) = &pat && !has_range_pat {
             match self.peek() {
                 Some(token) if token.has_kind(TokenKind::Dot) => {
-                    match self.maybe_parse_range_pat(lit.clone()) {
+                    match self.maybe_parse_range_pat(Some(lit.clone())) {
                         Some(pat) => (Pat::Range(pat), false),
                         None => (pat, true),
                     }
@@ -217,7 +231,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Attempt to parse a range-pattern, if it fails then the
     /// function returns [None]
-    fn maybe_parse_range_pat(&mut self, lo: AstNode<Lit>) -> Option<RangePat> {
+    fn maybe_parse_range_pat(&mut self, lo: Option<AstNode<Lit>>) -> Option<RangePat> {
         let offset = self.offset();
 
         // Parse the two dots...
@@ -243,7 +257,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // @@ErrorReporting: just push the error but don't fail...
             match self.peek_resultant_fn(|t| t.parse_primitive_lit()) {
-                Some(hi) => Some(RangePat { lo, hi, end }),
+                Some(hi) => Some(RangePat { lo, hi: Some(hi), end }),
                 None => {
                     // Reset the token offset to the beginning
                     self.offset.set(offset);
@@ -251,9 +265,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             }
         } else {
-            // Reset the token offset to the beginning
-            self.offset.set(offset);
-            None
+            // This means that the range is open-ended, so we just return
+            // the `lo` part of the range.
+            Some(RangePat { lo, hi: None, end })
         }
     }
 

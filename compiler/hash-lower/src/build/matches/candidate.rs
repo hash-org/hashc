@@ -336,10 +336,10 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // we have to convert the `lo` term into the actual value, by getting
                     // the literal term from this term, and then converting the stored value
                     // into a u128...
-                    let lo_val = self.evaluate_const_pat(lo).1 ^ bias;
+                    let lo_val = self.evaluate_range_lit(lo, range_ty, false).1 ^ bias;
 
                     if lo_val <= min {
-                        let hi_val = self.evaluate_const_pat(hi).1 ^ bias;
+                        let hi_val = self.evaluate_range_lit(hi, range_ty, true).1 ^ bias;
 
                         // In this situation, we have an irrefutable pattern, so we can
                         // always go down this path

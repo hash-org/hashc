@@ -29,7 +29,7 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
-use hash_utils::store::Store;
+use hash_utils::store::{CloneStore, Store};
 use indexmap::IndexMap;
 
 use super::{
@@ -245,10 +245,15 @@ impl<'tcx> BodyBuilder<'tcx> {
                     Test { kind: TestKind::Eq { ty, value }, span }
                 }
             }
-            Pat::Range(ref range_pat) => Test {
-                kind: TestKind::Range { range: ConstRange::from_range(range_pat, self) },
-                span,
-            },
+            Pat::Range(ref range_pat) => {
+                let ty_id = self.ty_id_from_tir_pat(pair.pat);
+                let ty = self.ctx().tys().get(ty_id);
+
+                Test {
+                    kind: TestKind::Range { range: ConstRange::from_range(range_pat, ty, self) },
+                    span,
+                }
+            }
             Pat::Array(array_pat) => {
                 let (prefix, suffix, rest) = array_pat.into_parts(self);
 
@@ -349,7 +354,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // When we are performing a switch over integers, then this informs integer
             // equality, but nothing else, @@Improve: we could use the Pat::Range to rule
             // some things out.
-            (TestKind::SwitchInt { ty, ref options }, Pat::Lit(term)) => {
+            (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
                 if !self.ctx().map_ty(*ty, |ty| ty.is_switchable()) {
@@ -359,16 +364,17 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // @@Todo: when we switch to new patterns, we can look this up without
                 // the additional evaluation. However, we might need to modify the `Eq`
                 // on `ir::Const` to actually check if integer values are equal.
-                let value = self.evaluate_const_pat(term).0;
+                let value = self.evaluate_lit_pat(lit).0;
                 let index = options.get_index_of(&value).unwrap();
 
                 // remove the candidate from the pairs
                 candidate.pairs.remove(pair_index);
                 Some(index)
             }
-            (TestKind::SwitchInt { ty: _, ref options }, Pat::Range(ref range_pat)) => {
+            (TestKind::SwitchInt { ty, ref options }, Pat::Range(ref range_pat)) => {
+                let ty = self.ctx().tys().get(*ty);
                 let not_contained =
-                    self.values_not_contained_in_range(range_pat, options).unwrap_or(false);
+                    self.values_not_contained_in_range(range_pat, ty, options).unwrap_or(false);
 
                 // If no switch values are contained within this range, so that pattern can only
                 // be matched if the test fails.
@@ -432,7 +438,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
 
             (TestKind::Range { range }, Pat::Range(ref range_pat)) => {
-                let actual_range = ConstRange::from_range(range_pat, self);
+                let actual_range = ConstRange::from_range(range_pat, range.ty, self);
 
                 if actual_range == *range {
                     // If the ranges are equal, then we can remove the candidate from the
@@ -450,7 +456,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
             }
             (TestKind::Range { ref range }, Pat::Lit(lit_pat)) => {
-                let (value, _) = self.evaluate_const_pat(lit_pat);
+                let (value, _) = self.evaluate_lit_pat(lit_pat);
 
                 // If the `value` is not contained in the testing range, so the `value` can be
                 // matched only if the test fails.
@@ -676,7 +682,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     unimplemented!("non-scalar comparisons not yet implemented")
                 }
             }
-            TestKind::Range { range: ConstRange { lo, hi, end } } => {
+            TestKind::Range { range: ConstRange { lo, hi, end, .. } } => {
                 let lb_success = self.control_flow_graph.start_new_block();
                 let target_blocks = make_target_blocks(self);
 
@@ -838,14 +844,17 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         match match_pair.pat.value() {
             Pat::Lit(term) => {
-                let (constant, value) = self.evaluate_const_pat(term);
+                let (constant, value) = self.evaluate_lit_pat(term);
                 options.entry(constant).or_insert(value);
                 true
             }
             Pat::Range(ref pat) => {
+                let ty_id = self.ty_id_from_tir_pat(match_pair.pat);
+                let ty = self.ctx().tys().get(ty_id);
+
                 // Check if there is at least one value that is not
                 // contained within the range.
-                self.values_not_contained_in_range(pat, options).unwrap_or(false)
+                self.values_not_contained_in_range(pat, ty, options).unwrap_or(false)
             }
 
             // Boolean type...
@@ -873,9 +882,10 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn values_not_contained_in_range(
         &mut self,
         pat: &RangePat,
+        ty: IrTy,
         options: &IndexMap<Const, u128>,
     ) -> Option<bool> {
-        let const_range = ConstRange::from_range(pat, self);
+        let const_range = ConstRange::from_range(pat, ty, self);
 
         // Iterate over all of the options and check if the
         // value is contained in the constant range.

@@ -21,6 +21,7 @@ use crate::primitives::AccessToPrimitives;
 ///
 /// @@Future: maybe use `IntTy` and `FloatTy` for integer and float types
 /// instead?
+#[derive(Clone, Copy)]
 pub enum LitTy {
     I8,
     U8,
@@ -38,6 +39,27 @@ pub enum LitTy {
     F64,
     Bool,
     Char,
+}
+
+impl LitTy {
+    /// Check if the type is an integer type.
+    pub fn is_int(&self) -> bool {
+        matches!(
+            self,
+            LitTy::I8
+                | LitTy::U8
+                | LitTy::I16
+                | LitTy::U16
+                | LitTy::I32
+                | LitTy::U32
+                | LitTy::I64
+                | LitTy::U64
+                | LitTy::U128
+                | LitTy::I128
+                | LitTy::IBig
+                | LitTy::UBig
+        )
+    }
 }
 
 impl From<LitTy> for IntTy {
@@ -268,6 +290,42 @@ pub trait PrimitiveUtils: AccessToPrimitives {
         match self.get_term(term) {
             Term::Ctor(CtorTerm { ctor, .. }) if ctor == self.get_bool_ctor(true) => Some(true),
             Term::Ctor(CtorTerm { ctor, .. }) if ctor == self.get_bool_ctor(false) => Some(false),
+            _ => None,
+        }
+    }
+
+    /// Function used to compute the maximum value of a numeric pattern. This is
+    /// useful when normalising numeric patterns in various contexts where
+    /// we need to know the maximum value of a pattern. Specifically, if a
+    /// range pattern is provided with an open end, we need to know the
+    /// maximum value of the pattern in order to know what the open end
+    /// should be.
+    fn numeric_max_val_of_lit(&self, ty: TyId) -> Option<u128> {
+        match self.try_use_ty_as_lit_ty(ty)? {
+            // There is no maximum value for big integers.
+            LitTy::UBig | LitTy::IBig => None,
+            ty if ty.is_int() => {
+                let int_ty: IntTy = ty.into();
+                Some(int_ty.numeric_max(self.target().ptr_size()))
+            }
+            LitTy::Char => Some(std::char::MAX as u128),
+            // @@Todo: if we implement float ranges, we would need to return `Infinity` here
+            _ => None,
+        }
+    }
+
+    /// Function used to compute the minimum value of a numeric pattern. This is
+    /// a mirror of the [`Self::numeric_max_val`] function.
+    fn numeric_min_val_of_lit(&self, ty: TyId) -> Option<u128> {
+        match self.try_use_ty_as_lit_ty(ty)? {
+            // There is no minimum value for big integers.
+            LitTy::UBig | LitTy::IBig => None,
+            ty if ty.is_int() => {
+                let int_ty: IntTy = ty.into();
+                Some(int_ty.numeric_min(self.target().ptr_size()))
+            }
+            LitTy::Char => Some(0),
+            // @@Todo: if we implement float ranges, we would need to return `-Infinity` here
             _ => None,
         }
     }

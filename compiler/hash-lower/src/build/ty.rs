@@ -11,13 +11,14 @@ use hash_intrinsics::{
 };
 use hash_ir::{
     ir::{self, Const},
-    ty::IrTyId,
+    ty::{IrTy, IrTyId},
 };
 use hash_source::constant::CONSTANT_MAP;
+use hash_target::primitives::IntTy;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     data::DataTy,
-    environment::stores::StoreId,
+    environment::{env::AccessToEnv, stores::StoreId},
     fns::{FnCallTerm, FnDefId},
     lits::LitPat,
     pats::PatId,
@@ -159,10 +160,9 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
     }
 
-    /// Assuming that the provided [TermId] is a literal term, we essentially
-    /// convert the term into a [Const] and return the value of the constant
+    /// Convert the [LitPat] into a [Const] and return the value of the constant
     /// as a [u128]. This literal term must be an integral type.
-    pub(crate) fn evaluate_const_pat(&self, pat: LitPat) -> (Const, u128) {
+    pub(crate) fn evaluate_lit_pat(&self, pat: LitPat) -> (Const, u128) {
         match pat {
             LitPat::Int(lit) => {
                 let value = lit.interned_value();
@@ -176,6 +176,44 @@ impl<'tcx> BodyBuilder<'tcx> {
                 (Const::Char(value), u128::from(value))
             }
             _ => unreachable!(),
+        }
+    }
+
+    /// This will compute the value of a range literal as a [Const] and a
+    /// [u128]. The [u128] is essentially an encoded version in order to
+    /// store signed and unsigned values within the same value.
+    ///
+    /// This function accounts for the fact that a range literal may not have
+    /// a `lo` or `hi` value. In this case, this function will autofill the
+    /// range to either have a `lo` or `hi` value depending on the type of
+    /// the range. In the case of a missing `lo`, it is then assumed that
+    /// the value is `ty::MIN` and in the case of a missing `hi`, it is
+    /// assumed that the value is `ty::MAX`.
+    pub(crate) fn evaluate_range_lit(
+        &self,
+        maybe_pat: Option<LitPat>,
+        ty: IrTy,
+        at_end: bool,
+    ) -> (Const, u128) {
+        match maybe_pat {
+            Some(pat) => self.evaluate_lit_pat(pat),
+            None => match ty {
+                IrTy::Char if at_end => (Const::Char(std::char::MAX), std::char::MAX as u128),
+                IrTy::Char => (Const::Char(0 as char), 0),
+                ty @ (IrTy::Int(_) | IrTy::UInt(_)) => {
+                    let int_ty: IntTy = ty.into();
+                    let ptr_size = self.target().ptr_size();
+
+                    let (signed_value, value) = if at_end {
+                        (int_ty.max(ptr_size), int_ty.numeric_max(ptr_size))
+                    } else {
+                        (int_ty.min(ptr_size), int_ty.numeric_min(ptr_size))
+                    };
+
+                    (Const::Int(CONSTANT_MAP.create_int(signed_value.into())), value)
+                }
+                _ => unreachable!(),
+            },
         }
     }
 }
