@@ -13,7 +13,7 @@ use super::{
     pats::PatId,
 };
 use crate::{
-    environment::stores::{global_stores, StoreId},
+    environment::stores::{tir_stores, StoreId},
     terms::TermId,
     tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
 };
@@ -42,7 +42,7 @@ tir_sequence_store_direct!(
     id = pub ArgsId[ArgId],
     value = Arg,
     store_name = args,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(ArgId);
@@ -99,7 +99,7 @@ tir_sequence_store_direct!(
     id = pub PatArgsId[PatArgId],
     value = PatArg,
     store_name = pat_args,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(PatArgId);

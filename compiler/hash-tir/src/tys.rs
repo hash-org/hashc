@@ -10,7 +10,7 @@ use super::{holes::Hole, symbols::Symbol};
 use crate::{
     args::Arg,
     data::{DataDefId, DataTy},
-    environment::stores::{global_stores, SequenceStoreValue, SingleStoreValue, StoreId},
+    environment::stores::{tir_stores, SequenceStoreValue, SingleStoreValue, StoreId},
     fns::FnTy,
     params::Param,
     refs::RefTy,
@@ -75,7 +75,7 @@ tir_single_store!(
     id = pub TyId,
     value = Ty,
     store_name = ty,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_single_store_id!(TyId);

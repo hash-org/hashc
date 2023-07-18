@@ -85,7 +85,7 @@ stores! {
 static STORES: OnceLock<Stores> = OnceLock::new();
 
 /// Access the global `Stores` instance.
-pub fn global_stores() -> &'static Stores {
+pub fn tir_stores() -> &'static Stores {
     STORES.get_or_init(Stores::new)
 }
 

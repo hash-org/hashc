@@ -13,7 +13,7 @@ use utility_types::omit;
 use super::{pats::Pat, terms::Term};
 use crate::{
     context::Decl,
-    environment::stores::{global_stores, StoreId},
+    environment::stores::{tir_stores, StoreId},
     mods::ModDefId,
     pats::PatId,
     symbols::Symbol,
@@ -110,7 +110,7 @@ tir_single_store!(
     id = pub StackId,
     value = Stack,
     store_name = stack,
-    store_source = global_stores(),
+    store_source = tir_stores(),
     derives = Debug
 );
 

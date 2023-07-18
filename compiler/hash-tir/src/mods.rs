@@ -9,7 +9,7 @@ use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::{global_stores, StoreId},
+    environment::stores::{tir_stores, StoreId},
     symbols::Symbol,
     tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct, tir_single_store,
 };
@@ -100,7 +100,7 @@ tir_sequence_store_direct!(
     id = pub ModMembersId[ModMemberId],
     value = ModMember,
     store_name = mod_members,
-    store_source = global_stores(),
+    store_source = tir_stores(),
     derives = Debug
 );
 
@@ -126,7 +126,7 @@ tir_single_store!(
     id = pub ModDefId,
     value = ModDef,
     store_name = mod_def,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 tir_debug_name_of_store_id!(ModDefId);

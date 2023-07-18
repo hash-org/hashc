@@ -13,7 +13,7 @@ use crate::{
     arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
-    environment::stores::{global_stores, SequenceStoreValue, SingleStoreValue},
+    environment::stores::{tir_stores, SequenceStoreValue, SingleStoreValue},
     fns::{FnCallTerm, FnDefId},
     lits::Lit,
     refs::{DerefTerm, RefTerm},
@@ -99,7 +99,7 @@ tir_single_store!(
     id = pub TermId,
     value = Term,
     store_name = term,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_single_store_id!(TermId);
@@ -108,7 +108,7 @@ tir_sequence_store_indirect!(
     store = pub TermListStore,
     id = pub TermListId[TermId],
     store_name = term_list,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 impl Term {

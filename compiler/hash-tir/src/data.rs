@@ -14,7 +14,7 @@ use super::{
     tys::TyId,
 };
 use crate::{
-    environment::stores::global_stores, params::ParamsId, pats::PatArgsWithSpread, symbols::Symbol,
+    environment::stores::tir_stores, params::ParamsId, pats::PatArgsWithSpread, symbols::Symbol,
     terms::TermId, tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct,
     tir_single_store,
 };
@@ -60,7 +60,7 @@ tir_sequence_store_direct!(
     id = pub CtorDefsId[CtorDefId],
     value = CtorDef,
     store_name = ctor_defs,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 tir_debug_name_of_store_id!(CtorDefId);
@@ -194,7 +194,7 @@ tir_single_store!(
     id = pub DataDefId,
     value = DataDef,
     store_name = data_def,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 tir_debug_name_of_store_id!(DataDefId);

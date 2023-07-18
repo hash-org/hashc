@@ -9,7 +9,7 @@ use utility_types::omit;
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
     args::ArgsId,
-    environment::stores::{global_stores, StoreId},
+    environment::stores::{tir_stores, StoreId},
     params::ParamsId,
     symbols::Symbol,
     terms::TermId,
@@ -113,7 +113,7 @@ tir_single_store!(
     id = pub FnDefId,
     value = FnDef,
     store_name = fn_def,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 tir_debug_name_of_store_id!(FnDefId);

@@ -6,7 +6,7 @@ use hash_source::identifier::{Identifier, IDENTS};
 use hash_utils::store::{Store, StoreKey};
 
 use crate::{
-    environment::stores::{global_stores, SingleStoreValue, StoreId},
+    environment::stores::{tir_stores, SingleStoreValue, StoreId},
     tir_get, tir_single_store,
 };
 
@@ -46,7 +46,7 @@ tir_single_store!(
     id = pub Symbol,
     value = SymbolData,
     store_name = symbol,
-    store_source = global_stores()
+    store_source = tir_stores()
 );
 
 /// Shorthand for `Symbol::from_name`.
