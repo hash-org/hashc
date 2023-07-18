@@ -294,9 +294,8 @@ impl IrTy {
                 .map(|(idx, ty)| AdtField { name: idx.into(), ty })
                 .collect(),
         }];
-        let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-
-        Self::Adt(AdtData::create(adt))
+        let adt = Adt::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
+        Self::Adt(Adt::create(adt))
     }
 
     /// Create a reference type to the provided [IrTy].
@@ -515,7 +514,7 @@ index_vec::define_index_type! {
 /// information about the ADT, which kind of ADT it is, and how it is
 /// represented in memory.
 #[derive(Clone, Debug)]
-pub struct AdtData {
+pub struct Adt {
     /// The name of the ADT
     pub name: Identifier,
 
@@ -537,7 +536,7 @@ pub struct AdtData {
     pub metadata: AdtRepresentation,
 }
 
-impl AdtData {
+impl Adt {
     /// Create a new [AdtData] with the given name and variants.
     pub fn new(name: Identifier, variants: IndexVec<VariantIdx, AdtVariant>) -> Self {
         Self {
@@ -767,7 +766,7 @@ pub struct AdtField {
 static_single_store!(
     store = pub AdtStore,
     id = pub AdtId,
-    value = AdtData,
+    value = Adt,
     store_name = adts,
     store_source = ir_stores(),
     derives = Debug

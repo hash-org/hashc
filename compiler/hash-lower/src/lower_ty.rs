@@ -6,7 +6,7 @@ use hash_ir::{
     intrinsics::Intrinsic,
     lang_items::LangItem,
     ty::{
-        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
+        self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
         Mutability, RepresentationFlags,
     },
     TyCacheEntry,
@@ -14,7 +14,8 @@ use hash_ir::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::{attributes::Attribute, identifier::IDENTS};
 use hash_storage::store::{
-    statics::StoreId, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+    statics::{SingleStoreValue, StoreId},
+    PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
 };
 use hash_target::size::Size;
 use hash_tir::{
@@ -99,9 +100,8 @@ impl<'ir> BuilderCtx<'ir> {
                     .collect();
                 let variant = AdtVariant { name: "0".into(), fields };
 
-                let adt = AdtData::new_with_flags("tuple".into(), index_vec![variant], flags);
-                let id = self.lcx.adts().create(adt);
-                IrTy::Adt(id)
+                let adt = Adt::new_with_flags("tuple".into(), index_vec![variant], flags);
+                IrTy::Adt(Adt::create(adt))
             }
             Ty::Fn(FnTy { params, return_ty, .. }) => {
                 let params = self.lcx.tls().create_from_iter(
@@ -290,7 +290,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Get the name of the data type, if no name exists we default to
         // using `_`.
-        let mut adt = AdtData::new_with_flags(def.name.ident(), variants, flags);
+        let mut adt = Adt::new_with_flags(def.name.ident(), variants, flags);
         adt.substitutions = subs;
 
         // Deal with any specific attributes that were set on the type, i.e.
@@ -302,8 +302,7 @@ impl<'ir> BuilderCtx<'ir> {
         }
 
         // Update the type in the slot that was reserved for it.
-        let id = self.lcx.adts().create(adt);
-        self.lcx.tys().modify_fast(reserved_ty, |ty| *ty = IrTy::Adt(id));
+        self.lcx.tys().modify_fast(reserved_ty, |ty| *ty = IrTy::Adt(Adt::create(adt)));
 
         // We created our own cache entry, so we don't need to update the
         // cache.

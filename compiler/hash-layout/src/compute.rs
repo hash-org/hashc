@@ -6,7 +6,7 @@
 use std::{cmp, iter, num::NonZeroUsize};
 
 use hash_ir::{
-    ty::{AdtData, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
+    ty::{Adt, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
     IrCtx,
 };
 use hash_storage::store::{statics::StoreId, CloneStore, Store, StoreInternalData};
@@ -572,7 +572,7 @@ impl<'l> LayoutComputer<'l> {
     fn compute_layout_of_union(
         &self,
         field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
-        data: &AdtData,
+        data: &Adt,
     ) -> Option<Layout> {
         debug_assert!(data.flags.is_union());
 
@@ -652,7 +652,7 @@ impl<'l> LayoutComputer<'l> {
     fn compute_layout_of_enum(
         &self,
         field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
-        adt: &AdtData,
+        adt: &Adt,
     ) -> Option<Layout> {
         debug_assert!(adt.flags.is_enum());
         let dl = self.data_layout();
