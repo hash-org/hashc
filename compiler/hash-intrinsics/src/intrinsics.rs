@@ -2,6 +2,10 @@
 use std::{fmt::Debug, process};
 
 use hash_source::identifier::Identifier;
+use hash_storage::store::{
+    statics::SequenceStoreValue, DefaultPartialStore, PartialCloneStore, PartialStore,
+    SequenceStoreKey, Store,
+};
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
@@ -15,13 +19,7 @@ use hash_tir::{
     tys::Ty,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::{
-    store::{
-        statics::SequenceStoreValue, DefaultPartialStore, PartialCloneStore, PartialStore,
-        SequenceStoreKey, Store,
-    },
-    stream_less_writeln,
-};
+use hash_utils::stream_less_writeln;
 use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 

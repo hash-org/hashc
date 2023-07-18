@@ -2,13 +2,10 @@
 use derive_more::Constructor;
 use hash_ast::ast::OwnsAstNode;
 use hash_source::{identifier::Identifier, ModuleId};
-use hash_utils::{
-    itertools::Itertools,
-    store::{
-        CloneStore, SequenceStore, Store, StoreKey, TrivialKeySequenceStore,
-        TrivialSequenceStoreKey,
-    },
+use hash_storage::store::{
+    CloneStore, SequenceStore, Store, StoreKey, TrivialKeySequenceStore, TrivialSequenceStoreKey,
 };
+use hash_utils::itertools::Itertools;
 
 use super::common::CommonUtils;
 use crate::{

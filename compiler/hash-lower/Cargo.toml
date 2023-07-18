@@ -13,14 +13,15 @@ rayon = "1.5.0"
 derive_more = "0.99"
 
 hash-ast = { path = "../hash-ast" }
+hash-intrinsics = { path = "../hash-intrinsics" }
 hash-ir = { path = "../hash-ir" }
+hash-layout = { path = "../hash-layout" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
-hash-source = { path = "../hash-source" }
-hash-layout = { path = "../hash-layout" }
-hash-target = { path = "../hash-target" }
-hash-tree-def = { path = "../hash-tree-def" }
-hash-tir = { path = "../hash-tir" }
-hash-utils = { path = "../hash-utils" }
 hash-semantics = { path = "../hash-semantics" }
-hash-intrinsics = { path = "../hash-intrinsics" }
+hash-source = { path = "../hash-source" }
+hash-storage = { path = "../hash-storage" }
+hash-target = { path = "../hash-target" }
+hash-tir = { path = "../hash-tir" }
+hash-tree-def = { path = "../hash-tree-def" }
+hash-utils = { path = "../hash-utils" }

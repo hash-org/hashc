@@ -13,6 +13,10 @@ use hash_source::{
     identifier::IDENTS,
     ModuleKind,
 };
+use hash_storage::store::{
+    statics::StoreId, CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store,
+    TrivialKeySequenceStore, TrivialSequenceStoreKey,
+};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgId, ArgsId, PatArgsId, PatOrCapture},
@@ -40,10 +44,6 @@ use hash_tir::{
     ty_as_variant,
     tys::{Ty, TyId, TypeOfTerm},
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
-};
-use hash_utils::store::{
-    statics::StoreId, CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store,
-    TrivialKeySequenceStore, TrivialSequenceStoreKey,
 };
 use itertools::Itertools;
 

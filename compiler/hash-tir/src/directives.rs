@@ -2,7 +2,7 @@
 
 use derive_more::From;
 use hash_source::identifier::Identifier;
-use hash_utils::store::DefaultPartialStore;
+use hash_storage::store::DefaultPartialStore;
 use indexmap::IndexSet;
 
 use crate::{

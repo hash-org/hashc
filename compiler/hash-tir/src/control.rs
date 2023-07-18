@@ -4,7 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_ast::ast::MatchOrigin;
-use hash_utils::{
+use hash_storage::{
     static_sequence_store_direct,
     store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
 };

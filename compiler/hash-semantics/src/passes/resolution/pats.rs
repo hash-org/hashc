@@ -10,6 +10,7 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
+use hash_storage::store::{SequenceStore, SequenceStoreKey};
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
@@ -24,7 +25,6 @@ use hash_tir::{
     tuples::TuplePat,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use super::{
     params::AstArgGroup,

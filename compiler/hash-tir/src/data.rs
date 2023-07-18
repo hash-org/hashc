@@ -3,7 +3,7 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_utils::{
+use hash_storage::{
     static_sequence_store_direct, static_single_store,
     store::{statics::StoreId, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey},
 };

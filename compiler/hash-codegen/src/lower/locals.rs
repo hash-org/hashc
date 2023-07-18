@@ -12,11 +12,8 @@ use hash_ir::{
     visitor::{ImmutablePlaceContext, IrVisitorMut, MutablePlaceContext, PlaceContext},
 };
 use hash_layout::TyInfo;
-use hash_utils::{
-    graph::dominators::Dominators,
-    index_vec::IndexVec,
-    store::{SequenceStore, SequenceStoreKey},
-};
+use hash_storage::store::{SequenceStore, SequenceStoreKey};
+use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::traits::{

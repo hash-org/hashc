@@ -18,15 +18,14 @@ pub mod printing;
 pub mod range_map;
 pub mod stack;
 pub mod state;
-pub mod store;
 pub mod timing;
 pub mod tree_writing;
 
-// Re-export commonly used vector packages
+// Re-export commonly used packages
 pub use arrayvec;
+pub use fxhash;
 pub use index_vec;
 pub use itertools;
-// Re-export logging utility
 pub use log;
 pub use smallvec;
 pub use thin_vec;

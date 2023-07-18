@@ -3,7 +3,7 @@
 use std::{fmt::Display, path::Path};
 
 use hash_source::SourceId;
-use hash_utils::{
+use hash_storage::{
     static_sequence_store_direct, static_single_store,
     store::{statics::StoreId, SequenceStore, Store, TrivialSequenceStoreKey},
 };

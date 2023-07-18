@@ -21,12 +21,13 @@ pub mod write;
 use std::cell::{Ref, RefCell, RefMut};
 
 use hash_source::entry_point::EntryPointState;
+use hash_storage::store::{SequenceStore, SequenceStoreKey, Store};
 use hash_tir::{
     data::{DataDefId, DataTy},
     fns::FnDefId,
     tys::TyId,
 };
-use hash_utils::store::{FxHashMap, SequenceStore, SequenceStoreKey, Store};
+use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use lang_items::LangItems;

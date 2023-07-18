@@ -26,7 +26,7 @@
 
 use hash_ir::{ty::InstanceId, IrCtx};
 use hash_source::{identifier::IDENTS, InteractiveId, ModuleId};
-use hash_utils::store::{Store, StoreKey};
+use hash_storage::store::{Store, StoreKey};
 
 use super::{push_string_encoded_count, ALPHANUMERIC_BASE};
 

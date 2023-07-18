@@ -36,6 +36,10 @@ use hash_pipeline::{
 };
 use hash_semantics::SemanticStorage;
 use hash_source::{identifier::IDENTS, location::SourceLocation, SourceId};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    CloneStore, PartialStore,
+};
 use hash_tir::{
     args::Arg,
     data::DataTy,
@@ -44,10 +48,6 @@ use hash_tir::{
     utils::common::CommonUtils,
 };
 use hash_utils::{
-    store::{
-        statics::{SequenceStoreValue, StoreId},
-        CloneStore, PartialStore,
-    },
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };

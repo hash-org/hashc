@@ -5,6 +5,7 @@ use std::mem::size_of;
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
 use hash_source::constant::InternedInt;
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
@@ -21,11 +22,7 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::{
-    itertools::Itertools,
-    smallvec::SmallVec,
-    store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey},
-};
+use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
 use super::{
     constant::Constant,

@@ -14,6 +14,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId},
 };
 use hash_source::constant::CONSTANT_MAP;
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::primitives::IntTy;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
@@ -26,7 +27,6 @@ use hash_tir::{
     tys::TyId,
     utils::common::CommonUtils,
 };
-use hash_utils::store::{statics::StoreId, TrivialSequenceStoreKey};
 
 use super::BodyBuilder;
 

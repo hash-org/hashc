@@ -165,7 +165,7 @@ macro_rules! static_sequence_store_direct {
             store_name = $store_name,
             store_source = $store_source
         }
-        hash_utils::impl_debug_for_sequence_store_element_key!($el_id);
+        $crate::impl_debug_for_sequence_store_element_key!($el_id);
     };
     (
         store = $store_vis:vis $store:ident,
@@ -175,14 +175,14 @@ macro_rules! static_sequence_store_direct {
         store_source = $store_source:expr
         $(, derives = $($extra_derives:ident),*)?
     ) => {
-        $store_vis type $store = hash_utils::store::sequence::DefaultSequenceStore<$id, $value>;
-        hash_utils::new_sequence_store_key_direct!($id_vis $id, $el_id $(, el_derives = [$($extra_derives),*])?);
+        $store_vis type $store = $crate::store::sequence::DefaultSequenceStore<$id, $value>;
+        $crate::new_sequence_store_key_direct!($id_vis $id, $el_id $(, el_derives = [$($extra_derives),*])?);
 
         impl $crate::store::statics::StoreId for $id {
             type Value = Vec<$value>;
             type ValueRef = [$value];
-            type ValueBorrow = hash_utils::store::sequence::SequenceStoreBorrowHandle<'static, [$value]>;
-            type ValueBorrowMut = hash_utils::store::sequence::SequenceStoreBorrowMutHandle<'static, [$value]>;
+            type ValueBorrow = $crate::store::sequence::SequenceStoreBorrowHandle<'static, [$value]>;
+            type ValueBorrowMut = $crate::store::sequence::SequenceStoreBorrowMutHandle<'static, [$value]>;
 
             fn borrow(self) -> Self::ValueBorrow {
                 $store_source.$store_name().borrow(self)
@@ -330,7 +330,7 @@ macro_rules! static_single_store {
             }
 
             fn set(self, value: Self::Value) {
-                use hash_utils::store::CloneStore;
+                use $crate::store::CloneStore;
                 $store_source.$store_name().set(self, value);
             }
         }

@@ -3,7 +3,7 @@
 use std::fmt::Display;
 
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_utils::{
+use hash_storage::{
     static_single_store,
     store::{
         statics::{SingleStoreValue, StoreId},

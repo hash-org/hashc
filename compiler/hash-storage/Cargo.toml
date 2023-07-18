@@ -7,3 +7,7 @@ edition = "2021"
 [dependencies]
 bumpalo = "3.7"
 bumpalo-herd = "0.1"
+dashmap = "5.1"
+fxhash = "0.2.1"
+itertools = "0.10.5"
+parking_lot = "0.12"

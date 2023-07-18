@@ -1,7 +1,7 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_utils::store::{SequenceStore, TrivialSequenceStoreKey};
+use hash_storage::store::{SequenceStore, TrivialSequenceStoreKey};
 
 use crate::{
     environment::env::AccessToEnv,

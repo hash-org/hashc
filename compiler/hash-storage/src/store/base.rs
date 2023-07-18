@@ -1,9 +1,6 @@
 //! Defines the base traits and macros for creating [`Store`]s.
-
-// @@Organisation: Move this module to the `hash_storage` crate.
 use std::marker::PhantomData;
 
-pub use fxhash::{FxHashMap, FxHashSet};
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };

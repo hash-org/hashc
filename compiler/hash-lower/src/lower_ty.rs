@@ -13,6 +13,9 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{attributes::Attribute, identifier::IDENTS};
+use hash_storage::store::{
+    statics::StoreId, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+};
 use hash_target::size::Size;
 use hash_tir::{
     data::{
@@ -26,13 +29,7 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::common::CommonUtils,
 };
-use hash_utils::{
-    index_vec::index_vec,
-    itertools::Itertools,
-    store::{
-        statics::StoreId, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
-    },
-};
+use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
 use crate::ctx::BuilderCtx;
 

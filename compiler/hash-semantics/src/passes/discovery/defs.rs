@@ -2,6 +2,7 @@
 use derive_more::From;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
+use hash_storage::store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store, StoreKey};
 use hash_tir::{
     context::Decl,
     data::{CtorDefData, CtorDefId, DataDefId},
@@ -16,7 +17,6 @@ use hash_tir::{
 use hash_utils::{
     smallvec::{smallvec, SmallVec},
     state::LightState,
-    store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store, StoreKey},
 };
 
 use super::{super::ast_utils::AstUtils, DiscoveryPass};

@@ -10,8 +10,8 @@ use hash_source::{
     constant::{IntConstant, IntTy, CONSTANT_MAP},
     location::Span,
 };
+use hash_storage::store::{statics::StoreId, CloneStore, Store};
 use hash_tir::terms::{Term, TermId};
-use hash_utils::store::{statics::StoreId, CloneStore, Store};
 
 use super::{
     category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,

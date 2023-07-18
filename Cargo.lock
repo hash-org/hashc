@@ -430,6 +430,7 @@ dependencies = [
  "hash-ir",
  "hash-layout",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-utils",
 ]
@@ -497,6 +498,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-utils",
  "rayon",
@@ -523,6 +525,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-utils",
  "inkwell",
  "llvm-sys",
@@ -568,6 +571,7 @@ dependencies = [
  "hash-intrinsics",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-utils",
@@ -590,6 +594,7 @@ dependencies = [
  "derive_more",
  "hash-ast",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-utils",
@@ -606,6 +611,7 @@ dependencies = [
  "hash-ast",
  "hash-intrinsics",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-utils",
@@ -618,6 +624,7 @@ version = "0.1.0"
 dependencies = [
  "fixedbitset",
  "hash-ir",
+ "hash-storage",
  "hash-target",
  "hash-utils",
 ]
@@ -662,6 +669,7 @@ dependencies = [
  "hash-reporting",
  "hash-semantics",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-tree-def",
@@ -731,6 +739,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-tir",
  "hash-tree-def",
@@ -763,6 +772,10 @@ version = "0.1.0"
 dependencies = [
  "bumpalo",
  "bumpalo-herd",
+ "dashmap",
+ "fxhash",
+ "itertools",
+ "parking_lot",
 ]
 
 [[package]]
@@ -830,6 +843,7 @@ dependencies = [
  "derive_more",
  "hash-ast",
  "hash-source",
+ "hash-storage",
  "hash-target",
  "hash-utils",
  "indexmap",
@@ -873,6 +887,7 @@ dependencies = [
  "hash-intrinsics",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-tir",
  "hash-tree-def",
  "hash-utils",

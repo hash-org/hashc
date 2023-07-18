@@ -3,6 +3,9 @@
 use std::{cell::Cell, collections::HashSet};
 
 use derive_more::Deref;
+use hash_storage::store::{
+    statics::StoreId, CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+};
 use hash_tir::{
     args::ArgsId,
     context::ScopeKind,
@@ -16,9 +19,6 @@ use hash_tir::{
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::{common::CommonUtils, traversing::Atom},
-};
-use hash_utils::store::{
-    statics::StoreId, CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
 };
 use once_cell::unsync::OnceCell;
 

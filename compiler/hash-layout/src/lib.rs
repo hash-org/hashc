@@ -15,6 +15,10 @@ use hash_ir::{
     ty::{IrTy, IrTyId, ToIrTy, VariantIdx},
     write::WriteIr,
 };
+use hash_storage::{
+    new_store_key,
+    store::{CloneStore, DefaultStore, FxHashMap, Store, StoreInternalData},
+};
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
     alignment::{Alignment, Alignments},
@@ -22,11 +26,7 @@ use hash_target::{
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
-use hash_utils::{
-    index_vec::IndexVec,
-    new_store_key,
-    store::{CloneStore, DefaultStore, FxHashMap, Store, StoreInternalData},
-};
+use hash_utils::index_vec::IndexVec;
 
 /// The [PointerKind] specifies what kind of pointer this is, whether
 /// it is a shared reference, or a unique reference. In the @@Future, more

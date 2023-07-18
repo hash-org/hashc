@@ -5,16 +5,14 @@
 //! to the constructor.
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use hash_target::size::Size;
 use hash_tir::{
     data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
     tys::Ty,
     utils::common::CommonUtils,
 };
-use hash_utils::{
-    smallvec::{smallvec, SmallVec},
-    store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey},
-};
+use hash_utils::smallvec::{smallvec, SmallVec};
 
 /// A [DeconstructedCtor::Wildcard] that we split relative to the constructors
 /// in the matrix.

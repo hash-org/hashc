@@ -28,8 +28,9 @@ use hash_ir::{
     ty::{IrTy, VariantIdx},
     write::WriteIr,
 };
+use hash_storage::store::Store;
 use hash_target::{abi::AbiRepresentation, size::Size};
-use hash_utils::{store::Store, tree_writing::CharacterSet};
+use hash_utils::tree_writing::CharacterSet;
 
 use crate::{
     compute::LayoutComputer, FieldLayout, Layout, LayoutId, LayoutShape, TyInfo, Variants,

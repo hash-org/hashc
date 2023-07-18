@@ -6,7 +6,7 @@
 
 use std::sync::LazyLock;
 
-use hash_utils::{store::FxHashMap, thin_vec::ThinVec};
+use hash_utils::{fxhash::FxHashMap, thin_vec::ThinVec};
 use lazy_static::lazy_static;
 
 use crate::identifier::{Identifier, IDENTS};

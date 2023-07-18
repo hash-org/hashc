@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_ast::ast::RangeEnd;
-use hash_utils::{
+use hash_storage::{
     static_sequence_store_indirect, static_single_store,
     store::{SequenceStore, Store, TrivialSequenceStoreKey},
 };

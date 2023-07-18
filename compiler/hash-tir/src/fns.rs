@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use hash_utils::{
+use hash_storage::{
     static_single_store,
     store::{statics::StoreId, Store},
 };

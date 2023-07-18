@@ -88,7 +88,7 @@ macro_rules! tir_debug_value_of_sequence_store_element_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_utils::store::statics::StoreId;
+                use hash_storage::store::statics::StoreId;
                 f.debug_tuple(stringify!($id))
                     .field(&(&self.0.index, &self.0.len))
                     .field(&self.1)
@@ -104,7 +104,7 @@ macro_rules! tir_debug_value_of_single_store_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_utils::store::statics::StoreId;
+                use hash_storage::store::statics::StoreId;
                 f.debug_tuple(stringify!($id)).field(&self.index).field(&self.value()).finish()
             }
         }
@@ -116,7 +116,7 @@ macro_rules! tir_debug_name_of_store_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_utils::store::statics::StoreId;
+                use hash_storage::store::statics::StoreId;
                 f.debug_tuple(stringify!($id)).field(&self.value().name).finish()
             }
         }
@@ -126,6 +126,6 @@ macro_rules! tir_debug_name_of_store_id {
 #[macro_export]
 macro_rules! tir_get {
     ($id:expr, $member:ident) => {{
-        hash_utils::store::statics::StoreId::map($id, |x| x.$member)
+        hash_storage::store::statics::StoreId::map($id, |x| x.$member)
     }};
 }

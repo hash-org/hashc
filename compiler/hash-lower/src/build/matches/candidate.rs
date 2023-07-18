@@ -19,6 +19,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, Mutability},
 };
 use hash_source::location::Span;
+use hash_storage::store::{statics::StoreId, CloneStore, Store};
 use hash_target::size::Size;
 use hash_tir::{
     args::PatArgsId,
@@ -34,7 +35,6 @@ use hash_tir::{
 use hash_utils::{
     itertools::Itertools,
     smallvec::{smallvec, SmallVec},
-    store::{statics::StoreId, CloneStore, Store},
 };
 
 use crate::build::{place::PlaceBuilder, BodyBuilder};

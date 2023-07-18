@@ -5,6 +5,7 @@ use hash_ir::{
     ty::{IrTyId, Mutability, VariantIdx},
     IrCtx,
 };
+use hash_storage::store::{statics::StoreId, SequenceStore};
 use hash_tir::{
     access::AccessTerm,
     arrays::IndexTerm,
@@ -12,7 +13,6 @@ use hash_tir::{
     refs::DerefTerm,
     terms::{Term, TermId},
 };
-use hash_utils::store::{statics::StoreId, SequenceStore};
 
 use super::{unpack, BlockAnd, BlockAndExtend, BodyBuilder};
 

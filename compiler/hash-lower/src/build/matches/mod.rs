@@ -16,13 +16,14 @@ use hash_ir::{
     ty::{Mutability, RefKind},
 };
 use hash_source::location::Span;
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{IfPat, MatchCasesId},
     pats::{Pat, PatId},
     terms::{Term, TermId},
 };
-use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack, store::statics::StoreId};
+use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 
 use self::{
     candidate::{traverse_candidate, Binding, Candidate, Candidates},

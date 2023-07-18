@@ -27,15 +27,13 @@
 use std::fmt::{self, Debug};
 
 use hash_source::constant::InternedStr;
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store};
 use hash_tir::{
     data::{CtorDefId, DataTy},
     tuples::TupleTy,
     tys::Ty,
 };
-use hash_utils::{
-    smallvec::{smallvec, SmallVec},
-    store::{statics::StoreId, SequenceStoreKey, Store},
-};
+use hash_utils::smallvec::{smallvec, SmallVec};
 
 use super::range::{IntRange, SplitIntRange};
 use crate::{

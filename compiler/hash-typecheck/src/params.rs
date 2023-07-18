@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use derive_more::{Constructor, Deref};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     args::{
         ArgData, ArgId, ArgsId, PatArgData, PatArgId, PatArgsId, PatOrCapture, SomeArgId,
@@ -10,7 +11,6 @@ use hash_tir::{
     pats::Spread,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 
 use crate::{errors::TcResult, AccessToTypechecking};
 

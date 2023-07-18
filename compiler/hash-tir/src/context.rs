@@ -7,10 +7,8 @@ use std::{
 };
 
 use derive_more::From;
-use hash_utils::{
-    itertools::Itertools,
-    store::{statics::StoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey},
-};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey};
+use hash_utils::itertools::Itertools;
 use indexmap::IndexMap;
 
 use crate::{

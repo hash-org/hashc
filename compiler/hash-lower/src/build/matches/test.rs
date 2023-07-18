@@ -19,6 +19,7 @@ use hash_source::{
     constant::{IntConstant, IntConstantValue, CONSTANT_MAP},
     location::Span,
 };
+use hash_storage::store::{statics::StoreId, CloneStore, Store};
 use hash_tir::{
     args::PatArgsId,
     atom_info::ItemInAtomInfo,
@@ -29,7 +30,6 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
-use hash_utils::store::{statics::StoreId, CloneStore, Store};
 use indexmap::IndexMap;
 
 use super::{

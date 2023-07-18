@@ -264,7 +264,7 @@ impl<'c, T: Clone> Row<'c, T> {
 /// # Examples
 ///
 /// ```
-/// use hash_alloc::{Castle, Wall, row};
+/// use hash_storage::{arena::{Castle, Wall}, row};
 /// let castle = Castle::new();
 /// let wall = castle.wall();
 ///

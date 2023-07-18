@@ -7,6 +7,7 @@ use std::ops::ControlFlow;
 use derive_more::Constructor;
 use hash_pipeline::workspace::StageInfo;
 use hash_source::identifier::IDENTS;
+use hash_storage::store::{statics::StoreId, PartialStore};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     environment::env::{AccessToEnv, Env},
@@ -15,7 +16,6 @@ use hash_tir::{
     terms::TermId,
     utils::{traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{statics::StoreId, PartialStore};
 use indexmap::IndexSet;
 
 use crate::ctx::BuilderCtx;

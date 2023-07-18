@@ -17,5 +17,6 @@ parking_lot = "0.12"
 
 hash-ast = { path = "../hash-ast" }
 hash-source = { path = "../hash-source" }
+hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }
 hash-utils = { path = "../hash-utils" }

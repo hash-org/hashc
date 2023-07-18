@@ -28,6 +28,7 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId,
 };
+use hash_storage::store::{statics::StoreId, FxHashMap, PartialCloneStore, SequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     directives::DirectiveTarget,
@@ -36,10 +37,7 @@ use hash_tir::{
     symbols::Symbol,
     terms::TermId,
 };
-use hash_utils::{
-    index_vec::IndexVec,
-    store::{statics::StoreId, FxHashMap, PartialCloneStore, SequenceStoreKey},
-};
+use hash_utils::index_vec::IndexVec;
 
 use crate::{cfg::ControlFlowGraph, ctx::BuilderCtx};
 

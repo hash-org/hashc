@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_source::identifier::Identifier;
-use hash_utils::{
+use hash_storage::{
     static_sequence_store_direct,
     store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
 };

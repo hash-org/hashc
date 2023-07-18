@@ -1,5 +1,5 @@
 //! Stores [DeconstructedPat]s and [DeconstructedCtor]s.'
-use hash_utils::{new_store_key, store::DefaultStore};
+use hash_storage::{new_store_key, store::DefaultStore};
 
 use crate::{construct::DeconstructedCtor, deconstruct::DeconstructedPat};
 

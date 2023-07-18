@@ -8,13 +8,13 @@ use hash_ir::{
     ir::{BasicBlock, Place},
     ty::Mutability,
 };
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{LoopTerm, MatchTerm},
     scopes::BlockTerm,
     terms::{Term, TermId},
 };
-use hash_utils::store::{statics::StoreId, TrivialSequenceStoreKey};
 
 use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
 use crate::build::unpack;

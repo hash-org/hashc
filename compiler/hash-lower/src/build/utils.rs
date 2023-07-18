@@ -12,6 +12,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_source::{constant::CONSTANT_MAP, location::Span};
+use hash_storage::store::SequenceStore;
 use hash_tir::{
     data::DataTy,
     environment::env::AccessToEnv,
@@ -22,7 +23,7 @@ use hash_tir::{
     terms::TermId,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::{log, store::SequenceStore};
+use hash_utils::log;
 
 use super::BodyBuilder;
 
