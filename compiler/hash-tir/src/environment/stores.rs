@@ -174,7 +174,7 @@ impl<K: SequenceStoreKey<ElementKey = V>, V: Clone> SequenceStore<K, V>
 /// ID type.
 #[macro_export]
 macro_rules! tir_sequence_store_indirect {
-    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident[$el_id:ident], store_name = $store_name:ident) => {
+    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident[$el_id:ident], store_name = $store_name:ident, store_source = $store_source:expr) => {
         $store_vis type $store = $crate::environment::stores::DefaultIndirectSequenceStore<$id, $el_id>;
         hash_utils::new_sequence_store_key_indirect!($id_vis $id, $el_id);
 
@@ -185,29 +185,27 @@ macro_rules! tir_sequence_store_indirect {
             type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, [$el_id]>;
 
             fn borrow(self) -> Self::ValueBorrow {
-                $crate::environment::stores::global_stores().$store_name().borrow(self)
+                $store_source.$store_name().borrow(self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
-                $crate::environment::stores::global_stores().$store_name().borrow_mut(self)
+                $store_source.$store_name().borrow_mut(self)
             }
 
             fn value(self) -> Self::Value {
-                $crate::environment::stores::global_stores().$store_name().get_vec(self)
+                $store_source.$store_name().get_vec(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::global_stores().$store_name().map_fast(self, f)
+                $store_source.$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::global_stores().$store_name().modify_fast(self, f)
+                $store_source.$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::global_stores()
-                    .$store_name()
-                    .set_from_slice_cloned(self, &value);
+                $store_source.$store_name().set_from_slice_cloned(self, &value);
             }
         }
 
@@ -227,6 +225,8 @@ macro_rules! tir_sequence_store_indirect {
     };
 }
 
+// $crate::environment::stores::global_stores()
+
 /// Automatically implement `StoreId` and `SequenceStoreId` for a sequence store
 /// ID type.
 #[macro_export]
@@ -236,13 +236,15 @@ macro_rules! tir_sequence_store_direct {
         id = $id_vis:vis $id:ident[$el_id:ident],
         value = $value:ty,
         store_name = $store_name:ident,
+        store_source = $store_source:expr,
         derives = Debug
     ) => {
         tir_sequence_store_direct! {
             store = $store_vis $store,
             id = $id_vis $id[$el_id],
             value = $value,
-            store_name = $store_name
+            store_name = $store_name,
+            store_source = $store_source
         }
         hash_utils::impl_debug_for_sequence_store_element_key!($el_id);
     };
@@ -250,7 +252,8 @@ macro_rules! tir_sequence_store_direct {
         store = $store_vis:vis $store:ident,
         id = $id_vis:vis $id:ident[$el_id:ident],
         value = $value:ty,
-        store_name = $store_name:ident
+        store_name = $store_name:ident,
+        store_source = $store_source:expr
         $(, derives = $($extra_derives:ident),*)?
     ) => {
         $store_vis type $store = hash_utils::store::DefaultSequenceStore<$id, $value>;
@@ -263,29 +266,27 @@ macro_rules! tir_sequence_store_direct {
             type ValueBorrowMut = hash_utils::store::SequenceStoreBorrowMutHandle<'static, [$value]>;
 
             fn borrow(self) -> Self::ValueBorrow {
-                $crate::environment::stores::global_stores().$store_name().borrow(self)
+                $store_source.$store_name().borrow(self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
-                $crate::environment::stores::global_stores().$store_name().borrow_mut(self)
+                $store_source.$store_name().borrow_mut(self)
             }
 
             fn value(self) -> Self::Value {
-                $crate::environment::stores::global_stores().$store_name().get_vec(self)
+                $store_source.$store_name().get_vec(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::global_stores().$store_name().map_fast(self, f)
+                $store_source.$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::global_stores().$store_name().modify_fast(self, f)
+                $store_source.$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::global_stores()
-                    .$store_name()
-                    .set_from_slice_cloned(self, &value);
+                $store_source.$store_name().set_from_slice_cloned(self, &value);
             }
         }
 
@@ -304,16 +305,14 @@ macro_rules! tir_sequence_store_direct {
             type ElementId = $el_id;
 
             fn empty_seq() -> Self::Id {
-                $crate::environment::stores::global_stores().$store_name().create_from_slice(&[])
+                $store_source.$store_name().create_from_slice(&[])
             }
 
             fn seq<F: FnOnce($el_id) -> Self, I: IntoIterator<Item = F>>(values: I) -> Self::Id
             where
                 I::IntoIter: ExactSizeIterator,
             {
-                $crate::environment::stores::global_stores()
-                    .$store_name()
-                    .create_from_iter_with(values)
+                $store_source.$store_name().create_from_iter_with(values)
             }
         }
 
@@ -325,35 +324,29 @@ macro_rules! tir_sequence_store_direct {
 
             fn borrow(self) -> Self::ValueBorrow {
                 use hash_utils::store::TrivialKeySequenceStore;
-                $crate::environment::stores::global_stores().$store_name().borrow_element(self)
+                $store_source.$store_name().borrow_element(self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
                 use hash_utils::store::TrivialKeySequenceStore;
-                $crate::environment::stores::global_stores().$store_name().borrow_element_mut(self)
+                $store_source.$store_name().borrow_element_mut(self)
             }
 
             fn value(self) -> Self::Value {
                 use hash_utils::store::TrivialKeySequenceStore;
-                $crate::environment::stores::global_stores().$store_name().get_element(self.into())
+                $store_source.$store_name().get_element(self.into())
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::global_stores()
-                    .$store_name()
-                    .map_fast(self.0, |v| f(&v[self.1]))
+                $store_source.$store_name().map_fast(self.0, |v| f(&v[self.1]))
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
-                $crate::environment::stores::global_stores()
-                    .$store_name()
-                    .modify_fast(self.0, |v| f(&mut v[self.1]))
+                $store_source.$store_name().modify_fast(self.0, |v| f(&mut v[self.1]))
             }
 
             fn set(self, value: Self::Value) {
-                $crate::environment::stores::global_stores()
-                    .$store_name()
-                    .set_at_index(self.0, self.1, value);
+                $store_source.$store_name().set_at_index(self.0, self.1, value);
             }
         }
     };
@@ -363,16 +356,30 @@ macro_rules! tir_sequence_store_direct {
 /// type.
 #[macro_export]
 macro_rules! tir_single_store {
-    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident, value = $value:ty, store_name = $store_name:ident, derives = Debug) => {
+    (
+        store = $store_vis:vis $store:ident,
+        id = $id_vis:vis $id:ident,
+        value = $value:ty,
+        store_name = $store_name:ident,
+        store_source = $store_source:expr,
+        derives = Debug
+    ) => {
         tir_single_store! {
             store = $store_vis $store,
             id = $id_vis $id,
             value = $value,
-            store_name = $store_name
+            store_name = $store_name,
+            store_source = $store_source
         }
         hash_utils::impl_debug_for_store_key!($id);
     };
-    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident, value = $value:ty, store_name = $store_name:ident $(, derives = $($extra_derives:ident),*)?) => {
+    (
+        store = $store_vis:vis $store:ident,
+        id = $id_vis:vis $id:ident,
+        value = $value:ty,
+        store_name = $store_name:ident,
+        store_source = $store_source:expr
+        $(, derives = $($extra_derives:ident),*)?) => {
         $store_vis type $store = hash_utils::store::DefaultStore<$id, $value>;
         hash_utils::new_store_key!($id_vis $id $(, derives = $($extra_derives),*)?);
 
@@ -383,36 +390,36 @@ macro_rules! tir_single_store {
             type ValueBorrowMut = hash_utils::store::StoreBorrowMutHandle<'static, $value>;
 
             fn borrow(self) -> Self::ValueBorrow {
-                $crate::environment::stores::global_stores().$store_name().borrow(self)
+                $store_source.$store_name().borrow(self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
-                $crate::environment::stores::global_stores().$store_name().borrow_mut(self)
+                $store_source.$store_name().borrow_mut(self)
             }
 
             fn value(self) -> Self::Value {
                 use hash_utils::store::CloneStore;
-                $crate::environment::stores::global_stores().$store_name().get(self)
+                $store_source.$store_name().get(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::Value) -> R) -> R {
-                $crate::environment::stores::global_stores().$store_name().map_fast(self, f)
+                $store_source.$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::Value) -> R) -> R {
-                $crate::environment::stores::global_stores().$store_name().modify_fast(self, f)
+                $store_source.$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
                 use hash_utils::store::CloneStore;
-                $crate::environment::stores::global_stores().$store_name().set(self, value);
+                $store_source.$store_name().set(self, value);
             }
         }
 
         impl $crate::environment::stores::SingleStoreValue for $value {
             type Id = $id;
             fn create_with<F: FnOnce(Self::Id) -> Self>(value: F) -> Self::Id {
-                $crate::environment::stores::global_stores().$store_name().create_with(value)
+                $store_source.$store_name().create_with(value)
             }
         }
     };

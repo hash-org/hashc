@@ -8,8 +8,13 @@ use utility_types::omit;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
-    args::ArgsId, environment::stores::StoreId, params::ParamsId, symbols::Symbol, terms::TermId,
-    tir_debug_name_of_store_id, tir_single_store, tys::TyId,
+    args::ArgsId,
+    environment::stores::{global_stores, StoreId},
+    params::ParamsId,
+    symbols::Symbol,
+    terms::TermId,
+    tir_debug_name_of_store_id, tir_single_store,
+    tys::TyId,
 };
 
 /// A function type.
@@ -107,7 +112,8 @@ tir_single_store!(
     store = pub FnDefStore,
     id = pub FnDefId,
     value = FnDef,
-    store_name = fn_def
+    store_name = fn_def,
+    store_source = global_stores()
 );
 
 tir_debug_name_of_store_id!(FnDefId);

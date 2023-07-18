@@ -16,6 +16,7 @@ use super::{
 use crate::{
     context::ScopeKind,
     data::{CtorDefId, DataDefId},
+    environment::stores::global_stores,
     fns::{FnDefId, FnTy},
     symbols::Symbol,
     tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
@@ -48,7 +49,8 @@ tir_sequence_store_direct!(
     store = pub ParamsStore,
     id = pub ParamsId[ParamId],
     value = Param,
-    store_name = params
+    store_name = params,
+    store_source = global_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(ParamId);

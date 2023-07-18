@@ -9,8 +9,9 @@ use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::StoreId, symbols::Symbol, tir_debug_name_of_store_id, tir_get,
-    tir_sequence_store_direct, tir_single_store,
+    environment::stores::{global_stores, StoreId},
+    symbols::Symbol,
+    tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct, tir_single_store,
 };
 
 /// The kind of a module.
@@ -99,6 +100,7 @@ tir_sequence_store_direct!(
     id = pub ModMembersId[ModMemberId],
     value = ModMember,
     store_name = mod_members,
+    store_source = global_stores(),
     derives = Debug
 );
 
@@ -123,7 +125,8 @@ tir_single_store!(
     store = pub ModDefStore,
     id = pub ModDefId,
     value = ModDef,
-    store_name = mod_def
+    store_name = mod_def,
+    store_source = global_stores()
 );
 
 tir_debug_name_of_store_id!(ModDefId);

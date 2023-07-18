@@ -13,7 +13,9 @@ use super::{
     terms::Term,
 };
 use crate::{
-    environment::stores::StoreId, scopes::BlockTerm, terms::TermId,
+    environment::stores::{global_stores, StoreId},
+    scopes::BlockTerm,
+    terms::TermId,
     tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
 };
 
@@ -58,7 +60,8 @@ tir_sequence_store_direct!(
     store = pub MatchCasesStore,
     id = pub MatchCasesId[MatchCaseId],
     value = MatchCase,
-    store_name = match_cases
+    store_name = match_cases,
+    store_source = global_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(MatchCaseId);

@@ -13,8 +13,9 @@ use super::{
     pats::PatId,
 };
 use crate::{
-    environment::stores::StoreId, terms::TermId, tir_debug_value_of_sequence_store_element_id,
-    tir_sequence_store_direct,
+    environment::stores::{global_stores, StoreId},
+    terms::TermId,
+    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
 };
 
 /// An argument to a parameter.
@@ -40,7 +41,8 @@ tir_sequence_store_direct!(
     store = pub ArgsStore,
     id = pub ArgsId[ArgId],
     value = Arg,
-    store_name = args
+    store_name = args,
+    store_source = global_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(ArgId);
@@ -96,7 +98,8 @@ tir_sequence_store_direct!(
     store = pub PatArgsStore,
     id = pub PatArgsId[PatArgId],
     value = PatArg,
-    store_name = pat_args
+    store_name = pat_args,
+    store_source = global_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(PatArgId);

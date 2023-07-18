@@ -17,8 +17,8 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, tir_debug_value_of_single_store_id, tir_get, tir_sequence_store_indirect,
-    tir_single_store,
+    arrays::ArrayPat, environment::stores::global_stores, tir_debug_value_of_single_store_id,
+    tir_get, tir_sequence_store_indirect, tir_single_store,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -108,7 +108,8 @@ tir_single_store!(
     store = pub PatStore,
     id = pub PatId,
     value = Pat,
-    store_name = pat
+    store_name = pat,
+    store_source = global_stores()
 );
 
 tir_debug_value_of_single_store_id!(PatId);
@@ -116,7 +117,8 @@ tir_debug_value_of_single_store_id!(PatId);
 tir_sequence_store_indirect!(
     store = pub PatListStore,
     id = pub PatListId[PatOrCapture],
-    store_name = pat_list
+    store_name = pat_list,
+    store_source = global_stores()
 );
 
 impl fmt::Display for Spread {
