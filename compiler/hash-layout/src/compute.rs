@@ -5,10 +5,7 @@
 
 use std::{cmp, iter, num::NonZeroUsize};
 
-use hash_ir::{
-    ty::{Adt, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
-    IrCtx,
-};
+use hash_ir::ty::{Adt, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx};
 use hash_storage::store::{statics::StoreId, CloneStore, Store, StoreInternalData};
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
@@ -115,9 +112,6 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 pub struct LayoutComputer<'l> {
     /// A reference tot the [LayoutCtx].
     layout_ctx: &'l LayoutCtx,
-
-    /// A reference to the [IrCtx].
-    ir_ctx: &'l IrCtx,
 }
 
 impl Store<LayoutId, Layout> for LayoutComputer<'_> {
@@ -128,8 +122,8 @@ impl Store<LayoutId, Layout> for LayoutComputer<'_> {
 
 impl<'l> LayoutComputer<'l> {
     /// Create a new [LayoutCtx].
-    pub fn new(layout_store: &'l LayoutCtx, ir_ctx: &'l IrCtx) -> Self {
-        Self { layout_ctx: layout_store, ir_ctx }
+    pub fn new(layout_store: &'l LayoutCtx) -> Self {
+        Self { layout_ctx: layout_store }
     }
 
     /// Returns a reference to the [LayoutCtx].
@@ -147,11 +141,6 @@ impl<'l> LayoutComputer<'l> {
     /// in the current session.
     pub(crate) fn common_layouts(&self) -> &CommonLayouts {
         &self.layout_ctx.common_layouts
-    }
-
-    /// Returns a reference to the [IrCtx].
-    pub fn ir_ctx(&self) -> &IrCtx {
-        self.ir_ctx
     }
 
     /// This is the entry point of the layout computation engine. From

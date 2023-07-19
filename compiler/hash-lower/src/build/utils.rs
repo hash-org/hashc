@@ -8,7 +8,7 @@ use hash_ir::{
         AggregateKind, AssertKind, BasicBlock, Const, Local, LocalDecl, Operand, Place, RValue,
         TerminatorKind,
     },
-    ty::{IrTyId, Mutability},
+    ty::{IrTyId, Mutability, COMMON_IR_TYS},
     IrCtx,
 };
 use hash_source::{constant::CONSTANT_MAP, location::Span};
@@ -128,8 +128,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         match &self.tmp_place {
             Some(tmp) => *tmp,
             None => {
-                let local =
-                    LocalDecl::new_auxiliary(self.ctx().common_tys.unit, Mutability::Immutable);
+                let local = LocalDecl::new_auxiliary(COMMON_IR_TYS.unit, Mutability::Immutable);
                 let local_id = self.declarations.push(local);
 
                 let place = Place::from_local(local_id);

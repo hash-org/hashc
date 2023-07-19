@@ -203,10 +203,6 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'ir, '
 impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
     for LocalKindAnalyser<'ir, 'a, 'b, Builder>
 {
-    fn ctx(&self) -> &'ir hash_ir::IrCtx {
-        self.fn_builder.ctx.ir_ctx()
-    }
-
     fn visit_assign_statement(&mut self, place: &ir::Place, value: &ir::RValue, reference: IrRef) {
         if let Some(local) = place.as_local() {
             self.assign(local, reference);

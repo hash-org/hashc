@@ -20,7 +20,6 @@ use crate::{
         Terminator, UnaryOp,
     },
     ty::{IrTyId, Mutability, RefKind, VariantIdx},
-    IrCtx,
 };
 
 /// A [PlaceContext] is a reference of where a a particular [Place] is
@@ -102,9 +101,6 @@ pub enum MetaPlaceContext {
 /// A trait for visiting the IR with a mutable context. This trait should
 /// not be used for when modifications to the IR need to be made in place.
 pub trait IrVisitorMut<'ir>: Sized {
-    /// Return a reference to the [BodyDataStore].
-    fn ctx(&self) -> &'ir IrCtx;
-
     /// The entry point of the visitor. This is called when the visitor
     /// is first initialised.
     fn visit(&mut self, body: &Body) {
@@ -576,9 +572,6 @@ pub mod walk_mut {
 }
 
 pub trait ModifyingIrVisitor<'ir>: Sized {
-    /// Return a reference to the [BodyDataStore].
-    fn store(&self) -> &'ir IrCtx;
-
     /// The entry point of the visitor. This is called when the visitor
     /// is first initialised.
     fn visit(&self, body: &mut Body) {
@@ -1058,9 +1051,4 @@ pub mod walk_modifying {
             visitor.visit_local(local, ctx, reference)
         }
     }
-}
-
-pub trait ModifyingIrVisitorMut<'ir> {
-    /// Return a reference to the [BodyDataStore].
-    fn storage(&self) -> &'ir IrCtx;
 }

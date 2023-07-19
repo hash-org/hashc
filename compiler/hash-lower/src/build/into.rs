@@ -9,7 +9,7 @@ use hash_ir::{
         self, AggregateKind, BasicBlock, Const, LogicalBinOp, Operand, Place, RValue, Statement,
         StatementKind, TerminatorKind,
     },
-    ty::{AdtId, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
+    ty::{AdtId, IrTy, IrTyId, Mutability, RefKind, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{constant::CONSTANT_MAP, identifier::Identifier, location::Span};
@@ -109,7 +109,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             Term::Ctor(ref ctor) => {
                 let ty = self.ty_id_from_tir_term(term);
 
-                if ty == self.ctx().common_tys.bool {
+                if ty == COMMON_IR_TYS.bool {
                     // @@Hack: check which constructor is being called to determine whether
                     // it is a `true` or `false` value.
                     let constant =
@@ -193,7 +193,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                             LogicalBinOp::Or => (short_circuiting_block, else_block),
                         };
 
-                        let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx());
+                        let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1);
                         self.control_flow_graph.terminate(block, span, term);
 
                         // Create the constant that we will assign in the `short_circuiting` block.
@@ -290,7 +290,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block = unpack!(self.lower_assign_term(block, assign_term, span));
 
                 // Assign the `value` of the assignment into the `tmp_place`
-                let const_value = ir::Const::zero(self.ctx());
+                let const_value = ir::Const::zero();
                 self.control_flow_graph.push_assign(block, destination, const_value.into(), span);
 
                 block.unit()
@@ -619,7 +619,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         //
         // Make the call to `malloc`, and then assign the result to a
         // temporary.
-        let ptr = self.temp_place(self.ctx().common_tys.raw_ptr);
+        let ptr = self.temp_place(COMMON_IR_TYS.raw_ptr);
         unpack!(block = self.build_fn_call(ptr, block, subject, vec![size_op], span));
 
         // we make a new temporary which is a pointer to the array and assign `ptr`
@@ -658,8 +658,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 subject,
                 // The first two arguments are the fill-ins for the generic parameters.
                 vec![
-                    Operand::Const(Const::Zero(self.ctx().common_tys.unit).into()),
-                    Operand::Const(Const::Zero(self.ctx().common_tys.unit).into()),
+                    Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
+                    Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
                     Operand::Place(sized_ptr)
                 ],
                 span

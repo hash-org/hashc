@@ -296,7 +296,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         match operand {
             ir::Operand::Place(place) => self.codegen_consume_operand(builder, *place),
             ir::Operand::Const(ref constant) => {
-                let ty = constant.ty(builder.ir_ctx());
+                let ty = constant.ty();
                 let info = builder.layout_of(ty);
 
                 let value = match constant {

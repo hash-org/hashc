@@ -120,7 +120,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));
         let then_block = self.control_flow_graph.start_new_block();
 
-        let terminator = TerminatorKind::make_if(place.into(), then_block, else_block, self.ctx());
+        let terminator = TerminatorKind::make_if(place.into(), then_block, else_block);
         self.control_flow_graph.terminate(block, span, terminator);
 
         then_block.unit()

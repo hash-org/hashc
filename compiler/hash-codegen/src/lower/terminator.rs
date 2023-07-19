@@ -10,7 +10,7 @@
 //! whether two blocks have been merged together.
 
 use hash_abi::{ArgAbi, FnAbiId, PassMode};
-use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
+use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::COMMON_IR_TYS};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
 use hash_source::constant::CONSTANT_MAP;
 use hash_storage::store::{statics::StoreId, Store};
@@ -474,7 +474,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
             // If this type is a `bool`, then we can generate conditional
             // branches rather than an `icmp` and `br`.
-            if self.ctx.ir_ctx().common_tys.bool == ty {
+            if COMMON_IR_TYS.bool == ty {
                 match value {
                     0 => builder.conditional_branch(
                         subject.immediate_value(),

@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use hash_ir::{
     cast::{CastTy, IntCastKind},
     ir::{self, BinOp, RValue},
-    ty::{self, IrTyId, RefKind, VariantIdx},
+    ty::{self, IrTyId, RefKind, VariantIdx, COMMON_IR_TYS},
 };
 use hash_storage::store::statics::StoreId;
 
@@ -190,7 +190,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
     /// Compute the type of an [RValue].
     pub fn ty_of_rvalue(&self, value: &RValue) -> IrTyId {
-        value.ty(&self.body.declarations, self.ctx.ir_ctx())
+        value.ty(&self.body.declarations)
     }
 
     /// Emit code for a [ir::RValue] that will return an [OperandRef].
@@ -218,7 +218,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(value),
-                    info: builder.layout_of(self.ctx.ir_ctx().common_tys.usize),
+                    info: builder.layout_of(COMMON_IR_TYS.usize),
                 }
             }
             ir::RValue::UnaryOp(operator, ref operand) => {
@@ -265,11 +265,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(result),
-                    info: builder.layout_of(operator.ty(
-                        self.ctx.ir_ctx(),
-                        lhs.info.ty,
-                        rhs.info.ty,
-                    )),
+                    info: builder.layout_of(operator.ty(lhs.info.ty, rhs.info.ty)),
                 }
             }
             ir::RValue::CheckedBinaryOp(operator, box (ref lhs, ref rhs)) => {
@@ -350,7 +346,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(size),
-                    info: builder.layout_of(self.ctx.ir_ctx().common_tys.usize),
+                    info: builder.layout_of(COMMON_IR_TYS.usize),
                 }
             }
             ir::RValue::Ref(_, place, kind) => {

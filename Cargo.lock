@@ -616,6 +616,7 @@ dependencies = [
  "hash-tir",
  "hash-utils",
  "html-escape",
+ "lazy_static",
 ]
 
 [[package]]

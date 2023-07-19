@@ -11,7 +11,7 @@ use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
     },
-    ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx},
+    ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
@@ -582,7 +582,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
-                let discriminant_ty = discriminant_ty.to_ir_ty(self.ctx());
+                let discriminant_ty = discriminant_ty.to_ir_ty();
                 let targets = SwitchTargets::new(
                     adt.map(|adt| {
                         // Map over all of the discriminants of the ADT, and filter out those that
@@ -630,7 +630,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         _ => panic!("expected boolean switch to have only two options"),
                     };
 
-                    TerminatorKind::make_if(place.into(), true_block, false_block, self.ctx())
+                    TerminatorKind::make_if(place.into(), true_block, false_block)
                 } else {
                     debug_assert_eq!(options.len() + 1, target_blocks.len());
                     let otherwise_block = target_blocks.last().copied();
@@ -730,7 +730,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             TestKind::Len { len, op } => {
                 let target_blocks = make_target_blocks(self);
 
-                let usize_ty = self.ctx().common_tys.usize;
+                let usize_ty = COMMON_IR_TYS.usize;
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
@@ -777,7 +777,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) {
         debug_assert!(op.is_comparator());
 
-        let bool_ty = self.ctx().common_tys.bool;
+        let bool_ty = COMMON_IR_TYS.bool;
         let result = self.temp_place(bool_ty);
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
@@ -791,7 +791,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         self.control_flow_graph.terminate(
             block,
             span,
-            TerminatorKind::make_if(result.into(), success, fail, self.ctx()),
+            TerminatorKind::make_if(result.into(), success, fail),
         );
     }
 

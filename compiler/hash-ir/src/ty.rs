@@ -30,7 +30,7 @@ use hash_utils::index_vec::{self, index_vec, IndexVec};
 
 use crate::{
     ir::{LocalDecls, Place, PlaceProjection},
-    ir_stores, IrCtx,
+    ir_stores,
 };
 
 /// Mutability of a particular variable, reference, etc.
@@ -411,13 +411,13 @@ impl IrTy {
     /// the specific "discriminant" for `enum` ADTs, and simply returns a
     /// `u8` for all other types. This is because the discriminant type of
     /// all other types is considered to be `0`, and thus a `u8` is sufficient.
-    pub fn discriminant_ty(&self, ctx: &IrCtx) -> IrTyId {
+    pub fn discriminant_ty(&self) -> IrTyId {
         match self {
             IrTy::Adt(id) => {
                 if id.borrow().flags.is_enum() {
-                    id.borrow().discriminant_ty().to_ir_ty(ctx)
+                    id.borrow().discriminant_ty().to_ir_ty()
                 } else {
-                    ctx.common_tys.u8
+                    COMMON_IR_TYS.u8
                 }
             }
             IrTy::Int(_)
@@ -431,7 +431,7 @@ impl IrTy {
             | IrTy::Slice(_)
             | IrTy::Array { .. }
             | IrTy::FnDef { .. }
-            | IrTy::Fn { .. } => ctx.common_tys.u8,
+            | IrTy::Fn { .. } => COMMON_IR_TYS.u8,
         }
     }
 
@@ -584,6 +584,10 @@ create_common_ty_table!(
     u128: IrTy::UInt(UIntTy::U128),
     usize: IrTy::UInt(UIntTy::USize), // Unit types, and unit ptr types
     unit: IrTy::Adt(AdtId::UNIT),
+);
+
+lazy_static::lazy_static!(
+    pub static ref COMMON_IR_TYS: CommonIrTys = CommonIrTys::new();
 );
 
 impl fmt::Display for IrTyId {
@@ -746,29 +750,29 @@ impl PlaceTy {
 /// value into a [IrTy].
 pub trait ToIrTy {
     /// Convert the current type into an [IrTy].
-    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId;
+    fn to_ir_ty(&self) -> IrTyId;
 }
 
 // Convert from `IntTy` into an `IrTy`.
 impl ToIrTy for IntTy {
-    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
+    fn to_ir_ty(&self) -> IrTyId {
         match self {
             IntTy::Int(ty) => match ty {
-                SIntTy::I8 => ctx.common_tys.i8,
-                SIntTy::I16 => ctx.common_tys.i16,
-                SIntTy::I32 => ctx.common_tys.i32,
-                SIntTy::I64 => ctx.common_tys.i64,
-                SIntTy::I128 => ctx.common_tys.i128,
-                SIntTy::ISize => ctx.common_tys.isize,
+                SIntTy::I8 => COMMON_IR_TYS.i8,
+                SIntTy::I16 => COMMON_IR_TYS.i16,
+                SIntTy::I32 => COMMON_IR_TYS.i32,
+                SIntTy::I64 => COMMON_IR_TYS.i64,
+                SIntTy::I128 => COMMON_IR_TYS.i128,
+                SIntTy::ISize => COMMON_IR_TYS.isize,
                 _ => unimplemented!(),
             },
             IntTy::UInt(ty) => match ty {
-                UIntTy::U8 => ctx.common_tys.u8,
-                UIntTy::U16 => ctx.common_tys.u16,
-                UIntTy::U32 => ctx.common_tys.u32,
-                UIntTy::U64 => ctx.common_tys.u64,
-                UIntTy::U128 => ctx.common_tys.u128,
-                UIntTy::USize => ctx.common_tys.usize,
+                UIntTy::U8 => COMMON_IR_TYS.u8,
+                UIntTy::U16 => COMMON_IR_TYS.u16,
+                UIntTy::U32 => COMMON_IR_TYS.u32,
+                UIntTy::U64 => COMMON_IR_TYS.u64,
+                UIntTy::U128 => COMMON_IR_TYS.u128,
+                UIntTy::USize => COMMON_IR_TYS.usize,
                 _ => unimplemented!(),
             },
         }
@@ -776,25 +780,25 @@ impl ToIrTy for IntTy {
 }
 
 impl ToIrTy for FloatTy {
-    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
+    fn to_ir_ty(&self) -> IrTyId {
         match self {
-            FloatTy::F32 => ctx.common_tys.f32,
-            FloatTy::F64 => ctx.common_tys.f64,
+            FloatTy::F32 => COMMON_IR_TYS.f32,
+            FloatTy::F64 => COMMON_IR_TYS.f64,
         }
     }
 }
 
 // Convert from an ABI scalar kind into an `IrTy`.
 impl ToIrTy for ScalarKind {
-    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
+    fn to_ir_ty(&self) -> IrTyId {
         match *self {
             ScalarKind::Int { kind, signed } => {
                 let int_ty = IntTy::from_integer(kind, signed);
-                int_ty.to_ir_ty(ctx)
+                int_ty.to_ir_ty()
             }
-            ScalarKind::Float { kind: FloatTy::F32 } => ctx.common_tys.f32,
-            ScalarKind::Float { kind: FloatTy::F64 } => ctx.common_tys.f64,
-            ScalarKind::Pointer(_) => ctx.common_tys.void_ptr,
+            ScalarKind::Float { kind: FloatTy::F32 } => COMMON_IR_TYS.f32,
+            ScalarKind::Float { kind: FloatTy::F64 } => COMMON_IR_TYS.f64,
+            ScalarKind::Pointer(_) => COMMON_IR_TYS.void_ptr,
         }
     }
 }

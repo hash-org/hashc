@@ -11,7 +11,7 @@ use std::{
 };
 
 use compute::LayoutComputer;
-use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx};
+use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS};
 use hash_storage::{
     new_store_key,
     store::{statics::StoreId, CloneStore, DefaultStore, FxHashMap, Store, StoreInternalData},
@@ -236,26 +236,26 @@ impl TyInfo {
             IrTy::Ref(pointee, _, _) => {
                 // We just create a `void*` pointer...
                 if field_index == 0 {
-                    return ctx.ir_ctx().common_tys.void_ptr;
+                    return COMMON_IR_TYS.void_ptr;
                 }
 
                 // Deal with loading metadata for the pointer, for now it is either a slice
                 // or a string which only contain the length of the data.
                 pointee.map(|ty| match ty {
-                    IrTy::Str | IrTy::Slice(_) => ctx.ir_ctx().common_tys.usize,
+                    IrTy::Str | IrTy::Slice(_) => COMMON_IR_TYS.usize,
                     ty => {
                         unreachable!("TyInfo::field cannot read metadata for pointer type `{ty:?}`")
                     }
                 })
             }
 
-            IrTy::Str => ctx.ir_ctx().common_tys.u8,
+            IrTy::Str => COMMON_IR_TYS.u8,
             IrTy::Slice(element) | IrTy::Array { ty: element, .. } => *element,
             IrTy::Adt(id) => match layout.variants {
                 Variants::Single { index } => {
                     id.map(|adt| adt.variants[index].fields[field_index].ty)
                 }
-                Variants::Multiple { tag, .. } => tag.kind().to_ir_ty(ctx.ir_ctx()),
+                Variants::Multiple { tag, .. } => tag.kind().to_ir_ty(),
             },
         });
 

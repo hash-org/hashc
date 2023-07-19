@@ -34,7 +34,7 @@ use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;
 use ir::{Body, ProjectionStore};
 use lang_items::LangItems;
-use ty::{AdtStore, CommonIrTys, InstanceId, InstanceStore, IrTyId, IrTyListStore, IrTyStore};
+use ty::{AdtStore, InstanceId, InstanceStore, IrTyId, IrTyListStore, IrTyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -130,9 +130,6 @@ pub type TyCache = RefCell<FxHashMap<TyCacheEntry, IrTyId>>;
 /// projections, etc.
 #[derive(Default)]
 pub struct IrCtx {
-    /// Commonly used types, stored in a table.
-    pub common_tys: CommonIrTys,
-
     /// Cache for the [IrTyId]s that are created from [TyId]s.
     ty_cache: TyCache,
 
@@ -171,7 +168,6 @@ impl IrCtx {
         Self {
             lang_items: RefCell::new(lang_items),
             intrinsics: RefCell::new(intrinsics),
-            common_tys: CommonIrTys::new(),
             ty_cache: RefCell::new(FxHashMap::default()),
         }
     }
