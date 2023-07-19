@@ -512,7 +512,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // we know the exact size of the targets, so we can pre-allocate
         // the size we need
-        target_table.resize_with(test.targets(self.ctx()), Default::default);
+        target_table.resize_with(test.targets(), Default::default);
 
         let candidate_count = candidates.len();
 

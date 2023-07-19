@@ -30,7 +30,7 @@ use hash_codegen::{
         misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
-use hash_ir::{ir::BodySource, ty::IrTy, IrStorage};
+use hash_ir::{ir::BodySource, IrStorage};
 use hash_pipeline::{
     interface::{CompilerOutputStream, CompilerResult, StageMetrics},
     settings::CompilerSettings,
@@ -38,7 +38,7 @@ use hash_pipeline::{
 };
 use hash_reporting::writer::ReportWriter;
 use hash_source::{identifier::IDENTS, ModuleId};
-use hash_storage::store::Store;
+use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::{
     stream_writeln,
     timing::{time_item, AccessToMetrics},
@@ -266,12 +266,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             }
 
             // Get the instance of the function.
-            let instance = self.ir_storage.ctx.map_ty(body.info().ty(), |ty| {
-                let IrTy::FnDef { instance, .. } = ty else {
-                    panic!("ir-body has non-function type")
-                };
-                *instance
-            });
+            let instance = body.info().ty().borrow().as_instance();
 
             // So, we create the mangled symbol name, and then call `predefine()` which
             // should create the function ABI from the instance, with the correct
@@ -301,12 +296,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             }
 
             // Get the instance of the function.
-            let instance = ir.ctx.map_ty(body.info().ty(), |ty| {
-                let IrTy::FnDef { instance, .. } = ty else {
-                    panic!("ir-body has non-function type")
-                };
-                *instance
-            });
+            let instance = body.info().ty().borrow().as_instance();
 
             // @@ErrorHandling: we should be able to handle the error here
             codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();

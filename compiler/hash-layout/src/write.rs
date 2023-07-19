@@ -24,10 +24,7 @@
 
 use std::{fmt, iter};
 
-use hash_ir::{
-    ty::{IrTy, VariantIdx},
-    write::WriteIr,
-};
+use hash_ir::ty::{IrTy, VariantIdx};
 use hash_storage::store::{statics::StoreId, Store};
 use hash_target::{abi::AbiRepresentation, size::Size};
 use hash_utils::tree_writing::CharacterSet;
@@ -589,9 +586,9 @@ impl<'l> LayoutWriter<'l> {
     where
         F: FnOnce(&Self, &IrTy, &Layout) -> T,
     {
-        self.ctx.ir_ctx().map_ty(self.ty_info.ty, |ty| {
-            self.ctx.map_fast(self.ty_info.layout, |layout| f(self, ty, layout))
-        })
+        self.ty_info
+            .ty
+            .map(|ty| self.ctx.map_fast(self.ty_info.layout, |layout| f(self, ty, layout)))
     }
 
     ///
@@ -611,7 +608,7 @@ impl<'l> LayoutWriter<'l> {
         tag_box_width: usize,
         layout: LayoutId,
     ) -> BoxRow {
-        self.ctx.ir_ctx().map_ty(self.ty_info.ty, |ty| {
+        self.ty_info.ty.map(|ty| {
             let mut contents = self.ctx.map_fast(layout, |layout| {
                 self.create_box_contents(ty, layout, Some((tag_size, variant)))
             });
@@ -651,10 +648,7 @@ impl<'l> LayoutWriter<'l> {
         // If the layout is a `ZST`, then we just return a single box
         // with the layout, and a `<ZST>` label
         if layout.is_zst() {
-            boxes.push(BoxContent::new(
-                format!("<ZST>: {}", ty.for_fmt(self.ctx.ir_ctx())),
-                singular_box_content(),
-            ));
+            boxes.push(BoxContent::new(format!("<ZST>: {}", ty), singular_box_content()));
             return boxes;
         }
 
@@ -699,9 +693,7 @@ impl<'l> LayoutWriter<'l> {
                                 .fields
                                 .clone()
                                 .into_iter()
-                                .map(|field| {
-                                    (field.name, format!("{}", field.ty.for_fmt(self.ctx.ir_ctx())))
-                                })
+                                .map(|field| (field.name, format!("{}", field.ty)))
                                 .collect::<Vec<_>>()
                         })
                     }
@@ -793,9 +785,7 @@ impl fmt::Display for LayoutWriter<'_> {
             writeln!(
                 f,
                 "Layout of `{}` (size={} align={}):",
-                self.ty_info.ty.for_fmt(self.ctx.ir_ctx()),
-                layout.size,
-                layout.alignment.abi
+                self.ty_info.ty, layout.size, layout.alignment.abi
             )?;
 
             // Firstly, we print the initial "shape" of the

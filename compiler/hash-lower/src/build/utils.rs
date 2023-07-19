@@ -129,10 +129,8 @@ impl<'tcx> BodyBuilder<'tcx> {
         match &self.tmp_place {
             Some(tmp) => *tmp,
             None => {
-                let local = LocalDecl::new_auxiliary(
-                    self.ctx().tys().common_tys.unit,
-                    Mutability::Immutable,
-                );
+                let local =
+                    LocalDecl::new_auxiliary(self.ctx().common_tys.unit, Mutability::Immutable);
                 let local_id = self.declarations.push(local);
 
                 let place = Place::from_local(local_id, self.ctx());

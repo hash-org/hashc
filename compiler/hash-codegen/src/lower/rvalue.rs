@@ -8,6 +8,7 @@ use hash_ir::{
     ir::{self, BinOp, RValue},
     ty::{self, IrTyId, RefKind, VariantIdx},
 };
+use hash_storage::store::statics::StoreId;
 
 use super::{
     locals::LocalRef,
@@ -112,9 +113,8 @@ fn build_unchecked_rshift<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 ) -> Builder::Value {
     let rhs = cast_shift_value(builder, lhs, rhs);
     let rhs = apply_shift_mask(builder, rhs);
-    let is_signed = builder.ctx().ir_ctx().map_ty(ty, |ty| ty.is_signed());
 
-    if is_signed {
+    if ty.borrow().is_signed() {
         // Arithmetic right shift
         builder.ashr(lhs, rhs)
     } else {
@@ -218,7 +218,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(value),
-                    info: builder.layout_of(self.ctx.ir_ctx().tys().common_tys.usize),
+                    info: builder.layout_of(self.ctx.ir_ctx().common_tys.usize),
                 }
             }
             ir::RValue::UnaryOp(operator, ref operand) => {
@@ -229,7 +229,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     ir::UnaryOp::BitNot | ir::UnaryOp::Not => builder.not(value),
                     ir::UnaryOp::Neg => {
                         // check if the underlying value is a floating point...
-                        if self.ctx.ir_ctx().map_ty(self.ty_of_rvalue(rvalue), |ty| ty.is_float()) {
+                        if self.ty_of_rvalue(rvalue).borrow().is_float() {
                             builder.fneg(value)
                         } else {
                             builder.neg(value)
@@ -350,7 +350,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(size),
-                    info: builder.layout_of(self.ctx.ir_ctx().tys().common_tys.usize),
+                    info: builder.layout_of(self.ctx.ir_ctx().common_tys.usize),
                 }
             }
             ir::RValue::Ref(_, place, kind) => {
@@ -400,8 +400,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         rhs_value: Builder::Value,
         ty: IrTyId,
     ) -> Builder::Value {
-        let (is_float, is_signed) =
-            self.ctx.ir_ctx().map_ty(ty, |ty| (ty.is_float(), ty.is_signed()));
+        let is_float = ty.borrow().is_float();
+        let is_signed = ty.borrow().is_signed();
 
         match operator {
             ir::BinOp::Add => {
@@ -566,7 +566,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     fn evaluate_array_len(&mut self, builder: &mut Builder, place: ir::Place) -> Builder::Value {
         if let Some(local) = place.as_local() {
             if let LocalRef::Operand(Some(op)) = self.locals[local] {
-                let size = self.ctx.ir_ctx().map_ty(op.info.ty, |ty| {
+                let size = op.info.ty.map(|ty| {
                     if let ty::IrTy::Array { length: size, .. } = ty {
                         Some(*size)
                     } else {

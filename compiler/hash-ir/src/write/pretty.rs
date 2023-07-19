@@ -61,9 +61,9 @@ impl<'ir> IrBodyWriter<'ir> {
 
                     // We add 1 to the index because the return type is always
                     // located at `0`.
-                    write!(f, "_{}: {}", i + 1, param.ty().for_fmt(self.ctx))?;
+                    write!(f, "_{}: {}", i + 1, param.ty())?;
                 }
-                writeln!(f, ") -> {} {{", return_ty_decl.ty().for_fmt(self.ctx))?;
+                writeln!(f, ") -> {} {{", return_ty_decl.ty())?;
             }
             BodySource::Const => {
                 writeln!(f, "const {} {{", self.body.info().name)?;
@@ -71,12 +71,7 @@ impl<'ir> IrBodyWriter<'ir> {
         }
 
         // Print the return place declaration
-        writeln!(
-            f,
-            "    {}_0: {};",
-            return_ty_decl.mutability(),
-            return_ty_decl.ty().for_fmt(self.ctx)
-        )
+        writeln!(f, "    {}_0: {};", return_ty_decl.mutability(), return_ty_decl.ty())
     }
 
     /// Write the body to the given formatter.
@@ -110,7 +105,7 @@ impl<'ir> IrBodyWriter<'ir> {
         let mut longest_line = 0;
         let rendered_declarations = declarations
             .map(|(local, decl)| {
-                let s = format!("{}{local:?}: {};", decl.mutability(), decl.ty().for_fmt(self.ctx));
+                let s = format!("{}{local:?}: {};", decl.mutability(), decl.ty());
 
                 if let Some(name) = decl.name && !decl.auxiliary() {
                 longest_line = longest_line.max(s.len());

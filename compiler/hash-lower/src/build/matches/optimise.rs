@@ -9,6 +9,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId},
 };
 use hash_source::location::Span;
+use hash_storage::store::statics::StoreId;
 use hash_tir::pats::{PatId, Spread};
 use hash_utils::smallvec::SmallVec;
 
@@ -64,7 +65,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         rest: Option<Spread>,
         suffix: &[PatId],
     ) {
-        let (min_length, exact_size) = self.ctx().map_ty(ty, |ty| match ty {
+        let (min_length, exact_size) = ty.map(|ty| match ty {
             IrTy::Array { length: size, .. } => (*size, true),
             _ => (prefix.len() + suffix.len(), false),
         });

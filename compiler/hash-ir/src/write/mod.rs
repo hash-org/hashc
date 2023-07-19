@@ -115,7 +115,7 @@ impl fmt::Display for ForFormatting<'_, Operand> {
         match self.item {
             Operand::Place(place) => write!(f, "{}", place.for_fmt(self.ctx)),
             Operand::Const(ConstKind::Value(Const::Zero(ty))) => {
-                write!(f, "{}", ty.for_fmt(self.ctx))
+                write!(f, "{}", ty)
             }
             Operand::Const(const_value) => write!(f, "const {const_value}"),
         }
@@ -141,7 +141,7 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
             RValue::Len(place) => write!(f, "len({})", place.for_fmt(self.ctx)),
             RValue::Cast(_, op, ty) => {
                 // We write out the type fully for the cast.
-                write!(f, "cast({}, {})", ty.fmt_with_opts(self.ctx, true), op.for_fmt(self.ctx))
+                write!(f, "cast({}, {})", ty, op.for_fmt(self.ctx))
             }
             RValue::UnaryOp(op, operand) => {
                 write!(f, "{op:?}({})", operand.for_fmt(self.ctx))
@@ -174,14 +174,13 @@ impl fmt::Display for ForFormatting<'_, &RValue> {
                     AggregateKind::Enum(adt, index) => {
                         self.ctx.adts().map_fast(*adt, |def| {
                             let name = def.variants.get(*index).unwrap().name;
-
-                            write!(f, "{}::{name}", adt.for_fmt(self.ctx))
+                            write!(f, "{}::{name}", adt)
                         })?;
 
                         fmt_operands(f, '(', ')')
                     }
                     AggregateKind::Struct(adt) => {
-                        write!(f, "{}", adt.for_fmt(self.ctx))?;
+                        write!(f, "{}", adt)?;
                         fmt_operands(f, '(', ')')
                     }
                 }
@@ -257,7 +256,7 @@ impl fmt::Display for ForFormatting<'_, &Terminator> {
 
                         // We want to create an a constant from this value
                         // with the type, and then print it.
-                        let value = Const::from_scalar(value, targets.ty, self.ctx);
+                        let value = Const::from_scalar(value, targets.ty);
 
                         write!(f, "{value} -> {target:?}")?;
                     }

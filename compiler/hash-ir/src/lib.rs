@@ -37,7 +37,9 @@ use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use lang_items::LangItems;
-use ty::{AdtStore, Instance, InstanceId, InstanceStore, IrTy, IrTyId, TyListStore, TyStore};
+use ty::{
+    AdtStore, CommonIrTys, Instance, InstanceId, InstanceStore, IrTyId, IrTyListStore, IrTyStore,
+};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -136,16 +138,8 @@ pub struct IrCtx {
     /// This the storage for all projection collections.
     projection_store: ir::ProjectionStore,
 
-    /// The storage for all of the used types that are within the IR.
-    ty_store: ty::TyStore,
-
-    /// Storage that is used to store all of the created ADTs that
-    /// are registered within the IR.
-    // adt_store: ty::AdtStore,
-
-    /// All of the function instances that have been created by the
-    /// lowering stage.
-    instances: ty::InstanceStore,
+    /// Commonly used types, stored in a table.
+    pub common_tys: CommonIrTys,
 
     /// Cache for the [IrTyId]s that are created from [TyId]s.
     ty_cache: TyCache,
@@ -162,6 +156,9 @@ pub struct IrCtx {
 stores!(
     IrStores;
     adts: AdtStore,
+    tys: IrTyStore,
+    ty_list: IrTyListStore,
+    instances: InstanceStore
 );
 
 /// The global [`IrStores`] instance.
@@ -175,8 +172,6 @@ pub fn ir_stores() -> &'static IrStores {
 impl IrCtx {
     /// Create a new [IrCtx].
     pub fn new() -> Self {
-        let ty_store = TyStore::new();
-        let instances = InstanceStore::new();
         let lang_items = LangItems::new();
         let intrinsics = Intrinsics::new();
 
@@ -184,8 +179,7 @@ impl IrCtx {
             projection_store: ProjectionStore::default(),
             lang_items: RefCell::new(lang_items),
             intrinsics: RefCell::new(intrinsics),
-            ty_store,
-            instances,
+            common_tys: CommonIrTys::new(),
             ty_cache: RefCell::new(FxHashMap::default()),
         }
     }
@@ -210,9 +204,9 @@ impl IrCtx {
         self.lang_items.borrow_mut()
     }
 
-    /// Get a reference to the [TyStore].
-    pub fn tys(&self) -> &TyStore {
-        &self.ty_store
+    /// Get a reference to the [IrTyStore].
+    pub fn tys(&self) -> &IrTyStore {
+        ir_stores().tys()
     }
 
     /// Get a reference to the semantic types conversion cache.
@@ -221,8 +215,8 @@ impl IrCtx {
     }
 
     /// Get a reference to the [TyListStore]
-    pub fn tls(&self) -> &TyListStore {
-        &self.ty_store.tls
+    pub fn tls(&self) -> &IrTyListStore {
+        ir_stores().ty_list()
     }
 
     /// Get a reference to the [AdtStore]
@@ -232,7 +226,7 @@ impl IrCtx {
 
     /// Get a reference to the instance store.
     pub fn instances(&self) -> &InstanceStore {
-        &self.instances
+        ir_stores().instances()
     }
 
     /// Get a reference to the [ProjectionStore]
@@ -253,15 +247,6 @@ impl IrCtx {
         self.projections().map_fast(projections, |projections| map(local, projections))
     }
 
-    /// Map an [IrTyId] by reading the [IrTy] that is associated with the
-    /// [IrTyId] and then applying the provided function.
-    ///
-    /// N.B. This function should not create any new [IrTy]s during the
-    /// function operation.
-    pub fn map_ty<T>(&self, ty: IrTyId, f: impl FnOnce(&IrTy) -> T) -> T {
-        self.ty_store.map_fast(ty, f)
-    }
-
     /// Map an [InstanceId] by reading the [Instance] that is associated with
     /// the [InstanceId] and then applying the provided function.
     ///
@@ -270,27 +255,4 @@ impl IrCtx {
     pub fn map_instance<T>(&self, id: InstanceId, f: impl FnOnce(&Instance) -> T) -> T {
         self.instances().map_fast(id, f)
     }
-
-    /// Apply a function on an type assuming that it is a [`IrTy::Adt`].
-    pub fn map_ty_as_instance<T>(
-        &self,
-        ty: IrTyId,
-        f: impl FnOnce(&Instance, InstanceId) -> T,
-    ) -> T {
-        self.ty_store.map_fast(ty, |ty| {
-            self.instances.map_fast(ty.as_instance(), |instance| f(instance, ty.as_instance()))
-        })
-    }
-
-    // /// Apply a function on an type assuming that it is a [`IrTy::Adt`].
-    // pub fn map_ty_as_adt<T>(&self, ty: IrTyId, f: impl FnOnce(&AdtData, AdtId) ->
-    // T) -> T {     self.ty_store
-    //         .map_fast(ty, |ty| self.adt_store.map_fast(ty.as_adt(), |adt| f(adt,
-    // ty.as_adt()))) }
-
-    // /// Perform a map on a [AdtId] by reading the [AdtData] that is associated
-    // /// with the [AdtId] and then applying the provided function.
-    // pub fn map_adt<T>(&self, id: AdtId, map: impl FnOnce(AdtId, &AdtData) -> T)
-    // -> T {     self.adts().map_fast(id, |data| map(id, data))
-    // }
 }

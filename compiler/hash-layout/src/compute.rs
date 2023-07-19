@@ -170,7 +170,7 @@ impl<'l> LayoutComputer<'l> {
             return Ok(layout);
         }
 
-        let layout = self.ir_ctx.map_ty(ty_id, |ty| match ty {
+        let layout = ty_id.map(|ty| match ty {
             IrTy::Int(ty) => match ty {
                 SIntTy::I8 => Ok(self.common_layouts().i8),
                 SIntTy::I16 => Ok(self.common_layouts().i16),
@@ -210,7 +210,7 @@ impl<'l> LayoutComputer<'l> {
                 }
 
                 // Compute any metadata if we need to.
-                let maybe_metadata = self.ir_ctx().map_ty(*pointee, |ty| match ty {
+                let maybe_metadata = pointee.map(|ty| match ty {
                     IrTy::Str | IrTy::Slice(_) => Some(scalar_unit(ScalarKind::Int {
                         kind: dl.ptr_sized_integer(),
                         signed: false,
@@ -996,7 +996,7 @@ impl<'l> LayoutComputer<'l> {
             return *pointee_info;
         }
 
-        let result = self.ir_ctx().map_ty(info.ty, |ty| match ty {
+        let result = info.ty.map(|ty| match ty {
             IrTy::Fn { .. } if offset == Size::ZERO => {
                 let (size, alignment) = self
                     .layouts()

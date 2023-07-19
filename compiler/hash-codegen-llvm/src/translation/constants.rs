@@ -131,7 +131,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
             (s, global)
         });
 
-        let byte_slice_ty = self.ir_ctx().tys().common_tys.byte_slice;
+        let byte_slice_ty = self.ir_ctx().common_tys.byte_slice;
         let ptr = global_str.as_pointer_value().const_cast(
             self.type_ptr_to(self.layout_of(byte_slice_ty).llvm_ty(self)).into_pointer_type(),
         );

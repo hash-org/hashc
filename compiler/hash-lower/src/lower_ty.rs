@@ -243,7 +243,7 @@ impl<'ir> BuilderCtx<'ir> {
         match ctor_defs.len() {
             // This must be the never type.
             0 => {
-                return (self.lcx.tys().common_tys.never, false);
+                return (self.lcx.common_tys.never, false);
             }
             1 => flags |= AdtFlags::STRUCT,
             _ => flags |= AdtFlags::ENUM,
@@ -318,7 +318,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
                 if self.primitives().bool() == ty.data_def {
-                    return (self.lcx.tys().common_tys.bool, true);
+                    return (self.lcx.common_tys.bool, true);
                 }
 
                 self.context().enter_scope(ty.data_def.into(), || {
@@ -333,8 +333,8 @@ impl<'ir> BuilderCtx<'ir> {
                     PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, is_signed, is_float }) => {
                         if is_float {
                             match bits {
-                                NumericCtorBits::Bounded(32) => self.lcx.tys().common_tys.f32,
-                                NumericCtorBits::Bounded(64) => self.lcx.tys().common_tys.f64,
+                                NumericCtorBits::Bounded(32) => self.lcx.common_tys.f32,
+                                NumericCtorBits::Bounded(64) => self.lcx.common_tys.f64,
 
                                 // Other bits widths are not supported.
                                 _ => unreachable!(),
@@ -346,21 +346,21 @@ impl<'ir> BuilderCtx<'ir> {
 
                                     if is_signed {
                                         match size.bytes() {
-                                            1 => self.lcx.tys().common_tys.i8,
-                                            2 => self.lcx.tys().common_tys.i16,
-                                            4 => self.lcx.tys().common_tys.i32,
-                                            8 => self.lcx.tys().common_tys.i64,
-                                            16 => self.lcx.tys().common_tys.i128,
+                                            1 => self.lcx.common_tys.i8,
+                                            2 => self.lcx.common_tys.i16,
+                                            4 => self.lcx.common_tys.i32,
+                                            8 => self.lcx.common_tys.i64,
+                                            16 => self.lcx.common_tys.i128,
                                             _ => unreachable!(), /* Other bits widths are not
                                                                   * supported. */
                                         }
                                     } else {
                                         match size.bytes() {
-                                            1 => self.lcx.tys().common_tys.u8,
-                                            2 => self.lcx.tys().common_tys.u16,
-                                            4 => self.lcx.tys().common_tys.u32,
-                                            8 => self.lcx.tys().common_tys.u64,
-                                            16 => self.lcx.tys().common_tys.u128,
+                                            1 => self.lcx.common_tys.u8,
+                                            2 => self.lcx.common_tys.u16,
+                                            4 => self.lcx.common_tys.u32,
+                                            8 => self.lcx.common_tys.u64,
+                                            16 => self.lcx.common_tys.u128,
                                             _ => unreachable!(), /* Other bits widths are not
                                                                   * supported. */
                                         }
@@ -372,8 +372,8 @@ impl<'ir> BuilderCtx<'ir> {
                     }
 
                     // @@Temporary: `str` implies that it is a `&str`
-                    PrimitiveCtorInfo::Str => self.lcx.tys().common_tys.str,
-                    PrimitiveCtorInfo::Char => self.lcx.tys().common_tys.char,
+                    PrimitiveCtorInfo::Str => self.lcx.common_tys.str,
+                    PrimitiveCtorInfo::Char => self.lcx.common_tys.char,
                     PrimitiveCtorInfo::Array(ArrayCtorInfo { element_ty, length }) => {
                         // Apply the arguments as the scope of the data type.
                         self.context().enter_scope(ty.data_def.into(), || {

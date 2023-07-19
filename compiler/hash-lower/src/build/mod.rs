@@ -301,10 +301,8 @@ impl<'ctx> BodyBuilder<'ctx> {
         // If it is a function type, then we use the return type of the
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
-        let return_ty = self.ctx().map_ty(ty, |item_ty| match item_ty {
-            IrTy::FnDef { instance } => {
-                self.ctx().map_instance(*instance, |instance| instance.ret_ty)
-            }
+        let return_ty = ty.map(|item_ty| match item_ty {
+            IrTy::FnDef { instance } => instance.borrow().ret_ty,
             _ => ty,
         });
 

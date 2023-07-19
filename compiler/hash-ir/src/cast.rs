@@ -8,7 +8,6 @@ use hash_storage::store::CloneStore;
 
 use crate::{
     ty::{IrTy, IrTyId},
-    write::WriteIr,
     IrCtx,
 };
 
@@ -45,8 +44,7 @@ impl CastKind {
             (Some(CastTy::Float), Some(CastTy::Float)) => Self::FloatToFloat,
             _ => panic!(
                 "attempting to cast between non-primitive types: src: `{}`, dest: `{}`",
-                src.fmt_with_opts(ctx, false),
-                dest.fmt_with_opts(ctx, false)
+                src, dest
             ),
         }
     }

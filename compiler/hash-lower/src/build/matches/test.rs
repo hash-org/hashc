@@ -12,7 +12,6 @@ use hash_ir::{
         BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
     },
     ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx},
-    IrCtx,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
@@ -108,16 +107,16 @@ pub(super) struct Test {
 impl Test {
     /// Return the total amount of targets that a particular
     /// [Test] yields.
-    pub(super) fn targets(&self, ctx: &IrCtx) -> usize {
+    pub(super) fn targets(&self) -> usize {
         match self.kind {
             TestKind::Switch { adt, .. } => {
                 // The switch will not (necessarily) generate branches
                 // for all of the variants, so we have a target for each
                 // variant, and an additional target for the `otherwise` case.
-                ctx.adts().map_fast(adt, |adt| adt.variants.len() + 1)
+                adt.borrow().variants.len() + 1
             }
             TestKind::SwitchInt { ty, ref options } => {
-                ctx.map_ty(ty, |ty| {
+                ty.map(|ty| {
                     // The boolean branch is always 2...
                     if let IrTy::Bool = ty {
                         2
@@ -200,7 +199,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             Pat::Ctor(pat) => {
                 let ty_id = self.ty_id_from_tir_pat(pair.pat);
 
-                self.ctx().map_ty(ty_id, |ty| match ty {
+                ty_id.map(|ty| match ty {
                     IrTy::Bool => {
                         // Constify the bool literal
                         let value =
@@ -339,7 +338,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             (TestKind::SwitchInt { ty, ref options }, Pat::Ctor(CtorPat { ctor, .. })) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.ctx().map_ty(*ty, |ty| ty.is_switchable()) {
+                if !ty.borrow().is_switchable() {
                     unreachable!("switch_int test for constructor pat with non-switchable type");
                 }
 
@@ -357,7 +356,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.ctx().map_ty(*ty, |ty| ty.is_switchable()) {
+                if !ty.borrow().is_switchable() {
                     return None;
                 }
 
@@ -624,7 +623,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             TestKind::SwitchInt { ty, ref options } => {
                 let target_blocks = make_target_blocks(self);
 
-                let terminator_kind = if self.ctx().map_ty(ty, |ty| *ty == IrTy::Bool) {
+                let terminator_kind = if ty.map(|ty| *ty == IrTy::Bool) {
                     debug_assert!(options.len() == 2);
 
                     let [first_block, second_block] = *target_blocks else {
@@ -654,8 +653,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 self.control_flow_graph.terminate(block, span, terminator_kind);
             }
             TestKind::Eq { ty, value } => {
-                let (is_str, is_scalar) =
-                    self.ctx().map_ty(ty, |ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
+                let (is_str, is_scalar) = ty.map(|ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
 
                 // If this type is a string, we essentially have to make a call to
                 // a string comparator function (which will be filled in later on
@@ -738,7 +736,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             TestKind::Len { len, op } => {
                 let target_blocks = make_target_blocks(self);
 
-                let usize_ty = self.ctx().tys().common_tys.usize;
+                let usize_ty = self.ctx().common_tys.usize;
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
@@ -785,7 +783,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) {
         debug_assert!(op.is_comparator());
 
-        let bool_ty = self.ctx().tys().common_tys.bool;
+        let bool_ty = self.ctx().common_tys.bool;
         let result = self.temp_place(bool_ty);
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,

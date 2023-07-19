@@ -7,7 +7,7 @@ use hash_ir::{
     write::WriteIr,
 };
 use hash_layout::{LayoutShape, Variants};
-use hash_storage::store::SequenceStore;
+use hash_storage::store::{statics::StoreId, SequenceStore};
 use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
     alignment::Alignment,
@@ -114,9 +114,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         // the variant, and then store it within the specified field.
         if let Some(field) = maybe_field {
             let ptr = self.project_field(builder, field);
-            let (_, value) = builder
-                .ir_ctx()
-                .map_ty(self.info.ty, |ty| ty.discriminant_for_variant(discriminant).unwrap());
+            let (_, value) = self.info.ty.borrow().discriminant_for_variant(discriminant).unwrap();
 
             builder.store(
                 builder.const_uint_big(builder.backend_ty_from_info(ptr.info), value),
@@ -149,10 +147,12 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
 
         match variants {
             Variants::Single { index } => {
-                let value = builder.ir_ctx().map_ty(self.info.ty, |ty| {
-                    ty.discriminant_for_variant(index)
-                        .map_or(index.raw() as u128, |(_, value)| value)
-                });
+                let value = self
+                    .info
+                    .ty
+                    .borrow()
+                    .discriminant_for_variant(index)
+                    .map_or(index.raw() as u128, |(_, value)| value);
 
                 builder.const_uint_big(cast_to_ty, value)
             }

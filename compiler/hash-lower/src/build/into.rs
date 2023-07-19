@@ -633,7 +633,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         //
         // Make the call to `malloc`, and then assign the result to a
         // temporary.
-        let ptr = self.temp_place(self.ctx().tys().common_tys.raw_ptr);
+        let ptr = self.temp_place(self.ctx().common_tys.raw_ptr);
         unpack!(block = self.build_fn_call(ptr, block, subject, vec![size_op], span));
 
         // we make a new temporary which is a pointer to the array and assign `ptr`
@@ -668,8 +668,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 subject,
                 // The first two arguments are the fill-ins for the generic parameters.
                 vec![
-                    Operand::Const(Const::Zero(self.ctx().tys().common_tys.unit).into()),
-                    Operand::Const(Const::Zero(self.ctx().tys().common_tys.unit).into()),
+                    Operand::Const(Const::Zero(self.ctx().common_tys.unit).into()),
+                    Operand::Const(Const::Zero(self.ctx().common_tys.unit).into()),
                     Operand::Place(sized_ptr)
                 ],
                 span

@@ -354,7 +354,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // get the type of the tuple so that we can read all of the
                 // fields
                 let ty = self.ty_id_from_tir_pat(pair.pat);
-                let adt = self.ctx().map_ty(ty, IrTy::as_adt);
+                let adt = ty.borrow().as_adt();
 
                 candidate.pairs.extend(self.match_pat_fields(data, adt, pair.place));
                 Ok(())
@@ -363,9 +363,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let ty = self.ty_id_from_tir_pat(pair.pat);
 
                 // If the type is a boolean, then we can't simplify this pattern any further...
-                let adt = self.ctx().map_ty(ty, |ty| match ty {
+                let adt = ty.map(|ty| match ty {
                     IrTy::Bool => None,
-                    IrTy::Adt(id) => id.map(|adt| adt.flags.is_struct().then_some(*id)),
+                    IrTy::Adt(id) => (*id).borrow().flags.is_struct().then_some(*id),
                     ty => panic!("unexpected type: {ty:?}"),
                 });
 

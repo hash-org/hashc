@@ -13,7 +13,7 @@ use hash_abi::{ArgAbi, FnAbiId, PassMode};
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
 use hash_source::constant::CONSTANT_MAP;
-use hash_storage::store::Store;
+use hash_storage::store::{statics::StoreId, Store};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
@@ -143,10 +143,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // generate the operand as the function call...
         let callee = self.codegen_operand(builder, op);
 
-        let (is_intrinsic, instance) = self
-            .ctx
-            .ir_ctx()
-            .map_ty_as_instance(callee.info.ty, |data, instance| (data.is_intrinsic(), instance));
+        let instance = callee.info.ty.borrow().as_instance();
+        let is_intrinsic = instance.borrow().is_intrinsic();
         let mut maybe_intrinsic = None;
 
         // If this is an intrinsic, we will generate the required code
@@ -479,7 +477,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
             // If this type is a `bool`, then we can generate conditional
             // branches rather than an `icmp` and `br`.
-            if self.ctx.ir_ctx().tys().common_tys.bool == ty {
+            if self.ctx.ir_ctx().common_tys.bool == ty {
                 match value {
                     0 => builder.conditional_branch(
                         subject.immediate_value(),

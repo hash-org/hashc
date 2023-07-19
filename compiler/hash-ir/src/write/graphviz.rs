@@ -95,21 +95,17 @@ impl<'ir> IrGraphWriter<'ir> {
 
                     // We add 1 to the index because the return type is always
                     // located at `0`.
-                    write!(
-                        w,
-                        "{}",
-                        encode_text(&format!("_{}: {}", i + 1, param.ty().for_fmt(self.ctx)))
-                    )?;
+                    write!(w, "{}", encode_text(&format!("_{}: {}", i + 1, param.ty())))?;
                 }
                 writeln!(
                     w,
                     "{}{}",
-                    encode_text(&format!(") -> {} {{", return_ty_decl.ty().for_fmt(self.ctx))),
+                    encode_text(&format!(") -> {} {{", return_ty_decl.ty())),
                     LINE_SEPARATOR
                 )?;
             }
             BodySource::Const => {
-                let header = format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, false));
+                let header = format!("{}", self.body.info().ty());
 
                 // @@Todo: maybe figure out a better format for this?
                 write!(
@@ -132,7 +128,7 @@ impl<'ir> IrGraphWriter<'ir> {
                 w,
                 "{}{local:?}: {};{}",
                 decl.mutability(),
-                encode_text(&format!("{}", decl.ty().fmt_with_opts(self.ctx, false))),
+                encode_text(&format!("{}", decl.ty())),
                 LINE_SEPARATOR
             )?;
         }
@@ -171,7 +167,7 @@ impl<'ir> IrGraphWriter<'ir> {
                         for (value, target) in targets.iter() {
                             // We want to create an a constant from this value
                             // with the type, and then print it.
-                            let value = Const::from_scalar(value, targets.ty, self.ctx);
+                            let value = Const::from_scalar(value, targets.ty);
 
                             writeln!(
                                 w,

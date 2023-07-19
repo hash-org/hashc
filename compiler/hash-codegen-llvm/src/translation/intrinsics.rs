@@ -10,7 +10,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_storage::store::CloneStore;
+use hash_storage::store::{statics::StoreId, CloneStore};
 use inkwell::values::{AnyValueEnum, UnnamedAddress};
 
 use super::LLVMBuilder;
@@ -321,8 +321,7 @@ impl<'b, 'm> IntrinsicBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
         let IrTy::FnDef { instance, .. } = self.ir_ctx.tys().get(ty) else {
             panic!("unable to resolve intrinsic function type");
         };
-        let name = self.ir_ctx.instances().name_of(instance);
-
+        let name = instance.borrow().name();
         let result_ref = PlaceRef::new(self, result, fn_abi.ret_abi.info);
 
         // if we can simply resolve the intrinsic then we can just call it directly...

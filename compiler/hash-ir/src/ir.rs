@@ -16,7 +16,7 @@ use hash_source::{
 };
 use hash_storage::{
     new_sequence_store_key_direct,
-    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
+    store::{statics::StoreId, DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
 };
 use hash_utils::{
     graph::dominators::Dominators,
@@ -28,7 +28,6 @@ use crate::{
     basic_blocks::BasicBlocks,
     cast::CastKind,
     ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, ToIrTy, VariantIdx},
-    write::WriteIr,
     IrCtx,
 };
 
@@ -70,7 +69,7 @@ impl From<Const> for ConstKind {
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
     pub fn zero(ctx: &IrCtx) -> Self {
-        Self::Zero(ctx.tys().common_tys.unit)
+        Self::Zero(ctx.common_tys.unit)
     }
 
     /// Check if a [Const] is "switchable", meaning that it can be used
@@ -82,8 +81,8 @@ impl Const {
 
     /// Create a new [Const] from a scalar value, with the appropriate
     /// type.
-    pub fn from_scalar(value: u128, ty: IrTyId, ctx: &IrCtx) -> Self {
-        ctx.map_ty(ty, |ty| match ty {
+    pub fn from_scalar(value: u128, ty: IrTyId) -> Self {
+        ty.map(|ty| match ty {
             IrTy::Int(int_ty) => {
                 let value = i128::from_be_bytes(value.to_be_bytes()); // @@ByteCast.
                 let interned_value = IntConstant::from_sint(value, *int_ty);
@@ -167,15 +166,15 @@ impl ConstKind {
         match self {
             Self::Value(value) => match value {
                 Const::Zero(ty) => *ty,
-                Const::Bool(_) => ctx.tys().common_tys.bool,
-                Const::Char(_) => ctx.tys().common_tys.char,
+                Const::Bool(_) => ctx.common_tys.bool,
+                Const::Char(_) => ctx.common_tys.char,
                 Const::Int(interned_int) => {
                     CONSTANT_MAP.map_int(*interned_int, |int| int.normalised_ty().to_ir_ty(ctx))
                 }
                 Const::Float(interned_float) => {
                     CONSTANT_MAP.map_float(*interned_float, |float| float.ty().to_ir_ty(ctx))
                 }
-                Const::Str(_) => ctx.tys().common_tys.str,
+                Const::Str(_) => ctx.common_tys.str,
             },
             Self::Unevaluated(UnevaluatedConst { .. }) => {
                 // @@Todo: This will be implemented when constants are clearly
@@ -328,12 +327,9 @@ impl BinOp {
             | BinOp::Exp => {
                 // Both `lhs` and `rhs` should be of the same type...
                 debug_assert_eq!(
-                    lhs,
-                    rhs,
+                    lhs, rhs,
                     "binary op types for `{:?}` should be equal, but got: lhs: `{}`, rhs: `{}`",
-                    self,
-                    lhs.for_fmt(ctx),
-                    rhs.for_fmt(ctx)
+                    self, lhs, rhs
                 );
                 lhs
             }
@@ -343,7 +339,7 @@ impl BinOp {
 
             // Comparisons
             BinOp::Eq | BinOp::Neq | BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq => {
-                ctx.tys().common_tys.bool
+                ctx.common_tys.bool
             }
         }
     }
@@ -776,17 +772,17 @@ impl RValue {
     pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
         match self {
             RValue::Use(operand) => operand.ty(locals, ctx),
-            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => ctx.tys().common_tys.usize,
+            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => ctx.common_tys.usize,
             RValue::UnaryOp(_, operand) => operand.ty(locals, ctx),
             RValue::BinaryOp(op, box (lhs, rhs)) => {
                 op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx))
             }
             RValue::CheckedBinaryOp(op, box (lhs, rhs)) => {
                 let ty = op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx));
-                ctx.tys().create(IrTy::tuple(&[ty, ctx.tys().common_tys.bool]))
+                ctx.tys().create(IrTy::tuple(&[ty, ctx.common_tys.bool]))
             }
             RValue::Cast(_, _, ty) => *ty,
-            RValue::Len(_) => ctx.tys().common_tys.usize,
+            RValue::Len(_) => ctx.common_tys.usize,
             RValue::Ref(mutability, place, kind) => {
                 let ty = place.ty(locals, ctx);
                 ctx.tys().create(IrTy::Ref(ty, *mutability, *kind))
@@ -799,10 +795,7 @@ impl RValue {
             },
             RValue::Discriminant(place) => {
                 let ty = place.ty(locals, ctx);
-
-                // @@Safety: this does not create any new types, and thus
-                // we can map_fast over the types.
-                ctx.map_ty(ty, |ty| ty.discriminant_ty(ctx))
+                ty.borrow().discriminant_ty(ctx)
             }
         }
     }
@@ -1168,7 +1161,7 @@ impl TerminatorKind {
     ) -> Self {
         let targets = SwitchTargets::new(
             std::iter::once((false.into(), false_block)),
-            ctx.tys().common_tys.bool,
+            ctx.common_tys.bool,
             Some(true_block),
         );
 

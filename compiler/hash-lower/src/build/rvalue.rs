@@ -65,7 +65,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                             && ty.is_signed()
                         {
                             let min_value = self.min_value_of_ty(ty);
-                            let is_min = self.temp_place(self.ctx().tys().common_tys.bool);
+                            let is_min = self.temp_place(self.ctx().common_tys.bool);
 
                             self.control_flow_graph.push_assign(
                                 block,
@@ -175,7 +175,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
-            if self.ctx().map_ty(ty_id, |ty| matches!(ty, IrTy::FnDef { .. })) {
+            if ty_id.map(|ty| matches!(ty, IrTy::FnDef { .. })) {
                 return block.and(Operand::Const(Const::Zero(ty_id).into()));
             }
         }
@@ -223,7 +223,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         if self.settings.lowering_settings().checked_operations {
             if op.is_checkable() && actual_ty.is_integral() {
                 // Create a new tuple that contains the result of the operation
-                let ty = IrTy::tuple(&[ty, self.ctx().tys().common_tys.bool]);
+                let ty = IrTy::tuple(&[ty, self.ctx().common_tys.bool]);
                 let ty_id = self.ctx().tys().create(ty);
 
                 let temp = self.temp_place(ty_id);
@@ -257,7 +257,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 };
 
                 // Check for division/modulo of zero...
-                let is_zero = self.temp_place(self.ctx().tys().common_tys.bool);
+                let is_zero = self.temp_place(self.ctx().common_tys.bool);
 
                 let const_val =
                     Const::Int(CONSTANT_MAP.create_int(IntConstant::from_uint(0, uint_ty)));
@@ -283,8 +283,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     let negative_one_val = Operand::Const(const_val.into());
                     let minimum_value = self.min_value_of_ty(actual_ty);
 
-                    let is_negative_one = self.temp_place(self.ctx().tys().common_tys.bool);
-                    let is_minimum_value = self.temp_place(self.ctx().tys().common_tys.bool);
+                    let is_negative_one = self.temp_place(self.ctx().common_tys.bool);
+                    let is_minimum_value = self.temp_place(self.ctx().common_tys.bool);
 
                     // Push the values that have been created into the temporaries
                     self.control_flow_graph.push_assign(
@@ -305,7 +305,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // which checks the condition `(rhs == -1) & (lhs == MIN)`, and then we
                     // emit an assert. Alternatively, this could short_circuit on the first
                     // check, but it would make control flow more complex.
-                    let is_overflow = self.temp_place(self.ctx().tys().common_tys.bool);
+                    let is_overflow = self.temp_place(self.ctx().common_tys.bool);
                     self.control_flow_graph.push_assign(
                         block,
                         is_overflow,

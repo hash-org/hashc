@@ -137,7 +137,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // it.
                 let ty = self.ty_id_from_tir_term(subject);
 
-                if self.ctx().map_ty(ty, |ty| ty.is_ref()) {
+                if ty.borrow().is_ref() {
                     base_place = base_place.deref()
                 }
 

@@ -320,14 +320,10 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
         }
 
         match abi {
-            AbiRepresentation::Scalar(scalar) => {
-                let ty = ctx.ir_ctx().map_ty(self.ty, |ty| match ty {
-                    IrTy::Ref(ty, _, _) => ctx.type_ptr_to(ctx.layout_of(*ty).llvm_ty(ctx)),
-                    _ => self.scalar_llvm_type_at(ctx, scalar, Size::ZERO),
-                });
-
-                ty
-            }
+            AbiRepresentation::Scalar(scalar) => self.ty.map(|ty| match ty {
+                IrTy::Ref(ty, _, _) => ctx.type_ptr_to(ctx.layout_of(*ty).llvm_ty(ctx)),
+                _ => self.scalar_llvm_type_at(ctx, scalar, Size::ZERO),
+            }),
             AbiRepresentation::Vector { elements, kind } => {
                 ctx.type_vector(self.scalar_llvm_type_at(ctx, kind, Size::ZERO), elements)
             }
@@ -341,7 +337,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
 
             _ => {
                 ctx.map_layout(self.layout, |layout| {
-                    ctx.ir_ctx().map_ty(self.ty, |ty| {
+                    self.ty.map(|ty| {
                         // Firstly, we want to compute the name of the type that we are going
                         // to create.
                         //

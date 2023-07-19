@@ -11,10 +11,7 @@ use std::{
 };
 
 use compute::LayoutComputer;
-use hash_ir::{
-    ty::{IrTy, IrTyId, ToIrTy, VariantIdx},
-    write::WriteIr,
-};
+use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx};
 use hash_storage::{
     new_store_key,
     store::{statics::StoreId, CloneStore, DefaultStore, FxHashMap, Store, StoreInternalData},
@@ -232,30 +229,29 @@ impl TyInfo {
             | IrTy::Char
             | IrTy::Never
             | IrTy::FnDef { .. }
-            | IrTy::Fn { .. } => panic!(
-                "TyInfo::field on a type `{}` that does not contain fields",
-                ty.for_fmt(ctx.ir_ctx())
-            ),
+            | IrTy::Fn { .. } => {
+                panic!("TyInfo::field on a type `{}` that does not contain fields", ty)
+            }
 
             // Handle pointers that might have additional information attached to them, i.e.
             // `str` and `[T]` types.
             IrTy::Ref(pointee, _, _) => {
                 // We just create a `void*` pointer...
                 if field_index == 0 {
-                    return ctx.ir_ctx().tys().common_tys.void_ptr;
+                    return ctx.ir_ctx().common_tys.void_ptr;
                 }
 
                 // Deal with loading metadata for the pointer, for now it is either a slice
                 // or a string which only contain the length of the data.
-                ctx.ir_ctx().map_ty(*pointee, |ty| match ty {
-                    IrTy::Str | IrTy::Slice(_) => ctx.ir_ctx().tys().common_tys.usize,
+                pointee.map(|ty| match ty {
+                    IrTy::Str | IrTy::Slice(_) => ctx.ir_ctx().common_tys.usize,
                     ty => {
                         unreachable!("TyInfo::field cannot read metadata for pointer type `{ty:?}`")
                     }
                 })
             }
 
-            IrTy::Str => ctx.ir_ctx().tys().common_tys.u8,
+            IrTy::Str => ctx.ir_ctx().common_tys.u8,
             IrTy::Slice(element) | IrTy::Array { ty: element, .. } => *element,
             IrTy::Adt(id) => match layout.variants {
                 Variants::Single { index } => {
