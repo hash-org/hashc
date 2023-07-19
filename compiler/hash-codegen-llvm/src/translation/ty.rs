@@ -304,7 +304,7 @@ pub(crate) trait ExtendedTyBuilderMethods<'m> {
 
 impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
     fn llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m> {
-        let (abi, variant_index) = ctx.map_layout(self.layout, |layout| {
+        let (abi, variant_index) = self.layout.map(|layout| {
             let variant_index = match &layout.variants {
                 Variants::Single { index } => Some(*index),
                 _ => None,
@@ -336,7 +336,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
             ),
 
             _ => {
-                ctx.map_layout(self.layout, |layout| {
+                self.layout.map(|layout| {
                     self.ty.map(|ty| {
                         // Firstly, we want to compute the name of the type that we are going
                         // to create.
@@ -393,7 +393,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
                                 // ##Safety: we should be able to assume that `field()` won't create
                                 // any new layouts since the layout of the element field should
                                 // already be known.
-                                let field_ty = self.field(ctx.layout_computer(), 0).llvm_ty(ctx);
+                                let field_ty = self.field(ctx.layouts(), 0).llvm_ty(ctx);
                                 ctx.type_array(field_ty, elements)
                             }
                             LayoutShape::Aggregate { .. } => {
@@ -442,8 +442,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
     }
 
     fn immediate_llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m> {
-        let is_bool = ctx.map_layout(
-            self.layout,
+        let is_bool = self.layout.map(
             |layout| matches!(layout.abi, AbiRepresentation::Scalar(scalar) if scalar.is_bool()),
         );
 
@@ -465,7 +464,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
             ScalarKind::Float { kind } => ctx.type_from_float(kind),
             ScalarKind::Pointer(addr) => {
                 let ty = if let Some(info) =
-                    ctx.layout_computer().compute_layout_info_of_pointee_at(*self, offset)
+                    ctx.layouts().compute_layout_info_of_pointee_at(*self, offset)
                 {
                     ctx.type_pointee_for_alignment(info.alignment)
                 } else {
@@ -483,7 +482,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
         index: usize,
         immediate: bool,
     ) -> llvm::types::AnyTypeEnum<'m> {
-        let (scalar_a, scalar_b) = ctx.map_layout(self.layout, |layout| {
+        let (scalar_a, scalar_b) = self.layout.map(|layout| {
             let AbiRepresentation::Pair(scalar_a, scalar_b) = layout.abi else {
                 panic!("`scalar_pair_element_llvm_ty` called on non-pair type");
             };
@@ -529,11 +528,11 @@ fn create_and_pad_struct_fields_from_layout<'m>(
 
     for i in layout.shape.iter_increasing_offsets() {
         let target_offset = layout.shape.offset(i);
-        let field = info.field(ctx.layout_computer(), i);
+        let field = info.field(ctx.layouts(), i);
 
         // @@Todo: maybe re-use the pre-computed padding size here that is available on
         // the layout?
-        ctx.map_layout(field.layout, |field_layout| {
+        field.layout.map(|field_layout| {
             let effective_field_align =
                 layout.alignment.abi.min(field_layout.alignment.abi).restrict_to(target_offset);
             packed |= effective_field_align < field_layout.alignment.abi;

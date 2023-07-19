@@ -9,17 +9,18 @@ use hash_codegen::{
     traits::layout::LayoutMethods,
 };
 use hash_ir::ty::IrTyId;
+use hash_storage::store::statics::StoreId;
 
 use super::{ty::TyMemoryRemap, LLVMBuilder};
 use crate::ctx::CodeGenCtx;
 
 impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {
-        self.map_layout(info.layout, |layout| layout.llvm_field_index(self, info.ty, index))
+        info.layout.map(|layout| layout.llvm_field_index(self, info.ty, index))
     }
 
     fn is_backend_immediate(&self, info: TyInfo) -> bool {
-        self.map_layout(info.layout, |layout| layout.is_llvm_immediate())
+        info.layout.map(|layout| layout.is_llvm_immediate())
     }
 }
 

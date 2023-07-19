@@ -2,6 +2,7 @@
 //! the target backend IR.
 
 use hash_ir::ir::{Statement, StatementKind};
+use hash_storage::store::statics::StoreId;
 
 use super::{locals::LocalRef, FnBuilder};
 use crate::traits::builder::BlockBuilderMethods;
@@ -25,8 +26,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                             // @@DebugInfo: we introduced the local here...
                         }
                         LocalRef::Operand(Some(operand)) => {
-                            let is_zst =
-                                builder.map_layout(operand.info.layout, |layout| layout.is_zst());
+                            let is_zst = operand.info.layout.borrow().is_zst();
                             // We can't have another assignment for a local ref since
                             // this implies that it is not in SSA form (unless it is a
                             // ZST for which the rules are slightly bent). However, we

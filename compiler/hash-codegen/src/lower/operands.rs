@@ -46,8 +46,7 @@ impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
         destination: PlaceRef<V>,
         flags: MemFlags,
     ) {
-        let (is_zst, abi) =
-            builder.map_layout(destination.info.layout, |layout| (layout.is_zst(), layout.abi));
+        let (is_zst, abi) = destination.info.layout.map(|layout| (layout.is_zst(), layout.abi));
 
         // We don't emit storing of zero-sized types, because they don't
         // actually take up any space and the only way to mimic this would
@@ -141,7 +140,7 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
         value: V,
         info: TyInfo,
     ) -> Self {
-        let abi = builder.map_layout(info.layout, |layout| layout.abi);
+        let abi = info.layout.borrow().abi;
 
         let value = if let AbiRepresentation::Pair(scalar_a, scalar_b) = abi {
             // Construct the aggregate value...
@@ -200,7 +199,7 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
         };
 
         let info = builder.layout_of(projected_ty);
-        let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
+        let alignment = info.abi_alignment();
 
         PlaceRef { value: ptr_value, extra, info, alignment }
     }
@@ -212,18 +211,16 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
         builder: &mut Builder,
         index: usize,
     ) -> Self {
-        let size = builder.map_layout(self.info.layout, |layout| layout.size);
-
-        let field_info = self.info.field(builder.layout_computer(), index);
-        let (is_zst, field_abi, field_size, offset) =
-            builder.map_layout(field_info.layout, |field_layout| {
-                (
-                    field_layout.is_zst(),
-                    field_layout.abi,
-                    field_layout.size,
-                    field_layout.shape.offset(index),
-                )
-            });
+        let size = self.info.size();
+        let field_info = self.info.field(builder.layouts(), index);
+        let (is_zst, field_abi, field_size, offset) = field_info.layout.map(|field_layout| {
+            (
+                field_layout.is_zst(),
+                field_layout.abi,
+                field_layout.size,
+                field_layout.shape.offset(index),
+            )
+        });
 
         // If the field is a ZST, we return early
         if is_zst {
@@ -307,7 +304,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                         | ir::Const::Int(_)
                         | ir::Const::Float(_)) => {
                             let ty = builder.immediate_backend_ty(info);
-                            let abi = builder.map_layout(info.layout, |layout| layout.abi);
+                            let abi = info.layout.borrow().abi;
 
                             let AbiRepresentation::Scalar(scalar) = abi else {
                                 panic!("scalar constant doesn't have a scalar ABI representation")
@@ -343,9 +340,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) -> OperandRef<Builder::Value> {
         // compute the type of the place and the corresponding layout...
         let info = self.compute_place_ty_info(builder, place);
-        let is_zst = builder.map_layout(info.layout, |layout| layout.is_zst());
 
-        if is_zst {
+        if info.is_zst() {
             return OperandRef::new_zst(builder, info);
         }
 
@@ -378,11 +374,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                         }
                         ir::PlaceProjection::Index(_)
                         | ir::PlaceProjection::ConstantIndex { .. } => {
-                            let element_info = operand.info.field(builder.layout_computer(), 0);
-                            let is_zst =
-                                builder.map_layout(element_info.layout, |layout| layout.is_zst());
+                            let element_info = operand.info.field(builder.layouts(), 0);
 
-                            if is_zst {
+                            if element_info.is_zst() {
                                 operand = OperandRef::new_zst(builder, element_info)
                             } else {
                                 return None;
