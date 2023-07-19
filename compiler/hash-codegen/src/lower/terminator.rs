@@ -150,9 +150,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // If this is an intrinsic, we will generate the required code
         // for the intrinsic here...
         if is_intrinsic {
-            maybe_intrinsic = Some(self.ctx.ir_ctx().map_instance(instance, |instance| {
-                Intrinsic::from_str_name(instance.name().into()).unwrap()
-            }));
+            maybe_intrinsic = Intrinsic::from_str_name(instance.borrow().name().into());
 
             // We exit early for transmute since we don't need to compute the ABI
             // or any information about the return destination.

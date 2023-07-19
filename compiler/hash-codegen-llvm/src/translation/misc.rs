@@ -7,7 +7,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::InstanceId;
 use hash_source::identifier::IDENTS;
-use hash_storage::store::Store;
+use hash_storage::store::{statics::StoreId, Store};
 use inkwell::{
     module::Linkage,
     values::{AnyValue, FunctionValue, UnnamedAddress},
@@ -103,11 +103,9 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
 
         // If the instance has the "foreign" attribute, then we need to
         // specify that the linkage is external.
-        self.ir_ctx.map_instance(instance, |instance| {
-            if instance.attributes.contains(IDENTS.foreign) {
-                decl.set_linkage(Linkage::External);
-            }
-        });
+        if instance.borrow().attributes.contains(IDENTS.foreign) {
+            decl.set_linkage(Linkage::External);
+        }
 
         // We insert the function into the cache so that we can
         // reference it later on...

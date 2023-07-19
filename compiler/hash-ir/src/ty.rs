@@ -481,6 +481,12 @@ static_sequence_store_indirect!(
     store_source = ir_stores()
 );
 
+impl IrTyListId {
+    pub fn seq<I: IntoIterator<Item = IrTyId>>(values: I) -> Self {
+        ir_stores().ty_list().create_from_iter(values)
+    }
+}
+
 /// Macro that is used to create the "common" IR types. Each
 /// entry has an associated name, and then followed by the type
 /// expression that represents the [IrTy].

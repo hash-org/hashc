@@ -15,8 +15,8 @@ use hash_source::{
     SourceId,
 };
 use hash_storage::{
-    new_sequence_store_key_direct,
-    store::{statics::StoreId, DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
+    static_sequence_store_indirect,
+    store::{SequenceStore, SequenceStoreKey, Store},
 };
 use hash_utils::{
     graph::dominators::Dominators,
@@ -27,6 +27,7 @@ use hash_utils::{
 use crate::{
     basic_blocks::BasicBlocks,
     cast::CastKind,
+    ir_stores,
     ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, ToIrTy, VariantIdx},
     IrCtx,
 };
@@ -1436,13 +1437,12 @@ impl BodyInfo {
     }
 }
 
-new_sequence_store_key_direct!(pub ProjectionId, ProjectionElementId, derives = [Debug], el_derives = [Debug]);
-
-/// Stores all collections of projections that can occur on a place.
-///
-/// This is used to efficiently represent [Place]s that might have many
-/// projections, and to easily copy them when duplicating places.
-pub type ProjectionStore = DefaultSequenceStore<ProjectionId, PlaceProjection>;
+static_sequence_store_indirect!(
+    store = pub ProjectionStore,
+    id = pub ProjectionId[PlaceProjection],
+    store_name = projections,
+    store_source = ir_stores()
+);
 
 /// An [IrRef] is a reference to where a particular item occurs within
 /// the [Body]. The [IrRef] stores an associated [BasicBlock] and an

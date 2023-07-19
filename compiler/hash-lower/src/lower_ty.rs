@@ -7,7 +7,7 @@ use hash_ir::{
     lang_items::LangItem,
     ty::{
         self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
-        Mutability, RepresentationFlags,
+        IrTyListId, Mutability, RepresentationFlags,
     },
     TyCacheEntry,
 };
@@ -15,7 +15,7 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::{attributes::Attribute, identifier::IDENTS};
 use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
-    PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+    PartialCloneStore, PartialStore, SequenceStoreKey, Store,
 };
 use hash_target::size::Size;
 use hash_tir::{
@@ -104,10 +104,9 @@ impl<'ir> BuilderCtx<'ir> {
                 IrTy::Adt(Adt::create(adt))
             }
             Ty::Fn(FnTy { params, return_ty, .. }) => {
-                let params = self.lcx.tls().create_from_iter(
+                let params = IrTyListId::seq(
                     params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
                 );
-
                 let return_ty = self.ty_id_from_tir_ty(return_ty);
                 IrTy::Fn { params, return_ty }
             }
@@ -197,10 +196,8 @@ impl<'ir> BuilderCtx<'ir> {
         let source = self.get_location(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
-        let params = self
-            .lcx
-            .tls()
-            .create_from_iter(params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
+        let params =
+            IrTyListId::seq(params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
         let ident = name.ident();
@@ -261,7 +258,7 @@ impl<'ir> BuilderCtx<'ir> {
         let subs = if ty.args.len() > 0 {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
-            Some(self.lcx.tls().create_from_iter(ty.args.borrow().iter().map(|arg| {
+            Some(IrTyListId::seq(ty.args.borrow().iter().map(|arg| {
                 let ty = self.use_term_as_ty(arg.value);
                 self.ty_id_from_tir_ty(ty)
             })))

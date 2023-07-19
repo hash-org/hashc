@@ -25,7 +25,7 @@ use std::{
 
 use hash_source::entry_point::EntryPointState;
 use hash_storage::{
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{SequenceStore, SequenceStoreKey},
     stores,
 };
 use hash_tir::{
@@ -37,9 +37,7 @@ use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;
 use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
 use lang_items::LangItems;
-use ty::{
-    AdtStore, CommonIrTys, Instance, InstanceId, InstanceStore, IrTyId, IrTyListStore, IrTyStore,
-};
+use ty::{AdtStore, CommonIrTys, InstanceId, InstanceStore, IrTyId, IrTyListStore, IrTyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -135,9 +133,6 @@ pub type TyCache = RefCell<FxHashMap<TyCacheEntry, IrTyId>>;
 /// projections, etc.
 #[derive(Default)]
 pub struct IrCtx {
-    /// This the storage for all projection collections.
-    projection_store: ir::ProjectionStore,
-
     /// Commonly used types, stored in a table.
     pub common_tys: CommonIrTys,
 
@@ -158,7 +153,8 @@ stores!(
     adts: AdtStore,
     tys: IrTyStore,
     ty_list: IrTyListStore,
-    instances: InstanceStore
+    instances: InstanceStore,
+    projections: ProjectionStore
 );
 
 /// The global [`IrStores`] instance.
@@ -176,7 +172,6 @@ impl IrCtx {
         let intrinsics = Intrinsics::new();
 
         Self {
-            projection_store: ProjectionStore::default(),
             lang_items: RefCell::new(lang_items),
             intrinsics: RefCell::new(intrinsics),
             common_tys: CommonIrTys::new(),
@@ -214,11 +209,6 @@ impl IrCtx {
         &self.ty_cache
     }
 
-    /// Get a reference to the [TyListStore]
-    pub fn tls(&self) -> &IrTyListStore {
-        ir_stores().ty_list()
-    }
-
     /// Get a reference to the [AdtStore]
     pub fn adts(&self) -> &AdtStore {
         ir_stores().adts()
@@ -231,7 +221,7 @@ impl IrCtx {
 
     /// Get a reference to the [ProjectionStore]
     pub fn projections(&self) -> &ProjectionStore {
-        &self.projection_store
+        ir_stores().projections()
     }
 
     /// Perform a map on a [Place] by reading all of the [PlaceProjection]s
@@ -245,14 +235,5 @@ impl IrCtx {
         let Place { local, projections } = place;
 
         self.projections().map_fast(projections, |projections| map(local, projections))
-    }
-
-    /// Map an [InstanceId] by reading the [Instance] that is associated with
-    /// the [InstanceId] and then applying the provided function.
-    ///
-    /// N.B. This function should not create any new [Instance]s during the
-    /// function operation.
-    pub fn map_instance<T>(&self, id: InstanceId, f: impl FnOnce(&Instance) -> T) -> T {
-        self.instances().map_fast(id, f)
     }
 }

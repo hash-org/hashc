@@ -6,7 +6,7 @@ use hash_abi::{
 };
 use hash_ir::ty::{Instance, InstanceId, IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::LayoutError;
-use hash_storage::store::{statics::StoreId, CloneStore, SequenceStore};
+use hash_storage::store::{statics::StoreId, CloneStore};
 use hash_target::abi::{Scalar, ScalarKind};
 
 use crate::traits::{layout::LayoutMethods, HasCtxMethods};
@@ -112,12 +112,12 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     };
 
     let fn_abi = FnAbi {
-        args: ctx.ir_ctx().tls().map_fast(params, |tys| {
-            tys.iter()
-                .enumerate()
-                .map(|(i, ty)| make_arg_abi(*ty, Some(i)))
-                .collect::<Result<_, _>>()
-        })?,
+        args: params
+            .borrow()
+            .iter()
+            .enumerate()
+            .map(|(i, ty)| make_arg_abi(*ty, Some(i)))
+            .collect::<Result<_, _>>()?,
         ret_abi: make_arg_abi(ret_ty, None)?,
         calling_convention,
     };

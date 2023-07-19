@@ -302,9 +302,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();
 
             // Check if we should dump the generated LLVM IR
-            if ir.ctx.map_instance(instance, |instance| {
-                instance.attributes.contains(IDENTS.dump_llvm_ir)
-            }) {
+            if instance.borrow().attributes.contains(IDENTS.dump_llvm_ir) {
                 let mut stdout = self.stdout.clone();
                 let func = FunctionPrinter::new(body.info.name(), ctx.get_fn(instance));
 
