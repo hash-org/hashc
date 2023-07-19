@@ -17,6 +17,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
+use hash_storage::store::statics::StoreId;
 use hash_utils::index_vec::{index_vec, IndexVec};
 
 use super::IrOptimisationPass;
@@ -38,8 +39,8 @@ impl IrOptimisationPass for CleanupLocalPass {
         settings.optimisation_level >= OptimisationLevel::Debug
     }
 
-    fn optimise(&self, body: &mut Body, store: &IrCtx) {
-        let mut local_map = LocalUseMap::new(body, store);
+    fn optimise(&self, body: &mut Body, _: &IrCtx) {
+        let mut local_map = LocalUseMap::new(body);
         self.simplify_locals(body, &mut local_map);
 
         // after the locals are simplified, we need to re-map all of the
@@ -48,7 +49,7 @@ impl IrOptimisationPass for CleanupLocalPass {
 
         if local_remaps.iter().any(Option::is_none) {
             // create an updater, and then we can remap all of the places.
-            let updater = LocalUpdater::new(local_remaps, store);
+            let updater = LocalUpdater::new(local_remaps);
             updater.visit(body);
 
             body.declarations.shrink_to_fit();
@@ -67,7 +68,7 @@ impl CleanupLocalPass {
     /// see. This is done by re-visiting the statement that was removed, and
     /// decrementing the count for each [Local] that we see in that
     /// particular statement.
-    fn simplify_locals(&self, body: &mut Body, local_map: &mut LocalUseMap<'_>) {
+    fn simplify_locals(&self, body: &mut Body, local_map: &mut LocalUseMap) {
         let mut changed = true;
 
         while changed {
@@ -107,7 +108,7 @@ impl CleanupLocalPass {
 
 /// A visitor that counts how many times each [Local] is used as an
 /// [RValue] within a particular [Body].
-pub struct LocalUseMap<'ir> {
+pub struct LocalUseMap {
     /// All of the counts for each local in the specified body.
     uses: Vec<usize>,
 
@@ -123,21 +124,17 @@ pub struct LocalUseMap<'ir> {
     /// the entire CFG after each local removal, and only what is needed
     /// for scanning.
     increment: bool,
-
-    /// A reference to the [BodyDataStore] in order to access and
-    /// read values references by the [Body].
-    ctx: &'ir IrCtx,
 }
 
-impl<'ir> LocalUseMap<'ir> {
+impl LocalUseMap {
     /// Create a new [LocalUseMap] for the specified [Body].
-    pub fn new(body: &Body, ctx: &'ir IrCtx) -> Self {
+    pub fn new(body: &Body) -> Self {
         let mut counts = vec![0; body.declarations.len()];
 
         // always set to `_0` to 1 since it is the return value and
         // is always used
         counts[RETURN_PLACE.index()] = 1;
-        let mut this = Self { uses: counts, ctx, arg_count: body.arg_count, increment: true };
+        let mut this = Self { uses: counts, arg_count: body.arg_count, increment: true };
 
         // visit the body and record the counts for each local, then
         // return the
@@ -206,22 +203,16 @@ impl<'ir> LocalUseMap<'ir> {
     }
 }
 
-impl<'ir> IrVisitorMut<'ir> for LocalUseMap<'ir> {
-    fn ctx(&self) -> &'ir IrCtx {
-        self.ctx
-    }
-
+impl<'ir> IrVisitorMut<'ir> for LocalUseMap {
     /// Visit an assignment [Statement], we only visit the [RValue] part of the
     /// assignment fully, and only check the projections of the [Place] in case
     /// it is referenced within a [PlaceProjection::Index].
     fn visit_assign_statement(&mut self, place: &Place, value: &RValue, reference: IrRef) {
-        self.ctx().map_place(*place, |_, projections| {
-            for projection in projections {
-                if let PlaceProjection::Index(index_local) = projection {
-                    self.update_count_for(*index_local);
-                }
+        for projection in place.projections.borrow().iter() {
+            if let PlaceProjection::Index(index_local) = projection {
+                self.update_count_for(*index_local);
             }
-        });
+        }
 
         // @@Safety: currently it is safe to remove all variants of an RValue, however
         // if we add more rvalues (specifically casts), then we might need to be
@@ -237,29 +228,22 @@ impl<'ir> IrVisitorMut<'ir> for LocalUseMap<'ir> {
     }
 }
 
-pub struct LocalUpdater<'ir> {
+pub struct LocalUpdater {
     /// The map of locals to remap to a new local. If the [Local] index is
     /// [None], this means that the local is dead and was removed. If the
     /// [Local] index is [Some], then the local was not removed and should
     /// be remapped to the new [Local].
     remap: IndexVec<Local, Option<Local>>,
-
-    /// Reference to body data store
-    store: &'ir IrCtx,
 }
 
-impl<'ir> LocalUpdater<'ir> {
+impl LocalUpdater {
     /// Create a new [LocalUpdater].
-    pub fn new(remap: IndexVec<Local, Option<Local>>, store: &'ir IrCtx) -> Self {
-        Self { remap, store }
+    pub fn new(remap: IndexVec<Local, Option<Local>>) -> Self {
+        Self { remap }
     }
 }
 
-impl<'ir> ModifyingIrVisitor<'ir> for LocalUpdater<'ir> {
-    fn store(&self) -> &'ir IrCtx {
-        self.store
-    }
-
+impl<'ir> ModifyingIrVisitor<'ir> for LocalUpdater {
     /// Perform a remapping of the [Local] within the [Place] to a new [Local].
     fn visit_local(&self, local: &mut Local, _: PlaceContext, _: IrRef) {
         if let Some(new_local) = self.remap[*local] {

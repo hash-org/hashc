@@ -19,7 +19,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, Mutability},
 };
 use hash_source::location::Span;
-use hash_storage::store::{statics::StoreId, CloneStore, Store};
+use hash_storage::store::statics::StoreId;
 use hash_target::size::Size;
 use hash_tir::{
     args::PatArgsId,
@@ -281,7 +281,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     } else {
                         Mutability::Immutable
                     },
-                    source: pair.place.into_place(self.ctx()),
+                    source: pair.place.into_place(),
                     name,
 
                     // @@Todo: introduce a way of specifying what the binding
@@ -302,14 +302,13 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // get the range and bias of this range pattern from
                 // the `lo`
-                let id = self.ty_id_from_tir_ty(self.get_inferred_ty(pair.pat));
-                let range_ty = self.ctx().tys().get(id);
+                let range_ty = self.ty_id_from_tir_ty(self.get_inferred_ty(pair.pat));
 
                 // The range is the minimum value, maximum value, and the size of
                 // the item that is being compared.
                 //
                 // @@Todo: deal with big-ints
-                let (range, bias) = match range_ty {
+                let (range, bias) = match range_ty.value() {
                     IrTy::Char => {
                         (Some(('\u{0000}' as u128, '\u{10FFFF}' as u128, Size::from_bytes(4))), 0)
                     }
@@ -354,7 +353,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // get the type of the tuple so that we can read all of the
                 // fields
                 let ty = self.ty_id_from_tir_pat(pair.pat);
-                let adt = self.ctx().map_ty(ty, IrTy::as_adt);
+                let adt = ty.borrow().as_adt();
 
                 candidate.pairs.extend(self.match_pat_fields(data, adt, pair.place));
                 Ok(())
@@ -363,11 +362,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let ty = self.ty_id_from_tir_pat(pair.pat);
 
                 // If the type is a boolean, then we can't simplify this pattern any further...
-                let adt = self.ctx().map_ty(ty, |ty| match ty {
+                let adt = ty.map(|ty| match ty {
                     IrTy::Bool => None,
-                    IrTy::Adt(id) => {
-                        self.ctx().map_adt(*id, |id, adt| adt.flags.is_struct().then_some(id))
-                    }
+                    IrTy::Adt(id) => (*id).borrow().flags.is_struct().then_some(*id),
                     ty => panic!("unexpected type: {ty:?}"),
                 });
 
@@ -428,10 +425,10 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn match_pat_fields(
         &mut self,
         pat_args: PatArgsId,
-        ty: AdtId,
+        adt: AdtId,
         place: PlaceBuilder,
     ) -> Vec<MatchPair> {
-        self.ctx().adts().map_fast(ty, |adt| {
+        adt.map(|adt| {
             debug_assert!(adt.flags.is_struct() || adt.flags.is_tuple());
             let variant = adt.variants.first().unwrap();
 

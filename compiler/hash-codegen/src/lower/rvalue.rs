@@ -6,8 +6,9 @@ use std::cmp::Ordering;
 use hash_ir::{
     cast::{CastTy, IntCastKind},
     ir::{self, BinOp, RValue},
-    ty::{self, IrTyId, RefKind, VariantIdx},
+    ty::{self, IrTyId, RefKind, VariantIdx, COMMON_IR_TYS},
 };
+use hash_storage::store::statics::StoreId;
 
 use super::{
     locals::LocalRef,
@@ -112,9 +113,8 @@ fn build_unchecked_rshift<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 ) -> Builder::Value {
     let rhs = cast_shift_value(builder, lhs, rhs);
     let rhs = apply_shift_mask(builder, rhs);
-    let is_signed = builder.ctx().ir_ctx().map_ty(ty, |ty| ty.is_signed());
 
-    if is_signed {
+    if ty.borrow().is_signed() {
         // Arithmetic right shift
         builder.ashr(lhs, rhs)
     } else {
@@ -190,7 +190,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
     /// Compute the type of an [RValue].
     pub fn ty_of_rvalue(&self, value: &RValue) -> IrTyId {
-        value.ty(&self.body.declarations, self.ctx.ir_ctx())
+        value.ty(&self.body.declarations)
     }
 
     /// Emit code for a [ir::RValue] that will return an [OperandRef].
@@ -218,7 +218,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(value),
-                    info: builder.layout_of(self.ctx.ir_ctx().tys().common_tys.usize),
+                    info: builder.layout_of(COMMON_IR_TYS.usize),
                 }
             }
             ir::RValue::UnaryOp(operator, ref operand) => {
@@ -229,7 +229,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     ir::UnaryOp::BitNot | ir::UnaryOp::Not => builder.not(value),
                     ir::UnaryOp::Neg => {
                         // check if the underlying value is a floating point...
-                        if self.ctx.ir_ctx().map_ty(self.ty_of_rvalue(rvalue), |ty| ty.is_float()) {
+                        if self.ty_of_rvalue(rvalue).borrow().is_float() {
                             builder.fneg(value)
                         } else {
                             builder.neg(value)
@@ -265,11 +265,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(result),
-                    info: builder.layout_of(operator.ty(
-                        self.ctx.ir_ctx(),
-                        lhs.info.ty,
-                        rhs.info.ty,
-                    )),
+                    info: builder.layout_of(operator.ty(lhs.info.ty, rhs.info.ty)),
                 }
             }
             ir::RValue::CheckedBinaryOp(operator, box (ref lhs, ref rhs)) => {
@@ -300,10 +296,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     return OperandRef { value, info: cast_ty };
                 }
 
-                let in_cast_ty = CastTy::from_ty(self.ctx.ir_ctx(), operand.info.ty)
-                    .expect("expected cast-able type for cast");
-                let out_cast_ty = CastTy::from_ty(self.ctx.ir_ctx(), cast_ty.ty)
-                    .expect("expected cast-able type for cast");
+                let in_cast_ty =
+                    CastTy::from_ty(operand.info.ty).expect("expected cast-able type for cast");
+                let out_cast_ty =
+                    CastTy::from_ty(cast_ty.ty).expect("expected cast-able type for cast");
 
                 let in_ty = builder.immediate_backend_ty(operand.info);
                 let value = operand.immediate_value();
@@ -350,7 +346,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(size),
-                    info: builder.layout_of(self.ctx.ir_ctx().tys().common_tys.usize),
+                    info: builder.layout_of(COMMON_IR_TYS.usize),
                 }
             }
             ir::RValue::Ref(_, place, kind) => {
@@ -400,8 +396,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         rhs_value: Builder::Value,
         ty: IrTyId,
     ) -> Builder::Value {
-        let (is_float, is_signed) =
-            self.ctx.ir_ctx().map_ty(ty, |ty| (ty.is_float(), ty.is_signed()));
+        let is_float = ty.borrow().is_float();
+        let is_signed = ty.borrow().is_signed();
 
         match operator {
             ir::BinOp::Add => {
@@ -566,7 +562,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     fn evaluate_array_len(&mut self, builder: &mut Builder, place: ir::Place) -> Builder::Value {
         if let Some(local) = place.as_local() {
             if let LocalRef::Operand(Some(op)) = self.locals[local] {
-                let size = self.ctx.ir_ctx().map_ty(op.info.ty, |ty| {
+                let size = op.info.ty.map(|ty| {
                     if let ty::IrTy::Array { length: size, .. } = ty {
                         Some(*size)
                     } else {

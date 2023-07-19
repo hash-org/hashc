@@ -94,7 +94,7 @@ impl<'ir> BuilderCtx<'ir> {
     /// Get a [LayoutComputer] which can be used to compute layouts and
     /// other layout related operations.
     pub fn layout_computer(&self) -> LayoutComputer {
-        LayoutComputer::new(self.layouts, self.lcx)
+        LayoutComputer::new(self.layouts)
     }
 
     /// Compute the layout of a given [IrTyId].

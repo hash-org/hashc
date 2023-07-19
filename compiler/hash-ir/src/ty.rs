@@ -18,11 +18,8 @@ use hash_source::{
     SourceId,
 };
 use hash_storage::{
-    new_sequence_store_key_indirect, new_store_key,
-    store::{
-        CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store, StoreInternalData,
-        StoreKey,
-    },
+    static_sequence_store_indirect, static_single_store,
+    store::{statics::SingleStoreValue, SequenceStore, Store, StoreKey},
 };
 use hash_target::{
     abi::{self, Abi, Integer, ScalarKind},
@@ -33,8 +30,7 @@ use hash_utils::index_vec::{self, index_vec, IndexVec};
 
 use crate::{
     ir::{LocalDecls, Place, PlaceProjection},
-    write::{ForFormatting, WriteIr},
-    IrCtx,
+    ir_stores,
 };
 
 /// Mutability of a particular variable, reference, etc.
@@ -80,8 +76,6 @@ impl fmt::Display for Mutability {
         write!(f, "{}", self.as_str())
     }
 }
-
-new_store_key!(pub InstanceId, derives = Debug);
 
 /// This is a temporary struct that identifies a unique instance of a
 /// function within the generated code, and is later used to resolve
@@ -164,37 +158,14 @@ impl Instance {
     }
 }
 
-/// Stores all the used [Instance]s.
-///
-/// [Instance]s are accessed by an ID, of type [InstanceId].
-pub struct InstanceStore {
-    /// The underlying store.
-    store: DefaultStore<InstanceId, Instance>,
-}
-
-impl InstanceStore {
-    /// Create a new [InstanceStore].
-    pub fn new() -> Self {
-        Self { store: DefaultStore::new() }
-    }
-
-    /// Get the name of an instance from its [InstanceId].
-    pub fn name_of(&self, instance: InstanceId) -> Identifier {
-        self.store.map_fast(instance, |instance| instance.name)
-    }
-}
-
-impl Default for InstanceStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Store<InstanceId, Instance> for InstanceStore {
-    fn internal_data(&self) -> &StoreInternalData<Instance> {
-        self.store.internal_data()
-    }
-}
+static_single_store!(
+    store = pub InstanceStore,
+    id = pub InstanceId,
+    value = Instance,
+    store_name = instances,
+    store_source = ir_stores(),
+    derives = Debug
+);
 
 /// Reference kind, e.g. `&T`, `&mut T`, `&raw T` or `Rc<T>`.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -282,7 +253,7 @@ pub enum IrTy {
 
 impl IrTy {
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
-    pub fn tuple(ctx: &IrCtx, tys: &[IrTyId]) -> Self {
+    pub fn tuple(tys: &[IrTyId]) -> IrTyId {
         let variants = index_vec![AdtVariant {
             name: 0usize.into(),
             fields: tys
@@ -292,15 +263,14 @@ impl IrTy {
                 .map(|(idx, ty)| AdtField { name: idx.into(), ty })
                 .collect(),
         }];
-        let adt = AdtData::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-        let adt_id = ctx.adts().create(adt);
-
-        Self::Adt(adt_id)
+        let adt = Adt::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
+        let ty = Self::Adt(Adt::create(adt));
+        IrTy::create(ty)
     }
 
     /// Create a reference type to the provided [IrTy].
-    pub fn make_ref(ty: IrTy, ctx: &IrCtx) -> Self {
-        Self::Ref(ctx.tys().create(ty), Mutability::Immutable, RefKind::Normal)
+    pub fn make_ref(ty: IrTy, mutability: Mutability, kind: RefKind) -> IrTyId {
+        Self::create(Self::Ref(Self::create(ty), mutability, kind))
     }
 
     /// Check if a type is a reference type.
@@ -399,14 +369,9 @@ impl IrTy {
     /// Get the type of this [IrTy] if a field access is performed on it.
     /// Optionally, the function can be supplied a [VariantIdx] in order to
     /// access a particular variant of the ADT (for `enum`s and `union`s).
-    pub fn on_field_access(
-        &self,
-        field: usize,
-        variant: Option<VariantIdx>,
-        ctx: &IrCtx,
-    ) -> Option<IrTyId> {
+    pub fn on_field_access(&self, field: usize, variant: Option<VariantIdx>) -> Option<IrTyId> {
         match self {
-            IrTy::Adt(id) => ctx.map_adt(*id, |_, adt| {
+            IrTy::Adt(id) => id.map(|adt| {
                 let variant = match variant {
                     Some(variant) => adt.variant(variant),
                     None => adt.univariant(),
@@ -420,29 +385,23 @@ impl IrTy {
 
     /// Compute the discriminant value for a particular [IrTy] and
     /// evaluate it to a raw value.
-    pub fn discriminant_for_variant(
-        &self,
-        ctx: &IrCtx,
-        variant: VariantIdx,
-    ) -> Option<(IntTy, u128)> {
+    pub fn discriminant_for_variant(&self, variant: VariantIdx) -> Option<(IntTy, u128)> {
         match self {
             IrTy::Adt(id) => {
-                ctx.adts().map_fast(*id, |data| {
-                    if !data.flags.is_enum() || data.variants.is_empty() {
-                        None
-                    } else {
-                        // We get the offset of the current discriminant and then
-                        // we also compute the "initial" value of the discriminant
-                        // for this type. Currently, this is quite trivial to do
-                        // since the user cannot (yet) modify what the discriminant
-                        // of each enum variant is, and thus we don't need to account
-                        // for this.
-                        let discriminant_value = data.discriminant_value_for(variant);
-                        let discriminant_type = data.discriminant_ty();
+                if !id.borrow().flags.is_enum() || id.borrow().variants.is_empty() {
+                    None
+                } else {
+                    // We get the offset of the current discriminant and then
+                    // we also compute the "initial" value of the discriminant
+                    // for this type. Currently, this is quite trivial to do
+                    // since the user cannot (yet) modify what the discriminant
+                    // of each enum variant is, and thus we don't need to account
+                    // for this.
+                    let discriminant_value = id.borrow().discriminant_value_for(variant);
+                    let discriminant_type = id.borrow().discriminant_ty();
 
-                        Some((discriminant_type, discriminant_value as u128))
-                    }
-                })
+                    Some((discriminant_type, discriminant_value as u128))
+                }
             }
             _ => None,
         }
@@ -452,15 +411,15 @@ impl IrTy {
     /// the specific "discriminant" for `enum` ADTs, and simply returns a
     /// `u8` for all other types. This is because the discriminant type of
     /// all other types is considered to be `0`, and thus a `u8` is sufficient.
-    pub fn discriminant_ty(&self, ctx: &IrCtx) -> IrTyId {
+    pub fn discriminant_ty(&self) -> IrTyId {
         match self {
-            IrTy::Adt(id) => ctx.map_adt(*id, |_, data| {
-                if data.flags.is_enum() {
-                    data.discriminant_ty().to_ir_ty(ctx)
+            IrTy::Adt(id) => {
+                if id.borrow().flags.is_enum() {
+                    id.borrow().discriminant_ty().to_ir_ty()
                 } else {
-                    ctx.tys().common_tys.u8
+                    COMMON_IR_TYS.u8
                 }
-            }),
+            }
             IrTy::Int(_)
             | IrTy::UInt(_)
             | IrTy::Float(_)
@@ -472,17 +431,17 @@ impl IrTy {
             | IrTy::Slice(_)
             | IrTy::Array { .. }
             | IrTy::FnDef { .. }
-            | IrTy::Fn { .. } => ctx.tys().common_tys.u8,
+            | IrTy::Fn { .. } => COMMON_IR_TYS.u8,
         }
     }
 
     /// Attempt to compute the type of an element from an [`IrTy::Slice`] or
     /// [`IrTy::Array`]. If the type is not a slice or array, then `None` is
     /// returned.
-    pub fn element_ty(&self, ctx: &IrCtx) -> Option<IrTyId> {
+    pub fn element_ty(&self) -> Option<IrTyId> {
         match self {
             IrTy::Slice(ty) | IrTy::Array { ty, .. } => Some(*ty),
-            IrTy::Ref(ty, _, _) => ctx.tys().map_fast(*ty, |ty| ty.element_ty(ctx)),
+            IrTy::Ref(ty, _, _) => ty.borrow().element_ty(),
             _ => None,
         }
     }
@@ -507,6 +466,343 @@ impl From<IrTy> for IntTy {
     }
 }
 
+static_single_store!(
+    store = pub IrTyStore,
+    id = pub IrTyId,
+    value = IrTy,
+    store_name = tys,
+    store_source = ir_stores(),
+    derives = Debug
+);
+
+static_sequence_store_indirect!(
+    store = pub IrTyListStore,
+    id = pub IrTyListId[IrTyId],
+    store_name = ty_list,
+    store_source = ir_stores()
+);
+
+impl IrTyListId {
+    pub fn seq<I: IntoIterator<Item = IrTyId>>(values: I) -> Self {
+        ir_stores().ty_list().create_from_iter(values)
+    }
+}
+
+/// Macro that is used to create the "common" IR types. Each
+/// entry has an associated name, and then followed by the type
+/// expression that represents the [IrTy].
+macro_rules! create_common_ty_table {
+    ($($name:ident: $value:expr),* $(,)?) => {
+
+        /// Defines a map of common types that might be used in the IR
+        /// and general IR operations. When creating new types that refer
+        /// to these common types, they should be created using the
+        /// using the associated [IrTyId]s of this map.
+        pub struct CommonIrTys {
+            $(pub $name: IrTyId, )*
+
+            /// A slice of bytes, i.e. `[u8]`.
+            pub byte_slice: IrTyId,
+
+            /// A string, i.e. `&str`.
+            pub str: IrTyId,
+
+            /// A general pointer to bytes, i.e. `&u8`.
+            pub ptr: IrTyId,
+
+            /// A general pointer to bytes, i.e. `&raw u8`.
+            pub raw_ptr: IrTyId,
+
+            /// A void pointer, i.e. `&()`.
+            pub void_ptr: IrTyId,
+        }
+
+        impl CommonIrTys {
+            pub fn new() -> CommonIrTys {
+                let table = CommonIrTys {
+                    $($name: IrTy::create($value), )*
+                    byte_slice: IrTyId::from_index_unchecked(0),
+                    ptr: IrTyId::from_index_unchecked(0),
+                    raw_ptr: IrTyId::from_index_unchecked(0),
+                    void_ptr: IrTyId::from_index_unchecked(0),
+                    str: IrTyId::from_index_unchecked(0),
+                };
+
+                // @@Hack: find a way to nicely create this within the `create_common_ty_table!`,
+                // however this would require somehow referencing entries within the table before
+                // they are defined...
+                let byte_slice = IrTy::create(IrTy::Slice(table.u8));
+                let ptr = IrTy::create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Normal));
+                let raw_ptr = IrTy::create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Raw));
+                let void_ptr = IrTy::create(IrTy::Ref(table.unit, Mutability::Immutable, RefKind::Raw));
+                let str = IrTy::create(IrTy::Ref(table.unsized_str, Mutability::Immutable, RefKind::Normal));
+
+                CommonIrTys {
+                    byte_slice,
+                    ptr,
+                    raw_ptr,
+                    void_ptr,
+                    str,
+                    ..table
+                }
+            }
+        }
+
+        impl Default for CommonIrTys {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+    };
+}
+
+create_common_ty_table!(
+    // Primitive types
+    bool: IrTy::Bool,
+    char: IrTy::Char,
+    never: IrTy::Never,
+    // Unsized string refers to the inner type of a `str`.
+    //
+    // @@Temporary This is only  temporary until str/[T] type semantics and rules are decided and
+    // implemented.
+    unsized_str: IrTy::Str,
+    // Floating point types
+    f32: IrTy::Float(FloatTy::F32),
+    f64: IrTy::Float(FloatTy::F64),
+    // Signed integer types
+    i8: IrTy::Int(SIntTy::I8),
+    i16: IrTy::Int(SIntTy::I16),
+    i32: IrTy::Int(SIntTy::I32),
+    i64: IrTy::Int(SIntTy::I64),
+    i128: IrTy::Int(SIntTy::I128),
+    isize: IrTy::Int(SIntTy::ISize),
+    // Unsigned integer types
+    u8: IrTy::UInt(UIntTy::U8),
+    u16: IrTy::UInt(UIntTy::U16),
+    u32: IrTy::UInt(UIntTy::U32),
+    u64: IrTy::UInt(UIntTy::U64),
+    u128: IrTy::UInt(UIntTy::U128),
+    usize: IrTy::UInt(UIntTy::USize), // Unit types, and unit ptr types
+    unit: IrTy::Adt(AdtId::UNIT),
+);
+
+lazy_static::lazy_static!(
+    pub static ref COMMON_IR_TYS: CommonIrTys = CommonIrTys::new();
+);
+
+impl fmt::Display for IrTyId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.map(|ty| write!(f, "{}", ty))
+    }
+}
+
+impl fmt::Display for &IrTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IrTy::Int(variant) => write!(f, "{variant}"),
+            IrTy::UInt(variant) => write!(f, "{variant}"),
+            IrTy::Float(variant) => write!(f, "{variant}"),
+            IrTy::Bool => write!(f, "bool"),
+            IrTy::Str => write!(f, "str"),
+            IrTy::Char => write!(f, "char"),
+            IrTy::Never => write!(f, "!"),
+            IrTy::Ref(inner, mutability, RefKind::Normal) => {
+                write!(f, "&{mutability}{}", inner)
+            }
+            IrTy::Ref(inner, mutability, RefKind::Raw) => {
+                write!(f, "&raw {mutability}{}", inner)
+            }
+            IrTy::Ref(inner, mutability, RefKind::Rc) => {
+                let name = match mutability {
+                    Mutability::Mutable => "Mut",
+                    Mutability::Immutable => "",
+                };
+
+                write!(f, "Rc{name}<{}>", inner)
+            }
+            IrTy::Adt(adt) => write!(f, "{}", adt),
+
+            IrTy::Fn { params, return_ty, .. } => {
+                write!(f, "({}) -> {}", params, return_ty)
+            }
+            IrTy::FnDef { instance } => {
+                write!(f, "{}", instance.borrow().name)
+            }
+            IrTy::Slice(ty) => write!(f, "[{}]", ty),
+            IrTy::Array { ty, length: size } => write!(f, "[{}; {size}]", ty),
+        }
+    }
+}
+
+// new_sequence_store_key_indirect!(pub IrTyListId, IrTyId, derives = Debug);
+
+/// Define the [TyListStore], which is a sequence of [IrTy]s associated
+/// with a [IrTyListId].
+// pub type TyListStore = DefaultSequenceStore<IrTyListId, IrTyId>;
+
+impl fmt::Display for IrTyListId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = self.value();
+        let mut tys = value.iter();
+
+        if let Some(first) = tys.next() {
+            write!(f, "{first}")?;
+
+            for ty in tys {
+                write!(f, ", {ty}")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// An auxiliary data structure that is used to compute the
+/// [IrTy] of a [Place].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PlaceTy {
+    /// The [IrTy] of the place.
+    pub ty: IrTyId,
+
+    /// If the place has been downcast, then this records
+    /// the index of the variant that it has been downcast to.
+    pub index: Option<VariantIdx>,
+}
+
+impl PlaceTy {
+    /// Create a [PlaceTy] from a base [IrTy]. This is useful for when
+    /// you want to apply a single projection on the current type
+    /// and create a new [PlaceTy] from the projection.
+    pub fn from_ty(ty: IrTyId) -> Self {
+        Self { ty, index: None }
+    }
+
+    /// Apply a projection to the current [PlaceTy].
+    fn apply_projection(self, projection: PlaceProjection) -> Self {
+        match projection {
+            PlaceProjection::Downcast(index) => PlaceTy { ty: self.ty, index: Some(index) },
+            PlaceProjection::Field(index) => {
+                let ty = self
+                    .ty
+                    .borrow()
+                    .on_field_access(index, self.index)
+                    .unwrap_or_else(|| panic!("expected an ADT, got {self:?}"));
+
+                PlaceTy { ty, index: None }
+            }
+            PlaceProjection::Deref => {
+                let ty = self
+                    .ty
+                    .borrow()
+                    .on_deref()
+                    .unwrap_or_else(|| panic!("expected a reference, got {self:?}"));
+
+                PlaceTy { ty, index: None }
+            }
+            PlaceProjection::Index(_) | PlaceProjection::ConstantIndex { .. } => {
+                let ty = self
+                    .ty
+                    .map(|ty| ty.on_index())
+                    .unwrap_or_else(|| panic!("expected an array or slice, got `{:?}`", self.ty));
+
+                PlaceTy { ty, index: None }
+            }
+            PlaceProjection::SubSlice { from, to, from_end } => {
+                let ty = self.ty.map(|base| match base {
+                    IrTy::Slice(_) => self.ty,
+                    IrTy::Array { ty, .. } if !from_end => {
+                        IrTy::create(IrTy::Array { ty: *ty, length: to - from })
+                    }
+                    IrTy::Array { ty, length: size } if from_end => {
+                        IrTy::create(IrTy::Array { ty: *ty, length: size - from - to })
+                    }
+                    _ => panic!("expected an array or slice, got {self:?}"),
+                });
+
+                PlaceTy { ty, index: None }
+            }
+        }
+    }
+
+    /// Apply a projection on [PlaceTy] and convert it into
+    /// the underlying type.
+    pub fn projection_ty(self, projection: PlaceProjection) -> IrTyId {
+        let projected_place = self.apply_projection(projection);
+        projected_place.ty
+    }
+
+    /// Create a [PlaceTy] from a [Place].
+    pub fn from_place(place: Place, locals: &LocalDecls) -> Self {
+        // get the type of the local from the body.
+        let mut base = PlaceTy { ty: locals[place.local].ty, index: None };
+
+        for projection in place.projections.borrow().iter() {
+            base = base.apply_projection(*projection);
+        }
+
+        base
+    }
+}
+
+/// This defines a trait that it used to create [IrTy]s from
+/// data types that aren't defined within the IR crate, but from
+/// places like the ABI where it is still useful to convert a
+/// value into a [IrTy].
+pub trait ToIrTy {
+    /// Convert the current type into an [IrTy].
+    fn to_ir_ty(&self) -> IrTyId;
+}
+
+// Convert from `IntTy` into an `IrTy`.
+impl ToIrTy for IntTy {
+    fn to_ir_ty(&self) -> IrTyId {
+        match self {
+            IntTy::Int(ty) => match ty {
+                SIntTy::I8 => COMMON_IR_TYS.i8,
+                SIntTy::I16 => COMMON_IR_TYS.i16,
+                SIntTy::I32 => COMMON_IR_TYS.i32,
+                SIntTy::I64 => COMMON_IR_TYS.i64,
+                SIntTy::I128 => COMMON_IR_TYS.i128,
+                SIntTy::ISize => COMMON_IR_TYS.isize,
+                _ => unimplemented!(),
+            },
+            IntTy::UInt(ty) => match ty {
+                UIntTy::U8 => COMMON_IR_TYS.u8,
+                UIntTy::U16 => COMMON_IR_TYS.u16,
+                UIntTy::U32 => COMMON_IR_TYS.u32,
+                UIntTy::U64 => COMMON_IR_TYS.u64,
+                UIntTy::U128 => COMMON_IR_TYS.u128,
+                UIntTy::USize => COMMON_IR_TYS.usize,
+                _ => unimplemented!(),
+            },
+        }
+    }
+}
+
+impl ToIrTy for FloatTy {
+    fn to_ir_ty(&self) -> IrTyId {
+        match self {
+            FloatTy::F32 => COMMON_IR_TYS.f32,
+            FloatTy::F64 => COMMON_IR_TYS.f64,
+        }
+    }
+}
+
+// Convert from an ABI scalar kind into an `IrTy`.
+impl ToIrTy for ScalarKind {
+    fn to_ir_ty(&self) -> IrTyId {
+        match *self {
+            ScalarKind::Int { kind, signed } => {
+                let int_ty = IntTy::from_integer(kind, signed);
+                int_ty.to_ir_ty()
+            }
+            ScalarKind::Float { kind: FloatTy::F32 } => COMMON_IR_TYS.f32,
+            ScalarKind::Float { kind: FloatTy::F64 } => COMMON_IR_TYS.f64,
+            ScalarKind::Pointer(_) => COMMON_IR_TYS.void_ptr,
+        }
+    }
+}
+
 index_vec::define_index_type! {
     /// Index for [VariantIdx] stores within generated [Body]s.
     pub struct VariantIdx = u32;
@@ -525,7 +821,7 @@ index_vec::define_index_type! {
 /// information about the ADT, which kind of ADT it is, and how it is
 /// represented in memory.
 #[derive(Clone, Debug)]
-pub struct AdtData {
+pub struct Adt {
     /// The name of the ADT
     pub name: Identifier,
 
@@ -547,7 +843,7 @@ pub struct AdtData {
     pub metadata: AdtRepresentation,
 }
 
-impl AdtData {
+impl Adt {
     /// Create a new [AdtData] with the given name and variants.
     pub fn new(name: Identifier, variants: IndexVec<VariantIdx, AdtVariant>) -> Self {
         Self {
@@ -774,451 +1070,66 @@ pub struct AdtField {
     pub ty: IrTyId,
 }
 
-new_store_key!(pub AdtId, derives = Debug);
+static_single_store!(
+    store = pub AdtStore,
+    id = pub AdtId,
+    value = Adt,
+    store_name = adts,
+    store_source = ir_stores(),
+    derives = Debug
+);
 
 impl AdtId {
     /// The unit type always uses the first ID in the store.
     pub const UNIT: AdtId = AdtId { index: 0 };
 }
 
-/// Stores all the used [AdtData]s. An [AdtData] is all of the
-/// information about an ADT, including variants, fields, representation,
-/// and any other additional attributes.
-///
-/// [AdtData]s are accessed by an ID, of type [AdtId].
-pub struct AdtStore {
-    /// The underlying store.
-    store: DefaultStore<AdtId, AdtData>,
-}
-
-impl AdtStore {
-    /// Create a new [AdtStore], and initialise the store
-    /// with the unit type.
-    pub fn new() -> AdtStore {
-        let store = DefaultStore::new();
-
-        let variants = index_vec![AdtVariant { name: 0usize.into(), fields: vec![] }];
-        let adt = AdtData::new_with_flags("unit".into(), variants, AdtFlags::TUPLE);
-
-        let id = store.create(adt);
-        assert!(AdtId::UNIT == id);
-
-        Self { store }
-    }
-}
-
-impl Default for AdtStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Store<AdtId, AdtData> for AdtStore {
-    fn internal_data(&self) -> &StoreInternalData<AdtData> {
-        self.store.internal_data()
-    }
-}
-
-impl fmt::Display for ForFormatting<'_, AdtId> {
+impl fmt::Display for AdtId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.ctx.adts().map_fast(self.item, |adt| {
-            match adt.flags {
-                AdtFlags::TUPLE => {
-                    assert!(adt.variants.len() == 1);
-                    let variant = &adt.variants[0];
+        self.map(|adt| write!(f, "{}", adt))
+    }
+}
 
-                    write!(f, "(")?;
-                    for (i, field) in variant.fields.iter().enumerate() {
+impl fmt::Display for &Adt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.flags {
+            AdtFlags::TUPLE => {
+                assert!(self.variants.len() == 1);
+                let variant = &self.variants[0];
+
+                write!(f, "(")?;
+                for (i, field) in variant.fields.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+
+                    write!(f, "{}", field.ty)?;
+                }
+
+                write!(f, ")")
+            }
+            _ => {
+                // We just write the name of the underlying ADT
+                write!(f, "{}", self.name)?;
+
+                // If there are type arguments, then we write them
+                // out as well.
+                if let Some(args) = self.substitutions {
+                    write!(f, "<")?;
+
+                    for (i, arg) in args.borrow().iter().enumerate() {
                         if i != 0 {
                             write!(f, ", ")?;
                         }
 
-                        write!(f, "{}", field.ty.for_fmt(self.ctx))?;
+                        write!(f, "{}", arg)?;
                     }
 
-                    write!(f, ")")
+                    write!(f, ">")?;
                 }
-                _ => {
-                    // We just write the name of the underlying ADT
-                    write!(f, "{}", adt.name)?;
 
-                    // If there are type arguments, then we write them
-                    // out as well.
-                    if let Some(args) = adt.substitutions {
-                        write!(f, "<")?;
-                        self.ctx.tls().map_fast(args, |args| {
-                            for (i, arg) in args.iter().enumerate() {
-                                if i != 0 {
-                                    write!(f, ", ")?;
-                                }
-
-                                write!(f, "{}", arg.for_fmt(self.ctx))?;
-                            }
-
-                            Ok(())
-                        })?;
-
-                        write!(f, ">")?;
-                    }
-
-                    Ok(())
-                }
+                Ok(())
             }
-        })
-    }
-}
-
-new_store_key!(pub IrTyId, derives = Debug);
-
-/// Macro that is used to create the "common" IR types. Each
-/// entry has an associated name, and then followed by the type
-/// expression that represents the [IrTy].
-macro_rules! create_common_ty_table {
-    ($($name:ident: $value:expr),* $(,)?) => {
-
-        /// Defines a map of common types that might be used in the IR
-        /// and general IR operations. When creating new types that refer
-        /// to these common types, they should be created using the
-        /// using the associated [IrTyId]s of this map.
-        pub struct CommonIrTys {
-            $(pub $name: IrTyId, )*
-
-            /// A slice of bytes, i.e. `[u8]`.
-            pub byte_slice: IrTyId,
-
-            /// A string, i.e. `&str`.
-            pub str: IrTyId,
-
-            /// A general pointer to bytes, i.e. `&u8`.
-            pub ptr: IrTyId,
-
-            /// A general pointer to bytes, i.e. `&raw u8`.
-            pub raw_ptr: IrTyId,
-
-            /// A void pointer, i.e. `&()`.
-            pub void_ptr: IrTyId,
-        }
-
-        impl CommonIrTys {
-            pub fn new(data: &DefaultStore<IrTyId, IrTy>) -> CommonIrTys {
-                let table = CommonIrTys {
-                    $($name: data.create($value), )*
-                    byte_slice: IrTyId::from_index_unchecked(0),
-                    ptr: IrTyId::from_index_unchecked(0),
-                    raw_ptr: IrTyId::from_index_unchecked(0),
-                    void_ptr: IrTyId::from_index_unchecked(0),
-                    str: IrTyId::from_index_unchecked(0),
-                };
-
-                // @@Hack: find a way to nicely create this within the `create_common_ty_table!`,
-                // however this would require somehow referencing entries within the table before
-                // they are defined...
-                let byte_slice = data.create(IrTy::Slice(table.u8));
-                let ptr = data.create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Normal));
-                let raw_ptr = data.create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Raw));
-                let void_ptr = data.create(IrTy::Ref(table.unit, Mutability::Immutable, RefKind::Raw));
-                let str = data.create(IrTy::Ref(table.unsized_str, Mutability::Immutable, RefKind::Normal));
-
-                CommonIrTys {
-                    byte_slice,
-                    ptr,
-                    raw_ptr,
-                    void_ptr,
-                    str,
-                    ..table
-                }
-            }
-        }
-    };
-}
-
-create_common_ty_table!(
-    // Primitive types
-    bool: IrTy::Bool,
-    char: IrTy::Char,
-    never: IrTy::Never,
-    // Unsized string refers to the inner type of a `str`.
-    //
-    // @@Temporary This is only  temporary until str/[T] type semantics and rules are decided and
-    // implemented.
-    unsized_str: IrTy::Str,
-    // Floating point types
-    f32: IrTy::Float(FloatTy::F32),
-    f64: IrTy::Float(FloatTy::F64),
-    // Signed integer types
-    i8: IrTy::Int(SIntTy::I8),
-    i16: IrTy::Int(SIntTy::I16),
-    i32: IrTy::Int(SIntTy::I32),
-    i64: IrTy::Int(SIntTy::I64),
-    i128: IrTy::Int(SIntTy::I128),
-    isize: IrTy::Int(SIntTy::ISize),
-    // Unsigned integer types
-    u8: IrTy::UInt(UIntTy::U8),
-    u16: IrTy::UInt(UIntTy::U16),
-    u32: IrTy::UInt(UIntTy::U32),
-    u64: IrTy::UInt(UIntTy::U64),
-    u128: IrTy::UInt(UIntTy::U128),
-    usize: IrTy::UInt(UIntTy::USize), // Unit types, and unit ptr types
-    unit: IrTy::Adt(AdtId::UNIT),
-);
-
-/// Stores all the used [IrTy]s.
-///
-/// [RValue]s are accessed by an ID, of type [IrTyId].
-pub struct TyStore {
-    /// The map that relates [IrTyId]s to the underlying
-    /// [IrTy]s.
-    data: DefaultStore<IrTyId, IrTy>,
-
-    /// Storage for grouped types, ones that appear in a parent type, i.e. a
-    /// [`IrTy::Fn(...)`] type will use the [`TyListStore`] to store that
-    /// parameter types.
-    pub tls: TyListStore,
-
-    /// A map of common types that are used in the IR.
-    pub common_tys: CommonIrTys,
-}
-
-impl Default for TyStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TyStore {
-    /// Create a new [TyStore].
-    pub(crate) fn new() -> Self {
-        let data = DefaultStore::new();
-        let tls = TyListStore::new();
-
-        // create the common types map using the created data store
-        let common_tys = CommonIrTys::new(&data);
-
-        Self { common_tys, data, tls }
-    }
-}
-
-impl Store<IrTyId, IrTy> for TyStore {
-    fn internal_data(&self) -> &StoreInternalData<IrTy> {
-        self.data.internal_data()
-    }
-}
-
-impl fmt::Debug for ForFormatting<'_, IrTyId> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.ctx.tys().map_fast(self.item, |ty| write!(f, "{ty:?}"))
-    }
-}
-
-impl fmt::Display for ForFormatting<'_, IrTyId> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.ctx.tys().map_fast(self.item, |ty| write!(f, "{}", ty.for_fmt(self.ctx)))
-    }
-}
-
-impl fmt::Display for ForFormatting<'_, &IrTy> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.item {
-            IrTy::Int(variant) => write!(f, "{variant}"),
-            IrTy::UInt(variant) => write!(f, "{variant}"),
-            IrTy::Float(variant) => write!(f, "{variant}"),
-            IrTy::Bool => write!(f, "bool"),
-            IrTy::Str => write!(f, "str"),
-            IrTy::Char => write!(f, "char"),
-            IrTy::Never => write!(f, "!"),
-            IrTy::Ref(inner, mutability, RefKind::Normal) => {
-                write!(f, "&{mutability}{}", inner.for_fmt(self.ctx))
-            }
-            IrTy::Ref(inner, mutability, RefKind::Raw) => {
-                write!(f, "&raw {mutability}{}", inner.for_fmt(self.ctx))
-            }
-            IrTy::Ref(inner, mutability, RefKind::Rc) => {
-                let name = match mutability {
-                    Mutability::Mutable => "Mut",
-                    Mutability::Immutable => "",
-                };
-
-                write!(f, "Rc{name}<{}>", inner.for_fmt(self.ctx))
-            }
-            IrTy::Adt(adt) => write!(f, "{}", adt.for_fmt(self.ctx)),
-
-            IrTy::Fn { params, return_ty, .. } => {
-                write!(f, "({}) -> {}", params.for_fmt(self.ctx), return_ty.for_fmt(self.ctx))
-            }
-            IrTy::FnDef { instance } => {
-                self.ctx.instances.map_fast(*instance, |instance| write!(f, "{}", instance.name))
-            }
-            IrTy::Slice(ty) => write!(f, "[{}]", ty.for_fmt(self.ctx)),
-            IrTy::Array { ty, length: size } => write!(f, "[{}; {size}]", ty.for_fmt(self.ctx)),
-        }
-    }
-}
-
-new_sequence_store_key_indirect!(pub IrTyListId, IrTyId, derives = Debug);
-
-/// Define the [TyListStore], which is a sequence of [IrTy]s associated
-/// with a [IrTyListId].
-pub type TyListStore = DefaultSequenceStore<IrTyListId, IrTyId>;
-
-impl fmt::Display for ForFormatting<'_, IrTyListId> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let items = self.ctx.tls().get_vec(self.item);
-        let mut tys = items.iter();
-
-        if let Some(first) = tys.next() {
-            write!(f, "{first}", first = first.for_fmt(self.ctx))?;
-
-            for ty in tys {
-                write!(f, ", {ty}", ty = ty.for_fmt(self.ctx))?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-/// An auxiliary data structure that is used to compute the
-/// [IrTy] of a [Place].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PlaceTy {
-    /// The [IrTy] of the place.
-    pub ty: IrTyId,
-
-    /// If the place has been downcast, then this records
-    /// the index of the variant that it has been downcast to.
-    pub index: Option<VariantIdx>,
-}
-
-impl PlaceTy {
-    /// Create a [PlaceTy] from a base [IrTy]. This is useful for when
-    /// you want to apply a single projection on the current type
-    /// and create a new [PlaceTy] from the projection.
-    pub fn from_ty(ty: IrTyId) -> Self {
-        Self { ty, index: None }
-    }
-
-    /// Apply a projection to the current [PlaceTy].
-    fn apply_projection(self, ctx: &IrCtx, projection: PlaceProjection) -> Self {
-        match projection {
-            PlaceProjection::Downcast(index) => PlaceTy { ty: self.ty, index: Some(index) },
-            PlaceProjection::Field(index) => {
-                let ty = ctx
-                    .tys()
-                    .map_fast(self.ty, |ty| ty.on_field_access(index, self.index, ctx))
-                    .unwrap_or_else(|| panic!("expected an ADT, got {self:?}"));
-
-                PlaceTy { ty, index: None }
-            }
-            PlaceProjection::Deref => {
-                let ty = ctx
-                    .tys()
-                    .map_fast(self.ty, |ty| ty.on_deref())
-                    .unwrap_or_else(|| panic!("expected a reference, got {self:?}"));
-
-                PlaceTy { ty, index: None }
-            }
-            PlaceProjection::Index(_) | PlaceProjection::ConstantIndex { .. } => {
-                let ty = ctx.tys().map_fast(self.ty, |ty| ty.on_index()).unwrap_or_else(|| {
-                    panic!("expected an array or slice, got `{:?}`", self.ty.for_fmt(ctx))
-                });
-
-                PlaceTy { ty, index: None }
-            }
-            PlaceProjection::SubSlice { from, to, from_end } => {
-                let base_ty = ctx.tys().get(self.ty);
-                let ty = match base_ty {
-                    IrTy::Slice(_) => self.ty,
-                    IrTy::Array { ty, .. } if !from_end => {
-                        ctx.tys().create(IrTy::Array { ty, length: to - from })
-                    }
-                    IrTy::Array { ty, length: size } if from_end => {
-                        ctx.tys().create(IrTy::Array { ty, length: size - from - to })
-                    }
-                    _ => panic!("expected an array or slice, got {self:?}"),
-                };
-
-                PlaceTy { ty, index: None }
-            }
-        }
-    }
-
-    /// Apply a projection on [PlaceTy] and convert it into
-    /// the underlying type.
-    pub fn projection_ty(self, ctx: &IrCtx, projection: PlaceProjection) -> IrTyId {
-        let projected_place = self.apply_projection(ctx, projection);
-        projected_place.ty
-    }
-
-    /// Create a [PlaceTy] from a [Place].
-    pub fn from_place(place: Place, locals: &LocalDecls, ctx: &IrCtx) -> Self {
-        // get the type of the local from the body.
-        let mut base = PlaceTy { ty: locals[place.local].ty, index: None };
-
-        ctx.projections().map_fast(place.projections, |projections| {
-            for projection in projections {
-                base = base.apply_projection(ctx, *projection);
-            }
-        });
-
-        base
-    }
-}
-
-/// This defines a trait that it used to create [IrTy]s from
-/// data types that aren't defined within the IR crate, but from
-/// places like the ABI where it is still useful to convert a
-/// value into a [IrTy].
-pub trait ToIrTy {
-    /// Convert the current type into an [IrTy].
-    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId;
-}
-
-// Convert from `IntTy` into an `IrTy`.
-impl ToIrTy for IntTy {
-    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
-        match self {
-            IntTy::Int(ty) => match ty {
-                SIntTy::I8 => ctx.tys().common_tys.i8,
-                SIntTy::I16 => ctx.tys().common_tys.i16,
-                SIntTy::I32 => ctx.tys().common_tys.i32,
-                SIntTy::I64 => ctx.tys().common_tys.i64,
-                SIntTy::I128 => ctx.tys().common_tys.i128,
-                SIntTy::ISize => ctx.tys().common_tys.isize,
-                _ => unimplemented!(),
-            },
-            IntTy::UInt(ty) => match ty {
-                UIntTy::U8 => ctx.tys().common_tys.u8,
-                UIntTy::U16 => ctx.tys().common_tys.u16,
-                UIntTy::U32 => ctx.tys().common_tys.u32,
-                UIntTy::U64 => ctx.tys().common_tys.u64,
-                UIntTy::U128 => ctx.tys().common_tys.u128,
-                UIntTy::USize => ctx.tys().common_tys.usize,
-                _ => unimplemented!(),
-            },
-        }
-    }
-}
-
-impl ToIrTy for FloatTy {
-    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
-        match self {
-            FloatTy::F32 => ctx.tys().common_tys.f32,
-            FloatTy::F64 => ctx.tys().common_tys.f64,
-        }
-    }
-}
-
-// Convert from an ABI scalar kind into an `IrTy`.
-impl ToIrTy for ScalarKind {
-    fn to_ir_ty(&self, ctx: &IrCtx) -> IrTyId {
-        match *self {
-            ScalarKind::Int { kind, signed } => {
-                let int_ty = IntTy::from_integer(kind, signed);
-                int_ty.to_ir_ty(ctx)
-            }
-            ScalarKind::Float { kind: FloatTy::F32 } => ctx.tys().common_tys.f32,
-            ScalarKind::Float { kind: FloatTy::F64 } => ctx.tys().common_tys.f64,
-            ScalarKind::Pointer(_) => ctx.tys().common_tys.void_ptr,
         }
     }
 }

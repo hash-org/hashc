@@ -24,7 +24,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
-use hash_storage::store::Store;
+use hash_storage::store::{statics::StoreId, Store};
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
@@ -546,7 +546,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
     ) -> (Self::Value, Self::Value) {
         let ptr_width = self.target().ptr_size();
 
-        let int_ty = self.ir_ctx().map_ty(ty, |ty| match ty {
+        let int_ty = ty.map(|ty| match ty {
             IrTy::Int(ty @ SIntTy::ISize) => IntTy::Int(ty.normalise(ptr_width)),
             IrTy::Int(int_ty) => IntTy::Int(*int_ty),
             IrTy::UInt(ty @ UIntTy::USize) => IntTy::UInt(ty.normalise(ptr_width)),

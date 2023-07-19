@@ -8,6 +8,7 @@ edition = "2021"
 bitflags = "2.0.0-rc.1"
 fixedbitset = "0.4.2"
 html-escape = "0.2.12"
+lazy_static = "1.4.0"
 
 hash-ast = { path = "../hash-ast" }
 hash-intrinsics = { path = "../hash-intrinsics" }

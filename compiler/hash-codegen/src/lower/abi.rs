@@ -5,8 +5,8 @@ use hash_abi::{
     ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
 };
 use hash_ir::ty::{Instance, InstanceId, IrTy, IrTyId, Mutability, RefKind};
-use hash_layout::compute::{LayoutComputer, LayoutError};
-use hash_storage::store::{CloneStore, SequenceStore};
+use hash_layout::compute::LayoutError;
+use hash_storage::store::statics::StoreId;
 use hash_target::abi::{Scalar, ScalarKind};
 
 use crate::traits::{layout::LayoutMethods, HasCtxMethods};
@@ -15,7 +15,6 @@ use crate::traits::{layout::LayoutMethods, HasCtxMethods};
 /// [Layout] and [Scalar] information. This is required to do since
 /// the scalar maybe a pair of values.
 fn adjust_arg_attributes(
-    ctx: &LayoutComputer,
     attributes: &mut ArgAttributes,
     ty: IrTyId,
     scalar: Scalar,
@@ -47,7 +46,7 @@ fn adjust_arg_attributes(
 
     // If the pointer type is a read-only, then we can set the "read_only"
     // attribute.
-    ctx.ir_ctx().map_ty(ty, |ty| {
+    ty.map(|ty| {
         let IrTy::Ref(_, mutability, kind) = ty else {
             return;
         };
@@ -84,7 +83,7 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     ctx: &Ctx,
     instance: InstanceId,
 ) -> Result<FnAbi, FnAbiError> {
-    let Instance { params, ret_ty, abi, .. } = ctx.ir_ctx().instances().get(instance);
+    let Instance { params, ret_ty, abi, .. } = instance.value();
 
     // map the ABI to a calling convention whilst making any adjustments according
     // to the target.
@@ -99,7 +98,7 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
 
         let mut arg = ArgAbi::new(&lc, info, |scalar| {
             let mut attributes = ArgAttributes::new();
-            adjust_arg_attributes(&lc, &mut attributes, ty, scalar, is_return);
+            adjust_arg_attributes(&mut attributes, ty, scalar, is_return);
             attributes
         });
 
@@ -113,12 +112,12 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     };
 
     let fn_abi = FnAbi {
-        args: ctx.ir_ctx().tls().map_fast(params, |tys| {
-            tys.iter()
-                .enumerate()
-                .map(|(i, ty)| make_arg_abi(*ty, Some(i)))
-                .collect::<Result<_, _>>()
-        })?,
+        args: params
+            .borrow()
+            .iter()
+            .enumerate()
+            .map(|(i, ty)| make_arg_abi(*ty, Some(i)))
+            .collect::<Result<_, _>>()?,
         ret_abi: make_arg_abi(ret_ty, None)?,
         calling_convention,
     };

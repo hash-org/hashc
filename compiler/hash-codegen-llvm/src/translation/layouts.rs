@@ -8,7 +8,7 @@ use hash_codegen::{
     },
     traits::layout::LayoutMethods,
 };
-use hash_ir::{ty::IrTyId, write::WriteIr};
+use hash_ir::ty::IrTyId;
 
 use super::{ty::TyMemoryRemap, LLVMBuilder};
 use crate::ctx::CodeGenCtx;
@@ -100,7 +100,7 @@ impl<'m> ExtendedLayoutMethods<'m> for &Layout {
                     Some(TyMemoryRemap { remap: None, .. }) => {
                         self.shape.memory_index(index) as u64
                     }
-                    None => panic!("cannot find remapped layout for `{}`", ty.for_fmt(ctx.ir_ctx)),
+                    None => panic!("cannot find remapped layout for `{}`", ty),
                 }
             }
         }

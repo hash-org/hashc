@@ -10,10 +10,10 @@
 //! whether two blocks have been merged together.
 
 use hash_abi::{ArgAbi, FnAbiId, PassMode};
-use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
+use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::COMMON_IR_TYS};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
 use hash_source::constant::CONSTANT_MAP;
-use hash_storage::store::Store;
+use hash_storage::store::{statics::StoreId, Store};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
@@ -143,18 +143,14 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // generate the operand as the function call...
         let callee = self.codegen_operand(builder, op);
 
-        let (is_intrinsic, instance) = self
-            .ctx
-            .ir_ctx()
-            .map_ty_as_instance(callee.info.ty, |data, instance| (data.is_intrinsic(), instance));
+        let instance = callee.info.ty.borrow().as_instance();
+        let is_intrinsic = instance.borrow().is_intrinsic();
         let mut maybe_intrinsic = None;
 
         // If this is an intrinsic, we will generate the required code
         // for the intrinsic here...
         if is_intrinsic {
-            maybe_intrinsic = Some(self.ctx.ir_ctx().map_instance(instance, |instance| {
-                Intrinsic::from_str_name(instance.name().into()).unwrap()
-            }));
+            maybe_intrinsic = Intrinsic::from_str_name(instance.borrow().name().into());
 
             // We exit early for transmute since we don't need to compute the ABI
             // or any information about the return destination.
@@ -438,8 +434,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 return;
             }
             PassMode::Direct(_) | PassMode::Pair(..) => {
-                let op = self
-                    .codegen_consume_operand(builder, ir::Place::return_place(self.ctx.ir_ctx()));
+                let op = self.codegen_consume_operand(builder, ir::Place::return_place());
 
                 if let OperandValue::Ref(value, alignment) = op.value {
                     let ty = builder.backend_ty_from_info(op.info);
@@ -479,7 +474,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
             // If this type is a `bool`, then we can generate conditional
             // branches rather than an `icmp` and `br`.
-            if self.ctx.ir_ctx().tys().common_tys.bool == ty {
+            if COMMON_IR_TYS.bool == ty {
                 match value {
                     0 => builder.conditional_branch(
                         subject.immediate_value(),

@@ -192,16 +192,16 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn evaluate_range_lit(
         &self,
         maybe_pat: Option<LitPat>,
-        ty: IrTy,
+        ty: IrTyId,
         at_end: bool,
     ) -> (Const, u128) {
         match maybe_pat {
             Some(pat) => self.evaluate_lit_pat(pat),
-            None => match ty {
+            None => ty.map(|ty| match ty {
                 IrTy::Char if at_end => (Const::Char(std::char::MAX), std::char::MAX as u128),
                 IrTy::Char => (Const::Char(0 as char), 0),
                 ty @ (IrTy::Int(_) | IrTy::UInt(_)) => {
-                    let int_ty: IntTy = ty.into();
+                    let int_ty: IntTy = (*ty).into();
                     let ptr_size = self.target().ptr_size();
 
                     let (signed_value, value) = if at_end {
@@ -213,7 +213,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     (Const::Int(CONSTANT_MAP.create_int(signed_value.into())), value)
                 }
                 _ => unreachable!(),
-            },
+            }),
         }
     }
 }

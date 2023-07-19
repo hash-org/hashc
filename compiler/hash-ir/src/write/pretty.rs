@@ -6,10 +6,7 @@ use hash_source::SourceMap;
 use hash_utils::itertools::Itertools;
 
 use super::WriteIr;
-use crate::{
-    ir::{BasicBlock, Body, BodySource},
-    IrCtx,
-};
+use crate::ir::{BasicBlock, Body, BodySource};
 
 /// [IrBodyWriter] is used to encapsulate the logic of pretty-printing a
 /// [Body] to a [fmt::Formatter]. The [IrBodyWriter] is uses the standalone
@@ -17,17 +14,14 @@ use crate::{
 /// formatting, and additional information about the IR in the style of comments
 /// on each IR line (if additional information exists).
 pub struct IrBodyWriter<'ir> {
-    /// The type context allowing for printing any additional
-    /// metadata about types within the ir.
-    ctx: &'ir IrCtx,
     /// The body that is being printed
     body: &'ir Body,
 }
 
 impl<'ir> IrBodyWriter<'ir> {
     /// Create a new IR writer for the given body.
-    pub fn new(ctx: &'ir IrCtx, body: &'ir Body) -> Self {
-        Self { ctx, body }
+    pub fn new(body: &'ir Body) -> Self {
+        Self { body }
     }
 
     /// Function to deal with a [Body] header which is formatted depending on
@@ -61,9 +55,9 @@ impl<'ir> IrBodyWriter<'ir> {
 
                     // We add 1 to the index because the return type is always
                     // located at `0`.
-                    write!(f, "_{}: {}", i + 1, param.ty().for_fmt(self.ctx))?;
+                    write!(f, "_{}: {}", i + 1, param.ty())?;
                 }
-                writeln!(f, ") -> {} {{", return_ty_decl.ty().for_fmt(self.ctx))?;
+                writeln!(f, ") -> {} {{", return_ty_decl.ty())?;
             }
             BodySource::Const => {
                 writeln!(f, "const {} {{", self.body.info().name)?;
@@ -71,12 +65,7 @@ impl<'ir> IrBodyWriter<'ir> {
         }
 
         // Print the return place declaration
-        writeln!(
-            f,
-            "    {}_0: {};",
-            return_ty_decl.mutability(),
-            return_ty_decl.ty().for_fmt(self.ctx)
-        )
+        writeln!(f, "    {}_0: {};", return_ty_decl.mutability(), return_ty_decl.ty())
     }
 
     /// Write the body to the given formatter.
@@ -110,7 +99,7 @@ impl<'ir> IrBodyWriter<'ir> {
         let mut longest_line = 0;
         let rendered_declarations = declarations
             .map(|(local, decl)| {
-                let s = format!("{}{local:?}: {};", decl.mutability(), decl.ty().for_fmt(self.ctx));
+                let s = format!("{}{local:?}: {};", decl.mutability(), decl.ty());
 
                 if let Some(name) = decl.name && !decl.auxiliary() {
                 longest_line = longest_line.max(s.len());
@@ -146,13 +135,13 @@ impl<'ir> IrBodyWriter<'ir> {
 
         // Write all of the statements within the block
         for statement in &block_data.statements {
-            writeln!(f, "{: <2$}{};", "", statement.for_fmt(self.ctx), 8)?;
+            writeln!(f, "{: <2$}{};", "", statement, 8)?;
         }
 
         // Write the terminator of the block. If the terminator is
         // not present, this is an invariant but we don't care here.
         if let Some(terminator) = &block_data.terminator {
-            writeln!(f, "{: <2$}{};", "", terminator.fmt_with_opts(self.ctx, true), 8)?;
+            writeln!(f, "{: <2$}{};", "", terminator.with_edges(true), 8)?;
         }
 
         writeln!(f, "{: <1$}}}", "", 4)
@@ -167,7 +156,6 @@ impl fmt::Display for IrBodyWriter<'_> {
 
 /// Dump all of the provided [Body]s to standard output using the `dot` format.
 pub fn dump_ir_bodies(
-    ctx: &IrCtx,
     source_map: &SourceMap,
     bodies: &[Body],
     dump_all: bool,
@@ -197,7 +185,7 @@ pub fn dump_ir_bodies(
             body.info().source(),
             body.info().name(),
             source_map.fmt_location(body.location()),
-            IrBodyWriter::new(ctx, body)
+            IrBodyWriter::new(body)
         )?;
     }
 
