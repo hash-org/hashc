@@ -5,10 +5,12 @@ use std::iter::once;
 
 use hash_intrinsics::{intrinsics::DefinedIntrinsics, primitives::DefinedPrimitives};
 use hash_tir::{
-    mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberValue},
+    environment::stores::{SequenceStoreValue, SingleStoreValue},
+    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMemberValue},
     symbols::sym,
     utils::AccessToUtils,
 };
+use hash_utils::itertools::Itertools;
 use once_cell::unsync::OnceCell;
 
 use crate::environment::sem_env::AccessToSemEnv;
@@ -39,19 +41,26 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
 
     /// Make a module containing all the intrinsics.
     fn make_intrinsic_mod(&self, intrinsics: &DefinedIntrinsics) -> ModDefId {
-        self.mod_utils().create_mod_def(ModDefData {
+        ModDef::create_with(|id| ModDef {
+            id,
             name: sym("Intrinsics"),
             kind: ModKind::ModBlock,
-            members: self.mod_utils().create_mod_members(intrinsics.as_mod_members(self.env())),
+            members: ModMember::seq(
+                intrinsics
+                    .as_mod_members(self.env())
+                    .into_iter()
+                    .map(|data| move |id| ModMember { id, name: data.name, value: data.value }),
+            ),
         })
     }
 
     /// Make a module containing all the primitives and intrinsics.
     fn make_root_mod(&self, primitives: &DefinedPrimitives, intrinsics_mod: ModDefId) -> ModDefId {
-        self.mod_utils().create_mod_def(ModDefData {
+        ModDef::create_with(|id| ModDef {
+            id,
             name: sym("Primitives"),
             kind: ModKind::Transparent,
-            members: self.mod_utils().create_mod_members(
+            members: ModMember::seq(
                 primitives
                     .as_mod_members(self.env())
                     .into_iter()
@@ -59,7 +68,8 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
                         name: sym("Intrinsics"),
                         value: ModMemberValue::Mod(intrinsics_mod),
                     }))
-                    .collect::<Vec<_>>(),
+                    .map(|data| move |id| ModMember { id, name: data.name, value: data.value })
+                    .collect_vec(),
             ),
         })
     }

@@ -14,13 +14,13 @@ use hash_ir::{
 use hash_source::{constant::CONSTANT_MAP, location::Span};
 use hash_tir::{
     data::DataTy,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::StoreId},
     fns::FnDefId,
     mods::{ModMember, ModMemberValue},
     pats::PatId,
     symbols::Symbol,
     terms::TermId,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::{log, store::SequenceStore};
 
@@ -82,13 +82,13 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// @@Future: ideally, we can remove this and just use `#lang_item`
     /// declaration to find the appropriate items.
     pub(crate) fn lookup_libc_fn(&mut self, name: &str) -> Option<IrTyId> {
-        let libc_mod = match self.mod_utils().get_mod_member_by_ident(self.ctx.prelude, "libc") {
+        let libc_mod = match self.ctx.prelude.borrow().get_mod_member_by_ident("libc") {
             Some(ModMember { value: ModMemberValue::Mod(libc_mod), .. }) => libc_mod,
             _ => return None,
         };
 
         // Now lookup the item in the libc module
-        let Some(fn_def) = self.mod_utils().get_mod_fn_member_by_ident(libc_mod, name) else {
+        let Some(fn_def) = libc_mod.borrow().get_mod_fn_member_by_ident(name) else {
             return None;
         };
 
@@ -101,7 +101,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// N.B. This assumes that the items have no type arguments.
     pub(crate) fn lookup_prelude_item(&mut self, name: &str) -> Option<IrTyId> {
         // Now lookup the item in the libc module
-        let Some(member) = self.mod_utils().get_mod_member_by_ident(self.ctx.prelude, name) else {
+        let Some(member) = self.ctx.prelude.borrow().get_mod_member_by_ident(name) else {
             return None;
         };
 

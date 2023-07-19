@@ -2,15 +2,16 @@
 
 use std::{fmt::Display, path::Path};
 
-use hash_source::SourceId;
-use hash_utils::store::{SequenceStore, Store, TrivialSequenceStoreKey};
+use hash_source::{identifier::Identifier, SourceId};
+use hash_utils::store::{SequenceStore, Store, StoreKey, TrivialSequenceStoreKey};
 use textwrap::indent;
 use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::StoreId, symbols::Symbol, tir_debug_name_of_store_id, tir_get,
-    tir_sequence_store_direct, tir_single_store,
+    environment::stores::{global_stores, StoreId},
+    symbols::Symbol,
+    tir_debug_name_of_store_id, tir_get, tir_sequence_store_direct, tir_single_store,
 };
 
 /// The kind of a module.
@@ -127,6 +128,41 @@ tir_single_store!(
 );
 
 tir_debug_name_of_store_id!(ModDefId);
+
+impl ModDef {
+    /// Get a module function member by name.
+    pub fn get_mod_fn_member_by_ident(&self, name: impl Into<Identifier>) -> Option<FnDefId> {
+        let name = name.into();
+        self.members.iter().find_map(|member| {
+            if let ModMemberValue::Fn(fn_def_id) = member.borrow().value {
+                if member.borrow().name.borrow().name.is_some_and(|sym| sym == name) {
+                    return Some(fn_def_id);
+                }
+            }
+            None
+        })
+    }
+
+    /// Get a module member by name.
+    pub fn get_mod_member_by_ident(&self, name: impl Into<Identifier>) -> Option<ModMember> {
+        let name = name.into();
+        self.members.iter().find_map(|member| {
+            if member.borrow().name.borrow().name.is_some_and(|sym| sym == name) {
+                Some(member.value())
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Iterate over all modules present in the sources.
+    ///
+    /// *Note*: this will not include modules created while iterating.
+    pub fn iter_all_mods() -> impl Iterator<Item = ModDefId> {
+        let member_count = global_stores().mod_def().internal_data().read().len();
+        (0..member_count).map(ModDefId::from_index_unchecked)
+    }
+}
 
 impl Display for ModDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

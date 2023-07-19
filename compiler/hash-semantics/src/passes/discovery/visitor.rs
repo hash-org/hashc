@@ -9,9 +9,12 @@ use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_tir::{
     data::DataDef,
     defs::DefId,
-    environment::{env::AccessToEnv, stores::SingleStoreValue},
+    environment::{
+        env::AccessToEnv,
+        stores::{SequenceStoreValue, SingleStoreValue},
+    },
     fns::{FnBody, FnDef, FnTy},
-    mods::{ModDefData, ModKind},
+    mods::{ModDef, ModKind, ModMember},
     symbols::sym,
     terms::Term,
     tuples::TupleTy,
@@ -167,10 +170,11 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // @@Todo: error if the mod block has generics
 
         // Create a mod block definition, with empty members for now.
-        let mod_def_id = self.mod_utils().create_mod_def(ModDefData {
+        let mod_def_id = ModDef::create_with(|id| ModDef {
+            id,
             name: mod_block_name,
             kind: ModKind::ModBlock,
-            members: self.mod_utils().create_empty_mod_members(),
+            members: ModMember::empty_seq(),
         });
 
         // Traverse the mod block

@@ -9,13 +9,16 @@ use hash_pipeline::workspace::StageInfo;
 use hash_source::identifier::IDENTS;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::StoreId,
+    },
     fns::{FnBody, FnDef, FnDefId},
-    mods::{ModKind, ModMemberValue},
+    mods::{ModDef, ModKind, ModMemberValue},
     terms::TermId,
     utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{PartialCloneStore, Store};
+use hash_utils::store::{PartialCloneStore, Store, TrivialSequenceStoreKey};
 use indexmap::IndexSet;
 
 use crate::ctx::BuilderCtx;
@@ -107,7 +110,7 @@ impl FnDiscoverer<'_> {
     pub fn discover_fns(&self) -> DiscoveredFns {
         let mut fns = DiscoveredFns::new();
 
-        for mod_def_id in self.mod_utils().iter_all_mods() {
+        for mod_def_id in ModDef::iter_all_mods() {
             // Check if we can skip this module as it may of already been queued before
             // during some other pipeline run.
             //
@@ -120,8 +123,8 @@ impl FnDiscoverer<'_> {
                 continue;
             }
 
-            for member in self.mod_utils().iter_mod_members(mod_def_id) {
-                match member.value {
+            for member in mod_def_id.borrow().members.iter() {
+                match member.borrow().value {
                     ModMemberValue::Mod(_) => {
                         // Will be handled later in the loop
                     }

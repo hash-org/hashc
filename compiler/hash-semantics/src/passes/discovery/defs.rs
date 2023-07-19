@@ -6,8 +6,11 @@ use hash_tir::{
     context::Decl,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
     defs::DefId,
-    environment::{env::AccessToEnv, stores::StoreId},
-    mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberId, ModMemberValue},
+    environment::{
+        env::AccessToEnv,
+        stores::{SequenceStoreValue, SingleStoreValue, StoreId},
+    },
+    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMemberId, ModMemberValue},
     scopes::StackId,
     symbols::{sym, Symbol},
     tys::TyId,
@@ -154,14 +157,12 @@ impl<'tc> DiscoveryPass<'tc> {
                 self.def_state().mod_members.modify_fast(mod_def_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let mod_utils = self.mod_utils();
 
                         // Set module members.
-                        let mod_members = mod_utils.set_mod_def_members(
-                            mod_def_id,
-                            mod_utils
-                                .create_mod_members(members.iter().map(|(_, data)| data).cloned()),
-                        );
+                        let mod_members = ModMember::seq(members.iter().map(|(_, data)| {
+                            |id| ModMember { id, name: data.name, value: data.value }
+                        }));
+                        mod_def_id.borrow_mut().members = mod_members;
 
                         // Set node for each member.
                         for ((node_id, _), mod_member_index) in
@@ -232,10 +233,11 @@ impl<'tc> DiscoveryPass<'tc> {
                         // If we got local mod members, create a new mod def and
                         // add it to the stack definition.
                         if !mod_members.is_empty() {
-                            let local_mod_def_id = self.mod_utils().create_mod_def(ModDefData {
+                            let local_mod_def_id = ModDef::create_with(|id| ModDef {
+                                id,
                                 kind: ModKind::ModBlock,
                                 name: sym(format!("stack_mod_{}", stack_id.to_index())),
-                                members: self.mod_utils().create_empty_mod_members(),
+                                members: ModMember::empty_seq(),
                             });
                             stack_utils.set_local_mod_def(stack_id, local_mod_def_id);
                             self.def_state().mod_members.insert(local_mod_def_id, mod_members);
