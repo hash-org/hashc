@@ -15,7 +15,7 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::{attributes::Attribute, identifier::IDENTS};
 use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
-    PartialCloneStore, PartialStore, SequenceStoreKey, Store,
+    PartialCloneStore, PartialStore, SequenceStoreKey,
 };
 use hash_target::size::Size;
 use hash_tir::{
@@ -150,8 +150,7 @@ impl<'ir> BuilderCtx<'ir> {
             }
         };
 
-        // Create the type
-        self.lcx.tys().create(ty)
+        IrTy::create(ty)
     }
 
     /// Create a new [IrTyId] from the given function definition whilst
@@ -165,8 +164,8 @@ impl<'ir> BuilderCtx<'ir> {
 
             // Check if the instance has the `lang` attribute, specifying that it is
             // the lang-item attribute.
-            let instance = self.lcx.instances().create(instance);
-            let ty = self.lcx.tys().create(IrTy::FnDef { instance });
+            let instance = Instance::create(instance);
+            let ty = IrTy::create(IrTy::FnDef { instance });
 
             if is_lang {
                 let item = LangItem::from_str_name(name.into());
@@ -250,7 +249,7 @@ impl<'ir> BuilderCtx<'ir> {
         // so that if any inner types are recursive, they can refer to
         // this type, and it will be updated once the type is fully defined.
         // Apply the arguments as the scope of the data type.
-        let reserved_ty = self.lcx.tys().create(IrTy::Never);
+        let reserved_ty = IrTy::create(IrTy::Never);
         self.lcx.ty_cache().borrow_mut().insert(ty.into(), reserved_ty);
 
         // We want to add the arguments to the ADT, so that we can print them
@@ -299,7 +298,7 @@ impl<'ir> BuilderCtx<'ir> {
         }
 
         // Update the type in the slot that was reserved for it.
-        self.lcx.tys().modify_fast(reserved_ty, |ty| *ty = IrTy::Adt(Adt::create(adt)));
+        reserved_ty.modify(|ty| *ty = IrTy::Adt(Adt::create(adt)));
 
         // We created our own cache entry, so we don't need to update the
         // cache.
@@ -386,13 +385,15 @@ impl<'ir> BuilderCtx<'ir> {
                                 // assume that it is immutable and a normal reference kind.
                                 None => {
                                     let slice = IrTy::Slice(self.ty_id_from_tir_ty(element_ty));
-                                    let id = self.lcx.tys().create(slice);
-
-                                    IrTy::Ref(id, Mutability::Immutable, ty::RefKind::Normal)
+                                    IrTy::Ref(
+                                        IrTy::create(slice),
+                                        Mutability::Immutable,
+                                        ty::RefKind::Normal,
+                                    )
                                 }
                             };
 
-                            self.lcx.tys().create(ty)
+                            IrTy::create(ty)
                         })
                     }
                 };

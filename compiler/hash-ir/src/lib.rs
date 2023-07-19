@@ -24,10 +24,7 @@ use std::{
 };
 
 use hash_source::entry_point::EntryPointState;
-use hash_storage::{
-    store::{SequenceStore, SequenceStoreKey},
-    stores,
-};
+use hash_storage::{store::SequenceStoreKey, stores};
 use hash_tir::{
     data::{DataDefId, DataTy},
     fns::FnDefId,
@@ -35,7 +32,7 @@ use hash_tir::{
 };
 use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;
-use ir::{Body, Local, Place, PlaceProjection, ProjectionStore};
+use ir::{Body, ProjectionStore};
 use lang_items::LangItems;
 use ty::{AdtStore, CommonIrTys, InstanceId, InstanceStore, IrTyId, IrTyListStore, IrTyStore};
 
@@ -199,41 +196,8 @@ impl IrCtx {
         self.lang_items.borrow_mut()
     }
 
-    /// Get a reference to the [IrTyStore].
-    pub fn tys(&self) -> &IrTyStore {
-        ir_stores().tys()
-    }
-
     /// Get a reference to the semantic types conversion cache.
     pub fn ty_cache(&self) -> &TyCache {
         &self.ty_cache
-    }
-
-    /// Get a reference to the [AdtStore]
-    pub fn adts(&self) -> &AdtStore {
-        ir_stores().adts()
-    }
-
-    /// Get a reference to the instance store.
-    pub fn instances(&self) -> &InstanceStore {
-        ir_stores().instances()
-    }
-
-    /// Get a reference to the [ProjectionStore]
-    pub fn projections(&self) -> &ProjectionStore {
-        ir_stores().projections()
-    }
-
-    /// Perform a map on a [Place] by reading all of the [PlaceProjection]s
-    /// that are associated with the [Place] and then applying the provided
-    /// function.
-    pub fn map_place<T>(
-        &self,
-        place: Place,
-        map: impl FnOnce(Local, &[PlaceProjection]) -> T,
-    ) -> T {
-        let Place { local, projections } = place;
-
-        self.projections().map_fast(projections, |projections| map(local, projections))
     }
 }

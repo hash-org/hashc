@@ -16,7 +16,7 @@ use hash_source::{
 };
 use hash_storage::{
     static_sequence_store_indirect,
-    store::{SequenceStore, SequenceStoreKey, Store},
+    store::{statics::SingleStoreValue, SequenceStore, SequenceStoreKey},
 };
 use hash_utils::{
     graph::dominators::Dominators,
@@ -555,7 +555,7 @@ pub enum PlaceProjection {
 /// Additionally, [Place]s allow for projections to be applied
 /// to a place in order to specify a location within the [Local],
 /// i.e. an array index, a field access, etc.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Place {
     /// The original place of where this is referring to.
     pub local: Local,
@@ -567,29 +567,30 @@ pub struct Place {
 
 impl Place {
     /// Create a [Place] that points to the return `place` of a lowered  body.
-    pub fn return_place(ctx: &IrCtx) -> Self {
-        Self { local: RETURN_PLACE, projections: ctx.projections().create_empty() }
+    pub fn return_place() -> Self {
+        Self { local: RETURN_PLACE, projections: ProjectionId::empty() }
     }
 
     /// Deduce the type of the [Place] from the [IrCtx] and the local
     /// declarations.
-    pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
-        PlaceTy::from_place(*self, locals, ctx).ty
+    pub fn ty(&self, locals: &LocalDecls) -> IrTyId {
+        PlaceTy::from_place(*self, locals).ty
     }
 
     /// Create a new [Place] from a [Local] with no projections.
-    pub fn from_local(local: Local, ctx: &IrCtx) -> Self {
-        Self { local, projections: ctx.projections().create_empty() }
+    pub fn from_local(local: Local) -> Self {
+        Self { local, projections: ProjectionId::empty() }
     }
 
     /// Create a new [Place] from an existing [Place] whilst also
     /// applying a [`PlaceProjection::Deref`] on the old one.
-    pub fn deref(&self, ctx: &IrCtx) -> Self {
-        let projections = ctx.projections().get_vec(self.projections);
+    pub fn deref(&self) -> Self {
+        // @@Todo: how can we just amend the existing projections?
+        let projections = self.projections.value();
 
         Self {
             local: self.local,
-            projections: ctx.projections().create_from_iter_fast(
+            projections: ProjectionId::seq(
                 projections.iter().copied().chain(once(PlaceProjection::Deref)),
             ),
         }
@@ -597,12 +598,12 @@ impl Place {
 
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
-    pub fn field(&self, field: usize, ctx: &IrCtx) -> Self {
-        let projections = ctx.projections().get_vec(self.projections);
+    pub fn field(&self, field: usize) -> Self {
+        let projections = self.projections.value();
 
         Self {
             local: self.local,
-            projections: ctx.projections().create_from_iter_fast(
+            projections: ProjectionId::seq(
                 projections.iter().copied().chain(once(PlaceProjection::Field(field))),
             ),
         }
@@ -695,7 +696,7 @@ impl Operand {
     pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
         match self {
             Operand::Const(kind) => kind.ty(ctx),
-            Operand::Place(place) => place.ty(locals, ctx),
+            Operand::Place(place) => place.ty(locals),
         }
     }
 }
@@ -780,22 +781,22 @@ impl RValue {
             }
             RValue::CheckedBinaryOp(op, box (lhs, rhs)) => {
                 let ty = op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx));
-                ctx.tys().create(IrTy::tuple(&[ty, ctx.common_tys.bool]))
+                IrTy::tuple(&[ty, ctx.common_tys.bool])
             }
             RValue::Cast(_, _, ty) => *ty,
             RValue::Len(_) => ctx.common_tys.usize,
             RValue::Ref(mutability, place, kind) => {
-                let ty = place.ty(locals, ctx);
-                ctx.tys().create(IrTy::Ref(ty, *mutability, *kind))
+                let ty = place.ty(locals);
+                IrTy::create(IrTy::Ref(ty, *mutability, *kind))
             }
             RValue::Aggregate(kind, _) => match kind {
                 AggregateKind::Enum(id, _)
                 | AggregateKind::Struct(id)
-                | AggregateKind::Tuple(id) => ctx.tys().create(IrTy::Adt(*id)),
+                | AggregateKind::Tuple(id) => IrTy::create(IrTy::Adt(*id)),
                 AggregateKind::Array(ty) => *ty,
             },
             RValue::Discriminant(place) => {
-                let ty = place.ty(locals, ctx);
+                let ty = place.ty(locals);
                 ty.borrow().discriminant_ty(ctx)
             }
         }
@@ -1444,6 +1445,20 @@ static_sequence_store_indirect!(
     store_source = ir_stores()
 );
 
+impl ProjectionId {
+    pub fn empty() -> Self {
+        ir_stores().projections().create_empty()
+    }
+
+    pub fn seq<I: IntoIterator<Item = PlaceProjection>>(values: I) -> Self {
+        ir_stores().projections().create_from_iter(values)
+    }
+
+    pub fn from_slice(values: &[PlaceProjection]) -> Self {
+        ir_stores().projections().create_from_slice(values)
+    }
+}
+
 /// An [IrRef] is a reference to where a particular item occurs within
 /// the [Body]. The [IrRef] stores an associated [BasicBlock] and an
 /// index into the statements of that [BasicBlock].
@@ -1489,15 +1504,13 @@ impl IrRef {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ir::*, write::WriteIr};
+    use crate::ir::*;
 
     #[test]
     fn test_place_display() {
-        let storage = IrCtx::new();
-
         let place = Place {
             local: Local::new(0),
-            projections: storage.projections().create_from_slice(&[
+            projections: ProjectionId::from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Field(0),
                 PlaceProjection::Index(Local::new(1)),
@@ -1505,17 +1518,17 @@ mod tests {
             ]),
         };
 
-        assert_eq!(format!("{}", place.for_fmt(&storage)), "(((*_0).0)[_1] as variant#0)");
+        assert_eq!(format!("{}", place), "(((*_0).0)[_1] as variant#0)");
 
         let place = Place {
             local: Local::new(0),
-            projections: storage.projections().create_from_slice(&[
+            projections: ProjectionId::from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,
             ]),
         };
 
-        assert_eq!(format!("{}", place.for_fmt(&storage)), "(*(*(*_0)))");
+        assert_eq!(format!("{}", place), "(*(*(*_0)))");
     }
 }

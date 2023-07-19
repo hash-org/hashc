@@ -7,10 +7,10 @@ use hash_ir::{
     ty::{IrTy, IrTyId, Mutability},
 };
 use hash_source::{
-    constant::{IntConstant, IntTy, CONSTANT_MAP},
+    constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP},
     location::Span,
 };
-use hash_storage::store::{statics::StoreId, CloneStore, Store};
+use hash_storage::store::statics::StoreId;
 use hash_tir::terms::{Term, TermId};
 
 use super::{
@@ -52,8 +52,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         let arg =
                             unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
 
-                        let ty_id = self.ty_id_from_tir_term(term);
-                        let ty = self.ctx().tys().get(ty_id);
+                        let ty = self.ty_id_from_tir_term(term);
 
                         // If the operator is a negation, and the operand is signed, we can have a
                         // case of overflow. This occurs when the operand is the minimum value for
@@ -62,7 +61,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // checked operations are enabled).
                         if self.settings.lowering_settings().checked_operations
                             && matches!(op, UnaryOp::Neg)
-                            && ty.is_signed()
+                            && ty.borrow().is_signed()
                         {
                             let min_value = self.min_value_of_ty(ty);
                             let is_min = self.temp_place(self.ctx().common_tys.bool);
@@ -105,7 +104,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         let source =
                             unpack!(block = self.as_operand(block, term, Mutability::Mutable));
 
-                        let cast_kind = CastKind::classify(self.ctx(), source_ty, ty);
+                        let cast_kind = CastKind::classify(source_ty, ty);
                         block.and(RValue::Cast(cast_kind, source, ty))
                     }
                     _ => as_operand(fn_call_term, self),
@@ -138,18 +137,18 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Compute the minimum value of an [IrTy] assuming that it is a
     /// signed integer type.
-    fn min_value_of_ty(&self, ty: IrTy) -> Operand {
-        let value = if let IrTy::Int(signed_ty) = ty {
-            let ptr_width = self.settings.target().ptr_size();
-            let size = signed_ty.size(ptr_width).bits();
-            let n = 1 << (size - 1);
-
-            // Create and intern the constant
-            let const_int = CONSTANT_MAP.create_int(IntConstant::from_sint(n, signed_ty));
-            Const::Int(const_int).into()
-        } else {
-            unreachable!()
-        };
+    fn min_value_of_ty(&self, ty: IrTyId) -> Operand {
+        let value = ty.map(|ty| match ty {
+            IrTy::Int(signed_ty) => {
+                // Create and intern the constant
+                let ptr_size = self.settings.target().ptr_size();
+                let int_ty: IntTy = (*signed_ty).into();
+                let const_int =
+                    InternedInt::from_u128(int_ty.numeric_min(ptr_size), int_ty, ptr_size);
+                Const::Int(const_int).into()
+            }
+            _ => unreachable!(),
+        });
 
         Operand::Const(value)
     }
@@ -216,21 +215,21 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
 
         let operands = Box::new((lhs, rhs));
-        let actual_ty = self.ctx().tys().get(ty);
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
         if self.settings.lowering_settings().checked_operations {
-            if op.is_checkable() && actual_ty.is_integral() {
+            let is_integral = ty.borrow().is_integral();
+
+            if op.is_checkable() && is_integral {
                 // Create a new tuple that contains the result of the operation
                 let ty = IrTy::tuple(&[ty, self.ctx().common_tys.bool]);
-                let ty_id = self.ctx().tys().create(ty);
 
-                let temp = self.temp_place(ty_id);
+                let temp = self.temp_place(ty);
                 let rvalue = RValue::CheckedBinaryOp(op, operands);
 
-                let result = temp.field(0, self.ctx());
-                let overflow = temp.field(1, self.ctx());
+                let result = temp.field(0);
+                let overflow = temp.field(1);
 
                 // Push an assignment to the tuple on the operation
                 self.control_flow_graph.push_assign(block, temp, rvalue, span);
@@ -244,10 +243,10 @@ impl<'tcx> BodyBuilder<'tcx> {
                 );
 
                 return block.and(result.into());
-            } else if actual_ty.is_integral() && (op == BinOp::Div || op == BinOp::Mod) {
+            } else if is_integral && (op == BinOp::Div || op == BinOp::Mod) {
                 // Check for division or a remainder by zero, and if so emit
                 // an assertion to verify this condition.
-                let int_ty: IntTy = actual_ty.into();
+                let int_ty: IntTy = ty.value().into();
                 let uint_ty = int_ty.to_unsigned();
 
                 let assert_kind = if op == BinOp::Div {
@@ -275,13 +274,13 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // In the case of signed integers, if the RHS value is `-1`, and the LHS
                 // is the MIN value, this will result in a division overflow, we need to
                 // check for this and emit code.
-                if actual_ty.is_signed() {
+                if int_ty.is_signed() {
                     let sint_ty = int_ty.to_signed();
 
                     let const_val =
                         Const::Int(CONSTANT_MAP.create_int(IntConstant::from_sint(-1, sint_ty)));
                     let negative_one_val = Operand::Const(const_val.into());
-                    let minimum_value = self.min_value_of_ty(actual_ty);
+                    let minimum_value = self.min_value_of_ty(ty);
 
                     let is_negative_one = self.temp_place(self.ctx().common_tys.bool);
                     let is_minimum_value = self.temp_place(self.ctx().common_tys.bool);

@@ -367,8 +367,7 @@ impl<'ctx> BodyBuilder<'ctx> {
 
         // Now that we have built the inner body block, we then need to terminate
         // the current basis block with a return terminator.
-        let return_block =
-            unpack!(self.term_into_dest(Place::return_place(self.ctx()), start, body));
+        let return_block = unpack!(self.term_into_dest(Place::return_place(), start, body));
         let span = self.span_of_term(body);
 
         self.control_flow_graph.terminate(return_block, span, TerminatorKind::Return);

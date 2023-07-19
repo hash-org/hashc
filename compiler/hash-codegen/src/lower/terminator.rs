@@ -434,8 +434,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 return;
             }
             PassMode::Direct(_) | PassMode::Pair(..) => {
-                let op = self
-                    .codegen_consume_operand(builder, ir::Place::return_place(self.ctx.ir_ctx()));
+                let op = self.codegen_consume_operand(builder, ir::Place::return_place());
 
                 if let OperandValue::Ref(value, alignment) = op.value {
                     let ty = builder.backend_ty_from_info(op.info);

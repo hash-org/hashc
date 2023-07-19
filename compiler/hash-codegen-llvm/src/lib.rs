@@ -271,7 +271,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             // So, we create the mangled symbol name, and then call `predefine()` which
             // should create the function ABI from the instance, with the correct
             // attributes and linkage, etc.
-            let symbol_name = compute_symbol_name(&self.ir_storage.ctx, instance);
+            let symbol_name = compute_symbol_name(instance);
 
             let abis = self.codegen_storage.abis();
             let abi = abis.create_fn_abi(ctx, instance);

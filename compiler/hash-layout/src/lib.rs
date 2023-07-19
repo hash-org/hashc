@@ -213,9 +213,7 @@ impl TyInfo {
     where
         F: FnOnce(&Self, &IrTy, &Layout) -> T,
     {
-        ctx.ir_ctx()
-            .tys()
-            .map_fast(self.ty, |ty| ctx.map_fast(self.layout, |layout| f(self, ty, layout)))
+        self.ty.map(|ty| ctx.map(self.layout, |layout| f(self, ty, layout)))
     }
 
     /// Compute the type of a "field with in a layout" and return the
@@ -289,7 +287,7 @@ impl TyInfo {
                 self.layout
             }
             Variants::Single { .. } => {
-                let adt = ctx.ir_ctx().tys().get(self.ty).as_adt();
+                let adt = self.ty.borrow().as_adt();
                 let fields = adt.map(|adt| {
                     if adt.variants.is_empty() {
                         panic!("layout::for_variant called on a zero-variant enum")

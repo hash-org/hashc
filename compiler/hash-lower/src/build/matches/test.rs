@@ -18,7 +18,7 @@ use hash_source::{
     constant::{IntConstant, IntConstantValue, CONSTANT_MAP},
     location::Span,
 };
-use hash_storage::store::{statics::StoreId, CloneStore, Store};
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     args::PatArgsId,
     atom_info::ItemInAtomInfo,
@@ -245,9 +245,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
             }
             Pat::Range(ref range_pat) => {
-                let ty_id = self.ty_id_from_tir_pat(pair.pat);
-                let ty = self.ctx().tys().get(ty_id);
-
+                let ty = self.ty_id_from_tir_pat(pair.pat);
                 Test {
                     kind: TestKind::Range { range: ConstRange::from_range(range_pat, ty, self) },
                     span,
@@ -310,8 +308,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // If we are performing a variant switch, then this informs
                 // variant patterns, bu nothing else.
                 let test_adt = self.ty_id_from_tir_ty(pat_ty);
-
-                let variant_index = self.ctx().tys().borrow(test_adt).as_adt().map(|adt| {
+                let variant_index = test_adt.borrow().as_adt().map(|adt| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {
@@ -371,9 +368,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 Some(index)
             }
             (TestKind::SwitchInt { ty, ref options }, Pat::Range(ref range_pat)) => {
-                let ty = self.ctx().tys().get(*ty);
                 let not_contained =
-                    self.values_not_contained_in_range(range_pat, ty, options).unwrap_or(false);
+                    self.values_not_contained_in_range(range_pat, *ty, options).unwrap_or(false);
 
                 // If no switch values are contained within this range, so that pattern can only
                 // be matched if the test fails.
@@ -535,7 +531,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // Only deal with sub-patterns if they exist on the variant.
         if let Some(sub_pats) = sub_patterns {
-            let consequent_pairs: Vec<_> = self.ctx().adts().map_fast(adt, |adt| {
+            let consequent_pairs: Vec<_> = adt.map(|adt| {
                 let variant = &adt.variants[variant_index];
 
                 sub_pats
@@ -569,16 +565,14 @@ impl<'tcx> BodyBuilder<'tcx> {
         make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
     ) {
         // Build the place from the provided place builder
-        let place = place_builder.clone().into_place(self.ctx());
+        let place = place_builder.clone().into_place();
         let span = test.span;
 
         match test.kind {
             TestKind::Switch { adt, options: ref variants } => {
                 let target_blocks = make_target_blocks(self);
-                let (variant_count, discriminant_ty) = self
-                    .ctx()
-                    .adts()
-                    .map_fast(adt, |adt| (adt.variants.len(), adt.discriminant_ty()));
+                let (variant_count, discriminant_ty) =
+                    adt.map(|adt| (adt.variants.len(), adt.discriminant_ty()));
 
                 // Assert that the number of variants is the same as the number of
                 // target blocks.
@@ -590,7 +584,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // specified discriminants of the ADT.
                 let discriminant_ty = discriminant_ty.to_ir_ty(self.ctx());
                 let targets = SwitchTargets::new(
-                    self.ctx().adts().map_fast(adt, |adt| {
+                    adt.map(|adt| {
                         // Map over all of the discriminants of the ADT, and filter out those that
                         // are not in the `options` set.
                         adt.discriminants().filter_map(|(var_idx, discriminant)| {
@@ -847,11 +841,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 true
             }
             Pat::Range(ref pat) => {
-                let ty_id = self.ty_id_from_tir_pat(match_pair.pat);
-                let ty = self.ctx().tys().get(ty_id);
-
                 // Check if there is at least one value that is not
                 // contained within the range.
+                let ty = self.ty_id_from_tir_pat(match_pair.pat);
                 self.values_not_contained_in_range(pat, ty, options).unwrap_or(false)
             }
 
@@ -880,7 +872,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn values_not_contained_in_range(
         &mut self,
         pat: &RangePat,
-        ty: IrTy,
+        ty: IrTyId,
         options: &IndexMap<Const, u128>,
     ) -> Option<bool> {
         let const_range = ConstRange::from_range(pat, ty, self);

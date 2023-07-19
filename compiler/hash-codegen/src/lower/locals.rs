@@ -12,7 +12,7 @@ use hash_ir::{
     visitor::{ImmutablePlaceContext, IrVisitorMut, MutablePlaceContext, PlaceContext},
 };
 use hash_layout::TyInfo;
-use hash_storage::store::{SequenceStore, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
@@ -242,10 +242,6 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
             return;
         }
 
-        // we want to check if any of the projections affect the
-        // base local, if so then we need to check it as a local...
-        let projections = self.fn_builder.ctx.ir_ctx().projections().get_vec(place.projections);
-
         let mut base_ctx = if ctx.is_mutating() {
             PlaceContext::Mutable(MutablePlaceContext::Projection)
         } else {
@@ -258,7 +254,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         let mut index_locals = vec![];
 
         // loop over the projections in reverse order
-        for projection in projections.iter().rev() {
+        for projection in place.projections.borrow().iter().rev() {
             // @@Todo: if the projection yields a ZST, then we can
             // also short-circuit here.
 

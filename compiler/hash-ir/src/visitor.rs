@@ -282,7 +282,7 @@ pub trait IrVisitorMut<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_mut {
-    use hash_storage::store::SequenceStore;
+    use hash_storage::store::statics::StoreId;
 
     use super::{IrVisitorMut, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -558,11 +558,9 @@ pub mod walk_mut {
     ) {
         visitor.visit_local(place.local, ctx, reference);
 
-        visitor.ctx().projections().map_fast(place.projections, |projection| {
-            for projection in projection.iter() {
-                visitor.visit_projection(projection, ctx, reference)
-            }
-        })
+        for projection in place.projections.borrow().iter() {
+            visitor.visit_projection(projection, ctx, reference)
+        }
     }
 
     pub fn walk_projection<'ir, V: IrVisitorMut<'ir>>(
@@ -756,7 +754,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_modifying {
-    use hash_storage::store::SequenceStoreCopy;
+    use hash_storage::store::statics::StoreId;
 
     use super::{ModifyingIrVisitor, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -1043,8 +1041,8 @@ pub mod walk_modifying {
     ) {
         visitor.visit_local(&mut place.local, ctx, reference);
 
-        visitor.store().projections().modify_copied(place.projections, |projection| {
-            for projection in projection.iter_mut() {
+        place.projections.modify(|projections| {
+            for projection in projections.iter_mut() {
                 visitor.visit_projection(projection, ctx, reference)
             }
         })

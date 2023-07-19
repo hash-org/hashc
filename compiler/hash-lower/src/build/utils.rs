@@ -12,7 +12,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_source::{constant::CONSTANT_MAP, location::Span};
-use hash_storage::store::{SequenceStore, Store};
+use hash_storage::store::{statics::StoreId, SequenceStore};
 use hash_tir::{
     data::DataTy,
     environment::env::AccessToEnv,
@@ -114,13 +114,12 @@ impl<'tcx> BodyBuilder<'tcx> {
         ptr: Operand,
         metadata: usize,
     ) -> RValue {
-        let id = self.ctx().tys().borrow(ty).as_adt();
-
+        let adt = ty.borrow().as_adt();
         let ptr_width = self.settings.target().ptr_size();
         let metadata =
             Operand::Const(Const::Int(CONSTANT_MAP.create_usize_int(metadata, ptr_width)).into());
 
-        RValue::Aggregate(AggregateKind::Struct(id), vec![ptr, metadata])
+        RValue::Aggregate(AggregateKind::Struct(adt), vec![ptr, metadata])
     }
 
     /// Function to create a new [Place] that is used to ignore
@@ -133,7 +132,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     LocalDecl::new_auxiliary(self.ctx().common_tys.unit, Mutability::Immutable);
                 let local_id = self.declarations.push(local);
 
-                let place = Place::from_local(local_id, self.ctx());
+                let place = Place::from_local(local_id);
                 self.tmp_place = Some(place);
                 place
             }

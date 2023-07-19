@@ -24,9 +24,9 @@
 //! which prevent the function function from being "mangled", then
 //! we have to avoid mangling the symbol name.
 
-use hash_ir::{ty::InstanceId, IrCtx};
+use hash_ir::ty::InstanceId;
 use hash_source::{identifier::IDENTS, InteractiveId, ModuleId};
-use hash_storage::store::{Store, StoreKey};
+use hash_storage::store::{statics::StoreId, StoreKey};
 
 use super::{push_string_encoded_count, ALPHANUMERIC_BASE};
 
@@ -61,13 +61,13 @@ impl Mangler {
 /// ```text
 /// <module_id>::<function_name>(is_generic? instance-id)
 /// ```
-pub fn compute_symbol_name(ctx: &IrCtx, instance_id: InstanceId) -> String {
+pub fn compute_symbol_name(instance_id: InstanceId) -> String {
     // @@Todo: allow for certain symbol names to be exported
     // without mangling. This is useful for debugging purposes.
 
     let m = &mut Mangler { out: String::new() };
 
-    ctx.instances().map_fast(instance_id, |instance| {
+    instance_id.map(|instance| {
         if !instance.attributes.contains(IDENTS.no_mangle)
             && !instance.attributes.contains(IDENTS.foreign)
         {

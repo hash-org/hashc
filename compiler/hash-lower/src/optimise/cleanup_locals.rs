@@ -17,6 +17,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
+use hash_storage::store::statics::StoreId;
 use hash_utils::index_vec::{index_vec, IndexVec};
 
 use super::IrOptimisationPass;
@@ -215,13 +216,11 @@ impl<'ir> IrVisitorMut<'ir> for LocalUseMap<'ir> {
     /// assignment fully, and only check the projections of the [Place] in case
     /// it is referenced within a [PlaceProjection::Index].
     fn visit_assign_statement(&mut self, place: &Place, value: &RValue, reference: IrRef) {
-        self.ctx().map_place(*place, |_, projections| {
-            for projection in projections {
-                if let PlaceProjection::Index(index_local) = projection {
-                    self.update_count_for(*index_local);
-                }
+        for projection in place.projections.borrow().iter() {
+            if let PlaceProjection::Index(index_local) = projection {
+                self.update_count_for(*index_local);
             }
-        });
+        }
 
         // @@Safety: currently it is safe to remove all variants of an RValue, however
         // if we add more rvalues (specifically casts), then we might need to be

@@ -29,7 +29,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
             return *fn_val;
         }
 
-        let name = compute_symbol_name(self.ir_ctx, instance);
+        let name = compute_symbol_name(instance);
         let abis = self.cg_ctx().abis();
         let fn_abi = abis.create_fn_abi(self, instance);
 

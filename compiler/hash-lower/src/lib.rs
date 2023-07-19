@@ -19,7 +19,6 @@ use build::BodyBuilder;
 use ctx::BuilderCtx;
 use discover::FnDiscoverer;
 use hash_ir::{
-    ty::IrTy,
     write::{graphviz, pretty},
     IrStorage,
 };
@@ -38,7 +37,7 @@ use hash_semantics::SemanticStorage;
 use hash_source::{identifier::IDENTS, location::SourceLocation, SourceId};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    CloneStore, PartialStore,
+    PartialStore,
 };
 use hash_tir::{
     args::Arg,
@@ -168,10 +167,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
                 // This is the entry point, so we need to record that this
                 // is the entry point.
                 if let Some(def) = entry_point.def() && def == *func {
-                    let IrTy::FnDef { instance } = ir_storage.ctx.tys().get(body.info.ty()) else {
-                        panic!("entry point `{name}` is not a function definition");
-                    };
-
+                    let instance = body.info.ty().borrow().as_instance();
                     ir_storage.entry_point.set(instance, entry_point.kind().unwrap());
                 }
 
@@ -297,7 +293,6 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     fn cleanup(&mut self, _entry_point: SourceId, ctx: &mut Ctx) {
         let LoweringCtx { workspace, ir_storage, mut stdout, settings, .. } = ctx.data();
         let source_map = &mut workspace.source_map;
-        let bcx = &ir_storage.ctx;
 
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
@@ -305,11 +300,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
         let quiet_prelude = settings.prelude_is_quiet;
 
         if settings.lowering_settings.dump_mode == IrDumpMode::Graph {
-            graphviz::dump_ir_bodies(bcx, &ir_storage.bodies, dump, quiet_prelude, &mut stdout)
-                .unwrap();
+            graphviz::dump_ir_bodies(&ir_storage.bodies, dump, quiet_prelude, &mut stdout).unwrap();
         } else {
             pretty::dump_ir_bodies(
-                bcx,
                 source_map,
                 &ir_storage.bodies,
                 dump,

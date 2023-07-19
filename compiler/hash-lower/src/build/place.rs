@@ -1,11 +1,10 @@
 //! Utilities for dealing with [Place]s when building up Hash IR.
 
 use hash_ir::{
-    ir::{BasicBlock, Local, Place, PlaceProjection},
+    ir::{BasicBlock, Local, Place, PlaceProjection, ProjectionId},
     ty::{IrTyId, Mutability, VariantIdx},
-    IrCtx,
 };
-use hash_storage::store::{statics::StoreId, SequenceStore, Store};
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     access::AccessTerm,
     arrays::IndexTerm,
@@ -71,11 +70,8 @@ impl PlaceBuilder {
     }
 
     /// Build the [Place] from the [PlaceBuilder].
-    pub(crate) fn into_place(self, ctx: &IrCtx) -> Place {
-        Place {
-            local: self.base,
-            projections: ctx.projections().create_from_iter_fast(self.projections),
-        }
+    pub(crate) fn into_place(self) -> Place {
+        Place { local: self.base, projections: ProjectionId::seq(self.projections) }
     }
 }
 
@@ -93,7 +89,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Place> {
         let place_builder = unpack!(block = self.as_place_builder(block, term, mutability));
-        block.and(place_builder.into_place(self.ctx()))
+        block.and(place_builder.into_place())
     }
 
     pub(crate) fn as_place_builder(
@@ -176,8 +172,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// using a [ParamIndex]. This function assumes that the underlying type
     /// is a [IrTy::Adt].
     fn lookup_field_index(&mut self, ty: IrTyId, field: ParamIndex) -> usize {
-        let adt = self.ctx().tys().borrow(ty).as_adt();
-        adt.map(|adt| {
+        ty.borrow().as_adt().map(|adt| {
             // @@Todo: deal with unions here.
             if adt.flags.is_struct() || adt.flags.is_tuple() {
                 // So we get the first variant of the ADT since structs, tuples always

@@ -253,7 +253,7 @@ pub enum IrTy {
 
 impl IrTy {
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
-    pub fn tuple(tys: &[IrTyId]) -> Self {
+    pub fn tuple(tys: &[IrTyId]) -> IrTyId {
         let variants = index_vec![AdtVariant {
             name: 0usize.into(),
             fields: tys
@@ -264,12 +264,13 @@ impl IrTy {
                 .collect(),
         }];
         let adt = Adt::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-        Self::Adt(Adt::create(adt))
+        let ty = Self::Adt(Adt::create(adt));
+        IrTy::create(ty)
     }
 
     /// Create a reference type to the provided [IrTy].
-    pub fn make_ref(ty: IrTy, ctx: &IrCtx) -> Self {
-        Self::Ref(ctx.tys().create(ty), Mutability::Immutable, RefKind::Normal)
+    pub fn make_ref(ty: IrTy, mutability: Mutability, kind: RefKind) -> IrTyId {
+        Self::create(Self::Ref(Self::create(ty), mutability, kind))
     }
 
     /// Check if a type is a reference type.
@@ -437,10 +438,10 @@ impl IrTy {
     /// Attempt to compute the type of an element from an [`IrTy::Slice`] or
     /// [`IrTy::Array`]. If the type is not a slice or array, then `None` is
     /// returned.
-    pub fn element_ty(&self, ctx: &IrCtx) -> Option<IrTyId> {
+    pub fn element_ty(&self) -> Option<IrTyId> {
         match self {
             IrTy::Slice(ty) | IrTy::Array { ty, .. } => Some(*ty),
-            IrTy::Ref(ty, _, _) => ctx.tys().map_fast(*ty, |ty| ty.element_ty(ctx)),
+            IrTy::Ref(ty, _, _) => ty.borrow().element_ty(),
             _ => None,
         }
     }
@@ -673,21 +674,23 @@ impl PlaceTy {
     }
 
     /// Apply a projection to the current [PlaceTy].
-    fn apply_projection(self, ctx: &IrCtx, projection: PlaceProjection) -> Self {
+    fn apply_projection(self, projection: PlaceProjection) -> Self {
         match projection {
             PlaceProjection::Downcast(index) => PlaceTy { ty: self.ty, index: Some(index) },
             PlaceProjection::Field(index) => {
-                let ty = ctx
-                    .tys()
-                    .map_fast(self.ty, |ty| ty.on_field_access(index, self.index))
+                let ty = self
+                    .ty
+                    .borrow()
+                    .on_field_access(index, self.index)
                     .unwrap_or_else(|| panic!("expected an ADT, got {self:?}"));
 
                 PlaceTy { ty, index: None }
             }
             PlaceProjection::Deref => {
-                let ty = ctx
-                    .tys()
-                    .map_fast(self.ty, |ty| ty.on_deref())
+                let ty = self
+                    .ty
+                    .borrow()
+                    .on_deref()
                     .unwrap_or_else(|| panic!("expected a reference, got {self:?}"));
 
                 PlaceTy { ty, index: None }
@@ -704,10 +707,10 @@ impl PlaceTy {
                 let ty = self.ty.map(|base| match base {
                     IrTy::Slice(_) => self.ty,
                     IrTy::Array { ty, .. } if !from_end => {
-                        ctx.tys().create(IrTy::Array { ty: *ty, length: to - from })
+                        IrTy::create(IrTy::Array { ty: *ty, length: to - from })
                     }
                     IrTy::Array { ty, length: size } if from_end => {
-                        ctx.tys().create(IrTy::Array { ty: *ty, length: size - from - to })
+                        IrTy::create(IrTy::Array { ty: *ty, length: size - from - to })
                     }
                     _ => panic!("expected an array or slice, got {self:?}"),
                 });
@@ -719,21 +722,19 @@ impl PlaceTy {
 
     /// Apply a projection on [PlaceTy] and convert it into
     /// the underlying type.
-    pub fn projection_ty(self, ctx: &IrCtx, projection: PlaceProjection) -> IrTyId {
-        let projected_place = self.apply_projection(ctx, projection);
+    pub fn projection_ty(self, projection: PlaceProjection) -> IrTyId {
+        let projected_place = self.apply_projection(projection);
         projected_place.ty
     }
 
     /// Create a [PlaceTy] from a [Place].
-    pub fn from_place(place: Place, locals: &LocalDecls, ctx: &IrCtx) -> Self {
+    pub fn from_place(place: Place, locals: &LocalDecls) -> Self {
         // get the type of the local from the body.
         let mut base = PlaceTy { ty: locals[place.local].ty, index: None };
 
-        ctx.projections().map_fast(place.projections, |projections| {
-            for projection in projections {
-                base = base.apply_projection(ctx, *projection);
-            }
-        });
+        for projection in place.projections.borrow().iter() {
+            base = base.apply_projection(*projection);
+        }
 
         base
     }

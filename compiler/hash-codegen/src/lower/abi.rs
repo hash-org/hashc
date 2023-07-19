@@ -6,7 +6,7 @@ use hash_abi::{
 };
 use hash_ir::ty::{Instance, InstanceId, IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::LayoutError;
-use hash_storage::store::{statics::StoreId, CloneStore};
+use hash_storage::store::statics::StoreId;
 use hash_target::abi::{Scalar, ScalarKind};
 
 use crate::traits::{layout::LayoutMethods, HasCtxMethods};
@@ -83,7 +83,7 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     ctx: &Ctx,
     instance: InstanceId,
 ) -> Result<FnAbi, FnAbiError> {
-    let Instance { params, ret_ty, abi, .. } = ctx.ir_ctx().instances().get(instance);
+    let Instance { params, ret_ty, abi, .. } = instance.value();
 
     // map the ABI to a calling convention whilst making any adjustments according
     // to the target.

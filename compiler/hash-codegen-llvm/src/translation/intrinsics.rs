@@ -8,9 +8,9 @@ use hash_codegen::{
         intrinsics::IntrinsicBuilderMethods, ty::TypeBuilderMethods, BackendTypes,
     },
 };
-use hash_ir::ty::{IrTy, IrTyId};
+use hash_ir::ty::IrTyId;
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_storage::store::{statics::StoreId, CloneStore};
+use hash_storage::store::statics::StoreId;
 use inkwell::values::{AnyValueEnum, UnnamedAddress};
 
 use super::LLVMBuilder;
@@ -317,11 +317,7 @@ impl<'b, 'm> IntrinsicBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
         //
         // However, since we haven't formally defined any "special" intrinsics yet, we
         // don't expect for the resolution to fail.
-
-        let IrTy::FnDef { instance, .. } = self.ir_ctx.tys().get(ty) else {
-            panic!("unable to resolve intrinsic function type");
-        };
-        let name = instance.borrow().name();
+        let name = ty.borrow().as_instance().borrow().name();
         let result_ref = PlaceRef::new(self, result, fn_abi.ret_abi.info);
 
         // if we can simply resolve the intrinsic then we can just call it directly...

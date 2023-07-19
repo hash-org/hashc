@@ -300,10 +300,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     return OperandRef { value, info: cast_ty };
                 }
 
-                let in_cast_ty = CastTy::from_ty(self.ctx.ir_ctx(), operand.info.ty)
-                    .expect("expected cast-able type for cast");
-                let out_cast_ty = CastTy::from_ty(self.ctx.ir_ctx(), cast_ty.ty)
-                    .expect("expected cast-able type for cast");
+                let in_cast_ty =
+                    CastTy::from_ty(operand.info.ty).expect("expected cast-able type for cast");
+                let out_cast_ty =
+                    CastTy::from_ty(cast_ty.ty).expect("expected cast-able type for cast");
 
                 let in_ty = builder.immediate_backend_ty(operand.info);
                 let value = operand.immediate_value();

@@ -676,8 +676,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // to avoid problems of mutation in the if-guard, and then affecting the
         // soundness of later match checks.
         for binding in bindings {
-            let value_place =
-                Place::from_local(self.lookup_local(binding.name).unwrap(), self.ctx());
+            let value_place = Place::from_local(self.lookup_local(binding.name).unwrap());
 
             // @@Todo: we might have to do some special rules for the `by-ref` case
             //         when we start to think about reference rules more concretely.
@@ -708,8 +707,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             // Now resolve where the binding place from, and then push
             // an assign onto the binding source.
-            let value_place =
-                Place::from_local(self.lookup_local(binding.name).unwrap(), self.ctx());
+            let value_place = Place::from_local(self.lookup_local(binding.name).unwrap());
 
             self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
         }

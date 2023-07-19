@@ -3,7 +3,7 @@
 
 use hash_ir::ir;
 use hash_layout::TyInfo;
-use hash_storage::store::{statics::StoreId, SequenceStore};
+use hash_storage::store::statics::StoreId;
 use hash_target::{abi::AbiRepresentation, alignment::Alignment};
 
 use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
@@ -11,7 +11,7 @@ use crate::{
     common::MemFlags,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
-        ty::TypeBuilderMethods, CodeGenObject, Codegen, HasCtxMethods,
+        ty::TypeBuilderMethods, CodeGenObject, Codegen,
     },
 };
 
@@ -371,30 +371,28 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) -> Option<OperandRef<Builder::Value>> {
         match self.locals[place.local] {
             LocalRef::Operand(Some(mut operand)) => {
-                self.ctx.ir_ctx().projections().map_fast(place.projections, |projections| {
-                    for projection in projections {
-                        match *projection {
-                            ir::PlaceProjection::Field(index) => {
-                                operand = operand.extract_field(builder, index);
-                            }
-                            ir::PlaceProjection::Index(_)
-                            | ir::PlaceProjection::ConstantIndex { .. } => {
-                                let element_info = operand.info.field(builder.layout_computer(), 0);
-                                let is_zst = builder
-                                    .map_layout(element_info.layout, |layout| layout.is_zst());
-
-                                if is_zst {
-                                    operand = OperandRef::new_zst(builder, element_info)
-                                } else {
-                                    return None;
-                                }
-                            }
-                            _ => return None,
+                for projection in place.projections.borrow().iter() {
+                    match *projection {
+                        ir::PlaceProjection::Field(index) => {
+                            operand = operand.extract_field(builder, index);
                         }
-                    }
+                        ir::PlaceProjection::Index(_)
+                        | ir::PlaceProjection::ConstantIndex { .. } => {
+                            let element_info = operand.info.field(builder.layout_computer(), 0);
+                            let is_zst =
+                                builder.map_layout(element_info.layout, |layout| layout.is_zst());
 
-                    Some(operand)
-                })
+                            if is_zst {
+                                operand = OperandRef::new_zst(builder, element_info)
+                            } else {
+                                return None;
+                            }
+                        }
+                        _ => return None,
+                    }
+                }
+
+                Some(operand)
             }
             LocalRef::Operand(None) => {
                 panic!("use of operand before definition")
