@@ -8,7 +8,7 @@ use std::{
 
 use derive_more::From;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey};
-use hash_utils::itertools::Itertools;
+use hash_utils::{fxhash::FxBuildHasher, itertools::Itertools};
 use indexmap::IndexMap;
 
 use crate::{
@@ -69,13 +69,13 @@ pub struct Scope {
     /// The kind of the scope.
     pub kind: ScopeKind,
     /// The bindings of the scope
-    pub decls: RefCell<IndexMap<Symbol, Decl>>,
+    pub decls: RefCell<IndexMap<Symbol, Decl, FxBuildHasher>>,
 }
 
 impl Scope {
     /// Create a new scope with the given kind.
     pub fn with_empty_members(kind: ScopeKind) -> Self {
-        Self { kind, decls: RefCell::new(IndexMap::new()) }
+        Self { kind, decls: RefCell::new(IndexMap::default()) }
     }
 
     /// Add a binding to the scope.
