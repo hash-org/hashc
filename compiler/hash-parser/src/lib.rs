@@ -11,7 +11,7 @@ use std::{env, path::PathBuf};
 
 use crossbeam_channel::{unbounded, Sender};
 use hash_ast::{
-    ast::{self},
+    ast::{self, AstUtils},
     node_map::ModuleEntry,
 };
 use hash_lexer::Lexer;
@@ -63,6 +63,9 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
     ) -> hash_pipeline::interface::CompilerResult<()> {
         let ParserCtx { workspace, pool } = &mut ctx.data();
         let current_dir = env::current_dir().map_err(|err| vec![err.into()])?;
+
+        // Initialise the map if it hasn't been initialised yet.
+        AstUtils::span_map();
 
         let mut collected_diagnostics = Vec::new();
         let (sender, receiver) = unbounded::<ParserAction>();
