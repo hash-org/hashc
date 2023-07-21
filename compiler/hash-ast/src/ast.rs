@@ -5,7 +5,6 @@ use std::{
     hash::Hash,
     ops::{Deref, DerefMut},
     path::PathBuf,
-    sync::OnceLock,
 };
 
 use hash_source::{
@@ -17,8 +16,10 @@ use hash_tree_def::define_tree;
 use hash_utils::{
     counter,
     index_vec::{Idx, IndexVec},
+    parking_lot::RwLock,
     smallvec::SmallVec,
 };
+use once_cell::sync::Lazy;
 use replace_with::replace_with_or_abort;
 
 counter! {
@@ -43,27 +44,28 @@ impl Idx for AstNodeId {
 /// [`AstNode<T>`] itself in order for other data structures to be able
 /// to query the [Span] of a node simply by using the [AstNodeId] of the
 /// node.
-static mut SPAN_MAP: OnceLock<IndexVec<AstNodeId, Span>> = OnceLock::new();
+static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, Span>>> =
+    Lazy::new(|| RwLock::new(IndexVec::new()));
 
 /// Utilities for working with the [`SPAN_MAP`].
-pub struct AstUtils;
+pub struct SpanMap;
 
-impl AstUtils {
-    /// Get the span of a node by [AstNodId].
+impl SpanMap {
+    /// Get the span of a node by [AstNodeId].
     pub fn span_of(id: AstNodeId) -> Span {
-        Self::span_map()[id]
+        SPAN_MAP.read()[id]
     }
 
-    /// Get a reference to the [`SPAN_MAP`].
-    pub fn span_map() -> &'static IndexVec<AstNodeId, Span> {
-        unsafe { SPAN_MAP.get_or_init(IndexVec::new) }
-    }
-
-    /// Get a mutable reference to the [`SPAN_MAP`]. This is only 
+    /// Get a mutable reference to the [`SPAN_MAP`]. This is only
     /// internal to the `hash-ast` crate since it creates entries
     /// in the span map when creating new AST nodes.
-    fn span_map_mut() -> &'static mut IndexVec<AstNodeId, Span> {
-        unsafe { SPAN_MAP.get_mut().unwrap() }
+    fn add_span(span: Span) -> AstNodeId {
+        SPAN_MAP.write().push(span)
+    }
+
+    /// Update the span of a node by [AstNodeId].
+    fn update_span(id: AstNodeId, span: Span) {
+        SPAN_MAP.write()[id] = span;
     }
 }
 
@@ -87,7 +89,7 @@ impl<T> PartialEq for AstNode<T> {
 impl<T> AstNode<T> {
     /// Create a new node with a given body and location.
     pub fn new(body: T, span: Span) -> Self {
-        let id = AstUtils::span_map_mut().push(span);
+        let id = SpanMap::add_span(span);
         Self { body: Box::new(body), id }
     }
 
@@ -108,12 +110,12 @@ impl<T> AstNode<T> {
 
     /// Get the [Span] of this [AstNode].
     pub fn span(&self) -> Span {
-        AstUtils::span_map()[self.id]
+        SpanMap::span_of(self.id)
     }
 
     /// Set the [Span] of this [AstNode].
     pub fn set_span(&mut self, span: Span) {
-        AstUtils::span_map_mut()[self.id] = span;
+        SpanMap::update_span(self.id, span)
     }
 
     /// Get the [AstNodeId] of this node.
@@ -175,7 +177,7 @@ impl<'t, T> AstNodeRef<'t, T> {
 
     /// Get the [Span] of this [AstNodeRef].
     pub fn span(&self) -> Span {
-        AstUtils::span_map()[self.id]
+        SpanMap::span_of(self.id)
     }
 
     /// Get the [AstNodeId] of this [AstNodeRef].
@@ -225,7 +227,7 @@ impl<'t, T> AstNodeRefMut<'t, T> {
 
     /// Get the [Span] of this [AstNodeRefMut].
     pub fn span(&self) -> Span {
-        AstUtils::span_map()[self.id]
+        SpanMap::span_of(self.id)
     }
 
     /// Get the [AstNodeId] of this [AstNodeRefMut].

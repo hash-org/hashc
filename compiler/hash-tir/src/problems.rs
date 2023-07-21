@@ -1,4 +1,4 @@
-use parking_lot::RwLock;
+use hash_utils::parking_lot::RwLock;
 
 use crate::context::Context;
 
