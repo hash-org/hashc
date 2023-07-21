@@ -730,7 +730,6 @@ dependencies = [
 name = "hash-semantics"
 version = "0.1.0"
 dependencies = [
- "bimap",
  "bitflags 2.0.0-rc.1",
  "dashmap",
  "derive_more",
@@ -841,7 +840,6 @@ dependencies = [
 name = "hash-tir"
 version = "0.1.0"
 dependencies = [
- "bimap",
  "derive_more",
  "hash-ast",
  "hash-source",
@@ -879,7 +877,6 @@ dependencies = [
 name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
- "bimap",
  "dashmap",
  "derive_more",
  "hash-ast",
