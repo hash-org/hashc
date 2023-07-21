@@ -169,7 +169,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         span: Span,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
-        let mut elements = AstNodes::empty();
+        let mut elements = AstNodes::empty(span);
 
         while gen.has_token() {
             let expr = gen.parse_expr_with_precedence(0)?;

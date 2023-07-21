@@ -36,7 +36,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// next token is a brace tree.
     pub(crate) fn parse_body_block_inner(&mut self) -> BodyBlock {
         // Append the initial statement if there is one.
-        let mut block = BodyBlock { statements: AstNodes::empty(), expr: None };
+        let start = self.current_location();
+        let mut block = BodyBlock { statements: AstNodes::empty(self.span()), expr: None };
 
         // Just return an empty block if we don't get anything
         if !self.has_token() {
@@ -46,6 +47,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // firstly check if the first token signals a beginning of a statement, we can
         // tell this by checking for keywords that must begin a statement...
         while self.has_token() {
+            let next_location = self.current_location();
+
             let (semi, expr) = match self.parse_top_level_expr() {
                 Ok(Some(res)) => res,
                 Ok(_) => continue,
@@ -59,6 +62,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             if semi || self.peek().is_some() {
                 block.statements.nodes.push(expr)
             } else {
+                // update the `statements` span to reflect the true span of the statements
+                // that were parsed
+                block.statements.set_span(start.join(next_location));
                 block.expr = Some(expr)
             }
         }
@@ -138,10 +144,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let mut clauses = vec![];
         let mut otherwise_clause = None;
+        let mut if_span = self.current_location();
 
         while self.has_token() {
-            let if_span = self.current_location();
-
+            if_span = self.current_location();
             let condition = self.parse_expr_with_precedence(0)?;
             let body = self.parse_block()?;
 
@@ -173,7 +179,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         Ok(self.node_with_joined_span(
             Block::If(IfBlock {
-                clauses: AstNodes::new(clauses, None),
+                clauses: AstNodes::new(clauses, start.join(if_span)),
                 otherwise: otherwise_clause,
             }),
             start,

@@ -171,6 +171,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
+    /// Get the [Span] of the current generator, this asserts that a parent
+    /// [Span] is present.
+    pub(crate) fn span(&self) -> Span {
+        self.parent_span.unwrap()
+    }
+
     /// Function to create a [SourceLocation] from a [Span] by using the
     /// provided resolver
     pub(crate) fn source_location(&self, span: &Span) -> SourceLocation {
@@ -459,7 +465,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        AstNodes::new(args, Some(start.join(self.current_location())))
+        AstNodes::new(args, start.join(self.current_location()))
     }
 
     /// This function behaves identically to [parse_separated_fn] except that it
@@ -528,7 +534,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        AstNodes::new(args, Some(start.join(self.current_location())))
+        AstNodes::new(args, start.join(self.current_location()))
     }
 
     /// Function to parse the next [Token] with the specified [TokenKind].
@@ -608,7 +614,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         let span = start.join(self.current_location());
-        self.node_with_span(Module { contents: AstNodes::new(contents, Some(span)) }, span)
+        self.node_with_span(Module { contents: AstNodes::new(contents, span) }, span)
     }
 
     /// This function is used to exclusively parse a interactive block which

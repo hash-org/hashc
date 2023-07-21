@@ -190,7 +190,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }, span);
 
                     Ty::Fn(FnTy {
-                        params: ast_nodes![ty_arg],
+                        params: ast_nodes![ty_arg; span],
                         return_ty,
                     })
                 }
@@ -270,8 +270,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         // Update the location of the type bound to reflect the '<' and '>' tokens...
-        // type_args.set_span(start.join(self.current_location()));
-        Ok(AstNodes::new(ty_args, Some(start.join(self.current_location()))))
+        Ok(AstNodes::new(ty_args, start.join(self.current_location())))
     }
 
     /// Parses a [Ty::Fn] which involves a parenthesis token tree with some
@@ -279,10 +278,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// [Ty] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
     fn parse_fn_or_tuple_ty(&mut self) -> ParseResult<Ty> {
-        let mut params = AstNodes::empty();
-
         let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-        params.span = gen.parent_span;
+        let mut params = AstNodes::empty(gen.span());
 
         match gen.peek() {
             // Handle special case where there is only one comma and no following items...
@@ -406,6 +403,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_thin_arrow()?;
         let return_ty = self.parse_ty()?;
 
-        Ok(Ty::TyFn(TyFn { params: AstNodes::new(args, Some(arg_span)), return_ty }))
+        Ok(Ty::TyFn(TyFn { params: AstNodes::new(args, arg_span), return_ty }))
     }
 }

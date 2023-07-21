@@ -1,6 +1,6 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use hash_ast::{ast::*, ast_nodes, origin::PatOrigin};
+use hash_ast::{ast::*, origin::PatOrigin};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
@@ -22,7 +22,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Parse the first pattern, but throw away the location information since that
         // will be computed at the end anyway...
-        let mut variants = ast_nodes![];
+        let mut variants = AstNodes::empty(start);
 
         while self.has_token() {
             let pat = self.parse_pat_with_if()?;
@@ -321,7 +321,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
         self.consume_gen(gen);
 
-        Ok(ModulePat { fields: AstNodes::new(fields, Some(span)) })
+        Ok(ModulePat { fields: AstNodes::new(fields, span) })
     }
 
     /// Parse a [`Pat::Array`] pattern from the token vector. An array pattern
@@ -373,7 +373,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if let Some(token) = tree.get(0) {
             if token.has_kind(TokenKind::Comma) {
                 return Ok(self.node_with_span(
-                    Pat::Tuple(TuplePat { fields: AstNodes::empty(), spread: None }),
+                    Pat::Tuple(TuplePat { fields: AstNodes::empty(parent_span), spread: None }),
                     parent_span,
                 ));
             }

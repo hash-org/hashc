@@ -69,8 +69,8 @@ impl AstPathComponent<'_> {
     /// Get the span of this path component.
     pub fn span(&self) -> Span {
         let span = self.name_span;
-        if let Some(last_arg) = self.args.last() && let Some(arg_span) = last_arg.span() {
-            span.join(arg_span)
+        if let Some(last_arg) = self.args.last() {
+            span.join(last_arg.span())
         } else {
             span
         }
@@ -221,9 +221,8 @@ impl<'tc> ResolutionPass<'tc> {
                                 }
                                 [first, second, _rest @ ..] => {
                                     return Err(SemanticError::UnexpectedArguments {
-                                        location: self.source_location(
-                                            first.span().unwrap().join(second.span().unwrap()),
-                                        ),
+                                        location: self
+                                            .source_location(first.span().join(second.span())),
                                     });
                                 }
                             };
@@ -299,7 +298,7 @@ impl<'tc> ResolutionPass<'tc> {
                     [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
                     [_first, second, _rest @ ..] => {
                         return Err(SemanticError::UnexpectedArguments {
-                            location: self.source_location(second.span().unwrap()),
+                            location: self.source_location(second.span()),
                         });
                     }
                 };

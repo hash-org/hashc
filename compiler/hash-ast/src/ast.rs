@@ -273,27 +273,30 @@ pub trait OwnsAstNode<T> {
 pub struct AstNodes<T> {
     /// The nodes that the [AstNodes] holds.
     pub nodes: Vec<AstNode<T>>,
-    /// The span of the AST nodes if one is available.
-    pub span: Option<Span>,
+
+    /// The id that is used to refer to the span of the [AstNodes].
+    id: AstNodeId,
 }
 
 #[macro_export]
 macro_rules! ast_nodes {
-    ($($item:expr),*) => {
-        $crate::ast::AstNodes::new(vec![$($item,)*], None)
+    ($($item:expr),*; $span:expr) => {
+        $crate::ast::AstNodes::new(vec![$($item,)*], $span)
     };
-    ($($item:expr,)*) => {
-        $crate::ast::AstNodes::new(vec![$($item,)*], None)
+    ($($item:expr,)*; $span:expr) => {
+        $crate::ast::AstNodes::new(vec![$($item,)*], $span)
     };
 }
 
 impl<T> AstNodes<T> {
-    pub fn empty() -> Self {
-        Self { nodes: vec![], span: None }
+    /// Create a new [AstNodes].
+    pub fn empty(span: Span) -> Self {
+        Self::new(vec![], span)
     }
 
-    pub fn new(nodes: Vec<AstNode<T>>, span: Option<Span>) -> Self {
-        Self { nodes, span }
+    pub fn new(nodes: Vec<AstNode<T>>, span: Span) -> Self {
+        let id = SpanMap::add_span(span);
+        Self { nodes, id }
     }
 
     /// Function to adjust the span location of [AstNodes] if it is initially
@@ -301,11 +304,12 @@ impl<T> AstNodes<T> {
     /// be parsed before parsing the nodes. This token could be something like a
     /// '<' or '(' which starts a tuple, or type bound
     pub fn set_span(&mut self, span: Span) {
-        self.span = Some(span);
+        SpanMap::update_span(self.id, span);
     }
 
-    pub fn span(&self) -> Option<Span> {
-        self.span.or_else(|| Some(self.nodes.first()?.span().join(self.nodes.last()?.span())))
+    /// Get the [AstNodeId] of this [AstNodes].
+    pub fn span(&self) -> Span {
+        SpanMap::span_of(self.id)
     }
 
     pub fn ast_ref_iter(&self) -> impl Iterator<Item = AstNodeRef<T>> {
@@ -2033,7 +2037,7 @@ mod size_asserts {
 
     use super::*;
 
-    static_assert_size!(Expr, 88);
+    static_assert_size!(Expr, 72);
     static_assert_size!(Pat, 72);
-    static_assert_size!(Ty, 64);
+    static_assert_size!(Ty, 56);
 }

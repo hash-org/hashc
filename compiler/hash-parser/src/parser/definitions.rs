@@ -58,7 +58,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
-        let mut fields = AstNodes::empty();
+        let mut fields = AstNodes::empty(name_span);
 
         if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
             let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
@@ -66,6 +66,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 |g| g.parse_nominal_def_param(ParamOrigin::EnumVariant),
                 |g| g.parse_token(TokenKind::Comma),
             );
+            fields.set_span(gen.span());
             self.consume_gen(gen);
         }
 
@@ -226,7 +227,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
                 self.parse_ty_params(def_kind)
             }
-            _ => Ok(AstNodes::new(vec![], None)),
+            _ => Ok(AstNodes::empty(self.current_location())),
         }
     }
 
@@ -234,7 +235,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// definitions, and trait definitions.
     fn parse_ty_params(&mut self, def_kind: DefinitionKind) -> ParseResult<AstNodes<Param>> {
         let start_span = self.current_location();
-        let mut params = AstNodes::empty();
+        let mut params = AstNodes::empty(start_span);
 
         // Flag denoting that we were able to parse the ending `>` within the function
         // def arg
@@ -284,7 +285,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if params.is_empty() {
             self.add_warning(ParseWarning::new(
                 WarningKind::UselessTyParams { def_kind },
-                params.span().unwrap(),
+                params.span(),
             ))
         }
 

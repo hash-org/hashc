@@ -40,14 +40,13 @@ pub enum AstArgGroup<'a> {
 
 impl AstArgGroup<'_> {
     /// Get the span of this argument group.
-    pub fn span(&self) -> Option<Span> {
+    pub fn span(&self) -> Span {
         match self {
             AstArgGroup::ExplicitArgs(args) => args.span(),
             AstArgGroup::ImplicitArgs(args) => args.span(),
-            AstArgGroup::ExplicitPatArgs(args, spread) => args
-                .span()
-                .and_then(|args_span| Some(args_span.join(spread.as_ref()?.span())))
-                .or_else(|| Some(spread.as_ref()?.span())),
+            AstArgGroup::ExplicitPatArgs(args, spread) => spread
+                .as_ref()
+                .map_or_else(|| args.span(), |spread| args.span().join(spread.span())),
             AstArgGroup::TupleArgs(args) => args.span(),
         }
     }

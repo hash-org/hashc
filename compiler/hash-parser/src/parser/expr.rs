@@ -521,10 +521,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let subject_span = subject.span();
 
         Ok(self.node_with_joined_span(
-            Expr::ConstructorCall(ConstructorCallExpr {
-                subject,
-                args: AstNodes::new(args, Some(span)),
-            }),
+            Expr::ConstructorCall(ConstructorCallExpr { subject, args: AstNodes::new(args, span) }),
             subject_span,
         ))
     }
@@ -894,7 +891,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             let tuple = gen.node_with_joined_span(
                 Expr::Lit(LitExpr {
                     data: gen.node_with_joined_span(
-                        Lit::Tuple(TupleLit { elements: ast_nodes![] }),
+                        Lit::Tuple(TupleLit { elements: AstNodes::empty(start) }),
                         start,
                     ),
                 }),
@@ -932,7 +929,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             return Ok(expr);
         }
 
-        let mut elements = ast_nodes![entry];
+        let mut elements = ast_nodes![entry; gen.span()];
 
         loop {
             match gen.peek() {
@@ -1037,7 +1034,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        let span = gen.parent_span;
+        let span = gen.span();
         self.consume_gen(gen);
 
         Ok(AstNodes::new(exprs, span))
