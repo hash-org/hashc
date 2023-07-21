@@ -13,12 +13,11 @@
 
 use std::{borrow::Borrow, mem};
 
-use hash_ast::ast;
+use hash_ast::ast::{self, AstNodeId};
 use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
 };
-use hash_source::location::Span;
 use hash_storage::store::statics::StoreId;
 use hash_target::size::Size;
 use hash_tir::{
@@ -47,7 +46,7 @@ use crate::build::{place::PlaceBuilder, BodyBuilder};
 pub(super) struct Candidate {
     /// The span of the `match` arm, for-error reporting
     /// functionality.
-    pub span: Span,
+    pub span: AstNodeId,
 
     /// Whether or not the candidate arm hsa an associated guard,
     pub has_guard: bool,
@@ -93,7 +92,7 @@ pub(super) type Candidates<'tcx> = (MatchCase, Candidate);
 
 impl Candidate {
     /// Create a new [Candidate].
-    pub(super) fn new(span: Span, pat: PatId, place: &PlaceBuilder, has_guard: bool) -> Self {
+    pub(super) fn new(span: AstNodeId, pat: PatId, place: &PlaceBuilder, has_guard: bool) -> Self {
         Self {
             span,
             has_guard,
@@ -146,7 +145,7 @@ pub(super) fn traverse_candidate<C, T, I>(
 #[derive(Debug, Clone)]
 pub(super) struct Binding {
     /// The span of the binding.
-    pub span: Span,
+    pub span: AstNodeId,
 
     /// The source of the binding, where the value is coming from.
     pub source: Place,

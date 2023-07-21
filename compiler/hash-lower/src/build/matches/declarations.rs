@@ -1,12 +1,12 @@
 //! This deals with lowering declarations,assigning them to a [Local],
 //! and later resolving references to the locals with the current [Builder].
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
     ty::{IrTyId, Mutability},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     arrays::ArrayPat,
@@ -46,7 +46,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         decl: &DeclTerm,
-        decl_span: Span,
+        decl_span: AstNodeId,
     ) -> BlockAnd<()> {
         if let Some(value) = &decl.value {
             // First, we declare all of the bindings that are present
@@ -57,7 +57,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             unpack!(block = self.tir_term_into_pat(block, decl.bind_pat, *value));
         } else {
             panic_on_span!(
-                decl_span.into_location(self.source_id),
+                decl_span.span(),
                 self.source_map(),
                 "expected initialisation value, declaration are expected to have values (for now)."
             );
@@ -83,7 +83,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn visit_primary_pattern_bindings(
         &mut self,
         pat: PatId,
-        f: &mut impl FnMut(&mut Self, Mutability, Symbol, Span, IrTyId),
+        f: &mut impl FnMut(&mut Self, Mutability, Symbol, AstNodeId, IrTyId),
     ) {
         let span = self.span_of_pat(pat);
 

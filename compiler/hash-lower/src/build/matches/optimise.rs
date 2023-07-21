@@ -4,11 +4,11 @@
 
 use std::mem;
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     ir::PlaceProjection,
     ty::{IrTy, IrTyId},
 };
-use hash_source::location::Span;
 use hash_storage::store::statics::StoreId;
 use hash_tir::pats::{PatId, Spread};
 use hash_utils::smallvec::SmallVec;
@@ -19,7 +19,7 @@ use crate::build::{place::PlaceBuilder, BodyBuilder};
 impl<'tcx> BodyBuilder<'tcx> {
     /// Attempt to optimise the sub-candidates of a provided [Candidate]. This
     /// only performs a trivial merge, so we avoid generating exponential
-    pub(super) fn merge_sub_candidates(&mut self, candidate: &mut Candidate, span: Span) {
+    pub(super) fn merge_sub_candidates(&mut self, candidate: &mut Candidate, span: AstNodeId) {
         if candidate.sub_candidates.is_empty() {
             return;
         }

@@ -3,6 +3,7 @@
 //! provided mappings between nodes to locations, patterns, and
 //! types.
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     ir::{
         AggregateKind, AssertKind, BasicBlock, Const, Local, LocalDecl, Operand, Place, RValue,
@@ -11,7 +12,7 @@ use hash_ir::{
     ty::{IrTyId, Mutability, COMMON_IR_TYS},
     IrCtx,
 };
-use hash_source::{constant::CONSTANT_MAP, location::Span};
+use hash_source::constant::CONSTANT_MAP;
 use hash_storage::store::{statics::StoreId, SequenceStore};
 use hash_tir::{
     data::DataTy,
@@ -21,14 +22,11 @@ use hash_tir::{
     pats::PatId,
     symbols::Symbol,
     terms::TermId,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::AccessToUtils,
 };
 use hash_utils::log;
 
 use super::BodyBuilder;
-
-// @@Temporary: use this for terms that don't have a location
-const DUMMY_SPAN: Span = Span::new(0, 0);
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Get a reference to a [IrCtx].
@@ -37,26 +35,26 @@ impl<'tcx> BodyBuilder<'tcx> {
     }
 
     /// Get the [Span] of a given [PatId].
-    pub(crate) fn span_of_pat(&self, id: PatId) -> Span {
-        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+    pub(crate) fn span_of_pat(&self, id: PatId) -> AstNodeId {
+        self.stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected pattern `{}` to have a location", id);
-            DUMMY_SPAN
+            AstNodeId(0)
         })
     }
 
     /// Get the [Span] of a [FnDefId].
-    pub(crate) fn span_of_def(&self, id: FnDefId) -> Span {
-        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+    pub(crate) fn span_of_def(&self, id: FnDefId) -> AstNodeId {
+        self.stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected function definition `{}` to have a location", id);
-            DUMMY_SPAN
+            AstNodeId(0)
         })
     }
 
     /// Get the [Span] of a given [TermId].
-    pub(crate) fn span_of_term(&self, id: TermId) -> Span {
-        self.get_location(id).map(|loc| loc.span).unwrap_or_else(|| {
+    pub(crate) fn span_of_term(&self, id: TermId) -> AstNodeId {
+        self.stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected term `{:?}` to have a location", id);
-            DUMMY_SPAN
+            AstNodeId(0)
         })
     }
 
@@ -145,7 +143,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         condition: Operand,
         expected: bool,
         kind: AssertKind,
-        span: Span,
+        span: AstNodeId,
     ) -> BasicBlock {
         let success_block = self.control_flow_graph.start_new_block();
 

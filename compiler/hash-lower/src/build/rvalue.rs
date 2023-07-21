@@ -1,15 +1,13 @@
 //! Module that contains logic for handling and creating [RValue]s from
 //! [Term]s.
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     cast::CastKind,
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
     ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
-use hash_source::{
-    constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP},
-    location::Span,
-};
+use hash_source::constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP};
 use hash_storage::store::statics::StoreId;
 use hash_tir::terms::{Term, TermId};
 
@@ -201,7 +199,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         ty: IrTyId,
-        span: Span,
+        span: AstNodeId,
         op: BinOp,
         lhs: Operand,
         rhs: Operand,

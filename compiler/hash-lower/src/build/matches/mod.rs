@@ -10,12 +10,11 @@ mod test;
 
 use std::mem;
 
-use hash_ast::ast;
+use hash_ast::ast::{self, AstNodeId};
 use hash_ir::{
     ir::{self, BasicBlock, LogicalBinOp, Place, RValue, TerminatorKind},
     ty::{Mutability, RefKind},
 };
-use hash_source::location::Span;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{Context, ScopeKind},
@@ -44,7 +43,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        span: Span,
+        span: AstNodeId,
         subject: TermId,
         arms: MatchCasesId,
         origin: ast::MatchOrigin,
@@ -137,8 +136,8 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn lower_match_tree(
         &mut self,
         block: BasicBlock,
-        subject_span: Span,
-        span: Span,
+        subject_span: AstNodeId,
+        span: AstNodeId,
         candidates: &mut [&mut Candidate],
     ) {
         // This is the basic block that is derived for using when the
@@ -178,7 +177,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn lower_match_arms(
         &mut self,
         destination: Place,
-        subject_span: Span,
+        subject_span: AstNodeId,
         arm_candidates: Vec<Candidates<'tcx>>,
     ) -> BlockAnd<()> {
         // Lower all of the arms...
@@ -221,7 +220,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// This is the main **entry point** of the match-lowering algorithm.
     fn match_candidates(
         &mut self,
-        span: Span,
+        span: AstNodeId,
         block: BasicBlock,
         otherwise: &mut Option<BasicBlock>,
         candidates: &mut [&mut Candidate],
@@ -257,7 +256,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     fn match_simplified_candidates(
         &mut self,
-        span: Span,
+        span: AstNodeId,
         start_block: BasicBlock,
         otherwise_block: &mut Option<BasicBlock>,
         candidates: &mut [&mut Candidate],
@@ -369,7 +368,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// if not then we start building tests for candidates.
     fn test_candidates_with_or(
         &mut self,
-        span: Span,
+        span: AstNodeId,
         candidates: &mut [&mut Candidate],
         block: BasicBlock,
         otherwise_block: &mut Option<BasicBlock>,
@@ -471,7 +470,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// approach, we essentially generate an `if-else-if` chain.
     fn test_candidates(
         &mut self,
-        span: Span,
+        span: AstNodeId,
         mut candidates: &mut [&mut Candidate],
         block: BasicBlock,
         otherwise: &mut Option<BasicBlock>,
@@ -579,7 +578,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// This function is responsible for putting all of the declared bindings
     /// into scope.
-    fn bind_pat(&mut self, span: Span, pat: PatId, candidate: Candidate) -> BasicBlock {
+    fn bind_pat(&mut self, span: AstNodeId, pat: PatId, candidate: Candidate) -> BasicBlock {
         let guard = match pat.value() {
             Pat::If(IfPat { condition, .. }) => Some(condition),
             _ => None,
@@ -627,7 +626,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         candidate: Candidate,
         guard: Option<TermId>,
         parent_bindings: &[Vec<Binding>],
-        span: Span,
+        span: AstNodeId,
     ) -> BasicBlock {
         let block = candidate.pre_binding_block.unwrap();
 

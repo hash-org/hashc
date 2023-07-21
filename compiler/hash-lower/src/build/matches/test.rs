@@ -6,7 +6,7 @@
 use std::cmp::Ordering;
 
 use fixedbitset::FixedBitSet;
-use hash_ast::ast;
+use hash_ast::ast::{self, AstNodeId};
 use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
@@ -14,10 +14,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{
-    constant::{IntConstant, IntConstantValue, CONSTANT_MAP},
-    location::Span,
-};
+use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     args::PatArgsId,
@@ -101,7 +98,7 @@ pub(super) struct Test {
     /// The span of where the test occurs, in order to provide richer
     /// information to basic block terminations when actually *performing*
     /// the test
-    pub span: Span,
+    pub span: AstNodeId,
 }
 
 impl Test {
@@ -143,7 +140,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         otherwise: &mut Option<BasicBlock>,
         place_builder: &PlaceBuilder,
         pats: &[PatId],
-        or_span: Span,
+        or_span: AstNodeId,
     ) {
         let mut or_candidates: Vec<_> = pats
             .iter()
@@ -211,7 +208,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                             // Structs can be simplified...
                             if adt.flags.is_struct() {
                                 panic_on_span!(
-                                    span.into_location(self.source_id),
+                                    span.span(),
                                     self.source_map(),
                                     "attempt to test simplify-able pattern, `{}`",
                                     (pair.pat)
@@ -263,13 +260,13 @@ impl<'tcx> BodyBuilder<'tcx> {
                 self.test_match_pair(&MatchPair { pat, place: pair.place.clone() })
             }
             Pat::Or(_) => panic_on_span!(
-                span.into_location(self.source_id),
+                span.span(),
                 self.source_map(),
                 "or patterns should be handled by `test_or_pat`"
             ),
             Pat::Tuple(_) | Pat::Binding(_) => {
                 panic_on_span!(
-                    span.into_location(self.source_id),
+                    span.span(),
                     self.source_map(),
                     "attempt to test simplify-able pattern, `{}`",
                     (pair.pat)
@@ -558,7 +555,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// [Test].
     pub(super) fn perform_test(
         &mut self,
-        subject_span: Span,
+        subject_span: AstNodeId,
         block: BasicBlock,
         place_builder: &PlaceBuilder,
         test: &Test,
@@ -773,7 +770,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         op: BinOp,
         lhs: Operand,
         rhs: Operand,
-        span: Span,
+        span: AstNodeId,
     ) {
         debug_assert!(op.is_comparator());
 

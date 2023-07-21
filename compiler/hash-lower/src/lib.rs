@@ -34,7 +34,7 @@ use hash_pipeline::{
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_semantics::SemanticStorage;
-use hash_source::{identifier::IDENTS, location::SourceLocation, SourceId};
+use hash_source::{identifier::IDENTS, SourceId};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     PartialStore,
@@ -44,7 +44,6 @@ use hash_tir::{
     data::DataTy,
     directives::DirectiveTarget,
     environment::{env::Env, source_info::CurrentSourceInfo, stores::tir_stores},
-    utils::common::CommonUtils,
 };
 use hash_utils::{
     stream_writeln,
@@ -153,13 +152,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             for func in items.iter() {
                 let name = func.borrow().name.ident();
 
-                // Get the source of the symbol therefore that way
-                // we can get the source id of the function.
-                let Some(SourceLocation { id, .. }) = env.get_location(func) else {
-                    panic!("function `{name}` has no defined source location");
-                };
-
-                let mut builder = BodyBuilder::new(name, (*func).into(), id, ctx, settings);
+                let mut builder = BodyBuilder::new(name, (*func).into(), ctx, settings);
                 builder.build();
 
                 let body = builder.finish();

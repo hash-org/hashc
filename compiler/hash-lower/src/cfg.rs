@@ -3,10 +3,10 @@
 
 use std::fmt;
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::ir::{
     BasicBlock, BasicBlockData, Place, RValue, Statement, StatementKind, Terminator, TerminatorKind,
 };
-use hash_source::location::Span;
 use hash_utils::index_vec::IndexVec;
 
 pub struct ControlFlowGraph {
@@ -53,16 +53,16 @@ impl ControlFlowGraph {
 
     /// Create a [BasicBlock] that is terminated by a [TerminatorKind::Return]
     /// and has no other present statements.
-    pub(crate) fn make_return_block(&mut self) -> BasicBlock {
+    pub(crate) fn make_return_block(&mut self, span: AstNodeId) -> BasicBlock {
         let block = self.start_new_block();
         self.block_data_mut(block).terminator =
-            Some(Terminator { kind: TerminatorKind::Return, span: Span::default() });
+            Some(Terminator { kind: TerminatorKind::Return, span });
         block
     }
 
     /// Function to terminate a particular [BasicBlock] provided that it has not
     /// been already terminated.
-    pub(crate) fn terminate(&mut self, block: BasicBlock, span: Span, kind: TerminatorKind) {
+    pub(crate) fn terminate(&mut self, block: BasicBlock, span: AstNodeId, kind: TerminatorKind) {
         debug_assert!(
             self.block_data(block).terminator.is_none(),
             "terminate: block `{:?}` already has a terminator `{:?}` set",
@@ -89,13 +89,13 @@ impl ControlFlowGraph {
         block: BasicBlock,
         place: Place,
         value: RValue,
-        span: Span,
+        span: AstNodeId,
     ) {
         self.push(block, Statement { kind: StatementKind::Assign(place, value), span });
     }
 
     /// Terminate a [BasicBlock] by adding a [TerminatorKind::Goto]
-    pub(crate) fn goto(&mut self, source: BasicBlock, target: BasicBlock, span: Span) {
+    pub(crate) fn goto(&mut self, source: BasicBlock, target: BasicBlock, span: AstNodeId) {
         self.terminate(source, span, TerminatorKind::Goto(target));
     }
 }

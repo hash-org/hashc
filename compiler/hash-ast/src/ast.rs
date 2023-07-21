@@ -11,6 +11,7 @@ use hash_source::{
     constant::{FloatTy, IntTy, InternedFloat, InternedInt, InternedStr, SIntTy},
     identifier::Identifier,
     location::{SourceLocation, Span},
+    SourceId,
 };
 use hash_tree_def::define_tree;
 use hash_utils::{
@@ -46,6 +47,11 @@ impl SpanMap {
     /// Get the span of a node by [AstNodeId].
     pub fn span_of(id: AstNodeId) -> SourceLocation {
         SPAN_MAP.read()[id]
+    }
+
+    /// Get the [SourceId] of a node by [AstNodeId].
+    pub fn source_of(id: AstNodeId) -> SourceId {
+        SpanMap::span_of(id).id
     }
 
     /// Get a mutable reference to the [`SPAN_MAP`]. This is only

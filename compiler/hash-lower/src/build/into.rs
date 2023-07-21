@@ -3,6 +3,7 @@
 //! `strategies` can be found in [`crate::build::rvalue`] and
 //! [crate::build::temp].
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     intrinsics::Intrinsic,
     ir::{
@@ -12,7 +13,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, IrTyId, Mutability, RefKind, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{constant::CONSTANT_MAP, identifier::Identifier, location::Span};
+use hash_source::{constant::CONSTANT_MAP, identifier::Identifier};
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
@@ -246,7 +247,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // **jump** to the proceeding block of the loop block
                 let Some(LoopBlockInfo { loop_body, next_block }) = self.loop_block_info else {
                     panic_on_span!(
-                        span.into_location(self.source_id),
+                        span.span(),
                         self.env().source_map(),
                         "`continue` or `break` outside of loop"
                     );
@@ -277,7 +278,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 //
                 // ##Note: during CFG simplification, this edge will be removed and unified with
                 // the `exit` block.
-                let return_block = self.control_flow_graph.make_return_block();
+                let return_block = self.control_flow_graph.make_return_block(span);
                 self.control_flow_graph.goto(block, return_block, span);
                 self.control_flow_graph.start_new_block().unit()
             }
@@ -337,7 +338,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         assignment: AssignTerm,
-        span: Span,
+        span: AstNodeId,
     ) -> BlockAnd<()> {
         // Lower the subject and the value of the assignment in RTL
         // and then assign the value into the subject
@@ -356,7 +357,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         mut block: BasicBlock,
         subject: TermId,
         args: ArgsId,
-        span: Span,
+        span: AstNodeId,
     ) -> BlockAnd<()> {
         // First we want to lower the subject of the function call
         let func = unpack!(block = self.as_operand(block, subject, Mutability::Immutable));
@@ -395,7 +396,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         block: BasicBlock,
         subject: Operand,
         args: Vec<Operand>,
-        span: Span,
+        span: AstNodeId,
     ) -> BlockAnd<()> {
         // This is the block that is used when resuming from the function..
         let success = self.control_flow_graph.start_new_block();
@@ -424,7 +425,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         block: BasicBlock,
         subject: &CtorTerm,
         adt_id: AdtId,
-        span: Span,
+        span: AstNodeId,
     ) -> BlockAnd<()> {
         let CtorTerm { ctor, ctor_args, .. } = subject;
 
@@ -477,7 +478,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         mut block: BasicBlock,
         aggregate_kind: AggregateKind,
         args: &[(Identifier, TermId)],
-        span: Span,
+        span: AstNodeId,
     ) -> BlockAnd<()> {
         // We don't need to perform this check for arrays since they don't need
         // to have a specific amount of arguments to the constructor.
@@ -515,7 +516,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Ensure we have the exact amount of arguments as the definition expects.
                 if args.len() != field_count {
                     panic_on_span!(
-                        span.into_location(self.source_id),
+                        span.span(),
                         self.source_map(),
                         "default arguments on constructors are not currently supported",
                     );
@@ -602,7 +603,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         ty: IrTyId,
         aggregate_kind: AggregateKind,
         args: &[(Identifier, TermId)],
-        span: Span,
+        span: AstNodeId,
     ) -> BlockAnd<()> {
         let ptr_width = self.settings.target().ptr_size();
         let element_ty = ty.borrow().element_ty().unwrap();
