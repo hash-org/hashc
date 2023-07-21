@@ -2,7 +2,7 @@
 use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
-use hash_source::{identifier::Identifier, location::Span};
+use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_storage::store::{
     CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
 };
@@ -26,7 +26,6 @@ use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::{AccessToSemEnv, SemEnv},
     ops::common::CommonOps,
-    passes::ast_utils::AstUtils,
 };
 
 /// The kind of context we are in.
@@ -145,16 +144,13 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn lookup_symbol_by_name_or_error(
         &self,
         name: impl Into<Identifier>,
-        span: Span,
+        span: SourceLocation,
         looking_in: ContextKind,
     ) -> SemanticResult<(Symbol, BindingKind)> {
         let name = name.into();
-        let symbol =
-            self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
-                symbol: sym(name),
-                location: self.source_location(span),
-                looking_in,
-            })?;
+        let symbol = self.lookup_symbol_by_name(name).ok_or_else(|| {
+            SemanticError::SymbolNotFound { symbol: sym(name), location: span, looking_in }
+        })?;
 
         // @@Todo: Ensure that we are in the correct context for the binding.
         // if self.context().get_current_scope_kind().is_constant() {

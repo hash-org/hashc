@@ -19,7 +19,7 @@ use hash_utils::{
     state::LightState,
 };
 
-use super::{super::ast_utils::AstUtils, DiscoveryPass};
+use super::DiscoveryPass;
 use crate::ops::common::CommonOps;
 
 /// An item that is discovered: either a definition or a function type.
@@ -331,11 +331,7 @@ impl<'tc> DiscoveryPass<'tc> {
             Some(ast::Expr::Block(block)) => block.data.id(),
             Some(_) => node.value.as_ref().unwrap().id(),
             _ => {
-                panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "Found declaration without value"
-                )
+                panic_on_span!(node.span(), self.source_map(), "Found declaration without value")
             }
         };
 
@@ -448,7 +444,7 @@ impl<'tc> DiscoveryPass<'tc> {
             ast::Pat::Module(_) => {
                 // This should have been handled pre-tc semantics
                 panic_on_span!(
-                    self.node_location(node),
+                    node.span(),
                     self.source_map(),
                     "Found module pattern in stack definition"
                 )
@@ -482,11 +478,7 @@ impl<'tc> DiscoveryPass<'tc> {
                 // @@Invariant: Here we assume that each branch of the or pattern has the same
                 // members This should have already been checked at pre-tc semantics.
                 Some(pat) => self.add_stack_members_in_pat_to_buf(pat.ast_ref(), buf),
-                None => panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "Found empty or pattern"
-                ),
+                None => panic_on_span!(node.span(), self.source_map(), "Found empty or pattern"),
             },
             ast::Pat::If(if_pat) => self.add_stack_members_in_pat_to_buf(if_pat.pat.ast_ref(), buf),
             ast::Pat::Wild(_) => buf.push((
@@ -551,8 +543,6 @@ impl<'tc> DiscoveryPass<'tc> {
         def_id: DefId,
         originating_node: AstNodeRef<U>,
     ) {
-        self.stores()
-            .location()
-            .add_location_to_target(def_id, self.node_location(originating_node));
+        self.stores().location().add_location_to_target(def_id, originating_node.span());
     }
 }

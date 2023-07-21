@@ -9,7 +9,7 @@ use std::iter::once;
 use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::primitives::AccessToPrimitives;
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::IDENTS, location::Span};
+use hash_source::{identifier::IDENTS, location::SourceLocation};
 use hash_tir::{
     args::{ArgData, ArgsId},
     data::DataTy,
@@ -33,7 +33,6 @@ use super::{
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     ops::common::CommonOps,
-    passes::ast_utils::AstUtils,
 };
 
 impl<'tc> ResolutionPass<'tc> {
@@ -78,9 +77,9 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<'a, ast::AccessTy>,
     ) -> SemanticResult<AstPath<'a>> {
-        let mut root = self.ty_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
-            SemanticError::InvalidNamespaceSubject { location: self.node_location(node) }
-        })?;
+        let mut root = self
+            .ty_as_ast_path(node.body.subject.ast_ref())?
+            .ok_or_else(|| SemanticError::InvalidNamespaceSubject { location: node.span() })?;
 
         root.push(AstPathComponent {
             name: node.body.property.ident,
@@ -112,7 +111,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_ty_from_resolved_ast_path(
         &self,
         path: &ResolvedAstPathComponent,
-        original_node_span: Span,
+        original_node_span: SourceLocation,
     ) -> SemanticResult<TyId> {
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
@@ -124,7 +123,7 @@ impl<'tc> ResolutionPass<'tc> {
                 NonTerminalResolvedPathComponent::Mod(_) => {
                     // Modules are not allowed in type positions
                     Err(SemanticError::CannotUseModuleInTypePosition {
-                        location: self.source_location(original_node_span),
+                        location: original_node_span,
                     })
                 }
             },
@@ -134,7 +133,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
-                        self.source_location(original_node_span),
+                        original_node_span,
                         self.source_map(),
                         "found CtorPat in type ast path"
                     )
@@ -385,16 +384,12 @@ impl<'tc> ResolutionPass<'tc> {
                 self.new_ty(expr)
             }
             ast::Ty::Union(_) => {
-                panic_on_span!(
-                    self.node_location(node),
-                    self.source_map(),
-                    "Found union type after discovery"
-                )
+                panic_on_span!(node.span(), self.source_map(), "Found union type after discovery")
             }
         };
 
         self.ast_info().tys().insert(node.id(), ty_id);
-        self.stores().location().add_location_to_target(ty_id, self.node_location(node));
+        self.stores().location().add_location_to_target(ty_id, node.span());
         Ok(ty_id)
     }
 }

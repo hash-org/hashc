@@ -16,7 +16,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let block = gen.parse_body_block_inner();
         self.diagnostics.merge_diagnostics(gen.diagnostics);
 
-        Ok(self.node_with_span(Block::Body(block), self.current_location()))
+        Ok(self.node_with_span(Block::Body(block), self.current_pos()))
     }
 
     /// Helper function to simply parse a body block without wrapping it in
@@ -28,7 +28,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let block = gen.parse_body_block_inner();
         self.merge_diagnostics(gen.diagnostics);
 
-        Ok(self.node_with_span(block, self.current_location()))
+        Ok(self.node_with_span(block, self.current_pos()))
     }
 
     /// Parse a body block that uses itself as the inner generator. This
@@ -36,7 +36,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// next token is a brace tree.
     pub(crate) fn parse_body_block_inner(&mut self) -> BodyBlock {
         // Append the initial statement if there is one.
-        let start = self.current_location();
+        let start = self.current_pos();
         let mut block = BodyBlock { statements: AstNodes::empty(self.span()), expr: None };
 
         // Just return an empty block if we don't get anything
@@ -47,7 +47,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // firstly check if the first token signals a beginning of a statement, we can
         // tell this by checking for keywords that must begin a statement...
         while self.has_token() {
-            let next_location = self.current_location();
+            let next_location = self.current_pos();
 
             let (semi, expr) = match self.parse_top_level_expr() {
                 Ok(Some(res)) => res,
@@ -64,7 +64,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             } else {
                 // update the `statements` span to reflect the true span of the statements
                 // that were parsed
-                block.statements.set_span(start.join(next_location));
+                let span = self.make_span(start.join(next_location));
+                block.statements.set_span(span);
                 block.expr = Some(expr)
             }
         }
@@ -76,7 +77,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_for_loop(&mut self) -> ParseResult<AstNode<Block>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::For)));
 
-        let start = self.current_location();
+        let start = self.current_pos();
 
         // now we parse the singular pattern that begins at the for-loop
         let pattern = self.parse_singular_pat()?;
@@ -96,7 +97,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_while_loop(&mut self) -> ParseResult<AstNode<Block>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::While)));
 
-        let start = self.current_location();
+        let start = self.current_pos();
 
         let condition = self.parse_expr_with_precedence(0)?;
         let while_body = self.parse_block()?;
@@ -108,7 +109,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a match case. A match case involves handling the pattern and the
     /// expression branch.
     pub(crate) fn parse_match_case(&mut self) -> ParseResult<AstNode<MatchCase>> {
-        let start = self.current_location();
+        let start = self.current_pos();
         let pattern = self.parse_pat()?;
 
         self.parse_arrow()?;
@@ -122,7 +123,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_match_block(&mut self) -> ParseResult<AstNode<Block>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Match)));
 
-        let start = self.current_location();
+        let start = self.current_pos();
         let subject = self.parse_expr_with_precedence(0)?;
 
         let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
@@ -140,14 +141,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_if_block(&mut self) -> ParseResult<AstNode<Block>> {
         debug_assert!(matches!(self.current_token().kind, TokenKind::Keyword(Keyword::If)));
 
-        let start = self.current_location();
+        let start = self.current_pos();
 
         let mut clauses = vec![];
         let mut otherwise_clause = None;
-        let mut if_span = self.current_location();
+        let mut if_span = self.current_pos();
 
         while self.has_token() {
-            if_span = self.current_location();
+            if_span = self.current_pos();
             let condition = self.parse_expr_with_precedence(0)?;
             let body = self.parse_block()?;
 
@@ -179,7 +180,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         Ok(self.node_with_joined_span(
             Block::If(IfBlock {
-                clauses: AstNodes::new(clauses, start.join(if_span)),
+                clauses: self.nodes_with_span(clauses, start.join(if_span)),
                 otherwise: otherwise_clause,
             }),
             start,

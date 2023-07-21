@@ -9,7 +9,7 @@ use std::iter::empty;
 use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
+use hash_source::location::SourceLocation;
 use hash_storage::store::{SequenceStore, SequenceStoreKey};
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
@@ -37,7 +37,6 @@ use super::{
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     ops::common::CommonOps,
-    passes::ast_utils::AstUtils,
 };
 
 impl ResolutionPass<'_> {
@@ -115,9 +114,7 @@ impl ResolutionPass<'_> {
                 });
                 Ok(subject_path)
             }
-            None => Err(SemanticError::InvalidNamespaceSubject {
-                location: self.node_location(node.subject.ast_ref()),
-            }),
+            None => Err(SemanticError::InvalidNamespaceSubject { location: node.subject.span() }),
         }
     }
 
@@ -136,9 +133,7 @@ impl ResolutionPass<'_> {
                 }
                 None => panic!("Expected at least one path component"),
             },
-            None => Err(SemanticError::InvalidNamespaceSubject {
-                location: self.node_location(node.subject.ast_ref()),
-            }),
+            None => Err(SemanticError::InvalidNamespaceSubject { location: node.subject.span() }),
         }
     }
 
@@ -186,20 +181,20 @@ impl ResolutionPass<'_> {
     fn make_pat_from_resolved_ast_path(
         &self,
         path: &ResolvedAstPathComponent,
-        original_node_span: Span,
+        original_node_span: SourceLocation,
     ) -> SemanticResult<PatId> {
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
                 NonTerminalResolvedPathComponent::Data(_, _) => {
                     // Cannot use a data type in a pattern position
                     Err(SemanticError::CannotUseDataTypeInPatternPosition {
-                        location: self.source_location(original_node_span),
+                        location: original_node_span,
                     })
                 }
                 NonTerminalResolvedPathComponent::Mod(_) => {
                     // Cannot use a module in a pattern position
                     Err(SemanticError::CannotUseModuleInPatternPosition {
-                        location: self.source_location(original_node_span),
+                        location: original_node_span,
                     })
                 }
             },
@@ -227,7 +222,7 @@ impl ResolutionPass<'_> {
                 }
                 TerminalResolvedPathComponent::CtorTerm(_) => {
                     panic_on_span!(
-                        self.source_location(original_node_span),
+                        original_node_span,
                         self.source_map(),
                         "Found constructor term in pattern, expected constructor pattern"
                     )
@@ -236,7 +231,7 @@ impl ResolutionPass<'_> {
                 | TerminalResolvedPathComponent::FnCall(_) => {
                     // Cannot use a function or function call in a pattern position
                     Err(SemanticError::CannotUseFunctionInPatternPosition {
-                        location: self.source_location(original_node_span),
+                        location: original_node_span,
                     })
                 }
             },
@@ -307,7 +302,7 @@ impl ResolutionPass<'_> {
             ast::Pat::Module(_) => {
                 // This should be handled earlier
                 panic_on_span!(
-                    self.source_location(node.span()),
+                    node.span(),
                     self.source_map(),
                     "Found module pattern during symbol resolution"
                 )
@@ -341,7 +336,7 @@ impl ResolutionPass<'_> {
         };
 
         self.ast_info().pats().insert(node.id(), pat_id);
-        self.stores().location().add_location_to_target(pat_id, self.node_location(node));
+        self.stores().location().add_location_to_target(pat_id, node.span());
         Ok(pat_id)
     }
 }

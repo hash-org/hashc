@@ -5,27 +5,18 @@ use hash_ast::{
     ast_visitor_mut_default_impl,
     visitor::{walk_mut, AstVisitorMut},
 };
-use hash_source::{
-    location::{SourceLocation, Span},
-    SourceId, SourceMap,
-};
+use hash_source::SourceMap;
 
 #[derive(Debug)]
 pub struct AstDesugaring<'s> {
     pub(crate) source_map: &'s SourceMap,
-    source_id: SourceId,
 }
 
 impl<'s> AstDesugaring<'s> {
     /// Create a new [AstDesugaring]. Contains the [SourceMap] and the
     /// current id of the source in reference.
-    pub fn new(source_map: &'s SourceMap, source_id: SourceId) -> Self {
-        Self { source_map, source_id }
-    }
-
-    /// Create a [SourceLocation] from a [Span]
-    pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, id: self.source_id }
+    pub fn new(source_map: &'s SourceMap) -> Self {
+        Self { source_map }
     }
 }
 

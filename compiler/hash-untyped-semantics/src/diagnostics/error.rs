@@ -9,7 +9,7 @@ use hash_reporting::{
     report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
-use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind, SourceId};
+use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind};
 
 use super::directives::DirectiveArgument;
 use crate::analysis::params::FieldNamingExpectation;
@@ -29,8 +29,8 @@ pub struct AnalysisError {
 
 impl AnalysisError {
     /// Create a new [AnalysisError] from a passed kind and [SourceLocation].
-    pub(crate) fn new<T>(kind: AnalysisErrorKind, node: AstNodeRef<T>, id: SourceId) -> Self {
-        Self { kind, location: SourceLocation { span: node.span(), id }, id: node.id() }
+    pub(crate) fn new<T>(kind: AnalysisErrorKind, node: AstNodeRef<T>) -> Self {
+        Self { kind, location: node.span(), id: node.id() }
     }
 
     /// Get the associated [AstNodeId] with this [AnalysisError].

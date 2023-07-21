@@ -10,7 +10,7 @@ use std::{
 use hash_source::{
     constant::{FloatTy, IntTy, InternedFloat, InternedInt, InternedStr, SIntTy},
     identifier::Identifier,
-    location::Span,
+    location::{SourceLocation, Span},
 };
 use hash_tree_def::define_tree;
 use hash_utils::{
@@ -35,7 +35,8 @@ define_index_type! {
 /// [`AstNode<T>`] itself in order for other data structures to be able
 /// to query the [Span] of a node simply by using the [AstNodeId] of the
 /// node.
-static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, Span>>> =
+
+static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, SourceLocation>>> =
     Lazy::new(|| RwLock::new(IndexVec::new()));
 
 /// Utilities for working with the [`SPAN_MAP`].
@@ -43,19 +44,19 @@ pub struct SpanMap;
 
 impl SpanMap {
     /// Get the span of a node by [AstNodeId].
-    pub fn span_of(id: AstNodeId) -> Span {
+    pub fn span_of(id: AstNodeId) -> SourceLocation {
         SPAN_MAP.read()[id]
     }
 
     /// Get a mutable reference to the [`SPAN_MAP`]. This is only
     /// internal to the `hash-ast` crate since it creates entries
     /// in the span map when creating new AST nodes.
-    fn add_span(span: Span) -> AstNodeId {
+    fn add_span(span: SourceLocation) -> AstNodeId {
         SPAN_MAP.write().push(span)
     }
 
     /// Update the span of a node by [AstNodeId].
-    fn update_span(id: AstNodeId, span: Span) {
+    fn update_span(id: AstNodeId, span: SourceLocation) {
         SPAN_MAP.write()[id] = span;
     }
 }
@@ -79,7 +80,7 @@ impl<T> PartialEq for AstNode<T> {
 
 impl<T> AstNode<T> {
     /// Create a new node with a given body and location.
-    pub fn new(body: T, span: Span) -> Self {
+    pub fn new(body: T, span: SourceLocation) -> Self {
         let id = SpanMap::add_span(span);
         Self { body: Box::new(body), id }
     }
@@ -100,12 +101,17 @@ impl<T> AstNode<T> {
     }
 
     /// Get the [Span] of this [AstNode].
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> SourceLocation {
         SpanMap::span_of(self.id)
     }
 
+    /// Get the [ByteRange] of this [AstNode].
+    pub fn byte_range(&self) -> Span {
+        self.span().span
+    }
+
     /// Set the [Span] of this [AstNode].
-    pub fn set_span(&mut self, span: Span) {
+    pub fn set_span(&mut self, span: SourceLocation) {
         SpanMap::update_span(self.id, span)
     }
 
@@ -167,7 +173,7 @@ impl<'t, T> AstNodeRef<'t, T> {
     }
 
     /// Get the [Span] of this [AstNodeRef].
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> SourceLocation {
         SpanMap::span_of(self.id)
     }
 
@@ -217,7 +223,7 @@ impl<'t, T> AstNodeRefMut<'t, T> {
     }
 
     /// Get the [Span] of this [AstNodeRefMut].
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> SourceLocation {
         SpanMap::span_of(self.id)
     }
 
@@ -290,11 +296,11 @@ macro_rules! ast_nodes {
 
 impl<T> AstNodes<T> {
     /// Create a new [AstNodes].
-    pub fn empty(span: Span) -> Self {
+    pub fn empty(span: SourceLocation) -> Self {
         Self::new(vec![], span)
     }
 
-    pub fn new(nodes: Vec<AstNode<T>>, span: Span) -> Self {
+    pub fn new(nodes: Vec<AstNode<T>>, span: SourceLocation) -> Self {
         let id = SpanMap::add_span(span);
         Self { nodes, id }
     }
@@ -303,12 +309,12 @@ impl<T> AstNodes<T> {
     /// incorrectly offset because there is a 'pre-conditional' token that must
     /// be parsed before parsing the nodes. This token could be something like a
     /// '<' or '(' which starts a tuple, or type bound
-    pub fn set_span(&mut self, span: Span) {
+    pub fn set_span(&mut self, span: SourceLocation) {
         SpanMap::update_span(self.id, span);
     }
 
     /// Get the [AstNodeId] of this [AstNodes].
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> SourceLocation {
         SpanMap::span_of(self.id)
     }
 

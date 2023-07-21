@@ -11,11 +11,7 @@ use hash_pipeline::{
     interface::CompilerOutputStream,
     settings::{AstDumpMode, CompilerSettings},
 };
-use hash_source::{
-    identifier::IDENTS,
-    location::{SourceLocation, Span},
-    SourceId, SourceMap,
-};
+use hash_source::{identifier::IDENTS, SourceMap};
 use hash_utils::{
     stream_writeln,
     tree_writing::{TreeNode, TreeWriter, TreeWriterConfig},
@@ -25,8 +21,6 @@ use hash_utils::{
 pub struct AstExpander<'s> {
     /// The map of the current workspace sources.
     pub(crate) source_map: &'s SourceMap,
-    /// The `id` of the module that is currently being checked
-    source_id: SourceId,
 
     /// The settings to the AST expansion pass.
     pub(crate) settings: &'s CompilerSettings,
@@ -40,16 +34,10 @@ impl<'s> AstExpander<'s> {
     /// current id of the source in reference.
     pub fn new(
         source_map: &'s SourceMap,
-        source_id: SourceId,
         settings: &'s CompilerSettings,
         stdout: CompilerOutputStream,
     ) -> Self {
-        Self { source_map, settings, source_id, stdout }
-    }
-
-    /// Create a [SourceLocation] from a [Span]
-    pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, id: self.source_id }
+        Self { source_map, settings, stdout }
     }
 }
 
@@ -77,9 +65,12 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
             } else {
                 node.subject.span()
             };
-            let location = self.source_location(directive_span);
 
-            stream_writeln!(self.stdout, "AST dump for {}", self.source_map.fmt_location(location));
+            stream_writeln!(
+                self.stdout,
+                "AST dump for {}",
+                self.source_map.fmt_location(directive_span)
+            );
 
             match ast_settings.dump_mode {
                 AstDumpMode::Pretty => {

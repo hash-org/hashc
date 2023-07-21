@@ -32,7 +32,7 @@ impl<'p> ImportResolver<'p> {
     }
 
     /// Get the [SourceId] associated with the current [ImportResolver]
-    pub(crate) fn current_source_id(&self) -> SourceId {
+    pub(crate) fn source(&self) -> SourceId {
         self.source_id
     }
 

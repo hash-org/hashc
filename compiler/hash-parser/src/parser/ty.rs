@@ -1,6 +1,6 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use hash_ast::{ast::*, ast_nodes};
+use hash_ast::ast::*;
 use hash_source::identifier::IDENTS;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use hash_utils::smallvec::smallvec;
@@ -22,7 +22,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// forming binary type expressions.
     fn parse_ty_with_precedence(&mut self, min_prec: u8) -> ParseResult<AstNode<Ty>> {
         let mut lhs = self.parse_singular_ty()?;
-        let lhs_span = lhs.span();
+        let lhs_span = lhs.byte_range();
 
         loop {
             let (op, consumed_tokens) = self.parse_ty_op();
@@ -61,7 +61,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Ty]. This includes only singular forms of a type.
     fn parse_singular_ty(&mut self) -> ParseResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
-            self.make_err(ParseErrorKind::ExpectedType, None, None, Some(self.next_location()))
+            self.make_err(ParseErrorKind::ExpectedType, None, None, Some(self.next_pos()))
         })?;
 
         let mut multi_ty_components = true;
@@ -75,12 +75,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // Check if this is a raw ref
                 let kind = self
                     .parse_token_fast(TokenKind::Keyword(Keyword::Raw))
-                    .map(|_| self.node_with_span(RefKind::Raw, self.current_location()));
+                    .map(|_| self.node_with_span(RefKind::Raw, self.current_pos()));
 
                 // Parse a mutability modifier if any
                 let mutability = self
                     .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
-                    .map(|_| self.node_with_span(Mutability::Mutable, self.current_location()));
+                    .map(|_| self.node_with_span(Mutability::Mutable, self.current_pos()));
 
                 Ty::Ref(RefTy { inner: self.parse_ty()?, kind, mutability })
             }
@@ -190,7 +190,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }, span);
 
                     Ty::Fn(FnTy {
-                        params: ast_nodes![ty_arg; span],
+                        params: self.nodes_with_span(vec![ty_arg], span),
                         return_ty,
                     })
                 }
@@ -221,7 +221,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.parse_token(TokenKind::Lt)?;
         }
 
-        let start = self.current_location();
+        let start = self.current_pos();
         let mut ty_args = vec![];
 
         loop {
@@ -247,7 +247,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Here, we want to use either a joined span between the name or just the span
             // of the parsed type
             let arg_span =
-                name.as_ref().map_or_else(|| ty.span(), |node| node.span().join(ty.span()));
+                name.as_ref().map_or_else(|| ty.span(), |node| node.span().join(ty.span())).span;
 
             ty_args.push(self.node_with_span(TyArg { name, ty }, arg_span));
 
@@ -270,7 +270,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         // Update the location of the type bound to reflect the '<' and '>' tokens...
-        Ok(AstNodes::new(ty_args, start.join(self.current_location())))
+        Ok(self.nodes_with_joined_span(ty_args, start))
     }
 
     /// Parses a [Ty::Fn] which involves a parenthesis token tree with some
@@ -290,7 +290,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => {
                 params = gen.parse_separated_fn(
                     |g| {
-                        let start = g.next_location();
+                        let start = g.next_pos();
 
                         // Here we have to essentially try and parse a identifier. If this is the
                         // case and then there is a colon present then we
@@ -345,11 +345,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // only be fired when the next token is a an `<`
         debug_assert!(matches!(self.current_token(), Token { kind: TokenKind::Lt, .. }));
 
-        let mut arg_span = self.current_location();
+        let mut arg_span = self.current_pos();
         let mut args = vec![];
 
         loop {
-            let span = self.current_location();
+            let span = self.current_pos();
             let name = self.parse_name()?;
 
             let ty = match self.parse_token_fast(TokenKind::Colon) {
@@ -371,7 +371,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     name: Some(name),
                     ty,
                     default: default.map(|node| {
-                        let span = node.span();
+                        let span = node.byte_range();
                         self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                     }),
                     origin: ParamOrigin::TyFn,
@@ -386,7 +386,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) if token.has_kind(TokenKind::Gt) => {
                     self.skip_token();
-                    arg_span = arg_span.join(self.current_location());
+                    arg_span = arg_span.join(self.current_pos());
 
                     break;
                 }
@@ -403,6 +403,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_thin_arrow()?;
         let return_ty = self.parse_ty()?;
 
-        Ok(Ty::TyFn(TyFn { params: AstNodes::new(args, arg_span), return_ty }))
+        Ok(Ty::TyFn(TyFn { params: self.nodes_with_span(args, arg_span), return_ty }))
     }
 }

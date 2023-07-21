@@ -10,7 +10,7 @@ use hash_ast::{
     ast_nodes,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
+use hash_source::location::SourceLocation;
 
 use crate::visitor::AstDesugaring;
 
@@ -42,12 +42,12 @@ impl<'s> AstDesugaring<'s> {
     ///
     /// So essentially the for-loop becomes a simple loop with a match block on
     /// the given iterator since for-loops only support iterators.
-    pub(crate) fn desugar_for_loop_block(&self, node: Block, parent_span: Span) -> Block {
+    pub(crate) fn desugar_for_loop_block(&self, node: Block, parent_span: SourceLocation) -> Block {
         // Since this function expects it to be a for-loop block, we match it and unwrap
         let block = match node {
             Block::For(body) => body,
             block => panic_on_span!(
-                self.source_location(parent_span),
+                parent_span,
                 self.source_map,
                 "lowering: expected for-loop, got {}",
                 block.as_str()
@@ -163,12 +163,16 @@ impl<'s> AstDesugaring<'s> {
     /// executing is treated like a matchable pattern, and then matched on
     /// whether if it is true or not. If it is true, the body block is
     /// executed, otherwise the loop breaks.
-    pub(crate) fn desugar_while_loop_block(&self, node: Block, parent_span: Span) -> Block {
+    pub(crate) fn desugar_while_loop_block(
+        &self,
+        node: Block,
+        parent_span: SourceLocation,
+    ) -> Block {
         // Since this function expects it to be a for-loop block, we match it and unwrap
         let block = match node {
             Block::While(body) => body,
             block => panic_on_span!(
-                self.source_location(parent_span),
+                parent_span,
                 self.source_map,
                 "lowering: expected while-block, got {}",
                 block.as_str()
@@ -330,12 +334,12 @@ impl<'s> AstDesugaring<'s> {
     /// complicate things with pattern exhaustiveness because then there
     /// would be no base case branch, thus the exhaustiveness checking would
     /// also need to know about the omitted else branch.
-    pub(crate) fn desugar_if_block(&self, node: Block, parent_span: Span) -> Block {
+    pub(crate) fn desugar_if_block(&self, node: Block, parent_span: SourceLocation) -> Block {
         // Since this function expects it to be a for-loop block, we match it and unwrap
         let block = match node {
             Block::If(body) => body,
             block => panic_on_span!(
-                self.source_location(parent_span),
+                parent_span,
                 self.source_map,
                 "lowering: expected if-block, got {}",
                 block.as_str()

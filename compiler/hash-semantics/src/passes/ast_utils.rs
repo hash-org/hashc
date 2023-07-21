@@ -2,7 +2,6 @@ use hash_ast::{
     ast::{self, AstNodeRef, BodyBlock, Module, OwnsAstNode},
     node_map::SourceRef,
 };
-use hash_source::location::{SourceLocation, Span};
 use hash_tir::symbols::{sym, Symbol};
 
 use crate::{diagnostics::error::SemanticResult, environment::sem_env::AccessToSemEnv};
@@ -40,17 +39,6 @@ pub trait AstPass: AccessToSemEnv {
 }
 
 pub trait AstUtils: AccessToSemEnv {
-    /// Create a [SourceLocation] from a [Span].
-    fn source_location(&self, span: Span) -> SourceLocation {
-        SourceLocation { span, id: self.current_source_info().source_id() }
-    }
-
-    /// Create a [SourceLocation] at the given [hash_ast::ast::AstNode].
-    fn node_location<N>(&self, node: AstNodeRef<N>) -> SourceLocation {
-        let node_span = node.span();
-        self.source_location(node_span)
-    }
-
     /// Create a [`Symbol`] for the given [`ast::Name`], or a fresh symbol if no
     /// name is provided.
     fn new_symbol_from_ast_name(&self, name: Option<&ast::AstNode<ast::Name>>) -> Symbol {

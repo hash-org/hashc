@@ -18,11 +18,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_pat(&mut self) -> ParseResult<AstNode<Pat>> {
         // attempt to get the next token location as we're starting a pattern here, if
         // there is no token we should exit and return an error
-        let start = self.next_location();
+        let start = self.next_pos();
 
         // Parse the first pattern, but throw away the location information since that
         // will be computed at the end anyway...
-        let mut variants = AstNodes::empty(start);
+        let mut variants = self.nodes_with_span(vec![], start);
 
         while self.has_token() {
             let pat = self.parse_pat_with_if()?;
@@ -42,14 +42,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if variants.len() == 1 {
             Ok(variants.nodes.pop().unwrap())
         } else {
-            Ok(self.node_with_joined_span(Pat::Or(OrPat { variants }), start))
+            let joined = self.make_span(start.join(self.current_pos()));
+            variants.set_span(joined);
+
+            Ok(AstNode::new(Pat::Or(OrPat { variants }), joined))
         }
     }
 
     /// Parse a [Pat] with an optional `if-guard` after the singular
     /// pattern.
     pub fn parse_pat_with_if(&mut self) -> ParseResult<AstNode<Pat>> {
-        let start = self.next_location();
+        let start = self.next_pos();
         let pat = self.parse_singular_pat()?;
 
         match self.peek() {
@@ -69,7 +72,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// pattern.
     pub(crate) fn parse_singular_pat(&mut self) -> ParseResult<AstNode<Pat>> {
         let (mut subject, can_continue) = self.parse_pat_component()?;
-        let span = subject.span();
+        let span = subject.span().span;
 
         while let Some(token) = self.peek() && can_continue {
             subject = match token.kind {
@@ -133,7 +136,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// [Pat] can be parsed. The `can_continue` flag is set to `false` if this
     /// produces a [Pat::Range].
     fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
-        let start = self.next_location();
+        let start = self.next_pos();
         let mut has_range_pat = false;
         let token = *self
             .peek()
@@ -276,7 +279,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// exported members. The function takes in a token atom because both
     /// syntaxes use different operators as pattern assigners.
     pub(crate) fn parse_module_pat_entry(&mut self) -> ParseResult<AstNode<ModulePatEntry>> {
-        let start = self.current_location();
+        let start = self.current_pos();
         let name = self.parse_name()?;
 
         // if the next token is the correct assigning operator, attempt to parse a
@@ -288,7 +291,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let span = name.span();
                 let copy = self.node(*name.body());
 
-                self.node_with_span(
+                AstNode::new(
                     Pat::Binding(BindingPat { name: copy, visibility: None, mutability: None }),
                     span,
                 )
@@ -321,7 +324,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
         self.consume_gen(gen);
 
-        Ok(ModulePat { fields: AstNodes::new(fields, span) })
+        Ok(ModulePat { fields: self.nodes_with_span(fields, span) })
     }
 
     /// Parse a [`Pat::Array`] pattern from the token vector. An array pattern
@@ -373,7 +376,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if let Some(token) = tree.get(0) {
             if token.has_kind(TokenKind::Comma) {
                 return Ok(self.node_with_span(
-                    Pat::Tuple(TuplePat { fields: AstNodes::empty(parent_span), spread: None }),
+                    Pat::Tuple(TuplePat {
+                        fields: self.nodes_with_span(vec![], parent_span),
+                        spread: None,
+                    }),
                     parent_span,
                 ));
             }
@@ -426,7 +432,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an entry within a tuple pattern which might contain an optional
     /// [Name] node.
     pub(crate) fn parse_tuple_pat_entry(&mut self) -> ParseResult<AstNode<TuplePatEntry>> {
-        let start = self.next_location();
+        let start = self.next_pos();
 
         let (name, pat) = match self.peek() {
             Some(Token { kind: TokenKind::Ident(_), .. }) => {
@@ -462,7 +468,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         position: usize,
         origin: PatOrigin,
     ) -> ParseResult<()> {
-        let start = self.next_location();
+        let start = self.next_pos();
 
         for k in 0..3 {
             self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
@@ -470,7 +476,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     ParseErrorKind::MalformedSpreadPattern(3 - k),
                     None,
                     None,
-                    Some(self.next_location()),
+                    Some(self.next_pos()),
                 )
             })?;
         }
@@ -478,7 +484,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Try and see if there is a identifier that is followed by the spread to try
         // and bind the capture to a variable
         let name = self.peek_resultant_fn(|g| g.parse_name());
-        let span = start.join(self.current_location());
+        let span = start.join(self.current_pos());
 
         // If the spread pattern is already present, then we need to
         // report this as an error since, a spread pattern can only appear
@@ -507,7 +513,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Parse a mutability modifier if any
         let mutability = self
             .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
-            .map(|_| self.node_with_span(Mutability::Mutable, self.current_location()));
+            .map(|_| self.node_with_span(Mutability::Mutable, self.current_pos()));
 
         let name = self.parse_name()?;
 
@@ -527,7 +533,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 ParseErrorKind::UnExpected,
                 None,
                 token.map(|t| t.kind),
-                token.map_or_else(|| self.next_location(), |t| t.span),
+                token.map_or_else(|| self.next_pos(), |t| t.span),
             ),
         }
     }

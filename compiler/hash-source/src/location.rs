@@ -104,9 +104,19 @@ impl SourceLocation {
     ///
     /// *Note*: the `id` of both [SourceLocation]s must be the same.
     pub fn join(self, other: Self) -> Self {
-        assert!(self.id == other.id);
+        debug_assert!(self.id == other.id);
 
         Self { id: self.id, span: self.span.join(other.span) }
+    }
+
+    /// Get the length of the [Span].
+    pub fn len(&self) -> usize {
+        self.span.len()
+    }
+
+    /// Check if the [Span] is empty.
+    pub fn is_empty(&self) -> bool {
+        self.span.is_empty()
     }
 }
 

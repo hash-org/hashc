@@ -5,10 +5,7 @@ use std::fmt::Display;
 use derive_more::Constructor;
 use hash_ast::ast::Expr;
 use hash_reporting::reporter::{Reporter, Reports};
-use hash_source::{
-    location::{SourceLocation, Span},
-    SourceId,
-};
+use hash_source::location::SourceLocation;
 use hash_utils::pluralise;
 
 use crate::parser::DefinitionKind;
@@ -19,8 +16,9 @@ pub struct ParseWarning {
     /// The kind of warning that is generated, stores relevant information
     /// about the warning.
     kind: WarningKind,
+
     /// The highlighter span of the where the warning applies to.
-    location: Span,
+    span: SourceLocation,
 }
 
 /// When warnings describe that a subject could be being applied
@@ -75,10 +73,8 @@ pub enum WarningKind {
     UselessTyParams { def_kind: DefinitionKind },
 }
 
-pub(crate) struct ParseWarningWrapper(pub ParseWarning, pub SourceId);
-
-impl From<ParseWarningWrapper> for Reports {
-    fn from(ParseWarningWrapper(warning, id): ParseWarningWrapper) -> Self {
+impl From<ParseWarning> for Reports {
+    fn from(warning: ParseWarning) -> Self {
         let mut span_label = "".to_string();
 
         let message = match warning.kind {
@@ -108,10 +104,7 @@ impl From<ParseWarningWrapper> for Reports {
         };
 
         let mut reporter = Reporter::new();
-        reporter
-            .warning()
-            .title(message)
-            .add_labelled_span(SourceLocation { span: warning.location, id }, span_label);
+        reporter.warning().title(message).add_labelled_span(warning.span, span_label);
 
         reporter.into_reports()
     }

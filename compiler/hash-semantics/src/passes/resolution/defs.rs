@@ -22,7 +22,7 @@ use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
-    passes::ast_utils::{AstPass, AstUtils},
+    passes::ast_utils::AstPass,
 };
 
 impl<'tc> ResolutionPass<'tc> {
@@ -148,7 +148,8 @@ impl<'tc> ResolutionPass<'tc> {
                                             _ => {
                                                 self.diagnostics().add_error(
                                                     SemanticError::EnumTypeAnnotationMustBeOfDefiningType {
-                                                       location: self.node_location(variant_ty.ast_ref())}
+                                                       location: variant_ty.span()
+                                                    }
                                                 );
                                             }
                                         }

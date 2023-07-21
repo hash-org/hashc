@@ -1,7 +1,7 @@
 //! Resolution of AST parameters and arguments to terms.
 
 use hash_ast::ast::{self, AstNodeRef};
-use hash_source::location::Span;
+use hash_source::location::SourceLocation;
 use hash_storage::store::{statics::SequenceStoreValue, SequenceStore, SequenceStoreKey};
 use hash_tir::{
     args::{ArgsId, PatArgsId},
@@ -18,7 +18,6 @@ use super::ResolutionPass;
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     ops::common::CommonOps,
-    passes::ast_utils::AstUtils,
 };
 
 /// An argument group in the AST.
@@ -40,7 +39,7 @@ pub enum AstArgGroup<'a> {
 
 impl AstArgGroup<'_> {
     /// Get the span of this argument group.
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> SourceLocation {
         match self {
             AstArgGroup::ExplicitArgs(args) => args.span(),
             AstArgGroup::ImplicitArgs(args) => args.span(),
@@ -283,7 +282,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         subject: TermId,
         args: &[AstArgGroup],
-        original_span: Span,
+        original_span: SourceLocation,
     ) -> SemanticResult<FnCallTerm> {
         debug_assert!(!args.is_empty());
         let mut current_subject = subject;
@@ -304,7 +303,7 @@ impl<'tc> ResolutionPass<'tc> {
                     // Here we are trying to call a function with pattern arguments.
                     // This is not allowed.
                     return Err(SemanticError::CannotUseFunctionInPatternPosition {
-                        location: self.source_location(original_span),
+                        location: original_span,
                     });
                 }
             }

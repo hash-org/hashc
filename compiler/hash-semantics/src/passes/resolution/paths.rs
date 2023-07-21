@@ -22,7 +22,7 @@
 use std::fmt;
 
 use hash_ast::ast;
-use hash_source::{identifier::Identifier, location::Span};
+use hash_source::{identifier::Identifier, location::SourceLocation};
 use hash_storage::store::TrivialKeySequenceStore;
 use hash_tir::{
     args::ArgsId,
@@ -40,10 +40,7 @@ use super::{
     scoping::{BindingKind, ContextKind},
     ResolutionPass,
 };
-use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    passes::ast_utils::AstUtils,
-};
+use crate::diagnostics::error::{SemanticError, SemanticResult};
 
 /// A path component in the AST.
 ///
@@ -55,7 +52,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct AstPathComponent<'a> {
     pub name: Identifier,
-    pub name_span: Span,
+    pub name_span: SourceLocation,
     pub args: Vec<AstArgGroup<'a>>,
     pub node_id: ast::AstNodeId,
 }
@@ -67,7 +64,7 @@ pub type AstPath<'a> = Vec<AstPathComponent<'a>>;
 
 impl AstPathComponent<'_> {
     /// Get the span of this path component.
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> SourceLocation {
         let span = self.name_span;
         if let Some(last_arg) = self.args.last() {
             span.join(last_arg.span())
@@ -144,8 +141,8 @@ impl<'tc> ResolutionPass<'tc> {
     fn resolve_ast_name(
         &self,
         name: Identifier,
-        name_span: Span,
-        starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
+        name_span: SourceLocation,
+        starting_from: Option<(NonTerminalResolvedPathComponent, SourceLocation)>,
     ) -> SemanticResult<(Symbol, BindingKind)> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
@@ -184,7 +181,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn resolve_ast_path_component(
         &self,
         component: &AstPathComponent<'_>,
-        starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
+        starting_from: Option<(NonTerminalResolvedPathComponent, SourceLocation)>,
     ) -> SemanticResult<ResolvedAstPathComponent> {
         let (_binding, binding_kind) =
             self.resolve_ast_name(component.name, component.name_span, starting_from)?;
@@ -221,8 +218,7 @@ impl<'tc> ResolutionPass<'tc> {
                                 }
                                 [first, second, _rest @ ..] => {
                                     return Err(SemanticError::UnexpectedArguments {
-                                        location: self
-                                            .source_location(first.span().join(second.span())),
+                                        location: first.span().join(second.span()),
                                     });
                                 }
                             };
@@ -246,7 +242,7 @@ impl<'tc> ResolutionPass<'tc> {
                                     }),
                                 )),
                                 None => Err(SemanticError::DataDefIsNotSingleton {
-                                    location: self.source_location(component.name_span),
+                                    location: component.name_span,
                                 }),
                             },
                             (
@@ -261,12 +257,12 @@ impl<'tc> ResolutionPass<'tc> {
                                     }),
                                 )),
                                 None => Err(SemanticError::DataDefIsNotSingleton {
-                                    location: self.source_location(component.name_span),
+                                    location: component.name_span,
                                 }),
                             },
                             (ResolvedArgs::Pat(_, _), _) => {
                                 Err(SemanticError::CannotUseDataTypeInPatternPosition {
-                                    location: self.source_location(component.name_span),
+                                    location: component.name_span,
                                 })
                             }
                         }
@@ -297,9 +293,7 @@ impl<'tc> ResolutionPass<'tc> {
                     [] => ResolvedArgs::Term(self.new_empty_args()),
                     [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
                     [_first, second, _rest @ ..] => {
-                        return Err(SemanticError::UnexpectedArguments {
-                            location: self.source_location(second.span()),
-                        });
+                        return Err(SemanticError::UnexpectedArguments { location: second.span() });
                     }
                 };
 
@@ -398,13 +392,11 @@ impl<'tc> ResolutionPass<'tc> {
                 ResolvedAstPathComponent::Terminal(_) => {
                     // Cannot namespace further
                     return Err(SemanticError::InvalidNamespaceSubject {
-                        location: self.source_location(
-                            path[..index]
-                                .iter()
-                                .map(|c| c.span())
-                                .reduce(|a, b| a.join(b))
-                                .unwrap(),
-                        ),
+                        location: path[..index]
+                            .iter()
+                            .map(|c| c.span())
+                            .reduce(|a, b| a.join(b))
+                            .unwrap(),
                     });
                 }
             };

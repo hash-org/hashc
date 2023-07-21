@@ -56,9 +56,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&mut self) -> ParseResult<AstNode<EnumDefEntry>> {
         let name = self.parse_name()?;
-        let name_span = name.span();
-
-        let mut fields = AstNodes::empty(name_span);
+        let name_span = name.byte_range();
+        let mut fields = self.nodes_with_span(vec![], name_span);
 
         if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
             let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
@@ -91,7 +90,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         &mut self,
         origin: ParamOrigin,
     ) -> ParseResult<AstNode<Param>> {
-        let start = self.next_location();
+        let start = self.next_pos();
 
         // Try and parse the name and type
         let (name, ty) = match self.peek_second() {
@@ -153,7 +152,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     // then any specified bounds on the argument which are essentially types
     // that are separated by a `~`
     fn parse_ty_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
-        let start = self.current_location();
+        let start = self.current_pos();
         let name = self.parse_name()?;
 
         // Now it's followed by a colon
@@ -176,7 +175,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 name: Some(name),
                 ty,
                 default: default.map(|node| {
-                    let span = node.span();
+                    let span = node.byte_range();
                     self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                 }),
                 origin: ParamOrigin::TyFn,
@@ -227,15 +226,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
                 self.parse_ty_params(def_kind)
             }
-            _ => Ok(AstNodes::empty(self.current_location())),
+            _ => Ok(self.nodes_with_span(vec![], self.current_pos())),
         }
     }
 
     /// Parse a collection of type [Param]s which can appear on nominal
     /// definitions, and trait definitions.
     fn parse_ty_params(&mut self, def_kind: DefinitionKind) -> ParseResult<AstNodes<Param>> {
-        let start_span = self.current_location();
-        let mut params = AstNodes::empty(start_span);
+        let start_span = self.current_pos();
+        let mut params = self.nodes_with_span(vec![], start_span);
 
         // Flag denoting that we were able to parse the ending `>` within the function
         // def arg
@@ -257,7 +256,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     ParseErrorKind::UnExpected,
                     Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
                     token.map(|t| t.kind),
-                    token.map_or_else(|| self.next_location(), |t| t.span),
+                    token.map_or_else(|| self.next_pos(), |t| t.span),
                 )?,
             }
         }
@@ -273,20 +272,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     ParseErrorKind::UnExpected,
                     Some(TokenKindVector::singleton(TokenKind::Gt)),
                     self.peek().map(|tok| tok.kind),
-                    self.next_location(),
+                    self.next_pos(),
                 )?;
             }
         }
 
         // Update the ast_nodes span to contain
-        params.set_span(start_span.join(self.current_location()));
+        let span = self.make_span(start_span.join(self.current_pos()));
+        params.set_span(span);
 
         // Emit a warning here if there were no params
         if params.is_empty() {
-            self.add_warning(ParseWarning::new(
-                WarningKind::UselessTyParams { def_kind },
-                params.span(),
-            ))
+            self.add_warning(ParseWarning::new(WarningKind::UselessTyParams { def_kind }, span))
         }
 
         Ok(params)
