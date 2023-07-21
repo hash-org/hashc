@@ -274,8 +274,9 @@ impl<'ir> BuilderCtx<'ir> {
                     .params
                     .borrow()
                     .iter()
-                    .map(|field| AdtField {
-                        name: field.name.ident(),
+                    .enumerate()
+                    .map(|(index, field)| AdtField {
+                        name: field.name.borrow().name.unwrap_or(index.into()),
                         ty: self.ty_id_from_tir_ty(field.ty),
                     })
                     .collect_vec();
