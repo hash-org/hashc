@@ -14,7 +14,7 @@ use std::{
 };
 
 use hash_source::{
-    location::{RowCol, RowColRange, SourceLocation},
+    location::{RowCol, RowColRange, Span},
     SourceMap,
 };
 use hash_utils::highlight::{highlight, Colour, Modifier};
@@ -69,7 +69,7 @@ impl ReportCodeBlock {
         match self.info.get() {
             Some(info) => info,
             None => {
-                let SourceLocation { span, id } = self.source_location;
+                let Span { span, id } = self.source_location;
                 let source = sources.line_ranges(id);
 
                 // Compute offset rows and columns from the provided span
@@ -342,7 +342,7 @@ impl ReportCodeBlock {
     }
 
     /// Function to render the [ReportCodeBlock] using the provided
-    /// [SourceLocation], message and [ReportKind].
+    /// [Span], message and [ReportKind].
     pub(crate) fn render(
         &self,
         f: &mut fmt::Formatter,

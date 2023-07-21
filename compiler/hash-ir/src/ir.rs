@@ -12,7 +12,7 @@ use hash_intrinsics::intrinsics;
 use hash_source::{
     constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
-    location::SourceLocation,
+    location::Span,
     SourceId,
 };
 use hash_storage::{
@@ -1371,7 +1371,7 @@ impl Body {
     }
 
     /// Get the [Span] of the [Body].
-    pub(crate) fn span(&self) -> SourceLocation {
+    pub(crate) fn span(&self) -> Span {
         self.span.span()
     }
 

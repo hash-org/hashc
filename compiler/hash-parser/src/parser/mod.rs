@@ -15,7 +15,7 @@ use std::{cell::Cell, fmt::Display};
 
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticStore};
-use hash_source::location::{ByteRange, SourceLocation};
+use hash_source::location::{ByteRange, Span};
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
     Token, TokenKind, TokenKindVector,
@@ -173,14 +173,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Get the [Span] of the current generator, this asserts that a parent
     /// [Span] is present.
-    pub(crate) fn span(&self) -> SourceLocation {
-        SourceLocation { span: self.parent_span.unwrap(), id: self.resolver.source() }
+    pub(crate) fn span(&self) -> Span {
+        Span { span: self.parent_span.unwrap(), id: self.resolver.source() }
     }
 
-    /// Function to create a [SourceLocation] from a [ByteRange] by using the
+    /// Function to create a [Span] from a [ByteRange] by using the
     /// provided resolver
-    pub(crate) fn make_span(&self, span: ByteRange) -> SourceLocation {
-        SourceLocation { span, id: self.resolver.source() }
+    pub(crate) fn make_span(&self, span: ByteRange) -> Span {
+        Span { span, id: self.resolver.source() }
     }
 
     /// Get the current offset of where the stream is at.

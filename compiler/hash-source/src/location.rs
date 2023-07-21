@@ -68,9 +68,9 @@ impl ByteRange {
         self.start() == self.end()
     }
 
-    /// Convert the [ByteRange] into a [SourceLocation].
-    pub fn into_location(self, source_id: SourceId) -> SourceLocation {
-        SourceLocation::new(self, source_id)
+    /// Convert the [ByteRange] into a [Span].
+    pub fn into_location(self, source_id: SourceId) -> Span {
+        Span::new(self, source_id)
     }
 }
 
@@ -86,26 +86,26 @@ impl fmt::Display for ByteRange {
     }
 }
 
-/// A [SourceLocation] describes the location of something that is relative to
+/// A [Span] describes the location of something that is relative to
 /// a module that is within the workspace and that has an associated
 /// [ByteRange].
 ///
-/// [SourceLocation]s are only used when printing reports within the
+/// [Span]s are only used when printing reports within the
 /// `hash_reporting` crate. Ideally, data structures that need to store
 /// locations of various items should use [ByteRange] and then convert into
-/// [SourceLocation]s.
+/// [Span]s.
 #[derive(Debug, Clone, Copy, Constructor, PartialEq, Eq, Hash)]
-pub struct SourceLocation {
-    /// The associated [ByteRange] with the [SourceLocation].
+pub struct Span {
+    /// The associated [ByteRange] with the [Span].
     pub span: ByteRange,
     /// The id of the source that the span is referencing.
     pub id: SourceId,
 }
 
-impl SourceLocation {
-    /// Join the span of a [SourceLocation] with another [SourceLocation].
+impl Span {
+    /// Join the span of a [Span] with another [Span].
     ///
-    /// *Note*: the `id` of both [SourceLocation]s must be the same.
+    /// *Note*: the `id` of both [Span]s must be the same.
     pub fn join(self, other: Self) -> Self {
         debug_assert!(self.id == other.id);
 

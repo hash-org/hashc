@@ -13,7 +13,7 @@ use hash_intrinsics::{
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::IDENTS, location::SourceLocation};
+use hash_source::{identifier::IDENTS, location::Span};
 use hash_storage::store::{
     PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
     TrivialSequenceStoreKey,
@@ -313,7 +313,7 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_term_from_resolved_ast_path(
         &self,
         path: &ResolvedAstPathComponent,
-        original_node_span: SourceLocation,
+        original_node_span: Span,
     ) -> SemanticResult<TermId> {
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => {

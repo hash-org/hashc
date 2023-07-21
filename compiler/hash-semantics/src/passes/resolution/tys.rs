@@ -9,7 +9,7 @@ use std::iter::once;
 use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::primitives::AccessToPrimitives;
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::IDENTS, location::SourceLocation};
+use hash_source::{identifier::IDENTS, location::Span};
 use hash_tir::{
     args::{ArgData, ArgsId},
     data::DataTy,
@@ -111,7 +111,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_ty_from_resolved_ast_path(
         &self,
         path: &ResolvedAstPathComponent,
-        original_node_span: SourceLocation,
+        original_node_span: Span,
     ) -> SemanticResult<TyId> {
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {

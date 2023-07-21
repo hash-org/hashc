@@ -6,7 +6,7 @@
 
 use hash_abi::FnAbi;
 use hash_ir::ty::IrTyId;
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{identifier::Identifier, location::Span};
 
 use super::BackendTypes;
 
@@ -41,7 +41,7 @@ pub trait DebugInfoBuilderMethods: BackendTypes {
         ty: IrTyId,
         scope: Self::DebugInfoScope,
         kind: VariableKind,
-        span: SourceLocation,
+        span: Span,
     ) -> Self::DebugInfoVariable;
 
     /// Create a new [`BackendTypes::DebugInfoLocation`] which represents a
@@ -50,7 +50,7 @@ pub trait DebugInfoBuilderMethods: BackendTypes {
     fn create_debug_info_location(
         &self,
         scope: Self::DebugInfoScope,
-        span: SourceLocation,
+        span: Span,
     ) -> Self::DebugInfoLocation;
 
     /// Finish the process of generating debug information for a particular

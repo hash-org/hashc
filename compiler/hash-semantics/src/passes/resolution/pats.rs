@@ -9,7 +9,7 @@ use std::iter::empty;
 use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::SourceLocation;
+use hash_source::location::Span;
 use hash_storage::store::{SequenceStore, SequenceStoreKey};
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
@@ -181,7 +181,7 @@ impl ResolutionPass<'_> {
     fn make_pat_from_resolved_ast_path(
         &self,
         path: &ResolvedAstPathComponent,
-        original_node_span: SourceLocation,
+        original_node_span: Span,
     ) -> SemanticResult<PatId> {
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {

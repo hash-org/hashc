@@ -2,7 +2,7 @@
 use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::{
     CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
 };
@@ -144,7 +144,7 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn lookup_symbol_by_name_or_error(
         &self,
         name: impl Into<Identifier>,
-        span: SourceLocation,
+        span: Span,
         looking_in: ContextKind,
     ) -> SemanticResult<(Symbol, BindingKind)> {
         let name = name.into();

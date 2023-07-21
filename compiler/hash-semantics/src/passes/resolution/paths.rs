@@ -22,7 +22,7 @@
 use std::fmt;
 
 use hash_ast::ast;
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::TrivialKeySequenceStore;
 use hash_tir::{
     args::ArgsId,
@@ -52,7 +52,7 @@ use crate::diagnostics::error::{SemanticError, SemanticResult};
 #[derive(Clone, Debug)]
 pub struct AstPathComponent<'a> {
     pub name: Identifier,
-    pub name_span: SourceLocation,
+    pub name_span: Span,
     pub args: Vec<AstArgGroup<'a>>,
     pub node_id: ast::AstNodeId,
 }
@@ -64,7 +64,7 @@ pub type AstPath<'a> = Vec<AstPathComponent<'a>>;
 
 impl AstPathComponent<'_> {
     /// Get the span of this path component.
-    pub fn span(&self) -> SourceLocation {
+    pub fn span(&self) -> Span {
         let span = self.name_span;
         if let Some(last_arg) = self.args.last() {
             span.join(last_arg.span())
@@ -141,8 +141,8 @@ impl<'tc> ResolutionPass<'tc> {
     fn resolve_ast_name(
         &self,
         name: Identifier,
-        name_span: SourceLocation,
-        starting_from: Option<(NonTerminalResolvedPathComponent, SourceLocation)>,
+        name_span: Span,
+        starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
     ) -> SemanticResult<(Symbol, BindingKind)> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
@@ -181,7 +181,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn resolve_ast_path_component(
         &self,
         component: &AstPathComponent<'_>,
-        starting_from: Option<(NonTerminalResolvedPathComponent, SourceLocation)>,
+        starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
     ) -> SemanticResult<ResolvedAstPathComponent> {
         let (_binding, binding_kind) =
             self.resolve_ast_name(component.name, component.name_span, starting_from)?;

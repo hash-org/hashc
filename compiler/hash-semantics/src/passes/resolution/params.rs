@@ -1,7 +1,7 @@
 //! Resolution of AST parameters and arguments to terms.
 
 use hash_ast::ast::{self, AstNodeRef};
-use hash_source::location::SourceLocation;
+use hash_source::location::Span;
 use hash_storage::store::{statics::SequenceStoreValue, SequenceStore, SequenceStoreKey};
 use hash_tir::{
     args::{ArgsId, PatArgsId},
@@ -39,7 +39,7 @@ pub enum AstArgGroup<'a> {
 
 impl AstArgGroup<'_> {
     /// Get the span of this argument group.
-    pub fn span(&self) -> SourceLocation {
+    pub fn span(&self) -> Span {
         match self {
             AstArgGroup::ExplicitArgs(args) => args.span(),
             AstArgGroup::ImplicitArgs(args) => args.span(),
@@ -282,7 +282,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         subject: TermId,
         args: &[AstArgGroup],
-        original_span: SourceLocation,
+        original_span: Span,
     ) -> SemanticResult<FnCallTerm> {
         debug_assert!(!args.is_empty());
         let mut current_subject = subject;

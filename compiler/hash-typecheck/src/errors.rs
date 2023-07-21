@@ -6,7 +6,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
     writer::ReportWriter,
 };
-use hash_source::location::SourceLocation;
+use hash_source::location::Span;
 use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
@@ -152,7 +152,7 @@ pub enum TcError {
     MismatchingFns { a: FnDefId, b: FnDefId },
 
     /// Invalid range pattern literal
-    InvalidRangePatternLiteral { location: SourceLocation },
+    InvalidRangePatternLiteral { location: Span },
 
     /// Invalid range pattern literal
     TryingToReferenceLocalsInType { ty: TyId },

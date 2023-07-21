@@ -19,7 +19,7 @@ use hash_utils::{
     path::adjust_canonicalisation,
     range_map::RangeMap,
 };
-use location::{ByteRange, RowCol, RowColRange, SourceLocation};
+use location::{ByteRange, RowCol, RowColRange, Span};
 use once_cell::sync::OnceCell;
 
 /// Used to check what kind of [SourceId] is being
@@ -452,16 +452,16 @@ impl SourceMap {
         SourceId::new_interactive(id)
     }
 
-    /// Function to get a friendly representation of the [SourceLocation] in
+    /// Function to get a friendly representation of the [Span] in
     /// terms of row and column positions.
-    pub fn get_row_col_for(&self, location: SourceLocation) -> RowColRange {
+    pub fn get_row_col_for(&self, location: Span) -> RowColRange {
         self.line_ranges(location.id).row_cols(location.span)
     }
 
-    /// Convert a [SourceLocation] in terms of the filename, row and column.
+    /// Convert a [Span] in terms of the filename, row and column.
     ///
     /// @@cleanup: move this out of here.
-    pub fn fmt_location(&self, location: SourceLocation) -> String {
+    pub fn fmt_location(&self, location: Span) -> String {
         let name = self.canonicalised_path_by_id(location.id);
         let span = self.get_row_col_for(location);
 

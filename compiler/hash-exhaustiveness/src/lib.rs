@@ -67,7 +67,7 @@ use diagnostics::{ExhaustivenessDiagnostics, ExhaustivenessError, Exhaustiveness
 use hash_ast::ast::MatchOrigin;
 use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_source::location::SourceLocation;
+use hash_source::location::Span;
 use hash_storage::store::CloneStore;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
@@ -101,7 +101,7 @@ impl PatCtx {
 pub struct ExhaustivenessChecker<'tc> {
     /// The span of the subject that is being checked for exhaustiveness
     /// or usefulness.
-    subject_span: SourceLocation,
+    subject_span: Span,
 
     /// A reference to the TC env in order to lookup various TIR items and have
     /// access to TC utilities.
@@ -138,11 +138,7 @@ impl<'tc> AccessToPrimitives for ExhaustivenessChecker<'tc> {
 
 impl<'tc> ExhaustivenessChecker<'tc> {
     /// Create a new checker.
-    pub fn new(
-        subject_span: SourceLocation,
-        tcx: &'tc Env<'tc>,
-        primitives: &'tc DefinedPrimitives,
-    ) -> Self {
+    pub fn new(subject_span: Span, tcx: &'tc Env<'tc>, primitives: &'tc DefinedPrimitives) -> Self {
         Self {
             subject_span,
             tcx,

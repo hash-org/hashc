@@ -8,7 +8,7 @@ use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
     constant::{IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
     identifier::{Identifier, IDENTS},
-    location::{ByteRange, SourceLocation},
+    location::{ByteRange, Span},
     SourceId,
 };
 use hash_target::size::Size;
@@ -107,11 +107,7 @@ impl<'a> Lexer<'a> {
         kind: LexerErrorKind,
         span: ByteRange,
     ) -> TokenKind {
-        self.add_error(LexerError {
-            message,
-            kind,
-            location: SourceLocation { span, id: self.source_id },
-        });
+        self.add_error(LexerError { message, kind, location: Span { span, id: self.source_id } });
 
         TokenKind::Err
     }
@@ -125,7 +121,7 @@ impl<'a> Lexer<'a> {
         kind: LexerErrorKind,
         span: ByteRange,
     ) -> Result<T, LexerError> {
-        Err(LexerError { message, kind, location: SourceLocation { span, id: self.source_id } })
+        Err(LexerError { message, kind, location: Span { span, id: self.source_id } })
     }
 
     /// Returns a reference to the stored token trees for the current job

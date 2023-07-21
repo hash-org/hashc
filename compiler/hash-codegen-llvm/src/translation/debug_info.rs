@@ -5,7 +5,7 @@ use hash_codegen::{
     abi::FnAbi,
     traits::debug::{DebugInfoBuilderMethods, VariableKind},
 };
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{identifier::Identifier, location::Span};
 
 use super::LLVMBuilder;
 
@@ -24,7 +24,7 @@ impl<'b, 'm> DebugInfoBuilderMethods for LLVMBuilder<'_, 'b, 'm> {
         _ty: hash_ir::ty::IrTyId,
         _scope: Self::DebugInfoScope,
         _kind: VariableKind,
-        _span: SourceLocation,
+        _span: Span,
     ) -> Self::DebugInfoVariable {
         unimplemented!()
     }
@@ -32,7 +32,7 @@ impl<'b, 'm> DebugInfoBuilderMethods for LLVMBuilder<'_, 'b, 'm> {
     fn create_debug_info_location(
         &self,
         _scope: Self::DebugInfoScope,
-        _span: SourceLocation,
+        _span: Span,
     ) -> Self::DebugInfoLocation {
         unimplemented!()
     }

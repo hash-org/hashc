@@ -5,7 +5,7 @@ use std::fmt::Display;
 use derive_more::Constructor;
 use hash_ast::ast::Expr;
 use hash_reporting::reporter::{Reporter, Reports};
-use hash_source::location::SourceLocation;
+use hash_source::location::Span;
 use hash_utils::pluralise;
 
 use crate::parser::DefinitionKind;
@@ -18,7 +18,7 @@ pub struct ParseWarning {
     kind: WarningKind,
 
     /// The highlighter span of the where the warning applies to.
-    span: SourceLocation,
+    span: Span,
 }
 
 /// When warnings describe that a subject could be being applied
