@@ -19,7 +19,7 @@ use hash_utils::{
     path::adjust_canonicalisation,
     range_map::RangeMap,
 };
-use location::{RowCol, RowColRange, SourceLocation, Span};
+use location::{ByteRange, RowCol, RowColRange, SourceLocation};
 use once_cell::sync::OnceCell;
 
 /// Used to check what kind of [SourceId] is being
@@ -201,8 +201,8 @@ impl LineRanges {
         RowCol { row: line, column: index - offset }
     }
 
-    /// Returns the line and column of the given [Span]
-    pub fn row_cols(&self, range: Span) -> RowColRange {
+    /// Returns the line and column of the given [ByteRange]
+    pub fn row_cols(&self, range: ByteRange) -> RowColRange {
         let start = self.get_row_col(range.start());
         let end = self.get_row_col(range.end());
 

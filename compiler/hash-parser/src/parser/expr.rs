@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, ast_nodes};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
-use hash_source::{constant::CONSTANT_MAP, location::Span};
+use hash_source::{constant::CONSTANT_MAP, location::ByteRange};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use hash_utils::smallvec::smallvec;
 
@@ -476,7 +476,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         &mut self,
         subject: AstNode<Expr>,
         tree: &'stream [Token],
-        span: Span,
+        span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
         let mut args = vec![];
@@ -535,7 +535,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         &mut self,
         subject: AstNode<Expr>,
         tree: &'stream [Token],
-        span: Span,
+        span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
         let start = gen.current_pos();
@@ -881,7 +881,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_expr_or_tuple(
         &mut self,
         tree: &'stream [Token],
-        span: Span,
+        span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
         let start = self.current_pos();

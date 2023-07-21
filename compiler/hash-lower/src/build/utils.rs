@@ -34,7 +34,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         self.ctx.lcx
     }
 
-    /// Get the [Span] of a given [PatId].
+    /// Get the interned span of a given [PatId].
     pub(crate) fn span_of_pat(&self, id: PatId) -> AstNodeId {
         self.stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected pattern `{}` to have a location", id);
@@ -42,7 +42,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         })
     }
 
-    /// Get the [Span] of a [FnDefId].
+    /// Get the interned span of a [FnDefId].
     pub(crate) fn span_of_def(&self, id: FnDefId) -> AstNodeId {
         self.stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected function definition `{}` to have a location", id);
@@ -50,7 +50,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         })
     }
 
-    /// Get the [Span] of a given [TermId].
+    /// Get the interned span of a given [TermId].
     pub(crate) fn span_of_term(&self, id: TermId) -> AstNodeId {
         self.stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected term `{:?}` to have a location", id);

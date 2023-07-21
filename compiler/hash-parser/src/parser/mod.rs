@@ -15,7 +15,7 @@ use std::{cell::Cell, fmt::Display};
 
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticStore};
-use hash_source::location::{SourceLocation, Span};
+use hash_source::location::{ByteRange, SourceLocation};
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
     Token, TokenKind, TokenKindVector,
@@ -115,7 +115,7 @@ pub struct AstGen<'stream, 'resolver> {
     /// `k[]` was being parsed, the index component `[]` is expected to be
     /// non-empty, so the error reporting can grab the span of the `[]` and
     /// report it as an expected expression.
-    parent_span: Option<Span>,
+    parent_span: Option<ByteRange>,
 
     /// The token stream
     stream: &'stream [Token],
@@ -159,7 +159,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create new AST generator from a provided token stream with inherited
     /// module resolver and a provided parent span.
     #[must_use]
-    pub fn from_stream(&self, stream: &'stream [Token], parent_span: Span) -> Self {
+    pub fn from_stream(&self, stream: &'stream [Token], parent_span: ByteRange) -> Self {
         Self {
             stream,
             token_trees: self.token_trees,
@@ -177,9 +177,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         SourceLocation { span: self.parent_span.unwrap(), id: self.resolver.source() }
     }
 
-    /// Function to create a [SourceLocation] from a [Span] by using the
+    /// Function to create a [SourceLocation] from a [ByteRange] by using the
     /// provided resolver
-    pub(crate) fn make_span(&self, span: Span) -> SourceLocation {
+    pub(crate) fn make_span(&self, span: ByteRange) -> SourceLocation {
         SourceLocation { span, id: self.resolver.source() }
     }
 
@@ -252,7 +252,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Get the current location from the current token, if there is no token at
     /// the current offset, then the location of the last token is used.
-    pub(crate) fn current_pos(&self) -> Span {
+    pub(crate) fn current_pos(&self) -> ByteRange {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {
             return self.parent_span.unwrap_or_default();
@@ -268,12 +268,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Get the next location of the token, if there is no token after, we use
     /// the next character offset to determine the location.
-    pub(crate) fn next_pos(&self) -> Span {
+    pub(crate) fn next_pos(&self) -> ByteRange {
         match self.peek() {
             Some(token) => token.span,
             None => {
                 let span = self.current_pos();
-                Span::new(span.end(), span.end() + 1)
+                ByteRange::new(span.end(), span.end() + 1)
             }
         }
     }
@@ -286,28 +286,32 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
     #[inline(always)]
-    pub fn node_with_span<T>(&self, inner: T, location: Span) -> AstNode<T> {
+    pub fn node_with_span<T>(&self, inner: T, location: ByteRange) -> AstNode<T> {
         AstNode::new(inner, self.make_span(location))
     }
 
-    /// Create a new [AstNode] with a span that ranges from the start [Span] to
-    /// the current [Span].
+    /// Create a new [AstNode] with a span that ranges from the start
+    /// [ByteRange] to join with the [ByteRange].
     #[inline(always)]
-    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: Span) -> AstNode<T> {
+    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: ByteRange) -> AstNode<T> {
         AstNode::new(body, self.make_span(start.join(self.current_pos())))
     }
 
     /// Create [AstNodes] with a span.
-    pub(crate) fn nodes_with_span<T>(&self, nodes: Vec<AstNode<T>>, location: Span) -> AstNodes<T> {
+    pub(crate) fn nodes_with_span<T>(
+        &self,
+        nodes: Vec<AstNode<T>>,
+        location: ByteRange,
+    ) -> AstNodes<T> {
         AstNodes::new(nodes, self.make_span(location))
     }
 
-    /// Create [AstNodes] with a span that ranges from the start [Span] to
-    /// the current [Span].
+    /// Create [AstNodes] with a span that ranges from the start [ByteRange] to
+    /// the current [ByteRange].
     pub(crate) fn nodes_with_joined_span<T>(
         &self,
         nodes: Vec<AstNode<T>>,
-        start: Span,
+        start: ByteRange,
     ) -> AstNodes<T> {
         AstNodes::new(nodes, self.make_span(start.join(self.current_pos())))
     }
@@ -319,7 +323,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         kind: ParseErrorKind,
         expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
-        span: Option<Span>,
+        span: Option<ByteRange>,
     ) -> ParseError {
         ParseError::new(
             kind,
@@ -345,7 +349,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         kind: ParseErrorKind,
         expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
-        span: Span,
+        span: ByteRange,
     ) -> ParseResult<T> {
         Err(self.make_err(kind, expected, received, Some(span)))
     }

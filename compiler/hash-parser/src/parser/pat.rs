@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, origin::PatOrigin};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
-use hash_source::{identifier::IDENTS, location::Span};
+use hash_source::{identifier::IDENTS, location::ByteRange};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 
 use super::AstGen;
@@ -303,7 +303,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a [ModulePat] which is comprised of a collection of
     /// [ModulePatEntry]s that are comma separated within a brace tree.
-    fn parse_module_pat(&mut self, tree: &'stream [Token], span: Span) -> ParseResult<ModulePat> {
+    fn parse_module_pat(
+        &mut self,
+        tree: &'stream [Token],
+        span: ByteRange,
+    ) -> ParseResult<ModulePat> {
         let mut gen = self.from_stream(tree, span);
         let mut fields = vec![];
 
@@ -333,7 +337,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_array_pat(
         &mut self,
         tree: &'stream [Token],
-        parent_span: Span,
+        parent_span: ByteRange,
     ) -> ParseResult<AstNode<Pat>> {
         let mut gen = self.from_stream(tree, parent_span);
 
@@ -369,7 +373,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_tuple_pat(
         &mut self,
         tree: &'stream [Token],
-        parent_span: Span,
+        parent_span: ByteRange,
     ) -> ParseResult<AstNode<Pat>> {
         // check here if the tree length is 1, and the first token is the comma to check
         // if it is an empty tuple pattern...

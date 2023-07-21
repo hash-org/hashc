@@ -10,7 +10,7 @@ use std::{
 use hash_source::{
     constant::{FloatTy, IntTy, InternedFloat, InternedInt, InternedStr, SIntTy},
     identifier::Identifier,
-    location::{SourceLocation, Span},
+    location::{ByteRange, SourceLocation},
     SourceId,
 };
 use hash_tree_def::define_tree;
@@ -112,7 +112,7 @@ impl<T> AstNode<T> {
     }
 
     /// Get the [ByteRange] of this [AstNode].
-    pub fn byte_range(&self) -> Span {
+    pub fn byte_range(&self) -> ByteRange {
         self.span().span
     }
 
@@ -137,7 +137,7 @@ impl<T> AstNode<T> {
     }
 
     /// Create an [AstNodeRef] by providing a body and copying over the
-    /// [Span] and [AstNodeId] that belong to this [AstNode].
+    /// [AstNodeId] that belong to this [AstNode].
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
         AstNodeRef { body, id: self.id }
     }
@@ -172,7 +172,7 @@ impl<'t, T> AstNodeRef<'t, T> {
         self.body
     }
 
-    /// Utility function to copy over the [Span] and [AstNodeId] from
+    /// Utility function to copy over the [AstNodeId] from
     /// another [AstNodeRef] with a provided body.
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
         AstNodeRef { body, id: self.id }

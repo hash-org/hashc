@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use hash_source::location::{SourceLocation, Span};
+use hash_source::location::SourceLocation;
 use hash_storage::store::SequenceStoreKey;
 use hash_utils::parking_lot::RwLock;
 
@@ -170,21 +170,6 @@ impl LocationStore {
     /// Get a [SourceLocation] from a specified [LocationTarget]
     pub fn get_location(&self, target: impl Into<LocationTarget>) -> Option<SourceLocation> {
         self.data.read().get(&target.into()).copied()
-    }
-
-    /// Get the associated [Span] with from the specified [LocationTarget]
-    pub fn get_span(&self, target: impl Into<LocationTarget>) -> Option<Span> {
-        self.get_location(target).map(|loc| loc.span)
-    }
-
-    /// Get the overall [Span] covering all the members of a specified
-    /// [IndexedLocationTarget].
-    pub fn get_overall_span(&self, target: impl Into<IndexedLocationTarget>) -> Option<Span> {
-        let target = target.into();
-        target
-            .to_index_range()
-            .map(|index| self.get_span(LocationTarget::from((target, index))))
-            .fold(None, |acc, span| Some(acc?.join(span?)))
     }
 
     /// Get the overall [SourceLocation] covering all the members of a specified
