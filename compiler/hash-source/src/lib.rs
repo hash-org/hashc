@@ -19,7 +19,7 @@ use hash_utils::{
     path::adjust_canonicalisation,
     range_map::RangeMap,
 };
-use location::{RowCol, RowColSpan, SourceLocation, Span};
+use location::{RowCol, RowColRange, SourceLocation, Span};
 use once_cell::sync::OnceCell;
 
 /// Used to check what kind of [SourceId] is being
@@ -173,17 +173,11 @@ pub enum ModuleKind {
 pub struct LineRanges(RangeMap<usize, ()>);
 
 impl LineRanges {
-    /// Create a new [LineRanges] with a specified number of slots
-    /// within the [RangeMap].
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self(RangeMap::with_capacity(capacity))
-    }
-
     /// Create a line range from a string slice.
     pub fn new_from_str(s: &str) -> Self {
         // Pre-allocate the line ranges to a specific size by counting the number of
         // newline characters within the module source.
-        let mut ranges = LineRanges::with_capacity(bytecount::count(s.as_bytes(), b'\n'));
+        let mut ranges = Self(RangeMap::with_capacity(bytecount::count(s.as_bytes(), b'\n')));
 
         // Now, iterate through the source and record the position of each newline
         // range, and push it into the map.
@@ -208,11 +202,11 @@ impl LineRanges {
     }
 
     /// Returns the line and column of the given [Span]
-    pub fn span_into_row_col_span(&self, span: Span) -> RowColSpan {
-        let start = self.get_row_col(span.start());
-        let end = self.get_row_col(span.end());
+    pub fn row_cols(&self, range: Span) -> RowColRange {
+        let start = self.get_row_col(range.start());
+        let end = self.get_row_col(range.end());
 
-        RowColSpan { start, end }
+        RowColRange { start, end }
     }
 }
 
@@ -405,7 +399,7 @@ impl SourceMap {
     }
 
     /// Get the [LineRanges] for a specific [SourceId].
-    pub fn line_ranges_by_id(&self, source_id: SourceId) -> &LineRanges {
+    pub fn line_ranges(&self, source_id: SourceId) -> &LineRanges {
         if source_id.is_interactive() {
             self.interactive_blocks.get(source_id.value() as usize).unwrap().line_ranges()
         } else {
@@ -460,8 +454,8 @@ impl SourceMap {
 
     /// Function to get a friendly representation of the [SourceLocation] in
     /// terms of row and column positions.
-    pub fn get_column_row_span_for(&self, location: SourceLocation) -> RowColSpan {
-        self.line_ranges_by_id(location.id).span_into_row_col_span(location.span)
+    pub fn get_row_col_for(&self, location: SourceLocation) -> RowColRange {
+        self.line_ranges(location.id).row_cols(location.span)
     }
 
     /// Convert a [SourceLocation] in terms of the filename, row and column.
@@ -469,7 +463,7 @@ impl SourceMap {
     /// @@cleanup: move this out of here.
     pub fn fmt_location(&self, location: SourceLocation) -> String {
         let name = self.canonicalised_path_by_id(location.id);
-        let span = self.get_column_row_span_for(location);
+        let span = self.get_row_col_for(location);
 
         format!("{name}:{span}")
     }

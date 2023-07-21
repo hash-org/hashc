@@ -137,25 +137,25 @@ impl Display for RowCol {
     }
 }
 
-/// [RowColSpan] is a data structure that is equivalent to [Span] but uses rows
-/// and columns to denote offsets within the source file. [RowColSpan] is only
+/// [RowColRange] is a data structure that is equivalent to [Span] but uses rows
+/// and columns to denote offsets within the source file. [RowColRange] is only
 /// re-used when specific line numbers need to be reported, this shouldn't be
 /// used for general purpose storage of positions of source items.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct RowColSpan {
-    /// The starting position of the [RowColSpan].
+pub struct RowColRange {
+    /// The starting position of the [RowColRange].
     pub start: RowCol,
-    /// The end position of the [RowColSpan].
+    /// The end position of the [RowColRange].
     pub end: RowCol,
 }
 
-impl RowColSpan {
-    /// Create a new [RowColSpan] from a `start` and `end`.
+impl RowColRange {
+    /// Create a new [RowColRange] from a `start` and `end`.
     pub fn new(start: RowCol, end: RowCol) -> Self {
         Self { start, end }
     }
 
-    /// Get the associated rows with the start and end of the [RowColSpan].
+    /// Get the associated rows with the start and end of the [RowColRange].
     pub fn rows(&self) -> (usize, usize) {
         (self.start.row, self.end.row)
     }
@@ -165,7 +165,7 @@ impl RowColSpan {
     }
 }
 
-impl Display for RowColSpan {
+impl Display for RowColRange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.start == self.end {
             write!(f, "{}", self.start)

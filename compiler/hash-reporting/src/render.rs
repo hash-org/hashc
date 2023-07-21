@@ -14,7 +14,7 @@ use std::{
 };
 
 use hash_source::{
-    location::{RowCol, RowColSpan, SourceLocation},
+    location::{RowCol, RowColRange, SourceLocation},
     SourceMap,
 };
 use hash_utils::highlight::{highlight, Colour, Modifier};
@@ -70,7 +70,7 @@ impl ReportCodeBlock {
             Some(info) => info,
             None => {
                 let SourceLocation { span, id } = self.source_location;
-                let source = sources.line_ranges_by_id(id);
+                let source = sources.line_ranges(id);
 
                 // Compute offset rows and columns from the provided span
                 let start @ RowCol { row: start_row, .. } = source.get_row_col(span.start());
@@ -88,7 +88,7 @@ impl ReportCodeBlock {
                     .chars()
                     .count();
 
-                let span = RowColSpan::new(start, end);
+                let span = RowColRange::new(start, end);
                 let info = ReportCodeBlockInfo { indent_width, span };
 
                 self.info.replace(Some(info));

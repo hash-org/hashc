@@ -2,7 +2,7 @@
 use std::{cell::Cell, fmt};
 
 use hash_error_codes::error_codes::HashErrorCode;
-use hash_source::location::{RowColSpan, SourceLocation};
+use hash_source::location::{RowColRange, SourceLocation};
 use hash_utils::highlight::{highlight, Colour, Modifier};
 
 /// A data type representing a comment/message on a specific span in a code
@@ -13,7 +13,7 @@ pub struct ReportCodeBlockInfo {
     pub indent_width: usize,
 
     /// The span of the code block but using row and column indices.
-    pub span: RowColSpan,
+    pub span: RowColRange,
 }
 
 /// Enumeration describing the kind of [Report]; either being a warning, info or

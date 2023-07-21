@@ -1524,7 +1524,6 @@ mod tests {
     }
 }
 
-
 #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
 mod size_asserts {
     use hash_utils::assert::static_assert_size;
