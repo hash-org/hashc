@@ -43,16 +43,16 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        span: AstNodeId,
+        origin: AstNodeId,
         subject: TermId,
         arms: MatchCasesId,
-        origin: ast::MatchOrigin,
+        match_origin: ast::MatchOrigin,
     ) -> BlockAnd<()> {
         // @@Hack: if the match-origin is an `if`-chain, then we don't bother
         // lowering the place since we always know that the branches are
         // always matching, and it's only guards that are being tested. Therefore,
         // we use the `subject_place` as the `return_place` in this instance.
-        let subject_place = if matches!(origin, ast::MatchOrigin::If) {
+        let subject_place = if matches!(match_origin, ast::MatchOrigin::If) {
             PlaceBuilder::from(ir::RETURN_PLACE)
         } else {
             unpack!(block = self.as_place_builder(block, subject, Mutability::Mutable))
@@ -69,9 +69,8 @@ impl<'tcx> BodyBuilder<'tcx> {
         // Using the decision tree, now build up the blocks for each arm, and then
         // join them at the end to the next block after the match, i.e. the `ending
         // block`.
-        self.lower_match_tree(block, subject_span, span, &mut candidates);
-
-        self.lower_match_arms(destination, span, arm_candidates)
+        self.lower_match_tree(block, subject_span, origin, &mut candidates);
+        self.lower_match_arms(destination, subject_span, arm_candidates)
     }
 
     fn create_match_candidates(
@@ -136,8 +135,8 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn lower_match_tree(
         &mut self,
         block: BasicBlock,
-        subject_span: AstNodeId,
-        span: AstNodeId,
+        subject_origin: AstNodeId,
+        origin: AstNodeId,
         candidates: &mut [&mut Candidate],
     ) {
         // This is the basic block that is derived for using when the
@@ -145,14 +144,14 @@ impl<'tcx> BodyBuilder<'tcx> {
         // in the `otherwise` situation.
         let mut otherwise = None;
 
-        self.match_candidates(span, block, &mut otherwise, candidates);
+        self.match_candidates(origin, block, &mut otherwise, candidates);
 
         // We need to terminate the otherwise block with an `unreachable` since
         // this branch should never be reached since the `match` is exhaustive.
         if let Some(otherwise_block) = otherwise {
             self.control_flow_graph.terminate(
                 otherwise_block,
-                subject_span,
+                subject_origin,
                 TerminatorKind::Unreachable,
             );
         }
@@ -177,7 +176,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn lower_match_arms(
         &mut self,
         destination: Place,
-        subject_span: AstNodeId,
+        subject_origin: AstNodeId,
         arm_candidates: Vec<Candidates<'tcx>>,
     ) -> BlockAnd<()> {
         // Lower all of the arms...
@@ -187,7 +186,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // Each match-case creates its own scope, so we need to enter it here...
             Context::enter_resolved_scope_mut(self, ScopeKind::Stack(arm.stack_id), |this| {
                 this.declare_bindings(arm.bind_pat);
-                let arm_block = this.bind_pat(subject_span, arm.bind_pat, candidate);
+                let arm_block = this.bind_pat(subject_origin, arm.bind_pat, candidate);
                 lowered_arms_edges.push(this.term_into_dest(destination, arm_block, arm.value));
             })
         }
@@ -201,8 +200,8 @@ impl<'tcx> BodyBuilder<'tcx> {
             let span = self.control_flow_graph.basic_blocks[arm_edge.0]
                 .statements
                 .last()
-                .map(|stmt| stmt.span)
-                .unwrap_or(subject_span);
+                .map(|stmt| stmt.origin)
+                .unwrap_or(subject_origin);
 
             let arm_block_edge = unpack!(arm_edge);
 
@@ -220,7 +219,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// This is the main **entry point** of the match-lowering algorithm.
     fn match_candidates(
         &mut self,
-        span: AstNodeId,
+        origin: AstNodeId,
         block: BasicBlock,
         otherwise: &mut Option<BasicBlock>,
         candidates: &mut [&mut Candidate],
@@ -247,16 +246,16 @@ impl<'tcx> BodyBuilder<'tcx> {
                     candidate.visit_leaves(|leaf| new_candidates.push(leaf));
                 }
 
-                self.match_simplified_candidates(span, block, otherwise, &mut new_candidates)
+                self.match_simplified_candidates(origin, block, otherwise, &mut new_candidates)
             } else {
-                self.match_simplified_candidates(span, block, otherwise, candidates)
+                self.match_simplified_candidates(origin, block, otherwise, candidates)
             }
         });
     }
 
     fn match_simplified_candidates(
         &mut self,
-        span: AstNodeId,
+        origin: AstNodeId,
         start_block: BasicBlock,
         otherwise_block: &mut Option<BasicBlock>,
         candidates: &mut [&mut Candidate],
@@ -290,7 +289,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // to create tests for any of the un-matched candidates.
         if unmatched_candidates.is_empty() {
             if let Some(otherwise) = *otherwise_block {
-                self.control_flow_graph.goto(block, otherwise, span);
+                self.control_flow_graph.goto(block, otherwise, origin);
             } else {
                 *otherwise_block = Some(block);
             }
@@ -299,7 +298,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
 
         // Otherwise, we need to create tests for all of the unmatched candidates.
-        self.test_candidates_with_or(span, unmatched_candidates, block, otherwise_block)
+        self.test_candidates_with_or(origin, unmatched_candidates, block, otherwise_block)
     }
 
     /// Link matching candidates together, so that they are essentially chained.
@@ -368,7 +367,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// if not then we start building tests for candidates.
     fn test_candidates_with_or(
         &mut self,
-        span: AstNodeId,
+        origin: AstNodeId,
         candidates: &mut [&mut Candidate],
         block: BasicBlock,
         otherwise_block: &mut Option<BasicBlock>,
@@ -381,7 +380,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // If this is the case, it means that we have no or-patterns
         // here... since we sorted them
         if !first.pairs[0].pat.borrow().is_or() {
-            self.test_candidates(span, candidates, block, otherwise_block);
+            self.test_candidates(origin, candidates, block, otherwise_block);
             return;
         }
 
@@ -407,7 +406,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let remainder_start =
             otherwise.unwrap_or_else(|| self.control_flow_graph.start_new_block());
 
-        self.match_candidates(span, remainder_start, otherwise_block, remaining);
+        self.match_candidates(origin, remainder_start, otherwise_block, remaining);
     }
 
     /// This is the point where we begin to "test" candidates since we have
@@ -470,7 +469,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// approach, we essentially generate an `if-else-if` chain.
     fn test_candidates(
         &mut self,
-        span: AstNodeId,
+        origin: AstNodeId,
         mut candidates: &mut [&mut Candidate],
         block: BasicBlock,
         otherwise: &mut Option<BasicBlock>,
@@ -551,7 +550,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         let candidate_start = this.control_flow_graph.start_new_block();
 
                         this.match_candidates(
-                            span,
+                            origin,
                             candidate_start,
                             remainder_start,
                             &mut candidates,
@@ -567,18 +566,18 @@ impl<'tcx> BodyBuilder<'tcx> {
             if !candidates.is_empty() {
                 let remainder_start =
                     remainder_start.unwrap_or_else(|| this.control_flow_graph.start_new_block());
-                this.match_candidates(span, remainder_start, otherwise, candidates);
+                this.match_candidates(origin, remainder_start, otherwise, candidates);
             };
 
             target_blocks
         };
 
-        self.perform_test(span, block, &match_place, &test, make_target_blocks);
+        self.perform_test(origin, block, &match_place, &test, make_target_blocks);
     }
 
     /// This function is responsible for putting all of the declared bindings
     /// into scope.
-    fn bind_pat(&mut self, span: AstNodeId, pat: PatId, candidate: Candidate) -> BasicBlock {
+    fn bind_pat(&mut self, origin: AstNodeId, pat: PatId, candidate: Candidate) -> BasicBlock {
         let guard = match pat.value() {
             Pat::If(IfPat { condition, .. }) => Some(condition),
             _ => None,
@@ -587,7 +586,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         if candidate.sub_candidates.is_empty() {
             // We don't need generate another `BasicBlock` when we only have
             // this candidate.
-            self.bind_and_guard_matched_candidate(candidate, guard, &[], span)
+            self.bind_and_guard_matched_candidate(candidate, guard, &[], origin)
         } else {
             let target_block = self.control_flow_graph.start_new_block();
 
@@ -596,8 +595,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 &mut Vec::new(),
                 &mut |leaf, parent_bindings| {
                     let binding_end =
-                        self.bind_and_guard_matched_candidate(leaf, guard, parent_bindings, span);
-                    self.control_flow_graph.goto(binding_end, target_block, span);
+                        self.bind_and_guard_matched_candidate(leaf, guard, parent_bindings, origin);
+                    self.control_flow_graph.goto(binding_end, target_block, origin);
                 },
                 |inner, parent_bindings| {
                     parent_bindings.push(inner.bindings);
@@ -626,7 +625,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         candidate: Candidate,
         guard: Option<TermId>,
         parent_bindings: &[Vec<Binding>],
-        span: AstNodeId,
+        origin: AstNodeId,
     ) -> BasicBlock {
         let block = candidate.pre_binding_block.unwrap();
 
@@ -643,7 +642,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             let otherwise_block = candidate.otherwise_block.unwrap_or_else(|| {
                 let unreachable = self.control_flow_graph.start_new_block();
-                self.control_flow_graph.terminate(unreachable, span, TerminatorKind::Unreachable);
+                self.control_flow_graph.terminate(unreachable, origin, TerminatorKind::Unreachable);
                 unreachable
             });
 
@@ -684,7 +683,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block,
                 value_place,
                 binding.source.into(),
-                binding.span,
+                binding.origin,
             );
         }
     }
@@ -708,7 +707,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // an assign onto the binding source.
             let value_place = Place::from_local(self.lookup_local(binding.name).unwrap());
 
-            self.control_flow_graph.push_assign(block, value_place, rvalue, binding.span);
+            self.control_flow_graph.push_assign(block, value_place, rvalue, binding.origin);
         }
     }
 }

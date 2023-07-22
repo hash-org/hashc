@@ -840,7 +840,7 @@ pub struct Statement {
     /// The location of the statement. This is mostly used for error reporting
     /// or generating debug information at later stages of lowering
     /// beyond the IR.
-    pub span: AstNodeId,
+    pub origin: AstNodeId,
 }
 
 /// The kind of assert terminator that it is.
@@ -916,7 +916,7 @@ pub struct Terminator {
     /// The source location of the terminator. This is mostly used for error
     /// reporting or generating debug information at later stages of
     /// lowering beyond the IR.
-    pub span: AstNodeId,
+    pub origin: AstNodeId,
 }
 
 pub type Successors<'a> = impl Iterator<Item = BasicBlock> + 'a;
@@ -1294,7 +1294,7 @@ pub struct Body {
     pub arg_count: usize,
 
     /// The location of the function
-    span: AstNodeId,
+    origin: AstNodeId,
 
     /// Whether the IR Body that is generated should be printed
     /// when the generation process is finalised.
@@ -1309,7 +1309,7 @@ impl Body {
         declarations: IndexVec<Local, LocalDecl>,
         info: BodyInfo,
         arg_count: usize,
-        span: AstNodeId,
+        origin: AstNodeId,
     ) -> Self {
         Self {
             needed_constants: vec![],
@@ -1317,7 +1317,7 @@ impl Body {
             info,
             declarations,
             arg_count,
-            span,
+            origin,
             dump: false,
         }
     }
@@ -1372,12 +1372,12 @@ impl Body {
 
     /// Get the [Span] of the [Body].
     pub(crate) fn span(&self) -> Span {
-        self.span.span()
+        self.origin.span()
     }
 
     /// Get the [SourceId] of the [Body].
     pub(crate) fn source(&self) -> SourceId {
-        self.span.source()
+        self.origin.source()
     }
 }
 

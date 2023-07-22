@@ -98,7 +98,7 @@ pub(super) struct Test {
     /// The span of where the test occurs, in order to provide richer
     /// information to basic block terminations when actually *performing*
     /// the test
-    pub span: AstNodeId,
+    pub origin: AstNodeId,
 }
 
 impl Test {
@@ -140,7 +140,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         otherwise: &mut Option<BasicBlock>,
         place_builder: &PlaceBuilder,
         pats: &[PatId],
-        or_span: AstNodeId,
+        or_origin: AstNodeId,
     ) {
         let mut or_candidates: Vec<_> = pats
             .iter()
@@ -166,19 +166,19 @@ impl<'tcx> BodyBuilder<'tcx> {
         // to simplify anything trivial, and assume the starting block
         // is the pre-binding block of the overall candidate.
         self.match_candidates(
-            or_span,
+            or_origin,
             candidate.pre_binding_block.unwrap(),
             otherwise,
             &mut or_candidates_ref,
         );
-        self.merge_sub_candidates(candidate, or_span);
+        self.merge_sub_candidates(candidate, or_origin);
     }
 
     /// Create a [Test] from a [MatchPair]. If this function is called
     /// on a un-simplified pattern, then this breaks an invariant and the
     /// function will panic.
     pub(super) fn test_match_pair(&mut self, pair: &MatchPair) -> Test {
-        let span = self.span_of_pat(pair.pat);
+        let origin = self.span_of_pat(pair.pat);
 
         // Emit a test for a literal kind of pattern, here we also consider
         // constants as being literals.
@@ -186,9 +186,9 @@ impl<'tcx> BodyBuilder<'tcx> {
             // If it is not an integral constant, we use an `Eq` test. This will
             // happen when the constant is either a float or a string.
             if value.is_switchable() {
-                Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, span }
+                Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, origin }
             } else {
-                Test { kind: TestKind::Eq { ty, value }, span }
+                Test { kind: TestKind::Eq { ty, value }, origin }
             }
         };
 
@@ -208,7 +208,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                             // Structs can be simplified...
                             if adt.flags.is_struct() {
                                 panic_on_span!(
-                                    span.span(),
+                                    origin.span(),
                                     self.source_map(),
                                     "attempt to test simplify-able pattern, `{}`",
                                     (pair.pat)
@@ -223,7 +223,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                                 adt,
                                 options: FixedBitSet::with_capacity(variant_count),
                             },
-                            span,
+                            origin,
                         }
                     }
                     _ => unreachable!("non-bool, non-adt type in test_match_pair"),
@@ -236,16 +236,16 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // If it is not an integral constant, we use an `Eq` test. This will
                 // happen when the constant is either a float or a string.
                 if value.is_switchable() {
-                    Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, span }
+                    Test { kind: TestKind::SwitchInt { ty, options: Default::default() }, origin }
                 } else {
-                    Test { kind: TestKind::Eq { ty, value }, span }
+                    Test { kind: TestKind::Eq { ty, value }, origin }
                 }
             }
             Pat::Range(ref range_pat) => {
                 let ty = self.ty_id_from_tir_pat(pair.pat);
                 Test {
                     kind: TestKind::Range { range: ConstRange::from_range(range_pat, ty, self) },
-                    span,
+                    origin,
                 }
             }
             Pat::Array(array_pat) => {
@@ -254,19 +254,19 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let len = (prefix.len() + suffix.len()) as u64;
                 let op = if rest.is_some() { BinOp::GtEq } else { BinOp::Eq };
 
-                Test { kind: TestKind::Len { len, op }, span }
+                Test { kind: TestKind::Len { len, op }, origin }
             }
             Pat::If(IfPat { pat, .. }) => {
                 self.test_match_pair(&MatchPair { pat, place: pair.place.clone() })
             }
             Pat::Or(_) => panic_on_span!(
-                span.span(),
+                origin.span(),
                 self.source_map(),
                 "or patterns should be handled by `test_or_pat`"
             ),
             Pat::Tuple(_) | Pat::Binding(_) => {
                 panic_on_span!(
-                    span.span(),
+                    origin.span(),
                     self.source_map(),
                     "attempt to test simplify-able pattern, `{}`",
                     (pair.pat)
@@ -555,7 +555,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// [Test].
     pub(super) fn perform_test(
         &mut self,
-        subject_span: AstNodeId,
+        subject_origin: AstNodeId,
         block: BasicBlock,
         place_builder: &PlaceBuilder,
         test: &Test,
@@ -563,7 +563,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) {
         // Build the place from the provided place builder
         let place = place_builder.clone().into_place();
-        let span = test.span;
+        let span = test.origin;
 
         match test.kind {
             TestKind::Switch { adt, options: ref variants } => {
@@ -602,7 +602,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // switch statement.
                 let discriminant_tmp = self.temp_place(discriminant_ty);
                 let value = RValue::Discriminant(place);
-                self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_span);
+                self.control_flow_graph.push_assign(block, discriminant_tmp, value, subject_origin);
 
                 // then terminate this block with the `switch` terminator
                 self.control_flow_graph.terminate(
@@ -770,7 +770,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         op: BinOp,
         lhs: Operand,
         rhs: Operand,
-        span: AstNodeId,
+        origin: AstNodeId,
     ) {
         debug_assert!(op.is_comparator());
 
@@ -781,13 +781,13 @@ impl<'tcx> BodyBuilder<'tcx> {
         // rhs)`
         let operands = Box::new((lhs, rhs));
         let value = RValue::BinaryOp(op, operands);
-        self.control_flow_graph.push_assign(block, result, value, span);
+        self.control_flow_graph.push_assign(block, result, value, origin);
 
         // Then insert the switch statement, which determines where the cfg goes based
         // on if the comparison was true or false.
         self.control_flow_graph.terminate(
             block,
-            span,
+            origin,
             TerminatorKind::make_if(result.into(), success, fail),
         );
     }

@@ -46,7 +46,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         decl: &DeclTerm,
-        decl_span: AstNodeId,
+        decl_origin: AstNodeId,
     ) -> BlockAnd<()> {
         if let Some(value) = &decl.value {
             // First, we declare all of the bindings that are present
@@ -57,7 +57,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             unpack!(block = self.tir_term_into_pat(block, decl.bind_pat, *value));
         } else {
             panic_on_span!(
-                decl_span.span(),
+                decl_origin.span(),
                 self.source_map(),
                 "expected initialisation value, declaration are expected to have values (for now)."
             );

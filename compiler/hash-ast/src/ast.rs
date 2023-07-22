@@ -31,6 +31,18 @@ define_index_type! {
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
+impl AstNodeId {
+    /// Get the [Span] of this [AstNodeId].
+    pub fn span(&self) -> Span {
+        SpanMap::span_of(*self)
+    }
+
+    /// Get the [SourceId] of this [AstNodeId].
+    pub fn source(&self) -> SourceId {
+        SpanMap::source_of(*self)
+    }
+}
+
 /// The [`SPAN_MAP`] is a global static that is used to store the span
 /// of each AST node. This is used to avoid storing the [Span] on the
 /// [`AstNode<T>`] itself in order for other data structures to be able

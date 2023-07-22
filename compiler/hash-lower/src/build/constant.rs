@@ -25,11 +25,11 @@ impl<'tcx> BodyBuilder<'tcx> {
     }
 
     /// Lower a constant expression, i.e. a literal value.
-    pub(crate) fn lower_constant_expr(&mut self, term: &Term, span: AstNodeId) -> ConstKind {
+    pub(crate) fn lower_constant_expr(&mut self, term: &Term, origin: AstNodeId) -> ConstKind {
         match term {
             Term::Lit(lit) => self.as_constant(lit),
             _ => panic_on_span!(
-                span.span(),
+                origin.span(),
                 self.source_map(),
                 "cannot lower non-literal expression into constant"
             ),

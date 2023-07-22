@@ -38,7 +38,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn span_of_pat(&self, id: PatId) -> AstNodeId {
         self.stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected pattern `{}` to have a location", id);
-            AstNodeId(0)
+            AstNodeId::new(0)
         })
     }
 
@@ -46,7 +46,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn span_of_def(&self, id: FnDefId) -> AstNodeId {
         self.stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected function definition `{}` to have a location", id);
-            AstNodeId(0)
+            AstNodeId::new(0)
         })
     }
 
@@ -54,7 +54,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn span_of_term(&self, id: TermId) -> AstNodeId {
         self.stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected term `{:?}` to have a location", id);
-            AstNodeId(0)
+            AstNodeId::new(0)
         })
     }
 
@@ -143,13 +143,13 @@ impl<'tcx> BodyBuilder<'tcx> {
         condition: Operand,
         expected: bool,
         kind: AssertKind,
-        span: AstNodeId,
+        origin: AstNodeId,
     ) -> BasicBlock {
         let success_block = self.control_flow_graph.start_new_block();
 
         self.control_flow_graph.terminate(
             block,
-            span,
+            origin,
             TerminatorKind::Assert { condition, expected, kind, target: success_block },
         );
 
