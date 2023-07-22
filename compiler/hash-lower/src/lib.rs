@@ -149,17 +149,17 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let mut lowered_bodies = Vec::with_capacity(items.fns.len());
 
         time_item(self, "build", |_| {
-            for func in items.iter() {
+            for func in items.into_iter() {
                 let name = func.borrow().name.ident();
 
-                let mut builder = BodyBuilder::new(name, (*func).into(), ctx, settings);
+                let mut builder = BodyBuilder::new(name, func.into(), ctx, settings);
                 builder.build();
 
                 let body = builder.finish();
 
                 // This is the entry point, so we need to record that this
                 // is the entry point.
-                if let Some(def) = entry_point.def() && def == *func {
+                if let Some(def) = entry_point.def() && def == func {
                     let instance = body.info.ty().borrow().as_instance();
                     ir_storage.entry_point.set(instance, entry_point.kind().unwrap());
                 }

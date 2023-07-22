@@ -11,7 +11,7 @@ use hash_storage::store::{statics::StoreId, PartialStore};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     environment::env::{AccessToEnv, Env},
-    fns::{FnBody, FnDef, FnDefId},
+    fns::{FnBody, FnDefId},
     mods::{ModKind, ModMemberValue},
     terms::TermId,
     utils::{traversing::Atom, AccessToUtils},
@@ -51,54 +51,60 @@ impl DiscoveredFns {
     }
 
     /// Add a function to the set of discovered functions.
-    pub fn add_fn(&mut self, fn_def: FnDefId) {
-        self.fns.insert(fn_def);
+    pub fn add_fn(&mut self, def: FnDefId) {
+        self.fns.insert(def);
+    }
+
+    pub fn contains(&self, def: FnDefId) -> bool {
+        self.fns.contains(&def)
     }
 
     /// Iterate over all discovered functions.
-    pub fn iter(&self) -> impl Iterator<Item = &FnDefId> {
-        self.fns.iter()
+    pub fn into_iter(self) -> impl Iterator<Item = FnDefId> {
+        self.fns.into_iter()
     }
 }
 
 impl FnDiscoverer<'_> {
     /// Check whether a function definition needs to be lowered. The function
     /// should be lowered if it adheres to the following conditions:
+    ///
     /// - It is not pure (for now)
     /// - It is not marked as "foreign"
     /// - It has a defined body
     /// - It is not an intrinsic or axiom
-    pub fn fn_needs_to_be_lowered(&self, def_id: FnDefId, fn_def: &FnDef) -> bool {
+    ///
+    /// If the function is to be queued, this will return the `body` of the
+    /// function so that any nested functions can be queued too.
+    pub fn queue_fn_and_body(&self, def: FnDefId) -> Option<TermId> {
+        let (ty, def_body) = def.map(|def| (def.ty, def.body));
         // @@Todo: in the future, we might want to have a special flag by the
         // typechecker as to whether to lower something or not, rather than always
         // not lowering pure functions.
-        if fn_def.ty.pure {
-            return false;
-        }
-
+        //
         // Also, we don't queue polymorphic functions here as this doesn't
         // have any concrete types to lower to. Instead we queue all call site
         // instances of the function for lowering, this isn't ideal but it less
         // complicated than dealing with the polymorphic functions later on.
-        if fn_def.ty.implicit {
-            return false;
+        if ty.pure || ty.implicit {
+            return None;
         }
 
-        match fn_def.body {
-            FnBody::Defined(_) => {
+        match def_body {
+            FnBody::Defined(body) => {
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.
-                self.stores().directives().map_fast(def_id.into(), |maybe_directives| {
+                self.stores().directives().map_fast(def.into(), |maybe_directives| {
                     if let Some(directives) = maybe_directives && directives.contains(IDENTS.foreign) {
-                        false
+                        None
                     } else {
-                        true
+                        Some(body)
                     }
                 })
             }
 
             // Intrinsics and axioms have no effect on the IR lowering
-            FnBody::Intrinsic(_) | FnBody::Axiom => false,
+            FnBody::Intrinsic(_) | FnBody::Axiom => None,
         }
     }
 
@@ -126,18 +132,17 @@ impl FnDiscoverer<'_> {
                     ModMemberValue::Data(_) => {
                         // We don't need to discover anything in data types
                     }
-                    ModMemberValue::Fn(fn_def_id) => {
-                        let fn_def = fn_def_id.value();
-
-                        if self.fn_needs_to_be_lowered(fn_def_id, &fn_def) {
-                            fns.add_fn(fn_def_id);
-
-                            let FnBody::Defined(body) = fn_def.body else { unreachable!() };
+                    ModMemberValue::Fn(def) if !fns.contains(def) => {
+                        if let Some(body) = self.queue_fn_and_body(def) {
+                            fns.add_fn(def);
 
                             // Add all nested functions too
                             let inferred_body = self.get_inferred_value(body);
                             self.add_all_child_fns(inferred_body, &mut fns);
                         }
+                    }
+                    ModMemberValue::Fn(_) => {
+                        // We've already found this one.
                     }
                 }
             }
@@ -158,7 +163,7 @@ impl FnDiscoverer<'_> {
                 Atom::Ty(_) => Ok(ControlFlow::Break(())),
                 Atom::FnDef(fn_def) => {
                     // @@Todo: this doesn't deal with captures.
-                    if self.fn_needs_to_be_lowered(fn_def, &fn_def.value()) {
+                    if !fns.contains(fn_def) && self.queue_fn_and_body(fn_def).is_some() {
                         fns.add_fn(fn_def);
 
                         Ok(ControlFlow::Continue(()))
