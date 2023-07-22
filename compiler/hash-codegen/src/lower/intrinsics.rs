@@ -36,7 +36,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         args: &[OperandRef<Builder::Value>],
         result: Builder::Value,
     ) {
-        let result = PlaceRef::new(builder, result, ret_abi.info);
+        let result = PlaceRef::new(result, ret_abi.info);
 
         let value = match intrinsic {
             Intrinsic::Abort => {
@@ -114,7 +114,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) {
         let src = self.codegen_operand(builder, src);
 
-        self.ctx.layouts().map_many_fast([src.info.layout, dest.info.layout], |layouts| {
+        self.ctx.layouts().store().map_many_fast([src.info.layout, dest.info.layout], |layouts| {
             let (src_layout, dest_layout) = (layouts[0], layouts[1]);
 
             // Special case for transmuting between pointers and integers.

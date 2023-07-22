@@ -18,8 +18,8 @@ use hash_codegen::{
         size::Size,
     },
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
-        ty::TypeBuilderMethods, HasCtxMethods,
+        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
+        HasCtxMethods,
     },
 };
 use hash_ir::ty::{IrTy, IrTyId};
@@ -778,8 +778,8 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
         let mut body_builder = Self::build(self.ctx, body_bb);
 
-        let field_info = destination.info.field(self.ctx.layout_computer(), 0);
-        let field_size = self.map_layout(field_info.layout, |layout| layout.size);
+        let field_info = destination.info.field(self.ctx.layouts(), 0);
+        let field_size = field_info.size();
 
         let alignment = destination.alignment.restrict_to(field_size);
 
@@ -848,7 +848,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn load_operand(&mut self, place: PlaceRef<Self::Value>) -> OperandRef<Self::Value> {
         // If the operand is a zst, we return a `()` value
-        self.ctx.map_layout(place.info.layout, |layout| {
+        place.info.layout.map(|layout| {
             if layout.is_zst() {
                 return OperandRef::new_zst(self, place.info);
             }
@@ -1238,7 +1238,7 @@ fn load_scalar_value_metadata<'m>(
 
             // Compute the layout of the pointee_ty
             if let Some(pointee_info) =
-                builder.layout_computer().compute_layout_info_of_pointee_at(info, offset)
+                builder.layouts().compute_layout_info_of_pointee_at(info, offset)
             {
                 if pointee_info.kind.is_some() {
                     builder.set_alignment(load, pointee_info.alignment);

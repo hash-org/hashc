@@ -104,6 +104,6 @@ impl<'ir> BuilderCtx<'ir> {
 
     /// Compute the size of a given [IrTyId].
     pub fn size_of(&self, ty: IrTyId) -> Result<usize, LayoutError> {
-        Ok(self.layouts.size_of(self.layout_of(ty)?).bytes().try_into().unwrap())
+        Ok(self.layout_of(ty)?.size().bytes().try_into().unwrap())
     }
 }

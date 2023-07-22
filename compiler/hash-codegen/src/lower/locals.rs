@@ -16,9 +16,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
-use crate::traits::{
-    builder::BlockBuilderMethods, layout::LayoutMethods, CodeGenObject, Codegen, HasCtxMethods,
-};
+use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods, CodeGenObject, Codegen};
 
 /// Defines what kind of reference a local has. A [LocalRef::Place]
 /// is a reference to a stack allocation, and a [LocalRef::Operand]
@@ -36,7 +34,7 @@ pub enum LocalRef<V: std::fmt::Debug> {
 impl<'b, V: CodeGenObject> LocalRef<V> {
     /// Create a new [LocalRef::Operand] instance.
     pub fn new_operand<Builder: Codegen<'b, Value = V>>(builder: &Builder, layout: TyInfo) -> Self {
-        if layout.is_zst(builder.layout_computer()) {
+        if layout.is_zst() {
             LocalRef::Operand(Some(OperandRef::new_zst(builder, layout)))
         } else {
             LocalRef::Operand(None)
@@ -59,7 +57,7 @@ pub fn compute_non_ssa_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
             let ty = local.ty();
             let layout = fn_builder.ctx.layout_of(ty);
 
-            if layout.is_zst(fn_builder.ctx.layout_computer()) {
+            if layout.is_zst() {
                 LocalMemoryKind::Zst
             } else if fn_builder.ctx.is_backend_immediate(layout) {
                 LocalMemoryKind::Unused
@@ -234,7 +232,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         let base_ty = self.fn_builder.body.declarations[place.local].ty;
         let base_layout = self.fn_builder.ctx.layout_of(base_ty);
 
-        if base_layout.is_zst(self.fn_builder.ctx.layout_computer()) {
+        if base_layout.is_zst() {
             return;
         }
 

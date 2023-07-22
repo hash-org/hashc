@@ -4,7 +4,7 @@
 
 use hash_codegen::{
     backend::CodeGenStorage,
-    layout::{compute::LayoutComputer, LayoutCtx},
+    layout::compute::LayoutComputer,
     traits::{BackendTypes, Codegen, HasCtxMethods},
 };
 use hash_ir::IrCtx;
@@ -66,12 +66,8 @@ impl<'b> HasCtxMethods<'b> for LLVMBuilder<'_, 'b, '_> {
         self.ctx.ir_ctx()
     }
 
-    fn layouts(&self) -> &LayoutCtx {
+    fn layouts(&self) -> LayoutComputer<'_> {
         self.ctx.layouts()
-    }
-
-    fn layout_computer(&self) -> LayoutComputer<'_> {
-        self.ctx.layout_computer()
     }
 
     fn cg_ctx(&self) -> &CodeGenStorage {

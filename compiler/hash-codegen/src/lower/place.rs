@@ -42,12 +42,8 @@ pub struct PlaceRef<V> {
 
 impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     /// Create a new [PlaceRef] from an existant value.
-    pub fn new<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
-        builder: &Builder,
-        value: V,
-        info: TyInfo,
-    ) -> Self {
-        let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
+    pub fn new(value: V, info: TyInfo) -> Self {
+        let alignment = info.abi_alignment();
 
         Self { value, info, alignment, extra: None }
     }
@@ -63,11 +59,10 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         builder: &mut Builder,
         info: TyInfo,
     ) -> Self {
-        let alignment = builder.map_layout(info.layout, |layout| layout.alignment.abi);
-
+        let alignment = info.abi_alignment();
         let temp = builder.alloca(builder.ctx().backend_ty_from_info(info), alignment);
 
-        Self::new(builder, temp, info)
+        Self::new(temp, info)
     }
 
     /// Given that the underlying [PlaceRef] refers to an array
@@ -75,7 +70,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     /// array and access the `size` stored on it to get the
     /// `len` of the place.
     pub fn len<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(&self, builder: &Builder) -> V {
-        builder.map_layout(self.info.layout, |layout| {
+        self.info.layout.map(|layout| {
             if let LayoutShape::Array { elements, .. } = layout.shape {
                 builder.const_usize(elements)
             } else {
@@ -94,13 +89,13 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     ) {
         // If an attempt is made to set the discriminant for a variant type
         // that is un-inhabited, this is a panic.
-        if self.info.is_uninhabited(builder.layout_computer()) {
+        if self.info.is_uninhabited() {
             builder.codegen_abort_intrinsic();
             return;
         }
 
         // Now generate setting the discriminant for the variant.
-        let maybe_field = builder.map_layout(self.info.layout, |layout| match layout.variants {
+        let maybe_field = self.info.layout.map(|layout| match layout.variants {
             Variants::Single { index } => {
                 debug_assert_eq!(index, discriminant);
                 None
@@ -133,16 +128,14 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         let cast_info = builder.layout_of(cast_to);
         let cast_to_ty = builder.immediate_backend_ty(cast_info);
 
-        let (variants, is_uninhabited) = builder.map_layout(self.info.layout, |layout| {
-            (layout.variants.clone(), layout.abi.is_uninhabited())
-        });
-
         // Check if this place is represented as "uninhabited" then we
         // simply set the result of this as an undefined value of the `cast_to`
         // type...
-        if is_uninhabited {
+        if self.info.is_uninhabited() {
             return builder.const_undef(cast_to_ty);
         }
+
+        let variants = self.info.layout.borrow().variants.clone();
 
         match variants {
             Variants::Single { index } => {
@@ -181,7 +174,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         variant: VariantIdx,
     ) -> Self {
         let mut downcast = *self;
-        downcast.info = self.info.for_variant(builder.layout_computer(), variant);
+        downcast.info = self.info.for_variant(builder.layouts(), variant);
 
         // Cast the downcast value to the appropriate type
         let variant_ty = builder.backend_ty_from_info(downcast.info);
@@ -197,8 +190,8 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     ) -> Self {
         // compute the offset if possible, or just use the element
         // size as it will yield the lowest alignment.
-        let field_info = self.info.field(builder.layout_computer(), 0);
-        let field_size = builder.map_layout(field_info.layout, |layout| layout.size);
+        let field_info = self.info.field(builder.layouts(), 0);
+        let field_size = field_info.size();
 
         let offset = if let Some(index) = builder.const_to_optional_uint(index) {
             field_size.checked_mul(index, builder).unwrap_or(field_size)
@@ -225,10 +218,9 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         field: usize,
     ) -> Self {
         let (abi, field_offset) =
-            builder.map_layout(self.info.layout, |layout| (layout.abi, layout.shape.offset(field)));
+            self.info.layout.map(|layout| (layout.abi, layout.shape.offset(field)));
 
-        let field_info = self.info.field(builder.layout_computer(), field);
-        let is_zst = builder.map_layout(field_info.layout, |layout| layout.is_zst());
+        let field_info = self.info.field(builder.layouts(), field);
 
         let field_alignment = self.alignment.restrict_to(field_offset);
 
@@ -246,7 +238,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
             AbiRepresentation::Scalar(_)
             | AbiRepresentation::Pair(..)
             | AbiRepresentation::Vector { .. }
-                if is_zst =>
+                if field_info.is_zst() =>
             {
                 // If this is a zst field, we have to manually offset the pointer.
                 let byte_ptr = builder.pointer_cast(self.value, builder.type_i8p());
@@ -290,8 +282,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         &self,
         builder: &mut Builder,
     ) {
-        let size = builder.map_layout(self.info.layout, |layout| layout.size);
-        builder.lifetime_start(self.value, size);
+        builder.lifetime_start(self.value, self.info.size());
     }
 
     /// Emit a hint to the code generation backend that this [PlaceRef] is
@@ -300,8 +291,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         &self,
         builder: &mut Builder,
     ) {
-        let size = builder.map_layout(self.info.layout, |layout| layout.size);
-        builder.lifetime_end(self.value, size);
+        builder.lifetime_end(self.value, self.info.size());
     }
 }
 

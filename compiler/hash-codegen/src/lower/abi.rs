@@ -92,11 +92,9 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     // Closure to create a new argument for the ABI from a given type.
     let make_arg_abi = |ty: IrTyId, index: Option<usize>| {
         let is_return = index.is_none();
-
-        let lc = ctx.layout_computer();
         let info = ctx.layout_of(ty);
 
-        let mut arg = ArgAbi::new(&lc, info, |scalar| {
+        let mut arg = ArgAbi::new(info, |scalar| {
             let mut attributes = ArgAttributes::new();
             adjust_arg_attributes(&mut attributes, ty, scalar, is_return);
             attributes
@@ -104,7 +102,7 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
 
         // @@Todo: we might have to adjust the attribute pass mode
         // for ZSTs on specific platforms since they don't ignore them?
-        if is_return && ctx.layouts().is_zst(info.layout) {
+        if is_return && info.is_zst() {
             arg.mode = PassMode::Ignore;
         }
 

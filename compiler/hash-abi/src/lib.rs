@@ -3,8 +3,8 @@
 //! and to be able to call functions from other languages, but to also provide
 //! information to code generation backends about how values are represented.
 
-use hash_layout::{compute::LayoutComputer, LayoutId, TyInfo};
-use hash_storage::{new_store_key, store::Store};
+use hash_layout::{LayoutId, TyInfo};
+use hash_storage::{new_store_key, store::statics::StoreId};
 use hash_target::{
     abi::{Abi, AbiRepresentation, Scalar},
     size::Size,
@@ -76,12 +76,8 @@ pub struct ArgAbi {
 
 impl ArgAbi {
     /// Create a new [ArgAbi] with the provided [TyInfo].
-    pub fn new(
-        ctx: &LayoutComputer,
-        info: TyInfo,
-        attributes_from_scalar: impl Fn(Scalar) -> ArgAttributes,
-    ) -> Self {
-        let mode = ctx.map_fast(info.layout, |layout| match layout.abi {
+    pub fn new(info: TyInfo, attributes_from_scalar: impl Fn(Scalar) -> ArgAttributes) -> Self {
+        let mode = info.layout.map(|layout| match layout.abi {
             AbiRepresentation::Uninhabited => PassMode::Ignore,
             AbiRepresentation::Scalar(scalar) => PassMode::Direct(attributes_from_scalar(scalar)),
             AbiRepresentation::Pair(scalar_a, scalar_b) => {
@@ -95,7 +91,7 @@ impl ArgAbi {
     }
 
     /// Create a new [`PassMode::Indirect`] based on the provided [Layout].
-    fn indirect_pass_mode(ctx: &LayoutComputer, layout: LayoutId) -> PassMode {
+    fn indirect_pass_mode(layout: LayoutId) -> PassMode {
         let mut attributes = ArgAttributes::new();
 
         attributes
@@ -104,13 +100,13 @@ impl ArgAbi {
             .set(ArgAttributeFlag::NO_CAPTURE)
             .set(ArgAttributeFlag::NO_UNDEF);
 
-        attributes.pointee_size = ctx.map_fast(layout, |layout| layout.size);
+        attributes.pointee_size = layout.size();
 
         PassMode::Indirect { attributes, on_stack: false }
     }
 
     /// Make the argument be passed indirectly.
-    pub fn make_indirect(&mut self, ctx: &LayoutComputer) {
+    pub fn make_indirect(&mut self) {
         // Firstly, verify that that we aren't making an ignored argument indirect.
         match self.mode {
             PassMode::Direct(_) | PassMode::Pair(_, _) => {}
@@ -118,12 +114,12 @@ impl ArgAbi {
             kind => panic!("tried to make this argument with mode {kind:?} indirectly"),
         }
 
-        self.mode = Self::indirect_pass_mode(ctx, self.info.layout);
+        self.mode = Self::indirect_pass_mode(self.info.layout);
     }
 
     /// Make the argument be passed on the stack.
-    pub fn make_indirect_by_stack(&mut self, ctx: &LayoutComputer) {
-        self.make_indirect(ctx);
+    pub fn make_indirect_by_stack(&mut self) {
+        self.make_indirect();
 
         match self.mode {
             PassMode::Indirect { ref mut on_stack, .. } => {

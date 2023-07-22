@@ -7,10 +7,10 @@ use hash_codegen::{
     lower::{operands::OperandValue, place::PlaceRef},
     target::abi::{AbiRepresentation, ScalarKind},
     traits::{
-        abi::AbiBuilderMethods, builder::BlockBuilderMethods, layout::LayoutMethods,
-        ty::TypeBuilderMethods, HasCtxMethods,
+        abi::AbiBuilderMethods, builder::BlockBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
+use hash_storage::store::statics::StoreId;
 use hash_utils::smallvec::SmallVec;
 use inkwell::{
     attributes::{Attribute, AttributeLoc},
@@ -85,8 +85,7 @@ impl<'m> ExtendedArgAbiMethods<'m> for ArgAbi {
         }
 
         if self.is_indirect() {
-            let alignment = builder.map_layout(self.info.layout, |layout| layout.alignment.abi);
-
+            let alignment = self.info.abi_alignment();
             OperandValue::Ref(value, alignment).store(builder, destination)
         } else {
             OperandValue::Immediate(value).store(builder, destination)
@@ -307,7 +306,7 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
 
         // If the return type is un-inhabited then we can mark the
         // function as a "no-return".
-        if ctx.map_layout(self.ret_abi.info.layout, |layout| layout.abi.is_uninhabited()) {
+        if self.ret_abi.info.is_uninhabited() {
             fn_attributes.push(AttributeKind::NoReturn.create_attribute(ctx));
         }
 
@@ -378,7 +377,7 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
 
         // If the return type is un-inhabited then we can mark the
         // function as a "no-return".
-        if builder.map_layout(self.ret_abi.info.layout, |layout| layout.abi.is_uninhabited()) {
+        if self.ret_abi.info.is_uninhabited() {
             fn_attributes.push(AttributeKind::NoReturn.create_attribute(builder.ctx));
         }
 
@@ -417,7 +416,7 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
             _ => {}
         }
 
-        let abi = builder.map_layout(self.ret_abi.info.layout, |layout| layout.abi);
+        let abi = self.ret_abi.info.layout.borrow().abi;
 
         if let AbiRepresentation::Scalar(scalar) = abi {
             if let ScalarKind::Int { .. } = scalar.kind() {

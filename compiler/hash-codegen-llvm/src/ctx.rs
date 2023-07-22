@@ -153,12 +153,8 @@ impl<'b> HasCtxMethods<'b> for CodeGenCtx<'b, '_> {
         self.ir_ctx
     }
 
-    fn layouts(&self) -> &LayoutCtx {
-        self.layouts
-    }
-
-    fn layout_computer(&self) -> LayoutComputer<'_> {
-        LayoutComputer::new(self.layouts())
+    fn layouts(&self) -> LayoutComputer<'_> {
+        LayoutComputer::new(self.layouts)
     }
 
     fn cg_ctx(&self) -> &CodeGenStorage {
