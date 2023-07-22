@@ -23,6 +23,7 @@ pub mod tree_writing;
 
 // Re-export commonly used packages
 pub use arrayvec;
+pub use backtrace;
 pub use fxhash;
 pub use index_vec;
 pub use itertools;

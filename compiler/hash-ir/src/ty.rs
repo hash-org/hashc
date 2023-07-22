@@ -528,6 +528,10 @@ macro_rules! create_common_ty_table {
                     str: IrTyId::from_index_unchecked(0),
                 };
 
+                // Create a `unit` type in order to reserve the first index of
+                // the ADT for a `()` type.
+                let _ = IrTy::tuple(&[]);
+
                 // @@Hack: find a way to nicely create this within the `create_common_ty_table!`,
                 // however this would require somehow referencing entries within the table before
                 // they are defined...

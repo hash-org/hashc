@@ -54,6 +54,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             Term::Tuple(TupleTerm { data }) => {
                 let ty = self.ty_id_from_tir_term(term);
+
                 let adt = ty.borrow().as_adt();
                 let aggregate_kind = AggregateKind::Tuple(adt);
 
@@ -510,7 +511,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                 } else {
                     &adt.variants[0]
                 };
-
                 let field_count = variant.fields.len();
 
                 // Ensure we have the exact amount of arguments as the definition expects.
@@ -518,7 +518,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                     panic_on_span!(
                         origin.span(),
                         self.source_map(),
-                        "default arguments on constructors are not currently supported",
+                        "default arguments on constructors are not currently supported, params={} args={}",
+                        field_count,
+                        args.len(),
                     );
                 }
 
