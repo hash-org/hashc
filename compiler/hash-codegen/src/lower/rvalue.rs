@@ -20,7 +20,7 @@ use crate::{
     common::{CheckedOp, IntComparisonKind, TypeKind},
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
-        ty::TypeBuilderMethods, HasCtxMethods,
+        ty::TypeBuilderMethods,
     },
 };
 
@@ -162,7 +162,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 for (i, operand) in operands.iter().enumerate() {
                     let operand = self.codegen_operand(builder, operand);
-                    let is_zst = builder.map_layout(operand.info.layout, |layout| layout.is_zst());
+                    let is_zst = operand.info.layout.borrow().is_zst();
 
                     // We don't need to do anything for ZSTs...
                     if !is_zst {
@@ -206,9 +206,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 // on the operation it then emits the size or the
                 // alignment.
                 let info = builder.layout_of(ty);
-                let (size, alignment) = builder.map_layout(info.layout, |layout| {
-                    (layout.size.bytes(), layout.alignment.abi.bytes())
-                });
+                let (size, alignment) =
+                    info.layout.map(|layout| (layout.size.bytes(), layout.alignment.abi.bytes()));
 
                 let value_bytes = match op {
                     ir::ConstOp::SizeOf => size,
@@ -291,7 +290,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 // If the operand is a ZST, then we just return the new
                 // operand as an undefined value of the cast_ty
-                if operand.info.is_uninhabited(self.ctx.layout_computer()) {
+                if operand.info.is_uninhabited() {
                     let value = OperandValue::Immediate(builder.const_undef(out_ty));
                     return OperandRef { value, info: cast_ty };
                 }
@@ -551,7 +550,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 // check if the type is a ZST, and if so this satisfies the
                 // case that the rvalue creates an operand...
                 let ty = self.ty_of_rvalue(rvalue);
-                self.ctx.layout_of(ty).is_zst(self.ctx.layout_computer())
+                self.ctx.layout_of(ty).is_zst()
             }
         }
     }

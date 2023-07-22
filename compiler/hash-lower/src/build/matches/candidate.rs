@@ -13,12 +13,11 @@
 
 use std::{borrow::Borrow, mem};
 
-use hash_ast::ast;
+use hash_ast::ast::{self, AstNodeId};
 use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
 };
-use hash_source::location::Span;
 use hash_storage::store::statics::StoreId;
 use hash_target::size::Size;
 use hash_tir::{
@@ -47,7 +46,7 @@ use crate::build::{place::PlaceBuilder, BodyBuilder};
 pub(super) struct Candidate {
     /// The span of the `match` arm, for-error reporting
     /// functionality.
-    pub span: Span,
+    pub origin: AstNodeId,
 
     /// Whether or not the candidate arm hsa an associated guard,
     pub has_guard: bool,
@@ -93,9 +92,14 @@ pub(super) type Candidates<'tcx> = (MatchCase, Candidate);
 
 impl Candidate {
     /// Create a new [Candidate].
-    pub(super) fn new(span: Span, pat: PatId, place: &PlaceBuilder, has_guard: bool) -> Self {
+    pub(super) fn new(
+        origin: AstNodeId,
+        pat: PatId,
+        place: &PlaceBuilder,
+        has_guard: bool,
+    ) -> Self {
         Self {
-            span,
+            origin,
             has_guard,
             otherwise_block: None,
             pre_binding_block: None,
@@ -146,7 +150,7 @@ pub(super) fn traverse_candidate<C, T, I>(
 #[derive(Debug, Clone)]
 pub(super) struct Binding {
     /// The span of the binding.
-    pub span: Span,
+    pub origin: AstNodeId,
 
     /// The source of the binding, where the value is coming from.
     pub source: Place,
@@ -275,7 +279,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
 
                 candidate.bindings.push(Binding {
-                    span,
+                    origin: span,
                     mutability: if is_mutable {
                         Mutability::Mutable
                     } else {
@@ -466,7 +470,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             .copied()
             .map(|pat| {
                 let mut sub_candidate = Candidate::new(
-                    candidate.span,
+                    candidate.origin,
                     pat,
                     subject,
                     candidate.has_guard || pat.borrow().is_or(),

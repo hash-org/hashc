@@ -12,7 +12,7 @@ use hash_storage::{
         Store, TrivialSequenceStoreKey,
     },
 };
-use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
+use hash_utils::parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
 use utility_types::omit;
 

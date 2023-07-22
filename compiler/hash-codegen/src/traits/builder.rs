@@ -5,6 +5,7 @@
 
 use hash_abi::FnAbiId;
 use hash_ir::ty::IrTyId;
+use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ValidScalarRange},
     alignment::Alignment,
@@ -362,14 +363,15 @@ pub trait BlockBuilderMethods<'a, 'b>:
 
     /// Convert a value to an immediate value of the given layout.
     fn to_immediate(&mut self, v: Self::Value, layout: LayoutId) -> Self::Value {
-        self.map_layout(layout, |layout| {
-            if let AbiRepresentation::Scalar(scalar) = layout.abi {
-                Some(scalar)
-            } else {
-                None
-            }
-        })
-        .map_or(v, |scalar| self.to_immediate_scalar(v, scalar))
+        layout
+            .map(|layout| {
+                if let AbiRepresentation::Scalar(scalar) = layout.abi {
+                    Some(scalar)
+                } else {
+                    None
+                }
+            })
+            .map_or(v, |scalar| self.to_immediate_scalar(v, scalar))
     }
 
     /// Convert the given value to a [Scalar] value.

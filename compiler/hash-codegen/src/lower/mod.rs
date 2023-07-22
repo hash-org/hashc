@@ -176,7 +176,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 
             if local == ir::RETURN_PLACE && is_return_indirect {
                 let value = builder.get_param(0);
-                return LocalRef::Place(PlaceRef::new(&builder, value, info));
+                return LocalRef::Place(PlaceRef::new(value, info));
             }
 
             // If this is a memory local, then we need to use a place, otherwise

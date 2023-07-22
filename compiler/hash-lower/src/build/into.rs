@@ -3,6 +3,7 @@
 //! `strategies` can be found in [`crate::build::rvalue`] and
 //! [crate::build::temp].
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     intrinsics::Intrinsic,
     ir::{
@@ -12,7 +13,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, IrTyId, Mutability, RefKind, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{constant::CONSTANT_MAP, identifier::Identifier, location::Span};
+use hash_source::{constant::CONSTANT_MAP, identifier::Identifier};
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
@@ -246,7 +247,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // **jump** to the proceeding block of the loop block
                 let Some(LoopBlockInfo { loop_body, next_block }) = self.loop_block_info else {
                     panic_on_span!(
-                        span.into_location(self.source_id),
+                        span.span(),
                         self.env().source_map(),
                         "`continue` or `break` outside of loop"
                     );
@@ -277,7 +278,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 //
                 // ##Note: during CFG simplification, this edge will be removed and unified with
                 // the `exit` block.
-                let return_block = self.control_flow_graph.make_return_block();
+                let return_block = self.control_flow_graph.make_return_block(span);
                 self.control_flow_graph.goto(block, return_block, span);
                 self.control_flow_graph.start_new_block().unit()
             }
@@ -337,14 +338,14 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         assignment: AssignTerm,
-        span: Span,
+        origin: AstNodeId,
     ) -> BlockAnd<()> {
         // Lower the subject and the value of the assignment in RTL
         // and then assign the value into the subject
         let value = unpack!(block = self.as_rvalue(block, assignment.value));
         let place = unpack!(block = self.as_place(block, assignment.subject, Mutability::Mutable));
 
-        self.control_flow_graph.push_assign(block, place, value, span);
+        self.control_flow_graph.push_assign(block, place, value, origin);
         block.unit()
     }
 
@@ -356,7 +357,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         mut block: BasicBlock,
         subject: TermId,
         args: ArgsId,
-        span: Span,
+        origin: AstNodeId,
     ) -> BlockAnd<()> {
         // First we want to lower the subject of the function call
         let func = unpack!(block = self.as_operand(block, subject, Mutability::Immutable));
@@ -382,7 +383,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             .map(|arg| unpack!(block = self.as_operand(block, arg.value, Mutability::Immutable)))
             .collect::<Vec<_>>();
 
-        self.build_fn_call(destination, block, func, args, span)
+        self.build_fn_call(destination, block, func, args, origin)
     }
 
     /// Build a function call from the provided subject and arguments. This
@@ -395,7 +396,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         block: BasicBlock,
         subject: Operand,
         args: Vec<Operand>,
-        span: Span,
+        origin: AstNodeId,
     ) -> BlockAnd<()> {
         // This is the block that is used when resuming from the function..
         let success = self.control_flow_graph.start_new_block();
@@ -403,7 +404,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // Terminate the current block with a `Call` terminator
         self.control_flow_graph.terminate(
             block,
-            span,
+            origin,
             TerminatorKind::Call { op: subject, args, destination, target: Some(success) },
         );
 
@@ -424,7 +425,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         block: BasicBlock,
         subject: &CtorTerm,
         adt_id: AdtId,
-        span: Span,
+        origin: AstNodeId,
     ) -> BlockAnd<()> {
         let CtorTerm { ctor, ctor_args, .. } = subject;
 
@@ -442,7 +443,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         if let AggregateKind::Enum(_, index) = aggregate_kind {
             self.control_flow_graph.push(
                 block,
-                Statement { kind: StatementKind::Discriminate(destination, index), span },
+                Statement { kind: StatementKind::Discriminate(destination, index), origin },
             );
 
             // We don't need to do anything else if it is just the discriminant.
@@ -464,7 +465,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             })
             .collect::<Vec<_>>();
 
-        self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
+        self.aggregate_into_dest(destination, block, aggregate_kind, &args, origin)
     }
 
     /// Place any aggregate value into the specified destination. This does not
@@ -477,7 +478,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         mut block: BasicBlock,
         aggregate_kind: AggregateKind,
         args: &[(Identifier, TermId)],
-        span: Span,
+        origin: AstNodeId,
     ) -> BlockAnd<()> {
         // We don't need to perform this check for arrays since they don't need
         // to have a specific amount of arguments to the constructor.
@@ -515,7 +516,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Ensure we have the exact amount of arguments as the definition expects.
                 if args.len() != field_count {
                     panic_on_span!(
-                        span.into_location(self.source_id),
+                        origin.span(),
                         self.source_map(),
                         "default arguments on constructors are not currently supported",
                     );
@@ -546,7 +547,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         };
 
         let aggregate = RValue::Aggregate(aggregate_kind, fields);
-        self.control_flow_graph.push_assign(block, destination, aggregate, span);
+        self.control_flow_graph.push_assign(block, destination, aggregate, origin);
 
         block.unit()
     }
@@ -602,7 +603,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         ty: IrTyId,
         aggregate_kind: AggregateKind,
         args: &[(Identifier, TermId)],
-        span: Span,
+        origin: AstNodeId,
     ) -> BlockAnd<()> {
         let ptr_width = self.settings.target().ptr_size();
         let element_ty = ty.borrow().element_ty().unwrap();
@@ -620,7 +621,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // Make the call to `malloc`, and then assign the result to a
         // temporary.
         let ptr = self.temp_place(COMMON_IR_TYS.raw_ptr);
-        unpack!(block = self.build_fn_call(ptr, block, subject, vec![size_op], span));
+        unpack!(block = self.build_fn_call(ptr, block, subject, vec![size_op], origin));
 
         // we make a new temporary which is a pointer to the array and assign `ptr`
         // to it.
@@ -630,10 +631,10 @@ impl<'tcx> BodyBuilder<'tcx> {
             RefKind::Normal,
         );
         let array_ptr = self.temp_place(ty);
-        self.control_flow_graph.push_assign(block, array_ptr, Operand::Place(ptr).into(), span);
+        self.control_flow_graph.push_assign(block, array_ptr, Operand::Place(ptr).into(), origin);
 
         // 2). Write data to allocation.
-        self.aggregate_into_dest(array_ptr.deref(), block, aggregate_kind, args, span);
+        self.aggregate_into_dest(array_ptr.deref(), block, aggregate_kind, args, origin);
 
         // 3).
         //
@@ -644,7 +645,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let value =
             self.create_ptr_with_metadata(sized_ptr_ty, Operand::Place(array_ptr), args.len());
 
-        self.control_flow_graph.push_assign(block, sized_ptr, value, span);
+        self.control_flow_graph.push_assign(block, sized_ptr, value, origin);
 
         // Finally, transmute the SizedPointer into a `&[T]` and assign it to the
         // destination.
@@ -662,7 +663,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
                     Operand::Place(sized_ptr)
                 ],
-                span
+                origin
             )
         );
 

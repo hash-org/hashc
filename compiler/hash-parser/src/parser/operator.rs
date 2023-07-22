@@ -88,7 +88,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 ParseErrorKind::ExpectedArrow,
                 None,
                 None,
-                self.next_location(),
+                self.next_pos(),
             )?;
         }
 
@@ -97,7 +97,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 ParseErrorKind::ExpectedArrow,
                 None,
                 None,
-                self.next_location(),
+                self.next_pos(),
             )?;
         }
 

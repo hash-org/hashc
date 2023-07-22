@@ -4,12 +4,10 @@
 
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::ir::{self, BinOp, Const, ConstKind};
 use hash_reporting::macros::panic_on_span;
-use hash_source::{
-    constant::{FloatConstant, FloatConstantValue, IntConstant, CONSTANT_MAP},
-    location::Span,
-};
+use hash_source::constant::{FloatConstant, FloatConstantValue, IntConstant, CONSTANT_MAP};
 use hash_tir::{environment::env::AccessToEnv, lits::Lit, terms::Term};
 
 use super::BodyBuilder;
@@ -27,11 +25,11 @@ impl<'tcx> BodyBuilder<'tcx> {
     }
 
     /// Lower a constant expression, i.e. a literal value.
-    pub(crate) fn lower_constant_expr(&mut self, term: &Term, span: Span) -> ConstKind {
+    pub(crate) fn lower_constant_expr(&mut self, term: &Term, origin: AstNodeId) -> ConstKind {
         match term {
             Term::Lit(lit) => self.as_constant(lit),
             _ => panic_on_span!(
-                span.into_location(self.source_id),
+                origin.span(),
                 self.source_map(),
                 "cannot lower non-literal expression into constant"
             ),

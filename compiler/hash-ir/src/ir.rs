@@ -7,11 +7,12 @@ use std::{
     iter::{self, once},
 };
 
+use hash_ast::ast::AstNodeId;
 use hash_intrinsics::intrinsics;
 use hash_source::{
     constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
     identifier::Identifier,
-    location::{SourceLocation, Span},
+    location::Span,
     SourceId,
 };
 use hash_storage::{
@@ -836,11 +837,10 @@ pub struct Statement {
     /// The kind of [Statement] that it is.
     pub kind: StatementKind,
 
-    /// The [Span] of the statement, relative to the [Body]
-    /// `source-id`. This is mostly used for error reporting or
-    /// generating debug information at later stages of lowering
+    /// The location of the statement. This is mostly used for error reporting
+    /// or generating debug information at later stages of lowering
     /// beyond the IR.
-    pub span: Span,
+    pub origin: AstNodeId,
 }
 
 /// The kind of assert terminator that it is.
@@ -913,11 +913,10 @@ pub struct Terminator {
     /// The kind of [Terminator] that it is.
     pub kind: TerminatorKind,
 
-    /// The [Span] of the statement, relative to the [Body]
-    /// `source-id`. This is mostly used for error reporting or
-    /// generating debug information at later stages of lowering
-    /// beyond the IR.
-    pub span: Span,
+    /// The source location of the terminator. This is mostly used for error
+    /// reporting or generating debug information at later stages of
+    /// lowering beyond the IR.
+    pub origin: AstNodeId,
 }
 
 pub type Successors<'a> = impl Iterator<Item = BasicBlock> + 'a;
@@ -1295,10 +1294,7 @@ pub struct Body {
     pub arg_count: usize,
 
     /// The location of the function
-    span: Span,
-
-    /// The id of the source of where this body originates from.
-    pub source_id: SourceId,
+    origin: AstNodeId,
 
     /// Whether the IR Body that is generated should be printed
     /// when the generation process is finalised.
@@ -1313,8 +1309,7 @@ impl Body {
         declarations: IndexVec<Local, LocalDecl>,
         info: BodyInfo,
         arg_count: usize,
-        span: Span,
-        source_id: SourceId,
+        origin: AstNodeId,
     ) -> Self {
         Self {
             needed_constants: vec![],
@@ -1322,8 +1317,7 @@ impl Body {
             info,
             declarations,
             arg_count,
-            span,
-            source_id,
+            origin,
             dump: false,
         }
     }
@@ -1371,14 +1365,19 @@ impl Body {
         self.dump
     }
 
-    /// Get the [SourceLocation] for the [Body]
-    pub fn location(&self) -> SourceLocation {
-        SourceLocation { id: self.source_id, span: self.span }
-    }
-
     /// Get the [BodyInfo] for the [Body]
     pub fn info(&self) -> &BodyInfo {
         &self.info
+    }
+
+    /// Get the [Span] of the [Body].
+    pub(crate) fn span(&self) -> Span {
+        self.origin.span()
+    }
+
+    /// Get the [SourceId] of the [Body].
+    pub(crate) fn source(&self) -> SourceId {
+        self.origin.source()
     }
 }
 
@@ -1523,4 +1522,15 @@ mod tests {
 
         assert_eq!(format!("{}", place), "(*(*(*_0)))");
     }
+}
+
+#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+mod size_asserts {
+    use hash_utils::assert::static_assert_size;
+
+    use super::*;
+
+    static_assert_size!(Statement, 64);
+    static_assert_size!(Terminator, 104);
+    static_assert_size!(RValue, 40);
 }

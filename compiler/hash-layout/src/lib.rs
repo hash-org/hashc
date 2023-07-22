@@ -1,6 +1,7 @@
 //! Defines all logic regarding computing the layout of types, and
 //! representing the said layouts in a way that is usable by the
 //! code generation backends.
+#![feature(let_chains)]
 
 pub mod compute;
 pub mod write;
@@ -8,13 +9,18 @@ pub mod write;
 use std::{
     cell::{Ref, RefCell},
     num::NonZeroUsize,
+    sync::OnceLock,
 };
 
 use compute::LayoutComputer;
 use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS};
 use hash_storage::{
-    new_store_key,
-    store::{statics::StoreId, CloneStore, DefaultStore, FxHashMap, Store, StoreInternalData},
+    static_single_store,
+    store::{
+        statics::{SingleStoreValue, StoreId},
+        FxHashMap, Store,
+    },
+    stores,
 };
 use hash_target::{
     abi::{AbiRepresentation, Scalar},
@@ -56,8 +62,18 @@ pub struct PointeeInfo {
     pub kind: Option<PointerKind>,
 }
 
-// Define a new key to represent a particular layout.
-new_store_key!(pub LayoutId, derives = Debug);
+stores!(
+    LayoutStores;
+    layouts: LayoutStore
+);
+
+/// The global [`LayoutStores`] instance.
+static STORES: OnceLock<LayoutStores> = OnceLock::new();
+
+/// Access the global [`LayoutStores`] instance.
+pub(crate) fn layout_store() -> &'static LayoutStores {
+    STORES.get_or_init(LayoutStores::new)
+}
 
 /// Used to cache the [Layout]s that are created from [IrTyId]s.
 type LayoutCache<'c> = Ref<'c, FxHashMap<IrTyId, LayoutId>>;
@@ -65,9 +81,6 @@ type LayoutCache<'c> = Ref<'c, FxHashMap<IrTyId, LayoutId>>;
 /// A store for all of the interned [Layout]s, and a cache for
 /// the [Layout]s that are created from [IrTyId]s.
 pub struct LayoutCtx {
-    /// The storage for all of the interned layouts
-    data: DefaultStore<LayoutId, Layout>,
-
     /// Cache for the [Layout]s that are created from [IrTyId]s.
     cache: RefCell<FxHashMap<IrTyId, LayoutId>>,
 
@@ -87,11 +100,9 @@ pub struct LayoutCtx {
 impl LayoutCtx {
     /// Create a new [LayoutCtx].
     pub fn new(data_layout: TargetDataLayout) -> Self {
-        let data = DefaultStore::new();
-        let common_layouts = CommonLayouts::new(&data_layout, &data);
+        let common_layouts = CommonLayouts::new(&data_layout);
 
         Self {
-            data,
             common_layouts,
             cache: RefCell::new(FxHashMap::default()),
             pointee_info_cache: RefCell::new(FxHashMap::default()),
@@ -109,25 +120,8 @@ impl LayoutCtx {
         self.cache.borrow_mut().insert(ty, layout);
     }
 
-    /// Check if a given [LayoutId] represents a zero-sized type.
-    pub fn is_zst(&self, layout: LayoutId) -> bool {
-        self.data.map_fast(layout, Layout::is_zst)
-    }
-
-    /// Compute the [Size] of a given [LayoutId].
-    pub fn size_of(&self, layout: LayoutId) -> Size {
-        self.data.map_fast(layout, |layout| layout.size)
-    }
-
-    /// Compute the [Alignments] of a given [LayoutId].
-    pub fn align_of(&self, layout: LayoutId) -> Alignments {
-        self.data.map_fast(layout, |layout| layout.alignment)
-    }
-}
-
-impl Store<LayoutId, Layout> for LayoutCtx {
-    fn internal_data(&self) -> &StoreInternalData<Layout> {
-        self.data.internal_data()
+    pub fn layouts(&self) -> &LayoutStore {
+        layout_store().layouts()
     }
 }
 
@@ -142,11 +136,11 @@ macro_rules! create_common_layout_table {
 
         impl CommonLayouts {
             /// Create a new [CommonLayouts] table.
-            pub fn new<S: Store<LayoutId, Layout>>(data_layout: &TargetDataLayout, layouts: &S) -> Self {
+            pub fn new(data_layout: &TargetDataLayout) -> Self {
                 use crate::compute::compute_primitive_ty_layout;
 
                 Self {
-                    $($name: layouts.create(compute_primitive_ty_layout($value, data_layout)), )*
+                    $($name: Layout::create(compute_primitive_ty_layout($value, data_layout)), )*
                 }
             }
         }
@@ -196,30 +190,39 @@ impl TyInfo {
         Self { ty, layout }
     }
 
+    /// Get the ABI [Alignment] of the type.
+    pub fn abi_alignment(&self) -> Alignment {
+        self.layout.borrow().alignment.abi
+    }
+
+    /// Get the size of the type.
+    pub fn size(&self) -> Size {
+        self.layout.size()
+    }
+
     /// Check if the type is a zero-sized type.
-    pub fn is_zst(&self, ctx: LayoutComputer) -> bool {
-        ctx.layouts().map_fast(self.layout, Layout::is_zst)
+    pub fn is_zst(&self) -> bool {
+        self.layout.is_zst()
     }
 
     /// Check if the ABI is uninhabited.
-    pub fn is_uninhabited(&self, ctx: LayoutComputer) -> bool {
-        ctx.layouts()
-            .map_fast(self.layout, |layout| matches!(layout.abi, AbiRepresentation::Uninhabited))
+    pub fn is_uninhabited(&self) -> bool {
+        self.layout.is_uninhabited()
     }
 
     /// Perform a mapping over the [IrTy] and [Layout] associated with
     /// this [LayoutWriter].
-    fn with_info<F, T>(&self, ctx: &LayoutComputer, f: F) -> T
+    fn with_info<F, T>(&self, f: F) -> T
     where
         F: FnOnce(&Self, &IrTy, &Layout) -> T,
     {
-        self.ty.map(|ty| ctx.map(self.layout, |layout| f(self, ty, layout)))
+        self.ty.map(|ty| self.layout.map(|layout| f(self, ty, layout)))
     }
 
     /// Compute the type of a "field with in a layout" and return the
     /// [LayoutId] associated with the field.
     pub fn field(&self, ctx: LayoutComputer, field_index: usize) -> Self {
-        let ty = self.with_info(&ctx, |_, ty, layout| match ty {
+        let ty = self.with_info(|_, ty, layout| match ty {
             IrTy::Int(_)
             | IrTy::UInt(_)
             | IrTy::Float(_)
@@ -263,7 +266,7 @@ impl TyInfo {
         // then we need to intern that layout here, add a cache entry
         // for it and return it, otherwise we will lookup the layout
         // buy just using the type id.
-        let id = { ctx.layouts().cache.borrow().get(&ty).copied() };
+        let id = { ctx.ctx().cache.borrow().get(&ty).copied() };
 
         if let Some(layout) = id {
             TyInfo { ty, layout }
@@ -275,7 +278,9 @@ impl TyInfo {
     /// Fetch the [Layout] for a variant of the currently
     /// given [Layout].
     pub fn for_variant(&self, ctx: LayoutComputer, variant: VariantIdx) -> Self {
-        let layout = ctx.layouts().get(self.layout);
+        // We have to `.value()` since we might be creating a layout whilst holding
+        // a reference to a layout.
+        let layout = self.layout.value();
 
         let variant = match layout.variants {
             // For enums that have only one variant that is inhabited, this
@@ -304,7 +309,7 @@ impl TyInfo {
                     None => LayoutShape::Aggregate { fields: vec![], memory_map: vec![] },
                 };
 
-                ctx.layouts().create(Layout::new(
+                Layout::create(Layout::new(
                     shape,
                     Variants::Single { index: variant },
                     AbiRepresentation::Uninhabited,
@@ -567,4 +572,37 @@ pub enum Variants {
         /// The layout of all of the variants
         variants: IndexVec<VariantIdx, LayoutId>,
     },
+}
+
+// Define a new key to represent a particular layout.
+
+static_single_store!(
+    store = pub LayoutStore,
+    id = pub LayoutId,
+    value = Layout,
+    store_name = layouts,
+    store_source = layout_store(),
+    derives = Debug
+);
+
+impl LayoutId {
+    /// Check if a given [LayoutId] represents a zero-sized type.
+    pub fn is_zst(&self) -> bool {
+        self.borrow().is_zst()
+    }
+
+    /// Check if the layout is un-inhabited.
+    pub fn is_uninhabited(&self) -> bool {
+        self.borrow().abi.is_uninhabited()
+    }
+
+    /// Compute the [Size] of a given [LayoutId].
+    pub fn size(&self) -> Size {
+        self.borrow().size
+    }
+
+    /// Compute the [Alignments] of a given [LayoutId].
+    pub fn alignments(&self) -> Alignments {
+        self.borrow().alignment
+    }
 }

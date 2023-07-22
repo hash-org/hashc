@@ -25,7 +25,7 @@
 use std::{fmt, iter};
 
 use hash_ir::ty::{IrTy, VariantIdx};
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::statics::StoreId;
 use hash_target::{abi::AbiRepresentation, size::Size};
 use hash_utils::tree_writing::CharacterSet;
 
@@ -586,9 +586,7 @@ impl<'l> LayoutWriter<'l> {
     where
         F: FnOnce(&Self, &IrTy, &Layout) -> T,
     {
-        self.ty_info
-            .ty
-            .map(|ty| self.ctx.map_fast(self.ty_info.layout, |layout| f(self, ty, layout)))
+        self.ty_info.ty.map(|ty| self.ty_info.layout.map(|layout| f(self, ty, layout)))
     }
 
     ///
@@ -609,9 +607,8 @@ impl<'l> LayoutWriter<'l> {
         layout: LayoutId,
     ) -> BoxRow {
         self.ty_info.ty.map(|ty| {
-            let mut contents = self.ctx.map_fast(layout, |layout| {
-                self.create_box_contents(ty, layout, Some((tag_size, variant)))
-            });
+            let mut contents = layout
+                .map(|layout| self.create_box_contents(ty, layout, Some((tag_size, variant))));
 
             // we also insert an initial box with the variant name
             contents.insert(0, BoxContent::new(variant.to_string(), "".to_string()));
@@ -780,7 +777,7 @@ impl<'l> LayoutWriter<'l> {
 
 impl fmt::Display for LayoutWriter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.ctx.map_fast(self.ty_info.layout, |layout| {
+        self.ty_info.layout.map(|layout| {
             // print the starting line of the layout.
             writeln!(
                 f,

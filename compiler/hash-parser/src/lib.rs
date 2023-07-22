@@ -10,10 +10,7 @@ mod source;
 use std::{env, path::PathBuf};
 
 use crossbeam_channel::{unbounded, Sender};
-use hash_ast::{
-    ast::{self},
-    node_map::ModuleEntry,
-};
+use hash_ast::{ast, node_map::ModuleEntry};
 use hash_lexer::Lexer;
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerStage},

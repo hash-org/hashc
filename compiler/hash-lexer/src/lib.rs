@@ -8,7 +8,7 @@ use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
     constant::{IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
     identifier::{Identifier, IDENTS},
-    location::{SourceLocation, Span},
+    location::{ByteRange, Span},
     SourceId,
 };
 use hash_target::size::Size;
@@ -92,7 +92,7 @@ impl<'a> Lexer<'a> {
         &mut self,
         message: Option<String>,
         kind: LexerErrorKind,
-        span: Span,
+        span: ByteRange,
     ) -> TokenKind {
         self.diagnostics.has_fatal_error.set(true);
         self.emit_error(message, kind, span)
@@ -105,13 +105,9 @@ impl<'a> Lexer<'a> {
         &mut self,
         message: Option<String>,
         kind: LexerErrorKind,
-        span: Span,
+        span: ByteRange,
     ) -> TokenKind {
-        self.add_error(LexerError {
-            message,
-            kind,
-            location: SourceLocation { span, id: self.source_id },
-        });
+        self.add_error(LexerError { message, kind, location: Span { span, id: self.source_id } });
 
         TokenKind::Err
     }
@@ -123,9 +119,9 @@ impl<'a> Lexer<'a> {
         &self,
         message: Option<String>,
         kind: LexerErrorKind,
-        span: Span,
+        span: ByteRange,
     ) -> Result<T, LexerError> {
-        Err(LexerError { message, kind, location: SourceLocation { span, id: self.source_id } })
+        Err(LexerError { message, kind, location: Span { span, id: self.source_id } })
     }
 
     /// Returns a reference to the stored token trees for the current job
@@ -223,7 +219,10 @@ impl<'a> Lexer<'a> {
 
                         // @@Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
-                        return Some(Token::new(TokenKind::Slash, Span::new(offset, offset + 1)));
+                        return Some(Token::new(
+                            TokenKind::Slash,
+                            ByteRange::new(offset, offset + 1),
+                        ));
                     }
                 },
                 _ => break,
@@ -306,7 +305,7 @@ impl<'a> Lexer<'a> {
             return None;
         }
 
-        let location = Span::new(offset, self.len_consumed());
+        let location = ByteRange::new(offset, self.len_consumed());
         Some(Token::new(token_kind, location))
     }
 
@@ -352,7 +351,7 @@ impl<'a> Lexer<'a> {
             _ => self.emit_error(
                 None,
                 LexerErrorKind::Unclosed(delimiter),
-                Span::new(start, start + 1),
+                ByteRange::new(start, start + 1),
             ),
         }
     }
@@ -492,7 +491,7 @@ impl<'a> Lexer<'a> {
                 self.emit_error(
                     None,
                     LexerErrorKind::InvalidLitSuffix(NumericLitKind::Integer, suffix),
-                    Span::new(self.offset.get(), self.offset.get()),
+                    ByteRange::new(self.offset.get(), self.offset.get()),
                 );
 
                 IntTy::Int(SIntTy::I32)
@@ -504,7 +503,7 @@ impl<'a> Lexer<'a> {
             self.emit_error(
                 None,
                 LexerErrorKind::MalformedNumericalLit,
-                Span::new(start_pos, self.offset.get()),
+                ByteRange::new(start_pos, self.offset.get()),
             );
 
             // It doesn't matter what we return here since we will terminate on the
@@ -563,7 +562,7 @@ impl<'a> Lexer<'a> {
                     return self.emit_error(
                         None,
                         LexerErrorKind::MissingDigits,
-                        Span::new(start, self.offset.get()),
+                        ByteRange::new(start, self.offset.get()),
                     );
                 }
 
@@ -578,7 +577,7 @@ impl<'a> Lexer<'a> {
                     return self.emit_error(
                         None,
                         LexerErrorKind::UnsupportedFloatBaseLiteral(radix.into()),
-                        Span::new(start, self.offset.get()),
+                        ByteRange::new(start, self.offset.get()),
                     );
                 } else {
                     return self.create_int_const(chars.as_str(), radix, suffix, start);
@@ -625,7 +624,7 @@ impl<'a> Lexer<'a> {
                         Err(err) => self.emit_error(
                             Some(format!("{err}.")),
                             LexerErrorKind::MalformedNumericalLit,
-                            Span::new(start, self.offset.get()),
+                            ByteRange::new(start, self.offset.get()),
                         ),
                         Ok(parsed) => {
                             // Create interned float constant
@@ -651,7 +650,7 @@ impl<'a> Lexer<'a> {
             Err(err) => self.emit_error(
                 Some(format!("{err}.")),
                 LexerErrorKind::MalformedNumericalLit,
-                Span::new(start, self.offset.get()),
+                ByteRange::new(start, self.offset.get()),
             ),
             Ok(value) => {
                 match self.eat_exponent(start) {
@@ -672,7 +671,7 @@ impl<'a> Lexer<'a> {
                                 self.emit_error(
                                     None,
                                     LexerErrorKind::InvalidLitSuffix(NumericLitKind::Float, suffix_ident),
-                                    Span::new(start, self.offset.get()),
+                                    ByteRange::new(start, self.offset.get()),
                                 );
                             }
 
@@ -713,7 +712,7 @@ impl<'a> Lexer<'a> {
             return self.error(
                 None,
                 LexerErrorKind::MissingExponentDigits,
-                Span::new(start, self.offset.get()),
+                ByteRange::new(start, self.offset.get()),
             );
         }
 
@@ -721,7 +720,7 @@ impl<'a> Lexer<'a> {
             Err(_) => self.error(
                 Some("Invalid float exponent.".to_string()),
                 LexerErrorKind::MalformedNumericalLit,
-                Span::new(start, self.offset.get() + 1),
+                ByteRange::new(start, self.offset.get() + 1),
             ),
             Ok(num) if negated => Ok(-num),
             Ok(num) => Ok(num),
@@ -756,7 +755,7 @@ impl<'a> Lexer<'a> {
                     return self.error(
                         Some("Expected `{` after a `\\u` escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        Span::new(start, self.offset.get()),
+                        ByteRange::new(start, self.offset.get()),
                     );
                 }
 
@@ -769,7 +768,7 @@ impl<'a> Lexer<'a> {
                     return self.error(
                         Some("expected `}` after a escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        Span::new(self.offset.get(), self.offset.get() + 1),
+                        ByteRange::new(self.offset.get(), self.offset.get() + 1),
                     );
                 }
                 self.skip(); // Eat the '}' ending part of the scape sequence
@@ -778,7 +777,7 @@ impl<'a> Lexer<'a> {
                     return self.error(
                         Some("Unicode escape literal must be at most 6 hex digits".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        Span::new(start, self.offset.get()),
+                        ByteRange::new(start, self.offset.get()),
                     );
                 }
 
@@ -791,7 +790,7 @@ impl<'a> Lexer<'a> {
                                 .to_string(),
                         ),
                         LexerErrorKind::BadEscapeSequence,
-                        Span::new(start, self.offset.get()),
+                        ByteRange::new(start, self.offset.get()),
                     );
                 }
 
@@ -807,12 +806,12 @@ impl<'a> Lexer<'a> {
                         EOF_CHAR => self.error(
                             Some("ASCII escape code too short".to_string()),
                             LexerErrorKind::BadEscapeSequence,
-                            Span::new(start, self.offset.get()),
+                            ByteRange::new(start, self.offset.get()),
                         ),
                         c => self.error(
                             Some("ASCII escape code must only contain hex digits".to_string()),
                             LexerErrorKind::Unexpected(c),
-                            Span::new(start, self.offset.get()),
+                            ByteRange::new(start, self.offset.get()),
                         ),
                     })
                     .collect();
@@ -836,7 +835,7 @@ impl<'a> Lexer<'a> {
             ch => self.error(
                 Some(format!("unknown escape sequence `{ch}`")),
                 LexerErrorKind::BadEscapeSequence,
-                Span::new(start, start + 1),
+                ByteRange::new(start, start + 1),
             ),
         }
     }
@@ -878,14 +877,14 @@ impl<'a> Lexer<'a> {
                             return self.emit_error(
                                 Some("unclosed character literal".to_string()),
                                 LexerErrorKind::Expected(TokenKind::SingleQuote),
-                                Span::new(offset, offset + 1),
+                                ByteRange::new(offset, offset + 1),
                             );
                         }
 
                         return self.emit_error(
                             Some("character literal can only contain one codepoint".to_string()),
                             LexerErrorKind::BadEscapeSequence,
-                            Span::new(start, offset),
+                            ByteRange::new(start, offset),
                         );
                     }
 
@@ -922,7 +921,7 @@ impl<'a> Lexer<'a> {
         self.emit_error(
             None,
             LexerErrorKind::InvalidCharacterLit(lit),
-            Span::new(start, self.offset.get()),
+            ByteRange::new(start, self.offset.get()),
         )
     }
 
@@ -964,7 +963,7 @@ impl<'a> Lexer<'a> {
             return self.emit_fatal_error(
                 None,
                 LexerErrorKind::UnclosedStringLit,
-                Span::new(start, self.offset.get()),
+                ByteRange::new(start, self.offset.get()),
             );
         }
 

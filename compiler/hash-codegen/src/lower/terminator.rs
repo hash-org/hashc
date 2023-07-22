@@ -227,7 +227,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
             if let (ir::Operand::Const(_), OperandValue::Ref(_, _)) = (arg, arg_operand.value) {
                 let temp = PlaceRef::new_stack(builder, arg_operand.info);
-                let size = builder.map_layout(arg_operand.info.layout, |layout| layout.size);
+                let size = arg_operand.info.size();
 
                 builder.lifetime_start(temp.value, size);
                 arg_operand.value.store(builder, temp);
@@ -293,15 +293,12 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     (temp.value, temp.alignment, true)
                 }
                 _ => {
-                    let abi_alignment =
-                        builder.map_layout(arg_abi.info.layout, |layout| layout.alignment.abi);
-
+                    let abi_alignment = arg_abi.info.abi_alignment();
                     (arg.immediate_or_scalar_pair(builder), abi_alignment, false)
                 }
             },
             OperandValue::Ref(value, alignment) => {
-                let abi_alignment =
-                    builder.map_layout(arg_abi.info.layout, |layout| layout.alignment.abi);
+                let abi_alignment = arg_abi.info.abi_alignment();
 
                 // If the argument is indirect, and the alignment of the operand is
                 // smaller than the ABI alignment, then we need to put this value in a
@@ -335,7 +332,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             if matches!(arg_abi.mode, PassMode::Direct(..)) {
                 value = builder.load(builder.backend_ty_from_info(arg_abi.info), value, alignment);
 
-                let layout_abi = builder.map_layout(arg_abi.info.layout, |layout| layout.abi);
+                let layout_abi = arg_abi.info.layout.borrow().abi;
 
                 if let AbiRepresentation::Scalar(scalar_kind) = layout_abi {
                     if scalar_kind.is_bool() {
@@ -414,9 +411,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     // Additionally, unit types `()` are considered as a `void` return type.
     fn codegen_return_terminator(&mut self, builder: &mut Builder) {
         let ret_abi = builder.cg_ctx().abis().get_return_abi(self.fn_abi);
-
-        let is_uninhabited =
-            builder.map_layout(ret_abi.info.layout, |layout| layout.abi.is_uninhabited());
+        let is_uninhabited = ret_abi.info.layout.borrow().abi.is_uninhabited();
 
         // if the return type is uninhabited, then we can emit an
         // `abort` call to exit the program, and then close the
@@ -618,7 +613,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             // now that the function has finished, we essentially mark all of the
             // copied constants as being "dead"...
             for temporary in copied_const_args {
-                let size = builder.map_layout(temporary.info.layout, |layout| layout.size);
+                let size = temporary.info.size();
                 builder.lifetime_end(temporary.value, size)
             }
 

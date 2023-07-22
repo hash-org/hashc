@@ -53,7 +53,7 @@ use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
-    passes::ast_utils::{AstPass, AstUtils},
+    passes::ast_utils::AstPass,
 };
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
@@ -210,7 +210,7 @@ impl<'tc> ResolutionPass<'tc> {
         };
 
         self.ast_info().terms().insert(node.id(), term_id);
-        self.stores().location().add_location_to_target(term_id, self.node_location(node));
+        self.stores().location().add_location_to_target(term_id, node.span());
         Ok(term_id)
     }
 
@@ -240,9 +240,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ast::PropertyKind::NamedField(name) => {
                     let mut root =
                         self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
-                            SemanticError::InvalidNamespaceSubject {
-                                location: self.node_location(node),
-                            }
+                            SemanticError::InvalidNamespaceSubject { location: node.span() }
                         })?;
                     root.push(AstPathComponent {
                         name: *name,
@@ -255,7 +253,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ast::PropertyKind::NumericField(_) => {
                     // Should have been caught at semantics
                     panic_on_span!(
-                        self.node_location(node),
+                        node.span(),
                         self.source_map(),
                         "Namespace followed by numeric field found"
                     )
@@ -330,7 +328,7 @@ impl<'tc> ResolutionPass<'tc> {
                     NonTerminalResolvedPathComponent::Mod(_) => {
                         // Modules are not allowed in value positions
                         Err(SemanticError::CannotUseModuleInValuePosition {
-                            location: self.source_location(original_node_span),
+                            location: original_node_span,
                         })
                     }
                 }
@@ -342,7 +340,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
-                        self.source_location(original_node_span),
+                        original_node_span,
                         self.source_map(),
                         "found CtorPat in value ast path"
                     )
@@ -754,7 +752,7 @@ impl<'tc> ResolutionPass<'tc> {
             })
             .unwrap_or_else(|| {
                 panic_on_span!(
-                    self.node_location(node),
+                    node.span(),
                     self.source_map(),
                     "Found non-stack body block in make_term_from_ast_body_block"
                 )
@@ -797,7 +795,7 @@ impl<'tc> ResolutionPass<'tc> {
             // Others done during de-sugaring:
             ast::Block::For(_) | ast::Block::While(_) | ast::Block::If(_) => {
                 panic_on_span!(
-                    self.node_location(node),
+                    node.span(),
                     self.source_map(),
                     "Found non-desugared block in make_term_from_ast_block_expr"
                 )

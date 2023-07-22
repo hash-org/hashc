@@ -6,7 +6,7 @@ use hash_reporting::{
     report::{ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{identifier::Identifier, location::Span};
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
 
@@ -22,7 +22,7 @@ pub struct ParseError {
     /// The kind of the error.
     kind: ParseErrorKind,
     /// Location of where the error references
-    location: SourceLocation,
+    location: Span,
     /// An optional vector of tokens that are expected to circumvent the error.
     expected: Option<TokenKindVector>,
     /// An optional token in question that was received byt shouldn't of been

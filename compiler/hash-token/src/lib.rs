@@ -7,26 +7,26 @@ use delimiter::{Delimiter, DelimiterVariant};
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
-    location::Span,
+    location::ByteRange,
 };
 use keyword::Keyword;
 use smallvec::{smallvec, SmallVec};
 
 /// A Lexeme token that represents the smallest code unit of a hash source file.
-/// The token contains a kind which is elaborated by [TokenKind] and a [Span] in
-/// the source that is represented as a span. The span is the beginning byte
-/// offset, and the number of bytes for the said token.
+/// The token contains a kind which is elaborated by [TokenKind] and a
+/// [ByteRange] in the source that is represented as a span. The span is the
+/// beginning byte offset, and the number of bytes for the said token.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Token {
     /// The current token type.
     pub kind: TokenKind,
     /// The span of the current token.
-    pub span: Span,
+    pub span: ByteRange,
 }
 
 impl Token {
-    /// Create a new token from a kind and a provided [Span].
-    pub fn new(kind: TokenKind, span: Span) -> Self {
+    /// Create a new token from a kind and a provided [ByteRange].
+    pub fn new(kind: TokenKind, span: ByteRange) -> Self {
         Token { kind, span }
     }
 

@@ -6,7 +6,10 @@
 use std::{cmp, iter, num::NonZeroUsize};
 
 use hash_ir::ty::{Adt, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx};
-use hash_storage::store::{statics::StoreId, CloneStore, Store, StoreInternalData};
+use hash_storage::store::{
+    statics::{SingleStoreValue, StoreId},
+    Store,
+};
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
@@ -17,8 +20,8 @@ use hash_target::{
 use hash_utils::index_vec::IndexVec;
 
 use crate::{
-    CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape, PointeeInfo, PointerKind,
-    TyInfo, Variants,
+    layout_store, CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape,
+    LayoutStore, PointeeInfo, PointerKind, TyInfo, Variants,
 };
 
 /// This describes the collection of errors that can occur
@@ -111,36 +114,35 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 #[derive(Clone, Copy)]
 pub struct LayoutComputer<'l> {
     /// A reference tot the [LayoutCtx].
-    layout_ctx: &'l LayoutCtx,
-}
-
-impl Store<LayoutId, Layout> for LayoutComputer<'_> {
-    fn internal_data(&self) -> &StoreInternalData<Layout> {
-        self.layout_ctx.internal_data()
-    }
+    ctx: &'l LayoutCtx,
 }
 
 impl<'l> LayoutComputer<'l> {
     /// Create a new [LayoutCtx].
-    pub fn new(layout_store: &'l LayoutCtx) -> Self {
-        Self { layout_ctx: layout_store }
+    pub fn new(ctx: &'l LayoutCtx) -> Self {
+        Self { ctx }
     }
 
     /// Returns a reference to the [LayoutCtx].
-    pub fn layouts(&self) -> &LayoutCtx {
-        self.layout_ctx
+    pub fn ctx(&self) -> &LayoutCtx {
+        self.ctx
+    }
+
+    /// Returns a reference to the layout store.
+    pub fn store(&self) -> &LayoutStore {
+        layout_store().layouts()
     }
 
     /// Get a reference to the data layout of the current
     /// session.
     pub fn data_layout(&self) -> &TargetDataLayout {
-        &self.layout_ctx.data_layout
+        &self.ctx.data_layout
     }
 
     /// Get a reference to the [CommonLayout]s that are available
     /// in the current session.
     pub(crate) fn common_layouts(&self) -> &CommonLayouts {
-        &self.layout_ctx.common_layouts
+        &self.ctx.common_layouts
     }
 
     /// This is the entry point of the layout computation engine. From
@@ -155,7 +157,7 @@ impl<'l> LayoutComputer<'l> {
         };
 
         // Check if we have already computed the layout of this type.
-        if let Some(layout) = self.layout_ctx.cache().get(&ty_id).copied() {
+        if let Some(layout) = self.ctx.cache().get(&ty_id).copied() {
             return Ok(layout);
         }
 
@@ -213,7 +215,7 @@ impl<'l> LayoutComputer<'l> {
                     None => Layout::scalar(dl, data_ptr),
                 };
 
-                Ok(self.layouts().create(layout))
+                Ok(Layout::create(layout))
             }
 
             // @@Todo: figure out how to handle rc pointers, probably the same
@@ -227,10 +229,9 @@ impl<'l> LayoutComputer<'l> {
             IrTy::Str => Ok(self.common_layouts().str),
             IrTy::Slice(ty) => {
                 let element = self.layout_of_ty(*ty)?;
-                let (size, alignment) =
-                    self.map_fast(element, |element| (element.size, element.alignment));
+                let (size, alignment) = element.map(|element| (element.size, element.alignment));
 
-                Ok(self.layouts().create(Layout {
+                Ok(Layout::create(Layout {
                     shape: LayoutShape::Array { stride: size, elements: 0 },
                     variants: Variants::Single { index: VariantIdx::new(0) },
                     abi: AbiRepresentation::Aggregate,
@@ -257,13 +258,15 @@ impl<'l> LayoutComputer<'l> {
                 // This is used to check whether a particular variant of the
                 // ADT is uninhabited or all of the fields are zero-sized-types.
                 let absent = |layouts: &[LayoutId]| {
-                    let (uninhabited, zst) =
-                        self.map_many_fast(layouts.iter().copied(), |layouts| {
-                            (
-                                layouts.iter().any(|layout| layout.abi.is_uninhabited()),
-                                layouts.iter().all(|layout| layout.is_zst()),
-                            )
-                        });
+                    let mut uninhabited = false;
+                    let mut zst = true;
+
+                    for layout in layouts.iter() {
+                        layout.map(|layout| {
+                            uninhabited |= layout.abi.is_uninhabited();
+                            zst &= layout.is_zst();
+                        })
+                    }
 
                     uninhabited && zst
                 };
@@ -316,9 +319,9 @@ impl<'l> LayoutComputer<'l> {
                         )
                         .ok_or(LayoutError::Overflow)?;
 
-                    Ok(self.layouts().create(layout))
+                    Ok(Layout::create(layout))
                 } else if adt.flags.is_union() {
-                    Ok(self.layouts().create(
+                    Ok(Layout::create(
                         self.compute_layout_of_union(field_layout_table, adt)
                             .ok_or(LayoutError::Unknown(ty_id))?,
                     ))
@@ -327,7 +330,7 @@ impl<'l> LayoutComputer<'l> {
                     let layout = self
                         .compute_layout_of_enum(field_layout_table, adt)
                         .ok_or(LayoutError::Overflow)?;
-                    Ok(self.layouts().create(layout))
+                    Ok(Layout::create(layout))
                 }
             }),
 
@@ -341,19 +344,19 @@ impl<'l> LayoutComputer<'l> {
                     )
                     .ok_or(LayoutError::Overflow)?;
 
-                Ok(self.layouts().create(layout))
+                Ok(Layout::create(layout))
             }
             IrTy::Fn { .. } => {
                 // Create a function pointer and specify that it cannot be null.
                 let mut data_ptr = scalar_unit(ScalarKind::Pointer(dl.instruction_address_space));
                 data_ptr.valid_range_mut().start = 1;
 
-                Ok(self.layouts().create(Layout::scalar(dl, data_ptr)))
+                Ok(Layout::create(Layout::scalar(dl, data_ptr)))
             }
         })?;
 
         // We cache the layout of the type that was just created
-        self.layouts().add_cache_entry(ty_id, layout);
+        self.ctx().add_cache_entry(ty_id, layout);
 
         Ok(layout)
     }
@@ -407,7 +410,7 @@ impl<'l> LayoutComputer<'l> {
             };
 
             // We sort the keys by the effective alignment of the field.
-            self.layouts().map_many_fast(field_layouts.iter().copied(), |layouts| {
+            self.store().map_many_fast(field_layouts.iter().copied(), |layouts| {
                 if tag.is_some() {
                     // Sort the fields in ascending alignment order so that
                     // the layout stays optimal regardless of the prefix.
@@ -439,7 +442,7 @@ impl<'l> LayoutComputer<'l> {
         let mut abi = AbiRepresentation::Aggregate;
 
         for &i in &inverse_memory_map {
-            self.layouts().map_fast(field_layouts[i as usize], |layout| -> Option<()> {
+            field_layouts[i as usize].map(|layout| -> Option<()> {
                 // We can mark the overall structure as un-inhabited if
                 // we've found a field which is un-inhabited.
                 if layout.abi.is_uninhabited() {
@@ -474,7 +477,7 @@ impl<'l> LayoutComputer<'l> {
         // a scalar representation, either being a direct "scalar" or a
         // "scalar pair".
         if size.bytes() > 0 && abi != AbiRepresentation::Uninhabited {
-            self.layouts().map_many_fast(field_layouts.iter().copied(), |fields| {
+            self.store().map_many_fast(field_layouts.iter().copied(), |fields| {
                 // Ignore all of the ZST fields that are present...
                 let mut non_zst_fields = fields.iter().enumerate().filter(|(_, f)| !f.is_zst());
 
@@ -573,8 +576,8 @@ impl<'l> LayoutComputer<'l> {
 
         let index = VariantIdx::new(0);
 
-        self.layouts().map_many_fast(field_layout_table[index].iter().copied(), |field_layouts| {
-            for field in field_layouts {
+        for field in field_layout_table[index].iter() {
+            field.map(|field| {
                 alignment = alignment.max(field.alignment);
 
                 // If all non-ZST fields have the same ABI, we can then
@@ -607,8 +610,8 @@ impl<'l> LayoutComputer<'l> {
                 // Take the `max(size, field.size)` since we're looking for the
                 // largest field of the union.
                 size = size.max(field.size);
-            }
-        });
+            })
+        }
 
         Some(Layout {
             shape: LayoutShape::Union {
@@ -657,8 +660,7 @@ impl<'l> LayoutComputer<'l> {
             // field alignment value.
             for field_row in &field_layout_table {
                 for field in field_row {
-                    prefix_alignment = prefix_alignment
-                        .max(self.layouts().map_fast(*field, |field| field.alignment.abi));
+                    prefix_alignment = prefix_alignment.max(field.borrow().alignment.abi);
                 }
             }
         }
@@ -690,6 +692,8 @@ impl<'l> LayoutComputer<'l> {
         let mut variant_layouts = field_layout_table
             .iter_enumerated()
             .map(|(index, field_layouts)| {
+                // Compute the layout of the starting field, and take the
+                // minimum between the existing value, and the variant
                 let variant = self.compute_layout_of_univariant(
                     index,
                     Some((prefix_ty.size(), prefix_alignment)),
@@ -699,7 +703,7 @@ impl<'l> LayoutComputer<'l> {
 
                 // Compute the layout of the starting field, and take the
                 // minimum between the existing value, and the variant
-                self.layouts().map_many_fast(field_layouts.iter().copied(), |fields| {
+                self.store().map_many_fast(field_layouts.iter().copied(), |fields| {
                     // skip items that are ZSTs or fields with alignment of one
                     // and then compute the min(starting_alignment, field.alignment.abi).
                     for field in
@@ -790,10 +794,8 @@ impl<'l> LayoutComputer<'l> {
 
         // Now we need to allocate each of the created layouts for the
         // variants.
-        let variants = variant_layouts
-            .into_iter()
-            .map(|variant| self.create(variant))
-            .collect::<IndexVec<VariantIdx, _>>();
+        let variants =
+            variant_layouts.into_iter().map(Layout::create).collect::<IndexVec<VariantIdx, _>>();
 
         Some(Layout {
             shape: LayoutShape::Aggregate {
@@ -845,7 +847,7 @@ impl<'l> LayoutComputer<'l> {
                 };
 
                 let (first, second) =
-                    self.layouts().map_many_fast(field_layouts.iter().copied(), |field_layouts| {
+                    self.store().map_many_fast(field_layouts.iter().copied(), |field_layouts| {
                         let mut fields =
                             iter::zip(field_layouts, offsets).filter(|p| !p.0.is_zst());
 
@@ -945,7 +947,7 @@ impl<'l> LayoutComputer<'l> {
 
         let element = self.layout_of_ty(element_ty)?;
         let (element_size, element_alignment) =
-            self.layouts().map_fast(element, |element| (element.size, element.alignment));
+            element.map(|layout| (layout.size, layout.alignment));
 
         // If the size of the array is 0, we can conclude that the
         // abi representation of the array is uninhabited, like a ZST.
@@ -962,7 +964,7 @@ impl<'l> LayoutComputer<'l> {
             .checked_mul(element_count, self.data_layout())
             .ok_or(LayoutError::Overflow)?;
 
-        Ok(self.layouts().create(Layout {
+        Ok(Layout::create(Layout {
             shape: LayoutShape::Array { stride: element_size, elements: element_count },
             abi,
             size,
@@ -979,18 +981,14 @@ impl<'l> LayoutComputer<'l> {
         offset: Size,
     ) -> Option<PointeeInfo> {
         // Check in the cache if we have already computed this information.
-        if let Some(pointee_info) =
-            self.layouts().pointee_info_cache.borrow().get(&(info.ty, offset))
-        {
+        if let Some(pointee_info) = self.ctx().pointee_info_cache.borrow().get(&(info.ty, offset)) {
             return *pointee_info;
         }
 
         let result = info.ty.map(|ty| match ty {
             IrTy::Fn { .. } if offset == Size::ZERO => {
-                let (size, alignment) = self
-                    .layouts()
-                    .map_fast(info.layout, |layout| (layout.size, layout.alignment.abi));
-
+                let (size, alignment) =
+                    info.layout.map(|layout| (layout.size, layout.alignment.abi));
                 Some(PointeeInfo { size, alignment, kind: None })
             }
             IrTy::Ref(pointee, mutability, ref_kind) if offset.bytes() == 0 => {
@@ -1004,14 +1002,13 @@ impl<'l> LayoutComputer<'l> {
                 };
 
                 self.layout_of_ty(*pointee).ok().map(|layout| {
-                    let (size, alignment) = self
-                        .layouts()
-                        .map_fast(layout, |layout| (layout.size, layout.alignment.abi));
+                    let (size, alignment) =
+                        layout.map(|layout| (layout.size, layout.alignment.abi));
                     PointeeInfo { size, alignment, kind }
                 })
             }
             _ => {
-                let data_variant = self.map(info.layout, |layout| {
+                let data_variant = info.layout.map(|layout| {
                     if let LayoutShape::Union { .. } = layout.shape {
                         None
                     } else {
@@ -1026,14 +1023,14 @@ impl<'l> LayoutComputer<'l> {
                         offset + ScalarKind::Pointer(AddressSpace::DATA).size(self.data_layout());
 
                     // @@Copying: we can't really do anything about this copy...
-                    let shape = self.map_fast(variant.layout, |layout| layout.shape.clone());
+                    let shape = variant.layout.borrow().shape.clone();
 
                     for i in 0..shape.count() {
                         let field_start = shape.offset(i);
 
                         if field_start <= offset {
                             let field = variant.field(*self, i);
-                            let size = self.layouts().size_of(field.layout);
+                            let size = field.size();
 
                             result = if ptr_end <= field_start + size {
                                 self.compute_layout_info_of_pointee_at(field, offset - field_start)
@@ -1053,7 +1050,7 @@ impl<'l> LayoutComputer<'l> {
         });
 
         // Cache the result of the computation...
-        self.layouts().pointee_info_cache.borrow_mut().insert((info.ty, offset), result);
+        self.ctx().pointee_info_cache.borrow_mut().insert((info.ty, offset), result);
         result
     }
 }

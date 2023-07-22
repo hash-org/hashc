@@ -318,7 +318,7 @@ impl<'b, 'm> IntrinsicBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
         // However, since we haven't formally defined any "special" intrinsics yet, we
         // don't expect for the resolution to fail.
         let name = ty.borrow().as_instance().borrow().name();
-        let result_ref = PlaceRef::new(self, result, fn_abi.ret_abi.info);
+        let result_ref = PlaceRef::new(result, fn_abi.ret_abi.info);
 
         // if we can simply resolve the intrinsic then we can just call it directly...
         let value = if let Some(intrinsic) = self.get_simple_intrinsic(name) {

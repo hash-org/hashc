@@ -12,7 +12,7 @@
 use std::fmt;
 
 use hash_ir::IrCtx;
-use hash_layout::{compute::LayoutComputer, LayoutCtx};
+use hash_layout::compute::LayoutComputer;
 use hash_pipeline::settings::CompilerSettings;
 use hash_target::{data_layout::HasDataLayout, Target};
 
@@ -83,12 +83,7 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
     fn ir_ctx(&self) -> &IrCtx;
 
     /// Create a [LayoutComputer] for the current context.
-    fn layout_computer(&self) -> LayoutComputer<'_> {
-        LayoutComputer::new(self.layouts())
-    }
-
-    /// Returns a reference to the [LayoutCtx].
-    fn layouts(&self) -> &LayoutCtx;
+    fn layouts(&self) -> LayoutComputer<'_>;
 }
 
 /// The core trait of the code generation backend which is used to

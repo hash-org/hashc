@@ -113,7 +113,8 @@ impl<'s> SemanticAnalyser<'s> {
         // Here we should check if in the event that an `intrinsics` directive
         // is being used only within the `prelude` module.
         if name == IDENTS.intrinsics {
-            let module_kind = self.source_map.module_kind_by_id(self.source_id);
+            let id = directive.span().id;
+            let module_kind = self.source_map.module_kind_by_id(id);
 
             if !matches!(module_kind, Some(ModuleKind::Prelude)) {
                 self.append_error(
@@ -398,7 +399,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            node.span(),
             self.source_map,
             "hit non de-sugared for-block whilst performing semantic analysis"
         );
@@ -411,7 +412,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            node.span(),
             self.source_map,
             "hit non de-sugared while-block whilst performing semantic analysis"
         );
@@ -444,7 +445,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            node.span(),
             self.source_map,
             "hit non de-sugared if-clause whilst performing semantic analysis"
         );
@@ -457,7 +458,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            node.span(),
             self.source_map,
             "hit non de-sugared if-block whilst performing semantic analysis"
         );

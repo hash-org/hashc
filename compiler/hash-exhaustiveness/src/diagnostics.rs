@@ -4,7 +4,7 @@
 use hash_ast::ast::{MatchOrigin, RangeEnd};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{diagnostic::DiagnosticCellStore, reporter::Reporter};
-use hash_source::location::SourceLocation;
+use hash_source::location::Span;
 use hash_tir::{environment::env::Env, lits::LitPat, pats::PatId, utils::common::CommonUtils};
 use hash_utils::{
     itertools::Itertools,
@@ -47,7 +47,7 @@ pub enum ExhaustivenessError {
     /// When a match block is non-exhaustive
     NonExhaustiveMatch {
         /// The term of the subject expression.
-        location: SourceLocation,
+        location: Span,
 
         /// Generated patterns that are not covered by match arms
         uncovered_pats: Vec<PatId>,
@@ -136,7 +136,7 @@ pub enum ExhaustivenessWarning {
         pat: PatId,
 
         /// The location of the match subject that is being checked.
-        location: SourceLocation,
+        location: Span,
     },
 
     // Exhaustiveness checking has found this pattern to

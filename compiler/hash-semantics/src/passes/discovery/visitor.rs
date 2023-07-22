@@ -22,7 +22,7 @@ use hash_tir::{
 };
 use hash_utils::itertools::Itertools;
 
-use super::{super::ast_utils::AstUtils, defs::ItemId, DiscoveryPass};
+use super::{defs::ItemId, DiscoveryPass};
 use crate::{
     diagnostics::error::SemanticError, environment::sem_env::AccessToSemEnv,
     passes::ast_utils::AstPass,
@@ -73,14 +73,14 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                         Some(name) => self.add_declaration_node_to_mod_def(name, node, mod_def_id),
                         None => {
                             return Err(SemanticError::ModulePatternsNotSupported {
-                                location: self.node_location(node),
+                                location: node.span(),
                             })
                         }
                     }
                 }
                 DefId::Data(_) => {
                     panic_on_span!(
-                        self.node_location(node),
+                        node.span(),
                         self.source_map(),
                         "found declaration in data definition scope, which should have been handled earlier"
                     )
@@ -105,7 +105,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 }
                 DefId::Fn(_) => {
                     panic_on_span!(
-                        self.node_location(node),
+                        node.span(),
                         self.source_map(),
                         "found declaration in function scope, which should instead be in a stack scope"
                     )
@@ -113,14 +113,14 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             },
             Some(ItemId::Ty(_)) => {
                 panic_on_span!(
-                        self.node_location(node),
+                        node.span(),
                         self.source_map(),
                         "found declaration in function type scope, which should instead be in a stack scope"
                     )
             }
             None => {
                 panic_on_span!(
-                    self.node_location(node),
+                    node.span(),
                     self.source_map(),
                     "found declaration before any scopes"
                 )
@@ -378,9 +378,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: ast::AstNodeRef<ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         // Traits are not yet supported
-        self.diagnostics().add_error(SemanticError::TraitsNotSupported {
-            trait_location: self.node_location(node),
-        });
+        self.diagnostics()
+            .add_error(SemanticError::TraitsNotSupported { trait_location: node.span() });
         Ok(())
     }
 

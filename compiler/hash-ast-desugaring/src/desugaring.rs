@@ -47,7 +47,7 @@ impl<'s> AstDesugaring<'s> {
         let block = match node {
             Block::For(body) => body,
             block => panic_on_span!(
-                self.source_location(parent_span),
+                parent_span,
                 self.source_map,
                 "lowering: expected for-loop, got {}",
                 block.as_str()
@@ -75,7 +75,7 @@ impl<'s> AstDesugaring<'s> {
             Pat::Constructor(ConstructorPat {
                 subject: make_binding_pat("Some"),
                 spread: None,
-                fields: ast_nodes![AstNode::new(TuplePatEntry { name: None, pat }, pat_span)],
+                fields: ast_nodes![AstNode::new(TuplePatEntry { name: None, pat }, pat_span); pat_span],
             }),
             pat_span,
         );
@@ -96,14 +96,14 @@ impl<'s> AstDesugaring<'s> {
                         Pat::Constructor(ConstructorPat {
                             subject: make_binding_pat("None"),
                             spread: None,
-                            fields: ast_nodes![],
+                            fields: ast_nodes![; pat_span],
                         },),
                         pat_span
                     ),
                     expr: AstNode::new(Expr::Break(BreakStatement {}), body_span),
                 },
                 pat_span
-            ),
+            ); parent_span
         ];
 
         // Here want to transform the for-loop into just a loop block
@@ -121,7 +121,7 @@ impl<'s> AstDesugaring<'s> {
                             args: ast_nodes![AstNode::new(
                                 ConstructorCallArg { name: None, value: iterator },
                                 iter_span
-                            )],
+                            ); iter_span],
                         }),
                         body_span,
                     ),
@@ -168,7 +168,7 @@ impl<'s> AstDesugaring<'s> {
         let block = match node {
             Block::While(body) => body,
             block => panic_on_span!(
-                self.source_location(parent_span),
+                parent_span,
                 self.source_map,
                 "lowering: expected while-block, got {}",
                 block.as_str()
@@ -215,7 +215,8 @@ impl<'s> AstDesugaring<'s> {
                                 expr: AstNode::new(Expr::Break(BreakStatement {}), condition_span)
                             },
                             condition_span
-                        ),
+                        );
+                        parent_span
                     ],
                     origin: MatchOrigin::While,
                 }),
@@ -334,7 +335,7 @@ impl<'s> AstDesugaring<'s> {
         let block = match node {
             Block::If(body) => body,
             block => panic_on_span!(
-                self.source_location(parent_span),
+                parent_span,
                 self.source_map,
                 "lowering: expected if-block, got {}",
                 block.as_str()
@@ -380,7 +381,7 @@ impl<'s> AstDesugaring<'s> {
                         Expr::Block(BlockExpr {
                             data: AstNode::new(
                                 Block::Body(BodyBlock {
-                                    statements: AstNodes::empty(),
+                                    statements: AstNodes::empty(parent_span),
                                     expr: None,
                                 }),
                                 parent_span,

@@ -6,7 +6,7 @@ use hash_tir::{
 };
 
 use super::DiscoveryPass;
-use crate::{ops::common::CommonOps, passes::ast_utils::AstUtils};
+use crate::ops::common::CommonOps;
 
 impl<'tc> DiscoveryPass<'tc> {
     /// Create a parameter list from the given AST generic parameter list, where
@@ -26,9 +26,7 @@ impl<'tc> DiscoveryPass<'tc> {
                 })
                 .map(|index| index.into_symbol()),
         );
-        self.stores()
-            .location()
-            .add_locations_to_targets(params_id, |i| Some(self.source_location(params[i].span())));
+        self.stores().location().add_locations_to_targets(params_id, |i| Some(params[i].span()));
 
         for (i, param) in params.iter().enumerate() {
             self.ast_info().params().insert(param.id(), ParamId(params_id, i));
