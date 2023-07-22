@@ -13,14 +13,51 @@ use hash_source::{
     location::Span,
 };
 use hash_tree_def::define_tree;
-use hash_utils::{counter, smallvec::SmallVec};
+use hash_utils::{
+    index_vec::{define_index_type, IndexVec},
+    parking_lot::RwLock,
+    smallvec::SmallVec,
+};
+use once_cell::sync::Lazy;
 use replace_with::replace_with_or_abort;
 
-counter! {
-    name: AstNodeId,
-    counter_name: AST_NODE_ID_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
+define_index_type! {
+    /// This is the unique identifier for an AST node. This is used to
+    /// map spans to nodes, and vice versa. [AstNodeId]s are unique and
+    /// they are always increasing as a new nodes are created.
+    pub struct AstNodeId = u32;
+    MAX_INDEX = i32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+}
+
+/// The [`SPAN_MAP`] is a global static that is used to store the span
+/// of each AST node. This is used to avoid storing the [Span] on the
+/// [`AstNode<T>`] itself in order for other data structures to be able
+/// to query the [Span] of a node simply by using the [AstNodeId] of the
+/// node.
+static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, Span>>> =
+    Lazy::new(|| RwLock::new(IndexVec::new()));
+
+/// Utilities for working with the [`SPAN_MAP`].
+pub struct SpanMap;
+
+impl SpanMap {
+    /// Get the span of a node by [AstNodeId].
+    pub fn span_of(id: AstNodeId) -> Span {
+        SPAN_MAP.read()[id]
+    }
+
+    /// Get a mutable reference to the [`SPAN_MAP`]. This is only
+    /// internal to the `hash-ast` crate since it creates entries
+    /// in the span map when creating new AST nodes.
+    fn add_span(span: Span) -> AstNodeId {
+        SPAN_MAP.write().push(span)
+    }
+
+    /// Update the span of a node by [AstNodeId].
+    fn update_span(id: AstNodeId, span: Span) {
+        SPAN_MAP.write()[id] = span;
+    }
 }
 
 /// Represents an abstract syntax tree node.
@@ -30,8 +67,6 @@ counter! {
 pub struct AstNode<T> {
     /// The stored data within this node
     body: Box<T>,
-    /// Associated [Span] with this node
-    span: Span,
     /// Associated `id` with this [AstNode<T>]
     id: AstNodeId,
 }
@@ -45,7 +80,8 @@ impl<T> PartialEq for AstNode<T> {
 impl<T> AstNode<T> {
     /// Create a new node with a given body and location.
     pub fn new(body: T, span: Span) -> Self {
-        Self { body: Box::new(body), span, id: AstNodeId::new() }
+        let id = SpanMap::add_span(span);
+        Self { body: Box::new(body), id }
     }
 
     /// Get a reference to the body contained within this node.
@@ -65,12 +101,12 @@ impl<T> AstNode<T> {
 
     /// Get the [Span] of this [AstNode].
     pub fn span(&self) -> Span {
-        self.span
+        SpanMap::span_of(self.id)
     }
 
     /// Set the [Span] of this [AstNode].
     pub fn set_span(&mut self, span: Span) {
-        self.span = span;
+        SpanMap::update_span(self.id, span)
     }
 
     /// Get the [AstNodeId] of this node.
@@ -80,18 +116,18 @@ impl<T> AstNode<T> {
 
     /// Create an [AstNodeRef] from this [AstNode].
     pub fn ast_ref(&self) -> AstNodeRef<T> {
-        AstNodeRef { body: self.body.as_ref(), span: self.span, id: self.id }
+        AstNodeRef { body: self.body.as_ref(), id: self.id }
     }
 
     /// Create an [AstNodeRefMut] from this [AstNode].
     pub fn ast_ref_mut(&mut self) -> AstNodeRefMut<T> {
-        AstNodeRefMut { body: self.body.as_mut(), span: self.span, id: self.id }
+        AstNodeRefMut { body: self.body.as_mut(), id: self.id }
     }
 
     /// Create an [AstNodeRef] by providing a body and copying over the
     /// [Span] and [AstNodeId] that belong to this [AstNode].
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
-        AstNodeRef { body, span: self.span, id: self.id }
+        AstNodeRef { body, id: self.id }
     }
 }
 
@@ -99,8 +135,7 @@ impl<T> AstNode<T> {
 pub struct AstNodeRef<'t, T> {
     /// A reference to the body of the [AstNode].
     pub body: &'t T,
-    /// The [Span] of the node.
-    pub span: Span,
+
     /// The [AstNodeId] of the node, representing a unique identifier within
     /// the AST, useful for performing fast comparisons of trees.
     pub id: AstNodeId,
@@ -116,8 +151,8 @@ impl<T> Copy for AstNodeRef<'_, T> {}
 
 impl<'t, T> AstNodeRef<'t, T> {
     /// Create a new [AstNodeRef<T>].
-    pub fn new(body: &'t T, span: Span, id: AstNodeId) -> Self {
-        AstNodeRef { body, span, id }
+    pub fn new(body: &'t T, id: AstNodeId) -> Self {
+        AstNodeRef { body, id }
     }
 
     /// Get a reference to body of the [AstNodeRef].
@@ -128,12 +163,12 @@ impl<'t, T> AstNodeRef<'t, T> {
     /// Utility function to copy over the [Span] and [AstNodeId] from
     /// another [AstNodeRef] with a provided body.
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
-        AstNodeRef { body, span: self.span, id: self.id }
+        AstNodeRef { body, id: self.id }
     }
 
     /// Get the [Span] of this [AstNodeRef].
     pub fn span(&self) -> Span {
-        self.span
+        SpanMap::span_of(self.id)
     }
 
     /// Get the [AstNodeId] of this [AstNodeRef].
@@ -154,8 +189,7 @@ impl<T> Deref for AstNodeRef<'_, T> {
 pub struct AstNodeRefMut<'t, T> {
     /// A mutable reference to the body of the [AstNode].
     body: &'t mut T,
-    /// The [Span] of the [AstNode].
-    pub span: Span,
+
     /// The [AstNodeId] of the [AstNode], representing a unique identifier
     /// within the AST, useful for performing fast comparisons of trees.
     pub id: AstNodeId,
@@ -163,8 +197,8 @@ pub struct AstNodeRefMut<'t, T> {
 
 impl<'t, T> AstNodeRefMut<'t, T> {
     /// Create a new [AstNodeRefMut<T>].
-    pub fn new(body: &'t mut T, span: Span, id: AstNodeId) -> Self {
-        AstNodeRefMut { body, span, id }
+    pub fn new(body: &'t mut T, id: AstNodeId) -> Self {
+        AstNodeRefMut { body, id }
     }
 
     /// Get a reference to body of the [AstNodeRefMut].
@@ -184,7 +218,7 @@ impl<'t, T> AstNodeRefMut<'t, T> {
 
     /// Get the [Span] of this [AstNodeRefMut].
     pub fn span(&self) -> Span {
-        self.span
+        SpanMap::span_of(self.id)
     }
 
     /// Get the [AstNodeId] of this [AstNodeRefMut].
@@ -194,7 +228,7 @@ impl<'t, T> AstNodeRefMut<'t, T> {
 
     /// Get this node as an immutable reference
     pub fn immutable(&self) -> AstNodeRef<T> {
-        AstNodeRef::new(self.body, self.span, self.id)
+        AstNodeRef::new(self.body, self.id)
     }
 }
 
@@ -1999,7 +2033,7 @@ mod size_asserts {
 
     use super::*;
 
-    static_assert_size!(Expr, 96);
-    static_assert_size!(Pat, 88);
-    static_assert_size!(Ty, 80);
+    static_assert_size!(Expr, 88);
+    static_assert_size!(Pat, 72);
+    static_assert_size!(Ty, 64);
 }

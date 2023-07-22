@@ -560,7 +560,7 @@ fn emit_walk_node_field(
                 if nodes_mut {
                     Ok(Some(quote! {
                         visitor.#visit_child_function_name(
-                            super::#node_ref_name::new(#field_path, span, id)
+                            super::#node_ref_name::new(#field_path, id)
                         )?
                     }))
                 } else {
@@ -629,7 +629,7 @@ fn emit_walker_enum_function(
         nodes_mut,
         self_mut,
         quote! {
-           let (span, id) = (node.span(), node.id());
+           let id = node.id();
            Ok(match #ref_or_mut *node {
                #(#cases),*
            })
@@ -676,7 +676,7 @@ fn emit_walker_struct_function(
         nodes_mut,
         self_mut,
         quote! {
-            let (span, id) = (node.span(), node.id());
+            let id = node.id();
             Ok(#node_name {
                 #(#walk_fields),*
             })

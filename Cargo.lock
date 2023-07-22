@@ -443,6 +443,7 @@ dependencies = [
  "hash-tree-def",
  "hash-utils",
  "num-bigint",
+ "once_cell",
  "replace_with",
 ]
 
@@ -850,7 +851,6 @@ dependencies = [
  "indexmap",
  "lazy_static",
  "num-bigint",
- "parking_lot",
  "textwrap",
  "typed-builder",
  "utility-types",

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use hash_source::location::{SourceLocation, Span};
 use hash_storage::store::SequenceStoreKey;
-use parking_lot::RwLock;
+use hash_utils::parking_lot::RwLock;
 
 use super::{
     args::{ArgId, ArgsId, PatArgId, PatArgsId},

@@ -27,5 +27,6 @@ pub use fxhash;
 pub use index_vec;
 pub use itertools;
 pub use log;
+pub use parking_lot;
 pub use smallvec;
 pub use thin_vec;
