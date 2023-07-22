@@ -6,8 +6,8 @@ use hash_abi::{
 };
 use hash_ir::ty::{Instance, InstanceId, IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::{LayoutComputer, LayoutError};
+use hash_storage::store::{CloneStore, SequenceStore};
 use hash_target::abi::{Scalar, ScalarKind};
-use hash_utils::store::{CloneStore, SequenceStore};
 
 use crate::traits::{layout::LayoutMethods, HasCtxMethods};
 

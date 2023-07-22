@@ -4,8 +4,7 @@
 use core::fmt;
 use std::{borrow::Borrow, hash::Hash, ops::Deref};
 
-use super::row::Row;
-use crate::Wall;
+use crate::arena::{row::Row, Wall};
 
 /// A [`String`]-like implementation for allocating strings within a [`Wall`].
 ///
@@ -107,7 +106,7 @@ impl Eq for BrickString<'_> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Castle;
+    use crate::arena::Castle;
 
     #[test]
     fn brick_string_valid_test() {

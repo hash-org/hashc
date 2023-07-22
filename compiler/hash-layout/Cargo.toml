@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 fixedbitset = "0.4.2"
 
-hash-utils = { path = "../hash-utils" }
 hash-ir = { path = "../hash-ir" }
+hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }
+hash-utils = { path = "../hash-utils" }

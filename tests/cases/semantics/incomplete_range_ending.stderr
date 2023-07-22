@@ -1,0 +1,6 @@
+error: incomplete range ending, ranges that specify a `..<` must specify an ending range operand
+ --> $DIR/incomplete_range_ending.hash:7:5
+6 |     match t {
+7 |       5..< => {},
+  |       ^^^^ add an ending range operand here
+8 |       _ => {}

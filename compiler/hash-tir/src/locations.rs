@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use hash_source::location::{SourceLocation, Span};
-use hash_utils::store::SequenceStoreKey;
+use hash_storage::store::SequenceStoreKey;
 use parking_lot::RwLock;
 
 use super::{
@@ -36,7 +36,7 @@ macro_rules! location_targets {
             )*
         }
 
-        impl hash_utils::store::SequenceStoreKey for IndexedLocationTarget {
+        impl hash_storage::store::SequenceStoreKey for IndexedLocationTarget {
             type ElementKey = (Self, usize);
             fn to_index_and_len(self) -> (usize, usize) {
                 match self {

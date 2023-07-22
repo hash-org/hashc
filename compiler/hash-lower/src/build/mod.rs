@@ -28,19 +28,16 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     SourceId,
 };
+use hash_storage::store::{statics::StoreId, FxHashMap, PartialCloneStore, SequenceStoreKey};
 use hash_tir::{
-    context::{Context, Decl, ScopeKind},
+    context::{Context, ScopeKind},
     directives::DirectiveTarget,
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     symbols::Symbol,
     terms::TermId,
-    utils::common::CommonUtils,
 };
-use hash_utils::{
-    index_vec::IndexVec,
-    store::{FxHashMap, PartialCloneStore, SequenceStore, SequenceStoreKey, Store},
-};
+use hash_utils::index_vec::IndexVec;
 
 use crate::{cfg::ControlFlowGraph, ctx::BuilderCtx};
 
@@ -85,18 +82,6 @@ impl From<FnDefId> for BuildItem {
 impl From<TermId> for BuildItem {
     fn from(constant: TermId) -> Self {
         BuildItem::Const(constant)
-    }
-}
-
-/// Use to represent a mapping between [BindingKind]s that come from
-/// the TIR to identify a [Local] as either being a reference to a
-/// stack member or a function parameter.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct LocalKey(Symbol);
-
-impl From<Decl> for LocalKey {
-    fn from(binding: Decl) -> Self {
-        LocalKey(binding.name)
     }
 }
 
@@ -191,7 +176,7 @@ pub(crate) struct BodyBuilder<'tcx> {
 
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
-    declaration_map: FxHashMap<LocalKey, Local>,
+    declaration_map: FxHashMap<Symbol, Local>,
 
     /// Information about the currently traversed [ast::Block] in the AST. This
     /// value is used to determine when the block should be terminated by
@@ -242,8 +227,7 @@ impl<'ctx> BodyBuilder<'ctx> {
                 // Get the type of this function definition, we need to
                 // figure out how many arguments there will be passed in
                 // and how many locals we need to allocate.
-                let params = tcx.env.stores().fn_def().map_fast(fn_def, |def| def.ty.params);
-                (params.len(), BodySource::Item)
+                (fn_def.borrow().ty.params.len(), BodySource::Item)
             }
             BuildItem::Const(_) => (0, BodySource::Const),
         };
@@ -339,21 +323,16 @@ impl<'ctx> BodyBuilder<'ctx> {
     /// This is the entry point for lowering functions into Hash IR.
     fn build_fn(&mut self) {
         let fn_def = self.item.as_fn_def();
-        let FnDef { ty, body, .. } = self.get_fn_def(fn_def);
 
         Context::enter_resolved_scope_mut(self, ScopeKind::Fn(fn_def), |this| {
             // The type must be a function type...
-            let FnTy { params, .. } = ty;
+            let FnDef { ty: FnTy { params, .. }, body, .. } = fn_def.value();
 
-            this.stores().params().get_vec(params).iter().for_each(|param| {
+            params.borrow().iter().for_each(|param| {
                 let ir_ty = this.ty_id_from_tir_ty(param.ty);
 
-                let symbol = this.get_symbol(param.name);
-                let param_name = symbol.name.unwrap_or(IDENTS.underscore);
-                let binding = this.context().get_decl(symbol.symbol);
-
                 // @@Future: deal with parameter attributes that are mutable?
-                this.push_local(LocalDecl::new_immutable(param_name, ir_ty), binding.into());
+                this.push_local(param.name, LocalDecl::new_immutable(param.name.ident(), ir_ty));
             });
 
             // Axioms and Intrinsics are not lowered into IR

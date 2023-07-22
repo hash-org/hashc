@@ -6,13 +6,11 @@ use hash_ast::{
     visitor::walk,
 };
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
 use hash_tir::{
     data::DataDef,
     defs::DefId,
-    environment::{
-        env::AccessToEnv,
-        stores::{SequenceStoreValue, SingleStoreValue},
-    },
+    environment::env::AccessToEnv,
     fns::{FnBody, FnDef, FnTy},
     mods::{ModDef, ModKind, ModMember},
     symbols::sym,

@@ -14,12 +14,14 @@ use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
+use hash_storage::{
+    new_sequence_store_key_direct,
+    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
+};
 use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},
-    new_sequence_store_key_direct,
     smallvec::{smallvec, SmallVec},
-    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
 };
 
 use crate::{

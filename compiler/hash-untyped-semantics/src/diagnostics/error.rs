@@ -1,7 +1,7 @@
 //! Hash AST semantic analysis error diagnostic definitions.
 
 use hash_ast::{
-    ast::{AstNodeId, AstNodeRef, ParamOrigin, Visibility},
+    ast::{AstNodeId, AstNodeRef, ParamOrigin, RangeEnd, Visibility},
     origin::BlockOrigin,
 };
 use hash_error_codes::error_codes::HashErrorCode;
@@ -43,26 +43,33 @@ impl AnalysisError {
 pub(crate) enum AnalysisErrorKind {
     /// When a `break` expression is found outside of a loop.
     UsingBreakOutsideLoop,
+
     /// When a `continue` expression is found outside of a loop.
     UsingContinueOutsideLoop,
+
     /// When a `return` statement is found outside of a function or in scope
     /// that doesn't relate to the function.
     UsingReturnOutsideOfFn,
+
     /// When there is a non-declarative expression in either the root scope
     /// (module) or in a `impl` / `mod` block.
     NonDeclarativeExpression { origin: BlockOrigin },
+
     /// When a pattern is used within a particular context that is not allowed
     ///
     /// Currently, this is only used to notify that `float` patterns aren't
     /// allowed in pattern positions. Later this will change as float
     /// patterns should be allowed within range patterns.
     DisallowedFloatPat,
+
     /// When a top-level declaration features a pattern that has a binding which
     /// is declared to be mutable.
     IllegalBindingMutability,
+
     /// When bindings declare themselves to be `pub` or `priv` within
     /// non-constant blocks like function bodies.
     IllegalBindingVisibilityModifier { modifier: Visibility, origin: BlockOrigin },
+
     /// When a field within a struct, tuple or other form is missing both a type
     /// annotation and a default value, which means that there is not enough
     /// information at later stages to deduce the type of the field.
@@ -73,6 +80,7 @@ pub(crate) enum AnalysisErrorKind {
 
     /// When a directive is not allowed in the current module or context
     DisallowedDirective { name: Identifier, module_kind: Option<ModuleKind> },
+
     /// When a directive is expecting a particular expression, but received an
     /// unexpected kind...
     InvalidDirectiveArgument {
@@ -89,8 +97,10 @@ pub(crate) enum AnalysisErrorKind {
         /// Any additional information about this particular invocation.
         notes: Vec<String>,
     },
+
     /// When a directive is used within an un-expected scope,
     InvalidDirectiveScope { name: Identifier, expected: BlockOrigin, received: BlockOrigin },
+
     /// When fields of a `struct` or `enum` use inconsistent naming
     InconsistentFieldNaming {
         /// Whether the name is expected to be named or not.
@@ -99,6 +109,10 @@ pub(crate) enum AnalysisErrorKind {
         /// The origin of where the parameter came from.
         origin: ParamOrigin,
     },
+
+    /// When a range ending is specified as exclusive, but doesn't specify a
+    /// terminating value.
+    ExclusiveRangeWithNoEnding,
 }
 
 impl From<AnalysisError> for Reports {
@@ -261,6 +275,10 @@ impl From<AnalysisError> for Reports {
                     err.location,
                     "`self` not semantically valid here",
                 )));
+            }
+            AnalysisErrorKind::ExclusiveRangeWithNoEnding => {
+                error.title(format!("incomplete range ending, ranges that specify a `{}` must specify an ending range operand", RangeEnd::Excluded))
+                .add_labelled_span(err.location, "add an ending range operand here");
             }
         };
 

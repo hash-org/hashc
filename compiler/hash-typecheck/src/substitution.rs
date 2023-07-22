@@ -3,12 +3,14 @@
 use std::{collections::HashSet, ops::ControlFlow};
 
 use derive_more::Deref;
+use hash_storage::store::{
+    statics::StoreId, Store, TrivialKeySequenceStore, TrivialSequenceStoreKey,
+};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgsId, PatArgsId},
     atom_info::ItemInAtomInfo,
     context::Decl,
-    environment::stores::StoreId,
     fns::FnBody,
     holes::Hole,
     mods::ModDefId,
@@ -24,10 +26,7 @@ use hash_tir::{
         AccessToUtils,
     },
 };
-use hash_utils::{
-    log::warn,
-    store::{Store, TrivialKeySequenceStore, TrivialSequenceStoreKey},
-};
+use hash_utils::log::warn;
 
 use crate::AccessToTypechecking;
 

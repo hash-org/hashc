@@ -4,21 +4,24 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_source::identifier::Identifier;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::{
+    static_sequence_store_direct,
+    store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+};
 use utility_types::omit;
 
 use super::{
     args::{ArgsId, PatArgsId},
-    environment::stores::StoreId,
     locations::IndexedLocationTarget,
     terms::TermId,
 };
 use crate::{
     context::ScopeKind,
     data::{CtorDefId, DataDefId},
+    environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
     symbols::Symbol,
-    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+    tir_debug_value_of_sequence_store_element_id,
     tuples::TupleTy,
     tys::TyId,
 };
@@ -44,11 +47,12 @@ impl From<Param> for ParamData {
     }
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub ParamsStore,
     id = pub ParamsId[ParamId],
     value = Param,
-    store_name = params
+    store_name = params,
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(ParamId);

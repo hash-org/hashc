@@ -3,7 +3,7 @@
 
 use hash_ir::ty::IrTyId;
 use hash_layout::{Layout, LayoutId};
-use hash_utils::store::Store;
+use hash_storage::store::Store;
 
 use super::{BackendTypes, HasCtxMethods};
 use crate::layout::TyInfo;

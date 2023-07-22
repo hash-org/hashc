@@ -13,8 +13,8 @@ use hash_abi::{ArgAbi, FnAbiId, PassMode};
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
 use hash_source::constant::CONSTANT_MAP;
+use hash_storage::store::Store;
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
-use hash_utils::store::Store;
 
 use super::{
     locals::LocalRef,

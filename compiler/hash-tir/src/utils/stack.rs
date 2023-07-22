@@ -1,6 +1,6 @@
 //! Utilities for managing stacks and their members.
 use derive_more::Constructor;
-use hash_utils::store::Store;
+use hash_storage::store::Store;
 
 use crate::{
     context::Decl,

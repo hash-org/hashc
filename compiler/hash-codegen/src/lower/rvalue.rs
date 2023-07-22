@@ -33,7 +33,7 @@ use crate::{
 /// it by 8 places is not. So, the mask is computed, and then applied onto the
 /// shifting value in order to check whether a shift overflow has occurred.
 fn shift_mask_value<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
-    builder: &mut Builder,
+    builder: &Builder,
     ty: Builder::Type,
     mask_ty: Builder::Type,
     invert: bool,

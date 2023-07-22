@@ -1,0 +1,27 @@
+error[0083]: non-exhaustive patterns: `'\0'..'`'` not covered
+  --> $DIR/open_ranges.hash:20:11
+19 |   match_char := (value: char) -> i32 => {
+20 |       match value {
+   |             ^^^^^ pattern `'\0'..'`'` not covered
+21 |           'a'.. => 0,
+
+warn: pattern is unreachable
+ --> $DIR/open_ranges.hash:6:9
+5 |           .. => 0,
+6 |           _ => 1 // ~WARNING: unreachable pattern
+  |           ^ 
+7 |       }
+
+warn: pattern is unreachable
+  --> $DIR/open_ranges.hash:15:9
+14 |           ..4 => 1,
+15 |           _ => 2 // ~WARNING: unreachable pattern
+   |           ^ 
+16 |       }
+
+warn: pattern is unreachable
+  --> $DIR/open_ranges.hash:22:9
+21 |           'a'.. => 0,
+22 |           'c'.. => 1, // ~WARNING: unreachable pattern
+   |           ^^^^^ 
+23 |       }

@@ -2,13 +2,16 @@
 
 use std::fmt::Display;
 
-use hash_source::identifier::Identifier;
-use hash_utils::store::{Store, StoreKey};
-
-use crate::{
-    environment::stores::{SingleStoreValue, StoreId},
-    tir_get, tir_single_store,
+use hash_source::identifier::{Identifier, IDENTS};
+use hash_storage::{
+    static_single_store,
+    store::{
+        statics::{SingleStoreValue, StoreId},
+        Store, StoreKey,
+    },
 };
+
+use crate::{environment::stores::tir_stores, tir_get};
 
 /// The data carried by a symbol.
 ///
@@ -41,11 +44,12 @@ pub struct SymbolData {
     pub name: Option<Identifier>,
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub SymbolStore,
     id = pub Symbol,
     value = SymbolData,
-    store_name = symbol
+    store_name = symbol,
+    store_source = tir_stores()
 );
 
 /// Shorthand for `Symbol::from_name`.
@@ -68,6 +72,20 @@ impl Symbol {
     pub fn duplicate(&self) -> Symbol {
         let name = self.borrow().name;
         SymbolData::create_with(|symbol| SymbolData { symbol, name })
+    }
+
+    /// Create a new symbol with an `_` as its name.
+    pub fn fresh_underscore() -> Self {
+        SymbolData::create_with(|symbol| SymbolData { symbol, name: Some(IDENTS.underscore) })
+    }
+
+    /// Get an [Identifier] name for this symbol. If the symbol does not have a
+    /// name, then a `_` is returned.
+    pub fn ident(&self) -> Identifier {
+        match self.borrow().name {
+            Some(name) => name,
+            None => IDENTS.underscore,
+        }
     }
 }
 

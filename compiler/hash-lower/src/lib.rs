@@ -36,19 +36,18 @@ use hash_pipeline::{
 };
 use hash_semantics::SemanticStorage;
 use hash_source::{identifier::IDENTS, location::SourceLocation, SourceId};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    CloneStore, PartialStore,
+};
 use hash_tir::{
     args::Arg,
     data::DataTy,
     directives::DirectiveTarget,
-    environment::{
-        env::{AccessToEnv, Env},
-        source_info::CurrentSourceInfo,
-        stores::{global_stores, SequenceStoreValue},
-    },
+    environment::{env::Env, source_info::CurrentSourceInfo, stores::tir_stores},
     utils::common::CommonUtils,
 };
 use hash_utils::{
-    store::{CloneStore, PartialStore, Store},
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };
@@ -130,7 +129,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         let source_info = CurrentSourceInfo::new(entry);
         let env = Env::new(
-            global_stores(),
+            tir_stores(),
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,
@@ -153,8 +152,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         time_item(self, "build", |_| {
             for func in items.iter() {
-                let symbol = env.stores().fn_def().map_fast(*func, |func| func.name);
-                let name = env.symbol_name(symbol);
+                let name = func.borrow().name.ident();
 
                 // Get the source of the symbol therefore that way
                 // we can get the source id of the function.
@@ -202,7 +200,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         } = stage_data.data();
         let source_info = CurrentSourceInfo::new(entry);
         let env = Env::new(
-            global_stores(),
+            tir_stores(),
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,
@@ -215,7 +213,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // @@Future: support generic substitutions here.
         let empty_args = Arg::empty_seq();
 
-        global_stores().directives().internal_data().iter().for_each(|entry| {
+        tir_stores().directives().internal_data().iter().for_each(|entry| {
             let (id, directives) = entry.pair();
             if directives.contains(IDENTS.layout_of) && let DirectiveTarget::DataDefId(data_def) = *id {
                 let ty = ctx.ty_from_tir_data(DataTy { args: empty_args, data_def });

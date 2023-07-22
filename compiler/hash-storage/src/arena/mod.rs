@@ -1,7 +1,7 @@
 //! Arena allocator implementation for use within the Hash compiler sources.
 
 pub mod brick;
-pub mod collections;
+pub mod row;
 
 use std::mem::{ManuallyDrop, MaybeUninit};
 

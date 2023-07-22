@@ -8,7 +8,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::Wall;
+use super::Wall;
 
 /// A [`Vec`]-like implementation for allocating contiguous sequences within a
 /// [`Wall`].
@@ -264,7 +264,7 @@ impl<'c, T: Clone> Row<'c, T> {
 /// # Examples
 ///
 /// ```
-/// use hash_alloc::{Castle, Wall, row};
+/// use hash_storage::{arena::{Castle, Wall}, row};
 /// let castle = Castle::new();
 /// let wall = castle.wall();
 ///
@@ -277,19 +277,19 @@ impl<'c, T: Clone> Row<'c, T> {
 #[macro_export]
 macro_rules! row {
     () => {
-        $crate::collections::row::Row::new()
+        $crate::arena::row::Row::new()
     };
     ($wall:expr) => {
-        $crate::collections::row::Row::new()
+        $crate::arena::row::Row::new()
     };
     ($wall:expr; $($item:expr),*) => {
-        $crate::collections::row::Row::from_iter([$($item,)*], $wall)
+        $crate::arena::row::Row::from_iter([$($item,)*], $wall)
     };
     ($wall:expr; $($item:expr,)*) => {
-        $crate::collections::row::Row::from_iter([$($item,)*], $wall)
+        $crate::arena::row::Row::from_iter([$($item,)*], $wall)
     };
     ($wall:expr; $item:expr; $count:expr) => {
-        $crate::collections::row::Row::from_iter(std::iter::repeat($item).take($count), $wall)
+        $crate::arena::row::Row::from_iter(std::iter::repeat($item).take($count), $wall)
     };
 }
 
@@ -394,7 +394,7 @@ impl<T: Eq> Eq for Row<'_, T> {}
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use crate::{collections::row::Row, Castle};
+    use crate::arena::{row::Row, Castle};
 
     #[test]
     fn row_construction_test() {

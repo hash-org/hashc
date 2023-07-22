@@ -1,9 +1,7 @@
 //! Utilities for parameters and arguments.
 use derive_more::Constructor;
-use hash_utils::{
-    itertools::Itertools,
-    store::{SequenceStore, TrivialSequenceStoreKey},
-};
+use hash_storage::store::{statics::StoreId, SequenceStore, TrivialSequenceStoreKey};
+use hash_utils::itertools::Itertools;
 
 use super::common::CommonUtils;
 use crate::{
@@ -99,5 +97,26 @@ impl<'env> ParamUtils<'env> {
                 .collect_vec()
                 .into_iter(),
         )
+    }
+
+    // Get the actual numerical parameter index from a given [ParamsId] and
+    // [ParamIndex].
+    pub fn try_get_actual_param_index(
+        &self,
+        params_id: ParamsId,
+        index: ParamIndex,
+    ) -> Option<usize> {
+        match index {
+            ParamIndex::Name(name) => self.stores().params().map_fast(params_id, |params| {
+                params.iter().enumerate().find_map(|(i, param)| {
+                    if param.name.value().name? == name {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+            }),
+            ParamIndex::Position(pos) => Some(pos),
+        }
     }
 }

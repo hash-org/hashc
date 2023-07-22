@@ -2,14 +2,15 @@
 use derive_more::From;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    DefaultPartialStore, PartialStore, SequenceStoreKey, Store, StoreKey,
+};
 use hash_tir::{
     context::Decl,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
     defs::DefId,
-    environment::{
-        env::AccessToEnv,
-        stores::{SequenceStoreValue, SingleStoreValue, StoreId},
-    },
+    environment::env::AccessToEnv,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMemberId, ModMemberValue},
     scopes::StackId,
     symbols::{sym, Symbol},
@@ -19,7 +20,6 @@ use hash_tir::{
 use hash_utils::{
     smallvec::{smallvec, SmallVec},
     state::LightState,
-    store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store, StoreKey},
 };
 
 use super::{super::ast_utils::AstUtils, DiscoveryPass};

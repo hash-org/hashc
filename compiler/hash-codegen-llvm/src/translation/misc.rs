@@ -7,7 +7,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::InstanceId;
 use hash_source::identifier::IDENTS;
-use hash_utils::store::Store;
+use hash_storage::store::Store;
 use inkwell::{
     module::Linkage,
     values::{AnyValue, FunctionValue, UnnamedAddress},

@@ -5,7 +5,6 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-hash-alloc = { path = "../hash-alloc" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
 hash-utils = { path = "../hash-utils" }

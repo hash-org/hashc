@@ -3,7 +3,11 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use hash_utils::store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_ast::ast::MatchOrigin;
+use hash_storage::{
+    static_sequence_store_direct,
+    store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+};
 use textwrap::indent;
 
 use super::{
@@ -12,8 +16,8 @@ use super::{
     terms::Term,
 };
 use crate::{
-    environment::stores::StoreId, scopes::BlockTerm, terms::TermId,
-    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+    environment::stores::tir_stores, scopes::BlockTerm, terms::TermId,
+    tir_debug_value_of_sequence_store_element_id,
 };
 
 /// A loop term.
@@ -36,6 +40,10 @@ pub struct LoopTerm {
 pub struct MatchTerm {
     pub subject: TermId,
     pub cases: MatchCasesId,
+
+    /// The origin of the match term, and where it came from, i.e. a `match`
+    /// case an `if` block, `while` block, or a `for` loop.
+    pub origin: MatchOrigin,
 }
 
 /// A single case in a match term.
@@ -49,11 +57,12 @@ pub struct MatchCase {
     pub value: TermId,
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub MatchCasesStore,
     id = pub MatchCasesId[MatchCaseId],
     value = MatchCase,
-    store_name = match_cases
+    store_name = match_cases,
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(MatchCaseId);

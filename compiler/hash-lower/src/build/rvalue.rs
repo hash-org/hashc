@@ -10,11 +10,8 @@ use hash_source::{
     constant::{IntConstant, IntTy, CONSTANT_MAP},
     location::Span,
 };
-use hash_tir::{
-    environment::env::AccessToEnv,
-    terms::{Term, TermId},
-};
-use hash_utils::store::{CloneStore, Store};
+use hash_storage::store::{statics::StoreId, CloneStore, Store};
+use hash_tir::terms::{Term, TermId};
 
 use super::{
     category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
@@ -23,41 +20,39 @@ use crate::build::category::RValueKind;
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Construct an [RValue] from the given [ast::Expr].
-    pub(crate) fn as_rvalue(&mut self, mut block: BasicBlock, term_id: TermId) -> BlockAnd<RValue> {
-        // @@Temporary: replace with get_ref();
-        let term = self.stores().term().get(term_id);
-        let span = self.span_of_term(term_id);
+    pub(crate) fn as_rvalue(&mut self, mut block: BasicBlock, term: TermId) -> BlockAnd<RValue> {
+        let span = self.span_of_term(term);
 
-        let mut as_operand = |this: &mut Self| {
+        let mut as_operand = |t, this: &mut Self| {
             // Verify that this is an actual RValue...
             debug_assert!(!matches!(
-                Category::of(&term),
+                Category::of(t),
                 Category::RValue(RValueKind::As) | Category::Constant
             ));
 
-            let operand = unpack!(block = this.as_operand(block, term_id, Mutability::Mutable));
+            let operand = unpack!(block = this.as_operand(block, term, Mutability::Mutable));
             block.and(RValue::Use(operand))
         };
 
-        match term {
+        match term.value() {
             Term::Lit(lit) => {
                 let value = self.as_constant(&lit).into();
                 block.and(value)
             }
-            Term::FnCall(fn_call) => {
+            ref fn_call_term @ Term::FnCall(fn_call) => {
                 match self.classify_fn_call_term(&fn_call) {
                     FnCallTermKind::BinaryOp(op, lhs, rhs) => {
                         let lhs = unpack!(block = self.as_operand(block, lhs, Mutability::Mutable));
                         let rhs = unpack!(block = self.as_operand(block, rhs, Mutability::Mutable));
 
-                        let ty = self.ty_id_from_tir_term(term_id);
+                        let ty = self.ty_id_from_tir_term(term);
                         self.build_binary_op(block, ty, span, op, lhs, rhs)
                     }
                     FnCallTermKind::UnaryOp(op, subject) => {
                         let arg =
                             unpack!(block = self.as_operand(block, subject, Mutability::Mutable));
 
-                        let ty_id = self.ty_id_from_tir_term(term_id);
+                        let ty_id = self.ty_id_from_tir_term(term);
                         let ty = self.ctx().tys().get(ty_id);
 
                         // If the operator is a negation, and the operand is signed, we can have a
@@ -113,11 +108,11 @@ impl<'tcx> BodyBuilder<'tcx> {
                         let cast_kind = CastKind::classify(self.ctx(), source_ty, ty);
                         block.and(RValue::Cast(cast_kind, source, ty))
                     }
-                    _ => as_operand(self),
+                    _ => as_operand(fn_call_term, self),
                 }
             }
 
-            Term::Array(_)
+            ref term @ (Term::Array(_)
             | Term::Tuple(_)
             | Term::Ctor(_)
             | Term::FnRef(_)
@@ -137,7 +132,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Ty(_)
             | Term::Ref(_)
             | Term::Deref(_)
-            | Term::Hole(_) => as_operand(self),
+            | Term::Hole(_)) => as_operand(term, self),
         }
     }
 
@@ -146,7 +141,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn min_value_of_ty(&self, ty: IrTy) -> Operand {
         let value = if let IrTy::Int(signed_ty) = ty {
             let ptr_width = self.settings.target().ptr_size();
-            let size = signed_ty.size(ptr_width).unwrap().bits();
+            let size = signed_ty.size(ptr_width).bits();
             let n = 1 << (size - 1);
 
             // Create and intern the constant
@@ -167,11 +162,11 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn as_operand(
         &mut self,
         mut block: BasicBlock,
-        term_id: TermId,
+        operand: TermId,
         mutability: Mutability,
     ) -> BlockAnd<Operand> {
-        let term = self.stores().term().get(term_id);
-        let span = self.span_of_term(term_id);
+        let term = operand.value();
+        let span = self.span_of_term(operand);
 
         // If the item is a reference to a function, i.e. the subject of a call, then
         // we emit a constant that refers to the function.
@@ -189,7 +184,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // Just directly recurse and create the constant.
             Category::Constant => block.and(self.lower_constant_expr(&term, span).into()),
             Category::Place | Category::RValue(_) => {
-                let place = unpack!(block = self.as_place(block, term_id, mutability));
+                let place = unpack!(block = self.as_place(block, operand, mutability));
                 block.and(place.into())
             }
         }

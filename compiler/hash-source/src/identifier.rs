@@ -7,7 +7,10 @@ use std::{
 
 use dashmap::DashMap;
 use fnv::FnvBuildHasher;
-use hash_alloc::{collections::string::BrickString, Castle, Wall};
+use hash_storage::{
+    arena::{Castle, Wall},
+    string::BrickString,
+};
 use hash_utils::counter;
 use lazy_static::lazy_static;
 

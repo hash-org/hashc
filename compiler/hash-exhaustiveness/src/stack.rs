@@ -4,18 +4,13 @@
 //! transformations, and [StackOps] contains functions
 //! that are relevant to the usefulness and exhaustiveness
 //! algorithm.
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use hash_utils::smallvec::{smallvec, SmallVec};
 
-use super::{AccessToUsefulnessOps, PatForFormatting, PreparePatForFormatting};
-use crate::old::{
-    exhaustiveness::PatCtx,
-    ops::AccessToOps,
-    storage::{
-        exhaustiveness::{DeconstructedCtorId, DeconstructedPatId},
-        AccessToStorage, StorageRef,
-    },
+use crate::{
+    storage::{DeconstructedCtorId, DeconstructedPatId},
+    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A row of a [super::matrix::Matrix]. Rows of len 1 are very common, which is
@@ -58,29 +53,13 @@ impl PatStack {
     }
 }
 
-pub struct StackOps<'tc> {
-    storage: StorageRef<'tc>,
-}
-
-impl<'tc> AccessToStorage for StackOps<'tc> {
-    fn storages(&self) -> StorageRef {
-        self.storage.storages()
-    }
-}
-
-impl<'tc> StackOps<'tc> {
-    /// Create an instance of [StackOps]
-    pub fn new(storage: StorageRef<'tc>) -> Self {
-        Self { storage }
-    }
-
+impl<'tc> ExhaustivenessChecker<'tc> {
     /// Recursively expand the first pattern into its sub-patterns. Only useful
     /// if the pattern is an or-pattern.
     ///
     /// Panics if `self` is empty.
     pub(crate) fn expand_or_pat(&self, stack: &PatStack) -> Vec<PatStack> {
-        let reader = self.reader();
-        let pat = reader.get_deconstructed_pat(stack.head());
+        let pat = self.get_deconstructed_pat(stack.head());
 
         pat.fields
             .iter_patterns()
@@ -101,16 +80,15 @@ impl<'tc> StackOps<'tc> {
     /// patterns.
     ///
     /// This is roughly the inverse of `Constructor::apply`.
-    pub(crate) fn pop_head_constructor(
-        &mut self,
+    pub(crate) fn pop_head_ctor(
+        &self,
         ctx: PatCtx,
         stack: &PatStack,
         ctor: DeconstructedCtorId,
     ) -> PatStack {
         // We pop the head pattern and push the new fields extracted from the arguments
         // of `self.head()`.
-        let mut new_fields: SmallVec<[_; 2]> =
-            self.deconstruct_pat_ops().specialise(ctx, stack.head(), ctor);
+        let mut new_fields: SmallVec<[_; 2]> = self.specialise(ctx, stack.head(), ctor);
 
         new_fields.extend_from_slice(&stack.pats[1..]);
 
@@ -118,14 +96,12 @@ impl<'tc> StackOps<'tc> {
     }
 }
 
-impl PreparePatForFormatting for PatStack {}
-
-impl Debug for PatForFormatting<'_, PatStack> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for ExhaustivenessFmtCtx<'_, PatStack> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "|")?;
 
         for pat in self.item.iter() {
-            write!(f, " {:?} |", pat.for_formatting(self.storage))?;
+            write!(f, " {:?} |", self.with(*pat))?;
         }
 
         // Just in case if the pattern stack was empty

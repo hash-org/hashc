@@ -3,11 +3,13 @@
 use std::{cell::Cell, collections::HashSet};
 
 use derive_more::Deref;
+use hash_storage::store::{
+    statics::StoreId, CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+};
 use hash_tir::{
     args::ArgsId,
     context::ScopeKind,
     data::DataDefCtors,
-    environment::stores::StoreId,
     fns::{FnCallTerm, FnTy},
     holes::Hole,
     lits::Lit,
@@ -18,7 +20,6 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::{common::CommonUtils, traversing::Atom},
 };
-use hash_utils::store::{CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use once_cell::unsync::OnceCell;
 
 use crate::{

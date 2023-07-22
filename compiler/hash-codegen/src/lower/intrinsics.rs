@@ -3,8 +3,8 @@
 
 use hash_abi::ArgAbi;
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::InstanceId};
+use hash_storage::store::Store;
 use hash_target::abi::{AbiRepresentation, ScalarKind};
-use hash_utils::store::Store;
 
 use super::{locals::LocalRef, operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::{
@@ -19,7 +19,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Resolve a reference to an [LangItem].
     pub(super) fn resolve_lang_item(
         &mut self,
-        builder: &mut Builder,
+        builder: &Builder,
         item: LangItem,
     ) -> (InstanceId, Builder::Function) {
         let instance = self.ctx.ir_ctx().lang_items().get(item).unwrap();

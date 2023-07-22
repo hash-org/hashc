@@ -282,7 +282,7 @@ pub trait IrVisitorMut<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_mut {
-    use hash_utils::store::SequenceStore;
+    use hash_storage::store::SequenceStore;
 
     use super::{IrVisitorMut, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -756,7 +756,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_modifying {
-    use hash_utils::store::SequenceStoreCopy;
+    use hash_storage::store::SequenceStoreCopy;
 
     use super::{ModifyingIrVisitor, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -984,7 +984,7 @@ pub mod walk_modifying {
 
     pub fn walk_ref_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
-        mutability: &mut Mutability,
+        mutability: &Mutability,
         place: &mut Place,
         _: &mut RefKind,
         reference: IrRef,

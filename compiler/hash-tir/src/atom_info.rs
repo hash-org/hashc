@@ -2,7 +2,7 @@
 //! program, specifically their types.
 use std::hash::Hash;
 
-use hash_utils::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
+use hash_storage::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
 use super::{
     args::{ArgsId, PatArgsId},

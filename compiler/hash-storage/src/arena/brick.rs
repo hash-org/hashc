@@ -8,7 +8,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::Wall;
+use super::Wall;
 
 /// A [`Box`]-like implementation for allocating values within a [`Wall`].
 ///
@@ -120,7 +120,7 @@ impl<T> Drop for Brick<'_, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Castle;
+    use crate::arena::Castle;
 
     #[test]
     fn brick_construction_test() {

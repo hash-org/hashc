@@ -3,8 +3,8 @@
 
 use hash_ir::ir;
 use hash_layout::TyInfo;
+use hash_storage::store::SequenceStore;
 use hash_target::{abi::AbiRepresentation, alignment::Alignment};
-use hash_utils::store::SequenceStore;
 
 use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
 use crate::{

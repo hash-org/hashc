@@ -12,11 +12,8 @@ use hash_ir::{
     visitor::{ImmutablePlaceContext, IrVisitorMut, MutablePlaceContext, PlaceContext},
 };
 use hash_layout::TyInfo;
-use hash_utils::{
-    graph::dominators::Dominators,
-    index_vec::IndexVec,
-    store::{SequenceStore, SequenceStoreKey},
-};
+use hash_storage::store::{SequenceStore, SequenceStoreKey};
+use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::traits::{
@@ -38,10 +35,7 @@ pub enum LocalRef<V: std::fmt::Debug> {
 
 impl<'b, V: CodeGenObject> LocalRef<V> {
     /// Create a new [LocalRef::Operand] instance.
-    pub fn new_operand<Builder: Codegen<'b, Value = V>>(
-        builder: &mut Builder,
-        layout: TyInfo,
-    ) -> Self {
+    pub fn new_operand<Builder: Codegen<'b, Value = V>>(builder: &Builder, layout: TyInfo) -> Self {
         if layout.is_zst(builder.layout_computer()) {
             LocalRef::Operand(Some(OperandRef::new_zst(builder, layout)))
         } else {

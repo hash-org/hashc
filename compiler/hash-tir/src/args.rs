@@ -4,10 +4,14 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::{
-    itertools::Itertools,
-    store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+use hash_storage::{
+    static_sequence_store_direct,
+    store::{
+        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    },
 };
+use hash_utils::itertools::Itertools;
 use utility_types::omit;
 
 use super::{
@@ -16,10 +20,10 @@ use super::{
     pats::PatId,
 };
 use crate::{
-    environment::stores::{SequenceStoreValue, SingleStoreValue, StoreId},
+    environment::stores::tir_stores,
     params::ParamsId,
     terms::{Term, TermId},
-    tir_debug_value_of_sequence_store_element_id, tir_sequence_store_direct,
+    tir_debug_value_of_sequence_store_element_id,
 };
 
 /// An argument to a parameter.
@@ -41,11 +45,12 @@ impl From<Arg> for ArgData {
     }
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub ArgsStore,
     id = pub ArgsId[ArgId],
     value = Arg,
-    store_name = args
+    store_name = args,
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(ArgId);
@@ -123,11 +128,12 @@ impl From<PatArg> for PatArgData {
     }
 }
 
-tir_sequence_store_direct!(
+static_sequence_store_direct!(
     store = pub PatArgsStore,
     id = pub PatArgsId[PatArgId],
     value = PatArg,
-    store_name = pat_args
+    store_name = pat_args,
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_sequence_store_element_id!(PatArgId);

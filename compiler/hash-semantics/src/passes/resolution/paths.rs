@@ -23,17 +23,17 @@ use std::fmt;
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
+use hash_storage::store::{statics::StoreId, TrivialKeySequenceStore};
 use hash_tir::{
     args::ArgsId,
     data::{CtorPat, CtorTerm, DataDefId},
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
     symbols::Symbol,
     terms::Term,
     utils::common::CommonUtils,
 };
-use hash_utils::store::TrivialKeySequenceStore;
 
 use super::{
     params::{AstArgGroup, ResolvedArgs},

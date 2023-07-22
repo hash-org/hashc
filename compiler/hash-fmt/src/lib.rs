@@ -620,9 +620,17 @@ where
     ) -> Result<Self::RangePatRet, Self::Error> {
         let ast::RangePat { end, lo, hi } = node.body();
 
-        self.visit_lit(lo.ast_ref())?;
+        if let Some(lo) = lo {
+            self.visit_lit(lo.ast_ref())?;
+        }
+
         self.write(format!("{}", end))?;
-        self.visit_lit(hi.ast_ref())
+
+        if let Some(hi) = hi {
+            self.visit_lit(hi.ast_ref())?;
+        }
+
+        Ok(())
     }
 
     type DerefExprRet = ();

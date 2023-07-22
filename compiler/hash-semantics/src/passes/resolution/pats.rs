@@ -10,6 +10,7 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
+use hash_storage::store::{SequenceStore, SequenceStoreKey};
 use hash_tir::{
     args::{PatArgData, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
@@ -24,7 +25,6 @@ use hash_tir::{
     tuples::TuplePat,
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::store::{SequenceStore, SequenceStoreKey};
 
 use super::{
     params::AstArgGroup,
@@ -331,10 +331,12 @@ impl ResolutionPass<'_> {
             ast::Pat::Wild(_) => {
                 self.new_pat(Pat::Binding(BindingPat { name: Symbol::fresh(), is_mutable: false }))
             }
-            ast::Pat::Range(range_pat) => {
-                let start = self.make_lit_pat_from_non_bool_ast_lit(range_pat.lo.ast_ref());
-                let end = self.make_lit_pat_from_non_bool_ast_lit(range_pat.hi.ast_ref());
-                self.new_pat(Pat::Range(RangePat { start, end, range_end: range_pat.end }))
+            ast::Pat::Range(ast::RangePat { lo, hi, end }) => {
+                let lo =
+                    lo.as_ref().map(|lo| self.make_lit_pat_from_non_bool_ast_lit(lo.ast_ref()));
+                let hi =
+                    hi.as_ref().map(|hi| self.make_lit_pat_from_non_bool_ast_lit(hi.ast_ref()));
+                self.new_pat(Pat::Range(RangePat { lo, hi, end: *end }))
             }
         };
 

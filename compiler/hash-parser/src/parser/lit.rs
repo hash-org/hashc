@@ -22,7 +22,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 TokenKind::StrLit(value) => Lit::Str(StrLit { data: value }),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit { data: false }),
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit { data: true }),
-
                 _ => self.err_with_location(
                     ParseErrorKind::ExpectedLit,
                     None,

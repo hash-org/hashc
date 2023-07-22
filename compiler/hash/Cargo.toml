@@ -14,7 +14,6 @@ profiling = "1.0.6"
 tracy-client = "0.13.2"
 clap = { version = "4.3.8", features = ["derive"] }
 
-hash-alloc = { path = "../hash-alloc" }
 hash-ast = { path = "../hash-ast" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }

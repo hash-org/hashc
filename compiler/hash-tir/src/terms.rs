@@ -4,7 +4,13 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_storage::{
+    static_sequence_store_indirect, static_single_store,
+    store::{
+        statics::{SequenceStoreValue, SingleStoreValue},
+        SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+    },
+};
 
 use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
 use crate::{
@@ -13,12 +19,12 @@ use crate::{
     arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
-    environment::stores::{SequenceStoreValue, SingleStoreValue},
+    environment::stores::tir_stores,
     fns::{FnCallTerm, FnDefId},
     lits::Lit,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    tir_debug_value_of_single_store_id, tir_sequence_store_indirect, tir_single_store,
+    tir_debug_value_of_single_store_id,
     tuples::TupleTerm,
     tys::TyId,
 };
@@ -94,19 +100,21 @@ pub enum Term {
     Hole(Hole),
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub TermStore,
     id = pub TermId,
     value = Term,
-    store_name = term
+    store_name = term,
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_single_store_id!(TermId);
 
-tir_sequence_store_indirect!(
+static_sequence_store_indirect!(
     store = pub TermListStore,
     id = pub TermListId[TermId],
-    store_name = term_list
+    store_name = term_list,
+    store_source = tir_stores()
 );
 
 impl Term {

@@ -7,18 +7,15 @@ use std::ops::ControlFlow;
 use derive_more::Constructor;
 use hash_pipeline::workspace::StageInfo;
 use hash_source::identifier::IDENTS;
+use hash_storage::store::{statics::StoreId, PartialStore, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::StoreId,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId},
     mods::{ModDef, ModKind, ModMemberValue},
     terms::TermId,
-    utils::{common::CommonUtils, traversing::Atom, AccessToUtils},
+    utils::{traversing::Atom, AccessToUtils},
 };
-use hash_utils::store::{PartialCloneStore, Store, TrivialSequenceStoreKey};
 use indexmap::IndexSet;
 
 use crate::ctx::BuilderCtx;
@@ -91,13 +88,13 @@ impl FnDiscoverer<'_> {
             FnBody::Defined(_) => {
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.
-                if let Some(entry) = self.env().stores().directives().get(def_id.into()) {
-                    if entry.directives.contains(&IDENTS.foreign) {
-                        return false;
+                self.stores().directives().map_fast(def_id.into(), |maybe_directives| {
+                    if let Some(directives) = maybe_directives && directives.contains(IDENTS.foreign) {
+                        false
+                    } else {
+                        true
                     }
-                }
-
-                true
+                })
             }
 
             // Intrinsics and axioms have no effect on the IR lowering
@@ -116,12 +113,10 @@ impl FnDiscoverer<'_> {
             //
             // @@Incomplete: mod-blocks that are already lowered won't be caught by
             // the queue-deduplication.
-            if self.stores().mod_def().map_fast(mod_def_id, |def| match def.kind {
-                ModKind::Source(id, _) => self.stage_info.get(id).is_lowered(),
-                _ => false,
-            }) {
-                continue;
-            }
+            match mod_def_id.borrow().kind {
+                ModKind::Source(id, _) if !self.stage_info.get(id).is_lowered() => {}
+                _ => continue,
+            };
 
             for member in mod_def_id.borrow().members.iter() {
                 match member.borrow().value {
@@ -132,7 +127,7 @@ impl FnDiscoverer<'_> {
                         // We don't need to discover anything in data types
                     }
                     ModMemberValue::Fn(fn_def_id) => {
-                        let fn_def = self.get_fn_def(fn_def_id);
+                        let fn_def = fn_def_id.value();
 
                         if self.fn_needs_to_be_lowered(fn_def_id, &fn_def) {
                             fns.add_fn(fn_def_id);
@@ -161,12 +156,10 @@ impl FnDiscoverer<'_> {
             .visit_term::<!, _>(term, &mut |atom: Atom| match atom {
                 Atom::Term(_) => Ok(ControlFlow::Continue(())),
                 Atom::Ty(_) => Ok(ControlFlow::Break(())),
-                Atom::FnDef(def_id) => {
+                Atom::FnDef(fn_def) => {
                     // @@Todo: this doesn't deal with captures.
-                    let fn_def = self.get_fn_def(def_id);
-
-                    if self.fn_needs_to_be_lowered(def_id, &fn_def) {
-                        fns.add_fn(def_id);
+                    if self.fn_needs_to_be_lowered(fn_def, &fn_def.value()) {
+                        fns.add_fn(fn_def);
 
                         Ok(ControlFlow::Continue(()))
                     } else {

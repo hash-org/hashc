@@ -876,9 +876,11 @@ define_tree! {
     #[node]
     pub struct RangePat {
         /// Initial bound of the range
-        pub lo: Child!(Lit),
+        pub lo: OptionalChild!(Lit),
+
         /// Upper bound of the range
-        pub hi: Child!(Lit),
+        pub hi: OptionalChild!(Lit),
+
         /// Whether the `end` is included or not
         pub end: RangeEnd,
     }

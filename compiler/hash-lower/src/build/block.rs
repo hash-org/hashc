@@ -4,19 +4,17 @@
 //! is located in `matches.rs`.
 use std::mem;
 
-use hash_ast::ast::MatchOrigin;
 use hash_ir::{
     ir::{BasicBlock, Place},
     ty::Mutability,
 };
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{LoopTerm, MatchTerm},
-    environment::env::AccessToEnv,
     scopes::BlockTerm,
     terms::{Term, TermId},
 };
-use hash_utils::store::{CloneStore, SequenceStore};
 
 use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
 use crate::build::unpack;
@@ -26,12 +24,11 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         place: Place,
         block: BasicBlock,
-        block_term_id: TermId,
+        block_term: TermId,
     ) -> BlockAnd<()> {
-        let span = self.span_of_term(block_term_id);
-        let block_term = self.stores().term().get(block_term_id);
+        let span = self.span_of_term(block_term);
 
-        match &block_term {
+        match block_term.value() {
             Term::Block(ref body) => self.body_block_into_dest(place, block, body),
             Term::Loop(LoopTerm { block: ref body }) => {
                 // Begin the loop block by connecting the previous block
@@ -58,11 +55,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     next_block.unit()
                 })
             }
-            Term::Match(MatchTerm { subject, cases }) => {
-                // @@TodoTIR: we should be able to get the origin from the
-                // match term.
-                let origin = MatchOrigin::Match;
-                self.lower_match_term(place, block, span, *subject, *cases, origin)
+            Term::Match(MatchTerm { subject, cases, origin }) => {
+                self.lower_match_term(place, block, span, subject, cases, origin)
             }
             _ => unreachable!(),
         }
@@ -84,22 +78,20 @@ impl<'tcx> BodyBuilder<'tcx> {
             // Essentially walk all of the statement in the block, and then set
             // the return type of this block as the last expression, or an empty
             // unit if there is no expression.
-            let statements = this.stores().term_list().get_vec(*statements);
 
-            for statement_id in statements {
-                let statement = this.stores().term().get(statement_id);
-                match statement {
+            for statement in statements.iter() {
+                match statement.value() {
                     // We need to handle declarations here specifically, otherwise
                     // in order to not have to create a temporary for the declaration
                     // which doesn't make sense because we are just declaring a local(s)
                     Term::Decl(decl) => {
-                        let span = this.span_of_term(statement_id);
+                        let span = this.span_of_term(statement);
                         unpack!(block = this.lower_declaration(block, &decl, span));
                     }
                     _ => {
                         // @@Investigate: do we need to deal with the temporary here?
                         unpack!(
-                            block = this.term_into_temp(block, statement_id, Mutability::Immutable)
+                            block = this.term_into_temp(block, statement, Mutability::Immutable)
                         );
                     }
                 }

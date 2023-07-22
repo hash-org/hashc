@@ -5,7 +5,10 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_ast::ast::RangeEnd;
-use hash_utils::store::{SequenceStore, Store, TrivialSequenceStoreKey};
+use hash_storage::{
+    static_sequence_store_indirect, static_single_store,
+    store::{SequenceStore, Store, TrivialSequenceStoreKey},
+};
 
 use super::{
     args::{PatArgsId, PatOrCapture},
@@ -17,8 +20,7 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, tir_debug_value_of_single_store_id, tir_get, tir_sequence_store_indirect,
-    tir_single_store,
+    arrays::ArrayPat, environment::stores::tir_stores, tir_debug_value_of_single_store_id, tir_get,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -33,18 +35,20 @@ pub struct Spread {
     pub index: usize,
 }
 
-/// A range pattern containing two bounds `start` and `end`.
+/// A range pattern containing two bounds `lo` and `hi`.
 ///
-/// The `start` and `end` values must be either both [`LitPat::Int`], or both
+/// The `lo` and `hi` values must be either both [`LitPat::Int`], or both
 /// [`LitPat::Char`].
 #[derive(Copy, Clone, Debug)]
 pub struct RangePat {
     /// The beginning of the range.
-    pub start: LitPat,
+    pub lo: Option<LitPat>,
+
     /// The end of the range.
-    pub end: LitPat,
+    pub hi: Option<LitPat>,
+
     /// If the range includes the `end` or not.
-    pub range_end: RangeEnd,
+    pub end: RangeEnd,
 }
 
 /// Represents a pattern.
@@ -52,13 +56,28 @@ pub struct RangePat {
 /// Check the documentation of each member for more information.
 #[derive(Copy, Clone, Debug, From)]
 pub enum Pat {
+    /// A binding pattern, `mut k`, `k`, or `_`.
     Binding(BindingPat),
+
+    /// A range pattern, `1..10` or `'a'..<'z'`.
     Range(RangePat),
+
+    /// A literal pattern, `3`, `'a'`, or `"мир"`.
     Lit(LitPat),
+
+    /// A tuple collection of patterns, e.g. `('A', 2)`, `(1, 2, ...)`.
     Tuple(TuplePat),
+
+    /// An array pattern, e.g. `[1, 2, 3]`, [1, ...]`.
     Array(ArrayPat),
+
+    /// A constructor pattern, `Some(3)`, `X(name = "y", age = 12)`.
     Ctor(CtorPat),
+
+    /// A choice pattern, `a | b | c`.
     Or(OrPat),
+
+    /// A guarded pattern with a specified condition, `a if a > 0`.
     If(IfPat),
 }
 
@@ -87,19 +106,21 @@ impl Pat {
     }
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub PatStore,
     id = pub PatId,
     value = Pat,
-    store_name = pat
+    store_name = pat,
+    store_source = tir_stores()
 );
 
 tir_debug_value_of_single_store_id!(PatId);
 
-tir_sequence_store_indirect!(
+static_sequence_store_indirect!(
     store = pub PatListStore,
     id = pub PatListId[PatOrCapture],
-    store_name = pat_list
+    store_name = pat_list,
+    store_source = tir_stores()
 );
 
 impl fmt::Display for Spread {
@@ -114,12 +135,14 @@ impl fmt::Display for Spread {
 
 impl fmt::Display for RangePat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.start)?;
-        match self.range_end {
-            RangeEnd::Included => write!(f, "..=")?,
-            RangeEnd::Excluded => write!(f, "..")?,
+        self.lo.map_or(Ok(()), |lo| write!(f, "{}", lo))?;
+
+        match self.end {
+            RangeEnd::Included => write!(f, "..")?,
+            RangeEnd::Excluded => write!(f, "..<")?,
         }
-        write!(f, "{}", self.end)
+
+        self.hi.map_or(Ok(()), |hi| write!(f, "{}", hi))
     }
 }
 

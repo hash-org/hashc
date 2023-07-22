@@ -14,6 +14,10 @@ use hash_intrinsics::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
+use hash_storage::store::{
+    PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+    TrivialSequenceStoreKey,
+};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgData, ArgsId},
@@ -34,13 +38,7 @@ use hash_tir::{
     tys::{Ty, TypeOfTerm},
     utils::{common::CommonUtils, AccessToUtils},
 };
-use hash_utils::{
-    itertools::Itertools,
-    store::{
-        PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
-        TrivialSequenceStoreKey,
-    },
-};
+use hash_utils::itertools::Itertools;
 
 use super::{
     params::AstArgGroup,
@@ -658,7 +656,9 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Create a term if all ok
         match (subject, cases.len() == node.cases.len()) {
-            (Some(subject), true) => Ok(self.new_term(Term::Match(MatchTerm { subject, cases }))),
+            (Some(subject), true) => {
+                Ok(self.new_term(Term::Match(MatchTerm { subject, cases, origin: node.origin })))
+            }
             _ => Err(SemanticError::Signal),
         }
     }

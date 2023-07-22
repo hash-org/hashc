@@ -36,20 +36,18 @@ use std::{
 };
 
 use hash_ast::ast::RangeEnd;
+use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::diagnostic::Diagnostics;
-use hash_source::constant::CONSTANT_MAP;
-use hash_tir::old::{
+use hash_storage::store::Store;
+use hash_tir::{
+    environment::env::AccessToEnv,
     pats::{PatId, RangePat},
-    terms::{Level0Term, LitTerm, Term, TermId},
+    tys::TyId,
 };
-use hash_utils::store::Store;
 
-use super::AccessToUsefulnessOps;
-use crate::old::{
-    diagnostics::{macros::tc_panic, warning::TcWarning},
-    exhaustiveness::constant::Constant,
-    ops::AccessToOps,
-    storage::{exhaustiveness::DeconstructedPatId, AccessToStorage, StorageRef},
+use crate::{
+    constant::Constant, diagnostics::ExhaustivenessWarning, storage::DeconstructedPatId,
+    ExhaustivenessChecker,
 };
 
 /// The [IntRange] is used as a structure to represent `integral` types like
@@ -247,43 +245,11 @@ impl SplitIntRange {
     }
 }
 
-pub struct IntRangeOps<'tc> {
-    storage: StorageRef<'tc>,
-}
-
-impl<'tc> AccessToStorage for IntRangeOps<'tc> {
-    fn storages(&self) -> StorageRef {
-        self.storage.storages()
-    }
-}
-
-impl<'tc> IntRangeOps<'tc> {
-    pub fn new(storage: StorageRef<'tc>) -> Self {
-        Self { storage }
-    }
-
+impl<'tc> ExhaustivenessChecker<'tc> {
     /// Attempt to build a [IntRange] from a provided constant.
     #[inline]
-    pub fn range_from_constant(&self, constant: Constant) -> IntRange {
-        let reader = self.reader();
-
-        let bias: u128 = match reader.get_term(constant.ty) {
-            Term::Level0(Level0Term::Lit(lit)) => match lit {
-                LitTerm::Int { value } if let kind = CONSTANT_MAP.map_int(value, |val| val.ty()) && kind.is_signed() => {
-                    let ptr_width = self.global_storage().pointer_width;
-                    let bits = kind.size(ptr_width).unwrap().bits();
-                    1u128 << (bits - 1)
-                }
-                LitTerm::Char(_) | LitTerm::Int { .. } => 0,
-                LitTerm::Str(_) => panic!("got `str` in const!"),
-            },
-            _ => tc_panic!(
-                constant.ty,
-                self,
-                "got unexpected ty `{}` when reading Constant.",
-                self.for_fmt(constant.ty)
-            ),
-        };
+    pub fn make_range_from_constant(&self, constant: Constant) -> IntRange {
+        let bias: u128 = self.signed_bias(constant.ty);
 
         // read from the constant the actual bits and apply bias
         let val = constant.data() ^ bias;
@@ -292,7 +258,7 @@ impl<'tc> IntRangeOps<'tc> {
 
     /// Create an [IntRange] from two specified bounds, and assuming that the
     /// type is an integer (of the column)
-    pub(crate) fn make_range(&self, ty: TermId, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
+    pub(crate) fn make_int_range(&self, ty: TyId, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
         let bias = self.signed_bias(ty);
 
         let (lo, hi) = (lo ^ bias, hi ^ bias);
@@ -308,10 +274,10 @@ impl<'tc> IntRangeOps<'tc> {
     /// the bias is set to be just at the end of the signed boundary
     /// of the integer size, in other words at the position where the
     /// last byte is that identifies the sign.
-    fn signed_bias(&self, ty: TermId) -> u128 {
-        if let Some(ty) = self.oracle().term_as_int_ty(ty) {
-            let ptr_width = self.global_storage().pointer_width;
-            if let Some(size) = ty.size(ptr_width) && ty.is_signed()  {
+    pub(crate) fn signed_bias(&self, ty: TyId) -> u128 {
+        if let Some(ty) = self.try_use_ty_as_int_ty(ty) {
+            if ty.is_signed() && !ty.is_bigint() {
+                let size = ty.size(self.target().ptr_size());
                 let bits = size.bits() as u128;
                 return 1u128 << (bits - 1);
             }
@@ -350,7 +316,7 @@ impl<'tc> IntRangeOps<'tc> {
         range: IntRange,
         pats: impl Iterator<Item = DeconstructedPatId>,
         column_count: usize,
-        ty: TermId,
+        ty: TyId,
     ) {
         // Don't lint literals... this is covered by useless match cases
         if range.is_singleton() {
@@ -362,13 +328,10 @@ impl<'tc> IntRangeOps<'tc> {
             return;
         }
 
-        let reader = self.reader();
-
         let overlaps: Vec<_> = pats
             .filter_map(|pat| {
-                let d = reader.get_deconstructed_pat(pat);
-                let ctor =
-                    self.constructor_store().map_fast(d.ctor, |c| c.as_int_range().cloned())?;
+                let d = self.get_deconstructed_pat(pat);
+                let ctor = self.ctor_store().map_fast(d.ctor, |c| c.as_int_range().cloned())?;
 
                 Some((ctor, d.id.unwrap()))
             })
@@ -382,12 +345,14 @@ impl<'tc> IntRangeOps<'tc> {
 
         // Emit diagnostics for all of the found overlaps
         for (overlapping_range, id) in overlaps {
-            let RangePat { hi, .. } = self.pat_lowerer().construct_range_pat(overlapping_range, ty);
+            let RangePat { hi, .. } = self.construct_range_pat(overlapping_range, ty);
 
-            self.diagnostics().add_warning(TcWarning::OverlappingRangeEnd {
+            self.diagnostics.add_warning(ExhaustivenessWarning::OverlappingRangeEnd {
                 range: id,
                 overlaps: pat,
-                overlapping_term: hi,
+                // `hi` will always be present since it is artificially constructed, and hence
+                // the `unwrap` is safe.
+                overlapping_term: hi.unwrap(),
             })
         }
     }

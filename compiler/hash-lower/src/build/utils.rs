@@ -12,9 +12,10 @@ use hash_ir::{
     IrCtx,
 };
 use hash_source::{constant::CONSTANT_MAP, location::Span};
+use hash_storage::store::{statics::StoreId, SequenceStore};
 use hash_tir::{
     data::DataTy,
-    environment::{env::AccessToEnv, stores::StoreId},
+    environment::env::AccessToEnv,
     fns::FnDefId,
     mods::{ModMember, ModMemberValue},
     pats::PatId,
@@ -22,9 +23,9 @@ use hash_tir::{
     terms::TermId,
     utils::common::CommonUtils,
 };
-use hash_utils::{log, store::SequenceStore};
+use hash_utils::log;
 
-use super::{BodyBuilder, LocalKey};
+use super::BodyBuilder;
 
 // @@Temporary: use this for terms that don't have a location
 const DUMMY_SPAN: Span = Span::new(0, 0);
@@ -59,20 +60,9 @@ impl<'tcx> BodyBuilder<'tcx> {
         })
     }
 
-    /// Create a [LocalKey] from a [Symbol].
-    pub(crate) fn local_key_from_symbol(&self, symbol: Symbol) -> LocalKey {
-        self.context().get_decl(symbol).into()
-    }
-
-    /// Lookup a local by its [LocalKey].
-    pub(crate) fn lookup_local(&self, key: &LocalKey) -> Option<Local> {
-        self.declaration_map.get(key).copied()
-    }
-
     /// Lookup a [Local] by a specified [Symbol].
-    pub(crate) fn lookup_local_symbol(&self, symbol: Symbol) -> Option<Local> {
-        let key = self.context().get_decl(symbol).into();
-        self.lookup_local(&key)
+    pub(crate) fn lookup_local(&self, symbol: Symbol) -> Option<Local> {
+        self.declaration_map.get(&symbol).copied()
     }
 
     /// Lookup the definition of an item within the prelude defined

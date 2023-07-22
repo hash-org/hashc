@@ -19,7 +19,7 @@ use hash_ast::{
 use hash_fmt::AstPrinter;
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_utils::{
-    store::{FxHashMap, FxHashSet},
+    fxhash::{FxHashMap, FxHashSet},
     tree_writing::{TreeWriter, TreeWriterConfig},
 };
 

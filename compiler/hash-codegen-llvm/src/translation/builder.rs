@@ -24,7 +24,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
-use hash_utils::store::Store;
+use hash_storage::store::Store;
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
@@ -570,7 +570,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
             (CheckedOp::Mul, false) => "llvm.umul",
         };
 
-        let size = int_ty.size(ptr_width).unwrap();
+        let size = int_ty.size(ptr_width);
         let intrinsic_name = format!("{}.with.overflow.i{}", intrinsic_prefix, size.bits());
 
         let result = self.call_intrinsic(&intrinsic_name, &[lhs, rhs]);

@@ -4,8 +4,9 @@
 use std::iter::once;
 
 use hash_intrinsics::{intrinsics::DefinedIntrinsics, primitives::DefinedPrimitives};
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
 use hash_tir::{
-    environment::stores::{SequenceStoreValue, SingleStoreValue},
+    self,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMemberValue},
     symbols::sym,
     utils::AccessToUtils,

@@ -2,12 +2,10 @@
 use derive_more::Constructor;
 use hash_ast::ast::OwnsAstNode;
 use hash_source::{identifier::Identifier, ModuleId};
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
 
 use crate::{
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::{SequenceStoreValue, SingleStoreValue},
-    },
+    environment::env::{AccessToEnv, Env},
     impl_access_to_env,
     mods::{ModDef, ModDefId, ModKind, ModMember},
     symbols::Symbol,

@@ -3,7 +3,7 @@
 //! used within the exhaustiveness sub-system to represent these values within
 //! a single data type.
 use hash_source::constant::{InternedInt, CONSTANT_MAP};
-use hash_tir::old::terms::TermId;
+use hash_tir::tys::TyId;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Constant {
@@ -11,24 +11,24 @@ pub struct Constant {
     data: u128,
     /// The type of the constant. This should always be a primitive type
     /// that the size of the type can be computed.
-    pub ty: TermId,
+    pub ty: TyId,
 }
 
 impl Constant {
     /// Convert a character into a constant.
-    pub fn from_char(c: char, ty: TermId) -> Self {
+    pub fn from_char(c: char, ty: TyId) -> Self {
         Constant { data: c.into(), ty }
     }
 
     /// Convert a 128bit integer into a constant.
-    pub fn from_u128(num: u128, ty: TermId) -> Self {
+    pub fn from_u128(num: u128, ty: TyId) -> Self {
         Constant { data: num, ty }
     }
 
     /// Function to convert a [InternedInt] into a [Constant]. The only
     /// constraint is that it can fit into a [u128], otherwise the
     /// function will currently panic.
-    pub fn from_int(constant: InternedInt, ty: TermId) -> Self {
+    pub fn from_int(constant: InternedInt, ty: TyId) -> Self {
         // Get the associated bytes with the interned-int so we can convert
         // into a constant.
         let data = CONSTANT_MAP.lookup_int(constant).value.as_u128().unwrap();

@@ -11,9 +11,11 @@ use hash_intrinsics::{
 };
 use hash_ir::{
     ir::{self, Const},
-    ty::IrTyId,
+    ty::{IrTy, IrTyId},
 };
 use hash_source::constant::CONSTANT_MAP;
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_target::primitives::IntTy;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     data::DataTy,
@@ -25,7 +27,6 @@ use hash_tir::{
     tys::TyId,
     utils::common::CommonUtils,
 };
-use hash_utils::store::SequenceStore;
 
 use super::BodyBuilder;
 
@@ -94,14 +95,12 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn classify_fn_call_term(&self, term: &FnCallTerm) -> FnCallTermKind {
         let FnCallTerm { subject, args, .. } = term;
 
-        match self.get_term(*subject) {
+        match subject.value() {
             Term::FnRef(fn_def) => {
                 // Check if the fn_def is a `un_op` intrinsic
                 if fn_def == self.intrinsics().un_op() {
-                    let (op, subject) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                    );
+                    let (op, subject) =
+                        (args.at(1).unwrap().borrow().value, args.at(2).unwrap().borrow().value);
 
                     // Parse the operator from the starting term as defined in `hash-intrinsics`
                     let parsed_op =
@@ -111,9 +110,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                     FnCallTermKind::UnaryOp(parsed_op.into(), subject)
                 } else if fn_def == self.intrinsics().short_circuiting_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                        self.stores().args().get_at_index(*args, 3).value,
+                        args.at(1).unwrap().borrow().value,
+                        args.at(2).unwrap().borrow().value,
+                        args.at(3).unwrap().borrow().value,
                     );
 
                     let op = ShortCircuitBinOp::try_from(
@@ -124,9 +123,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                     FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().endo_bin_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                        self.stores().args().get_at_index(*args, 3).value,
+                        args.at(1).unwrap().borrow().value,
+                        args.at(2).unwrap().borrow().value,
+                        args.at(3).unwrap().borrow().value,
                     );
 
                     let op =
@@ -135,9 +134,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                     FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().bool_bin_op() {
                     let (op, lhs, rhs) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                        self.stores().args().get_at_index(*args, 3).value,
+                        args.at(1).unwrap().borrow().value,
+                        args.at(2).unwrap().borrow().value,
+                        args.at(3).unwrap().borrow().value,
                     );
 
                     let op =
@@ -145,10 +144,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                             .unwrap();
                     FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
                 } else if fn_def == self.intrinsics().cast() {
-                    let (to_ty, value) = (
-                        self.stores().args().get_at_index(*args, 1).value,
-                        self.stores().args().get_at_index(*args, 2).value,
-                    );
+                    let (to_ty, value) =
+                        (args.at(1).unwrap().borrow().value, args.at(2).unwrap().borrow().value);
 
                     // Convert the `to_ty` into an IR type and
                     let to_ty = self.use_term_as_ty(to_ty);
@@ -163,10 +160,9 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
     }
 
-    /// Assuming that the provided [TermId] is a literal term, we essentially
-    /// convert the term into a [Const] and return the value of the constant
+    /// Convert the [LitPat] into a [Const] and return the value of the constant
     /// as a [u128]. This literal term must be an integral type.
-    pub(crate) fn evaluate_const_pat(&self, pat: LitPat) -> (Const, u128) {
+    pub(crate) fn evaluate_lit_pat(&self, pat: LitPat) -> (Const, u128) {
         match pat {
             LitPat::Int(lit) => {
                 let value = lit.interned_value();
@@ -180,6 +176,44 @@ impl<'tcx> BodyBuilder<'tcx> {
                 (Const::Char(value), u128::from(value))
             }
             _ => unreachable!(),
+        }
+    }
+
+    /// This will compute the value of a range literal as a [Const] and a
+    /// [u128]. The [u128] is essentially an encoded version in order to
+    /// store signed and unsigned values within the same value.
+    ///
+    /// This function accounts for the fact that a range literal may not have
+    /// a `lo` or `hi` value. In this case, this function will autofill the
+    /// range to either have a `lo` or `hi` value depending on the type of
+    /// the range. In the case of a missing `lo`, it is then assumed that
+    /// the value is `ty::MIN` and in the case of a missing `hi`, it is
+    /// assumed that the value is `ty::MAX`.
+    pub(crate) fn evaluate_range_lit(
+        &self,
+        maybe_pat: Option<LitPat>,
+        ty: IrTy,
+        at_end: bool,
+    ) -> (Const, u128) {
+        match maybe_pat {
+            Some(pat) => self.evaluate_lit_pat(pat),
+            None => match ty {
+                IrTy::Char if at_end => (Const::Char(std::char::MAX), std::char::MAX as u128),
+                IrTy::Char => (Const::Char(0 as char), 0),
+                ty @ (IrTy::Int(_) | IrTy::UInt(_)) => {
+                    let int_ty: IntTy = ty.into();
+                    let ptr_size = self.target().ptr_size();
+
+                    let (signed_value, value) = if at_end {
+                        (int_ty.max(ptr_size), int_ty.numeric_max(ptr_size))
+                    } else {
+                        (int_ty.min(ptr_size), int_ty.numeric_min(ptr_size))
+                    };
+
+                    (Const::Int(CONSTANT_MAP.create_int(signed_value.into())), value)
+                }
+                _ => unreachable!(),
+            },
         }
     }
 }

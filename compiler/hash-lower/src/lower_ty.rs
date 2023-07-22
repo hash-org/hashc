@@ -13,6 +13,9 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{attributes::Attribute, identifier::IDENTS};
+use hash_storage::store::{
+    statics::StoreId, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+};
 use hash_target::size::Size;
 use hash_tir::{
     data::{
@@ -26,10 +29,7 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::common::CommonUtils,
 };
-use hash_utils::{
-    index_vec::index_vec,
-    store::{CloneStore, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store},
-};
+use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
 use crate::ctx::BuilderCtx;
 
@@ -84,41 +84,36 @@ impl<'ir> BuilderCtx<'ir> {
 
     /// Get the [IrTy] from the given [Ty].
     fn uncached_ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> IrTyId {
-        let ty = match ty {
+        let ty = match *ty {
             Ty::Tuple(TupleTy { data }) => {
                 let mut flags = AdtFlags::empty();
                 flags |= AdtFlags::TUPLE;
 
                 // Convert the single variant into the tuple variant.
-                let variant = self.stores().params().map_fast(*data, |entries| {
-                    let fields = entries.iter().map(|field| self.ty_id_from_tir_ty(field.ty));
-
-                    AdtVariant {
-                        name: "0".into(),
-                        fields: fields
-                            .enumerate()
-                            .map(|(index, ty)| AdtField { name: index.into(), ty })
-                            .collect(),
-                    }
-                });
+                let fields = data
+                    .borrow()
+                    .iter()
+                    .map(|field| self.ty_id_from_tir_ty(field.ty))
+                    .enumerate()
+                    .map(|(index, ty)| AdtField { name: index.into(), ty })
+                    .collect();
+                let variant = AdtVariant { name: "0".into(), fields };
 
                 let adt = AdtData::new_with_flags("tuple".into(), index_vec![variant], flags);
                 let id = self.lcx.adts().create(adt);
                 IrTy::Adt(id)
             }
             Ty::Fn(FnTy { params, return_ty, .. }) => {
-                let params = self.stores().params().map_fast(*params, |params| {
-                    self.lcx.tls().create_from_iter(
-                        params.iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
-                    )
-                });
+                let params = self.lcx.tls().create_from_iter(
+                    params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
+                );
 
-                let return_ty = self.ty_id_from_tir_ty(*return_ty);
+                let return_ty = self.ty_id_from_tir_ty(return_ty);
                 IrTy::Fn { params, return_ty }
             }
             Ty::Ref(RefTy { kind, mutable, ty }) => {
-                let ty = self.ty_id_from_tir_ty(*ty);
-                let mutability = if *mutable { Mutability::Mutable } else { Mutability::Immutable };
+                let ty = self.ty_id_from_tir_ty(ty);
+                let mutability = if mutable { Mutability::Mutable } else { Mutability::Immutable };
                 let ref_kind = match kind {
                     hash_tir::refs::RefKind::Rc => ty::RefKind::Rc,
                     hash_tir::refs::RefKind::Raw => ty::RefKind::Raw,
@@ -127,15 +122,15 @@ impl<'ir> BuilderCtx<'ir> {
 
                 IrTy::Ref(ty, mutability, ref_kind)
             }
-            Ty::Data(data_ty) => return self.ty_from_tir_data(*data_ty),
+            Ty::Data(data_ty) => return self.ty_from_tir_data(data_ty),
             Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
 
             // This is a type variable that should be found in the scope. It is
             // resolved and substituted in the `Ty::Var` case below.
             Ty::Var(sym) => {
                 // @@Temporary
-                if self.context().try_get_decl(*sym).is_some() {
-                    let term = self.context().get_binding_value(*sym);
+                if self.context().try_get_decl(sym).is_some() {
+                    let term = self.context().get_binding_value(sym);
                     return self.map_ty(self.use_term_as_ty(term), |ty| {
                         self.uncached_ty_from_tir_ty(id, ty)
                     });
@@ -180,7 +175,7 @@ impl<'ir> BuilderCtx<'ir> {
             }
 
             // Specify here that the function might be an intrinsic function
-            if self.stores().fn_def().map_fast(def, |def| def.is_intrinsic()) {
+            if def.borrow().is_intrinsic() {
                 let item =
                     Intrinsic::from_str_name(name.into()).expect("unknown intrinsic function");
                 self.lcx.intrinsics_mut().set(item, instance, ty);
@@ -194,9 +189,7 @@ impl<'ir> BuilderCtx<'ir> {
     // / instance including the name, types (monomorphised), and attributes
     /// that are associated with the function definition.
     fn create_instance_from_fn_def(&self, fn_def: FnDefId) -> Instance {
-        let FnDef { name, ty, .. } = self.env().stores().fn_def().get(fn_def);
-
-        let name = self.env().symbol_name(name);
+        let FnDef { name, ty, .. } = fn_def.value();
 
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
@@ -204,20 +197,18 @@ impl<'ir> BuilderCtx<'ir> {
         let source = self.get_location(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
-        // Lower the parameters and the return type
-        let param_tys = self.stores().params().get_vec(params);
-
         let params = self
             .lcx
             .tls()
-            .create_from_iter(param_tys.iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
+            .create_from_iter(params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
-        let mut instance = Instance::new(name, source, params, ret_ty);
+        let ident = name.ident();
+        let mut instance = Instance::new(ident, source, params, ret_ty);
 
         // Lookup any applied directives on the fn_def and add them to the
         // instance
-        self.env().stores().directives().map_fast(fn_def.into(), |maybe_directives| {
+        self.stores().directives().map_fast(fn_def.into(), |maybe_directives| {
             if let Some(directives) = maybe_directives {
                 for directive in directives.iter() {
                     instance.attributes.add(Attribute::word(directive));
@@ -225,7 +216,7 @@ impl<'ir> BuilderCtx<'ir> {
             }
         });
 
-        if Intrinsic::from_str_name(name.into()).is_some() {
+        if Intrinsic::from_str_name(ident.into()).is_some() {
             instance.is_intrinsic = true;
         }
 
@@ -270,48 +261,36 @@ impl<'ir> BuilderCtx<'ir> {
         let subs = if ty.args.len() > 0 {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
-            let args = self.stores().args().map_fast(ty.args, |args| {
-                args.iter()
-                    .map(|arg| {
-                        let ty = self.use_term_as_ty(arg.value);
-                        self.ty_id_from_tir_ty(ty)
-                    })
-                    .collect::<Vec<_>>()
-            });
-
-            Some(self.lcx.tls().create_from_iter(args))
+            Some(self.lcx.tls().create_from_iter(ty.args.borrow().iter().map(|arg| {
+                let ty = self.use_term_as_ty(arg.value);
+                self.ty_id_from_tir_ty(ty)
+            })))
         } else {
             None
         };
 
         // Lower each variant as a constructor.
-        let variants = self.stores().ctor_defs().map_fast(ctor_defs, |defs| {
-            defs.iter()
-                .map(|ctor| {
-                    let name = self.get_symbol(ctor.name).name.unwrap_or(IDENTS.underscore);
-
-                    self.stores().params().map_fast(ctor.params, |fields| {
-                        let fields = fields
-                            .iter()
-                            .map(|field| {
-                                let ty = self.ty_id_from_tir_ty(field.ty);
-                                let name =
-                                    self.get_symbol(field.name).name.unwrap_or(IDENTS.underscore);
-
-                                AdtField { name, ty }
-                            })
-                            .collect::<Vec<_>>();
-
-                        AdtVariant { name, fields }
+        let variants = ctor_defs
+            .borrow()
+            .iter()
+            .map(|ctor| {
+                let fields = ctor
+                    .params
+                    .borrow()
+                    .iter()
+                    .map(|field| AdtField {
+                        name: field.name.ident(),
+                        ty: self.ty_id_from_tir_ty(field.ty),
                     })
-                })
-                .collect::<AdtVariants>()
-        });
+                    .collect_vec();
+
+                AdtVariant { name: ctor.name.ident(), fields }
+            })
+            .collect::<AdtVariants>();
 
         // Get the name of the data type, if no name exists we default to
         // using `_`.
-        let name = self.get_symbol(def.name).name.unwrap_or(IDENTS.underscore);
-        let mut adt = AdtData::new_with_flags(name, variants, flags);
+        let mut adt = AdtData::new_with_flags(def.name.ident(), variants, flags);
         adt.substitutions = subs;
 
         // Deal with any specific attributes that were set on the type, i.e.
@@ -333,7 +312,7 @@ impl<'ir> BuilderCtx<'ir> {
 
     /// Function that converts a [DataTy] into the corresponding [IrTyId].
     fn uncached_ty_from_tir_data(&self, ty: DataTy) -> (IrTyId, bool) {
-        let data_def = self.get_data_def(ty.data_def);
+        let data_def = ty.data_def.value();
 
         match data_def.ctors {
             DataDefCtors::Defined(ctor_defs) => {

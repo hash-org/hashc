@@ -17,19 +17,19 @@ use hash_source::{
     identifier::Identifier,
     SourceId,
 };
-use hash_target::{
-    abi::{self, Abi, Integer, ScalarKind},
-    data_layout::HasDataLayout,
-    size::Size,
-};
-use hash_utils::{
-    index_vec::{self, index_vec, IndexVec},
+use hash_storage::{
     new_sequence_store_key_indirect, new_store_key,
     store::{
         CloneStore, DefaultSequenceStore, DefaultStore, SequenceStore, Store, StoreInternalData,
         StoreKey,
     },
 };
+use hash_target::{
+    abi::{self, Abi, Integer, ScalarKind},
+    data_layout::HasDataLayout,
+    size::Size,
+};
+use hash_utils::index_vec::{self, index_vec, IndexVec};
 
 use crate::{
     ir::{LocalDecls, Place, PlaceProjection},
@@ -248,7 +248,7 @@ pub enum IrTy {
     /// or `&raw T`, or `Rc<T>`.
     Ref(IrTyId, Mutability, RefKind),
 
-    /// A slice type
+    /// A slice type, `&[T]`.
     Slice(IrTyId),
 
     /// An array type with a specified length, i.e. `[T; N]`

@@ -5,7 +5,10 @@
 
 use core::fmt;
 
-use hash_utils::store::{Store, TrivialSequenceStoreKey};
+use hash_storage::{
+    static_single_store,
+    store::{statics::StoreId, Store, TrivialSequenceStoreKey},
+};
 use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
 use utility_types::omit;
@@ -13,12 +16,12 @@ use utility_types::omit;
 use super::{pats::Pat, terms::Term};
 use crate::{
     context::Decl,
-    environment::stores::StoreId,
+    environment::stores::tir_stores,
     mods::ModDefId,
     pats::PatId,
     symbols::Symbol,
     terms::{TermId, TermListId},
-    tir_get, tir_single_store,
+    tir_get,
     tys::TyId,
 };
 
@@ -105,11 +108,12 @@ pub struct Stack {
     pub local_mod_def: Option<ModDefId>,
 }
 
-tir_single_store!(
+static_single_store!(
     store = pub StackStore,
     id = pub StackId,
     value = Stack,
     store_name = stack,
+    store_source = tir_stores(),
     derives = Debug
 );
 

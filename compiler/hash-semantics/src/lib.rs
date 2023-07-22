@@ -5,7 +5,7 @@
 
 #![feature(decl_macro, slice_pattern, let_chains, if_let_guard, cell_update, try_blocks)]
 
-use diagnostics::error::SemanticError;
+use diagnostics::{error::SemanticError, warning::SemanticWarning};
 use environment::{
     analysis_progress::AnalysisProgress,
     sem_env::{
@@ -17,11 +17,11 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
 };
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::{diagnostic::Diagnostics, reporter::Reports};
 use hash_source::SourceId;
 use hash_tir::{
     context::Context,
-    environment::{env::Env, source_info::CurrentSourceInfo, stores::global_stores},
+    environment::{env::Env, source_info::CurrentSourceInfo, stores::tir_stores},
 };
 use once_cell::unsync::OnceCell;
 use ops::{
@@ -115,7 +115,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
 
         // Construct the core TIR environment.
         let env = Env::new(
-            global_stores(),
+            tir_stores(),
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,
@@ -140,10 +140,24 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
         let visitor = passes::Visitor::new(&sem_env);
         sem_env.try_or_add_error(visitor.visit_source());
 
-        if visitor.sem_env().diagnostics().has_errors() {
-            // @@Todo: warnings
-            let (errors, _warnings) = visitor.sem_env().diagnostics().into_diagnostics();
-            return Err(visitor.sem_env().with(&SemanticError::Compound { errors }).into());
+        if visitor.sem_env().diagnostics().has_diagnostics() {
+            let (errors, warnings) = visitor.sem_env().diagnostics().into_diagnostics();
+
+            let mut reports: Reports = Vec::with_capacity(errors.len() + warnings.len());
+
+            if !errors.is_empty() {
+                reports.extend::<Reports>(
+                    visitor.sem_env().with(&SemanticError::Compound { errors }).into(),
+                );
+            }
+
+            if !warnings.is_empty() {
+                reports.extend::<Reports>(
+                    visitor.sem_env().with(&SemanticWarning::Compound { warnings }).into(),
+                );
+            }
+
+            Err(reports)
         } else {
             // Passed!
             Ok(())

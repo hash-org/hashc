@@ -4,7 +4,10 @@
 use std::cmp::Ordering;
 
 use hash_ast::ast;
-use hash_ir::ir::{compare_constant_values, Const};
+use hash_ir::{
+    ir::{compare_constant_values, Const},
+    ty::IrTy,
+};
 use hash_tir::pats::RangePat;
 
 use crate::build::BodyBuilder;
@@ -18,19 +21,25 @@ use crate::build::BodyBuilder;
 pub(super) struct ConstRange {
     /// The lower value of the range.
     pub lo: Const,
+
     /// The upper value of the range.
     pub hi: Const,
+
     /// If the range includes the `hi` or not.
     pub end: ast::RangeEnd,
+
+    /// The type of the range. This is stored for convience when computing
+    /// the range.
+    pub ty: IrTy,
 }
 
 impl ConstRange {
     /// Create a [ConstRange] from [RangePat].
-    pub fn from_range(range: &RangePat, builder: &BodyBuilder) -> Self {
-        let (lo, _) = builder.evaluate_const_pat(range.start);
-        let (hi, _) = builder.evaluate_const_pat(range.end);
+    pub fn from_range(range: &RangePat, ty: IrTy, builder: &BodyBuilder) -> Self {
+        let (lo, _) = builder.evaluate_range_lit(range.lo, ty, false);
+        let (hi, _) = builder.evaluate_range_lit(range.hi, ty, true);
 
-        Self { lo, hi, end: range.range_end }
+        Self { lo, hi, end: range.end, ty }
     }
 
     /// Check if a [Const] is within the range.

@@ -38,8 +38,8 @@ use hash_pipeline::{
 };
 use hash_reporting::writer::ReportWriter;
 use hash_source::{identifier::IDENTS, ModuleId};
+use hash_storage::store::Store;
 use hash_utils::{
-    store::Store,
     stream_writeln,
     timing::{time_item, AccessToMetrics},
 };

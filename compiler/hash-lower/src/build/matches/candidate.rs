@@ -19,24 +19,22 @@ use hash_ir::{
     ty::{AdtId, IrTy, Mutability},
 };
 use hash_source::location::Span;
+use hash_storage::store::{statics::StoreId, CloneStore, Store};
 use hash_target::size::Size;
 use hash_tir::{
     args::PatArgsId,
     atom_info::ItemInAtomInfo,
     control::{IfPat, MatchCase},
     data::CtorPat,
-    environment::env::AccessToEnv,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat},
     scopes::BindingPat,
     symbols::Symbol,
     tuples::TuplePat,
-    utils::common::CommonUtils,
 };
 use hash_utils::{
     itertools::Itertools,
     smallvec::{smallvec, SmallVec},
-    store::{CloneStore, SequenceStore, Store},
 };
 
 use crate::build::{place::PlaceBuilder, BodyBuilder};
@@ -199,22 +197,19 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             // Check if the bindings has a single or-pattern
             if let [pair] = &*match_pairs {
-                if self.stores().pat().map_fast(pair.pat, Pat::is_or) {
+                if pair.pat.borrow().is_or() {
                     // append all the new bindings, and then swap the two vectors around
                     existing_bindings.extend_from_slice(&new_bindings);
                     mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                     // Now we need to create sub-candidates for each of the or-patterns
-                    let Pat::Or(sub_pats) = self.stores().pat().get(pair.pat) else {
-                        unreachable!()
-                    };
+                    let Pat::Or(sub_pats) = pair.pat.value() else { unreachable!() };
 
                     // @@Temporary: We need to load in the alternatives for the or pat...
-                    let sub_pats = self
-                        .stores()
-                        .pat_list()
-                        .get_vec(sub_pats.alternatives)
-                        .into_iter()
+                    let sub_pats = sub_pats
+                        .alternatives
+                        .borrow()
+                        .iter()
                         .map(|pat| pat.assert_pat())
                         .collect_vec();
 
@@ -251,9 +246,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                 // sort all of the pats in the candidate by `or-pat` last
-                candidate
-                    .pairs
-                    .sort_by_key(|pair| self.stores().pat().map_fast(pair.pat, Pat::is_or));
+                candidate.pairs.sort_by_key(|pair| pair.pat.borrow().is_or());
 
                 // We weren't able to perform any further simplifications, so return false
                 return false;
@@ -271,15 +264,13 @@ impl<'tcx> BodyBuilder<'tcx> {
         pair: MatchPair,
         candidate: &mut Candidate,
     ) -> Result<(), MatchPair> {
-        let pat = self.stores().pat().get(pair.pat);
-        // Get the span of this particular pattern...
-        let span = self.span_of_pat(pair.pat);
+        let span = self.span_of_pat(pair.pat); // Get the span of this particular pattern...
 
-        match pat {
+        match pair.pat.value() {
             Pat::Binding(BindingPat { is_mutable, name, .. }) => {
                 // @@Ugly: it would be nice to just have a "wildcard" variant, for
                 // wildcards we have nothing else left to do.
-                if self.get_symbol(name).name.is_none() {
+                if name.borrow().name.is_none() {
                     return Ok(());
                 }
 
@@ -306,30 +297,30 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 Ok(())
             }
-            Pat::Range(RangePat { start, end, range_end }) => {
+            Pat::Range(RangePat { lo, hi, end }) => {
                 let ptr_width = self.settings.target().ptr_size();
 
                 // get the range and bias of this range pattern from
                 // the `lo`
                 let id = self.ty_id_from_tir_ty(self.get_inferred_ty(pair.pat));
-                let lo_ty = self.ctx().tys().get(id);
+                let range_ty = self.ctx().tys().get(id);
 
                 // The range is the minimum value, maximum value, and the size of
                 // the item that is being compared.
                 //
                 // @@Todo: deal with big-ints
-                let (range, bias) = match lo_ty {
+                let (range, bias) = match range_ty {
                     IrTy::Char => {
                         (Some(('\u{0000}' as u128, '\u{10FFFF}' as u128, Size::from_bytes(4))), 0)
                     }
                     IrTy::Int(int_ty) => {
-                        let size = int_ty.size(ptr_width).unwrap();
+                        let size = int_ty.size(ptr_width);
                         let max = size.truncate(u128::MAX);
                         let bias = 1u128 << (size.bits() - 1);
                         (Some((0, max, size)), bias)
                     }
                     IrTy::UInt(uint_ty) => {
-                        let size = uint_ty.size(ptr_width).unwrap();
+                        let size = uint_ty.size(ptr_width);
                         let max = size.truncate(u128::MAX);
                         (Some((0, max, size)), 0)
                     }
@@ -344,14 +335,14 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // we have to convert the `lo` term into the actual value, by getting
                     // the literal term from this term, and then converting the stored value
                     // into a u128...
-                    let lo_val = self.evaluate_const_pat(start).1 ^ bias;
+                    let lo_val = self.evaluate_range_lit(lo, range_ty, false).1 ^ bias;
 
                     if lo_val <= min {
-                        let hi_val = self.evaluate_const_pat(end).1 ^ bias;
+                        let hi_val = self.evaluate_range_lit(hi, range_ty, true).1 ^ bias;
 
                         // In this situation, we have an irrefutable pattern, so we can
                         // always go down this path
-                        if hi_val > max || hi_val == max && range_end == ast::RangeEnd::Excluded {
+                        if hi_val > max || hi_val == max && end == ast::RangeEnd::Excluded {
                             return Ok(());
                         }
                     }
@@ -436,31 +427,30 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// are performing a field access.
     fn match_pat_fields(
         &mut self,
-        pat: PatArgsId,
+        pat_args: PatArgsId,
         ty: AdtId,
         place: PlaceBuilder,
     ) -> Vec<MatchPair> {
         self.ctx().adts().map_fast(ty, |adt| {
             debug_assert!(adt.flags.is_struct() || adt.flags.is_tuple());
-
             let variant = adt.variants.first().unwrap();
 
-            self.stores().pat_args().map_fast(pat, |pats| {
-                pats.iter()
-                    .map(|arg| {
-                        // Compute the index we should use to access the field. If
-                        // no name is provided, we assume that the type is positional,
-                        // and thus we use the index of the pattern in the argument.
-                        let index = match arg.target {
-                            ParamIndex::Name(name) => variant.field_idx(name).unwrap(),
-                            ParamIndex::Position(index) => index,
-                        };
+            pat_args
+                .borrow()
+                .iter()
+                .map(|arg| {
+                    // Compute the index we should use to access the field. If
+                    // no name is provided, we assume that the type is positional,
+                    // and thus we use the index of the pattern in the argument.
+                    let index = match arg.target {
+                        ParamIndex::Name(name) => variant.field_idx(name).unwrap(),
+                        ParamIndex::Position(index) => index,
+                    };
 
-                        let place = place.clone_project(PlaceProjection::Field(index));
-                        MatchPair { pat: arg.pat.assert_pat(), place }
-                    })
-                    .collect()
-            })
+                    let place = place.clone_project(PlaceProjection::Field(index));
+                    MatchPair { pat: arg.pat.assert_pat(), place }
+                })
+                .collect()
         })
     }
 
@@ -471,19 +461,18 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn create_sub_candidates(
         &mut self,
         subject: &PlaceBuilder,
-        candidate: &mut Candidate,
+        candidate: &Candidate,
         sub_pats: &[PatId],
     ) -> Vec<Candidate> {
         sub_pats
             .iter()
             .copied()
-            .map(|pat_id| {
-                let pat_has_guard = self.stores().pat().map_fast(pat_id, Pat::is_or);
+            .map(|pat| {
                 let mut sub_candidate = Candidate::new(
                     candidate.span,
-                    pat_id,
+                    pat,
                     subject,
-                    candidate.has_guard || pat_has_guard,
+                    candidate.has_guard || pat.borrow().is_or(),
                 );
                 self.simplify_candidate(&mut sub_candidate);
                 sub_candidate

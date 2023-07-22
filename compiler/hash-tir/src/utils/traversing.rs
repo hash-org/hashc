@@ -3,7 +3,10 @@ use core::fmt;
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{From, TryInto};
-use hash_utils::store::{SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::{SingleStoreValue, StoreId},
+    SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+};
 
 use super::{common::CommonUtils, AccessToUtils};
 use crate::{
@@ -13,10 +16,7 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::{SingleStoreValue, StoreId},
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
     impl_access_to_env,
     locations::LocationTarget,
@@ -172,7 +172,7 @@ impl<'env> TraversingUtils<'env> {
                             Ok(MatchCase { bind_pat, value, stack_id: case.stack_id })
                         }))
                     })?;
-                    Ok(self.new_term(MatchTerm { cases, subject }))
+                    Ok(self.new_term(MatchTerm { cases, subject, origin: match_term.origin }))
                 }
                 Term::Return(return_term) => {
                     let expression = self.fmap_term(return_term.expression, f)?;
