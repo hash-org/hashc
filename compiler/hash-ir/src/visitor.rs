@@ -20,7 +20,6 @@ use crate::{
         Terminator, UnaryOp,
     },
     ty::{IrTyId, Mutability, RefKind, VariantIdx},
-    IrCtx,
 };
 
 /// A [PlaceContext] is a reference of where a a particular [Place] is
@@ -102,9 +101,6 @@ pub enum MetaPlaceContext {
 /// A trait for visiting the IR with a mutable context. This trait should
 /// not be used for when modifications to the IR need to be made in place.
 pub trait IrVisitorMut<'ir>: Sized {
-    /// Return a reference to the [BodyDataStore].
-    fn ctx(&self) -> &'ir IrCtx;
-
     /// The entry point of the visitor. This is called when the visitor
     /// is first initialised.
     fn visit(&mut self, body: &Body) {
@@ -282,7 +278,7 @@ pub trait IrVisitorMut<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_mut {
-    use hash_storage::store::SequenceStore;
+    use hash_storage::store::statics::StoreId;
 
     use super::{IrVisitorMut, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -558,11 +554,9 @@ pub mod walk_mut {
     ) {
         visitor.visit_local(place.local, ctx, reference);
 
-        visitor.ctx().projections().map_fast(place.projections, |projection| {
-            for projection in projection.iter() {
-                visitor.visit_projection(projection, ctx, reference)
-            }
-        })
+        for projection in place.projections.borrow().iter() {
+            visitor.visit_projection(projection, ctx, reference)
+        }
     }
 
     pub fn walk_projection<'ir, V: IrVisitorMut<'ir>>(
@@ -578,9 +572,6 @@ pub mod walk_mut {
 }
 
 pub trait ModifyingIrVisitor<'ir>: Sized {
-    /// Return a reference to the [BodyDataStore].
-    fn store(&self) -> &'ir IrCtx;
-
     /// The entry point of the visitor. This is called when the visitor
     /// is first initialised.
     fn visit(&self, body: &mut Body) {
@@ -756,7 +747,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_modifying {
-    use hash_storage::store::SequenceStoreCopy;
+    use hash_storage::store::statics::StoreId;
 
     use super::{ModifyingIrVisitor, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -1043,8 +1034,8 @@ pub mod walk_modifying {
     ) {
         visitor.visit_local(&mut place.local, ctx, reference);
 
-        visitor.store().projections().modify_copied(place.projections, |projection| {
-            for projection in projection.iter_mut() {
+        place.projections.modify(|projections| {
+            for projection in projections.iter_mut() {
                 visitor.visit_projection(projection, ctx, reference)
             }
         })
@@ -1060,9 +1051,4 @@ pub mod walk_modifying {
             visitor.visit_local(local, ctx, reference)
         }
     }
-}
-
-pub trait ModifyingIrVisitorMut<'ir> {
-    /// Return a reference to the [BodyDataStore].
-    fn storage(&self) -> &'ir IrCtx;
 }

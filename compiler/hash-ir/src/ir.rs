@@ -15,8 +15,8 @@ use hash_source::{
     SourceId,
 };
 use hash_storage::{
-    new_sequence_store_key_direct,
-    store::{DefaultSequenceStore, SequenceStore, SequenceStoreKey, Store},
+    static_sequence_store_indirect,
+    store::{statics::SingleStoreValue, SequenceStore, SequenceStoreKey},
 };
 use hash_utils::{
     graph::dominators::Dominators,
@@ -27,9 +27,8 @@ use hash_utils::{
 use crate::{
     basic_blocks::BasicBlocks,
     cast::CastKind,
-    ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, ToIrTy, VariantIdx},
-    write::WriteIr,
-    IrCtx,
+    ir_stores,
+    ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, ToIrTy, VariantIdx, COMMON_IR_TYS},
 };
 
 /// A specified constant value within the Hash IR. These values and their
@@ -69,8 +68,8 @@ impl From<Const> for ConstKind {
 
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
-    pub fn zero(ctx: &IrCtx) -> Self {
-        Self::Zero(ctx.tys().common_tys.unit)
+    pub fn zero() -> Self {
+        Self::Zero(COMMON_IR_TYS.unit)
     }
 
     /// Check if a [Const] is "switchable", meaning that it can be used
@@ -82,8 +81,8 @@ impl Const {
 
     /// Create a new [Const] from a scalar value, with the appropriate
     /// type.
-    pub fn from_scalar(value: u128, ty: IrTyId, ctx: &IrCtx) -> Self {
-        ctx.map_ty(ty, |ty| match ty {
+    pub fn from_scalar(value: u128, ty: IrTyId) -> Self {
+        ty.map(|ty| match ty {
             IrTy::Int(int_ty) => {
                 let value = i128::from_be_bytes(value.to_be_bytes()); // @@ByteCast.
                 let interned_value = IntConstant::from_sint(value, *int_ty);
@@ -163,19 +162,19 @@ impl ConstKind {
     /// N.B. Computing the `ty` of a [ConstKind] will always yield a normalised
     /// type, i.e. a `usize` will be converted into a `u64` on 64-bit
     /// platforms.
-    pub fn ty(&self, ctx: &IrCtx) -> IrTyId {
+    pub fn ty(&self) -> IrTyId {
         match self {
             Self::Value(value) => match value {
                 Const::Zero(ty) => *ty,
-                Const::Bool(_) => ctx.tys().common_tys.bool,
-                Const::Char(_) => ctx.tys().common_tys.char,
+                Const::Bool(_) => COMMON_IR_TYS.bool,
+                Const::Char(_) => COMMON_IR_TYS.char,
                 Const::Int(interned_int) => {
-                    CONSTANT_MAP.map_int(*interned_int, |int| int.normalised_ty().to_ir_ty(ctx))
+                    CONSTANT_MAP.map_int(*interned_int, |int| int.normalised_ty().to_ir_ty())
                 }
                 Const::Float(interned_float) => {
-                    CONSTANT_MAP.map_float(*interned_float, |float| float.ty().to_ir_ty(ctx))
+                    CONSTANT_MAP.map_float(*interned_float, |float| float.ty().to_ir_ty())
                 }
-                Const::Str(_) => ctx.tys().common_tys.str,
+                Const::Str(_) => COMMON_IR_TYS.str,
             },
             Self::Unevaluated(UnevaluatedConst { .. }) => {
                 // @@Todo: This will be implemented when constants are clearly
@@ -315,7 +314,7 @@ impl BinOp {
 
     /// Compute the type of [BinOp] operator when applied to
     /// a particular [IrTy].
-    pub fn ty(&self, ctx: &IrCtx, lhs: IrTyId, rhs: IrTyId) -> IrTyId {
+    pub fn ty(&self, lhs: IrTyId, rhs: IrTyId) -> IrTyId {
         match self {
             BinOp::BitOr
             | BinOp::BitAnd
@@ -328,12 +327,9 @@ impl BinOp {
             | BinOp::Exp => {
                 // Both `lhs` and `rhs` should be of the same type...
                 debug_assert_eq!(
-                    lhs,
-                    rhs,
+                    lhs, rhs,
                     "binary op types for `{:?}` should be equal, but got: lhs: `{}`, rhs: `{}`",
-                    self,
-                    lhs.for_fmt(ctx),
-                    rhs.for_fmt(ctx)
+                    self, lhs, rhs
                 );
                 lhs
             }
@@ -343,7 +339,7 @@ impl BinOp {
 
             // Comparisons
             BinOp::Eq | BinOp::Neq | BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq => {
-                ctx.tys().common_tys.bool
+                COMMON_IR_TYS.bool
             }
         }
     }
@@ -558,7 +554,7 @@ pub enum PlaceProjection {
 /// Additionally, [Place]s allow for projections to be applied
 /// to a place in order to specify a location within the [Local],
 /// i.e. an array index, a field access, etc.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Place {
     /// The original place of where this is referring to.
     pub local: Local,
@@ -570,29 +566,30 @@ pub struct Place {
 
 impl Place {
     /// Create a [Place] that points to the return `place` of a lowered  body.
-    pub fn return_place(ctx: &IrCtx) -> Self {
-        Self { local: RETURN_PLACE, projections: ctx.projections().create_empty() }
+    pub fn return_place() -> Self {
+        Self { local: RETURN_PLACE, projections: ProjectionId::empty() }
     }
 
     /// Deduce the type of the [Place] from the [IrCtx] and the local
     /// declarations.
-    pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
-        PlaceTy::from_place(*self, locals, ctx).ty
+    pub fn ty(&self, locals: &LocalDecls) -> IrTyId {
+        PlaceTy::from_place(*self, locals).ty
     }
 
     /// Create a new [Place] from a [Local] with no projections.
-    pub fn from_local(local: Local, ctx: &IrCtx) -> Self {
-        Self { local, projections: ctx.projections().create_empty() }
+    pub fn from_local(local: Local) -> Self {
+        Self { local, projections: ProjectionId::empty() }
     }
 
     /// Create a new [Place] from an existing [Place] whilst also
     /// applying a [`PlaceProjection::Deref`] on the old one.
-    pub fn deref(&self, ctx: &IrCtx) -> Self {
-        let projections = ctx.projections().get_vec(self.projections);
+    pub fn deref(&self) -> Self {
+        // @@Todo: how can we just amend the existing projections?
+        let projections = self.projections.value();
 
         Self {
             local: self.local,
-            projections: ctx.projections().create_from_iter_fast(
+            projections: ProjectionId::seq(
                 projections.iter().copied().chain(once(PlaceProjection::Deref)),
             ),
         }
@@ -600,12 +597,12 @@ impl Place {
 
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
-    pub fn field(&self, field: usize, ctx: &IrCtx) -> Self {
-        let projections = ctx.projections().get_vec(self.projections);
+    pub fn field(&self, field: usize) -> Self {
+        let projections = self.projections.value();
 
         Self {
             local: self.local,
-            projections: ctx.projections().create_from_iter_fast(
+            projections: ProjectionId::seq(
                 projections.iter().copied().chain(once(PlaceProjection::Field(field))),
             ),
         }
@@ -695,10 +692,10 @@ pub enum Operand {
 impl Operand {
     /// Compute the type of the [Operand] based on
     /// the IrCtx.
-    pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
+    pub fn ty(&self, locals: &LocalDecls) -> IrTyId {
         match self {
-            Operand::Const(kind) => kind.ty(ctx),
-            Operand::Place(place) => place.ty(locals, ctx),
+            Operand::Const(kind) => kind.ty(),
+            Operand::Place(place) => place.ty(locals),
         }
     }
 }
@@ -773,36 +770,31 @@ impl RValue {
     }
 
     /// Get the [IrTy] of the [RValue].
-    pub fn ty(&self, locals: &LocalDecls, ctx: &IrCtx) -> IrTyId {
+    pub fn ty(&self, locals: &LocalDecls) -> IrTyId {
         match self {
-            RValue::Use(operand) => operand.ty(locals, ctx),
-            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => ctx.tys().common_tys.usize,
-            RValue::UnaryOp(_, operand) => operand.ty(locals, ctx),
-            RValue::BinaryOp(op, box (lhs, rhs)) => {
-                op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx))
-            }
+            RValue::Use(operand) => operand.ty(locals),
+            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => COMMON_IR_TYS.usize,
+            RValue::UnaryOp(_, operand) => operand.ty(locals),
+            RValue::BinaryOp(op, box (lhs, rhs)) => op.ty(lhs.ty(locals), rhs.ty(locals)),
             RValue::CheckedBinaryOp(op, box (lhs, rhs)) => {
-                let ty = op.ty(ctx, lhs.ty(locals, ctx), rhs.ty(locals, ctx));
-                ctx.tys().create(IrTy::tuple(ctx, &[ty, ctx.tys().common_tys.bool]))
+                let ty = op.ty(lhs.ty(locals), rhs.ty(locals));
+                IrTy::tuple(&[ty, COMMON_IR_TYS.bool])
             }
             RValue::Cast(_, _, ty) => *ty,
-            RValue::Len(_) => ctx.tys().common_tys.usize,
+            RValue::Len(_) => COMMON_IR_TYS.usize,
             RValue::Ref(mutability, place, kind) => {
-                let ty = place.ty(locals, ctx);
-                ctx.tys().create(IrTy::Ref(ty, *mutability, *kind))
+                let ty = place.ty(locals);
+                IrTy::create(IrTy::Ref(ty, *mutability, *kind))
             }
             RValue::Aggregate(kind, _) => match kind {
                 AggregateKind::Enum(id, _)
                 | AggregateKind::Struct(id)
-                | AggregateKind::Tuple(id) => ctx.tys().create(IrTy::Adt(*id)),
+                | AggregateKind::Tuple(id) => IrTy::create(IrTy::Adt(*id)),
                 AggregateKind::Array(ty) => *ty,
             },
             RValue::Discriminant(place) => {
-                let ty = place.ty(locals, ctx);
-
-                // @@Safety: this does not create any new types, and thus
-                // we can map_fast over the types.
-                ctx.map_ty(ty, |ty| ty.discriminant_ty(ctx))
+                let ty = place.ty(locals);
+                ty.borrow().discriminant_ty()
             }
         }
     }
@@ -1160,15 +1152,10 @@ impl TerminatorKind {
     /// Utility to create a [TerminatorKind::Switch] which emulates the
     /// behaviour of an `if` branch where the `true` branch is the
     /// `true_block` and the `false` branch is the `false_block`.
-    pub fn make_if(
-        value: Operand,
-        true_block: BasicBlock,
-        false_block: BasicBlock,
-        ctx: &IrCtx,
-    ) -> Self {
+    pub fn make_if(value: Operand, true_block: BasicBlock, false_block: BasicBlock) -> Self {
         let targets = SwitchTargets::new(
             std::iter::once((false.into(), false_block)),
-            ctx.tys().common_tys.bool,
+            COMMON_IR_TYS.bool,
             Some(true_block),
         );
 
@@ -1443,13 +1430,26 @@ impl BodyInfo {
     }
 }
 
-new_sequence_store_key_direct!(pub ProjectionId, ProjectionElementId, derives = [Debug], el_derives = [Debug]);
+static_sequence_store_indirect!(
+    store = pub ProjectionStore,
+    id = pub ProjectionId[PlaceProjection],
+    store_name = projections,
+    store_source = ir_stores()
+);
 
-/// Stores all collections of projections that can occur on a place.
-///
-/// This is used to efficiently represent [Place]s that might have many
-/// projections, and to easily copy them when duplicating places.
-pub type ProjectionStore = DefaultSequenceStore<ProjectionId, PlaceProjection>;
+impl ProjectionId {
+    pub fn empty() -> Self {
+        ir_stores().projections().create_empty()
+    }
+
+    pub fn seq<I: IntoIterator<Item = PlaceProjection>>(values: I) -> Self {
+        ir_stores().projections().create_from_iter(values)
+    }
+
+    pub fn from_slice(values: &[PlaceProjection]) -> Self {
+        ir_stores().projections().create_from_slice(values)
+    }
+}
 
 /// An [IrRef] is a reference to where a particular item occurs within
 /// the [Body]. The [IrRef] stores an associated [BasicBlock] and an
@@ -1496,15 +1496,13 @@ impl IrRef {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ir::*, write::WriteIr};
+    use crate::ir::*;
 
     #[test]
     fn test_place_display() {
-        let storage = IrCtx::new();
-
         let place = Place {
             local: Local::new(0),
-            projections: storage.projections().create_from_slice(&[
+            projections: ProjectionId::from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Field(0),
                 PlaceProjection::Index(Local::new(1)),
@@ -1512,17 +1510,17 @@ mod tests {
             ]),
         };
 
-        assert_eq!(format!("{}", place.for_fmt(&storage)), "(((*_0).0)[_1] as variant#0)");
+        assert_eq!(format!("{}", place), "(((*_0).0)[_1] as variant#0)");
 
         let place = Place {
             local: Local::new(0),
-            projections: storage.projections().create_from_slice(&[
+            projections: ProjectionId::from_slice(&[
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,
                 PlaceProjection::Deref,
             ]),
         };
 
-        assert_eq!(format!("{}", place.for_fmt(&storage)), "(*(*(*_0)))");
+        assert_eq!(format!("{}", place), "(*(*(*_0)))");
     }
 }

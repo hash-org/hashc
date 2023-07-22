@@ -11,15 +11,14 @@ use hash_ir::{
     ir::{
         BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
     },
-    ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx},
-    IrCtx,
+    ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
     constant::{IntConstant, IntConstantValue, CONSTANT_MAP},
     location::Span,
 };
-use hash_storage::store::{statics::StoreId, CloneStore, Store};
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     args::PatArgsId,
     atom_info::ItemInAtomInfo,
@@ -108,16 +107,16 @@ pub(super) struct Test {
 impl Test {
     /// Return the total amount of targets that a particular
     /// [Test] yields.
-    pub(super) fn targets(&self, ctx: &IrCtx) -> usize {
+    pub(super) fn targets(&self) -> usize {
         match self.kind {
             TestKind::Switch { adt, .. } => {
                 // The switch will not (necessarily) generate branches
                 // for all of the variants, so we have a target for each
                 // variant, and an additional target for the `otherwise` case.
-                ctx.adts().map_fast(adt, |adt| adt.variants.len() + 1)
+                adt.borrow().variants.len() + 1
             }
             TestKind::SwitchInt { ty, ref options } => {
-                ctx.map_ty(ty, |ty| {
+                ty.map(|ty| {
                     // The boolean branch is always 2...
                     if let IrTy::Bool = ty {
                         2
@@ -200,7 +199,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             Pat::Ctor(pat) => {
                 let ty_id = self.ty_id_from_tir_pat(pair.pat);
 
-                self.ctx().map_ty(ty_id, |ty| match ty {
+                ty_id.map(|ty| match ty {
                     IrTy::Bool => {
                         // Constify the bool literal
                         let value =
@@ -208,7 +207,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         emit_const_test(value, ty_id)
                     }
                     IrTy::Adt(id) => {
-                        let (variant_count, adt) = self.ctx().map_adt(*id, |id, adt| {
+                        let (variant_count, adt) = id.map(|adt| {
                             // Structs can be simplified...
                             if adt.flags.is_struct() {
                                 panic_on_span!(
@@ -219,7 +218,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                                 )
                             }
 
-                            (adt.variants.len(), id)
+                            (adt.variants.len(), *id)
                         });
 
                         Test {
@@ -246,9 +245,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
             }
             Pat::Range(ref range_pat) => {
-                let ty_id = self.ty_id_from_tir_pat(pair.pat);
-                let ty = self.ctx().tys().get(ty_id);
-
+                let ty = self.ty_id_from_tir_pat(pair.pat);
                 Test {
                     kind: TestKind::Range { range: ConstRange::from_range(range_pat, ty, self) },
                     span,
@@ -311,8 +308,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // If we are performing a variant switch, then this informs
                 // variant patterns, bu nothing else.
                 let test_adt = self.ty_id_from_tir_ty(pat_ty);
-
-                let variant_index = self.ctx().map_ty_as_adt(test_adt, |adt, _| {
+                let variant_index = test_adt.borrow().as_adt().map(|adt| {
                     // If this is a struct, then we don't do anything
                     // since we're expecting an enum. Although, this case shouldn't happen?
                     if adt.flags.is_struct() {
@@ -339,7 +335,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             (TestKind::SwitchInt { ty, ref options }, Pat::Ctor(CtorPat { ctor, .. })) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.ctx().map_ty(*ty, |ty| ty.is_switchable()) {
+                if !ty.borrow().is_switchable() {
                     unreachable!("switch_int test for constructor pat with non-switchable type");
                 }
 
@@ -357,7 +353,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !self.ctx().map_ty(*ty, |ty| ty.is_switchable()) {
+                if !ty.borrow().is_switchable() {
                     return None;
                 }
 
@@ -372,9 +368,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 Some(index)
             }
             (TestKind::SwitchInt { ty, ref options }, Pat::Range(ref range_pat)) => {
-                let ty = self.ctx().tys().get(*ty);
                 let not_contained =
-                    self.values_not_contained_in_range(range_pat, ty, options).unwrap_or(false);
+                    self.values_not_contained_in_range(range_pat, *ty, options).unwrap_or(false);
 
                 // If no switch values are contained within this range, so that pattern can only
                 // be matched if the test fails.
@@ -536,7 +531,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // Only deal with sub-patterns if they exist on the variant.
         if let Some(sub_pats) = sub_patterns {
-            let consequent_pairs: Vec<_> = self.ctx().adts().map_fast(adt, |adt| {
+            let consequent_pairs: Vec<_> = adt.map(|adt| {
                 let variant = &adt.variants[variant_index];
 
                 sub_pats
@@ -570,16 +565,14 @@ impl<'tcx> BodyBuilder<'tcx> {
         make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
     ) {
         // Build the place from the provided place builder
-        let place = place_builder.clone().into_place(self.ctx());
+        let place = place_builder.clone().into_place();
         let span = test.span;
 
         match test.kind {
             TestKind::Switch { adt, options: ref variants } => {
                 let target_blocks = make_target_blocks(self);
-                let (variant_count, discriminant_ty) = self
-                    .ctx()
-                    .adts()
-                    .map_fast(adt, |adt| (adt.variants.len(), adt.discriminant_ty()));
+                let (variant_count, discriminant_ty) =
+                    adt.map(|adt| (adt.variants.len(), adt.discriminant_ty()));
 
                 // Assert that the number of variants is the same as the number of
                 // target blocks.
@@ -589,9 +582,9 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
-                let discriminant_ty = discriminant_ty.to_ir_ty(self.ctx());
+                let discriminant_ty = discriminant_ty.to_ir_ty();
                 let targets = SwitchTargets::new(
-                    self.ctx().adts().map_fast(adt, |adt| {
+                    adt.map(|adt| {
                         // Map over all of the discriminants of the ADT, and filter out those that
                         // are not in the `options` set.
                         adt.discriminants().filter_map(|(var_idx, discriminant)| {
@@ -624,7 +617,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             TestKind::SwitchInt { ty, ref options } => {
                 let target_blocks = make_target_blocks(self);
 
-                let terminator_kind = if self.ctx().map_ty(ty, |ty| *ty == IrTy::Bool) {
+                let terminator_kind = if ty.map(|ty| *ty == IrTy::Bool) {
                     debug_assert!(options.len() == 2);
 
                     let [first_block, second_block] = *target_blocks else {
@@ -637,7 +630,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         _ => panic!("expected boolean switch to have only two options"),
                     };
 
-                    TerminatorKind::make_if(place.into(), true_block, false_block, self.ctx())
+                    TerminatorKind::make_if(place.into(), true_block, false_block)
                 } else {
                     debug_assert_eq!(options.len() + 1, target_blocks.len());
                     let otherwise_block = target_blocks.last().copied();
@@ -654,8 +647,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 self.control_flow_graph.terminate(block, span, terminator_kind);
             }
             TestKind::Eq { ty, value } => {
-                let (is_str, is_scalar) =
-                    self.ctx().map_ty(ty, |ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
+                let (is_str, is_scalar) = ty.map(|ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
 
                 // If this type is a string, we essentially have to make a call to
                 // a string comparator function (which will be filled in later on
@@ -738,7 +730,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             TestKind::Len { len, op } => {
                 let target_blocks = make_target_blocks(self);
 
-                let usize_ty = self.ctx().tys().common_tys.usize;
+                let usize_ty = COMMON_IR_TYS.usize;
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
@@ -785,7 +777,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) {
         debug_assert!(op.is_comparator());
 
-        let bool_ty = self.ctx().tys().common_tys.bool;
+        let bool_ty = COMMON_IR_TYS.bool;
         let result = self.temp_place(bool_ty);
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
@@ -799,7 +791,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         self.control_flow_graph.terminate(
             block,
             span,
-            TerminatorKind::make_if(result.into(), success, fail, self.ctx()),
+            TerminatorKind::make_if(result.into(), success, fail),
         );
     }
 
@@ -849,11 +841,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 true
             }
             Pat::Range(ref pat) => {
-                let ty_id = self.ty_id_from_tir_pat(match_pair.pat);
-                let ty = self.ctx().tys().get(ty_id);
-
                 // Check if there is at least one value that is not
                 // contained within the range.
+                let ty = self.ty_id_from_tir_pat(match_pair.pat);
                 self.values_not_contained_in_range(pat, ty, options).unwrap_or(false)
             }
 
@@ -882,7 +872,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn values_not_contained_in_range(
         &mut self,
         pat: &RangePat,
-        ty: IrTy,
+        ty: IrTyId,
         options: &IndexMap<Const, u128>,
     ) -> Option<bool> {
         let const_range = ConstRange::from_range(pat, ty, self);

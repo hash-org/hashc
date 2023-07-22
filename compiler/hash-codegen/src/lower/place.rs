@@ -2,12 +2,11 @@
 //! IR.
 
 use hash_ir::{
-    ir,
+    ir::{self, ProjectionId},
     ty::{IrTyId, PlaceTy, VariantIdx},
-    write::WriteIr,
 };
 use hash_layout::{LayoutShape, Variants};
-use hash_storage::store::SequenceStore;
+use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
     alignment::Alignment,
@@ -18,7 +17,7 @@ use crate::{
     layout::TyInfo,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
-        CodeGenObject, HasCtxMethods,
+        CodeGenObject,
     },
 };
 
@@ -114,9 +113,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
         // the variant, and then store it within the specified field.
         if let Some(field) = maybe_field {
             let ptr = self.project_field(builder, field);
-            let (_, value) = builder.ir_ctx().map_ty(self.info.ty, |ty| {
-                ty.discriminant_for_variant(builder.ir_ctx(), discriminant).unwrap()
-            });
+            let (_, value) = self.info.ty.borrow().discriminant_for_variant(discriminant).unwrap();
 
             builder.store(
                 builder.const_uint_big(builder.backend_ty_from_info(ptr.info), value),
@@ -149,10 +146,12 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
 
         match variants {
             Variants::Single { index } => {
-                let value = builder.ir_ctx().map_ty(self.info.ty, |ty| {
-                    ty.discriminant_for_variant(builder.ir_ctx(), index)
-                        .map_or(index.raw() as u128, |(_, value)| value)
-                });
+                let value = self
+                    .info
+                    .ty
+                    .borrow()
+                    .discriminant_for_variant(index)
+                    .map_or(index.raw() as u128, |(_, value)| value);
 
                 builder.const_uint_big(cast_to_ty, value)
             }
@@ -310,7 +309,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Compute the type and layout of a [ir::Place]. This deals with
     /// all projections that occur on the [ir::Place].
     pub fn compute_place_ty_info(&self, builder: &Builder, place: ir::Place) -> TyInfo {
-        let place_ty = PlaceTy::from_place(place, &self.body.declarations, self.ctx.ir_ctx());
+        let place_ty = PlaceTy::from_place(place, &self.body.declarations);
         builder.layout_of(place_ty.ty)
     }
 
@@ -325,8 +324,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         place: ir::Place,
     ) -> PlaceRef<Builder::Value> {
         // copy the projections from the place.
-        let projections = builder.ir_ctx().projections().get_vec(place.projections);
-
+        let projections = place.projections.value();
         let mut base = 0;
 
         let mut codegen_base = match self.locals[place.local] {
@@ -337,8 +335,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                     // we have to copy a slice of the projections where
                     // we omit the first projection (which is a deref).
-                    let projections =
-                        builder.ir_ctx().projections().create_from_slice(&projections[1..]);
+                    let projections = ProjectionId::from_slice(&projections[1..]);
 
                     let codegen_base = self.codegen_consume_operand(
                         builder,
@@ -347,7 +344,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                     codegen_base.deref(builder)
                 } else {
-                    panic!("using operand local `{}` as place", place.for_fmt(self.ctx.ir_ctx()))
+                    panic!("using operand local `{place}` as place")
                 }
             }
         };
@@ -361,8 +358,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 }
                 ir::PlaceProjection::Field(index) => codegen_base.project_field(builder, index),
                 ir::PlaceProjection::Index(index) => {
-                    let index_operand: ir::Operand =
-                        ir::Place::from_local(index, builder.ir_ctx()).into();
+                    let index_operand: ir::Operand = ir::Place::from_local(index).into();
                     let index = self.codegen_operand(builder, &index_operand);
 
                     let value = index.immediate_value();
@@ -381,8 +377,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 ir::PlaceProjection::SubSlice { from, .. } => {
                     let mut sub_slice =
                         codegen_base.project_index(builder, builder.const_usize(from as u64));
-                    let projected_ty = PlaceTy::from_ty(codegen_base.info.ty)
-                        .projection_ty(builder.ir_ctx(), *projection);
+                    let projected_ty =
+                        PlaceTy::from_ty(codegen_base.info.ty).projection_ty(*projection);
 
                     // @@Verify: if the size of the array is not known, do we
                     // have to do record the size of this slice using `extra_value`?

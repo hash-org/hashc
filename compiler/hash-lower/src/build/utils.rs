@@ -8,7 +8,7 @@ use hash_ir::{
         AggregateKind, AssertKind, BasicBlock, Const, Local, LocalDecl, Operand, Place, RValue,
         TerminatorKind,
     },
-    ty::{IrTyId, Mutability},
+    ty::{IrTyId, Mutability, COMMON_IR_TYS},
     IrCtx,
 };
 use hash_source::{constant::CONSTANT_MAP, location::Span};
@@ -114,13 +114,12 @@ impl<'tcx> BodyBuilder<'tcx> {
         ptr: Operand,
         metadata: usize,
     ) -> RValue {
-        let id = self.ctx().map_ty_as_adt(ty, |_, id| id);
-
+        let adt = ty.borrow().as_adt();
         let ptr_width = self.settings.target().ptr_size();
         let metadata =
             Operand::Const(Const::Int(CONSTANT_MAP.create_usize_int(metadata, ptr_width)).into());
 
-        RValue::Aggregate(AggregateKind::Struct(id), vec![ptr, metadata])
+        RValue::Aggregate(AggregateKind::Struct(adt), vec![ptr, metadata])
     }
 
     /// Function to create a new [Place] that is used to ignore
@@ -129,13 +128,10 @@ impl<'tcx> BodyBuilder<'tcx> {
         match &self.tmp_place {
             Some(tmp) => *tmp,
             None => {
-                let local = LocalDecl::new_auxiliary(
-                    self.ctx().tys().common_tys.unit,
-                    Mutability::Immutable,
-                );
+                let local = LocalDecl::new_auxiliary(COMMON_IR_TYS.unit, Mutability::Immutable);
                 let local_id = self.declarations.push(local);
 
-                let place = Place::from_local(local_id, self.ctx());
+                let place = Place::from_local(local_id);
                 self.tmp_place = Some(place);
                 place
             }

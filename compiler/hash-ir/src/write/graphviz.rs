@@ -5,6 +5,8 @@
 //! a visual representation of the IR in formats such as `pdf`, `svg`, `png`,
 //! etc.
 
+// @@Todo: add unit tests for the graph writer.
+
 use std::io;
 
 use html_escape::encode_text;
@@ -12,7 +14,6 @@ use html_escape::encode_text;
 use crate::{
     ir::{BasicBlock, BasicBlockData, Body, BodySource, Const, TerminatorKind},
     write::WriteIr,
-    IrCtx,
 };
 
 /// Used to separate line statements between each declaration within
@@ -20,9 +21,6 @@ use crate::{
 const LINE_SEPARATOR: &str = r#"<br align="left"/>"#;
 
 pub struct IrGraphWriter<'ir> {
-    /// Store that contains all interned data for the IR.
-    ctx: &'ir IrCtx,
-
     /// The body that is being outputted as a graph
     body: &'ir Body,
 
@@ -57,8 +55,8 @@ impl Default for IrGraphOptions {
 }
 
 impl<'ir> IrGraphWriter<'ir> {
-    pub fn new(ctx: &'ir IrCtx, body: &'ir Body, options: IrGraphOptions) -> Self {
-        Self { ctx, body, options }
+    pub fn new(body: &'ir Body, options: IrGraphOptions) -> Self {
+        Self { body, options }
     }
 
     /// Function that writes the body to the appropriate writer.
@@ -95,21 +93,17 @@ impl<'ir> IrGraphWriter<'ir> {
 
                     // We add 1 to the index because the return type is always
                     // located at `0`.
-                    write!(
-                        w,
-                        "{}",
-                        encode_text(&format!("_{}: {}", i + 1, param.ty().for_fmt(self.ctx)))
-                    )?;
+                    write!(w, "{}", encode_text(&format!("_{}: {}", i + 1, param.ty())))?;
                 }
                 writeln!(
                     w,
                     "{}{}",
-                    encode_text(&format!(") -> {} {{", return_ty_decl.ty().for_fmt(self.ctx))),
+                    encode_text(&format!(") -> {} {{", return_ty_decl.ty())),
                     LINE_SEPARATOR
                 )?;
             }
             BodySource::Const => {
-                let header = format!("{}", self.body.info().ty().fmt_with_opts(self.ctx, false));
+                let header = format!("{}", self.body.info().ty());
 
                 // @@Todo: maybe figure out a better format for this?
                 write!(
@@ -132,7 +126,7 @@ impl<'ir> IrGraphWriter<'ir> {
                 w,
                 "{}{local:?}: {};{}",
                 decl.mutability(),
-                encode_text(&format!("{}", decl.ty().fmt_with_opts(self.ctx, false))),
+                encode_text(&format!("{}", decl.ty())),
                 LINE_SEPARATOR
             )?;
         }
@@ -171,7 +165,7 @@ impl<'ir> IrGraphWriter<'ir> {
                         for (value, target) in targets.iter() {
                             // We want to create an a constant from this value
                             // with the type, and then print it.
-                            let value = Const::from_scalar(value, targets.ty, self.ctx);
+                            let value = Const::from_scalar(value, targets.ty);
 
                             writeln!(
                                 w,
@@ -259,7 +253,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left" balign="left">{}</td></tr>"#,
-                encode_text(&format!("{}", statement.for_fmt(self.ctx)))
+                encode_text(&format!("{}", statement))
             )?;
         }
 
@@ -268,7 +262,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left">{}</td></tr>"#,
-                encode_text(&format!("{}", terminator.fmt_with_opts(self.ctx, false)))
+                encode_text(&format!("{}", terminator.with_edges(false)))
             )?;
         }
 
@@ -279,7 +273,6 @@ impl<'ir> IrGraphWriter<'ir> {
 
 /// Dump all of the provided [Body]s to standard output using the `dot` format.
 pub fn dump_ir_bodies(
-    ctx: &IrCtx,
     bodies: &[Body],
     dump_all: bool,
     prelude_is_quiet: bool,
@@ -300,7 +293,7 @@ pub fn dump_ir_bodies(
         }
 
         let opts = IrGraphOptions { use_subgraph: Some(id), ..IrGraphOptions::default() };
-        let dumper = IrGraphWriter::new(ctx, body, opts);
+        let dumper = IrGraphWriter::new(body, opts);
         dumper.write_body(writer)?;
     }
 

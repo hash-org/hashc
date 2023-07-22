@@ -9,11 +9,11 @@ use hash_ir::{
         self, AggregateKind, BasicBlock, Const, LogicalBinOp, Operand, Place, RValue, Statement,
         StatementKind, TerminatorKind,
     },
-    ty::{AdtId, IrTy, Mutability, RefKind, VariantIdx},
+    ty::{AdtId, IrTy, IrTyId, Mutability, RefKind, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{constant::CONSTANT_MAP, identifier::Identifier, location::Span};
-use hash_storage::store::{statics::StoreId, CloneStore, SequenceStoreKey, Store};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
     arrays::ArrayTerm,
@@ -53,7 +53,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             Term::Tuple(TupleTerm { data }) => {
                 let ty = self.ty_id_from_tir_term(term);
-                let adt = self.ctx().map_ty_as_adt(ty, |_, id| id);
+                let adt = ty.borrow().as_adt();
                 let aggregate_kind = AggregateKind::Tuple(adt);
 
                 let args = data
@@ -80,10 +80,9 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Term::Array(ArrayTerm { elements }) => {
                 // We lower literal arrays and tuples as aggregates.
-                let ty_id = self.ty_id_from_tir_term(term);
-                let ty = self.ctx().tys().get(ty_id);
+                let ty = self.ty_id_from_tir_term(term);
 
-                let aggregate_kind = AggregateKind::Array(ty_id);
+                let aggregate_kind = AggregateKind::Array(ty);
                 let args = elements
                     .borrow()
                     .iter()
@@ -93,11 +92,11 @@ impl<'tcx> BodyBuilder<'tcx> {
                     .collect_vec();
 
                 // If it is a list, we have to initialise it with the array elements...
-                if !ty.is_array() {
+                if !ty.borrow().is_array() {
                     self.lower_list_initialisation(
                         destination,
                         block,
-                        &ty,
+                        ty,
                         aggregate_kind,
                         &args,
                         span,
@@ -108,32 +107,21 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
 
             Term::Ctor(ref ctor) => {
-                let id = self.ty_id_from_tir_term(term);
-                let ty = self.ctx().tys().get(id);
+                let ty = self.ty_id_from_tir_term(term);
 
-                match ty {
-                    IrTy::Adt(adt) => {
-                        // This is a constructor call, so we need to handle it as such.
-                        self.constructor_into_dest(destination, block, ctor, adt, span)
-                    }
-                    IrTy::Bool => {
-                        // @@Hack: check which constructor is being called to determine whether
-                        // it is a `true` or `false` value.
-                        let constant =
-                            if ctor.ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
+                if ty == COMMON_IR_TYS.bool {
+                    // @@Hack: check which constructor is being called to determine whether
+                    // it is a `true` or `false` value.
+                    let constant =
+                        if ctor.ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
 
-                        self.control_flow_graph.push_assign(
-                            block,
-                            destination,
-                            constant.into(),
-                            span,
-                        );
+                    self.control_flow_graph.push_assign(block, destination, constant.into(), span);
 
-                        block.unit()
-                    }
-                    _ => {
-                        panic!("Expected an ADT type for the constructor");
-                    }
+                    block.unit()
+                } else {
+                    let adt = ty.borrow().as_adt();
+                    // This is a constructor call, so we need to handle it as such.
+                    self.constructor_into_dest(destination, block, ctor, adt, span)
                 }
             }
             Term::FnCall(ref fn_term @ FnCallTerm { subject, args, .. }) => {
@@ -205,7 +193,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                             LogicalBinOp::Or => (short_circuiting_block, else_block),
                         };
 
-                        let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1, self.ctx());
+                        let term = TerminatorKind::make_if(lhs, blocks.0, blocks.1);
                         self.control_flow_graph.terminate(block, span, term);
 
                         // Create the constant that we will assign in the `short_circuiting` block.
@@ -244,7 +232,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Term::Var(symbol) => {
                 let local = self.lookup_local(symbol).unwrap();
-                let place = Place::from_local(local, self.ctx());
+                let place = Place::from_local(local);
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);
 
                 block.unit()
@@ -277,9 +265,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block.unit()
             }
             Term::Return(ReturnTerm { expression }) => {
-                unpack!(
-                    block = self.term_into_dest(Place::return_place(self.ctx()), block, expression)
-                );
+                unpack!(block = self.term_into_dest(Place::return_place(), block, expression));
 
                 // In either case, we want to mark that the function has reached the
                 // **terminating** statement of this block and we needn't continue looking
@@ -304,7 +290,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block = unpack!(self.lower_assign_term(block, assign_term, span));
 
                 // Assign the `value` of the assignment into the `tmp_place`
-                let const_value = ir::Const::zero(self.ctx());
+                let const_value = ir::Const::zero();
                 self.control_flow_graph.push_assign(block, destination, const_value.into(), span);
 
                 block.unit()
@@ -442,7 +428,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) -> BlockAnd<()> {
         let CtorTerm { ctor, ctor_args, .. } = subject;
 
-        let aggregate_kind = self.ctx().adts().map_fast(adt_id, |adt| {
+        let aggregate_kind = adt_id.map(|adt| {
             if adt.flags.is_enum() || adt.flags.is_union() {
                 AggregateKind::Enum(adt_id, VariantIdx::from_usize(ctor.1))
             } else {
@@ -496,7 +482,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // We don't need to perform this check for arrays since they don't need
         // to have a specific amount of arguments to the constructor.
         let fields: Vec<_> = if aggregate_kind.is_adt() {
-            let adt_id = aggregate_kind.adt_id();
+            let adt = aggregate_kind.adt_id();
 
             // We have to evaluate each field in the specified source
             // order despite the aggregate potentially having a different
@@ -517,7 +503,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 field_names.push(*name);
             }
 
-            self.ctx().adts().map_fast(adt_id, |adt| {
+            adt.map(|adt| {
                 let variant = if let AggregateKind::Enum(_, index) = aggregate_kind {
                     &adt.variants[index]
                 } else {
@@ -613,13 +599,13 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        ty: &IrTy,
+        ty: IrTyId,
         aggregate_kind: AggregateKind,
         args: &[(Identifier, TermId)],
         span: Span,
     ) -> BlockAnd<()> {
         let ptr_width = self.settings.target().ptr_size();
-        let element_ty = ty.element_ty(self.ctx()).unwrap();
+        let element_ty = ty.borrow().element_ty().unwrap();
         let size = self.ctx.size_of(element_ty).unwrap() * args.len();
         let const_size = CONSTANT_MAP.create_usize_int(size, ptr_width);
         let size_op = Operand::Const(Const::Int(const_size).into());
@@ -633,17 +619,21 @@ impl<'tcx> BodyBuilder<'tcx> {
         //
         // Make the call to `malloc`, and then assign the result to a
         // temporary.
-        let ptr = self.temp_place(self.ctx().tys().common_tys.raw_ptr);
+        let ptr = self.temp_place(COMMON_IR_TYS.raw_ptr);
         unpack!(block = self.build_fn_call(ptr, block, subject, vec![size_op], span));
 
         // we make a new temporary which is a pointer to the array and assign `ptr`
         // to it.
-        let ty = IrTy::make_ref(IrTy::Array { ty: element_ty, length: args.len() }, self.ctx());
-        let array_ptr = self.temp_place(self.ctx().tys().create(ty));
+        let ty = IrTy::make_ref(
+            IrTy::Array { ty: element_ty, length: args.len() },
+            Mutability::Immutable,
+            RefKind::Normal,
+        );
+        let array_ptr = self.temp_place(ty);
         self.control_flow_graph.push_assign(block, array_ptr, Operand::Place(ptr).into(), span);
 
         // 2). Write data to allocation.
-        self.aggregate_into_dest(array_ptr.deref(self.ctx()), block, aggregate_kind, args, span);
+        self.aggregate_into_dest(array_ptr.deref(), block, aggregate_kind, args, span);
 
         // 3).
         //
@@ -668,8 +658,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 subject,
                 // The first two arguments are the fill-ins for the generic parameters.
                 vec![
-                    Operand::Const(Const::Zero(self.ctx().tys().common_tys.unit).into()),
-                    Operand::Const(Const::Zero(self.ctx().tys().common_tys.unit).into()),
+                    Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
+                    Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
                     Operand::Place(sized_ptr)
                 ],
                 span

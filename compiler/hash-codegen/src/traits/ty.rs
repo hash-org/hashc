@@ -4,6 +4,7 @@ use hash_abi::FnAbi;
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_layout::TyInfo;
 use hash_source::constant::FloatTy;
+use hash_storage::store::statics::StoreId;
 use hash_target::abi::{AddressSpace, Integer};
 
 use super::{layout::LayoutMethods, BackendTypes};
@@ -127,6 +128,6 @@ pub trait TypeBuilderMethods<'b>: BackendTypes + LayoutMethods<'b> {
     /// Check whether a given type has additional hidden metadata like the
     /// size of a slice or a string.
     fn ty_has_hidden_metadata(&self, ty: IrTyId) -> bool {
-        self.ir_ctx().map_ty(ty, |ty| matches!(ty, IrTy::Slice(_) | IrTy::Str))
+        ty.map(|ty| matches!(ty, IrTy::Slice(_) | IrTy::Str))
     }
 }

@@ -301,10 +301,8 @@ impl<'ctx> BodyBuilder<'ctx> {
         // If it is a function type, then we use the return type of the
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
-        let return_ty = self.ctx().map_ty(ty, |item_ty| match item_ty {
-            IrTy::FnDef { instance } => {
-                self.ctx().map_instance(*instance, |instance| instance.ret_ty)
-            }
+        let return_ty = ty.map(|item_ty| match item_ty {
+            IrTy::FnDef { instance } => instance.borrow().ret_ty,
             _ => ty,
         });
 
@@ -369,8 +367,7 @@ impl<'ctx> BodyBuilder<'ctx> {
 
         // Now that we have built the inner body block, we then need to terminate
         // the current basis block with a return terminator.
-        let return_block =
-            unpack!(self.term_into_dest(Place::return_place(self.ctx()), start, body));
+        let return_block = unpack!(self.term_into_dest(Place::return_place(), start, body));
         let span = self.span_of_term(body);
 
         self.control_flow_graph.terminate(return_block, span, TerminatorKind::Return);

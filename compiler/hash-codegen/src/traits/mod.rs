@@ -84,7 +84,7 @@ pub trait HasCtxMethods<'b>: HasDataLayout {
 
     /// Create a [LayoutComputer] for the current context.
     fn layout_computer(&self) -> LayoutComputer<'_> {
-        LayoutComputer::new(self.layouts(), self.ir_ctx())
+        LayoutComputer::new(self.layouts())
     }
 
     /// Returns a reference to the [LayoutCtx].

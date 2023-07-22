@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use hash_ast::ast;
 use hash_ir::{
     ir::{compare_constant_values, Const},
-    ty::IrTy,
+    ty::IrTyId,
 };
 use hash_tir::pats::RangePat;
 
@@ -30,12 +30,12 @@ pub(super) struct ConstRange {
 
     /// The type of the range. This is stored for convience when computing
     /// the range.
-    pub ty: IrTy,
+    pub ty: IrTyId,
 }
 
 impl ConstRange {
     /// Create a [ConstRange] from [RangePat].
-    pub fn from_range(range: &RangePat, ty: IrTy, builder: &BodyBuilder) -> Self {
+    pub fn from_range(range: &RangePat, ty: IrTyId, builder: &BodyBuilder) -> Self {
         let (lo, _) = builder.evaluate_range_lit(range.lo, ty, false);
         let (hi, _) = builder.evaluate_range_lit(range.hi, ty, true);
 

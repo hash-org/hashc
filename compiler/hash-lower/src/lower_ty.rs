@@ -6,15 +6,16 @@ use hash_ir::{
     intrinsics::Intrinsic,
     lang_items::LangItem,
     ty::{
-        self, AdtData, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
-        Mutability, RepresentationFlags,
+        self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
+        IrTyListId, Mutability, RepresentationFlags, COMMON_IR_TYS,
     },
     TyCacheEntry,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{attributes::Attribute, identifier::IDENTS};
 use hash_storage::store::{
-    statics::StoreId, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+    statics::{SingleStoreValue, StoreId},
+    PartialCloneStore, PartialStore, SequenceStoreKey,
 };
 use hash_target::size::Size;
 use hash_tir::{
@@ -99,15 +100,13 @@ impl<'ir> BuilderCtx<'ir> {
                     .collect();
                 let variant = AdtVariant { name: "0".into(), fields };
 
-                let adt = AdtData::new_with_flags("tuple".into(), index_vec![variant], flags);
-                let id = self.lcx.adts().create(adt);
-                IrTy::Adt(id)
+                let adt = Adt::new_with_flags("tuple".into(), index_vec![variant], flags);
+                IrTy::Adt(Adt::create(adt))
             }
             Ty::Fn(FnTy { params, return_ty, .. }) => {
-                let params = self.lcx.tls().create_from_iter(
+                let params = IrTyListId::seq(
                     params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
                 );
-
                 let return_ty = self.ty_id_from_tir_ty(return_ty);
                 IrTy::Fn { params, return_ty }
             }
@@ -151,8 +150,7 @@ impl<'ir> BuilderCtx<'ir> {
             }
         };
 
-        // Create the type
-        self.lcx.tys().create(ty)
+        IrTy::create(ty)
     }
 
     /// Create a new [IrTyId] from the given function definition whilst
@@ -166,8 +164,8 @@ impl<'ir> BuilderCtx<'ir> {
 
             // Check if the instance has the `lang` attribute, specifying that it is
             // the lang-item attribute.
-            let instance = self.lcx.instances().create(instance);
-            let ty = self.lcx.tys().create(IrTy::FnDef { instance });
+            let instance = Instance::create(instance);
+            let ty = IrTy::create(IrTy::FnDef { instance });
 
             if is_lang {
                 let item = LangItem::from_str_name(name.into());
@@ -197,10 +195,8 @@ impl<'ir> BuilderCtx<'ir> {
         let source = self.get_location(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
-        let params = self
-            .lcx
-            .tls()
-            .create_from_iter(params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
+        let params =
+            IrTyListId::seq(params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
         let ident = name.ident();
@@ -243,7 +239,7 @@ impl<'ir> BuilderCtx<'ir> {
         match ctor_defs.len() {
             // This must be the never type.
             0 => {
-                return (self.lcx.tys().common_tys.never, false);
+                return (COMMON_IR_TYS.never, false);
             }
             1 => flags |= AdtFlags::STRUCT,
             _ => flags |= AdtFlags::ENUM,
@@ -253,7 +249,7 @@ impl<'ir> BuilderCtx<'ir> {
         // so that if any inner types are recursive, they can refer to
         // this type, and it will be updated once the type is fully defined.
         // Apply the arguments as the scope of the data type.
-        let reserved_ty = self.lcx.tys().create(IrTy::Never);
+        let reserved_ty = IrTy::create(IrTy::Never);
         self.lcx.ty_cache().borrow_mut().insert(ty.into(), reserved_ty);
 
         // We want to add the arguments to the ADT, so that we can print them
@@ -261,7 +257,7 @@ impl<'ir> BuilderCtx<'ir> {
         let subs = if ty.args.len() > 0 {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
-            Some(self.lcx.tls().create_from_iter(ty.args.borrow().iter().map(|arg| {
+            Some(IrTyListId::seq(ty.args.borrow().iter().map(|arg| {
                 let ty = self.use_term_as_ty(arg.value);
                 self.ty_id_from_tir_ty(ty)
             })))
@@ -278,8 +274,9 @@ impl<'ir> BuilderCtx<'ir> {
                     .params
                     .borrow()
                     .iter()
-                    .map(|field| AdtField {
-                        name: field.name.ident(),
+                    .enumerate()
+                    .map(|(index, field)| AdtField {
+                        name: field.name.borrow().name.unwrap_or(index.into()),
                         ty: self.ty_id_from_tir_ty(field.ty),
                     })
                     .collect_vec();
@@ -290,7 +287,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Get the name of the data type, if no name exists we default to
         // using `_`.
-        let mut adt = AdtData::new_with_flags(def.name.ident(), variants, flags);
+        let mut adt = Adt::new_with_flags(def.name.ident(), variants, flags);
         adt.substitutions = subs;
 
         // Deal with any specific attributes that were set on the type, i.e.
@@ -302,8 +299,7 @@ impl<'ir> BuilderCtx<'ir> {
         }
 
         // Update the type in the slot that was reserved for it.
-        let id = self.lcx.adts().create(adt);
-        self.lcx.tys().modify_fast(reserved_ty, |ty| *ty = IrTy::Adt(id));
+        reserved_ty.modify(|ty| *ty = IrTy::Adt(Adt::create(adt)));
 
         // We created our own cache entry, so we don't need to update the
         // cache.
@@ -319,7 +315,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
                 if self.primitives().bool() == ty.data_def {
-                    return (self.lcx.tys().common_tys.bool, true);
+                    return (COMMON_IR_TYS.bool, true);
                 }
 
                 self.context().enter_scope(ty.data_def.into(), || {
@@ -334,8 +330,8 @@ impl<'ir> BuilderCtx<'ir> {
                     PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, is_signed, is_float }) => {
                         if is_float {
                             match bits {
-                                NumericCtorBits::Bounded(32) => self.lcx.tys().common_tys.f32,
-                                NumericCtorBits::Bounded(64) => self.lcx.tys().common_tys.f64,
+                                NumericCtorBits::Bounded(32) => COMMON_IR_TYS.f32,
+                                NumericCtorBits::Bounded(64) => COMMON_IR_TYS.f64,
 
                                 // Other bits widths are not supported.
                                 _ => unreachable!(),
@@ -347,21 +343,21 @@ impl<'ir> BuilderCtx<'ir> {
 
                                     if is_signed {
                                         match size.bytes() {
-                                            1 => self.lcx.tys().common_tys.i8,
-                                            2 => self.lcx.tys().common_tys.i16,
-                                            4 => self.lcx.tys().common_tys.i32,
-                                            8 => self.lcx.tys().common_tys.i64,
-                                            16 => self.lcx.tys().common_tys.i128,
+                                            1 => COMMON_IR_TYS.i8,
+                                            2 => COMMON_IR_TYS.i16,
+                                            4 => COMMON_IR_TYS.i32,
+                                            8 => COMMON_IR_TYS.i64,
+                                            16 => COMMON_IR_TYS.i128,
                                             _ => unreachable!(), /* Other bits widths are not
                                                                   * supported. */
                                         }
                                     } else {
                                         match size.bytes() {
-                                            1 => self.lcx.tys().common_tys.u8,
-                                            2 => self.lcx.tys().common_tys.u16,
-                                            4 => self.lcx.tys().common_tys.u32,
-                                            8 => self.lcx.tys().common_tys.u64,
-                                            16 => self.lcx.tys().common_tys.u128,
+                                            1 => COMMON_IR_TYS.u8,
+                                            2 => COMMON_IR_TYS.u16,
+                                            4 => COMMON_IR_TYS.u32,
+                                            8 => COMMON_IR_TYS.u64,
+                                            16 => COMMON_IR_TYS.u128,
                                             _ => unreachable!(), /* Other bits widths are not
                                                                   * supported. */
                                         }
@@ -373,8 +369,8 @@ impl<'ir> BuilderCtx<'ir> {
                     }
 
                     // @@Temporary: `str` implies that it is a `&str`
-                    PrimitiveCtorInfo::Str => self.lcx.tys().common_tys.str,
-                    PrimitiveCtorInfo::Char => self.lcx.tys().common_tys.char,
+                    PrimitiveCtorInfo::Str => COMMON_IR_TYS.str,
+                    PrimitiveCtorInfo::Char => COMMON_IR_TYS.char,
                     PrimitiveCtorInfo::Array(ArrayCtorInfo { element_ty, length }) => {
                         // Apply the arguments as the scope of the data type.
                         self.context().enter_scope(ty.data_def.into(), || {
@@ -390,13 +386,15 @@ impl<'ir> BuilderCtx<'ir> {
                                 // assume that it is immutable and a normal reference kind.
                                 None => {
                                     let slice = IrTy::Slice(self.ty_id_from_tir_ty(element_ty));
-                                    let id = self.lcx.tys().create(slice);
-
-                                    IrTy::Ref(id, Mutability::Immutable, ty::RefKind::Normal)
+                                    IrTy::Ref(
+                                        IrTy::create(slice),
+                                        Mutability::Immutable,
+                                        ty::RefKind::Normal,
+                                    )
                                 }
                             };
 
-                            self.lcx.tys().create(ty)
+                            IrTy::create(ty)
                         })
                     }
                 };

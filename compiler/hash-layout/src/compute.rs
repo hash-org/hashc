@@ -5,11 +5,8 @@
 
 use std::{cmp, iter, num::NonZeroUsize};
 
-use hash_ir::{
-    ty::{AdtData, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx},
-    IrCtx,
-};
-use hash_storage::store::{CloneStore, Store, StoreInternalData};
+use hash_ir::ty::{Adt, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx};
+use hash_storage::store::{statics::StoreId, CloneStore, Store, StoreInternalData};
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
@@ -115,9 +112,6 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 pub struct LayoutComputer<'l> {
     /// A reference tot the [LayoutCtx].
     layout_ctx: &'l LayoutCtx,
-
-    /// A reference to the [IrCtx].
-    ir_ctx: &'l IrCtx,
 }
 
 impl Store<LayoutId, Layout> for LayoutComputer<'_> {
@@ -128,8 +122,8 @@ impl Store<LayoutId, Layout> for LayoutComputer<'_> {
 
 impl<'l> LayoutComputer<'l> {
     /// Create a new [LayoutCtx].
-    pub fn new(layout_store: &'l LayoutCtx, ir_ctx: &'l IrCtx) -> Self {
-        Self { layout_ctx: layout_store, ir_ctx }
+    pub fn new(layout_store: &'l LayoutCtx) -> Self {
+        Self { layout_ctx: layout_store }
     }
 
     /// Returns a reference to the [LayoutCtx].
@@ -149,11 +143,6 @@ impl<'l> LayoutComputer<'l> {
         &self.layout_ctx.common_layouts
     }
 
-    /// Returns a reference to the [IrCtx].
-    pub fn ir_ctx(&self) -> &IrCtx {
-        self.ir_ctx
-    }
-
     /// This is the entry point of the layout computation engine. From
     /// here, the [Layout] of a type will be computed all the way recursively
     /// until all of the leaves of the type are also turned into [Layout]s.
@@ -170,7 +159,7 @@ impl<'l> LayoutComputer<'l> {
             return Ok(layout);
         }
 
-        let layout = self.ir_ctx.map_ty(ty_id, |ty| match ty {
+        let layout = ty_id.map(|ty| match ty {
             IrTy::Int(ty) => match ty {
                 SIntTy::I8 => Ok(self.common_layouts().i8),
                 SIntTy::I16 => Ok(self.common_layouts().i16),
@@ -210,7 +199,7 @@ impl<'l> LayoutComputer<'l> {
                 }
 
                 // Compute any metadata if we need to.
-                let maybe_metadata = self.ir_ctx().map_ty(*pointee, |ty| match ty {
+                let maybe_metadata = pointee.map(|ty| match ty {
                     IrTy::Str | IrTy::Slice(_) => Some(scalar_unit(ScalarKind::Int {
                         kind: dl.ptr_sized_integer(),
                         signed: false,
@@ -250,7 +239,7 @@ impl<'l> LayoutComputer<'l> {
                 }))
             }
             IrTy::Array { ty, length: size } => self.compute_layout_of_array(*ty, *size as u64),
-            IrTy::Adt(adt) => self.ir_ctx.map_adt(*adt, |_id, adt| -> Result<_, LayoutError> {
+            IrTy::Adt(adt) => adt.map(|adt| -> Result<_, LayoutError> {
                 // We have to compute the layouts of all of the variants
                 // and all of the fields of the variants
                 let field_layout_table = adt
@@ -572,7 +561,7 @@ impl<'l> LayoutComputer<'l> {
     fn compute_layout_of_union(
         &self,
         field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
-        data: &AdtData,
+        data: &Adt,
     ) -> Option<Layout> {
         debug_assert!(data.flags.is_union());
 
@@ -652,7 +641,7 @@ impl<'l> LayoutComputer<'l> {
     fn compute_layout_of_enum(
         &self,
         field_layout_table: IndexVec<VariantIdx, Vec<LayoutId>>,
-        adt: &AdtData,
+        adt: &Adt,
     ) -> Option<Layout> {
         debug_assert!(adt.flags.is_enum());
         let dl = self.data_layout();
@@ -996,7 +985,7 @@ impl<'l> LayoutComputer<'l> {
             return *pointee_info;
         }
 
-        let result = self.ir_ctx().map_ty(info.ty, |ty| match ty {
+        let result = info.ty.map(|ty| match ty {
             IrTy::Fn { .. } if offset == Size::ZERO => {
                 let (size, alignment) = self
                     .layouts()

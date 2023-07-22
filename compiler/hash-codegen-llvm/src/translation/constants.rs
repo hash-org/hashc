@@ -1,12 +1,9 @@
 //! Implements all of the constant building methods.
 use hash_codegen::{
     target::{abi::Scalar, data_layout::HasDataLayout},
-    traits::{
-        constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods,
-        HasCtxMethods,
-    },
+    traits::{constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods},
 };
-use hash_ir::ir::Const;
+use hash_ir::{ir::Const, ty::COMMON_IR_TYS};
 use hash_source::constant::{InternedStr, CONSTANT_MAP};
 use inkwell::{module::Linkage, types::BasicTypeEnum, values::AnyValueEnum};
 
@@ -131,7 +128,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
             (s, global)
         });
 
-        let byte_slice_ty = self.ir_ctx().tys().common_tys.byte_slice;
+        let byte_slice_ty = COMMON_IR_TYS.byte_slice;
         let ptr = global_str.as_pointer_value().const_cast(
             self.type_ptr_to(self.layout_of(byte_slice_ty).llvm_ty(self)).into_pointer_type(),
         );
