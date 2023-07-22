@@ -49,6 +49,14 @@ pub trait SequenceStoreValue: Sized {
     fn seq<F: FnOnce(Self::ElementId) -> Self, I: IntoIterator<Item = F>>(iter: I) -> Self::Id
     where
         I::IntoIter: ExactSizeIterator;
+
+    /// Create a new value in the store from the given iterator of values.
+    fn seq_data<I: IntoIterator<Item = Self>>(iter: I) -> Self::Id
+    where
+        I::IntoIter: ExactSizeIterator,
+    {
+        Self::seq(iter.into_iter().map(|data| move |_| data))
+    }
 }
 
 /// A trait for a store ID containing single items which can be used to access a

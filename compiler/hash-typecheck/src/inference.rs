@@ -14,12 +14,13 @@ use hash_source::{
     ModuleKind,
 };
 use hash_storage::store::{
-    statics::StoreId, CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store,
-    TrivialKeySequenceStore, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
+    CloneStore, PartialCloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
+    TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
-    args::{ArgData, ArgId, ArgsId, PatArgsId, PatOrCapture},
+    args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
@@ -32,7 +33,7 @@ use hash_tir::{
     lits::Lit,
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
-    params::ParamsId,
+    params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
@@ -241,12 +242,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             match pat_arg.pat {
                 PatOrCapture::Pat(pat) => {
                     let term = self.try_use_pat_as_term(pat)?;
-                    args.push(ArgData { target: pat_arg.target, value: term });
+                    args.push(Arg { target: pat_arg.target, value: term });
                 }
                 PatOrCapture::Capture => return None,
             }
         }
-        Some(self.param_utils().create_args(args.into_iter()))
+        Some(Arg::seq_data(args))
     }
 
     pub fn try_use_pat_as_term(&self, pat_id: PatId) -> Option<TermId> {
@@ -393,9 +394,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.normalise_and_check_ty(annotation_ty)?;
             let params = match self.get_ty(annotation_ty) {
                 Ty::Tuple(tuple_ty) => self.sub_ops().copy_params(tuple_ty.data),
-                Ty::Hole(_) => self.param_utils().create_hole_params_from_args(tuple_term.data),
+                Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_term.data),
                 _ => {
-                    let inferred = self.param_utils().create_hole_params_from_args(tuple_term.data);
+                    let inferred = Param::seq_from_args_with_hole_types(tuple_term.data);
                     return Err(TcError::MismatchingTypes {
                         expected: annotation_ty,
                         actual: self.new_ty(TupleTy { data: inferred }),
@@ -697,14 +698,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Data(data) if data.data_def == ctor.data_def_id => DataTy {
                 data_def: data_def.id,
                 args: if data.args.len() == 0 {
-                    self.param_utils().instantiate_params_as_holes(data_def.params)
+                    Arg::seq_from_params_as_holes(data_def.params)
                 } else {
                     data.args
                 },
             },
             Ty::Hole(_) => DataTy {
                 data_def: data_def.id,
-                args: self.param_utils().instantiate_params_as_holes(data_def.params),
+                args: Arg::seq_from_params_as_holes(data_def.params),
             },
             _ => {
                 return Err(TcError::MismatchingTypes {
@@ -718,7 +719,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Get the data arguments given to the constructor, like Equal<...>::Refl(...)
         //                                                             ^^^ these
         let ctor_data_args = if data_args.len() == 0 {
-            self.param_utils().instantiate_params_as_holes(data_def.params)
+            Arg::seq_from_params_as_holes(data_def.params)
         } else {
             data_args
         };
@@ -847,7 +848,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 Ty::Fn(fn_ty) => {
                     // Potentially fill-in implicit args
                     if let Ty::Fn(_) = self.get_ty(fn_ty.return_ty) && fn_ty.implicit && !fn_call_term.implicit {
-                        let applied_args = self.param_utils().instantiate_params_as_holes(fn_ty.params);
+                        let applied_args = Arg::seq_from_params_as_holes(fn_ty.params);
                         let copied_subject = self.new_term_from(fn_call_term.subject, self.get_term(fn_call_term.subject));
                         let new_subject = FnCallTerm {
                             args: applied_args,
@@ -1596,9 +1597,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.normalise_and_check_ty(annotation_ty)?;
         let params = match self.get_ty(annotation_ty) {
             Ty::Tuple(tuple_ty) => tuple_ty.data,
-            Ty::Hole(_) => self.param_utils().create_hole_params_from_args(tuple_pat.data),
+            Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_pat.data),
             _ => {
-                let inferred = self.param_utils().create_hole_params_from_args(tuple_pat.data);
+                let inferred = Param::seq_from_args_with_hole_types(tuple_pat.data);
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: self.new_expected_ty_of(
@@ -1683,14 +1684,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Data(data) if data.data_def == ctor.data_def_id => DataTy {
                 data_def: data_def.id,
                 args: if data.args.len() == 0 {
-                    self.param_utils().instantiate_params_as_holes(data_def.params)
+                    Arg::seq_from_params_as_holes(data_def.params)
                 } else {
                     data.args
                 },
             },
             Ty::Hole(_) => DataTy {
                 data_def: data_def.id,
-                args: self.param_utils().instantiate_params_as_holes(data_def.params),
+                args: Arg::seq_from_params_as_holes(data_def.params),
             },
             _ => {
                 return Err(TcError::MismatchingTypes {
@@ -1704,7 +1705,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Get the data arguments given to the constructor, like Equal<...>::Refl(...)
         //                                                             ^^^ these
         let ctor_data_args = if data_args.len() == 0 {
-            self.param_utils().instantiate_params_as_holes(data_def.params)
+            Arg::seq_from_params_as_holes(data_def.params)
         } else {
             data_args
         };

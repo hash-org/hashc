@@ -5,9 +5,12 @@ use std::mem::size_of;
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
 use hash_source::constant::InternedInt;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    SequenceStoreKey, Store, TrivialSequenceStoreKey,
+};
 use hash_tir::{
-    args::{PatArgData, PatArgsId, PatOrCapture},
+    args::{PatArg, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
@@ -20,7 +23,7 @@ use hash_tir::{
     tuples::{TuplePat, TupleTy},
     ty_as_variant,
     tys::{Ty, TyId},
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
@@ -302,14 +305,14 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .iter_patterns()
             .enumerate()
             .filter(|(_, p)| !self.get_deconstructed_pat_ctor(*p).is_wildcard())
-            .map(|(index, p)| PatArgData {
+            .map(|(index, p)| PatArg {
                 target: self.get_param_index((params, index).into()),
                 pat: self.construct_pat(p).into(),
             })
             .collect_vec();
 
         let field_count = fields.len();
-        let args = self.param_utils().create_pat_args(fields.into_iter());
+        let args = PatArg::seq_data(fields);
 
         if field_count != params.len() {
             (args, Some(Spread { name: Symbol::fresh(), index: field_count }))
@@ -453,9 +456,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             // verified that no un-named arguments appear after named arguments as this
             // creates an ambiguous ordering of arguments.
             .map(|(index, arg)| -> FieldPat {
-                let field = if let Some(arg_index) =
-                    self.param_utils().try_get_actual_param_index(params_id, arg.target)
-                {
+                let field = if let Some(arg_index) = params_id.at_param_index(arg.target) {
                     arg_index
                 } else {
                     index

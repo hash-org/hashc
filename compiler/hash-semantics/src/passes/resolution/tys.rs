@@ -10,8 +10,9 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::primitives::AccessToPrimitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    args::{ArgData, ArgsId},
+    args::{Arg, ArgsId},
     data::DataTy,
     environment::env::AccessToEnv,
     fns::FnCallTerm,
@@ -19,7 +20,7 @@ use hash_tir::{
     refs::{RefKind, RefTy},
     terms::Term,
     tys::{Ty, TyId, TypeOfTerm},
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 
 use super::{
@@ -47,7 +48,7 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(ArgData {
+                Ok(Arg {
                     target: arg
                         .name
                         .as_ref()
@@ -57,7 +58,7 @@ impl<'tc> ResolutionPass<'tc> {
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.param_utils().create_args(args.into_iter()))
+        Ok(Arg::seq_data(args))
     }
 
     /// Use the given [`ast::NamedTy`] as a path.
@@ -245,16 +246,12 @@ impl<'tc> ResolutionPass<'tc> {
                 let length_term = self.make_term_from_ast_expr(len.ast_ref())?;
                 Ok(self.new_ty(Ty::Data(DataTy {
                     data_def: self.primitives().array(),
-                    args: self
-                        .param_utils()
-                        .create_positional_args([self.use_ty_as_term(inner_ty), length_term]),
+                    args: Arg::seq_positional([self.use_ty_as_term(inner_ty), length_term]),
                 })))
             }
             None => Ok(self.new_ty(Ty::Data(DataTy {
                 data_def: self.primitives().list(),
-                args: self
-                    .param_utils()
-                    .create_positional_args(once(self.use_ty_as_term(inner_ty))),
+                args: Arg::seq_positional(once(self.use_ty_as_term(inner_ty))),
             }))),
         }
     }
@@ -352,7 +349,7 @@ impl<'tc> ResolutionPass<'tc> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
         let typeof_lhs = self.new_term(TypeOfTerm { term: self.use_ty_as_term(lhs) });
-        let args = self.param_utils().create_positional_args(vec![
+        let args = Arg::seq_positional(vec![
             typeof_lhs,
             self.use_ty_as_term(lhs),
             self.use_ty_as_term(rhs),

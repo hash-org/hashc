@@ -4,14 +4,14 @@ use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{From, TryInto};
 use hash_storage::store::{
-    statics::{SingleStoreValue, StoreId},
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
     SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
 };
 
-use super::{common::CommonUtils, AccessToUtils};
+use super::common::CommonUtils;
 use crate::{
     access::AccessTerm,
-    args::{ArgData, ArgsId, PatArgData, PatArgsId, PatOrCapture},
+    args::{Arg, ArgsId, PatArg, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
@@ -21,7 +21,7 @@ use crate::{
     impl_access_to_env,
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
-    params::{ParamData, ParamsId},
+    params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId},
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
@@ -360,13 +360,13 @@ impl<'env> TraversingUtils<'env> {
             let mut new_params = Vec::with_capacity(params_id.len());
             for param in params_id.iter() {
                 let param = param.value();
-                new_params.push(ParamData {
+                new_params.push(Param {
                     name: param.name,
                     ty: self.fmap_ty(param.ty, f)?,
                     default: param.default.map(|default| self.fmap_term(default, f)).transpose()?,
                 });
             }
-            Ok(self.param_utils().create_params(new_params.into_iter()))
+            Ok(Param::seq_data(new_params))
         }?;
 
         self.stores().location().copy_locations(params_id, new_params);
@@ -377,9 +377,9 @@ impl<'env> TraversingUtils<'env> {
         let new_args = self.map_args(args_id, |args| {
             let mut new_args = Vec::with_capacity(args.len());
             for arg in args {
-                new_args.push(ArgData { target: arg.target, value: self.fmap_term(arg.value, f)? });
+                new_args.push(Arg { target: arg.target, value: self.fmap_term(arg.value, f)? });
             }
-            Ok(self.param_utils().create_args(new_args.into_iter()))
+            Ok(Arg::seq_data(new_args))
         })?;
 
         self.stores().location().copy_locations(args_id, new_args);
@@ -394,7 +394,7 @@ impl<'env> TraversingUtils<'env> {
         let new_pat_args = self.stores().pat_args().map(pat_args_id, |pat_args| {
             let mut new_args = Vec::with_capacity(pat_args.len());
             for pat_arg in pat_args {
-                new_args.push(PatArgData {
+                new_args.push(PatArg {
                     target: pat_arg.target,
                     pat: match pat_arg.pat {
                         PatOrCapture::Pat(pat_id) => PatOrCapture::Pat(self.fmap_pat(pat_id, f)?),
@@ -402,7 +402,7 @@ impl<'env> TraversingUtils<'env> {
                     },
                 });
             }
-            Ok(self.param_utils().create_pat_args(new_args.into_iter()))
+            Ok(PatArg::seq_data(new_args))
         })?;
 
         self.stores().location().copy_locations(pat_args_id, new_pat_args);

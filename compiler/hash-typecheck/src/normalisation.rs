@@ -5,12 +5,12 @@ use derive_more::{Deref, From};
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{
-    statics::StoreId, CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
-    TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
+    CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
-    args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
+    args::{Arg, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
@@ -721,14 +721,14 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let evaluated_arg_data = args
             .into_iter()
             .map(|arg| -> Result<_, Signal> {
-                Ok(ArgData {
+                Ok(Arg {
                     target: arg.target,
                     value: self.to_term(self.eval_nested_and_record(arg.value.into(), &st)?),
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        evaluation_if(|| self.param_utils().create_args(evaluated_arg_data.into_iter()), &st)
+        evaluation_if(|| Arg::seq_data(evaluated_arg_data), &st)
     }
 
     /// Evaluate a function call.
@@ -920,14 +920,14 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     .filter_map(|i| match pat_data[i].pat {
                         PatOrCapture::Pat(_) => None,
                         PatOrCapture::Capture => {
-                            Some(ArgData { target: data[i].target, value: data[i].value })
+                            Some(Arg { target: data[i].target, value: data[i].value })
                         }
                     })
                     .collect_vec()
             })
         });
 
-        self.param_utils().create_args(spread_term_args.into_iter())
+        Arg::seq_data(spread_term_args)
     }
 
     /// Match the given arguments with the given pattern arguments.

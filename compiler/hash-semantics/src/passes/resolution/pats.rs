@@ -10,9 +10,9 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_storage::store::{SequenceStore, SequenceStoreKey};
+use hash_storage::store::{statics::SequenceStoreValue, SequenceStore, SequenceStoreKey};
 use hash_tir::{
-    args::{PatArgData, PatArgsId, PatOrCapture},
+    args::{PatArg, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
@@ -23,7 +23,7 @@ use hash_tir::{
     scopes::BindingPat,
     symbols::Symbol,
     tuples::TuplePat,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 
 use super::{
@@ -50,7 +50,7 @@ impl ResolutionPass<'_> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(PatArgData {
+                Ok(PatArg {
                     target: match arg.name.as_ref() {
                         Some(name) => ParamIndex::Name(name.ident),
                         None => ParamIndex::Position(i),
@@ -59,7 +59,7 @@ impl ResolutionPass<'_> {
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.param_utils().create_pat_args(args.into_iter()))
+        Ok(PatArg::seq_data(args))
     }
 
     /// Create a [`PatListId`] from the given [`ast::Pat`]s.
@@ -220,7 +220,7 @@ impl ResolutionPass<'_> {
                     // @@Hack: Constructor term without args is a valid pattern
                     Ok(self.new_pat(Pat::Ctor(CtorPat {
                         ctor: ctor_term.ctor,
-                        ctor_pat_args: self.param_utils().create_pat_args(empty()),
+                        ctor_pat_args: PatArg::seq_data(empty()),
                         ctor_pat_args_spread: None,
                         data_args: ctor_term.data_args,
                     })))

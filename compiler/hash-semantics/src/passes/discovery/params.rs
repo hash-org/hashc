@@ -2,8 +2,7 @@
 use hash_ast::ast::{self};
 use hash_tir::{
     environment::env::AccessToEnv,
-    params::{ParamId, ParamIndex, ParamsId},
-    utils::AccessToUtils,
+    params::{Param, ParamId, ParamIndex, ParamsId},
 };
 
 use super::DiscoveryPass;
@@ -17,7 +16,7 @@ impl<'tc> DiscoveryPass<'tc> {
         params: &ast::AstNodes<T>,
         name: impl Fn(&T) -> &Option<ast::AstNode<ast::Name>>,
     ) -> ParamsId {
-        let params_id = self.param_utils().create_hole_params(
+        let params_id = Param::seq_from_names_with_hole_types(
             params
                 .iter()
                 .enumerate()

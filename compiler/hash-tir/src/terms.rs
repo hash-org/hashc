@@ -129,6 +129,10 @@ impl Term {
     pub fn hole() -> TermId {
         Term::create(Term::Hole(Hole::fresh()))
     }
+
+    pub fn var(symbol: Symbol) -> TermId {
+        Term::create(Term::Var(symbol))
+    }
 }
 
 impl fmt::Display for UnsafeTerm {

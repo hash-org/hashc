@@ -6,9 +6,12 @@ use derive_more::From;
 use hash_source::identifier::Identifier;
 use hash_storage::{
     static_sequence_store_direct,
-    store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+    store::{
+        statics::{SequenceStoreValue, StoreId},
+        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    },
 };
-use utility_types::omit;
+use hash_utils::itertools::Itertools;
 
 use super::{
     args::{ArgsId, PatArgsId},
@@ -16,6 +19,7 @@ use super::{
     terms::TermId,
 };
 use crate::{
+    args::SomeArgsId,
     context::ScopeKind,
     data::{CtorDefId, DataDefId},
     environment::stores::tir_stores,
@@ -23,15 +27,12 @@ use crate::{
     symbols::Symbol,
     tir_debug_value_of_sequence_store_element_id,
     tuples::TupleTy,
-    tys::TyId,
+    tys::{Ty, TyId},
 };
-
-// @@Todo: examples
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.
 #[derive(Debug, Clone, Copy)]
-#[omit(ParamData, [id], [Debug, Clone, Copy])]
 pub struct Param {
     /// The name of the parameter.
     pub name: Symbol,
@@ -41,9 +42,39 @@ pub struct Param {
     pub default: Option<TermId>,
 }
 
-impl From<Param> for ParamData {
-    fn from(value: Param) -> Self {
-        ParamData { name: value.name, ty: value.ty, default: value.default }
+impl Param {
+    /// Create a new parameter list with the given names, and holes for all
+    /// types.
+    pub fn seq_from_names_with_hole_types(param_names: impl Iterator<Item = Symbol>) -> ParamsId {
+        Param::seq(
+            param_names
+                .map(|name| move |_id| Param { name, ty: Ty::hole(), default: None })
+                .collect_vec(),
+        )
+    }
+
+    /// Create a new parameter list with the given argument names, and holes for
+    /// all types, and no default values.
+    pub fn seq_from_args_with_hole_types(args: impl Into<SomeArgsId>) -> ParamsId {
+        let args: SomeArgsId = args.into();
+        Param::seq_from_names_with_hole_types(args.iter().map(|arg| arg.into_name()))
+    }
+}
+
+impl ParamsId {
+    // Get the actual numerical parameter index from a given [ParamsId] and
+    // [ParamIndex].
+    pub fn at_param_index(&self, index: ParamIndex) -> Option<usize> {
+        match index {
+            ParamIndex::Name(name) => self.iter().enumerate().find_map(|(i, param)| {
+                if param.borrow().name.borrow().name? == name {
+                    Some(i)
+                } else {
+                    None
+                }
+            }),
+            ParamIndex::Position(pos) => Some(pos),
+        }
     }
 }
 

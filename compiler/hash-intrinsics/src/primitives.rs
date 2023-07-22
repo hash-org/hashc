@@ -3,15 +3,17 @@ use std::iter::once;
 
 use hash_storage::store::{statics::SequenceStoreValue, Store};
 use hash_tir::{
+    args::Arg,
     data::{
         ArrayCtorInfo, DataDef, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
     },
     environment::env::{AccessToEnv, Env},
     mods::{ModMemberData, ModMemberValue},
-    params::{Param, ParamData},
+    params::Param,
     symbols::sym,
+    terms::Term,
     tys::Ty,
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 
 macro_rules! defined_primitives {
@@ -135,7 +137,7 @@ impl DefinedPrimitives {
             list: {
                 let list_sym = sym("List");
                 let t_sym = sym("T");
-                let params = env.param_utils().create_params(once(ParamData {
+                let params = Param::seq_data(once(Param {
                     name: t_sym,
                     ty: Ty::flexible_universe(),
                     default: None,
@@ -151,13 +153,10 @@ impl DefinedPrimitives {
                 let list_sym = sym("Array");
                 let t_sym = sym("T");
                 let n_sym = sym("n");
-                let params = env.param_utils().create_params(
-                    [
-                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
-                        ParamData { name: n_sym, ty: Ty::data(usize), default: None },
-                    ]
-                    .into_iter(),
-                );
+                let params = Param::seq_data([
+                    Param { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                    Param { name: n_sym, ty: Ty::data(usize), default: None },
+                ]);
                 DataDef::primitive_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
                         element_ty: Ty::var(t_sym),
@@ -172,12 +171,12 @@ impl DefinedPrimitives {
                 let none_sym = sym("None");
                 let some_sym = sym("Some");
                 let t_sym = sym("T");
-                let params = env.param_utils().create_params(once(ParamData {
+                let params = Param::seq_data(once(Param {
                     name: t_sym,
                     ty: Ty::flexible_universe(),
                     default: None,
                 }));
-                let some_params = env.param_utils().create_params(once(ParamData {
+                let some_params = Param::seq_data(once(Param {
                     name: sym("value"),
                     ty: Ty::var(t_sym),
                     default: None,
@@ -194,19 +193,16 @@ impl DefinedPrimitives {
                 let err_sym = sym("Err");
                 let t_sym = sym("T");
                 let e_sym = sym("E");
-                let params = env.param_utils().create_params(
-                    [
-                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
-                        ParamData { name: e_sym, ty: Ty::flexible_universe(), default: None },
-                    ]
-                    .into_iter(),
-                );
-                let ok_params = env.param_utils().create_params(once(ParamData {
+                let params = Param::seq_data([
+                    Param { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                    Param { name: e_sym, ty: Ty::flexible_universe(), default: None },
+                ]);
+                let ok_params = Param::seq_data(once(Param {
                     name: sym("value"),
                     ty: Ty::var(t_sym),
                     default: None,
                 }));
-                let err_params = env.param_utils().create_params(once(ParamData {
+                let err_params = Param::seq_data(once(Param {
                     name: sym("error"),
                     ty: Ty::var(e_sym),
                     default: None,
@@ -225,25 +221,16 @@ impl DefinedPrimitives {
 
                 let x_sym = sym("x");
 
-                let params = env.param_utils().create_params(
-                    [
-                        ParamData { name: t_sym, ty: Ty::flexible_universe(), default: None },
-                        ParamData { name: a_sym, ty: Ty::var(t_sym), default: None },
-                        ParamData { name: b_sym, ty: Ty::var(t_sym), default: None },
-                    ]
-                    .into_iter(),
-                );
-                let refl_params = env.param_utils().create_params(once(ParamData {
-                    name: x_sym,
-                    ty: Ty::var(t_sym),
-                    default: None,
-                }));
-
-                let refl_result_args = env.param_utils().create_positional_args([
-                    env.new_term(t_sym),
-                    env.new_term(x_sym),
-                    env.new_term(x_sym),
+                let params = Param::seq_data([
+                    Param { name: t_sym, ty: Ty::flexible_universe(), default: None },
+                    Param { name: a_sym, ty: Ty::var(t_sym), default: None },
+                    Param { name: b_sym, ty: Ty::var(t_sym), default: None },
                 ]);
+                let refl_params =
+                    Param::seq_data(once(Param { name: x_sym, ty: Ty::var(t_sym), default: None }));
+
+                let refl_result_args =
+                    Arg::seq_positional([Term::var(t_sym), Term::var(x_sym), Term::var(x_sym)]);
 
                 DataDef::indexed_enum_def(eq_sym, params, |_| {
                     vec![(refl_sym, refl_params, Some(refl_result_args))]

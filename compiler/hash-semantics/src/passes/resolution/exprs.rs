@@ -15,12 +15,12 @@ use hash_intrinsics::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_storage::store::{
-    PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
-    TrivialSequenceStoreKey,
+    statics::SequenceStoreValue, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey,
+    Store, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
-    args::{ArgData, ArgsId},
+    args::{Arg, ArgsId},
     arrays::{ArrayTerm, IndexTerm},
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
@@ -71,7 +71,7 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(ArgData {
+                Ok(Arg {
                     target: arg
                         .name
                         .as_ref()
@@ -81,7 +81,7 @@ impl<'tc> ResolutionPass<'tc> {
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.param_utils().create_args(args.into_iter()))
+        Ok(Arg::seq_data(args))
     }
 
     /// Make TC arguments from the given set of AST constructor call arguments
@@ -94,7 +94,7 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(ArgData {
+                Ok(Arg {
                     target: arg
                         .name
                         .as_ref()
@@ -104,7 +104,7 @@ impl<'tc> ResolutionPass<'tc> {
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.param_utils().create_args(args.into_iter()))
+        Ok(Arg::seq_data(args))
     }
 
     /// Make a term from the given [`ast::Expr`] and assign it to the node in
@@ -991,7 +991,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }));
             }
             ast::BinOp::Merge => {
-                let args = self.param_utils().create_positional_args(vec![typeof_lhs, lhs, rhs]);
+                let args = Arg::seq_positional([typeof_lhs, lhs, rhs]);
                 return Ok(self.use_ty_as_term(
                     self.new_ty(DataTy { data_def: self.primitives().equal(), args }),
                 ));
@@ -1001,7 +1001,7 @@ impl<'tc> ResolutionPass<'tc> {
         // Invoke the intrinsic function
         Ok(self.new_term(FnCallTerm {
             subject: self.new_term(intrinsic_fn_def),
-            args: self.param_utils().create_positional_args(vec![
+            args: Arg::seq_positional([
                 typeof_lhs,
                 self.create_term_from_integer_lit(bin_op_num),
                 lhs,
@@ -1032,11 +1032,7 @@ impl<'tc> ResolutionPass<'tc> {
         // Invoke the intrinsic function
         Ok(self.new_term(FnCallTerm {
             subject: self.new_term(intrinsic_fn_def),
-            args: self.param_utils().create_positional_args(vec![
-                typeof_a,
-                self.create_term_from_integer_lit(op_num),
-                a,
-            ]),
+            args: Arg::seq_positional([typeof_a, self.create_term_from_integer_lit(op_num), a]),
             implicit: false,
         }))
     }
