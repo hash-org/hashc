@@ -14,29 +14,20 @@ use hash_source::{
 };
 use hash_tree_def::define_tree;
 use hash_utils::{
-    counter,
-    index_vec::{Idx, IndexVec},
+    index_vec::{define_index_type, IndexVec},
     parking_lot::RwLock,
     smallvec::SmallVec,
 };
 use once_cell::sync::Lazy;
 use replace_with::replace_with_or_abort;
 
-counter! {
-    name: AstNodeId,
-    counter_name: AST_NODE_ID_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
-}
-
-impl Idx for AstNodeId {
-    fn from_usize(idx: usize) -> Self {
-        Self::from(idx as u32)
-    }
-
-    fn index(self) -> usize {
-        self.0 as usize
-    }
+define_index_type! {
+    /// This is the unique identifier for an AST node. This is used to
+    /// map spans to nodes, and vice versa. [AstNodeId]s are unique and
+    /// they are always increasing as a new nodes are created.
+    pub struct AstNodeId = u32;
+    MAX_INDEX = i32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
 /// The [`SPAN_MAP`] is a global static that is used to store the span
