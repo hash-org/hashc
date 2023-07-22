@@ -13,6 +13,7 @@ use hash_tir::{
     environment::env::AccessToEnv,
     fns::{FnBody, FnDef, FnTy},
     mods::{ModDef, ModKind, ModMember},
+    scopes::Stack,
     symbols::sym,
     terms::Term,
     tuples::TupleTy,
@@ -135,7 +136,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         // A match case creates its own stack scope.
-        let stack_id = self.stack_utils().create_stack();
+        let stack_id = Stack::empty();
         self.enter_def(node, stack_id, || {
             self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id, None, Some(&node.expr));
             walk::walk_match_case(self, node)
@@ -300,7 +301,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 DefId::Stack(_) |
                 // If we are in a function, then this is the function's body, so we add a new stack
                 DefId::Fn(_) => {
-                    let stack_id = self.stack_utils().create_stack();
+                    let stack_id = Stack::empty();
                     self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                     Ok(())
                 }
@@ -308,13 +309,13 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             Some(ItemId::Ty(_)) => {
                 // If we are in a function type, then this is the function's type return, so we
                 // add a new stack
-                let stack_id = self.stack_utils().create_stack();
+                let stack_id = Stack::empty();
                 self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                 Ok(())
             }
             None => {
                 // This is a root scope for interactive, so we add a new stack
-                let stack_id = self.stack_utils().create_stack();
+                let stack_id = Stack::empty();
                 self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                 Ok(())
             }

@@ -1,9 +1,8 @@
 //! Utility functions for working with TC primitives.
-use self::{mods::ModUtils, stack::StackUtils, traversing::TraversingUtils};
+use self::{mods::ModUtils, traversing::TraversingUtils};
 
 pub mod common;
 pub mod mods;
-pub mod stack;
 pub mod traversing;
 
 macro_rules! utils {
@@ -21,6 +20,5 @@ macro_rules! utils {
 
 utils! {
   mod_utils: ModUtils,
-  stack_utils: StackUtils,
   traversing_utils: TraversingUtils,
 }

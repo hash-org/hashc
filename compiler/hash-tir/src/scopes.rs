@@ -7,7 +7,10 @@ use core::fmt;
 
 use hash_storage::{
     static_single_store,
-    store::{statics::StoreId, Store, TrivialSequenceStoreKey},
+    store::{
+        statics::{SingleStoreValue, StoreId},
+        Store, TrivialSequenceStoreKey,
+    },
 };
 use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
@@ -106,6 +109,13 @@ pub struct Stack {
     /// Local module definition containing members that are defined in this
     /// stack.
     pub local_mod_def: Option<ModDefId>,
+}
+
+impl Stack {
+    /// Create a new stack with empty members.
+    pub fn empty() -> StackId {
+        Stack::create_with(|id| Stack { id, members: vec![], local_mod_def: None })
+    }
 }
 
 static_single_store!(

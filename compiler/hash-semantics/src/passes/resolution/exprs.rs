@@ -31,12 +31,12 @@ use hash_tir::{
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
     refs::{DerefTerm, RefKind, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
     term_as_variant,
     terms::{Term, TermId, UnsafeTerm},
     tuples::TupleTerm,
     tys::{Ty, TypeOfTerm},
-    utils::{common::CommonUtils, AccessToUtils},
+    utils::common::CommonUtils,
 };
 use hash_utils::itertools::Itertools;
 
@@ -773,7 +773,7 @@ impl<'tc> ResolutionPass<'tc> {
             inner => self.new_term(BlockTerm {
                 return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
                 statements: self.stores().term_list().create_from_slice(&[]),
-                stack_id: self.stack_utils().create_stack(),
+                stack_id: Stack::empty(),
             }),
         };
 

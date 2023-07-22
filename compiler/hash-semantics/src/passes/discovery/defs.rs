@@ -205,7 +205,6 @@ impl<'tc> DiscoveryPass<'tc> {
                 self.def_state().stack_members.modify_fast(stack_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let stack_utils = self.stack_utils();
 
                         let (mut stack_members, mut mod_members) = (vec![], vec![]);
                         for (id, data) in members {
@@ -220,10 +219,8 @@ impl<'tc> DiscoveryPass<'tc> {
                         }
 
                         // Set stack members.
-                        stack_utils.set_stack_members(
-                            stack_id,
-                            stack_members.iter().map(|(_, data)| data).copied(),
-                        );
+                        stack_id.borrow_mut().members =
+                            stack_members.iter().map(|(_, data)| *data).collect();
 
                         // Set node for each stack member.
                         for (node_id, decl) in stack_members.iter() {
@@ -239,7 +236,7 @@ impl<'tc> DiscoveryPass<'tc> {
                                 name: sym(format!("stack_mod_{}", stack_id.to_index())),
                                 members: ModMember::empty_seq(),
                             });
-                            stack_utils.set_local_mod_def(stack_id, local_mod_def_id);
+                            stack_id.borrow_mut().local_mod_def = Some(local_mod_def_id);
                             self.def_state().mod_members.insert(local_mod_def_id, mod_members);
 
                             // Add to AST info and locations, forwarded from the stack.
