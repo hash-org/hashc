@@ -26,7 +26,6 @@ use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     environment::sem_env::{AccessToSemEnv, SemEnv},
     ops::common::CommonOps,
-    passes::ast_utils::AstUtils,
 };
 
 /// The kind of context we are in.
@@ -149,12 +148,9 @@ impl<'tc> Scoping<'tc> {
         looking_in: ContextKind,
     ) -> SemanticResult<(Symbol, BindingKind)> {
         let name = name.into();
-        let symbol =
-            self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
-                symbol: sym(name),
-                location: self.source_location(span),
-                looking_in,
-            })?;
+        let symbol = self.lookup_symbol_by_name(name).ok_or_else(|| {
+            SemanticError::SymbolNotFound { symbol: sym(name), location: span, looking_in }
+        })?;
 
         // @@Todo: Ensure that we are in the correct context for the binding.
         // if self.context().get_current_scope_kind().is_constant() {

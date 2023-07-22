@@ -2,7 +2,7 @@
 use std::{cell::Cell, fmt};
 
 use hash_error_codes::error_codes::HashErrorCode;
-use hash_source::location::{RowColSpan, SourceLocation};
+use hash_source::location::{RowColRange, Span};
 use hash_utils::highlight::{highlight, Colour, Modifier};
 
 /// A data type representing a comment/message on a specific span in a code
@@ -13,7 +13,7 @@ pub struct ReportCodeBlockInfo {
     pub indent_width: usize,
 
     /// The span of the code block but using row and column indices.
-    pub span: RowColSpan,
+    pub span: RowColRange,
 }
 
 /// Enumeration describing the kind of [Report]; either being a warning, info or
@@ -117,14 +117,14 @@ impl ReportNote {
 /// optional [ReportCodeBlockInfo] which adds a message pointed to a code item.
 #[derive(Debug, Clone)]
 pub struct ReportCodeBlock {
-    pub source_location: SourceLocation,
+    pub source_location: Span,
     pub code_message: String,
     pub(crate) info: Cell<Option<ReportCodeBlockInfo>>,
 }
 
 impl ReportCodeBlock {
-    /// Create a new [ReportCodeBlock] from a [SourceLocation] and a message.
-    pub fn new(source_location: SourceLocation, code_message: impl ToString) -> Self {
+    /// Create a new [ReportCodeBlock] from a [Span] and a message.
+    pub fn new(source_location: Span, code_message: impl ToString) -> Self {
         Self { source_location, code_message: code_message.to_string(), info: Cell::new(None) }
     }
 }
@@ -223,16 +223,12 @@ impl Report {
     }
 
     /// Add a code block at the given location to the [Report].
-    pub fn add_span(&mut self, location: SourceLocation) -> &mut Self {
+    pub fn add_span(&mut self, location: Span) -> &mut Self {
         self.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")))
     }
 
     /// Add a labelled code block at the given location to the [Report].
-    pub fn add_labelled_span(
-        &mut self,
-        location: SourceLocation,
-        message: impl ToString,
-    ) -> &mut Self {
+    pub fn add_labelled_span(&mut self, location: Span, message: impl ToString) -> &mut Self {
         self.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
             location,
             message.to_string(),

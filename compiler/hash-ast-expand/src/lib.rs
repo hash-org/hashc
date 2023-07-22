@@ -64,7 +64,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
 
         // De-sugar the target if it isn't already de-sugared
         if source_info.is_expanded() && entry_point.is_interactive() {
-            let mut expander = AstExpander::new(source_map, entry_point, settings, stdout.clone());
+            let mut expander = AstExpander::new(source_map, settings, stdout.clone());
             let source = node_map.get_interactive_block(entry_point.into());
 
             expander.visit_body_block(source.node_ref()).unwrap();
@@ -79,7 +79,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
                 continue;
             }
 
-            let mut expander = AstExpander::new(source_map, source_id, settings, stdout.clone());
+            let mut expander = AstExpander::new(source_map, settings, stdout.clone());
             expander.visit_module(module.node_ref()).unwrap();
         }
 

@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_source::{constant::CONSTANT_MAP, location::Span};
+use hash_source::{constant::CONSTANT_MAP, location::ByteRange};
 use hash_token::{keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::AstGen;
@@ -87,7 +87,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// this will just parse the entry as a single expression rather than a
     /// tuple entry with an associated name and type.
     pub(crate) fn parse_tuple_lit_entry(&mut self) -> ParseResult<AstNode<TupleLitEntry>> {
-        let start = self.next_location();
+        let start = self.next_pos();
         let offset = self.offset();
 
         // Determine if this might have a tuple field name and optional type
@@ -131,7 +131,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             ParseErrorKind::ExpectedValueAfterTyAnnotation,
                             Some(TokenKindVector::singleton(TokenKind::Eq)),
                             None,
-                            Some(self.next_location()),
+                            Some(self.next_pos()),
                         )
                     })?;
 
@@ -166,10 +166,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_array_lit(
         &self,
         tree: &'stream [Token],
-        span: Span,
+        span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
-        let mut elements = AstNodes::empty();
+        let mut elements = self.nodes_with_joined_span(vec![], span);
 
         while gen.has_token() {
             let expr = gen.parse_expr_with_precedence(0)?;

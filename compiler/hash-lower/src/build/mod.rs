@@ -24,10 +24,7 @@ use hash_ir::{
     ty::{IrTy, Mutability},
 };
 use hash_pipeline::settings::CompilerSettings;
-use hash_source::{
-    identifier::{Identifier, IDENTS},
-    SourceId,
-};
+use hash_source::identifier::{Identifier, IDENTS};
 use hash_storage::store::{statics::StoreId, FxHashMap, PartialCloneStore, SequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
@@ -155,9 +152,6 @@ pub(crate) struct BodyBuilder<'tcx> {
     /// The item that is being lowered.
     item: BuildItem,
 
-    /// The originating module of where this item is defined.
-    source_id: SourceId,
-
     /// Number of arguments that will be used in the function, for constant
     /// expressions, this will be zero.
     arg_count: usize,
@@ -218,7 +212,6 @@ impl<'ctx> BodyBuilder<'ctx> {
     pub(crate) fn new(
         name: Identifier,
         item: BuildItem,
-        source_id: SourceId,
         tcx: BuilderCtx<'ctx>,
         settings: &'ctx CompilerSettings,
     ) -> Self {
@@ -238,7 +231,6 @@ impl<'ctx> BodyBuilder<'ctx> {
             ctx: tcx,
             info: BodyInfo::new(name, source),
             arg_count,
-            source_id,
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
             _needed_constants: Vec::new(),
@@ -279,7 +271,6 @@ impl<'ctx> BodyBuilder<'ctx> {
             self.info,
             self.arg_count,
             span,
-            self.source_id,
         );
 
         // If the body needs to be dumped, then we mark it as such.

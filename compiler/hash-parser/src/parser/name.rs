@@ -26,7 +26,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 err,
                 None,
                 None,
-                token.map(|tok| tok.span).unwrap_or_else(|| self.next_location()),
+                token.map(|tok| tok.span).unwrap_or_else(|| self.next_pos()),
             ),
         }
     }
@@ -44,7 +44,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 err,
                 None,
                 None,
-                token.map(|tok| tok.span).unwrap_or_else(|| self.next_location()),
+                token.map(|tok| tok.span).unwrap_or_else(|| self.next_pos()),
             ),
         }
     }

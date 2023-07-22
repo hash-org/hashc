@@ -5,7 +5,6 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-bimap = "0.6"
 derive_more = "0.99"
 indexmap = "1.9"
 num-bigint = "0.4"

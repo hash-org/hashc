@@ -2,7 +2,7 @@
 
 use hash_source::{
     identifier::{Identifier, IDENTS},
-    location::SourceLocation,
+    location::Span,
 };
 use hash_storage::store::{CloneStore, SequenceStore, Store, TrivialKeySequenceStore};
 use hash_utils::stream_less_writeln;
@@ -123,7 +123,7 @@ pub trait CommonUtils: AccessToEnv {
     }
 
     /// Get the location of a location target.
-    fn get_location(&self, target: impl Into<LocationTarget>) -> Option<SourceLocation> {
+    fn get_location(&self, target: impl Into<LocationTarget>) -> Option<Span> {
         self.stores().location().get_location(target)
     }
 

@@ -4,11 +4,11 @@
 
 use std::mem;
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     ir::PlaceProjection,
     ty::{IrTy, IrTyId},
 };
-use hash_source::location::Span;
 use hash_storage::store::statics::StoreId;
 use hash_tir::pats::{PatId, Spread};
 use hash_utils::smallvec::SmallVec;
@@ -19,7 +19,7 @@ use crate::build::{place::PlaceBuilder, BodyBuilder};
 impl<'tcx> BodyBuilder<'tcx> {
     /// Attempt to optimise the sub-candidates of a provided [Candidate]. This
     /// only performs a trivial merge, so we avoid generating exponential
-    pub(super) fn merge_sub_candidates(&mut self, candidate: &mut Candidate, span: Span) {
+    pub(super) fn merge_sub_candidates(&mut self, candidate: &mut Candidate, origin: AstNodeId) {
         if candidate.sub_candidates.is_empty() {
             return;
         }
@@ -31,7 +31,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         //
         // @@Todo: don't give up so easily here.
         for sub_candidate in &mut candidate.sub_candidates {
-            self.merge_sub_candidates(sub_candidate, span);
+            self.merge_sub_candidates(sub_candidate, origin);
 
             can_merge &=
                 sub_candidate.sub_candidates.is_empty() && sub_candidate.bindings.is_empty();
@@ -44,7 +44,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // candidate `pre_binding` block.
             for sub_candidate in mem::take(&mut candidate.sub_candidates) {
                 let or_block = sub_candidate.pre_binding_block.unwrap();
-                self.control_flow_graph.goto(or_block, any_matches, span)
+                self.control_flow_graph.goto(or_block, any_matches, origin)
             }
 
             candidate.pre_binding_block = Some(any_matches);

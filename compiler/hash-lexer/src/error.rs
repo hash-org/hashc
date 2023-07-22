@@ -7,7 +7,7 @@ use hash_reporting::{
     report::{Report, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{identifier::Identifier, location::Span};
 use hash_token::{delimiter::Delimiter, TokenKind};
 
 use crate::Lexer;
@@ -80,7 +80,7 @@ pub type LexerResult<T> = Result<T, LexerError>;
 
 /// A [LexerError] represents a encountered error during tokenisation, which
 /// includes an optional message with the error, the [LexerErrorKind] which
-/// classifies the error, and a [SourceLocation] that represents where the
+/// classifies the error, and a [Span] that represents where the
 /// tokenisation error occurred.
 #[derive(Debug)]
 pub struct LexerError {
@@ -92,7 +92,7 @@ pub struct LexerError {
 
     /// The location of the error, this includes the span and the id of the
     /// source.
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Span,
 }
 
 /// A [LexerErrorKind] represents the kind of [LexerError] which gives

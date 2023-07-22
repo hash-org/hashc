@@ -282,7 +282,7 @@ pub fn dump_ir_bodies(
 
     for (id, body) in bodies.iter().enumerate() {
         // Skip the prelude if we're in quiet mode
-        if prelude_is_quiet && body.source_id.is_prelude() {
+        if prelude_is_quiet && body.source().is_prelude() {
             continue;
         }
 

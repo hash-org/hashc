@@ -5,7 +5,7 @@ use hash_reporting::{
     self,
     reporter::{Reporter, Reports},
 };
-use hash_source::location::SourceLocation;
+use hash_source::location::Span;
 use hash_tir::{
     environment::env::AccessToEnv, symbols::Symbol, terms::TermId, utils::common::CommonUtils,
 };
@@ -29,49 +29,49 @@ pub enum SemanticError {
     NeedMoreTypeAnnotationsToInfer { term: TermId },
 
     /// Traits are not yet supported.
-    TraitsNotSupported { trait_location: SourceLocation },
+    TraitsNotSupported { trait_location: Span },
 
     /// Merge declarations are not yet supported.
-    MergeDeclarationsNotSupported { merge_location: SourceLocation },
+    MergeDeclarationsNotSupported { merge_location: Span },
 
     /// Module patterns are not yet supported.
-    ModulePatternsNotSupported { location: SourceLocation },
+    ModulePatternsNotSupported { location: Span },
 
     /// Some specified symbol was not found.
-    SymbolNotFound { symbol: Symbol, location: SourceLocation, looking_in: ContextKind },
+    SymbolNotFound { symbol: Symbol, location: Span, looking_in: ContextKind },
 
     /// Cannot use a module in a value position.
-    CannotUseModuleInValuePosition { location: SourceLocation },
+    CannotUseModuleInValuePosition { location: Span },
 
     /// Cannot use a module in a type position.
-    CannotUseModuleInTypePosition { location: SourceLocation },
+    CannotUseModuleInTypePosition { location: Span },
 
     /// Cannot use a module in a pattern position.
-    CannotUseModuleInPatternPosition { location: SourceLocation },
+    CannotUseModuleInPatternPosition { location: Span },
 
     /// Cannot use a data type in a value position.
-    CannotUseDataTypeInValuePosition { location: SourceLocation },
+    CannotUseDataTypeInValuePosition { location: Span },
 
     /// Cannot use a data type in a pattern position.
-    CannotUseDataTypeInPatternPosition { location: SourceLocation },
+    CannotUseDataTypeInPatternPosition { location: Span },
 
     /// Cannot use a constructor in a type position.
-    CannotUseConstructorInTypePosition { location: SourceLocation },
+    CannotUseConstructorInTypePosition { location: Span },
 
     /// Cannot use a function in type position.
-    CannotUseFunctionInTypePosition { location: SourceLocation },
+    CannotUseFunctionInTypePosition { location: Span },
 
     /// Cannot use a function in a pattern position.
-    CannotUseFunctionInPatternPosition { location: SourceLocation },
+    CannotUseFunctionInPatternPosition { location: Span },
 
     /// Cannot use a non-constant item in constant position.
-    CannotUseNonConstantItem { location: SourceLocation },
+    CannotUseNonConstantItem { location: Span },
 
     /// Cannot use the subject as a namespace.
-    InvalidNamespaceSubject { location: SourceLocation },
+    InvalidNamespaceSubject { location: Span },
 
     /// Cannot use arguments here.
-    UnexpectedArguments { location: SourceLocation },
+    UnexpectedArguments { location: Span },
 
     /// Type error, forwarded from the typechecker.
     TypeError { error: TcError },
@@ -80,10 +80,10 @@ pub enum SemanticError {
     ExhaustivenessError { error: ExhaustivenessError },
 
     /// Type error, forwarded from the typechecker.
-    EnumTypeAnnotationMustBeOfDefiningType { location: SourceLocation },
+    EnumTypeAnnotationMustBeOfDefiningType { location: Span },
 
     /// Given data definition is not a singleton.
-    DataDefIsNotSingleton { location: SourceLocation },
+    DataDefIsNotSingleton { location: Span },
 
     /// An entry point was not found in the entry module.
     EntryPointNotFound,

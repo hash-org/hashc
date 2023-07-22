@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use hash_source::location::{SourceLocation, Span};
+use hash_source::location::Span;
 use hash_storage::store::SequenceStoreKey;
 use hash_utils::parking_lot::RwLock;
 
@@ -24,7 +24,7 @@ macro_rules! location_targets {
            $(
                $name($ty),
            )*
-           Location(SourceLocation),
+           Location(Span),
         }
 
         #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -64,8 +64,8 @@ macro_rules! location_targets {
             }
         }
 
-        impl From<SourceLocation> for LocationTarget {
-            fn from(loc: SourceLocation) -> Self {
+        impl From<Span> for LocationTarget {
+            fn from(loc: Span) -> Self {
                 Self::Location(loc)
             }
         }
@@ -135,7 +135,7 @@ location_targets! {
 #[derive(Debug, Default)]
 pub struct LocationStore {
     // @@Performance: DashMap?
-    data: RwLock<HashMap<LocationTarget, SourceLocation>>,
+    data: RwLock<HashMap<LocationTarget, Span>>,
 }
 
 impl LocationStore {
@@ -144,20 +144,16 @@ impl LocationStore {
         Self::default()
     }
 
-    /// Add a [SourceLocation] to a specified [LocationTarget]
-    pub fn add_location_to_target(
-        &self,
-        target: impl Into<LocationTarget>,
-        location: SourceLocation,
-    ) {
+    /// Add a [Span] to a specified [LocationTarget]
+    pub fn add_location_to_target(&self, target: impl Into<LocationTarget>, location: Span) {
         self.data.write().insert(target.into(), location);
     }
 
-    /// Add a set of [SourceLocation]s to a specified [IndexedLocationTarget]
+    /// Add a set of [Span]s to a specified [IndexedLocationTarget]
     pub fn add_locations_to_targets(
         &self,
         targets: impl Into<IndexedLocationTarget>,
-        location: impl Fn(usize) -> Option<SourceLocation>,
+        location: impl Fn(usize) -> Option<Span>,
     ) {
         let targets = targets.into();
         for target in targets.to_index_range() {
@@ -167,32 +163,14 @@ impl LocationStore {
         }
     }
 
-    /// Get a [SourceLocation] from a specified [LocationTarget]
-    pub fn get_location(&self, target: impl Into<LocationTarget>) -> Option<SourceLocation> {
+    /// Get a [Span] from a specified [LocationTarget]
+    pub fn get_location(&self, target: impl Into<LocationTarget>) -> Option<Span> {
         self.data.read().get(&target.into()).copied()
-    }
-
-    /// Get the associated [Span] with from the specified [LocationTarget]
-    pub fn get_span(&self, target: impl Into<LocationTarget>) -> Option<Span> {
-        self.get_location(target).map(|loc| loc.span)
     }
 
     /// Get the overall [Span] covering all the members of a specified
     /// [IndexedLocationTarget].
-    pub fn get_overall_span(&self, target: impl Into<IndexedLocationTarget>) -> Option<Span> {
-        let target = target.into();
-        target
-            .to_index_range()
-            .map(|index| self.get_span(LocationTarget::from((target, index))))
-            .fold(None, |acc, span| Some(acc?.join(span?)))
-    }
-
-    /// Get the overall [SourceLocation] covering all the members of a specified
-    /// [IndexedLocationTarget].
-    pub fn get_overall_location(
-        &self,
-        target: impl Into<IndexedLocationTarget>,
-    ) -> Option<SourceLocation> {
+    pub fn get_overall_location(&self, target: impl Into<IndexedLocationTarget>) -> Option<Span> {
         let target = target.into();
         target
             .to_index_range()
@@ -228,10 +206,10 @@ impl LocationStore {
 
     /// Merge the given [LocationTarget]s into a single [LocationTarget]
     /// provided that they can be merged in terms of order. All `ids` of the
-    /// [SourceLocation]s must match.
+    /// [Span]s must match.
     ///
     /// **Note**: At least one of the [LocationTarget]s must have an associated
-    /// [SourceLocation].
+    /// [Span].
     pub fn merge_locations(
         &self,
         locations: impl Iterator<Item = LocationTarget>,

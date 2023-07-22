@@ -5,7 +5,7 @@ use hash_reporting::{
     report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
-use hash_source::{identifier::Identifier, location::SourceLocation, SourceId};
+use hash_source::{identifier::Identifier, location::Span};
 
 /// A [AnalysisWarning] is warning that can occur during the semantic pass
 pub struct AnalysisWarning {
@@ -13,7 +13,7 @@ pub struct AnalysisWarning {
     kind: AnalysisWarningKind,
 
     /// Where the warning occurred
-    location: SourceLocation,
+    location: Span,
 
     /// The associated [AstNodeRef<T>] with this error, which is used
     /// to sort the order that errors are emitted.
@@ -21,9 +21,9 @@ pub struct AnalysisWarning {
 }
 
 impl AnalysisWarning {
-    /// Create a new [AnalysisWarning] from a passed kind and [SourceLocation].
-    pub(crate) fn new<T>(kind: AnalysisWarningKind, node: AstNodeRef<T>, id: SourceId) -> Self {
-        Self { kind, location: SourceLocation { span: node.span(), id }, id: node.id() }
+    /// Create a new [AnalysisWarning] from a passed kind and [Span].
+    pub(crate) fn new<T>(kind: AnalysisWarningKind, node: AstNodeRef<T>) -> Self {
+        Self { kind, location: node.span(), id: node.id() }
     }
 
     /// Get the associated [AstNodeId] with this [AnalysisWarning].

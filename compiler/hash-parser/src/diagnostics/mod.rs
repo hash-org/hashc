@@ -9,18 +9,12 @@ use hash_reporting::{
     reporter::Reports,
 };
 
-use self::{
-    error::ParseError,
-    warning::{ParseWarning, ParseWarningWrapper},
-};
+use self::{error::ParseError, warning::ParseWarning};
 use crate::parser::AstGen;
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(super) fn into_reports(mut self) -> Reports {
-        let current_source_id = self.resolver.current_source_id();
-        self.diagnostics().into_reports(Reports::from, |warn| {
-            Reports::from(ParseWarningWrapper(warn, current_source_id))
-        })
+        self.diagnostics().into_reports(Reports::from, Reports::from)
     }
 }
 

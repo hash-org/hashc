@@ -445,6 +445,8 @@ impl<'env> TraversingUtils<'env> {
         }?;
 
         self.stores().location().copy_location(fn_def_id, new_fn_def);
+        self.stores().ast_info().fn_defs().copy_node(fn_def_id, new_fn_def);
+
         Ok(new_fn_def)
     }
 

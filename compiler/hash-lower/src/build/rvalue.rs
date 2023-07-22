@@ -1,15 +1,13 @@
 //! Module that contains logic for handling and creating [RValue]s from
 //! [Term]s.
 
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     cast::CastKind,
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
     ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
-use hash_source::{
-    constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP},
-    location::Span,
-};
+use hash_source::constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP};
 use hash_storage::store::statics::StoreId;
 use hash_tir::terms::{Term, TermId};
 
@@ -201,7 +199,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         mut block: BasicBlock,
         ty: IrTyId,
-        span: Span,
+        origin: AstNodeId,
         op: BinOp,
         lhs: Operand,
         rhs: Operand,
@@ -232,14 +230,14 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let overflow = temp.field(1);
 
                 // Push an assignment to the tuple on the operation
-                self.control_flow_graph.push_assign(block, temp, rvalue, span);
+                self.control_flow_graph.push_assign(block, temp, rvalue, origin);
 
                 block = self.assert(
                     block,
                     Operand::Place(overflow),
                     false,
                     AssertKind::Overflow { op, lhs, rhs },
-                    span,
+                    origin,
                 );
 
                 return block.and(result.into());
@@ -266,10 +264,10 @@ impl<'tcx> BodyBuilder<'tcx> {
                     block,
                     is_zero,
                     RValue::BinaryOp(BinOp::Eq, Box::new((rhs, zero_val))),
-                    span,
+                    origin,
                 );
 
-                block = self.assert(block, Operand::Place(is_zero), false, assert_kind, span);
+                block = self.assert(block, Operand::Place(is_zero), false, assert_kind, origin);
 
                 // In the case of signed integers, if the RHS value is `-1`, and the LHS
                 // is the MIN value, this will result in a division overflow, we need to
@@ -290,14 +288,14 @@ impl<'tcx> BodyBuilder<'tcx> {
                         block,
                         is_negative_one,
                         RValue::BinaryOp(BinOp::Eq, Box::new((rhs, negative_one_val))),
-                        span,
+                        origin,
                     );
 
                     self.control_flow_graph.push_assign(
                         block,
                         is_minimum_value,
                         RValue::BinaryOp(BinOp::Eq, Box::new((lhs, minimum_value))),
-                        span,
+                        origin,
                     );
 
                     // To simplify the generated control flow, we perform a bit_and operation
@@ -312,7 +310,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                             BinOp::BitAnd,
                             Box::new((is_negative_one.into(), is_minimum_value.into())),
                         ),
-                        span,
+                        origin,
                     );
 
                     // Now finally, emit the assert
@@ -321,7 +319,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         Operand::Place(is_overflow),
                         false,
                         AssertKind::Overflow { op, lhs, rhs },
-                        span,
+                        origin,
                     );
                 }
             }

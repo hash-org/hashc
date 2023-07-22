@@ -40,10 +40,7 @@ use super::{
     scoping::{BindingKind, ContextKind},
     ResolutionPass,
 };
-use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    passes::ast_utils::AstUtils,
-};
+use crate::diagnostics::error::{SemanticError, SemanticResult};
 
 /// A path component in the AST.
 ///
@@ -69,8 +66,8 @@ impl AstPathComponent<'_> {
     /// Get the span of this path component.
     pub fn span(&self) -> Span {
         let span = self.name_span;
-        if let Some(last_arg) = self.args.last() && let Some(arg_span) = last_arg.span() {
-            span.join(arg_span)
+        if let Some(last_arg) = self.args.last() {
+            span.join(last_arg.span())
         } else {
             span
         }
@@ -221,9 +218,7 @@ impl<'tc> ResolutionPass<'tc> {
                                 }
                                 [first, second, _rest @ ..] => {
                                     return Err(SemanticError::UnexpectedArguments {
-                                        location: self.source_location(
-                                            first.span().unwrap().join(second.span().unwrap()),
-                                        ),
+                                        location: first.span().join(second.span()),
                                     });
                                 }
                             };
@@ -247,7 +242,7 @@ impl<'tc> ResolutionPass<'tc> {
                                     }),
                                 )),
                                 None => Err(SemanticError::DataDefIsNotSingleton {
-                                    location: self.source_location(component.name_span),
+                                    location: component.name_span,
                                 }),
                             },
                             (
@@ -262,12 +257,12 @@ impl<'tc> ResolutionPass<'tc> {
                                     }),
                                 )),
                                 None => Err(SemanticError::DataDefIsNotSingleton {
-                                    location: self.source_location(component.name_span),
+                                    location: component.name_span,
                                 }),
                             },
                             (ResolvedArgs::Pat(_, _), _) => {
                                 Err(SemanticError::CannotUseDataTypeInPatternPosition {
-                                    location: self.source_location(component.name_span),
+                                    location: component.name_span,
                                 })
                             }
                         }
@@ -298,9 +293,7 @@ impl<'tc> ResolutionPass<'tc> {
                     [] => ResolvedArgs::Term(self.new_empty_args()),
                     [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
                     [_first, second, _rest @ ..] => {
-                        return Err(SemanticError::UnexpectedArguments {
-                            location: self.source_location(second.span().unwrap()),
-                        });
+                        return Err(SemanticError::UnexpectedArguments { location: second.span() });
                     }
                 };
 
@@ -399,13 +392,11 @@ impl<'tc> ResolutionPass<'tc> {
                 ResolvedAstPathComponent::Terminal(_) => {
                     // Cannot namespace further
                     return Err(SemanticError::InvalidNamespaceSubject {
-                        location: self.source_location(
-                            path[..index]
-                                .iter()
-                                .map(|c| c.span())
-                                .reduce(|a, b| a.join(b))
-                                .unwrap(),
-                        ),
+                        location: path[..index]
+                            .iter()
+                            .map(|c| c.span())
+                            .reduce(|a, b| a.join(b))
+                            .unwrap(),
                     });
                 }
             };

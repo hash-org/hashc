@@ -164,7 +164,7 @@ pub fn dump_ir_bodies(
 ) -> std::io::Result<()> {
     for (index, body) in bodies.iter().enumerate() {
         // Skip the prelude if we're in quiet mode
-        if prelude_is_quiet && body.source_id.is_prelude() {
+        if prelude_is_quiet && body.source().is_prelude() {
             continue;
         }
 
@@ -184,7 +184,7 @@ pub fn dump_ir_bodies(
             "IR dump for {} `{}` defined at {}\n{}",
             body.info().source(),
             body.info().name(),
-            source_map.fmt_location(body.location()),
+            source_map.fmt_location(body.span()),
             IrBodyWriter::new(body)
         )?;
     }

@@ -18,7 +18,6 @@ use super::ResolutionPass;
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
     ops::common::CommonOps,
-    passes::ast_utils::AstUtils,
 };
 
 /// An argument group in the AST.
@@ -40,14 +39,13 @@ pub enum AstArgGroup<'a> {
 
 impl AstArgGroup<'_> {
     /// Get the span of this argument group.
-    pub fn span(&self) -> Option<Span> {
+    pub fn span(&self) -> Span {
         match self {
             AstArgGroup::ExplicitArgs(args) => args.span(),
             AstArgGroup::ImplicitArgs(args) => args.span(),
-            AstArgGroup::ExplicitPatArgs(args, spread) => args
-                .span()
-                .and_then(|args_span| Some(args_span.join(spread.as_ref()?.span())))
-                .or_else(|| Some(spread.as_ref()?.span())),
+            AstArgGroup::ExplicitPatArgs(args, spread) => spread
+                .as_ref()
+                .map_or_else(|| args.span(), |spread| args.span().join(spread.span())),
             AstArgGroup::TupleArgs(args) => args.span(),
         }
     }
@@ -305,7 +303,7 @@ impl<'tc> ResolutionPass<'tc> {
                     // Here we are trying to call a function with pattern arguments.
                     // This is not allowed.
                     return Err(SemanticError::CannotUseFunctionInPatternPosition {
-                        location: self.source_location(original_span),
+                        location: original_span,
                     });
                 }
             }
