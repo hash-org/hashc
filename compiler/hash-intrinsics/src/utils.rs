@@ -2,10 +2,7 @@ use hash_ast::ast::{self};
 use hash_source::constant::{
     FloatTy, IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
 };
-use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    Store,
-};
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
 use hash_tir::{
     args::{Arg, PatArg},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
@@ -102,8 +99,7 @@ pub trait PrimitiveUtils: AccessToPrimitives {
     ///
     /// Both constructors do not take arguments.
     fn get_bool_ctor(&self, value: bool) -> CtorDefId {
-        let ctor_defs =
-            self.stores().data_def().map_fast(self.primitives().bool(), |bool_def| bool_def.ctors);
+        let ctor_defs = self.primitives().bool().borrow().ctors;
         match ctor_defs {
             hash_tir::data::DataDefCtors::Defined(ctors) => {
                 // Index 0 is true, 1 is false, see BootstrapOps

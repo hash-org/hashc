@@ -73,14 +73,14 @@ pub trait PartialStore<Key: Copy + Eq + Hash, Value> {
 
     /// Borrow a value mutably, given a key. Returns an appropriate handle which
     /// implements `DerefMut` to the value.
-    fn borrow_mut(&self, key: Key) -> PartialStoreBorrowMutHandle<'_, Key, Value> {
-        self.internal_data().get_mut(&key).unwrap()
+    fn borrow_mut(&self, key: Key) -> Option<PartialStoreBorrowMutHandle<'_, Key, Value>> {
+        self.internal_data().get_mut(&key)
     }
 
     /// Borrow a value, given a key. Returns an appropriate handle which
     /// implements `Deref` to the value.
-    fn borrow(&self, key: Key) -> PartialStoreBorrowHandle<'_, Key, Value> {
-        self.internal_data().get(&key).unwrap()
+    fn borrow(&self, key: Key) -> Option<PartialStoreBorrowHandle<'_, Key, Value>> {
+        self.internal_data().get(&key)
     }
 
     /// The number of entries in the store.
