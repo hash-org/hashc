@@ -178,15 +178,15 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         if let Some(result) = self.potentially_normalise(atom)? {
             match atom {
                 Atom::Term(term_id) => {
-                    self.stores().term().set(term_id, self.get_term(self.to_term(result)));
+                    self.stores().term().set(term_id, self.to_term(result).value());
                 }
                 Atom::Ty(ty_id) => {
-                    self.stores().ty().set(ty_id, self.get_ty(self.to_ty(result)));
+                    self.stores().ty().set(ty_id, self.to_ty(result).value());
                 }
                 // Fn defs are already normalised.
                 Atom::FnDef(_) => return Ok(false),
                 Atom::Pat(pat_id) => {
-                    self.stores().pat().set(pat_id, self.get_pat(self.to_pat(result)));
+                    self.stores().pat().set(pat_id, self.to_pat(result).value());
                 }
             }
             Ok(true)
@@ -233,7 +233,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Normalise the given atom, and try to use it as a function definition.
     pub fn maybe_to_fn_def(&self, atom: Atom) -> Option<FnDefId> {
         match atom {
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 Term::FnRef(fn_def_id) => Some(fn_def_id),
                 _ => None,
             },
@@ -287,7 +287,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         has_effects: &mut Option<bool>,
     ) -> Result<ControlFlow<()>, !> {
         match atom {
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 // Never has effects
                 Term::Hole(_) | Term::FnRef(_) => Ok(ControlFlow::Break(())),
 
@@ -311,7 +311,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     // Get its inferred type and check if it is pure
                     match self.try_get_inferred_ty(fn_call.subject) {
                         Some(fn_ty) => {
-                            match self.get_ty(fn_ty) {
+                            match fn_ty.value() {
                                 Ty::Fn(fn_ty) => {
                                     // If it is a function, check if it is pure
                                     if fn_ty.pure {
@@ -363,7 +363,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             },
             Atom::Ty(_) => Ok(ControlFlow::Continue(())),
             Atom::FnDef(fn_def_id) => {
-                let fn_ty = self.get_fn_def(fn_def_id).ty;
+                let fn_ty = fn_def_id.value().ty;
                 // Check its params and return type only (no body)
                 traversing_utils.visit_params(fn_ty.params, &mut |atom| {
                     self.atom_has_effects_once(traversing_utils, atom, has_effects)
@@ -460,7 +460,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn eval_var(&self, var: Symbol) -> AtomEvaluation {
         match self.context().try_get_decl_value(var) {
             Some(result) => {
-                if matches!(self.get_term(result), Term::Var(v) if v == var) {
+                if matches!(result.value(), Term::Var(v) if v == var) {
                     already_evaluated()
                 } else {
                     evaluation_to(self.eval(result.into())?)
@@ -482,7 +482,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         deref_term.subject = self.to_term(self.eval_and_record(deref_term.subject.into(), &st)?);
 
         // Reduce:
-        if let Term::Ref(ref_expr) = self.get_term(deref_term.subject) {
+        if let Term::Ref(ref_expr) = deref_term.subject.value() {
             // Should never be effectful
             return evaluation_to(ref_expr.subject);
         }
@@ -527,7 +527,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let st = eval_state();
         access_term.subject = self.to_term(self.eval_and_record(access_term.subject.into(), &st)?);
 
-        let result = match self.get_term(access_term.subject) {
+        let result = match access_term.subject.value() {
             Term::Tuple(tuple) => self.get_param_in_args(tuple.data, access_term.field),
             Term::Ctor(ctor) => self.get_param_in_args(ctor.ctor_args, access_term.field),
             _ => {
@@ -544,7 +544,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let st = eval_state();
         index_term.subject = self.to_term(self.eval_and_record(index_term.subject.into(), &st)?);
 
-        if let Term::Array(arr) = self.get_term(index_term.subject) &&
+        if let Term::Array(arr) = index_term.subject.value() &&
            let Some(result) = self.get_index_in_array(arr.elements, index_term.index)
         {
             let result = self.eval_and_record(result, &st)?;
@@ -584,10 +584,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn eval_assign(&self, mut assign_term: AssignTerm) -> FullEvaluation<Atom> {
         assign_term.value = self.to_term(self.eval(assign_term.value.into())?);
 
-        match self.get_term(assign_term.subject) {
+        match assign_term.subject.value() {
             Term::Access(mut access_term) => {
                 access_term.subject = self.to_term(self.eval(access_term.subject.into())?);
-                match self.get_term(access_term.subject) {
+                match access_term.subject.value() {
                     Term::Tuple(tuple) => self.set_param_in_args(
                         tuple.data,
                         access_term.field,
@@ -705,7 +705,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let evaluated = self.eval_and_record(term.into(), &st)?;
         match evaluated {
             Atom::Ty(_) => evaluation_to(evaluated),
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 Term::Ty(ty) => evaluation_to(Atom::Ty(ty)),
                 _ => evaluation_if(|| term, &st),
             },
@@ -739,8 +739,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         fn_call.args = st.update_from_evaluation(fn_call.args, self.eval_args(fn_call.args))?;
 
         // Beta-reduce:
-        if let Term::FnRef(fn_def_id) = self.get_term(fn_call.subject) {
-            let fn_def = self.get_fn_def(fn_def_id);
+        if let Term::FnRef(fn_def_id) = fn_call.subject.value() {
+            let fn_def = fn_def_id.value();
             if (fn_def.ty.pure || matches!(self.mode.get(), NormalisationMode::Full))
                 && self.try_get_inferred_ty(fn_def_id).is_some()
             {
@@ -849,7 +849,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         }
 
         match atom {
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 // Types
                 Term::Ty(_) => ctrl_continue(),
 
@@ -879,7 +879,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::Block(block_term) => ctrl_map(self.eval_block(block_term)),
                 Term::Loop(loop_term) => ctrl_map_full(self.eval_loop(loop_term)),
             },
-            Atom::Ty(ty) => match self.get_ty(ty) {
+            Atom::Ty(ty) => match ty.value() {
                 Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
                 Ty::Hole(Hole(var)) | Ty::Var(var) => ctrl_map(self.eval_var(var)),
                 Ty::Fn(_) | Ty::Tuple(_) | Ty::Data(_) | Ty::Universe(_) | Ty::Ref(_) => {
@@ -906,7 +906,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     .collect_vec()
             })
         });
-        self.new_term_list(spread_term_list)
+        TermId::seq_data(spread_term_list)
     }
 
     /// From the given arguments matching with the given parameters, extract the
@@ -1071,8 +1071,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         f: &mut impl FnMut(Symbol, TermId),
     ) -> Result<MatchResult, Signal> {
         let evaluated_id = self.to_term(self.eval(term_id.into())?);
-        let evaluated = self.get_term(evaluated_id);
-        match (evaluated, self.get_pat(pat_id)) {
+        let evaluated = evaluated_id.value();
+        match (evaluated, pat_id.value()) {
             (_, Pat::Or(pats)) => {
                 // Try each alternative in turn:
                 for pat in pats.alternatives.iter() {

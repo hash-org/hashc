@@ -4,22 +4,19 @@ use hash_source::{
     identifier::{Identifier, IDENTS},
     location::Span,
 };
-use hash_storage::store::{CloneStore, SequenceStore, Store, TrivialKeySequenceStore};
+use hash_storage::store::{statics::StoreId, SequenceStore, Store};
 use hash_utils::stream_less_writeln;
 
 use super::traversing::Atom;
 use crate::{
-    args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
-    data::{CtorDef, CtorDefId, DataDef, DataDefId},
+    args::{SomeArgId, SomeArgsId},
     environment::env::AccessToEnv,
-    fns::{FnDef, FnDefId},
     holes::Hole,
     locations::LocationTarget,
     params::{Param, ParamId, ParamIndex, ParamsId},
-    pats::{Pat, PatId, PatListId},
     scopes::StackMemberId,
     symbols::{Symbol, SymbolData},
-    terms::{Term, TermId, TermListId},
+    terms::{Term, TermId},
     tys::{Ty, TyId},
 };
 
@@ -50,86 +47,9 @@ macro_rules! ty_as_variant {
 }
 
 pub trait CommonUtils: AccessToEnv {
-    /// Get a term by its ID.
-    fn get_term(&self, term_id: TermId) -> Term {
-        self.stores().term().get(term_id)
-    }
-
-    /// Map a term by its ID.
-    fn map_term<T>(&self, term_id: TermId, f: impl FnOnce(&Term) -> T) -> T {
-        self.stores().term().map(term_id, f)
-    }
-
-    fn map_term_list<T>(&self, term_list_id: TermListId, f: impl FnOnce(&[TermId]) -> T) -> T {
-        self.stores().term_list().map(term_list_id, f)
-    }
-
-    fn map_pat_list<T>(&self, pat_list_id: PatListId, f: impl FnOnce(&[PatOrCapture]) -> T) -> T {
-        self.stores().pat_list().map(pat_list_id, f)
-    }
-
-    /// Get a type by its ID.
-    fn get_ty(&self, ty_id: TyId) -> Ty {
-        self.stores().ty().get(ty_id)
-    }
-
-    /// Get an argument by its ID.
-    fn get_arg(&self, arg_id: ArgId) -> Arg {
-        self.stores().args().get_element(arg_id)
-    }
-
-    /// Get a pattern argument by its ID.
-    fn get_pat_arg(&self, arg_id: PatArgId) -> PatArg {
-        self.stores().pat_args().get_element(arg_id)
-    }
-
-    /// Map a type by its ID.
-    fn map_ty<T>(&self, ty_id: TyId, f: impl FnOnce(&Ty) -> T) -> T {
-        self.stores().ty().map(ty_id, f)
-    }
-
-    /// Map args by their IDs.
-    fn map_args<T>(&self, args_id: ArgsId, f: impl FnOnce(&[Arg]) -> T) -> T {
-        self.stores().args().map(args_id, f)
-    }
-
-    /// Map pattern args by their IDs.
-    fn map_pat_args<T>(&self, args_id: PatArgsId, f: impl FnOnce(&[PatArg]) -> T) -> T {
-        self.stores().pat_args().map(args_id, f)
-    }
-
-    fn map_pat<T>(&self, pat_id: PatId, f: impl FnOnce(&Pat) -> T) -> T {
-        self.stores().pat().map(pat_id, f)
-    }
-
-    /// Get a pattern by its ID.
-    fn get_pat(&self, pat_id: PatId) -> Pat {
-        self.stores().pat().get(pat_id)
-    }
-
-    /// Get a data definition by its ID.
-    fn get_data_def(&self, data_def_id: DataDefId) -> DataDef {
-        self.stores().data_def().get(data_def_id)
-    }
-
-    /// Get a data constructor by its ID.
-    fn get_ctor_def(&self, data_ctor_id: CtorDefId) -> CtorDef {
-        self.stores().ctor_defs().get_element(data_ctor_id)
-    }
-
-    /// Get a function definition by its ID.
-    fn get_fn_def(&self, fn_def_id: FnDefId) -> FnDef {
-        self.stores().fn_def().get(fn_def_id)
-    }
-
     /// Get the location of a location target.
     fn get_location(&self, target: impl Into<LocationTarget>) -> Option<Span> {
         self.stores().location().get_location(target)
-    }
-
-    /// Get symbol data.
-    fn get_symbol(&self, symbol: Symbol) -> SymbolData {
-        self.stores().symbol().get(symbol)
     }
 
     /// Get the name of a stack member
@@ -233,23 +153,6 @@ pub trait CommonUtils: AccessToEnv {
         created
     }
 
-    /// Create a new term list.
-    fn new_term_list(&self, terms: impl IntoIterator<Item = TermId>) -> TermListId {
-        let terms = terms.into_iter().collect::<Vec<_>>();
-        self.stores().term_list().create_from_slice(&terms)
-    }
-
-    /// Create a new pattern.
-    fn new_pat(&self, pat: impl Into<Pat>) -> PatId {
-        self.stores().pat().create(pat.into())
-    }
-
-    /// Create a new pattern list.
-    fn new_pat_list(&self, pats: impl IntoIterator<Item = PatOrCapture>) -> PatListId {
-        let pats = pats.into_iter().collect::<Vec<_>>();
-        self.stores().pat_list().create_from_slice(&pats)
-    }
-
     /// Create a new expected type for typing the given term.
     fn new_expected_ty_of_ty(&self, ty: TyId, ty_of_ty: TyId) -> TyId {
         self.stores().location().copy_location(ty, ty_of_ty);
@@ -274,7 +177,7 @@ pub trait CommonUtils: AccessToEnv {
     fn new_expected_ty_of(&self, atom: impl Into<Atom>, ty: TyId) -> TyId {
         let atom: Atom = atom.into();
         let (ast_info, location) = match atom {
-            Atom::Term(origin_term) => match self.get_term(origin_term) {
+            Atom::Term(origin_term) => match origin_term.value() {
                 Term::Ty(ty) => {
                     (self.stores().ast_info().tys().get_node_by_data(ty), self.get_location(ty))
                 }
@@ -318,11 +221,6 @@ pub trait CommonUtils: AccessToEnv {
         self.new_expected_ty_of(src, ty)
     }
 
-    /// Create a new empty argument list.
-    fn new_empty_args(&self) -> ArgsId {
-        self.stores().args().create_from_slice(&[])
-    }
-
     /// Create a new positional parameter list with the given types.
     fn new_params(&self, types: &[TyId]) -> ParamsId {
         self.stores().params().create_from_iter_with(
@@ -334,25 +232,9 @@ pub trait CommonUtils: AccessToEnv {
         )
     }
 
-    /// Create a new positional argument list with the given types.
-    fn new_args(&self, values: &[TermId]) -> ArgsId {
-        self.stores().args().create_from_iter_with(
-            values
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(i, value)| move |_id| Arg { target: ParamIndex::Position(i), value }),
-        )
-    }
-
-    /// Create a new empty pattern argument list.
-    fn new_empty_pat_args(&self) -> PatArgsId {
-        self.stores().pat_args().create_from_slice(&[])
-    }
-
     /// Try to use the given term as a type.
     fn try_use_term_as_ty(&self, term: TermId) -> Option<TyId> {
-        match self.get_term(term) {
+        match term.value() {
             Term::Var(var) => Some(self.new_ty(var)),
             Term::Ty(ty) => Some(ty),
             Term::Hole(hole) => Some(self.new_ty(hole)),
@@ -370,7 +252,7 @@ pub trait CommonUtils: AccessToEnv {
 
     /// Try to use the given type as a term.
     fn use_ty_as_term(&self, ty: TyId) -> TermId {
-        match self.get_ty(ty) {
+        match ty.value() {
             Ty::Var(var) => self.new_term(var),
             Ty::Hole(hole) => self.new_term(hole),
             Ty::Eval(term) => match self.try_use_term_as_ty(term) {

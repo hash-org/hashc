@@ -3,8 +3,8 @@ use std::{fmt::Debug, process};
 
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
-    statics::SequenceStoreValue, DefaultPartialStore, PartialCloneStore, PartialStore,
-    SequenceStoreKey, Store,
+    statics::{SequenceStoreValue, StoreId},
+    DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey, Store,
 };
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
@@ -684,11 +684,9 @@ impl DefinedIntrinsics {
                     Err("Invalid arguments for type equality intrinsic. Only data types with no arguments can be compared".to_string())
                 };
 
-                if let (Term::Ty(lhs_ty), Term::Ty(rhs_ty)) =
-                    (prim.get_term(lhs), prim.get_term(rhs))
-                {
+                if let (Term::Ty(lhs_ty), Term::Ty(rhs_ty)) = (lhs.value(), rhs.value()) {
                     if let (Ty::Data(lhs_data), Ty::Data(rhs_data)) =
-                        (prim.get_ty(lhs_ty), prim.get_ty(rhs_ty))
+                        (lhs_ty.value(), rhs_ty.value())
                     {
                         if lhs_data.args.len() == 0 && rhs_data.args.len() == 0 {
                             return Ok(prim.new_bool_term(lhs_data.data_def == rhs_data.data_def));
@@ -737,7 +735,7 @@ impl DefinedIntrinsics {
                 .params(env.new_params(&[Ty::data(prim.str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
-            |env, args| match env.get_term(args[0]) {
+            |_env, args| match args[0].value() {
                 Term::Lit(Lit::Str(str_lit)) => Err(str_lit.value().to_string()),
                 _ => Err("`user_error` expects a string literal as argument".to_string())?,
             },
@@ -769,7 +767,7 @@ impl DefinedIntrinsics {
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
                 |env, args| {
-                    if let Term::FnRef(fn_def_id) = env.get_term(args[1]) {
+                    if let Term::FnRef(fn_def_id) = args[1].value() {
                         let directives =
                             env.stores().directives().get(fn_def_id.into()).unwrap_or_default();
                         stream_less_writeln!("{:?}", directives.directives);

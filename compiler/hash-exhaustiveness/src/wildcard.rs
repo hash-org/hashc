@@ -10,7 +10,6 @@ use hash_target::size::Size;
 use hash_tir::{
     data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
     tys::Ty,
-    utils::common::CommonUtils,
 };
 use hash_utils::smallvec::{smallvec, SmallVec};
 
@@ -64,7 +63,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         // constructors.
         let all_ctors = match ctx.ty.value() {
             Ty::Data(DataTy { data_def, .. }) => {
-                let def = self.get_data_def(data_def);
+                let def = data_def.value();
 
                 match def.ctors {
                     DataDefCtors::Defined(ctors) => {

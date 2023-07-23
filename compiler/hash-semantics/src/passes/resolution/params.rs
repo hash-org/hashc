@@ -2,7 +2,10 @@
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
-use hash_storage::store::{statics::SequenceStoreValue, SequenceStore, SequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    SequenceStore, SequenceStoreKey,
+};
 use hash_tir::{
     args::{ArgsId, PatArgsId},
     environment::env::AccessToEnv,
@@ -308,7 +311,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
             }
         }
-        match self.get_term(current_subject) {
+        match current_subject.value() {
             Term::FnCall(call) => Ok(call),
             _ => unreachable!(),
         }

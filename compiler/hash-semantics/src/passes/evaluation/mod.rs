@@ -7,8 +7,10 @@ use derive_more::Constructor;
 use hash_ast::ast::{self};
 use hash_pipeline::settings::CompilerStageKind;
 use hash_source::ModuleKind;
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    environment::env::AccessToEnv, fns::FnCallTerm, terms::TermId, utils::common::CommonUtils,
+    args::Arg, environment::env::AccessToEnv, fns::FnCallTerm, terms::TermId,
+    utils::common::CommonUtils,
 };
 use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
 use hash_utils::stream_less_writeln;
@@ -51,7 +53,7 @@ impl EvaluationPass<'_> {
                         let call_term = self.new_term(FnCallTerm {
                             subject: self.new_term(def),
                             implicit: false,
-                            args: self.new_empty_args(),
+                            args: Arg::empty_seq(),
                         });
                         Ok(Some(call_term))
                     }

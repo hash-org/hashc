@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt};
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::{
-    CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
+    statics::StoreId, CloneStore, SequenceStore, SequenceStoreKey, Store, TrivialKeySequenceStore,
 };
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataDefId},
@@ -17,7 +17,6 @@ use hash_tir::{
     symbols::{sym, Symbol},
     tuples::TupleTy,
     ty_as_variant,
-    utils::common::CommonUtils,
 };
 use hash_utils::state::HeavyState;
 
@@ -354,7 +353,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let fn_ty = ty_as_variant!(self, self.get_ty(fn_ty_id), Fn);
+        let fn_ty = ty_as_variant!(self, fn_ty_id.value(), Fn);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
 
@@ -365,7 +364,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let fn_ty = ty_as_variant!(self, self.get_ty(fn_ty_id), Fn);
+        let fn_ty = ty_as_variant!(self, fn_ty_id.value(), Fn);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
 
@@ -376,7 +375,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(TupleTy) -> T,
     ) -> T {
         let tuple_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let tuple_ty = ty_as_variant!(self, self.get_ty(tuple_ty_id), Tuple);
+        let tuple_ty = ty_as_variant!(self, tuple_ty_id.value(), Tuple);
         self.enter_scope(ContextKind::Environment, || f(tuple_ty))
     }
 

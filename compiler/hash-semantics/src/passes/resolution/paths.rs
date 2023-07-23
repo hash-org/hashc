@@ -23,9 +23,12 @@ use std::fmt;
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_storage::store::{statics::StoreId, TrivialKeySequenceStore};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    TrivialKeySequenceStore,
+};
 use hash_tir::{
-    args::ArgsId,
+    args::{Arg, ArgsId},
     data::{CtorPat, CtorTerm, DataDefId},
     environment::env::AccessToEnv,
     fns::{FnCallTerm, FnDefId},
@@ -195,14 +198,14 @@ impl<'tc> ResolutionPass<'tc> {
 
                         let (data_args, ctor_args): (ResolvedArgs, Option<ResolvedArgs>) =
                             match &component.args[..] {
-                                [] => (ResolvedArgs::Term(self.new_empty_args()), None),
+                                [] => (ResolvedArgs::Term(Arg::empty_seq()), None),
                                 [arg_group] if arg_group.is_implicit() => {
                                     (self.make_args_from_ast_arg_group(arg_group)?, None)
                                 }
                                 [arg_group] => {
                                     assert!(!arg_group.is_implicit());
                                     (
-                                        ResolvedArgs::Term(self.new_empty_args()),
+                                        ResolvedArgs::Term(Arg::empty_seq()),
                                         Some(self.make_args_from_ast_arg_group(arg_group)?),
                                     )
                                 }
@@ -289,7 +292,7 @@ impl<'tc> ResolutionPass<'tc> {
             BindingKind::Ctor(data_def_id, ctor_def_id) => {
                 let _ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
                 let applied_args = match &component.args[..] {
-                    [] => ResolvedArgs::Term(self.new_empty_args()),
+                    [] => ResolvedArgs::Term(Arg::empty_seq()),
                     [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
                     [_first, second, _rest @ ..] => {
                         return Err(SemanticError::UnexpectedArguments { location: second.span() });

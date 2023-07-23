@@ -66,20 +66,19 @@ impl<'ir> BuilderCtx<'ir> {
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_ty(&self, id: TyId) -> IrTyId {
         self.with_cache(id, || {
-            self.map_ty(id, |ty| {
-                // We compute the "uncached" type, and then it will be added to the
-                // cache if it is not already present. For data types, since they can
-                // be defined in a recursive way, the `ty_from_tir_data` will deal with
-                // its own caching, but we still want to add an entry here for `TyId` since
-                // we want to avoid computing the `ty_from_tir_data` as well.
-                let result = if let Ty::Data(data_ty) = ty {
-                    self.ty_from_tir_data(*data_ty)
-                } else {
-                    self.uncached_ty_from_tir_ty(id, ty)
-                };
+            let ty = id.value();
+            // We compute the "uncached" type, and then it will be added to the
+            // cache if it is not already present. For data types, since they can
+            // be defined in a recursive way, the `ty_from_tir_data` will deal with
+            // its own caching, but we still want to add an entry here for `TyId` since
+            // we want to avoid computing the `ty_from_tir_data` as well.
+            let result = if let Ty::Data(data_ty) = ty {
+                self.ty_from_tir_data(data_ty)
+            } else {
+                self.uncached_ty_from_tir_ty(id, &ty)
+            };
 
-                (result, false)
-            })
+            (result, false)
         })
     }
 
@@ -130,9 +129,8 @@ impl<'ir> BuilderCtx<'ir> {
                 // @@Temporary
                 if self.context().try_get_decl(sym).is_some() {
                     let term = self.context().get_binding_value(sym);
-                    return self.map_ty(self.use_term_as_ty(term), |ty| {
-                        self.uncached_ty_from_tir_ty(id, ty)
-                    });
+                    let ty = self.use_term_as_ty(term).value();
+                    return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {
                     // We just return the unit type for now.
                     IrTy::Adt(AdtId::UNIT)

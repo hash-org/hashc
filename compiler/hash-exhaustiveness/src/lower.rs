@@ -6,7 +6,7 @@ use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
 use hash_source::constant::InternedInt;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
     SequenceStoreKey, Store, TrivialSequenceStoreKey,
 };
 use hash_tir::{
@@ -269,8 +269,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
                     DeconstructedCtor::Str(str) => Pat::Lit(LitPat::Str(StrLit::from(*str))),
                     DeconstructedCtor::Array(Array { kind }) => {
-                        let children = fields.iter_patterns().map(|p| self.construct_pat(p).into());
-                        let pats = self.new_pat_list(children);
+                        let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
+                        let pats = PatOrCapture::seq_data(children);
 
                         match kind {
                             ArrayKind::Fixed(_) => {
@@ -291,7 +291,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 };
 
                 // Now put the pat on the store and return it
-                self.new_pat(pat)
+                Pat::create(pat)
             })
         })
     }

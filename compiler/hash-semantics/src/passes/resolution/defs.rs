@@ -7,14 +7,13 @@ use std::cell::Cell;
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_storage::store::{PartialStore, SequenceStore, SequenceStoreKey, Store};
+use hash_storage::store::{statics::StoreId, PartialStore, SequenceStore, SequenceStoreKey, Store};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors},
     directives::AppliedDirectives,
     environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberValue},
     tys::Ty,
-    utils::common::CommonUtils,
 };
 
 use super::{scoping::ContextKind, ResolutionPass};
@@ -138,7 +137,7 @@ impl<'tc> ResolutionPass<'tc> {
                                     if let Some(result) = self.try_or_add_error(
                                         self.make_ty_from_ast_ty(variant_ty.ast_ref()),
                                     ) {
-                                        match self.get_ty(result) {
+                                        match result.value() {
                                             Ty::Data(d) if d.data_def == data_def_id => {
                                                 // Variant type is the same as the enum type
                                                 self.stores().ctor_defs().modify_fast(data_def_ctors, |ctors| {

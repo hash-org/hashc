@@ -99,11 +99,11 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             Atom::Ty(_) | Atom::FnDef(_) => {}
         }
         match atom {
-            Atom::Ty(ty) => match self.get_ty(ty) {
+            Atom::Ty(ty) => match ty.value() {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
                     match sub.get_sub_for_var_or_hole(symbol) {
                         Some(subbed_term) => {
-                            let subbed_ty_val = self.get_ty(self.use_term_as_ty(subbed_term));
+                            let subbed_ty_val = self.use_term_as_ty(subbed_term).value();
                             self.stores().ty().modify_fast(ty, |ty| *ty = subbed_ty_val);
                             ControlFlow::Break(())
                         }
@@ -121,10 +121,10 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
                     Some(subbed_term) => {
-                        let subbed_term_val = self.get_term(subbed_term);
+                        let subbed_term_val = subbed_term.value();
                         self.stores().term().modify_fast(term, |term| *term = subbed_term_val);
                         ControlFlow::Break(())
                     }
@@ -133,7 +133,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 _ => ControlFlow::Continue(()),
             },
             Atom::FnDef(fn_def_id) => {
-                let fn_def = self.get_fn_def(fn_def_id);
+                let fn_def = fn_def_id.value();
                 let fn_ty = fn_def.ty;
                 let shadowed_sub = self.apply_sub_to_params_and_get_shadowed(fn_ty.params, sub);
                 self.apply_sub_to_ty_in_place(fn_ty.return_ty, &shadowed_sub);
@@ -161,7 +161,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     ) -> ControlFlow<()> {
         let var_matches = &var_matches;
         match atom {
-            Atom::Ty(ty) => match self.get_ty(ty) {
+            Atom::Ty(ty) => match ty.value() {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) if var_matches.contains(&symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
@@ -180,7 +180,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 Term::Hole(Hole(symbol)) | Term::Var(symbol) if var_matches.contains(&symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
@@ -188,7 +188,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 _ => ControlFlow::Continue(()),
             },
             Atom::FnDef(fn_def_id) => {
-                let fn_def = self.get_fn_def(fn_def_id);
+                let fn_def = fn_def_id.value();
                 let fn_ty = fn_def.ty;
                 let seen = self.params_contain_vars(fn_ty.params, var_matches, can_apply);
                 if self.atom_contains_vars(fn_ty.return_ty.into(), &seen) {
@@ -308,14 +308,14 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// accordingly.
     pub fn has_holes_once(&self, atom: Atom, has_holes: &mut Option<Atom>) -> ControlFlow<()> {
         match atom {
-            Atom::Ty(ty) => match self.get_ty(ty) {
+            Atom::Ty(ty) => match ty.value() {
                 Ty::Hole(_) => {
                     *has_holes = Some(atom);
                     ControlFlow::Break(())
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 Term::Hole(_) => {
                     *has_holes = Some(atom);
                     ControlFlow::Break(())
@@ -328,7 +328,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Pat(pat) => match self.get_pat(pat) {
+            Atom::Pat(pat) => match pat.value() {
                 Pat::Ctor(ctor_pat) => {
                     if let Some(atom) = self.pat_args_have_holes(ctor_pat.ctor_pat_args) {
                         *has_holes = Some(atom);
@@ -481,7 +481,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// the value is not a variable with the same name.
     pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: Symbol, value: TermId) {
         let subbed_value = self.apply_sub_to_term(value, sub);
-        if !matches!(self.get_term(subbed_value), Term::Var(v) if v == name) {
+        if !matches!(subbed_value.value(), Term::Var(v) if v == name) {
             sub.insert(name, subbed_value);
         }
     }
@@ -566,7 +566,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn reverse_sub(&self, sub: &Sub) -> Sub {
         let mut reversed_sub = Sub::identity();
         for (name, value) in sub.iter() {
-            match self.get_term(value) {
+            match value.value() {
                 Term::Var(v) => {
                     reversed_sub.insert(v, self.new_term(name));
                 }

@@ -15,8 +15,9 @@ use hash_intrinsics::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_storage::store::{
-    statics::SequenceStoreValue, PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey,
-    Store, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
+    PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
+    TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
@@ -453,7 +454,7 @@ impl<'tc> ResolutionPass<'tc> {
         self.stores().directives().insert(inner.into(), directives.clone());
 
         // If this is a type, also register the directives on the type
-        if let Term::Ty(ty_id) = self.get_term(inner) {
+        if let Term::Ty(ty_id) = inner.value() {
             self.stores().directives().insert(ty_id.into(), directives);
         }
 
@@ -562,7 +563,7 @@ impl<'tc> ResolutionPass<'tc> {
                     .ast_ref_iter()
                     .map(|element| self.make_term_from_ast_expr(element))
                     .collect::<SemanticResult<_>>()?;
-                let elements = self.new_term_list(element_vec);
+                let elements = TermId::seq_data(element_vec);
                 Ok(self.new_term(Term::Array(ArrayTerm { elements })))
             }
         }
@@ -731,7 +732,7 @@ impl<'tc> ResolutionPass<'tc> {
                         == (node.statements.len().saturating_sub(mod_member_ids.len())),
                 ) {
                     (Some(Some(expr)), true) => {
-                        let statements = self.new_term_list(statements);
+                        let statements = TermId::seq_data(statements);
                         Ok(self.new_term(Term::Block(BlockTerm {
                             statements,
                             return_value: expr,
@@ -739,7 +740,7 @@ impl<'tc> ResolutionPass<'tc> {
                         })))
                     }
                     (None, true) => {
-                        let statements = self.new_term_list(statements);
+                        let statements = TermId::seq_data(statements);
                         let return_value = Term::void();
                         Ok(self.new_term(Term::Block(BlockTerm {
                             statements,
@@ -775,7 +776,7 @@ impl<'tc> ResolutionPass<'tc> {
             }),
         };
 
-        let block = term_as_variant!(self, self.get_term(inner), Block);
+        let block = term_as_variant!(self, inner.value(), Block);
         Ok(self.new_term(Term::Loop(LoopTerm { block })))
     }
 

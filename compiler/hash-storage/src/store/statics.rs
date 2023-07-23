@@ -40,7 +40,7 @@ pub trait StoreId: Sized + Copy {
 /// `STORES`.
 pub trait SequenceStoreValue: Sized {
     type Id: StoreId;
-    type ElementId: StoreId;
+    type ElementId;
 
     /// Create a new empty value in the store.
     fn empty_seq() -> Self::Id;
@@ -53,16 +53,18 @@ pub trait SequenceStoreValue: Sized {
     /// Create a new value in the store from the given iterator of values.
     fn seq_data<I: IntoIterator<Item = Self>>(iter: I) -> Self::Id
     where
-        I::IntoIter: ExactSizeIterator,
-    {
-        Self::seq(iter.into_iter().map(|data| move |_| data))
-    }
+        I::IntoIter: ExactSizeIterator;
 }
 
 /// A trait for a store ID containing single items which can be used to access a
 /// store in `STORES`.
 pub trait SingleStoreValue: Sized {
     type Id: StoreId;
+
+    /// Create a new value in the store from the given function.
+    fn create_from(x: impl Into<Self>) -> Self::Id {
+        Self::create_with(|_| x.into())
+    }
 
     /// Create a new value in the store from the given function.
     fn create(self) -> Self::Id {
@@ -135,6 +137,29 @@ macro_rules! static_sequence_store_indirect {
 
             fn set(self, value: Self::Value) {
                 $store_source.$store_name().set_from_slice_cloned(self, &value);
+            }
+        }
+
+        impl $crate::store::statics::SequenceStoreValue for $el_id {
+            type Id = $id;
+            type ElementId = $el_id;
+
+            fn empty_seq() -> Self::Id {
+                $store_source.$store_name().create_from_slice(&[])
+            }
+
+            fn seq<F: FnOnce($el_id) -> Self, I: IntoIterator<Item = F>>(values: I) -> Self::Id
+            where
+                I::IntoIter: ExactSizeIterator,
+            {
+                $store_source.$store_name().create_from_iter_with(values)
+            }
+
+            fn seq_data<I: IntoIterator<Item = Self>>(values: I) -> Self::Id
+            where
+                I::IntoIter: ExactSizeIterator,
+            {
+                $store_source.$store_name().create_from_iter(values)
             }
         }
 
@@ -240,6 +265,13 @@ macro_rules! static_sequence_store_direct {
                 I::IntoIter: ExactSizeIterator,
             {
                 $store_source.$store_name().create_from_iter_with(values)
+            }
+
+            fn seq_data<I: IntoIterator<Item = Self>>(values: I) -> Self::Id
+            where
+                I::IntoIter: ExactSizeIterator,
+            {
+                $store_source.$store_name().create_from_iter(values)
             }
         }
 
