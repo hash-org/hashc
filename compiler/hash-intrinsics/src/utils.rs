@@ -12,7 +12,6 @@ use hash_tir::{
     refs::{RefKind, RefTy},
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::common::new_ty,
 };
 use num_bigint::BigInt;
 
@@ -133,12 +132,12 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Create a new `never` type.
     fn new_never_ty(&self) -> TyId {
-        new_ty(DataTy { args: Arg::empty_seq(), data_def: primitives().never() })
+        Ty::from(DataTy { args: Arg::empty_seq(), data_def: primitives().never() })
     }
 
     /// Create a new reference type.
     fn new_ref_ty(&self, ty: TyId, kind: RefKind, mutable: bool) -> TyId {
-        new_ty(RefTy { ty, kind, mutable })
+        Ty::from(RefTy { ty, kind, mutable })
     }
 
     /// Get the given type as a primitive integer type if possible.

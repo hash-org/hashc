@@ -44,10 +44,7 @@ use hash_tir::{
     ty_as_variant,
     tys::{Ty, TyId, TypeOfTerm},
     utils::{
-        common::{
-            dump_tir, get_location, new_expected_ty_of, new_expected_ty_of_ty, new_term,
-            new_term_from, new_ty, new_ty_hole_of, try_use_term_as_ty,
-        },
+        common::{dump_tir, get_location},
         traversing::Atom,
         AccessToUtils,
     },
@@ -258,15 +255,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     pub fn try_use_pat_as_term(&self, pat_id: PatId) -> Option<TermId> {
         match pat_id.value() {
-            Pat::Binding(var) => Some(new_term(var.name)),
-            Pat::Range(_) => Some(new_term(Symbol::fresh())),
-            Pat::Lit(lit) => Some(new_term(Term::Lit(lit.into()))),
-            Pat::Ctor(ctor_pat) => Some(new_term(CtorTerm {
+            Pat::Binding(var) => Some(Term::from(var.name)),
+            Pat::Range(_) => Some(Term::from(Symbol::fresh())),
+            Pat::Lit(lit) => Some(Term::from(Term::Lit(lit.into()))),
+            Pat::Ctor(ctor_pat) => Some(Term::from(CtorTerm {
                 ctor: ctor_pat.ctor,
                 data_args: ctor_pat.data_args,
                 ctor_args: self.try_use_pat_args_as_term_args(ctor_pat.ctor_pat_args)?,
             })),
-            Pat::Tuple(tuple_pat) => Some(new_term(TupleTerm {
+            Pat::Tuple(tuple_pat) => Some(Term::from(TupleTerm {
                 data: self.try_use_pat_args_as_term_args(tuple_pat.data)?,
             })),
             Pat::Array(_) => None,
@@ -403,7 +400,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let inferred = Param::seq_from_args_with_hole_types(tuple_term.data);
                     return Err(TcError::MismatchingTypes {
                         expected: annotation_ty,
-                        actual: new_ty(TupleTy { data: inferred }),
+                        actual: Ty::from(TupleTy { data: inferred }),
                         inferred_from: Some(original_term_id.into()),
                     });
                 }
@@ -416,7 +413,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 Ok(())
             })?;
 
-            let tuple_ty = new_expected_ty_of(original_term_id, new_ty(TupleTy { data: params }));
+            let tuple_ty = Ty::expect_is(original_term_id, Ty::from(TupleTy { data: params }));
             self.check_by_unify(tuple_ty, annotation_ty)?;
             // @@Review: why is this needed? Shouldn't the substitution be applied during
             // `check_by_unify`?
@@ -559,11 +556,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Err(TcError::MismatchingTypes {
                 expected: annotation_ty,
                 actual: {
-                    new_expected_ty_of_ty(
+                    Ty::expect_same(
                         annotation_ty,
-                        new_ty(DataTy {
+                        Ty::from(DataTy {
                             data_def: primitives().list(),
-                            args: Arg::seq_positional([new_term(Ty::hole())]),
+                            args: Arg::seq_positional([Term::from(Ty::hole())]),
                         }),
                     )
                 },
@@ -630,9 +627,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // type
         if let Ty::Hole(_) = annotation_ty.value() {
             self.check_by_unify(
-                new_ty(DataTy {
+                Ty::from(DataTy {
                     data_def: primitives().list(),
-                    args: Arg::seq_positional([new_term(list_annotation_inner_ty)]),
+                    args: Arg::seq_positional([Term::from(list_annotation_inner_ty)]),
                 }),
                 annotation_ty,
             )?
@@ -713,7 +710,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             _ => {
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
-                    actual: new_ty(DataTy { args: data_args, data_def: ctor.data_def_id }),
+                    actual: Ty::from(DataTy { args: data_args, data_def: ctor.data_def_id }),
                     inferred_from: Some(original_atom.into()),
                 });
             }
@@ -766,7 +763,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Set the annotation data type to the final result arguments, and unify
         // the annotation type with the expected type.
         annotation_data_ty.args = final_result_args;
-        let expected_data_ty = new_expected_ty_of(original_atom, new_ty(annotation_data_ty));
+        let expected_data_ty = Ty::expect_is(original_atom, Ty::from(annotation_data_ty));
         let uni_ops = self.uni_ops();
         uni_ops.with_binds(binds);
         uni_ops.add_unification_from_sub(&resulting_sub);
@@ -787,7 +784,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         {
             let data_arg = data_arg.value();
             let result_data_arg = result_data_arg.value();
-            if let Some(ty) = try_use_term_as_ty(data_arg.value) && let Ty::Hole(_) = ty.value() {
+            if let Some(ty) = data_arg.value.try_as_ty() && let Ty::Hole(_) = ty.value() {
                 data_arg.value.set(result_data_arg.value.value());
             }
         }
@@ -842,7 +839,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || {
             self.normalise_and_check_ty(annotation_ty)?;
-            let inferred_subject_ty = new_ty_hole_of(fn_call_term.subject);
+            let inferred_subject_ty = Ty::hole_for(fn_call_term.subject);
             self.infer_term(fn_call_term.subject, inferred_subject_ty)?;
 
             match inferred_subject_ty.value() {
@@ -850,7 +847,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     // Potentially fill-in implicit args
                     if let Ty::Fn(_) = fn_ty.return_ty.value() && fn_ty.implicit && !fn_call_term.implicit {
                         let applied_args = Arg::seq_from_params_as_holes(fn_ty.params);
-                        let copied_subject = new_term_from(fn_call_term.subject, fn_call_term.subject.value());
+                        let copied_subject = Term::inherited_from(fn_call_term.subject, fn_call_term.subject.value());
                         let new_subject = FnCallTerm {
                             args: applied_args,
                             subject: copied_subject,
@@ -952,7 +949,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
     ) -> TcResult<FnTy> {
         let fn_def = fn_def_id.value();
-        let fn_ty = new_ty(fn_def.ty);
+        let fn_ty = Ty::from(fn_def.ty);
         self.infer_ty(annotation_ty, Ty::flexible_universe())?;
         self.infer_ty(fn_ty, Ty::flexible_universe())?;
         self.uni_ops().unify_tys(fn_ty, annotation_ty)?;
@@ -976,7 +973,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;
         if let Some(fn_ty) = self.try_get_inferred_ty(fn_def_id) {
-            let expected = new_expected_ty_of(original_term_id, new_ty(fn_ty));
+            let expected = Ty::expect_is(original_term_id, Ty::from(fn_ty));
             self.check_by_unify(expected, annotation_ty)?;
             return Ok(());
         }
@@ -993,7 +990,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     if let Term::FnRef(immediate_body_fn) = fn_body.value() {
                         self.infer_fn_def(
                             immediate_body_fn,
-                            new_ty_hole_of(fn_body),
+                            Ty::hole_for(fn_body),
                             fn_body,
                             FnInferMode::Header,
                         )?;
@@ -1025,7 +1022,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             FnBody::Intrinsic(_) | FnBody::Axiom => {}
         }
 
-        let fn_ty_id = new_expected_ty_of(original_term_id, new_ty(fn_def.ty));
+        let fn_ty_id = Ty::expect_is(original_term_id, Ty::from(fn_def.ty));
         self.check_by_unify(fn_ty_id, annotation_ty)?;
 
         self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
@@ -1069,7 +1066,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let closest_fn_def_return_ty = closest_fn_def.borrow().ty.return_ty;
                 self.infer_term(return_term.expression, closest_fn_def_return_ty)?;
 
-                let inferred_ty = new_expected_ty_of(original_term, self.new_never_ty());
+                let inferred_ty = Ty::expect_is(original_term, self.new_never_ty());
                 self.check_by_unify(inferred_ty, annotation_ty)?;
                 Ok(())
             }
@@ -1079,7 +1076,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Infer the type of a deref term, and return it.
     pub fn infer_deref_term(&self, deref_term: &DerefTerm, annotation_ty: TyId) -> TcResult<()> {
-        let deref_inner_inferred = new_ty_hole_of(deref_term.subject);
+        let deref_inner_inferred = Ty::hole_for(deref_term.subject);
         self.infer_term(deref_term.subject, deref_inner_inferred)?;
 
         let dereferenced_ty = match deref_inner_inferred.value() {
@@ -1100,7 +1097,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_ty(&self, ty_id: TyId, annotation_ty: TyId) -> TcResult<()> {
         // @@Todo: properly deal with universes
         self.register_new_atom(ty_id, annotation_ty);
-        let inner_is_ty = |ty: TyId| new_expected_ty_of_ty(ty, Ty::flexible_universe());
+        let inner_is_ty = |ty: TyId| Ty::expect_same(ty, Ty::flexible_universe());
         let expects_ty = |ty: TyId| self.check_by_unify(ty, inner_is_ty(ty));
 
         match ty_id.value() {
@@ -1164,7 +1161,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         // Forward to the inner term.
         self.infer_block_term(&loop_term.block, Ty::hole(), original_term_id)?;
-        let loop_term = new_expected_ty_of(original_term_id, Ty::void());
+        let loop_term = Ty::expect_is(original_term_id, Ty::void());
         self.check_by_unify(loop_term, annotation_ty)?;
         Ok(())
     }
@@ -1190,7 +1187,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let mut diverges = false;
 
             for statement in block_term.statements.iter() {
-                let statement_ty = new_ty_hole_of(statement);
+                let statement_ty = Ty::hole_for(statement);
                 self.infer_term(statement, statement_ty)?;
 
                 // If the statement diverges, we can already exit
@@ -1203,13 +1200,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 match annotation_ty.value() {
                     Ty::Hole(_) => {
                         // If it diverges, we can just infer the return type as `never`.
-                        let block_term_ty =
-                            new_expected_ty_of(original_term_id, self.new_never_ty());
+                        let block_term_ty = Ty::expect_is(original_term_id, self.new_never_ty());
                         self.check_by_unify(block_term_ty, annotation_ty)?;
                     }
                     _ => {
                         // Infer the return value
-                        let return_value_ty = new_ty_hole_of(block_term.return_value);
+                        let return_value_ty = Ty::hole_for(block_term.return_value);
                         self.infer_term(block_term.return_value, return_value_ty)?;
                     }
                 }
@@ -1238,7 +1234,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
-        let inferred_ty = new_ty_hole_of(type_of_term.term);
+        let inferred_ty = Ty::hole_for(type_of_term.term);
         self.infer_term(type_of_term.term, inferred_ty)?;
         self.infer_ty(inferred_ty, annotation_ty)?;
         self.norm_ops().normalise_in_place(original_term_id.into())?;
@@ -1259,7 +1255,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             _ => {
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
-                    actual: new_ty(RefTy {
+                    actual: Ty::from(RefTy {
                         kind: ref_term.kind,
                         mutable: ref_term.mutable,
                         ty: Ty::hole(),
@@ -1271,7 +1267,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         self.infer_term(ref_term.subject, annotation_ref_ty.ty)?;
 
-        let ty = new_expected_ty_of(original_term_id, new_ty(annotation_ref_ty));
+        let ty = Ty::expect_is(original_term_id, Ty::from(annotation_ref_ty));
         self.check_by_unify(ty, annotation_ty)?;
         Ok(())
     }
@@ -1307,7 +1303,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
-        let subject_ty = new_ty_hole_of(access_term.subject);
+        let subject_ty = Ty::hole_for(access_term.subject);
         self.infer_term(access_term.subject, subject_ty)?;
 
         let params = match subject_ty.value() {
@@ -1372,12 +1368,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;
 
-        let subject_ty = new_ty_hole_of(index_term.subject);
+        let subject_ty = Ty::hole_for(index_term.subject);
         self.infer_term(index_term.subject, subject_ty)?;
         self.normalise_and_check_ty(subject_ty)?;
 
         // Ensure the index is a usize
-        let index_ty = new_expected_ty_of(index_term.index, Ty::data(primitives().usize()));
+        let index_ty = Ty::expect_is(index_term.index, Ty::data(primitives().usize()));
         self.infer_term(index_term.index, index_ty)?;
 
         let wrong_subject_ty = || {
@@ -1418,15 +1414,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
-        let subject_ty = new_ty_hole_of(assign_term.subject);
+        let subject_ty = Ty::hole_for(assign_term.subject);
         self.infer_term(assign_term.subject, subject_ty)?;
 
-        let value_ty = new_ty_hole_of(assign_term.value);
+        let value_ty = Ty::hole_for(assign_term.value);
         self.infer_term(assign_term.value, value_ty)?;
 
         self.check_by_unify(value_ty, subject_ty)?;
 
-        let inferred_ty = new_expected_ty_of(original_term_id, Ty::void());
+        let inferred_ty = Ty::expect_is(original_term_id, Ty::void());
         self.check_by_unify(inferred_ty, annotation_ty)?;
         Ok(())
     }
@@ -1434,7 +1430,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer a match term.
     pub fn infer_match_term(&self, match_term: &MatchTerm, annotation_ty: TyId) -> TcResult<()> {
         self.check_ty(annotation_ty)?;
-        let match_subject_ty = new_ty_hole_of(match_term.subject);
+        let match_subject_ty = Ty::hole_for(match_term.subject);
         self.infer_term(match_term.subject, match_subject_ty)?;
 
         let match_subject_var = match match_term.subject.value() {
@@ -1456,7 +1452,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 self.infer_pat(case_data.bind_pat, subject_ty_copy, Some(match_term.subject))?;
                 let new_unified_ty =
-                    new_expected_ty_of(case_data.value, self.sub_ops().copy_ty(unified_ty));
+                    Ty::expect_is(case_data.value, self.sub_ops().copy_ty(unified_ty));
 
                 if let Some(match_subject_var) = match_subject_var {
                     if let Some(pat_term) = self.try_use_pat_as_term(case_data.bind_pat) {
@@ -1466,7 +1462,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 match match_annotation_ty {
                     _ if self.uni_ops().is_uninhabitable(subject_ty_copy)? => {
-                        let new_unified_ty = new_ty_hole_of(case_data.value);
+                        let new_unified_ty = Ty::hole_for(case_data.value);
                         self.infer_term(case_data.value, new_unified_ty)?;
                         self.check_by_unify(new_unified_ty, self.new_never_ty())?;
                     }
@@ -1492,9 +1488,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         if matches!(unified_ty.value(), Ty::Hole(_)) {
             if !inhabited.get() {
-                unified_ty = new_expected_ty_of_ty(unified_ty, self.new_never_ty());
+                unified_ty = Ty::expect_same(unified_ty, self.new_never_ty());
             } else {
-                unified_ty = new_expected_ty_of_ty(unified_ty, Ty::void());
+                unified_ty = Ty::expect_same(unified_ty, Ty::void());
             }
         }
 
@@ -1600,7 +1596,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let inferred = Param::seq_from_args_with_hole_types(tuple_pat.data);
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
-                    actual: new_expected_ty_of(original_pat_id, new_ty(TupleTy { data: inferred })),
+                    actual: Ty::expect_is(original_pat_id, Ty::from(TupleTy { data: inferred })),
                     inferred_from: Some(original_pat_id.into()),
                 });
             }
@@ -1612,7 +1608,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ok(())
         })?;
 
-        let tuple_ty = new_expected_ty_of(original_pat_id, new_ty(TupleTy { data: params }));
+        let tuple_ty = Ty::expect_is(original_pat_id, Ty::from(TupleTy { data: params }));
         self.check_by_unify(tuple_ty, annotation_ty)?;
         Ok(())
     }
@@ -1637,9 +1633,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: {
-                        new_ty(DataTy {
+                        Ty::from(DataTy {
                             data_def: primitives().list(),
-                            args: Arg::seq_positional([new_term(Ty::hole())]),
+                            args: Arg::seq_positional([Term::from(Ty::hole())]),
                         })
                     },
                     inferred_from: Some(original_pat_id.into()),
@@ -1650,9 +1646,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.infer_unified_pat_list(list_pat.pats, list_annotation_inner_ty)?;
         let list_ty = DataTy {
             data_def: primitives().list(),
-            args: Arg::seq_positional([new_term(list_annotation_inner_ty)]),
+            args: Arg::seq_positional([Term::from(list_annotation_inner_ty)]),
         };
-        self.check_by_unify(new_ty(list_ty), annotation_ty)?;
+        self.check_by_unify(Ty::from(list_ty), annotation_ty)?;
         Ok(())
     }
 
@@ -1690,7 +1686,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             _ => {
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
-                    actual: new_ty(DataTy { args: data_args, data_def: ctor.data_def_id }),
+                    actual: Ty::from(DataTy { args: data_args, data_def: ctor.data_def_id }),
                     inferred_from: Some(original_atom.into()),
                 });
             }
@@ -1751,7 +1747,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Set the annotation data type to the final result arguments, and unify
         // the annotation type with the expected type.
         annotation_data_ty.args = final_result_args;
-        let expected_data_ty = new_expected_ty_of(original_atom, new_ty(annotation_data_ty));
+        let expected_data_ty = Ty::expect_is(original_atom, Ty::from(annotation_data_ty));
         let uni_ops = self.uni_ops();
         uni_ops.with_binds(binds);
         uni_ops.add_unification_from_sub(&resulting_sub);
@@ -1773,7 +1769,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         {
             let data_arg = data_arg.value();
             let result_data_arg = result_data_arg.value();
-            if let Some(ty) = try_use_term_as_ty(data_arg.value)
+            if let Some(ty) = data_arg.value.try_as_ty()
                 && let Ty::Hole(_) = ty.value()
             {
                 data_arg.value.set(result_data_arg.value.value());
@@ -1792,8 +1788,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer an if-pattern
     pub fn infer_if_pat(&self, pat: &IfPat, annotation_ty: TyId) -> TcResult<()> {
         self.infer_pat(pat.pat, annotation_ty, None)?;
-        let expected_condition_ty =
-            new_expected_ty_of(pat.condition, Ty::data(primitives().bool()));
+        let expected_condition_ty = Ty::expect_is(pat.condition, Ty::data(primitives().bool()));
         self.infer_term(pat.condition, expected_condition_ty)?;
         if let Term::Var(v) = pat.condition.value() {
             self.context().add_assignment(v, expected_condition_ty, self.new_bool_term(true));
@@ -1846,7 +1841,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let ctor_def = ctor.value();
         self.infer_params(ctor_def.params, || {
             let return_ty =
-                new_ty(DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args });
+                Ty::from(DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args });
             self.infer_ty(return_ty, Ty::hole())?;
             Ok(())
         })

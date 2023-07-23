@@ -26,7 +26,8 @@ use crate::{
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     tir_debug_value_of_single_store_id,
     tuples::TupleTerm,
-    tys::TyId,
+    tys::{Ty, TyId},
+    utils::common::get_location,
 };
 
 /// A term that can contain unsafe operations.
@@ -132,6 +133,61 @@ impl Term {
 
     pub fn var(symbol: Symbol) -> TermId {
         Term::create(Term::Var(symbol))
+    }
+
+    /// Create a new term.
+    ///
+    /// Prefer this to `Term::create` because this will also add the location
+    /// and AST info to the term.
+    pub fn from(term: impl Into<Term>) -> TermId {
+        let term = term.into();
+        let (ast_info, location) = match term {
+            Term::Ty(ty) => (tir_stores().ast_info().tys().get_node_by_data(ty), get_location(ty)),
+            Term::FnRef(f) => {
+                (tir_stores().ast_info().fn_defs().get_node_by_data(f), get_location(f))
+            }
+            Term::Var(v) => (None, get_location(v)),
+            _ => (None, None),
+        };
+        let created = Term::create(term);
+        if let Some(location) = location {
+            tir_stores().location().add_location_to_target(created, location);
+        }
+        if let Some(ast_info) = ast_info {
+            tir_stores().ast_info().terms().insert(ast_info, created);
+        }
+        created
+    }
+
+    /// Create a new term that inherits location and AST info from the given
+    /// `TermId`.
+    pub fn inherited_from(source: TermId, term: impl Into<Term>) -> TermId {
+        let created = Self::from(term);
+        tir_stores().location().copy_location(source, created);
+        if let Some(ast_info) = tir_stores().ast_info().terms().get_node_by_data(source) {
+            tir_stores().ast_info().terms().insert(ast_info, created);
+        }
+        created
+    }
+}
+
+impl TermId {
+    /// Try to use the given term as a type, or defer to a `Ty::Eval`.
+    pub fn as_ty(&self) -> TyId {
+        match self.try_as_ty() {
+            Some(ty) => ty,
+            None => Ty::from(Ty::Eval(*self)),
+        }
+    }
+
+    /// Try to use the given term as a type if easily possible.
+    pub fn try_as_ty(&self) -> Option<TyId> {
+        match self.value() {
+            Term::Var(var) => Some(Ty::from(var)),
+            Term::Ty(ty) => Some(ty),
+            Term::Hole(hole) => Some(Ty::from(hole)),
+            _ => None,
+        }
     }
 }
 

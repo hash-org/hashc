@@ -20,9 +20,10 @@ use crate::{
     fns::FnTy,
     params::Param,
     refs::RefTy,
-    terms::TermId,
+    terms::{Term, TermId},
     tir_debug_value_of_single_store_id,
     tuples::TupleTy,
+    utils::{common::get_location, traversing::Atom},
 };
 
 /// The type of types, i.e. a universe.
@@ -129,6 +130,92 @@ impl Ty {
     /// Create a new data type with no arguments.
     pub fn data(data_def: DataDefId) -> TyId {
         Ty::create(Ty::Data(DataTy { data_def, args: Arg::empty_seq() }))
+    }
+
+    /// Create a new type.
+    pub fn from(ty: impl Into<Ty>) -> TyId {
+        let ty = ty.into();
+        let (ast_info, location) = match ty {
+            Ty::Eval(term) => {
+                (tir_stores().ast_info().terms().get_node_by_data(term), get_location(term))
+            }
+            Ty::Var(v) => (None, get_location(v)),
+            _ => (None, None),
+        };
+        let created = Ty::create(ty);
+        if let Some(location) = location {
+            tir_stores().location().add_location_to_target(created, location);
+        }
+        if let Some(ast_info) = ast_info {
+            tir_stores().ast_info().tys().insert(ast_info, created);
+        }
+        created
+    }
+
+    /// Create a new expected type for typing the given term.
+    pub fn expect_same(ty: TyId, expectation: TyId) -> TyId {
+        tir_stores().location().copy_location(ty, expectation);
+        if let Some(ast_info) = tir_stores().ast_info().tys().get_node_by_data(ty) {
+            tir_stores().ast_info().tys().insert(ast_info, expectation);
+        }
+        expectation
+    }
+
+    /// Create a new expected type for typing the given term.
+    pub fn expect_is(atom: impl Into<Atom>, ty: TyId) -> TyId {
+        let atom: Atom = atom.into();
+        let (ast_info, location) = match atom {
+            Atom::Term(origin_term) => match origin_term.value() {
+                Term::Ty(ty) => {
+                    (tir_stores().ast_info().tys().get_node_by_data(ty), get_location(ty))
+                }
+                Term::FnRef(f) => {
+                    (tir_stores().ast_info().fn_defs().get_node_by_data(f), get_location(f))
+                }
+                Term::Var(v) => (None, get_location(v)),
+                _ => (
+                    tir_stores().ast_info().terms().get_node_by_data(origin_term),
+                    tir_stores().location().get_location(origin_term),
+                ),
+            },
+            Atom::Ty(origin_ty) => (
+                tir_stores().ast_info().tys().get_node_by_data(origin_ty),
+                tir_stores().location().get_location(origin_ty),
+            ),
+            Atom::FnDef(_) => todo!(),
+            Atom::Pat(origin_pat) => (
+                tir_stores().ast_info().pats().get_node_by_data(origin_pat),
+                tir_stores().location().get_location(origin_pat),
+            ),
+        };
+        if let Some(location) = location {
+            tir_stores().location().add_location_to_target(ty, location);
+        }
+        if let Some(ast_info) = ast_info {
+            tir_stores().ast_info().tys().insert(ast_info, ty);
+        }
+        ty
+    }
+
+    /// Create a new type hole for typing the given atom.
+    pub fn hole_for(src: impl Into<Atom>) -> TyId {
+        let ty = Ty::hole();
+        Ty::expect_is(src, ty)
+    }
+}
+
+impl TyId {
+    /// Try to use the given type as a term.
+    pub fn as_term(&self) -> TermId {
+        match self.value() {
+            Ty::Var(var) => Term::from(var),
+            Ty::Hole(hole) => Term::from(hole),
+            Ty::Eval(term) => match term.try_as_ty() {
+                Some(ty) => ty.as_term(),
+                None => term,
+            },
+            _ => Term::from(*self),
+        }
     }
 }
 

@@ -18,7 +18,7 @@ use hash_tir::{
     terms::Term,
     tuples::TupleTy,
     tys::Ty,
-    utils::{common::new_ty, AccessToUtils},
+    utils::AccessToUtils,
 };
 use hash_utils::itertools::Itertools;
 
@@ -325,7 +325,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     type TyFnRet = ();
     fn visit_ty_fn(&self, node: AstNodeRef<ast::TyFn>) -> Result<Self::TyFnRet, Self::Error> {
         // This will be filled in during resolution
-        let fn_ty_id = new_ty(FnTy {
+        let fn_ty_id = Ty::from(FnTy {
             implicit: true,
             is_unsafe: false,
             params: self.create_hole_params(&node.params),
@@ -342,7 +342,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     type FnTyRet = ();
     fn visit_fn_ty(&self, node: AstNodeRef<ast::FnTy>) -> Result<Self::FnTyRet, Self::Error> {
         // This will be filled in during resolution
-        let fn_ty_id = new_ty(FnTy {
+        let fn_ty_id = Ty::from(FnTy {
             implicit: false,
             is_unsafe: false,
             params: self.create_hole_params_from(&node.params, |params| &params.name),
@@ -362,7 +362,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         // This will be filled in during resolution
-        let tuple_ty_id = new_ty(TupleTy {
+        let tuple_ty_id = Ty::from(TupleTy {
             data: self.create_hole_params_from(&node.entries, |params| &params.name),
         });
 

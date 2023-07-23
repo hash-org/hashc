@@ -12,8 +12,8 @@ use hash_tir::{
     args::Arg,
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::FnCallTerm,
-    terms::TermId,
-    utils::common::{dump_tir, new_term},
+    terms::{Term, TermId},
+    utils::common::dump_tir,
 };
 use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
 use hash_utils::stream_less_writeln;
@@ -53,8 +53,8 @@ impl EvaluationPass<'_> {
                 let def = AccessToSemEnv::entry_point(self).def();
                 match def {
                     Some(def) => {
-                        let call_term = new_term(FnCallTerm {
-                            subject: new_term(def),
+                        let call_term = Term::from(FnCallTerm {
+                            subject: Term::from(def),
                             implicit: false,
                             args: Arg::empty_seq(),
                         });

@@ -14,7 +14,6 @@ use hash_tir::{
     pats::Spread,
     terms::{Term, TermId},
     tys::Ty,
-    utils::common::new_term,
 };
 
 use super::ResolutionPass;
@@ -294,7 +293,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ResolvedArgs::Term(args) => {
                     // Here we are trying to call a function with term arguments.
                     // Apply the arguments to the current subject and continue.
-                    current_subject = new_term(Term::FnCall(FnCallTerm {
+                    current_subject = Term::from(Term::FnCall(FnCallTerm {
                         subject: current_subject,
                         args,
                         implicit: matches!(arg_group, AstArgGroup::ImplicitArgs(_)),

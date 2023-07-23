@@ -8,7 +8,6 @@ use hash_storage::store::{
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 
-use super::common::{new_term, new_ty, use_term_as_ty, use_ty_as_term};
 use crate::{
     access::AccessTerm,
     args::{Arg, ArgsId, PatArg, PatArgsId, PatOrCapture},
@@ -112,48 +111,48 @@ impl TraversingUtils {
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
                 Atom::Term(t) => Ok(t),
-                Atom::Ty(ty) => Ok(use_ty_as_term(ty)),
-                Atom::FnDef(fn_def_id) => Ok(new_term(fn_def_id)),
+                Atom::Ty(ty) => Ok(ty.as_term()),
+                Atom::FnDef(fn_def_id) => Ok(Term::from(fn_def_id)),
                 Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
             },
             ControlFlow::Continue(()) => match term_id.value() {
                 Term::Tuple(tuple_term) => {
                     let data = self.fmap_args(tuple_term.data, f)?;
-                    Ok(new_term(Term::Tuple(TupleTerm { data })))
+                    Ok(Term::from(Term::Tuple(TupleTerm { data })))
                 }
-                Term::Lit(lit) => Ok(new_term(Term::Lit(lit))),
+                Term::Lit(lit) => Ok(Term::from(Term::Lit(lit))),
                 Term::Array(list_ctor) => {
                     let elements = self.fmap_term_list(list_ctor.elements, f)?;
-                    Ok(new_term(Term::Array(ArrayTerm { elements })))
+                    Ok(Term::from(Term::Array(ArrayTerm { elements })))
                 }
                 Term::Ctor(ctor_term) => {
                     let data_args = self.fmap_args(ctor_term.data_args, f)?;
                     let ctor_args = self.fmap_args(ctor_term.ctor_args, f)?;
-                    Ok(new_term(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }))
+                    Ok(Term::from(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }))
                 }
                 Term::FnCall(fn_call_term) => {
                     let subject = self.fmap_term(fn_call_term.subject, f)?;
                     let args = self.fmap_args(fn_call_term.args, f)?;
-                    Ok(new_term(FnCallTerm { args, subject, implicit: fn_call_term.implicit }))
+                    Ok(Term::from(FnCallTerm { args, subject, implicit: fn_call_term.implicit }))
                 }
                 Term::FnRef(fn_def_id) => {
                     let fn_def_id = self.fmap_fn_def(fn_def_id, f)?;
-                    Ok(new_term(Term::FnRef(fn_def_id)))
+                    Ok(Term::from(Term::FnRef(fn_def_id)))
                 }
                 Term::Block(block_term) => {
                     let statements = self.fmap_term_list(block_term.statements, f)?;
                     let return_value = self.fmap_term(block_term.return_value, f)?;
-                    Ok(new_term(BlockTerm {
+                    Ok(Term::from(BlockTerm {
                         statements,
                         return_value,
                         stack_id: block_term.stack_id,
                     }))
                 }
-                Term::Var(var_term) => Ok(new_term(var_term)),
+                Term::Var(var_term) => Ok(Term::from(var_term)),
                 Term::Loop(loop_term) => {
                     let statements = self.fmap_term_list(loop_term.block.statements, f)?;
                     let return_value = self.fmap_term(loop_term.block.return_value, f)?;
-                    Ok(new_term(LoopTerm {
+                    Ok(Term::from(LoopTerm {
                         block: BlockTerm {
                             statements,
                             return_value,
@@ -161,7 +160,7 @@ impl TraversingUtils {
                         },
                     }))
                 }
-                Term::LoopControl(loop_control_term) => Ok(new_term(loop_control_term)),
+                Term::LoopControl(loop_control_term) => Ok(Term::from(loop_control_term)),
                 Term::Match(match_term) => {
                     let subject = self.fmap_term(match_term.subject, f)?;
 
@@ -177,53 +176,53 @@ impl TraversingUtils {
                             })
                             .collect::<Result<Vec<_>, _>>()?,
                     );
-                    Ok(new_term(MatchTerm { cases, subject, origin: match_term.origin }))
+                    Ok(Term::from(MatchTerm { cases, subject, origin: match_term.origin }))
                 }
                 Term::Return(return_term) => {
                     let expression = self.fmap_term(return_term.expression, f)?;
-                    Ok(new_term(ReturnTerm { expression }))
+                    Ok(Term::from(ReturnTerm { expression }))
                 }
                 Term::Decl(decl_stack_member_term) => {
                     let bind_pat = self.fmap_pat(decl_stack_member_term.bind_pat, f)?;
                     let ty = self.fmap_ty(decl_stack_member_term.ty, f)?;
                     let value =
                         decl_stack_member_term.value.map(|v| self.fmap_term(v, f)).transpose()?;
-                    Ok(new_term(DeclTerm { ty, bind_pat, value }))
+                    Ok(Term::from(DeclTerm { ty, bind_pat, value }))
                 }
                 Term::Assign(assign_term) => {
                     let subject = self.fmap_term(assign_term.subject, f)?;
                     let value = self.fmap_term(assign_term.value, f)?;
-                    Ok(new_term(AssignTerm { subject, value }))
+                    Ok(Term::from(AssignTerm { subject, value }))
                 }
                 Term::Unsafe(unsafe_term) => {
                     let inner = self.fmap_term(unsafe_term.inner, f)?;
-                    Ok(new_term(UnsafeTerm { inner }))
+                    Ok(Term::from(UnsafeTerm { inner }))
                 }
                 Term::Access(access_term) => {
                     let subject = self.fmap_term(access_term.subject, f)?;
-                    Ok(new_term(AccessTerm { subject, field: access_term.field }))
+                    Ok(Term::from(AccessTerm { subject, field: access_term.field }))
                 }
                 Term::Index(index_term) => {
                     let subject = self.fmap_term(index_term.subject, f)?;
                     let index = self.fmap_term(index_term.index, f)?;
-                    Ok(new_term(IndexTerm { subject, index }))
+                    Ok(Term::from(IndexTerm { subject, index }))
                 }
                 Term::Cast(cast_term) => {
                     let subject_term = self.fmap_term(cast_term.subject_term, f)?;
                     let target_ty = self.fmap_ty(cast_term.target_ty, f)?;
-                    Ok(new_term(CastTerm { subject_term, target_ty }))
+                    Ok(Term::from(CastTerm { subject_term, target_ty }))
                 }
                 Term::TypeOf(type_of_term) => {
                     let term = self.fmap_term(type_of_term.term, f)?;
-                    Ok(new_term(TypeOfTerm { term }))
+                    Ok(Term::from(TypeOfTerm { term }))
                 }
                 Term::Ty(ty) => {
                     let ty = self.fmap_ty(ty, f)?;
-                    Ok(new_term(ty))
+                    Ok(Term::from(ty))
                 }
                 Term::Ref(ref_term) => {
                     let subject = self.fmap_term(ref_term.subject, f)?;
-                    Ok(new_term(RefTerm {
+                    Ok(Term::from(RefTerm {
                         subject,
                         kind: ref_term.kind,
                         mutable: ref_term.mutable,
@@ -231,9 +230,9 @@ impl TraversingUtils {
                 }
                 Term::Deref(deref_term) => {
                     let subject = self.fmap_term(deref_term.subject, f)?;
-                    Ok(new_term(DerefTerm { subject }))
+                    Ok(Term::from(DerefTerm { subject }))
                 }
-                Term::Hole(hole_term) => Ok(new_term(hole_term)),
+                Term::Hole(hole_term) => Ok(Term::from(hole_term)),
             },
         }?;
 
@@ -245,24 +244,24 @@ impl TraversingUtils {
         let result = match f(ty_id.into())? {
             ControlFlow::Break(ty) => match ty {
                 Atom::Ty(ty) => Ok(ty),
-                Atom::Term(term) => Ok(use_term_as_ty(term)),
+                Atom::Term(term) => Ok(term.as_ty()),
                 _ => unreachable!("got non-type in fmap_ty"),
             },
             ControlFlow::Continue(()) => match ty_id.value() {
                 Ty::Eval(eval_term) => {
                     let eval_term = self.fmap_term(eval_term, f)?;
-                    Ok(new_ty(eval_term))
+                    Ok(Ty::from(eval_term))
                 }
-                Ty::Hole(hole_ty) => Ok(new_ty(hole_ty)),
-                Ty::Var(var_ty) => Ok(new_ty(var_ty)),
+                Ty::Hole(hole_ty) => Ok(Ty::from(hole_ty)),
+                Ty::Var(var_ty) => Ok(Ty::from(var_ty)),
                 Ty::Tuple(tuple_ty) => {
                     let data = self.fmap_params(tuple_ty.data, f)?;
-                    Ok(new_ty(TupleTy { data }))
+                    Ok(Ty::from(TupleTy { data }))
                 }
                 Ty::Fn(fn_ty) => {
                     let params = self.fmap_params(fn_ty.params, f)?;
                     let return_ty = self.fmap_ty(fn_ty.return_ty, f)?;
-                    Ok(new_ty(FnTy {
+                    Ok(Ty::from(FnTy {
                         params,
                         return_ty,
                         implicit: fn_ty.implicit,
@@ -272,13 +271,13 @@ impl TraversingUtils {
                 }
                 Ty::Ref(ref_ty) => {
                     let ty = self.fmap_ty(ref_ty.ty, f)?;
-                    Ok(new_ty(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }))
+                    Ok(Ty::from(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }))
                 }
                 Ty::Data(data_ty) => {
                     let args = self.fmap_args(data_ty.args, f)?;
-                    Ok(new_ty(DataTy { args, data_def: data_ty.data_def }))
+                    Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }))
                 }
-                Ty::Universe(universe_ty) => Ok(new_ty(universe_ty)),
+                Ty::Universe(universe_ty) => Ok(Ty::from(universe_ty)),
             },
         }?;
         tir_stores().location().copy_location(ty_id, result);
@@ -657,7 +656,7 @@ impl TraversingUtils {
 
         // Create a new type for the result of the constructor, and traverse it.
         let return_ty =
-            new_ty(DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args });
+            Ty::from(DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args });
         self.visit_ty(return_ty, f)?;
 
         Ok(())

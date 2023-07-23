@@ -29,7 +29,6 @@ use hash_tir::{
     tuples::TupleTerm,
     tys::{Ty, TyId, TypeOfTerm},
     utils::{
-        common::{new_term, try_use_term_as_ty, use_ty_as_term},
         traversing::{Atom, TraversingUtils},
         AccessToUtils,
     },
@@ -225,7 +224,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Try to use the given atom as a type.
     pub fn maybe_to_ty(&self, atom: Atom) -> Option<TyId> {
         match atom {
-            Atom::Term(term) => try_use_term_as_ty(term),
+            Atom::Term(term) => term.try_as_ty(),
             Atom::Ty(ty) => Some(ty),
             _ => None,
         }
@@ -247,8 +246,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     pub fn maybe_to_term(&self, atom: Atom) -> Option<TermId> {
         match atom {
             Atom::Term(term) => Some(term),
-            Atom::Ty(ty) => Some(use_ty_as_term(ty)),
-            Atom::FnDef(fn_def_id) => Some(new_term(fn_def_id)),
+            Atom::Ty(ty) => Some(ty.as_term()),
+            Atom::FnDef(fn_def_id) => Some(Term::from(fn_def_id)),
             _ => None,
         }
     }
@@ -484,7 +483,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             return evaluation_to(ref_expr.subject);
         }
 
-        evaluation_if(|| new_term(deref_term), &st)
+        evaluation_if(|| Term::from(deref_term), &st)
     }
 
     /// Get the parameter at the given index in the given argument list.
@@ -668,7 +667,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 }
                 MatchResult::Stuck => {
                     info!("Stuck evaluating let-binding: {}", &decl_term);
-                    evaluation_if(|| new_term(decl_term), &st)
+                    evaluation_if(|| Term::from(decl_term), &st)
                 }
             },
             None => {
@@ -788,7 +787,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             }
         }
 
-        evaluation_if(|| new_term(fn_call), &st)
+        evaluation_if(|| Term::from(fn_call), &st)
     }
 
     /// Evaluate an atom, performing at least a single step of normalisation.
@@ -992,7 +991,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         self.match_some_list_and_get_binds(
             term_args.len(),
             spread,
-            |_| new_term(TupleTerm { data: self.extract_spread_args(term_args, pat_args) }),
+            |_| Term::from(TupleTerm { data: self.extract_spread_args(term_args, pat_args) }),
             |i| pat_args.at(i).unwrap().borrow().pat,
             |i| term_args.at(i).unwrap().borrow().value,
             f,
@@ -1199,7 +1198,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 list_pat.spread,
                 |_| {
                     // Lists can have spreads, which return sublists
-                    new_term(Term::Array(ArrayTerm {
+                    Term::from(Term::Array(ArrayTerm {
                         elements: self.extract_spread_list(array_term.elements, list_pat.pats),
                     }))
                 },

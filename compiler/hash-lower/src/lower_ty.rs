@@ -28,7 +28,7 @@ use hash_tir::{
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::common::{get_location, use_term_as_ty},
+    utils::common::get_location,
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
@@ -129,7 +129,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // @@Temporary
                 if self.context().try_get_decl(sym).is_some() {
                     let term = self.context().get_binding_value(sym);
-                    let ty = use_term_as_ty(term).value();
+                    let ty = term.as_ty().value();
                     return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {
                     // We just return the unit type for now.
@@ -256,7 +256,7 @@ impl<'ir> BuilderCtx<'ir> {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
             Some(IrTyListId::seq(ty.args.borrow().iter().map(|arg| {
-                let ty = use_term_as_ty(arg.value);
+                let ty = arg.value.as_ty();
                 self.ty_id_from_tir_ty(ty)
             })))
         } else {

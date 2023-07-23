@@ -7,6 +7,7 @@ use hash_storage::store::{
     DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey,
 };
 use hash_tir::{
+    self,
     environment::{
         env::{AccessToEnv, Env},
         stores::tir_stores,
@@ -20,7 +21,6 @@ use hash_tir::{
     symbols::Symbol,
     terms::{Term, TermId},
     tys::Ty,
-    utils::common::{new_ty, use_term_as_ty},
 };
 use hash_utils::stream_less_writeln;
 use num_bigint::{BigInt, BigUint};
@@ -222,9 +222,9 @@ impl DefinedIntrinsics {
         let params = Param::seq_data([
             Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
             Param { default: None, name: op_sym, ty: Ty::data(primitives().u8()) },
-            Param { default: None, name: a_sym, ty: new_ty(t_sym) },
+            Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
         ]);
-        let ret = new_ty(t_sym);
+        let ret = Ty::from(t_sym);
 
         Self::add_intrinsic(
             env,
@@ -281,7 +281,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(use_term_as_ty(t)) {
+                match env.try_use_ty_as_lit_ty(t.as_ty()) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::I8 => handle_integer!(i8),
                         LitTy::I16 => handle_integer!(i16),
@@ -390,8 +390,8 @@ impl DefinedIntrinsics {
         let params = Param::seq_data([
             Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
             Param { default: None, name: op_sym, ty: Ty::data(primitives().u8()) },
-            Param { default: None, name: a_sym, ty: new_ty(t_sym) },
-            Param { default: None, name: b_sym, ty: new_ty(t_sym) },
+            Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            Param { default: None, name: b_sym, ty: Ty::from(t_sym) },
         ]);
         let ret = Ty::data(primitives().bool());
 
@@ -474,7 +474,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(use_term_as_ty(t)) {
+                match env.try_use_ty_as_lit_ty(t.as_ty()) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::U8 => handle_integer!(u8),
                         LitTy::U16 => handle_integer!(u16),
@@ -535,10 +535,10 @@ impl DefinedIntrinsics {
         let params = Param::seq_data([
             Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
             Param { default: None, name: op_sym, ty: Ty::data(primitives().u8()) },
-            Param { default: None, name: a_sym, ty: new_ty(t_sym) },
-            Param { default: None, name: b_sym, ty: new_ty(t_sym) },
+            Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            Param { default: None, name: b_sym, ty: Ty::from(t_sym) },
         ]);
-        let ret = new_ty(t_sym);
+        let ret = Ty::from(t_sym);
 
         Self::add_intrinsic(
             env,
@@ -625,7 +625,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(use_term_as_ty(t)) {
+                match env.try_use_ty_as_lit_ty(t.as_ty()) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::U8 => handle_integer!(u8),
                         LitTy::U16 => handle_integer!(u16),
@@ -739,7 +739,7 @@ impl DefinedIntrinsics {
             let a_sym = Symbol::from_name("a");
             let params = Param::seq_data([
                 Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                Param { default: None, name: a_sym, ty: new_ty(t_sym) },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
             ]);
             let ret = Ty::void();
             add("debug_print", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
@@ -753,7 +753,7 @@ impl DefinedIntrinsics {
             let a_sym = Symbol::from_name("a");
             let params = Param::seq_data([
                 Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                Param { default: None, name: a_sym, ty: new_ty(t_sym) },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
             ]);
             let ret = Ty::void();
             add(
@@ -775,9 +775,9 @@ impl DefinedIntrinsics {
             let a_sym = Symbol::from_name("a");
             let params = Param::seq_data([
                 Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                Param { default: None, name: a_sym, ty: new_ty(t_sym) },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
             ]);
-            let ret = new_ty(t_sym);
+            let ret = Ty::from(t_sym);
             add("eval", FnTy::builder().params(params).return_ty(ret).build(), |env, args| {
                 let evaluated = env.normalise_term(args[1])?;
                 Ok(evaluated)
@@ -855,10 +855,10 @@ impl DefinedIntrinsics {
             let params = Param::seq_data([
                 Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
                 Param { default: None, name: u_sym, ty: Ty::flexible_universe() },
-                Param { default: None, name: a_sym, ty: new_ty(t_sym) },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
             ]);
 
-            let ret = new_ty(u_sym);
+            let ret = Ty::from(u_sym);
             add("transmute", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
                 // No-op
                 Ok(args[2])
@@ -872,10 +872,10 @@ impl DefinedIntrinsics {
             let params = Param::seq_data([
                 Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
                 Param { default: None, name: u_sym, ty: Ty::flexible_universe() },
-                Param { default: None, name: a_sym, ty: new_ty(t_sym) },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
             ]);
 
-            let ret = new_ty(u_sym);
+            let ret = Ty::from(u_sym);
             add("cast", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`cast` intrinsic evaluation")
             })

@@ -12,7 +12,6 @@ use hash_tir::{
     symbols::sym,
     terms::Term,
     tys::Ty,
-    utils::common::new_term,
 };
 
 macro_rules! defined_primitives {
@@ -167,7 +166,7 @@ impl DefinedPrimitives {
                 DataDef::primitive_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
                         element_ty: Ty::var(t_sym),
-                        length: Some(new_term(n_sym)),
+                        length: Some(Term::from(n_sym)),
                     })
                 })
             },

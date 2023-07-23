@@ -6,10 +6,7 @@
 use derive_more::Constructor;
 use hash_ast::ast;
 use hash_reporting::diagnostic::AccessToDiagnostics;
-use hash_tir::{
-    environment::stores::tir_stores,
-    utils::{common::new_ty_hole_of, traversing::Atom},
-};
+use hash_tir::{environment::stores::tir_stores, tys::Ty, utils::traversing::Atom};
 use hash_typecheck::{
     errors::{TcError, TcResult},
     inference::FnInferMode,
@@ -73,7 +70,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
         // Infer the expression
         let term = tir_stores().ast_info().terms().get_data_by_node(node.id()).unwrap();
         let (term, _) = self.infer_fully(
-            (term, new_ty_hole_of(term)),
+            (term, Ty::hole_for(term)),
             |(term_id, ty_id)| {
                 self.infer_ops().infer_term(term_id, ty_id)?;
                 Ok((term_id, ty_id))

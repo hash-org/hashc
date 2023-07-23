@@ -19,7 +19,6 @@ use hash_tir::{
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::{
-        common::{new_term, use_term_as_ty},
         traversing::{Atom, TraversingUtils},
         AccessToUtils,
     },
@@ -101,7 +100,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
                     match sub.get_sub_for_var_or_hole(symbol) {
                         Some(subbed_term) => {
-                            let subbed_ty_val = use_term_as_ty(subbed_term).value();
+                            let subbed_ty_val = subbed_term.as_ty().value();
                             ty.set(subbed_ty_val);
                             ControlFlow::Break(())
                         }
@@ -507,7 +506,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             if let Some(ident) = src_id.borrow().name_ident() {
                 sub.insert(
                     src.name,
-                    new_term(AccessTerm {
+                    Term::from(AccessTerm {
                         subject: access_subject,
                         field: ParamIndex::Name(ident),
                     }),
@@ -531,7 +530,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             let src = src.value();
             let target = target.value();
             if src.name != target.name {
-                sub.insert(src.name, new_term(target.name));
+                sub.insert(src.name, Term::from(target.name));
             }
         }
         sub
@@ -566,10 +565,10 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         for (name, value) in sub.iter() {
             match value.value() {
                 Term::Var(v) => {
-                    reversed_sub.insert(v, new_term(name));
+                    reversed_sub.insert(v, Term::from(name));
                 }
                 Term::Hole(h) => {
-                    reversed_sub.insert(h.0, new_term(name));
+                    reversed_sub.insert(h.0, Term::from(name));
                 }
                 _ => {
                     panic!("cannot reverse non-injective substitution");
