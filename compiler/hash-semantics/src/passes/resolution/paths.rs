@@ -31,7 +31,7 @@ use hash_tir::{
     mods::{ModDefId, ModMemberValue},
     symbols::Symbol,
     terms::Term,
-    utils::common::CommonUtils,
+    utils::common::new_term,
 };
 
 use super::{
@@ -274,7 +274,7 @@ impl<'tc> ResolutionPass<'tc> {
                         )),
                         args => {
                             let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                                self.new_term(Term::FnRef(fn_def_id)),
+                                new_term(Term::FnRef(fn_def_id)),
                                 args,
                                 component.span(),
                             )?;
@@ -341,7 +341,7 @@ impl<'tc> ResolutionPass<'tc> {
                     )),
                     args => {
                         let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                            self.new_term(Term::Var(decl)),
+                            new_term(Term::Var(decl)),
                             args,
                             component.span(),
                         )?;

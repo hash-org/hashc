@@ -4,7 +4,7 @@ use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    DefaultPartialStore, PartialStore, SequenceStoreKey, Store, StoreKey,
+    DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
 };
 use hash_tir::{
     context::Decl,
@@ -514,11 +514,7 @@ impl<'tc> DiscoveryPass<'tc> {
             let mut found_members = smallvec![];
             match (declaration_name, node.body()) {
                 (Some(declaration_name), ast::Pat::Binding(binding_pat))
-                    if self
-                        .stores()
-                        .symbol()
-                        .map_fast(declaration_name, |sym| Some(binding_pat.name.ident == sym.name?))
-                        .is_some_and(|d| d) =>
+                    if declaration_name.borrow().name == Some(binding_pat.name.ident) =>
                 {
                     found_members
                         .push((node.id(), Decl { name: declaration_name, ty: None, value: None }))

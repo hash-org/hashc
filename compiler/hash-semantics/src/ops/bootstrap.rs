@@ -3,7 +3,10 @@
 
 use std::iter::once;
 
-use hash_intrinsics::{intrinsics::DefinedIntrinsics, primitives::DefinedPrimitives};
+use hash_intrinsics::{
+    intrinsics::DefinedIntrinsics,
+    primitives::{primitives, DefinedPrimitives},
+};
 use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
 use hash_tir::{
     self,
@@ -27,16 +30,13 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
     /// Returns the root module.
     fn bootstrap(&self) -> ModDefId {
         *self.root_mod_or_unset().get_or_init(|| {
-            let primitives =
-                self.primitives_or_unset().get_or_init(|| DefinedPrimitives::create(self.env()));
-
             let intrinsics = self
                 .intrinsics_or_unset()
                 .get_or_init(|| DefinedIntrinsics::create(*self.sem_env()));
 
             let intrinsic_mod = self.make_intrinsic_mod(intrinsics);
 
-            self.make_root_mod(primitives, intrinsic_mod)
+            self.make_root_mod(intrinsic_mod)
         })
     }
 
@@ -56,14 +56,14 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
     }
 
     /// Make a module containing all the primitives and intrinsics.
-    fn make_root_mod(&self, primitives: &DefinedPrimitives, intrinsics_mod: ModDefId) -> ModDefId {
+    fn make_root_mod(&self, intrinsics_mod: ModDefId) -> ModDefId {
         ModDef::create_with(|id| ModDef {
             id,
             name: sym("Primitives"),
             kind: ModKind::Transparent,
             members: ModMember::seq(
-                primitives
-                    .as_mod_members(self.env())
+                primitives()
+                    .as_mod_members()
                     .into_iter()
                     .chain(once(ModMemberData {
                         name: sym("Intrinsics"),

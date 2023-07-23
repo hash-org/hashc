@@ -127,7 +127,6 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         let source_info = CurrentSourceInfo::new(entry);
         let env = Env::new(
-            tir_stores(),
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,
@@ -189,7 +188,6 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         } = stage_data.data();
         let source_info = CurrentSourceInfo::new(entry);
         let env = Env::new(
-            tir_stores(),
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,

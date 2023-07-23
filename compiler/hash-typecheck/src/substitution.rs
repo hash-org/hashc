@@ -19,7 +19,7 @@ use hash_tir::{
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::{
-        common::CommonUtils,
+        common::{new_term, use_term_as_ty},
         traversing::{Atom, TraversingUtils},
         AccessToUtils,
     },
@@ -32,7 +32,7 @@ use crate::AccessToTypechecking;
 pub struct SubstitutionOps<'a, T: AccessToTypechecking> {
     #[deref]
     env: &'a T,
-    traversing_utils: TraversingUtils<'a>,
+    traversing_utils: TraversingUtils,
 }
 
 impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
@@ -101,7 +101,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
                     match sub.get_sub_for_var_or_hole(symbol) {
                         Some(subbed_term) => {
-                            let subbed_ty_val = self.use_term_as_ty(subbed_term).value();
+                            let subbed_ty_val = use_term_as_ty(subbed_term).value();
                             ty.set(subbed_ty_val);
                             ControlFlow::Break(())
                         }
@@ -507,7 +507,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             if let Some(ident) = src_id.borrow().name_ident() {
                 sub.insert(
                     src.name,
-                    self.new_term(AccessTerm {
+                    new_term(AccessTerm {
                         subject: access_subject,
                         field: ParamIndex::Name(ident),
                     }),
@@ -531,7 +531,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             let src = src.value();
             let target = target.value();
             if src.name != target.name {
-                sub.insert(src.name, self.new_term(target.name));
+                sub.insert(src.name, new_term(target.name));
             }
         }
         sub
@@ -566,10 +566,10 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         for (name, value) in sub.iter() {
             match value.value() {
                 Term::Var(v) => {
-                    reversed_sub.insert(v, self.new_term(name));
+                    reversed_sub.insert(v, new_term(name));
                 }
                 Term::Hole(h) => {
-                    reversed_sub.insert(h.0, self.new_term(name));
+                    reversed_sub.insert(h.0, new_term(name));
                 }
                 _ => {
                     panic!("cannot reverse non-injective substitution");

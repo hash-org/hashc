@@ -249,7 +249,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
             }
             Pat::Array(array_pat) => {
-                let (prefix, suffix, rest) = array_pat.into_parts(self);
+                let (prefix, suffix, rest) = array_pat.into_parts();
 
                 let len = (prefix.len() + suffix.len()) as u64;
                 let op = if rest.is_some() { BinOp::GtEq } else { BinOp::Eq };
@@ -375,7 +375,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             (TestKind::SwitchInt { .. }, _) => None,
 
             (TestKind::Len { len: test_len, op: BinOp::Eq }, Pat::Array(list_pat)) => {
-                let (prefix, suffix, rest) = list_pat.into_parts(self);
+                let (prefix, suffix, rest) = list_pat.into_parts();
                 let pat_len = (prefix.len() + suffix.len()) as u64;
                 let ty = self.ty_id_from_tir_pat(pair.pat);
 
@@ -401,7 +401,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
             }
             (TestKind::Len { len: test_len, op: BinOp::GtEq }, Pat::Array(list_pat)) => {
-                let (prefix, suffix, rest) = list_pat.into_parts(self);
+                let (prefix, suffix, rest) = list_pat.into_parts();
                 let pat_len = (prefix.len() + suffix.len()) as u64;
 
                 let ty = self.ty_id_from_tir_pat(pair.pat);

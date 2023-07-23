@@ -3,7 +3,7 @@ use hash_source::SourceMap;
 use hash_target::Target;
 
 use super::source_info::CurrentSourceInfo;
-use crate::{context::Context, environment::stores::Stores};
+use crate::context::Context;
 
 macro_rules! env {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -48,7 +48,6 @@ macro_rules! env {
 }
 
 env! {
-    stores: Stores,
     context: Context,
     node_map: NodeMap,
     source_map: SourceMap,

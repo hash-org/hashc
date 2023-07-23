@@ -1,7 +1,7 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
 
-use hash_intrinsics::{primitives::AccessToPrimitives, utils::PrimitiveUtils};
+use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
 use hash_ir::{
     intrinsics::Intrinsic,
     lang_items::LangItem,
@@ -28,7 +28,7 @@ use hash_tir::{
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::common::CommonUtils,
+    utils::common::{get_location, use_term_as_ty},
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
@@ -129,7 +129,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // @@Temporary
                 if self.context().try_get_decl(sym).is_some() {
                     let term = self.context().get_binding_value(sym);
-                    let ty = self.use_term_as_ty(term).value();
+                    let ty = use_term_as_ty(term).value();
                     return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {
                     // We just return the unit type for now.
@@ -140,7 +140,7 @@ impl<'ir> BuilderCtx<'ir> {
                 let message =
                     format!("all types should be monomorphised before lowering, type: `{}`", ty);
 
-                if let Some(location) = self.get_location(id) {
+                if let Some(location) = get_location(id) {
                     panic_on_span!(location, self.source_map(), format!("{message}"))
                 } else {
                     panic!("{message}")
@@ -190,7 +190,7 @@ impl<'ir> BuilderCtx<'ir> {
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
 
-        let source = self.get_location(fn_def).map(|location| location.id);
+        let source = get_location(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
         let params =
@@ -256,7 +256,7 @@ impl<'ir> BuilderCtx<'ir> {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
             Some(IrTyListId::seq(ty.args.borrow().iter().map(|arg| {
-                let ty = self.use_term_as_ty(arg.value);
+                let ty = use_term_as_ty(arg.value);
                 self.ty_id_from_tir_ty(ty)
             })))
         } else {
@@ -312,7 +312,7 @@ impl<'ir> BuilderCtx<'ir> {
             DataDefCtors::Defined(ctor_defs) => {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
-                if self.primitives().bool() == ty.data_def {
+                if primitives().bool() == ty.data_def {
                     return (COMMON_IR_TYS.bool, true);
                 }
 

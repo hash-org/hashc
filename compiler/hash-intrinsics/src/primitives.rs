@@ -1,19 +1,18 @@
 //! Definition and lookup of primitive types.
-use std::iter::once;
+use std::{iter::once, sync::OnceLock};
 
-use hash_storage::store::{statics::SequenceStoreValue, Store};
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     args::Arg,
     data::{
         ArrayCtorInfo, DataDef, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
     },
-    environment::env::{AccessToEnv, Env},
     mods::{ModMemberData, ModMemberValue},
     params::Param,
     symbols::sym,
     terms::Term,
     tys::Ty,
-    utils::common::CommonUtils,
+    utils::common::new_term,
 };
 
 macro_rules! defined_primitives {
@@ -31,15 +30,23 @@ macro_rules! defined_primitives {
             )*
         }
 
+        /// The global [`DefinedPrimitives`] instance.
+        static PRIMITIVES: OnceLock<DefinedPrimitives> = OnceLock::new();
+
+        /// Access the global [`DefinedPrimitives`] instance.
+        pub fn primitives() -> &'static DefinedPrimitives {
+            PRIMITIVES.get_or_init(DefinedPrimitives::create)
+        }
+
         impl DefinedPrimitives {
             /// Create a list of [`ModMemberData`] that corresponds to the defined primitives.
             ///
             /// This can be used to make a module and enter its scope.
-            pub fn as_mod_members(&self, env: &Env) -> Vec<ModMemberData> {
+            pub fn as_mod_members(&self) -> Vec<ModMemberData> {
                 vec![
                     $(
                         ModMemberData {
-                            name: env.stores().data_def().map_fast(self.$name, |def| def.name),
+                            name: self.$name.borrow().name,
                             value: ModMemberValue::Data(self.$name)
                         },
                     )*
@@ -81,7 +88,7 @@ defined_primitives! {
 
 impl DefinedPrimitives {
     /// Create the primitive types using the given environment.
-    pub fn create<T: AccessToEnv>(env: &T) -> Self {
+    pub fn create() -> Self {
         // Helper function to create a numeric primitive.
         let numeric = |name, bits, signed, float| {
             DataDef::primitive(
@@ -160,7 +167,7 @@ impl DefinedPrimitives {
                 DataDef::primitive_with_params(list_sym, params, |_| {
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
                         element_ty: Ty::var(t_sym),
-                        length: Some(env.new_term(n_sym)),
+                        length: Some(new_term(n_sym)),
                     })
                 })
             },
@@ -238,11 +245,4 @@ impl DefinedPrimitives {
             },
         }
     }
-}
-
-/// Trait to be able to access the defined primitives.
-///
-/// More traits can be defined on top of this one.
-pub trait AccessToPrimitives: AccessToEnv {
-    fn primitives(&self) -> &DefinedPrimitives;
 }

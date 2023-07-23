@@ -20,7 +20,7 @@ use hash_tir::{
     pats::PatId,
     terms::TermId,
     tys::TyId,
-    utils::{common::CommonUtils, traversing::Atom},
+    utils::{common::get_location, traversing::Atom},
 };
 
 use crate::params::ParamError;
@@ -182,28 +182,28 @@ impl_access_to_env!(TcErrorReporter<'env>);
 
 impl fmt::Display for TcErrorReporter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let reports = self.format_error(&TcError::Signal);
+        let reports = Self::format_error(&TcError::Signal);
         write!(f, "{}", ReportWriter::new(reports, self.source_map()))
     }
 }
 
 impl<'tc> TcErrorReporter<'tc> {
     /// Format the error nicely and return it as a set of reports.
-    pub fn format_error(&self, error: &TcError) -> Reports {
+    pub fn format_error(error: &TcError) -> Reports {
         let mut builder = Reporter::new();
-        self.add_to_reporter(error, &mut builder);
+        Self::add_to_reporter(error, &mut builder);
         builder.into_reports()
     }
 
     /// Format the error nicely and add it to the given reporter.
-    pub fn add_to_reporter(&self, error: &TcError, reporter: &mut Reporter) {
+    pub fn add_to_reporter(error: &TcError, reporter: &mut Reporter) {
         let locations = tir_stores().location();
         match error {
             TcError::Signal => {}
             TcError::Blocked(location) => {
                 let error = reporter.error().title("blocked while typechecking".to_string());
 
-                if let Some(location) = self.get_location(location) {
+                if let Some(location) = get_location(location) {
                     error.add_span(location);
                 }
             }
@@ -213,7 +213,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .code(HashErrorCode::UnresolvedType)
                     .title(format!("cannot infer the type of this term: `{}`", *atom));
 
-                if let Some(location) = self.get_location(atom) {
+                if let Some(location) = get_location(atom) {
                     error
                         .add_span(location)
                         .add_help("consider adding more type annotations to this expression");
@@ -221,7 +221,7 @@ impl<'tc> TcErrorReporter<'tc> {
             }
             TcError::Compound { errors } => {
                 for error in errors {
-                    self.add_to_reporter(error, reporter);
+                    Self::add_to_reporter(error, reporter);
                 }
             }
             TcError::WrongArgLength { params_id, args_id } => {

@@ -5,10 +5,7 @@
 //! Any scoping errors are reported here.
 
 use hash_ast::ast::{self};
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
-    primitives::{AccessToPrimitives, DefinedPrimitives},
-};
+use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_source::ModuleKind;
 use hash_tir::environment::{env::AccessToEnv, stores::tir_stores};
 
@@ -42,12 +39,6 @@ pub struct ResolutionPass<'tc> {
 impl AccessToIntrinsics for ResolutionPass<'_> {
     fn intrinsics(&self) -> &DefinedIntrinsics {
         self.sem_env.intrinsics()
-    }
-}
-
-impl AccessToPrimitives for ResolutionPass<'_> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        self.sem_env.primitives()
     }
 }
 

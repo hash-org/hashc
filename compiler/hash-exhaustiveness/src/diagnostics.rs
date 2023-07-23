@@ -5,7 +5,7 @@ use hash_ast::ast::{MatchOrigin, RangeEnd};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{diagnostic::DiagnosticCellStore, reporter::Reporter};
 use hash_source::location::Span;
-use hash_tir::{environment::env::Env, lits::LitPat, pats::PatId, utils::common::CommonUtils};
+use hash_tir::{environment::env::Env, lits::LitPat, pats::PatId, utils::common::get_location};
 use hash_utils::{
     itertools::Itertools,
     pluralise,
@@ -64,7 +64,7 @@ pub enum ExhaustivenessError {
 
 impl ExhaustivenessError {
     /// Adds the given [ExhaustivenessError] to the report builder.
-    pub fn add_to_reports(&self, env: &Env, reporter: &mut Reporter) {
+    pub fn add_to_reports(&self, _env: &Env, reporter: &mut Reporter) {
         match self {
             ExhaustivenessError::RefutablePat { pat, origin, uncovered_pats } => {
                 let origin = match origin {
@@ -89,7 +89,7 @@ impl ExhaustivenessError {
                     .code(HashErrorCode::RefutablePat)
                     .title(format!("refutable pattern in {origin} binding: {pats} not covered"))
                     .add_labelled_span(
-                        env.get_location(pat).unwrap(),
+                        get_location(pat).unwrap(),
                         format!("pattern{} {pats} not covered", pluralise!(uncovered_pats.len())),
                     );
             }
@@ -121,7 +121,7 @@ impl ExhaustivenessError {
                     .error()
                     .code(HashErrorCode::InvalidRangePatBoundaries)
                     .title(message)
-                    .add_labelled_span(env.get_location(pat).unwrap(), "");
+                    .add_labelled_span(get_location(pat).unwrap(), "");
             }
         }
     }
@@ -162,7 +162,7 @@ pub enum ExhaustivenessWarning {
 }
 
 impl ExhaustivenessWarning {
-    pub fn add_to_reports(&self, env: &Env, reporter: &mut Reporter) {
+    pub fn add_to_reports(&self, _env: &Env, reporter: &mut Reporter) {
         match self {
             ExhaustivenessWarning::UselessMatchCase { pat, location } => {
                 reporter
@@ -170,7 +170,7 @@ impl ExhaustivenessWarning {
                     .title(format!("match case `{pat}` is redundant when matching on subject"))
                     .add_labelled_span(*location, "the match subject is given here...")
                     .add_labelled_span(
-                        env.get_location(pat).unwrap(),
+                        get_location(pat).unwrap(),
                         "... and this pattern will never match the subject",
                     );
             }
@@ -178,17 +178,17 @@ impl ExhaustivenessWarning {
                 reporter
                     .warning()
                     .title("pattern is unreachable")
-                    .add_labelled_span(env.get_location(pat).unwrap(), "");
+                    .add_labelled_span(get_location(pat).unwrap(), "");
             }
             ExhaustivenessWarning::OverlappingRangeEnd { range, overlaps, overlapping_term } => {
                 reporter
                     .warning()
                     .title("range pattern has an overlap with another pattern")
                     .add_labelled_span(
-                        env.get_location(range).unwrap(),
+                        get_location(range).unwrap(),
                         format!("this range overlaps on `{overlapping_term}`..."),
                     )
-                    .add_labelled_span(env.get_location(overlaps).unwrap(), "...with this range");
+                    .add_labelled_span(get_location(overlaps).unwrap(), "...with this range");
             }
         }
     }

@@ -13,7 +13,7 @@ use hash_tir::{
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::FnCallTerm,
     terms::TermId,
-    utils::common::CommonUtils,
+    utils::common::{dump_tir, new_term},
 };
 use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
 use hash_utils::stream_less_writeln;
@@ -53,8 +53,8 @@ impl EvaluationPass<'_> {
                 let def = AccessToSemEnv::entry_point(self).def();
                 match def {
                     Some(def) => {
-                        let call_term = self.new_term(FnCallTerm {
-                            subject: self.new_term(def),
+                        let call_term = new_term(FnCallTerm {
+                            subject: new_term(def),
                             implicit: false,
                             args: Arg::empty_seq(),
                         });
@@ -87,7 +87,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
 
         // Potentially dump the TIR and evaluate it depending on flags.
         if self.settings().semantic_settings.dump_tir {
-            self.dump_tir(term);
+            dump_tir(term);
         }
 
         // Interactive mode is always evaluated.
@@ -108,7 +108,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         let settings = self.settings().semantic_settings();
 
         if settings.dump_tir {
-            self.dump_tir(mod_def_id);
+            dump_tir(mod_def_id);
         }
 
         if settings.eval_tir {

@@ -7,7 +7,7 @@ use hash_reporting::{
 };
 use hash_source::location::Span;
 use hash_tir::{
-    environment::env::AccessToEnv, symbols::Symbol, terms::TermId, utils::common::CommonUtils,
+    environment::env::AccessToEnv, symbols::Symbol, terms::TermId, utils::common::get_location,
 };
 use hash_typecheck::errors::{TcError, TcErrorReporter};
 
@@ -114,7 +114,6 @@ impl<'tc> From<WithSemEnv<'tc, &SemanticError>> for Reports {
 impl<'tc> WithSemEnv<'tc, &SemanticError> {
     /// Format the error nicely and add it to the given reporter.
     fn add_to_reporter(&self, reporter: &mut Reporter) {
-        let locations = self.sem_env().stores().location();
         // @@ErrorReporting: improve error messages and locations
         match &self.value {
             SemanticError::Signal => {}
@@ -124,7 +123,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                     .code(HashErrorCode::UnresolvedType)
                     .title("cannot infer the type of this term".to_string());
 
-                if let Some(location) = self.sem_env().get_location(term) {
+                if let Some(location) = get_location(term) {
                     error
                         .add_span(location)
                         .add_help("consider adding more type annotations to this expression");
@@ -168,7 +167,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                 );
 
                 if let ContextKind::Access(_, def) = looking_in {
-                    if let Some(location) = locations.get_location(def) {
+                    if let Some(location) = get_location(def) {
                         error.add_span(location).add_info(format!(
                             "{def_name} is defined here, and has no member `{search_name}`",
                         ));
@@ -277,9 +276,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                     .add_span(*location)
                     .add_info("cannot use this as a subject of a namespace access");
             }
-            SemanticError::TypeError { error } => {
-                TcErrorReporter::new(self.env()).add_to_reporter(error, reporter)
-            }
+            SemanticError::TypeError { error } => TcErrorReporter::add_to_reporter(error, reporter),
             SemanticError::UnexpectedArguments { location } => {
                 let error = reporter
                     .error()

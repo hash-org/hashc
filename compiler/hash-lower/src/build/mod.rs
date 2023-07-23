@@ -12,10 +12,7 @@ mod temp;
 mod ty;
 mod utils;
 
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
-    primitives::{AccessToPrimitives, DefinedPrimitives},
-};
+use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
@@ -196,12 +193,6 @@ pub(crate) struct BodyBuilder<'tcx> {
 impl<'ctx> AccessToEnv for BodyBuilder<'ctx> {
     fn env(&self) -> &Env {
         self.ctx.env
-    }
-}
-
-impl<'ctx> AccessToPrimitives for BodyBuilder<'ctx> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        self.ctx.primitives
     }
 }
 

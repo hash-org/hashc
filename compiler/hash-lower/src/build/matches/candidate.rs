@@ -388,7 +388,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // The simplification that can occur here is if both the prefix and the
             // suffix are empty, then we can perform some simplifications.
             Pat::Array(array_pat) => {
-                let (prefix, suffix, rest) = array_pat.into_parts(self);
+                let (prefix, suffix, rest) = array_pat.into_parts();
 
                 if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
                     let ty = self.ty_id_from_tir_pat(pair.pat);

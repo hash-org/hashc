@@ -5,10 +5,10 @@ use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 use derive_more::{From, TryInto};
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 
-use super::common::CommonUtils;
+use super::common::{new_term, new_ty, use_term_as_ty, use_ty_as_term};
 use crate::{
     access::AccessTerm,
     args::{Arg, ArgsId, PatArg, PatArgsId, PatOrCapture},
@@ -16,12 +16,8 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
+    environment::{env::Env, stores::tir_stores},
     fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
-    impl_access_to_env,
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
     params::{Param, ParamsId},
@@ -34,13 +30,10 @@ use crate::{
 };
 
 /// Contains methods to traverse the Hash TIR structure.
-pub struct TraversingUtils<'env> {
-    env: &'env Env<'env>,
+pub struct TraversingUtils {
     visited: RefCell<HashSet<Atom>>,
     visit_fns_once: bool,
 }
-
-impl_access_to_env!(TraversingUtils<'env>);
 
 /// An atom in the TIR.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, From, TryInto)]
@@ -87,9 +80,12 @@ pub trait Mapper<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
 
 /// Contains the implementation of `fmap` and `visit` for each atom, as well as
 /// secondary components such as arguments and parameters.
-impl<'env> TraversingUtils<'env> {
-    pub fn new(env: &'env Env<'env>) -> Self {
-        Self { env, visited: RefCell::new(HashSet::new()), visit_fns_once: true }
+impl TraversingUtils {
+    /// Create a new `TraversingUtils`.
+    ///
+    /// The `env` parameter is needed for the `utils` macro
+    pub fn new(_: &Env) -> Self {
+        Self { visited: RefCell::new(HashSet::new()), visit_fns_once: true }
     }
 
     pub fn set_visit_fns_once(&mut self, visit_fns_once: bool) {
@@ -116,48 +112,48 @@ impl<'env> TraversingUtils<'env> {
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
                 Atom::Term(t) => Ok(t),
-                Atom::Ty(ty) => Ok(self.use_ty_as_term(ty)),
-                Atom::FnDef(fn_def_id) => Ok(self.new_term(fn_def_id)),
+                Atom::Ty(ty) => Ok(use_ty_as_term(ty)),
+                Atom::FnDef(fn_def_id) => Ok(new_term(fn_def_id)),
                 Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
             },
             ControlFlow::Continue(()) => match term_id.value() {
                 Term::Tuple(tuple_term) => {
                     let data = self.fmap_args(tuple_term.data, f)?;
-                    Ok(self.new_term(Term::Tuple(TupleTerm { data })))
+                    Ok(new_term(Term::Tuple(TupleTerm { data })))
                 }
-                Term::Lit(lit) => Ok(self.new_term(Term::Lit(lit))),
+                Term::Lit(lit) => Ok(new_term(Term::Lit(lit))),
                 Term::Array(list_ctor) => {
                     let elements = self.fmap_term_list(list_ctor.elements, f)?;
-                    Ok(self.new_term(Term::Array(ArrayTerm { elements })))
+                    Ok(new_term(Term::Array(ArrayTerm { elements })))
                 }
                 Term::Ctor(ctor_term) => {
                     let data_args = self.fmap_args(ctor_term.data_args, f)?;
                     let ctor_args = self.fmap_args(ctor_term.ctor_args, f)?;
-                    Ok(self.new_term(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }))
+                    Ok(new_term(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }))
                 }
                 Term::FnCall(fn_call_term) => {
                     let subject = self.fmap_term(fn_call_term.subject, f)?;
                     let args = self.fmap_args(fn_call_term.args, f)?;
-                    Ok(self.new_term(FnCallTerm { args, subject, implicit: fn_call_term.implicit }))
+                    Ok(new_term(FnCallTerm { args, subject, implicit: fn_call_term.implicit }))
                 }
                 Term::FnRef(fn_def_id) => {
                     let fn_def_id = self.fmap_fn_def(fn_def_id, f)?;
-                    Ok(self.new_term(Term::FnRef(fn_def_id)))
+                    Ok(new_term(Term::FnRef(fn_def_id)))
                 }
                 Term::Block(block_term) => {
                     let statements = self.fmap_term_list(block_term.statements, f)?;
                     let return_value = self.fmap_term(block_term.return_value, f)?;
-                    Ok(self.new_term(BlockTerm {
+                    Ok(new_term(BlockTerm {
                         statements,
                         return_value,
                         stack_id: block_term.stack_id,
                     }))
                 }
-                Term::Var(var_term) => Ok(self.new_term(var_term)),
+                Term::Var(var_term) => Ok(new_term(var_term)),
                 Term::Loop(loop_term) => {
                     let statements = self.fmap_term_list(loop_term.block.statements, f)?;
                     let return_value = self.fmap_term(loop_term.block.return_value, f)?;
-                    Ok(self.new_term(LoopTerm {
+                    Ok(new_term(LoopTerm {
                         block: BlockTerm {
                             statements,
                             return_value,
@@ -165,7 +161,7 @@ impl<'env> TraversingUtils<'env> {
                         },
                     }))
                 }
-                Term::LoopControl(loop_control_term) => Ok(self.new_term(loop_control_term)),
+                Term::LoopControl(loop_control_term) => Ok(new_term(loop_control_term)),
                 Term::Match(match_term) => {
                     let subject = self.fmap_term(match_term.subject, f)?;
 
@@ -181,53 +177,53 @@ impl<'env> TraversingUtils<'env> {
                             })
                             .collect::<Result<Vec<_>, _>>()?,
                     );
-                    Ok(self.new_term(MatchTerm { cases, subject, origin: match_term.origin }))
+                    Ok(new_term(MatchTerm { cases, subject, origin: match_term.origin }))
                 }
                 Term::Return(return_term) => {
                     let expression = self.fmap_term(return_term.expression, f)?;
-                    Ok(self.new_term(ReturnTerm { expression }))
+                    Ok(new_term(ReturnTerm { expression }))
                 }
                 Term::Decl(decl_stack_member_term) => {
                     let bind_pat = self.fmap_pat(decl_stack_member_term.bind_pat, f)?;
                     let ty = self.fmap_ty(decl_stack_member_term.ty, f)?;
                     let value =
                         decl_stack_member_term.value.map(|v| self.fmap_term(v, f)).transpose()?;
-                    Ok(self.new_term(DeclTerm { ty, bind_pat, value }))
+                    Ok(new_term(DeclTerm { ty, bind_pat, value }))
                 }
                 Term::Assign(assign_term) => {
                     let subject = self.fmap_term(assign_term.subject, f)?;
                     let value = self.fmap_term(assign_term.value, f)?;
-                    Ok(self.new_term(AssignTerm { subject, value }))
+                    Ok(new_term(AssignTerm { subject, value }))
                 }
                 Term::Unsafe(unsafe_term) => {
                     let inner = self.fmap_term(unsafe_term.inner, f)?;
-                    Ok(self.new_term(UnsafeTerm { inner }))
+                    Ok(new_term(UnsafeTerm { inner }))
                 }
                 Term::Access(access_term) => {
                     let subject = self.fmap_term(access_term.subject, f)?;
-                    Ok(self.new_term(AccessTerm { subject, field: access_term.field }))
+                    Ok(new_term(AccessTerm { subject, field: access_term.field }))
                 }
                 Term::Index(index_term) => {
                     let subject = self.fmap_term(index_term.subject, f)?;
                     let index = self.fmap_term(index_term.index, f)?;
-                    Ok(self.new_term(IndexTerm { subject, index }))
+                    Ok(new_term(IndexTerm { subject, index }))
                 }
                 Term::Cast(cast_term) => {
                     let subject_term = self.fmap_term(cast_term.subject_term, f)?;
                     let target_ty = self.fmap_ty(cast_term.target_ty, f)?;
-                    Ok(self.new_term(CastTerm { subject_term, target_ty }))
+                    Ok(new_term(CastTerm { subject_term, target_ty }))
                 }
                 Term::TypeOf(type_of_term) => {
                     let term = self.fmap_term(type_of_term.term, f)?;
-                    Ok(self.new_term(TypeOfTerm { term }))
+                    Ok(new_term(TypeOfTerm { term }))
                 }
                 Term::Ty(ty) => {
                     let ty = self.fmap_ty(ty, f)?;
-                    Ok(self.new_term(ty))
+                    Ok(new_term(ty))
                 }
                 Term::Ref(ref_term) => {
                     let subject = self.fmap_term(ref_term.subject, f)?;
-                    Ok(self.new_term(RefTerm {
+                    Ok(new_term(RefTerm {
                         subject,
                         kind: ref_term.kind,
                         mutable: ref_term.mutable,
@@ -235,9 +231,9 @@ impl<'env> TraversingUtils<'env> {
                 }
                 Term::Deref(deref_term) => {
                     let subject = self.fmap_term(deref_term.subject, f)?;
-                    Ok(self.new_term(DerefTerm { subject }))
+                    Ok(new_term(DerefTerm { subject }))
                 }
-                Term::Hole(hole_term) => Ok(self.new_term(hole_term)),
+                Term::Hole(hole_term) => Ok(new_term(hole_term)),
             },
         }?;
 
@@ -249,24 +245,24 @@ impl<'env> TraversingUtils<'env> {
         let result = match f(ty_id.into())? {
             ControlFlow::Break(ty) => match ty {
                 Atom::Ty(ty) => Ok(ty),
-                Atom::Term(term) => Ok(self.use_term_as_ty(term)),
+                Atom::Term(term) => Ok(use_term_as_ty(term)),
                 _ => unreachable!("got non-type in fmap_ty"),
             },
             ControlFlow::Continue(()) => match ty_id.value() {
                 Ty::Eval(eval_term) => {
                     let eval_term = self.fmap_term(eval_term, f)?;
-                    Ok(self.new_ty(eval_term))
+                    Ok(new_ty(eval_term))
                 }
-                Ty::Hole(hole_ty) => Ok(self.new_ty(hole_ty)),
-                Ty::Var(var_ty) => Ok(self.new_ty(var_ty)),
+                Ty::Hole(hole_ty) => Ok(new_ty(hole_ty)),
+                Ty::Var(var_ty) => Ok(new_ty(var_ty)),
                 Ty::Tuple(tuple_ty) => {
                     let data = self.fmap_params(tuple_ty.data, f)?;
-                    Ok(self.new_ty(TupleTy { data }))
+                    Ok(new_ty(TupleTy { data }))
                 }
                 Ty::Fn(fn_ty) => {
                     let params = self.fmap_params(fn_ty.params, f)?;
                     let return_ty = self.fmap_ty(fn_ty.return_ty, f)?;
-                    Ok(self.new_ty(FnTy {
+                    Ok(new_ty(FnTy {
                         params,
                         return_ty,
                         implicit: fn_ty.implicit,
@@ -276,13 +272,13 @@ impl<'env> TraversingUtils<'env> {
                 }
                 Ty::Ref(ref_ty) => {
                     let ty = self.fmap_ty(ref_ty.ty, f)?;
-                    Ok(self.new_ty(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }))
+                    Ok(new_ty(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }))
                 }
                 Ty::Data(data_ty) => {
                     let args = self.fmap_args(data_ty.args, f)?;
-                    Ok(self.new_ty(DataTy { args, data_def: data_ty.data_def }))
+                    Ok(new_ty(DataTy { args, data_def: data_ty.data_def }))
                 }
-                Ty::Universe(universe_ty) => Ok(self.new_ty(universe_ty)),
+                Ty::Universe(universe_ty) => Ok(new_ty(universe_ty)),
             },
         }?;
         tir_stores().location().copy_location(ty_id, result);
@@ -661,7 +657,7 @@ impl<'env> TraversingUtils<'env> {
 
         // Create a new type for the result of the constructor, and traverse it.
         let return_ty =
-            self.new_ty(DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args });
+            new_ty(DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args });
         self.visit_ty(return_ty, f)?;
 
         Ok(())
@@ -672,10 +668,8 @@ impl<'env> TraversingUtils<'env> {
         data_def_id: DataDefId,
         f: &mut F,
     ) -> Result<(), E> {
-        let (data_def_params, data_def_ctors) = self
-            .stores()
-            .data_def()
-            .map_fast(data_def_id, |data_def| (data_def.params, data_def.ctors));
+        let (data_def_params, data_def_ctors) =
+            data_def_id.map(|data_def| (data_def.params, data_def.ctors));
 
         // Params
         self.visit_params(data_def_params, f)?;
@@ -709,10 +703,7 @@ impl<'env> TraversingUtils<'env> {
         mod_member_id: ModMemberId,
         f: &mut F,
     ) -> Result<(), E> {
-        let value = self
-            .stores()
-            .mod_members()
-            .map_fast(mod_member_id.0, |members| members[mod_member_id.1].value);
+        let value = mod_member_id.borrow().value;
         match value {
             ModMemberValue::Data(data_def_id) => {
                 self.visit_data_def(data_def_id, f)?;
