@@ -10,7 +10,7 @@ use hash_tir::{
     context::Decl,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
     defs::DefId,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMemberId, ModMemberValue},
     scopes::StackId,
     symbols::{sym, Symbol},
@@ -23,7 +23,6 @@ use hash_utils::{
 };
 
 use super::DiscoveryPass;
-use crate::ops::common::CommonOps;
 
 /// An item that is discovered: either a definition or a function type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, From)]
@@ -131,7 +130,7 @@ impl<'tc> DiscoveryPass<'tc> {
 
     /// Add the given definition to the AST info of the given node.
     pub(super) fn add_def_to_ast_info<U>(&self, item_id: ItemId, node: AstNodeRef<U>) {
-        let ast_info = self.ast_info();
+        let ast_info = tir_stores().ast_info();
         match item_id {
             ItemId::Def(def_id) => match def_id {
                 DefId::Mod(id) => ast_info.mod_defs().insert(node.id(), id),
@@ -151,7 +150,7 @@ impl<'tc> DiscoveryPass<'tc> {
     /// `MemberData` and then using its `MemberId` and `AstNodeId` we add it to
     /// `AstInfo` store, appropriately depending on the definition kind,
     pub(super) fn add_found_members_to_def(&self, def_id: impl Into<DefId>) {
-        let ast_info = self.ast_info();
+        let ast_info = tir_stores().ast_info();
         match def_id.into() {
             DefId::Mod(mod_def_id) => {
                 self.def_state().mod_members.modify_fast(mod_def_id, |members| {
@@ -244,9 +243,9 @@ impl<'tc> DiscoveryPass<'tc> {
                                 ast_info.stacks().get_node_by_data(stack_id).unwrap(),
                                 local_mod_def_id,
                             );
-                            self.stores().location().add_location_to_target(
+                            tir_stores().location().add_location_to_target(
                                 local_mod_def_id,
-                                self.stores().location().get_location(stack_id).unwrap(),
+                                tir_stores().location().get_location(stack_id).unwrap(),
                             );
 
                             // Add the members to the local mod def.
@@ -272,7 +271,7 @@ impl<'tc> DiscoveryPass<'tc> {
             _ => return false, // Mod members need values
         };
 
-        let ast_info = self.ast_info();
+        let ast_info = tir_stores().ast_info();
 
         // Function definitions are not considered module members in stack
         // scope, they are considered closures instead.
@@ -291,7 +290,7 @@ impl<'tc> DiscoveryPass<'tc> {
         name: Symbol,
         def_node_id: AstNodeId,
     ) -> Option<ModMemberData> {
-        let ast_info = self.ast_info();
+        let ast_info = tir_stores().ast_info();
         if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
             // Function definition in a module
             Some(ModMemberData { name, value: ModMemberValue::Fn(fn_def_id) })
@@ -539,6 +538,6 @@ impl<'tc> DiscoveryPass<'tc> {
         def_id: DefId,
         originating_node: AstNodeRef<U>,
     ) {
-        self.stores().location().add_location_to_target(def_id, originating_node.span());
+        tir_stores().location().add_location_to_target(def_id, originating_node.span());
     }
 }

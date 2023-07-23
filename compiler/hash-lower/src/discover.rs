@@ -10,7 +10,10 @@ use hash_source::identifier::IDENTS;
 use hash_storage::store::{statics::StoreId, PartialStore, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::tir_stores,
+    },
     fns::{FnBody, FnDef, FnDefId},
     mods::{ModDef, ModKind, ModMemberValue},
     terms::TermId,
@@ -88,7 +91,7 @@ impl FnDiscoverer<'_> {
             FnBody::Defined(_) => {
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.
-                self.stores().directives().map_fast(def_id.into(), |maybe_directives| {
+                tir_stores().directives().map_fast(def_id.into(), |maybe_directives| {
                     if let Some(directives) = maybe_directives && directives.contains(IDENTS.foreign) {
                         false
                     } else {

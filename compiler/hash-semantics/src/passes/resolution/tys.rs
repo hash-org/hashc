@@ -14,7 +14,7 @@ use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     args::{Arg, ArgsId},
     data::DataTy,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     fns::FnCallTerm,
     params::ParamIndex,
     refs::{RefKind, RefTy},
@@ -385,8 +385,8 @@ impl<'tc> ResolutionPass<'tc> {
             }
         };
 
-        self.ast_info().tys().insert(node.id(), ty_id);
-        self.stores().location().add_location_to_target(ty_id, node.span());
+        tir_stores().ast_info().tys().insert(node.id(), ty_id);
+        tir_stores().location().add_location_to_target(ty_id, node.span());
         Ok(ty_id)
     }
 }

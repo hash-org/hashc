@@ -16,7 +16,10 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::tir_stores,
+    },
     fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
     impl_access_to_env,
     locations::LocationTarget,
@@ -165,13 +168,19 @@ impl<'env> TraversingUtils<'env> {
                 Term::LoopControl(loop_control_term) => Ok(self.new_term(loop_control_term)),
                 Term::Match(match_term) => {
                     let subject = self.fmap_term(match_term.subject, f)?;
-                    let cases = self.stores().match_cases().map(match_term.cases, |cases| {
-                        self.stores().match_cases().try_create_from_iter(cases.iter().map(|case| {
-                            let bind_pat = self.fmap_pat(case.bind_pat, f)?;
-                            let value = self.fmap_term(case.value, f)?;
-                            Ok(MatchCase { bind_pat, value, stack_id: case.stack_id })
-                        }))
-                    })?;
+
+                    let cases = MatchCase::seq_data(
+                        match_term
+                            .cases
+                            .value()
+                            .iter()
+                            .map(|case| {
+                                let bind_pat = self.fmap_pat(case.bind_pat, f)?;
+                                let value = self.fmap_term(case.value, f)?;
+                                Ok(MatchCase { bind_pat, value, stack_id: case.stack_id })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                    );
                     Ok(self.new_term(MatchTerm { cases, subject, origin: match_term.origin }))
                 }
                 Term::Return(return_term) => {
@@ -232,7 +241,7 @@ impl<'env> TraversingUtils<'env> {
             },
         }?;
 
-        self.stores().location().copy_location(term_id, result);
+        tir_stores().location().copy_location(term_id, result);
         Ok(result)
     }
 
@@ -276,7 +285,7 @@ impl<'env> TraversingUtils<'env> {
                 Ty::Universe(universe_ty) => Ok(self.new_ty(universe_ty)),
             },
         }?;
-        self.stores().location().copy_location(ty_id, result);
+        tir_stores().location().copy_location(ty_id, result);
         Ok(result)
     }
 
@@ -316,7 +325,7 @@ impl<'env> TraversingUtils<'env> {
                 }
             },
         }?;
-        self.stores().location().copy_location(pat_id, result);
+        tir_stores().location().copy_location(pat_id, result);
         Ok(result)
     }
 
@@ -365,7 +374,7 @@ impl<'env> TraversingUtils<'env> {
             Ok(Param::seq_data(new_params))
         }?;
 
-        self.stores().location().copy_locations(params_id, new_params);
+        tir_stores().location().copy_locations(params_id, new_params);
         Ok(new_params)
     }
 
@@ -375,7 +384,7 @@ impl<'env> TraversingUtils<'env> {
             new_args.push(Arg { target: arg.target, value: self.fmap_term(arg.value, f)? });
         }
         let new_args_id = Arg::seq_data(new_args);
-        self.stores().location().copy_locations(args_id, new_args_id);
+        tir_stores().location().copy_locations(args_id, new_args_id);
         Ok(new_args_id)
     }
 
@@ -384,9 +393,10 @@ impl<'env> TraversingUtils<'env> {
         pat_args_id: PatArgsId,
         f: F,
     ) -> Result<PatArgsId, E> {
-        let new_pat_args = self.stores().pat_args().map(pat_args_id, |pat_args| {
-            let mut new_args = Vec::with_capacity(pat_args.len());
-            for pat_arg in pat_args {
+        let new_pat_args = {
+            let mut new_args = Vec::with_capacity(pat_args_id.len());
+            for pat_arg in pat_args_id.iter() {
+                let pat_arg = pat_arg.value();
                 new_args.push(PatArg {
                     target: pat_arg.target,
                     pat: match pat_arg.pat {
@@ -396,9 +406,9 @@ impl<'env> TraversingUtils<'env> {
                 });
             }
             Ok(PatArg::seq_data(new_args))
-        })?;
+        }?;
 
-        self.stores().location().copy_locations(pat_args_id, new_pat_args);
+        tir_stores().location().copy_locations(pat_args_id, new_pat_args);
         Ok(new_pat_args)
     }
 
@@ -440,8 +450,8 @@ impl<'env> TraversingUtils<'env> {
             }
         }?;
 
-        self.stores().location().copy_location(fn_def_id, new_fn_def);
-        self.stores().ast_info().fn_defs().copy_node(fn_def_id, new_fn_def);
+        tir_stores().location().copy_location(fn_def_id, new_fn_def);
+        tir_stores().ast_info().fn_defs().copy_node(fn_def_id, new_fn_def);
 
         Ok(new_fn_def)
     }
@@ -474,14 +484,12 @@ impl<'env> TraversingUtils<'env> {
                 Term::LoopControl(_) => Ok(()),
                 Term::Match(match_term) => {
                     self.visit_term(match_term.subject, f)?;
-
-                    self.stores().match_cases().map(match_term.cases, |cases| {
-                        for case in cases {
-                            self.visit_pat(case.bind_pat, f)?;
-                            self.visit_term(case.value, f)?;
-                        }
-                        Ok(())
-                    })
+                    for case in match_term.cases.iter() {
+                        let case = case.value();
+                        self.visit_pat(case.bind_pat, f)?;
+                        self.visit_term(case.value, f)?;
+                    }
+                    Ok(())
                 }
                 Term::Return(return_term) => self.visit_term(return_term.expression, f),
                 Term::Decl(decl_stack_member_term) => {
@@ -646,20 +654,14 @@ impl<'env> TraversingUtils<'env> {
         ctor_def_id: CtorDefId,
         f: &mut F,
     ) -> Result<(), E> {
-        let (ctor_data_def_id, ctor_params, ctor_result_args) =
-            self.stores().ctor_defs().map_fast(ctor_def_id.0, |ctors| {
-                (
-                    ctors[ctor_def_id.1].data_def_id,
-                    ctors[ctor_def_id.1].params,
-                    ctors[ctor_def_id.1].result_args,
-                )
-            });
+        let ctor_def = ctor_def_id.value();
 
         // Visit the parameters
-        self.visit_params(ctor_params, f)?;
+        self.visit_params(ctor_def.params, f)?;
 
         // Create a new type for the result of the constructor, and traverse it.
-        let return_ty = self.new_ty(DataTy { data_def: ctor_data_def_id, args: ctor_result_args });
+        let return_ty =
+            self.new_ty(DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args });
         self.visit_ty(return_ty, f)?;
 
         Ok(())
@@ -732,9 +734,8 @@ impl<'env> TraversingUtils<'env> {
         mod_def_id: ModDefId,
         f: &mut F,
     ) -> Result<(), E> {
-        let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
-        for member_idx in members.to_index_range() {
-            self.visit_mod_member(ModMemberId(members, member_idx), f)?;
+        for member in mod_def_id.borrow().members.iter() {
+            self.visit_mod_member(member, f)?;
         }
         Ok(())
     }

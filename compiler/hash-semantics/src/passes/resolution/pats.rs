@@ -12,14 +12,14 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue},
-    SequenceStore, SequenceStoreKey,
+    SequenceStoreKey,
 };
 use hash_tir::{
     args::{PatArg, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     lits::{CharLit, IntLit, LitPat, StrLit},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
@@ -36,10 +36,7 @@ use super::{
     },
     ResolutionPass,
 };
-use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    ops::common::CommonOps,
-};
+use crate::diagnostics::error::{SemanticError, SemanticResult};
 
 impl ResolutionPass<'_> {
     /// Make TC pattern arguments from the given set of AST pattern arguments.
@@ -72,7 +69,7 @@ impl ResolutionPass<'_> {
             .iter()
             .map(|pat| Ok(PatOrCapture::Pat(self.make_pat_from_ast_pat(pat.ast_ref())?)))
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.stores().pat_list().create_from_iter_fast(pats))
+        Ok(PatOrCapture::seq_data(pats))
     }
 
     /// Create a [`Spread`] from the given [`ast::SpreadPat`].
@@ -287,7 +284,7 @@ impl ResolutionPass<'_> {
         node: AstNodeRef<ast::Pat>,
     ) -> SemanticResult<PatId> {
         // Maybe it has already been made:
-        if let Some(pat_id) = self.ast_info().pats().get_data_by_node(node.id()) {
+        if let Some(pat_id) = tir_stores().ast_info().pats().get_data_by_node(node.id()) {
             return Ok(pat_id);
         }
 
@@ -343,8 +340,8 @@ impl ResolutionPass<'_> {
             }
         };
 
-        self.ast_info().pats().insert(node.id(), pat_id);
-        self.stores().location().add_location_to_target(pat_id, node.span());
+        tir_stores().ast_info().pats().insert(node.id(), pat_id);
+        tir_stores().location().add_location_to_target(pat_id, node.span());
         Ok(pat_id)
     }
 }

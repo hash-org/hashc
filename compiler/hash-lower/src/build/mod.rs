@@ -29,7 +29,10 @@ use hash_storage::store::{statics::StoreId, FxHashMap, PartialCloneStore, Sequen
 use hash_tir::{
     context::{Context, ScopeKind},
     directives::DirectiveTarget,
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::tir_stores,
+    },
     fns::{FnBody, FnDef, FnDefId, FnTy},
     symbols::Symbol,
     terms::TermId,
@@ -252,7 +255,7 @@ impl<'ctx> BodyBuilder<'ctx> {
 
         // check if this fn_def has the `#dump_ir` directive applied onto it...
         let needs_dumping = |item: DirectiveTarget| {
-            if let Some(applied_directives) = self.stores().directives().get(item) {
+            if let Some(applied_directives) = tir_stores().directives().get(item) {
                 applied_directives.directives.contains(&IDENTS.dump_ir)
             } else {
                 false

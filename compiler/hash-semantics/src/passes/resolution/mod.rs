@@ -10,7 +10,7 @@ use hash_intrinsics::{
     primitives::{AccessToPrimitives, DefinedPrimitives},
 };
 use hash_source::ModuleKind;
-use hash_tir::environment::env::AccessToEnv;
+use hash_tir::environment::{env::AccessToEnv, stores::tir_stores};
 
 use self::scoping::{ContextKind, Scoping};
 use super::ast_utils::AstPass;
@@ -75,7 +75,7 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         }
 
         let term_id = self.make_term_from_ast_body_block(node)?;
-        self.ast_info().terms().insert(node.id(), term_id);
+        tir_stores().ast_info().terms().insert(node.id(), term_id);
         Ok(())
     }
 

@@ -60,6 +60,14 @@ impl Param {
         Param::seq_from_names_with_hole_types(args.iter().map(|arg| arg.into_name()))
     }
 
+    pub fn seq_positional(tys: impl IntoIterator<Item = TyId>) -> ParamsId {
+        Param::seq_data(
+            tys.into_iter()
+                .map(|ty| Param { name: Symbol::fresh(), ty, default: None })
+                .collect_vec(),
+        )
+    }
+
     pub fn name_ident(&self) -> Option<Identifier> {
         self.name.borrow().name
     }

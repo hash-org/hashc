@@ -13,10 +13,11 @@ use hash_ir::{
     IrCtx,
 };
 use hash_source::constant::CONSTANT_MAP;
-use hash_storage::store::{statics::StoreId, SequenceStore};
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
+    args::Arg,
     data::DataTy,
-    environment::env::AccessToEnv,
+    environment::stores::tir_stores,
     fns::FnDefId,
     mods::{ModMember, ModMemberValue},
     pats::PatId,
@@ -35,7 +36,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Get the interned span of a given [PatId].
     pub(crate) fn span_of_pat(&self, id: PatId) -> AstNodeId {
-        self.stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
+        tir_stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected pattern `{}` to have a location", id);
             AstNodeId::new(0)
         })
@@ -43,7 +44,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Get the interned span of a [FnDefId].
     pub(crate) fn span_of_def(&self, id: FnDefId) -> AstNodeId {
-        self.stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
+        tir_stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected function definition `{}` to have a location", id);
             AstNodeId::new(0)
         })
@@ -51,7 +52,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Get the interned span of a given [TermId].
     pub(crate) fn span_of_term(&self, id: TermId) -> AstNodeId {
-        self.stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
+        tir_stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected term `{:?}` to have a location", id);
             AstNodeId::new(0)
         })
@@ -94,7 +95,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         match member.value {
             ModMemberValue::Data(data_def) => {
-                let args = self.stores().args().create_empty();
+                let args = Arg::empty_seq();
                 let ty_id = self.ty_id_from_tir_data(DataTy { data_def, args });
                 Some(ty_id)
             }

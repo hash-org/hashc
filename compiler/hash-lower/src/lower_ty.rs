@@ -23,7 +23,7 @@ use hash_tir::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnDef, FnDefId, FnTy},
     refs::RefTy,
     tuples::TupleTy,
@@ -202,7 +202,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Lookup any applied directives on the fn_def and add them to the
         // instance
-        self.stores().directives().map_fast(fn_def.into(), |maybe_directives| {
+        tir_stores().directives().map_fast(fn_def.into(), |maybe_directives| {
             if let Some(directives) = maybe_directives {
                 for directive in directives.iter() {
                     instance.attributes.add(Attribute::word(directive));
@@ -290,7 +290,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Deal with any specific attributes that were set on the type, i.e.
         // `#repr_c`.
-        if let Some(directives) = self.stores().directives().get(def.id.into()) {
+        if let Some(directives) = tir_stores().directives().get(def.id.into()) {
             if directives.contains(IDENTS.repr_c) {
                 adt.metadata.add_flags(RepresentationFlags::C_LIKE);
             }

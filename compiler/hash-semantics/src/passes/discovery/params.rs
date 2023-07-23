@@ -1,12 +1,11 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
 use hash_tir::{
-    environment::env::AccessToEnv,
+    environment::stores::tir_stores,
     params::{Param, ParamId, ParamIndex, ParamsId},
 };
 
 use super::DiscoveryPass;
-use crate::ops::common::CommonOps;
 
 impl<'tc> DiscoveryPass<'tc> {
     /// Create a parameter list from the given AST generic parameter list, where
@@ -26,10 +25,10 @@ impl<'tc> DiscoveryPass<'tc> {
                 })
                 .map(|index| index.into_symbol()),
         );
-        self.stores().location().add_locations_to_targets(params_id, |i| Some(params[i].span()));
+        tir_stores().location().add_locations_to_targets(params_id, |i| Some(params[i].span()));
 
         for (i, param) in params.iter().enumerate() {
-            self.ast_info().params().insert(param.id(), ParamId(params_id, i));
+            tir_stores().ast_info().params().insert(param.id(), ParamId(params_id, i));
         }
 
         params_id

@@ -3,9 +3,7 @@
 use std::{cell::Cell, collections::HashSet};
 
 use derive_more::Deref;
-use hash_storage::store::{
-    statics::StoreId, CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
-};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
     context::ScopeKind,
@@ -166,8 +164,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
             f1.return_ty = self.sub_ops().apply_sub_to_ty(f1.return_ty, &backward_sub);
 
-            self.stores().ty().set(src_id, f1.into());
-            self.stores().ty().set(target_id, f2.into());
+            src_id.set(f1.into());
+            target_id.set(f2.into());
 
             Ok(())
         }
@@ -192,9 +190,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                 match term_id.value() {
                     Term::Hole(Hole(h)) => {
                         if self.modify_terms.get() {
-                            self.stores().term().modify_fast(term_id, |term| {
-                                *term = dest_term;
-                            });
+                            term_id.set(dest_term);
                         }
                         h
                     }
@@ -206,9 +202,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                 match ty_id.value() {
                     Ty::Hole(Hole(h)) => {
                         if self.modify_terms.get() {
-                            self.stores().ty().modify_fast(ty_id, |ty| {
-                                *ty = dest_ty;
-                            });
+                            ty_id.set(dest_ty);
                         }
                         h
                     }
@@ -533,7 +527,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         let ty = self.norm_ops().to_ty(self.norm_ops().normalise(ty.into())?);
         match ty.value() {
             Ty::Data(data_ty) => {
-                let data_def = self.stores().data_def().get(data_ty.data_def);
+                let data_def = data_ty.data_def.borrow();
                 match data_def.ctors {
                     DataDefCtors::Defined(ctors) => Ok(ctors.len() == 0),
                     DataDefCtors::Primitive(_) => Ok(false),

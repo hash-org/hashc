@@ -1,16 +1,13 @@
 // @@Docs
 
 use hash_source::location::Span;
-use hash_storage::store::{statics::StoreId, SequenceStore, Store};
+use hash_storage::store::statics::{SingleStoreValue, StoreId};
 use hash_utils::stream_less_writeln;
 
 use super::traversing::Atom;
 use crate::{
-    environment::env::AccessToEnv,
-    holes::Hole,
+    environment::{env::AccessToEnv, stores::tir_stores},
     locations::LocationTarget,
-    params::{Param, ParamsId},
-    symbols::Symbol,
     terms::{Term, TermId},
     tys::{Ty, TyId},
 };
@@ -44,7 +41,7 @@ macro_rules! ty_as_variant {
 pub trait CommonUtils: AccessToEnv {
     /// Get the location of a location target.
     fn get_location(&self, target: impl Into<LocationTarget>) -> Option<Span> {
-        self.stores().location().get_location(target)
+        tir_stores().location().get_location(target)
     }
 
     /// Create a new type.
@@ -52,17 +49,17 @@ pub trait CommonUtils: AccessToEnv {
         let ty = ty.into();
         let (ast_info, location) = match ty {
             Ty::Eval(term) => {
-                (self.stores().ast_info().terms().get_node_by_data(term), self.get_location(term))
+                (tir_stores().ast_info().terms().get_node_by_data(term), self.get_location(term))
             }
             Ty::Var(v) => (None, self.get_location(v)),
             _ => (None, None),
         };
-        let created = self.stores().ty().create(ty);
+        let created = Ty::create(ty);
         if let Some(location) = location {
-            self.stores().location().add_location_to_target(created, location);
+            tir_stores().location().add_location_to_target(created, location);
         }
         if let Some(ast_info) = ast_info {
-            self.stores().ast_info().tys().insert(ast_info, created);
+            tir_stores().ast_info().tys().insert(ast_info, created);
         }
         created
     }
@@ -72,29 +69,29 @@ pub trait CommonUtils: AccessToEnv {
         let term = term.into();
         let (ast_info, location) = match term {
             Term::Ty(ty) => {
-                (self.stores().ast_info().tys().get_node_by_data(ty), self.get_location(ty))
+                (tir_stores().ast_info().tys().get_node_by_data(ty), self.get_location(ty))
             }
             Term::FnRef(f) => {
-                (self.stores().ast_info().fn_defs().get_node_by_data(f), self.get_location(f))
+                (tir_stores().ast_info().fn_defs().get_node_by_data(f), self.get_location(f))
             }
             Term::Var(v) => (None, self.get_location(v)),
             _ => (None, None),
         };
-        let created = self.stores().term().create(term);
+        let created = Term::create(term);
         if let Some(location) = location {
-            self.stores().location().add_location_to_target(created, location);
+            tir_stores().location().add_location_to_target(created, location);
         }
         if let Some(ast_info) = ast_info {
-            self.stores().ast_info().terms().insert(ast_info, created);
+            tir_stores().ast_info().terms().insert(ast_info, created);
         }
         created
     }
 
     /// Create a new expected type for typing the given term.
     fn new_expected_ty_of_ty(&self, ty: TyId, ty_of_ty: TyId) -> TyId {
-        self.stores().location().copy_location(ty, ty_of_ty);
-        if let Some(ast_info) = self.stores().ast_info().tys().get_node_by_data(ty) {
-            self.stores().ast_info().tys().insert(ast_info, ty_of_ty);
+        tir_stores().location().copy_location(ty, ty_of_ty);
+        if let Some(ast_info) = tir_stores().ast_info().tys().get_node_by_data(ty) {
+            tir_stores().ast_info().tys().insert(ast_info, ty_of_ty);
         }
         ty_of_ty
     }
@@ -103,9 +100,9 @@ pub trait CommonUtils: AccessToEnv {
     /// term.
     fn new_term_from(&self, source: TermId, term: impl Into<Term>) -> TermId {
         let created = self.new_term(term);
-        self.stores().location().copy_location(source, created);
-        if let Some(ast_info) = self.stores().ast_info().terms().get_node_by_data(source) {
-            self.stores().ast_info().terms().insert(ast_info, created);
+        tir_stores().location().copy_location(source, created);
+        if let Some(ast_info) = tir_stores().ast_info().terms().get_node_by_data(source) {
+            tir_stores().ast_info().terms().insert(ast_info, created);
         }
         created
     }
@@ -116,57 +113,46 @@ pub trait CommonUtils: AccessToEnv {
         let (ast_info, location) = match atom {
             Atom::Term(origin_term) => match origin_term.value() {
                 Term::Ty(ty) => {
-                    (self.stores().ast_info().tys().get_node_by_data(ty), self.get_location(ty))
+                    (tir_stores().ast_info().tys().get_node_by_data(ty), self.get_location(ty))
                 }
                 Term::FnRef(f) => {
-                    (self.stores().ast_info().fn_defs().get_node_by_data(f), self.get_location(f))
+                    (tir_stores().ast_info().fn_defs().get_node_by_data(f), self.get_location(f))
                 }
                 Term::Var(v) => (None, self.get_location(v)),
                 _ => (
-                    self.stores().ast_info().terms().get_node_by_data(origin_term),
-                    self.stores().location().get_location(origin_term),
+                    tir_stores().ast_info().terms().get_node_by_data(origin_term),
+                    tir_stores().location().get_location(origin_term),
                 ),
             },
             Atom::Ty(origin_ty) => (
-                self.stores().ast_info().tys().get_node_by_data(origin_ty),
-                self.stores().location().get_location(origin_ty),
+                tir_stores().ast_info().tys().get_node_by_data(origin_ty),
+                tir_stores().location().get_location(origin_ty),
             ),
             Atom::FnDef(_) => todo!(),
             Atom::Pat(origin_pat) => (
-                self.stores().ast_info().pats().get_node_by_data(origin_pat),
-                self.stores().location().get_location(origin_pat),
+                tir_stores().ast_info().pats().get_node_by_data(origin_pat),
+                tir_stores().location().get_location(origin_pat),
             ),
         };
         if let Some(location) = location {
-            self.stores().location().add_location_to_target(ty, location);
+            tir_stores().location().add_location_to_target(ty, location);
         }
         if let Some(ast_info) = ast_info {
-            self.stores().ast_info().tys().insert(ast_info, ty);
+            tir_stores().ast_info().tys().insert(ast_info, ty);
         }
         ty
     }
 
     /// Create a new type hole for typing the given term.
     fn new_ty_hole_of_ty(&self, src: TyId) -> TyId {
-        let ty = self.stores().ty().create_with(|_| Ty::Hole(Hole::fresh()));
+        let ty = Ty::hole();
         self.new_expected_ty_of_ty(src, ty)
     }
 
     /// Create a new type hole for typing the given term.
     fn new_ty_hole_of(&self, src: TermId) -> TyId {
-        let ty = self.stores().ty().create_with(|_| Ty::Hole(Hole::fresh()));
+        let ty = Ty::hole();
         self.new_expected_ty_of(src, ty)
-    }
-
-    /// Create a new positional parameter list with the given types.
-    fn new_params(&self, types: &[TyId]) -> ParamsId {
-        self.stores().params().create_from_iter_with(
-            types
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(i, ty)| move |_id| Param { name: Symbol::from_name(i), ty, default: None }),
-        )
     }
 
     /// Try to use the given term as a type.

@@ -3,9 +3,7 @@
 use std::{collections::HashSet, ops::ControlFlow};
 
 use derive_more::Deref;
-use hash_storage::store::{
-    statics::StoreId, Store, TrivialKeySequenceStore, TrivialSequenceStoreKey,
-};
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgsId, PatArgsId},
@@ -104,7 +102,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                     match sub.get_sub_for_var_or_hole(symbol) {
                         Some(subbed_term) => {
                             let subbed_ty_val = self.use_term_as_ty(subbed_term).value();
-                            self.stores().ty().modify_fast(ty, |ty| *ty = subbed_ty_val);
+                            ty.set(subbed_ty_val);
                             ControlFlow::Break(())
                         }
                         None => ControlFlow::Continue(()),
@@ -125,7 +123,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
                     Some(subbed_term) => {
                         let subbed_term_val = subbed_term.value();
-                        self.stores().term().modify_fast(term, |term| *term = subbed_term_val);
+                        term.set(subbed_term_val);
                         ControlFlow::Break(())
                     }
                     None => ControlFlow::Continue(()),
@@ -493,8 +491,8 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn create_sub_from_args_of_params(&self, args_id: ArgsId, params_id: ParamsId) -> Sub {
         let mut sub = Sub::identity();
         for (param_id, arg_id) in (params_id.iter()).zip(args_id.iter()) {
-            let param = self.stores().params().get_element(param_id);
-            let arg = self.stores().args().get_element(arg_id);
+            let param = param_id.value();
+            let arg = arg_id.value();
             self.insert_to_sub_if_needed(&mut sub, param.name, arg.value);
         }
         sub
@@ -505,7 +503,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn create_sub_from_param_access(&self, params: ParamsId, access_subject: TermId) -> Sub {
         let mut sub = Sub::identity();
         for src_id in params.iter() {
-            let src = self.stores().params().get_element(src_id);
+            let src = src_id.value();
             if let Some(ident) = src_id.borrow().name_ident() {
                 sub.insert(
                     src.name,
@@ -530,8 +528,8 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     ) -> Sub {
         let mut sub = Sub::identity();
         for (src, target) in (src_params.iter()).zip(target_params.iter()) {
-            let src = self.stores().params().get_element(src);
-            let target = self.stores().params().get_element(target);
+            let src = src.value();
+            let target = target.value();
             if src.name != target.name {
                 sub.insert(src.name, self.new_term(target.name));
             }

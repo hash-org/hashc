@@ -2,7 +2,6 @@
 //! anywhere else.
 
 use hash_reporting::diagnostic::Diagnostics;
-use hash_tir::ast_info::AstInfo;
 
 use crate::{
     diagnostics::error::SemanticResult,
@@ -19,11 +18,6 @@ pub trait CommonOps: AccessToSemEnv {
                 None
             }
         }
-    }
-
-    /// Get a reference to the [`AstInfo`] store.
-    fn ast_info(&self) -> &AstInfo {
-        self.stores().ast_info()
     }
 
     /// Set the progress of analysis for the current source.

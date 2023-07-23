@@ -6,7 +6,10 @@
 use derive_more::Constructor;
 use hash_ast::ast;
 use hash_reporting::diagnostic::AccessToDiagnostics;
-use hash_tir::utils::{common::CommonUtils, traversing::Atom};
+use hash_tir::{
+    environment::stores::tir_stores,
+    utils::{common::CommonUtils, traversing::Atom},
+};
 use hash_typecheck::{
     errors::{TcError, TcResult},
     inference::FnInferMode,
@@ -68,7 +71,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::diagnostics::error::SemanticResult<()> {
         // Infer the expression
-        let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
+        let term = tir_stores().ast_info().terms().get_data_by_node(node.id()).unwrap();
         let (term, _) = self.infer_fully(
             (term, self.new_ty_hole_of(term)),
             |(term_id, ty_id)| {
@@ -79,7 +82,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
                 self.sub_ops().atom_has_holes(term_id).or(self.sub_ops().atom_has_holes(ty_id))
             },
         )?;
-        self.ast_info().terms().insert(node.id(), term);
+        tir_stores().ast_info().terms().insert(node.id(), term);
         Ok(())
     }
 
@@ -89,7 +92,7 @@ impl<'tc> AstPass for InferencePass<'tc> {
     ) -> crate::diagnostics::error::SemanticResult<()> {
         // Infer the whole module
         let _ = self.infer_fully(
-            self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap(),
+            tir_stores().ast_info().mod_defs().get_data_by_node(node.id()).unwrap(),
             |mod_def_id| {
                 self.infer_ops().infer_mod_def(
                     mod_def_id,

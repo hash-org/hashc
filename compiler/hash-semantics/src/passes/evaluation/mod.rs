@@ -9,7 +9,10 @@ use hash_pipeline::settings::CompilerStageKind;
 use hash_source::ModuleKind;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    args::Arg, environment::env::AccessToEnv, fns::FnCallTerm, terms::TermId,
+    args::Arg,
+    environment::{env::AccessToEnv, stores::tir_stores},
+    fns::FnCallTerm,
+    terms::TermId,
     utils::common::CommonUtils,
 };
 use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
@@ -80,7 +83,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::diagnostics::error::SemanticResult<()> {
-        let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
+        let term = tir_stores().ast_info().terms().get_data_by_node(node.id()).unwrap();
 
         // Potentially dump the TIR and evaluate it depending on flags.
         if self.settings().semantic_settings.dump_tir {
@@ -98,7 +101,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::diagnostics::error::SemanticResult<()> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        let mod_def_id = tir_stores().ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         let main_call_term = self.find_and_construct_main_call()?;
 
         // Potentially dump the TIR and evaluate it depending on flags.

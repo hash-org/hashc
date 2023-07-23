@@ -4,11 +4,11 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    SequenceStore, SequenceStoreKey,
+    SequenceStoreKey,
 };
 use hash_tir::{
     args::{ArgsId, PatArgsId},
-    environment::env::AccessToEnv,
+    environment::stores::tir_stores,
     fns::FnCallTerm,
     params::{Param, ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
@@ -103,13 +103,11 @@ impl<'tc> ResolutionPass<'tc> {
         let resolved_ty = self.try_or_add_error(self.make_ty_from_ast_ty(ast_param.ty.ast_ref()));
 
         // Get the existing param id from the AST info store:
-        let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+        let param_id = tir_stores().ast_info().params().get_data_by_node(ast_param.id()).unwrap();
 
         match resolved_ty {
             Some(resolved_ty) => {
-                self.stores().params().modify_fast(param_id.0, |params| {
-                    params[param_id.1].ty = resolved_ty;
-                });
+                param_id.borrow_mut().ty = resolved_ty;
                 Ok(param_id)
             }
             _ => Err(SemanticError::Signal),
@@ -152,17 +150,17 @@ impl<'tc> ResolutionPass<'tc> {
         );
 
         // Get the existing param id from the AST info store:
-        let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+        let param_id = tir_stores().ast_info().params().get_data_by_node(ast_param.id()).unwrap();
         match (resolved_ty, default_value) {
             (Some(resolved_ty), Some(resolved_default_value)) => {
-                self.stores().params().modify_fast(param_id.0, |params| {
-                    // If this is None, it wasn't given as an annotation, so we just leave it as
-                    // a hole
-                    if let Some(resolved_ty) = resolved_ty {
-                        params[param_id.1].ty = resolved_ty;
-                    }
-                    params[param_id.1].default = resolved_default_value;
-                });
+                let mut param = param_id.borrow_mut();
+
+                // If this is None, it wasn't given as an annotation, so we just leave it as
+                // a hole
+                if let Some(resolved_ty) = resolved_ty {
+                    param.ty = resolved_ty;
+                }
+                param.default = resolved_default_value;
 
                 Ok(param_id)
             }

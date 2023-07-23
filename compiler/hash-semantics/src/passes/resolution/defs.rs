@@ -7,11 +7,11 @@ use std::cell::Cell;
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_storage::store::{statics::StoreId, PartialStore, SequenceStore, SequenceStoreKey, Store};
+use hash_storage::store::{statics::StoreId, PartialStore, SequenceStoreKey};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors},
     directives::AppliedDirectives,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     mods::{ModDefId, ModMemberValue},
     tys::Ty,
 };
@@ -32,7 +32,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::ModDef>,
     ) -> SemanticResult<ModDefId> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        let mod_def_id = tir_stores().ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         self.resolve_mod_def_inner_terms(mod_def_id, node.block.members())?;
         Ok(mod_def_id)
     }
@@ -42,7 +42,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::Module>,
     ) -> SemanticResult<ModDefId> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        let mod_def_id = tir_stores().ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         self.resolve_mod_def_inner_terms(mod_def_id, node.contents.ast_ref_iter())?;
         Ok(mod_def_id)
     }
@@ -56,7 +56,7 @@ impl<'tc> ResolutionPass<'tc> {
         originating_node: ast::AstNodeRef<ast::Expr>,
     ) -> SemanticResult<()> {
         let data_def_id =
-            self.ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
+            tir_stores().ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
         self.scoping().enter_scope(ContextKind::Environment, || {
             let found_error = &Cell::new(false);
             let attempt = |err| {
@@ -77,14 +77,14 @@ impl<'tc> ResolutionPass<'tc> {
 
                     // Struct variant
                     let struct_ctor =
-                        self.stores().data_def().map_fast(data_def_id, |def| match def.ctors {
+                        match data_def_id.borrow().ctors {
                             DataDefCtors::Defined(id) => {
                                 // There should only be one variant
                                 assert!(id.len() == 1);
                                 CtorDefId(id, 0)
                             },
                             DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
-                        });
+                        };
 
                     self.scoping().enter_scope(
                         ContextKind::Environment,
@@ -108,10 +108,10 @@ impl<'tc> ResolutionPass<'tc> {
 
                     // Enum variants
                     let data_def_ctors =
-                        self.stores().data_def().map_fast(data_def_id, |def| match def.ctors {
+                        match data_def_id.borrow().ctors {
                             DataDefCtors::Defined(id) => id,
                             DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined enums
-                        });
+                        };
                     assert!(data_def_ctors.len() == enum_def.entries.len());
 
                     for (i, variant) in enum_def.entries.ast_ref_iter().enumerate() {
@@ -140,9 +140,7 @@ impl<'tc> ResolutionPass<'tc> {
                                         match result.value() {
                                             Ty::Data(d) if d.data_def == data_def_id => {
                                                 // Variant type is the same as the enum type
-                                                self.stores().ctor_defs().modify_fast(data_def_ctors, |ctors| {
-                                                    ctors[i].result_args = d.args;
-                                                });
+                                                data_def_ctors.borrow_mut()[i].result_args = d.args;
                                             }
                                             _ => {
                                                 self.diagnostics().add_error(
@@ -173,17 +171,16 @@ impl<'tc> ResolutionPass<'tc> {
     /// the given member.
     ///
     /// This registers any directives and returns the RHS of the declaration.
-    fn use_expr_as_mod_def_declaration_and_get_rhs<'a>(
-        &self,
+    fn use_expr_as_mod_def_declaration_and_get_rhs(
         member: ModMemberValue,
-        member_expr: ast::AstNodeRef<'a, ast::Expr>,
-    ) -> ast::AstNodeRef<'a, ast::Expr> {
+        member_expr: ast::AstNodeRef<'_, ast::Expr>,
+    ) -> ast::AstNodeRef<'_, ast::Expr> {
         // By this point, all members should be declarations (caught at pre-TC)
         match member_expr.body() {
             ast::Expr::Declaration(decl) => decl.value.as_ref().unwrap().ast_ref(),
             ast::Expr::Directive(directive) => {
                 // Add all directives to the target
-                self.stores().directives().insert(
+                tir_stores().directives().insert(
                     member.into(),
                     AppliedDirectives {
                         directives: directive.directives.iter().map(|d| d.ident).collect(),
@@ -191,7 +188,7 @@ impl<'tc> ResolutionPass<'tc> {
                 );
 
                 // Recurse to the inner declaration
-                self.use_expr_as_mod_def_declaration_and_get_rhs(
+                Self::use_expr_as_mod_def_declaration_and_get_rhs(
                     member,
                     directive.subject.ast_ref(),
                 )
@@ -213,13 +210,12 @@ impl<'tc> ResolutionPass<'tc> {
             self.scoping().add_mod_members(mod_def_id);
 
             let mut found_error = false;
-            let members = self.stores().mod_def().map_fast(mod_def_id, |def| def.members);
+            let members = mod_def_id.borrow().members;
 
             for (i, member_expr) in members.to_index_range().zip(member_exprs) {
-                let member_value =
-                    self.stores().mod_members().map_fast(members, |members| members[i].value);
+                let member_value = members.borrow()[i].value;
                 let member_rhs_expr =
-                    self.use_expr_as_mod_def_declaration_and_get_rhs(member_value, member_expr);
+                    Self::use_expr_as_mod_def_declaration_and_get_rhs(member_value, member_expr);
 
                 match member_value {
                     ModMemberValue::Data(_) => {

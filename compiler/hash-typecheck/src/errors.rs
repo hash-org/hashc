@@ -9,7 +9,10 @@ use hash_reporting::{
 use hash_source::location::Span;
 use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::tir_stores,
+    },
     fns::FnDefId,
     impl_access_to_env,
     locations::LocationTarget,
@@ -194,7 +197,7 @@ impl<'tc> TcErrorReporter<'tc> {
 
     /// Format the error nicely and add it to the given reporter.
     pub fn add_to_reporter(&self, error: &TcError, reporter: &mut Reporter) {
-        let locations = self.stores().location();
+        let locations = tir_stores().location();
         match error {
             TcError::Signal => {}
             TcError::Blocked(location) => {

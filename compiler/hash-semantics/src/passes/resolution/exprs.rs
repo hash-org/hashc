@@ -16,8 +16,7 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
-    TrivialSequenceStoreKey,
+    PartialCloneStore, PartialStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
@@ -27,7 +26,7 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
     directives::AppliedDirectives,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
@@ -210,8 +209,8 @@ impl<'tc> ResolutionPass<'tc> {
             }
         };
 
-        self.ast_info().terms().insert(node.id(), term_id);
-        self.stores().location().add_location_to_target(term_id, node.span());
+        tir_stores().ast_info().terms().insert(node.id(), term_id);
+        tir_stores().location().add_location_to_target(term_id, node.span());
         Ok(term_id)
     }
 
@@ -442,20 +441,22 @@ impl<'tc> ResolutionPass<'tc> {
 
         // If this is an already-resolved function definition, register the directives
         // on the function before we pass to the inner expression:
-        if let Some(fn_def_id) = self.ast_info().fn_defs().get_data_by_node(node.subject.id()) {
+        if let Some(fn_def_id) =
+            tir_stores().ast_info().fn_defs().get_data_by_node(node.subject.id())
+        {
             // Register directives on the term:
-            self.stores().directives().insert(fn_def_id.into(), directives.clone());
+            tir_stores().directives().insert(fn_def_id.into(), directives.clone());
         }
 
         // Pass to the inner expression
         let inner = self.make_term_from_ast_expr(node.subject.ast_ref())?;
 
         // Register directives on the term:
-        self.stores().directives().insert(inner.into(), directives.clone());
+        tir_stores().directives().insert(inner.into(), directives.clone());
 
         // If this is a type, also register the directives on the type
         if let Term::Ty(ty_id) = inner.value() {
-            self.stores().directives().insert(ty_id.into(), directives);
+            tir_stores().directives().insert(ty_id.into(), directives);
         }
 
         Ok(inner)
@@ -637,21 +638,25 @@ impl<'tc> ResolutionPass<'tc> {
         let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
 
         // Convert all the cases and their bodies
-        let cases =
-            self.stores().match_cases().create_from_iter(node.cases.iter().filter_map(|case| {
-                self.scoping().enter_match_case(case.ast_ref(), |stack_id| {
-                    let bind_pat =
-                        self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
-                    let value =
-                        self.try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
-                    match (bind_pat, value) {
-                        (Some(bind_pat), Some(value)) => {
-                            Some(MatchCase { bind_pat, value, stack_id })
+        let cases = MatchCase::seq_data(
+            node.cases
+                .iter()
+                .filter_map(|case| {
+                    self.scoping().enter_match_case(case.ast_ref(), |stack_id| {
+                        let bind_pat =
+                            self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
+                        let value = self
+                            .try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
+                        match (bind_pat, value) {
+                            (Some(bind_pat), Some(value)) => {
+                                Some(MatchCase { bind_pat, value, stack_id })
+                            }
+                            _ => None,
                         }
-                        _ => None,
-                    }
+                    })
                 })
-            }));
+                .collect_vec(),
+        );
 
         // Create a term if all ok
         match (subject, cases.len() == node.cases.len()) {
@@ -675,15 +680,12 @@ impl<'tc> ResolutionPass<'tc> {
                 let mut mod_member_ids = HashSet::new();
 
                 // First handle local mod members
-                if let Some(local_mod_def) =
-                    self.stores().stack().map_fast(stack_id, |stack| stack.local_mod_def)
-                {
-                    let local_mod_members =
-                        self.stores().mod_def().map_fast(local_mod_def, |mod_def| mod_def.members);
+                if let Some(local_mod_def) = stack_id.borrow().local_mod_def {
+                    let local_mod_members = local_mod_def.borrow().members;
 
                     // Get the ids of the local mod members
                     mod_member_ids.extend(local_mod_members.iter().map(|member_id| {
-                        self.ast_info().mod_members().get_node_by_data(member_id).unwrap()
+                        tir_stores().ast_info().mod_members().get_node_by_data(member_id).unwrap()
                     }));
 
                     // Resolve them
@@ -771,7 +773,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
             inner => self.new_term(BlockTerm {
                 return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
-                statements: self.stores().term_list().create_from_slice(&[]),
+                statements: TermId::empty_seq(),
                 stack_id: Stack::empty(),
             }),
         };
@@ -822,7 +824,7 @@ impl<'tc> ResolutionPass<'tc> {
         node_id: AstNodeId,
     ) -> SemanticResult<TermId> {
         // Function should already be discovered
-        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
+        let fn_def_id = tir_stores().ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // Whether the function has been marked as pure by a directive
         let is_pure_by_directive = self
@@ -837,18 +839,17 @@ impl<'tc> ResolutionPass<'tc> {
                 // First resolve the parameters
                 let params = self.try_or_add_error(self.resolve_params_from_ast_params(
                     params,
-                    self.stores().fn_def().map_fast(fn_def_id, |fn_def| fn_def.ty.implicit),
+                    fn_def_id.borrow().ty.implicit,
                     fn_def_id.into(),
                 ));
 
                 // Modify the existing fn def for the params:
                 if let Some(params) = params {
-                    self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
-                        fn_def.ty.params = params;
-                        if is_pure_by_directive {
-                            fn_def.ty.pure = true;
-                        }
-                    });
+                    let mut fn_def = fn_def_id.borrow_mut();
+                    fn_def.ty.params = params;
+                    if is_pure_by_directive {
+                        fn_def.ty.pure = true;
+                    }
                 }
 
                 // In the scope of the parameters, resolve the return type and value
@@ -858,22 +859,18 @@ impl<'tc> ResolutionPass<'tc> {
 
                 // Modify the existing fn def for the return type:
                 if let Some(Some(return_ty)) = return_ty {
-                    self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
-                        // This is a double option: one for potential error, another for not
-                        // specifying return type.
-                        fn_def.ty.return_ty = return_ty;
-                    });
+                    // This is a double option: one for potential error, another for not
+                    // specifying return type.
+                    fn_def_id.borrow_mut().ty.return_ty = return_ty;
                 }
 
                 let return_value =
                     self.try_or_add_error(self.make_term_from_ast_expr(body.ast_ref()));
 
                 // Modify the existing fn def for the return value:
-                self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
-                    if let Some(return_value) = return_value {
-                        fn_def.body = FnBody::Defined(return_value);
-                    }
-                });
+                if let Some(return_value) = return_value {
+                    fn_def_id.borrow_mut().body = FnBody::Defined(return_value);
+                }
 
                 (params, return_ty, return_value, fn_def_id)
             });

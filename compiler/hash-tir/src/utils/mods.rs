@@ -5,7 +5,10 @@ use hash_source::{identifier::Identifier, ModuleId};
 use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
 
 use crate::{
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::tir_stores,
+    },
     impl_access_to_env,
     mods::{ModDef, ModDefId, ModKind, ModMember},
     symbols::Symbol,
@@ -23,7 +26,7 @@ impl<'tc> ModUtils<'tc> {
     /// Create or get an existing module definition by `[SourceId]`.
     pub fn create_or_get_module_mod_def(&self, module_id: ModuleId) -> ModDefId {
         let source_node_id = self.node_map().get_module(module_id).node_ref().id();
-        match self.stores().ast_info().mod_defs().get_data_by_node(source_node_id) {
+        match tir_stores().ast_info().mod_defs().get_data_by_node(source_node_id) {
             Some(existing) => existing,
             None => {
                 // Create a new module definition.
@@ -47,7 +50,7 @@ impl<'tc> ModUtils<'tc> {
                     ),
                     members: ModMember::empty_seq(),
                 });
-                self.stores().ast_info().mod_defs().insert(source_node_id, mod_def_id);
+                tir_stores().ast_info().mod_defs().insert(source_node_id, mod_def_id);
                 mod_def_id
             }
         }

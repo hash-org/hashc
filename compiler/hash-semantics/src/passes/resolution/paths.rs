@@ -23,14 +23,10 @@ use std::fmt;
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
-    TrivialKeySequenceStore,
-};
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     args::{Arg, ArgsId},
     data::{CtorPat, CtorTerm, DataDefId},
-    environment::env::AccessToEnv,
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
     symbols::Symbol,
@@ -191,7 +187,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         match binding_kind {
             BindingKind::ModMember(_, mod_member_id) => {
-                let mod_member = self.stores().mod_members().get_element(mod_member_id);
+                let mod_member = mod_member_id.value();
                 match mod_member.value {
                     ModMemberValue::Data(data_def_id) => {
                         let data_def_single_ctor = data_def_id.borrow().get_single_ctor();
@@ -290,7 +286,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
             }
             BindingKind::Ctor(data_def_id, ctor_def_id) => {
-                let _ctor_def = self.stores().ctor_defs().get_element(ctor_def_id);
+                let _ctor_def = ctor_def_id.value();
                 let applied_args = match &component.args[..] {
                     [] => ResolvedArgs::Term(Arg::empty_seq()),
                     [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,

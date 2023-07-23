@@ -677,7 +677,7 @@ impl DefinedIntrinsics {
             env,
             implementations,
             bin_op_name,
-            FnTy::builder().params(env.new_params(&[ty, ty])).return_ty(bool_ty).build(),
+            FnTy::builder().params(Param::seq_positional([ty, ty])).return_ty(bool_ty).build(),
             |prim, args| {
                 let (lhs, rhs) = (args[0], args[1]);
                 let invalid = || {
@@ -719,7 +719,7 @@ impl DefinedIntrinsics {
         let panic = add(
             "panic",
             FnTy::builder()
-                .params(env.new_params(&[Ty::data(prim.str())]))
+                .params(Param::seq_positional([Ty::data(prim.str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
             |_env, args| {
@@ -732,7 +732,7 @@ impl DefinedIntrinsics {
         let user_error = add(
             "user_error",
             FnTy::builder()
-                .params(env.new_params(&[Ty::data(prim.str())]))
+                .params(Param::seq_positional([Ty::data(prim.str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
             |_env, args| match args[0].value() {
