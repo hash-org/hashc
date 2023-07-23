@@ -162,11 +162,16 @@ pub struct SomeArgId(pub SomeArgsId, pub usize);
 
 impl SomeArgId {
     pub fn into_name(&self) -> Symbol {
+        self.target().into_symbol()
+    }
+
+    // Get the actual numerical parameter index from a given [ParamsId] and
+    // [ParamIndex].
+    pub fn target(&self) -> ParamIndex {
         match self.0 {
             SomeArgsId::PatArgs(id) => PatArgId(id, self.1).borrow().target,
             SomeArgsId::Args(id) => ArgId(id, self.1).borrow().target,
         }
-        .into_symbol()
     }
 }
 

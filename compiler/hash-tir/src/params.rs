@@ -59,6 +59,17 @@ impl Param {
         let args: SomeArgsId = args.into();
         Param::seq_from_names_with_hole_types(args.iter().map(|arg| arg.into_name()))
     }
+
+    pub fn name_ident(&self) -> Option<Identifier> {
+        self.name.borrow().name
+    }
+}
+
+impl ParamId {
+    pub fn as_param_index(&self) -> ParamIndex {
+        let name_sym = self.borrow().name.borrow();
+        name_sym.name.map(ParamIndex::Name).unwrap_or(ParamIndex::Position(self.1))
+    }
 }
 
 impl ParamsId {

@@ -1,21 +1,16 @@
 // @@Docs
 
-use hash_source::{
-    identifier::{Identifier, IDENTS},
-    location::Span,
-};
+use hash_source::location::Span;
 use hash_storage::store::{statics::StoreId, SequenceStore, Store};
 use hash_utils::stream_less_writeln;
 
 use super::traversing::Atom;
 use crate::{
-    args::{SomeArgId, SomeArgsId},
     environment::env::AccessToEnv,
     holes::Hole,
     locations::LocationTarget,
-    params::{Param, ParamId, ParamIndex, ParamsId},
-    scopes::StackMemberId,
-    symbols::{Symbol, SymbolData},
+    params::{Param, ParamsId},
+    symbols::Symbol,
     terms::{Term, TermId},
     tys::{Ty, TyId},
 };
@@ -50,64 +45,6 @@ pub trait CommonUtils: AccessToEnv {
     /// Get the location of a location target.
     fn get_location(&self, target: impl Into<LocationTarget>) -> Option<Span> {
         self.stores().location().get_location(target)
-    }
-
-    /// Get the name of a stack member
-    fn get_stack_member_name(&self, stack_member_id: StackMemberId) -> Symbol {
-        self.stores()
-            .stack()
-            .modify_fast(stack_member_id.0, |stack| stack.members[stack_member_id.1].name)
-    }
-
-    /// Get the index target of an argument
-    fn get_arg_index(&self, arg_id: impl Into<SomeArgId>) -> ParamIndex {
-        let arg_id: SomeArgId = arg_id.into();
-        match arg_id.0 {
-            SomeArgsId::PatArgs(pat_args_id) => {
-                self.stores().pat_args().map_fast(pat_args_id, |args| args[arg_id.1].target)
-            }
-            SomeArgsId::Args(args_id) => {
-                self.stores().args().map_fast(args_id, |args| args[arg_id.1].target)
-            }
-        }
-    }
-
-    /// Get the identifier name of a parameter
-    fn get_param_name_ident(&self, param_id: ParamId) -> Option<Identifier> {
-        let sym = self.get_param_name(param_id);
-        self.stores().symbol().map_fast(sym, |s| s.name)
-    }
-
-    /// Get the index target of a parameter
-    fn get_param_index(&self, param_id: ParamId) -> ParamIndex {
-        let sym = self.get_param_name(param_id);
-        self.stores().symbol().map_fast(sym, |s| {
-            s.name.map(ParamIndex::Name).unwrap_or(ParamIndex::Position(param_id.1))
-        })
-    }
-
-    /// Get the name of a parameter
-    fn get_param_name(&self, param_id: ParamId) -> Symbol {
-        self.stores().params().map_fast(param_id.0, |params| params[param_id.1].name)
-    }
-
-    /// Get the default value of a parameter, if any
-    fn get_param_default(&self, param_id: ParamId) -> Option<TermId> {
-        self.stores().params().map_fast(param_id.0, |params| params[param_id.1].default)
-    }
-
-    /// Get the name of the given symbol. If the symbol has no name, return the
-    /// underscore symbol.
-    fn symbol_name(&self, symbol: Symbol) -> Identifier {
-        self.stores().symbol().map_fast(symbol, |s| s.name.unwrap_or(IDENTS.underscore))
-    }
-
-    /// Duplicate a symbol by creating a new symbol with the same name.
-    fn duplicate_symbol(&self, existing_symbol: Symbol) -> Symbol {
-        let existing_symbol_name = self.stores().symbol().map_fast(existing_symbol, |s| s.name);
-        self.stores()
-            .symbol()
-            .create_with(|symbol| SymbolData { name: existing_symbol_name, symbol })
     }
 
     /// Create a new type.

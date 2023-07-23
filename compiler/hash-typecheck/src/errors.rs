@@ -386,7 +386,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     let error =
                         reporter.error().code(HashErrorCode::ParameterInUse).title(format!(
                         "received an argument named `{}` but no parameter with that name exists",
-                        self.get_arg_index(*arg)
+                        arg.target()
                     ));
                     if let Some(location) = locations.get_location(arg) {
                         error.add_labelled_span(location, "argument with this name");
@@ -398,7 +398,7 @@ impl<'tc> TcErrorReporter<'tc> {
                                 "expected one of these parameters: {}",
                                 params
                                     .iter()
-                                    .map(|param| format!("`{}`", self.get_param_index(param)))
+                                    .map(|param| format!("`{}`", param.as_param_index()))
                                     .collect::<Vec<_>>()
                                     .join(", ")
                             ),
@@ -409,7 +409,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     let error =
                         reporter.error().code(HashErrorCode::ParameterInUse).title(format!(
                             "expected an argument named `{}` but none was found",
-                            self.get_param_index(*param)
+                            param.as_param_index()
                         ));
                     if let Some(location) = locations.get_location(param) {
                         error.add_labelled_span(location, "parameter with this name");
@@ -420,7 +420,7 @@ impl<'tc> TcErrorReporter<'tc> {
                             format!(
                                 "received these arguments: {}",
                                 args.iter()
-                                    .map(|arg| format!("`{}`", self.get_arg_index(arg)))
+                                    .map(|arg| format!("`{}`", arg.target()))
                                     .collect::<Vec<_>>()
                                     .join(", ")
                             ),

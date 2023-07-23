@@ -506,7 +506,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         let mut sub = Sub::identity();
         for src_id in params.iter() {
             let src = self.stores().params().get_element(src_id);
-            if let Some(ident) = self.get_param_name_ident(src_id) {
+            if let Some(ident) = src_id.borrow().name_ident() {
                 sub.insert(
                     src.name,
                     self.new_term(AccessTerm {

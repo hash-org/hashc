@@ -16,14 +16,13 @@ use hash_tir::{
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
     environment::env::AccessToEnv,
     lits::{CharLit, IntLit, LitPat, StrLit},
-    params::ParamsId,
+    params::{ParamId, ParamsId},
     pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,
     symbols::Symbol,
     tuples::{TuplePat, TupleTy},
     ty_as_variant,
     tys::{Ty, TyId},
-    utils::common::CommonUtils,
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
@@ -306,7 +305,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .enumerate()
             .filter(|(_, p)| !self.get_deconstructed_pat_ctor(*p).is_wildcard())
             .map(|(index, p)| PatArg {
-                target: self.get_param_index((params, index).into()),
+                target: ParamId(params, index).as_param_index(),
                 pat: self.construct_pat(p).into(),
             })
             .collect_vec();
