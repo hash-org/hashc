@@ -2,13 +2,16 @@
 use derive_more::From;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
-use hash_storage::store::{DefaultPartialStore, PartialStore, SequenceStoreKey, Store, StoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
+};
 use hash_tir::{
     context::Decl,
-    data::{CtorDefData, CtorDefId, DataDefId},
+    data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
     defs::DefId,
-    environment::env::AccessToEnv,
-    mods::{ModDefData, ModDefId, ModKind, ModMemberData, ModMemberId, ModMemberValue},
+    environment::{env::AccessToEnv, stores::tir_stores},
+    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMemberId, ModMemberValue},
     scopes::StackId,
     symbols::{sym, Symbol},
     tys::TyId,
@@ -20,7 +23,6 @@ use hash_utils::{
 };
 
 use super::DiscoveryPass;
-use crate::ops::common::CommonOps;
 
 /// An item that is discovered: either a definition or a function type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, From)]
@@ -128,7 +130,7 @@ impl<'tc> DiscoveryPass<'tc> {
 
     /// Add the given definition to the AST info of the given node.
     pub(super) fn add_def_to_ast_info<U>(&self, item_id: ItemId, node: AstNodeRef<U>) {
-        let ast_info = self.ast_info();
+        let ast_info = tir_stores().ast_info();
         match item_id {
             ItemId::Def(def_id) => match def_id {
                 DefId::Mod(id) => ast_info.mod_defs().insert(node.id(), id),
@@ -148,20 +150,18 @@ impl<'tc> DiscoveryPass<'tc> {
     /// `MemberData` and then using its `MemberId` and `AstNodeId` we add it to
     /// `AstInfo` store, appropriately depending on the definition kind,
     pub(super) fn add_found_members_to_def(&self, def_id: impl Into<DefId>) {
-        let ast_info = self.ast_info();
+        let ast_info = tir_stores().ast_info();
         match def_id.into() {
             DefId::Mod(mod_def_id) => {
                 self.def_state().mod_members.modify_fast(mod_def_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let mod_utils = self.mod_utils();
 
                         // Set module members.
-                        let mod_members = mod_utils.set_mod_def_members(
-                            mod_def_id,
-                            mod_utils
-                                .create_mod_members(members.iter().map(|(_, data)| data).cloned()),
-                        );
+                        let mod_members = ModMember::seq(members.iter().map(|(_, data)| {
+                            |id| ModMember { id, name: data.name, value: data.value }
+                        }));
+                        mod_def_id.borrow_mut().members = mod_members;
 
                         // Set node for each member.
                         for ((node_id, _), mod_member_index) in
@@ -178,24 +178,21 @@ impl<'tc> DiscoveryPass<'tc> {
                 self.def_state().data_ctors.modify_fast(data_def_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let data_utils = self.data_utils();
 
                         // Set data constructors.
-                        let data_members = data_utils.set_data_def_ctors(
+                        let ctors = CtorDef::seq_from_data(
                             data_def_id,
-                            data_utils.create_data_ctors(
-                                data_def_id,
-                                members.iter().map(|(_, data)| data).copied(),
-                            ),
+                            members.iter().map(|(_, data)| data).copied(),
                         );
+                        data_def_id.borrow_mut().ctors = DataDefCtors::Defined(ctors);
 
                         // Set node for each data constructor.
                         for ((node_id, _), data_ctor_index) in
-                            members.iter().zip(data_members.to_index_range())
+                            members.iter().zip(ctors.to_index_range())
                         {
                             ast_info
                                 .ctor_defs()
-                                .insert(*node_id, CtorDefId(data_members, data_ctor_index));
+                                .insert(*node_id, CtorDefId(ctors, data_ctor_index));
                         }
                     }
                 })
@@ -207,7 +204,6 @@ impl<'tc> DiscoveryPass<'tc> {
                 self.def_state().stack_members.modify_fast(stack_id, |members| {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
-                        let stack_utils = self.stack_utils();
 
                         let (mut stack_members, mut mod_members) = (vec![], vec![]);
                         for (id, data) in members {
@@ -222,10 +218,8 @@ impl<'tc> DiscoveryPass<'tc> {
                         }
 
                         // Set stack members.
-                        stack_utils.set_stack_members(
-                            stack_id,
-                            stack_members.iter().map(|(_, data)| data).copied(),
-                        );
+                        stack_id.borrow_mut().members =
+                            stack_members.iter().map(|(_, data)| *data).collect();
 
                         // Set node for each stack member.
                         for (node_id, decl) in stack_members.iter() {
@@ -235,12 +229,13 @@ impl<'tc> DiscoveryPass<'tc> {
                         // If we got local mod members, create a new mod def and
                         // add it to the stack definition.
                         if !mod_members.is_empty() {
-                            let local_mod_def_id = self.mod_utils().create_mod_def(ModDefData {
+                            let local_mod_def_id = ModDef::create_with(|id| ModDef {
+                                id,
                                 kind: ModKind::ModBlock,
                                 name: sym(format!("stack_mod_{}", stack_id.to_index())),
-                                members: self.mod_utils().create_empty_mod_members(),
+                                members: ModMember::empty_seq(),
                             });
-                            stack_utils.set_local_mod_def(stack_id, local_mod_def_id);
+                            stack_id.borrow_mut().local_mod_def = Some(local_mod_def_id);
                             self.def_state().mod_members.insert(local_mod_def_id, mod_members);
 
                             // Add to AST info and locations, forwarded from the stack.
@@ -248,9 +243,9 @@ impl<'tc> DiscoveryPass<'tc> {
                                 ast_info.stacks().get_node_by_data(stack_id).unwrap(),
                                 local_mod_def_id,
                             );
-                            self.stores().location().add_location_to_target(
+                            tir_stores().location().add_location_to_target(
                                 local_mod_def_id,
-                                self.stores().location().get_location(stack_id).unwrap(),
+                                tir_stores().location().get_location(stack_id).unwrap(),
                             );
 
                             // Add the members to the local mod def.
@@ -276,7 +271,7 @@ impl<'tc> DiscoveryPass<'tc> {
             _ => return false, // Mod members need values
         };
 
-        let ast_info = self.ast_info();
+        let ast_info = tir_stores().ast_info();
 
         // Function definitions are not considered module members in stack
         // scope, they are considered closures instead.
@@ -295,7 +290,7 @@ impl<'tc> DiscoveryPass<'tc> {
         name: Symbol,
         def_node_id: AstNodeId,
     ) -> Option<ModMemberData> {
-        let ast_info = self.ast_info();
+        let ast_info = tir_stores().ast_info();
         if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
             // Function definition in a module
             Some(ModMemberData { name, value: ModMemberValue::Fn(fn_def_id) })
@@ -519,11 +514,7 @@ impl<'tc> DiscoveryPass<'tc> {
             let mut found_members = smallvec![];
             match (declaration_name, node.body()) {
                 (Some(declaration_name), ast::Pat::Binding(binding_pat))
-                    if self
-                        .stores()
-                        .symbol()
-                        .map_fast(declaration_name, |sym| Some(binding_pat.name.ident == sym.name?))
-                        .is_some_and(|d| d) =>
+                    if declaration_name.borrow().name == Some(binding_pat.name.ident) =>
                 {
                     found_members
                         .push((node.id(), Decl { name: declaration_name, ty: None, value: None }))
@@ -543,6 +534,6 @@ impl<'tc> DiscoveryPass<'tc> {
         def_id: DefId,
         originating_node: AstNodeRef<U>,
     ) {
-        self.stores().location().add_location_to_target(def_id, originating_node.span());
+        tir_stores().location().add_location_to_target(def_id, originating_node.span());
     }
 }

@@ -1,10 +1,9 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_storage::store::{SequenceStore, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 
 use crate::{
-    environment::env::AccessToEnv,
     pats::{PatId, PatListId, Spread},
     terms::{TermId, TermListId},
 };
@@ -41,21 +40,17 @@ pub struct ArrayPat {
 impl ArrayPat {
     /// Split the pattern into the `prefix`, `suffix` and an optional;
     /// `rest` pattern.
-    pub fn into_parts<T>(&self, tcx: &T) -> (Vec<PatId>, Vec<PatId>, Option<Spread>)
-    where
-        T: AccessToEnv,
-    {
+    pub fn into_parts(&self) -> (Vec<PatId>, Vec<PatId>, Option<Spread>) {
         let mut prefix = vec![];
         let mut suffix = vec![];
 
-        tcx.stores().pat_list().map_fast(self.pats, |args| {
-            if let Some(pos) = self.spread.map(|s| s.index) {
-                prefix.extend(args[..pos].iter().copied().map(|p| p.assert_pat()));
-                suffix.extend(args[pos..].iter().copied().map(|p| p.assert_pat()));
-            } else {
-                prefix.extend(args.iter().copied().map(|p| p.assert_pat()));
-            }
-        });
+        let args = self.pats.borrow();
+        if let Some(pos) = self.spread.map(|s| s.index) {
+            prefix.extend(args[..pos].iter().copied().map(|p| p.assert_pat()));
+            suffix.extend(args[pos..].iter().copied().map(|p| p.assert_pat()));
+        } else {
+            prefix.extend(args.iter().copied().map(|p| p.assert_pat()));
+        }
 
         (prefix, suffix, self.spread)
     }

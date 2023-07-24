@@ -65,7 +65,6 @@ use construct::DeconstructedCtor;
 use deconstruct::DeconstructedPat;
 use diagnostics::{ExhaustivenessDiagnostics, ExhaustivenessError, ExhaustivenessWarning};
 use hash_ast::ast::MatchOrigin;
-use hash_intrinsics::primitives::{AccessToPrimitives, DefinedPrimitives};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::Span;
 use hash_storage::store::CloneStore;
@@ -107,10 +106,6 @@ pub struct ExhaustivenessChecker<'tc> {
     /// access to TC utilities.
     tcx: &'tc Env<'tc>,
 
-    /// The primitive definitions that are needed for creating and comparing
-    /// primitive types with the TIR.
-    primitives: &'tc DefinedPrimitives,
-
     /// The exhaustiveness store keeps track of created de-constructed patterns
     /// and usefulness constructors, basically representations used by
     /// exhaustiveness to evaluate whether something is exhaustive. Since
@@ -130,19 +125,12 @@ impl<'tc> AccessToEnv for ExhaustivenessChecker<'tc> {
     }
 }
 
-impl<'tc> AccessToPrimitives for ExhaustivenessChecker<'tc> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        self.primitives
-    }
-}
-
 impl<'tc> ExhaustivenessChecker<'tc> {
     /// Create a new checker.
-    pub fn new(subject_span: Span, tcx: &'tc Env<'tc>, primitives: &'tc DefinedPrimitives) -> Self {
+    pub fn new(subject_span: Span, tcx: &'tc Env<'tc>) -> Self {
         Self {
             subject_span,
             tcx,
-            primitives,
             ecx: ExhaustivenessCtx::new(),
             diagnostics: ExhaustivenessDiagnostics::new(),
         }

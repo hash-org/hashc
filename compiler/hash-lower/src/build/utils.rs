@@ -13,16 +13,16 @@ use hash_ir::{
     IrCtx,
 };
 use hash_source::constant::CONSTANT_MAP;
-use hash_storage::store::{statics::StoreId, SequenceStore};
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
+    args::Arg,
     data::DataTy,
-    environment::env::AccessToEnv,
+    environment::stores::tir_stores,
     fns::FnDefId,
     mods::{ModMember, ModMemberValue},
     pats::PatId,
     symbols::Symbol,
     terms::TermId,
-    utils::AccessToUtils,
 };
 use hash_utils::log;
 
@@ -36,7 +36,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Get the interned span of a given [PatId].
     pub(crate) fn span_of_pat(&self, id: PatId) -> AstNodeId {
-        self.stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
+        tir_stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected pattern `{}` to have a location", id);
             AstNodeId::new(0)
         })
@@ -44,7 +44,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Get the interned span of a [FnDefId].
     pub(crate) fn span_of_def(&self, id: FnDefId) -> AstNodeId {
-        self.stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
+        tir_stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected function definition `{}` to have a location", id);
             AstNodeId::new(0)
         })
@@ -52,7 +52,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Get the interned span of a given [TermId].
     pub(crate) fn span_of_term(&self, id: TermId) -> AstNodeId {
-        self.stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
+        tir_stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected term `{:?}` to have a location", id);
             AstNodeId::new(0)
         })
@@ -70,13 +70,13 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// @@Future: ideally, we can remove this and just use `#lang_item`
     /// declaration to find the appropriate items.
     pub(crate) fn lookup_libc_fn(&mut self, name: &str) -> Option<IrTyId> {
-        let libc_mod = match self.mod_utils().get_mod_member_by_ident(self.ctx.prelude, "libc") {
+        let libc_mod = match self.ctx.prelude.borrow().get_mod_member_by_ident("libc") {
             Some(ModMember { value: ModMemberValue::Mod(libc_mod), .. }) => libc_mod,
             _ => return None,
         };
 
         // Now lookup the item in the libc module
-        let Some(fn_def) = self.mod_utils().get_mod_fn_member_by_ident(libc_mod, name) else {
+        let Some(fn_def) = libc_mod.borrow().get_mod_fn_member_by_ident(name) else {
             return None;
         };
 
@@ -89,13 +89,13 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// N.B. This assumes that the items have no type arguments.
     pub(crate) fn lookup_prelude_item(&mut self, name: &str) -> Option<IrTyId> {
         // Now lookup the item in the libc module
-        let Some(member) = self.mod_utils().get_mod_member_by_ident(self.ctx.prelude, name) else {
+        let Some(member) = self.ctx.prelude.borrow().get_mod_member_by_ident(name) else {
             return None;
         };
 
         match member.value {
             ModMemberValue::Data(data_def) => {
-                let args = self.stores().args().create_empty();
+                let args = Arg::empty_seq();
                 let ty_id = self.ty_id_from_tir_data(DataTy { data_def, args });
                 Some(ty_id)
             }

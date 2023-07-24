@@ -1,6 +1,7 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
-use hash_intrinsics::{primitives::AccessToPrimitives, utils::PrimitiveUtils};
+
+use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
 use hash_ir::{
     intrinsics::Intrinsic,
     lang_items::LangItem,
@@ -22,12 +23,12 @@ use hash_tir::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnDef, FnDefId, FnTy},
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::common::CommonUtils,
+    utils::common::get_location,
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
@@ -65,22 +66,21 @@ impl<'ir> BuilderCtx<'ir> {
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_ty(&self, id: TyId) -> IrTyId {
         self.with_cache(id, || {
-            self.map_ty(id, |ty| {
-                // We compute the "uncached" type, and then it will be added to the
-                // cache if it is not already present. For data types, since they can
-                // be defined in a recursive way, the `ty_from_tir_data` will deal with
-                // its own caching, but we still want to add an entry here for `TyId` since
-                // we want to avoid computing the `ty_from_tir_data` as well.
-                let result = match ty {
-                    Ty::Data(data_ty) => self.ty_from_tir_data(*data_ty),
+            let ty = id.borrow();
+            // We compute the "uncached" type, and then it will be added to the
+            // cache if it is not already present. For data types, since they can
+            // be defined in a recursive way, the `ty_from_tir_data` will deal with
+            // its own caching, but we still want to add an entry here for `TyId` since
+            // we want to avoid computing the `ty_from_tir_data` as well.
+            let result = match &*ty {
+                Ty::Data(data_ty) => self.ty_from_tir_data(*data_ty),
 
-                    // Hot path for unit types.
-                    Ty::Tuple(tuple) if tuple.data.is_empty() => COMMON_IR_TYS.unit,
-                    _ => self.uncached_ty_from_tir_ty(id, ty),
-                };
+                // Hot path for unit types.
+                Ty::Tuple(tuple) if tuple.data.is_empty() => COMMON_IR_TYS.unit,
+                _ => self.uncached_ty_from_tir_ty(id, &ty),
+            };
 
-                (result, false)
-            })
+            (result, false)
         })
     }
 
@@ -136,9 +136,8 @@ impl<'ir> BuilderCtx<'ir> {
                 // @@Temporary
                 if self.context().try_get_decl(sym).is_some() {
                     let term = self.context().get_binding_value(sym);
-                    return self.map_ty(self.use_term_as_ty(term), |ty| {
-                        self.uncached_ty_from_tir_ty(id, ty)
-                    });
+                    let ty = term.as_ty().value();
+                    return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {
                     return COMMON_IR_TYS.unit; // We just return the unit type
                                                // for now.
@@ -148,7 +147,7 @@ impl<'ir> BuilderCtx<'ir> {
                 let message =
                     format!("all types should be monomorphised before lowering, type: `{}`", ty);
 
-                if let Some(location) = self.get_location(id) {
+                if let Some(location) = get_location(id) {
                     panic_on_span!(location, self.source_map(), format!("{message}"))
                 } else {
                     panic!("{message}")
@@ -198,7 +197,7 @@ impl<'ir> BuilderCtx<'ir> {
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
 
-        let source = self.get_location(fn_def).map(|location| location.id);
+        let source = get_location(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
         let params =
@@ -210,7 +209,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Lookup any applied directives on the fn_def and add them to the
         // instance
-        self.stores().directives().map_fast(fn_def.into(), |maybe_directives| {
+        tir_stores().directives().map_fast(fn_def.into(), |maybe_directives| {
             if let Some(directives) = maybe_directives {
                 for directive in directives.iter() {
                     instance.attributes.add(Attribute::word(directive));
@@ -264,7 +263,7 @@ impl<'ir> BuilderCtx<'ir> {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
             Some(IrTyListId::seq(ty.args.borrow().iter().map(|arg| {
-                let ty = self.use_term_as_ty(arg.value);
+                let ty = arg.value.as_ty();
                 self.ty_id_from_tir_ty(ty)
             })))
         } else {
@@ -298,7 +297,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Deal with any specific attributes that were set on the type, i.e.
         // `#repr_c`.
-        if let Some(directives) = self.stores().directives().get(def.id.into()) {
+        if let Some(directives) = tir_stores().directives().get(def.id.into()) {
             if directives.contains(IDENTS.repr_c) {
                 adt.metadata.add_flags(RepresentationFlags::C_LIKE);
             }
@@ -320,7 +319,7 @@ impl<'ir> BuilderCtx<'ir> {
             DataDefCtors::Defined(ctor_defs) => {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
-                if self.primitives().bool() == ty.data_def {
+                if primitives().bool() == ty.data_def {
                     return (COMMON_IR_TYS.bool, true);
                 }
 

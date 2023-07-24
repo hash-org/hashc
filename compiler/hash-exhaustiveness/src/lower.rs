@@ -5,22 +5,24 @@ use std::mem::size_of;
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
 use hash_source::constant::InternedInt;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    SequenceStoreKey, Store, TrivialSequenceStoreKey,
+};
 use hash_tir::{
-    args::{PatArgData, PatArgsId, PatOrCapture},
+    args::{PatArg, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
     environment::env::AccessToEnv,
     lits::{CharLit, IntLit, LitPat, StrLit},
-    params::ParamsId,
+    params::{ParamId, ParamsId},
     pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,
     symbols::Symbol,
     tuples::{TuplePat, TupleTy},
     ty_as_variant,
     tys::{Ty, TyId},
-    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
@@ -266,8 +268,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
                     DeconstructedCtor::Str(str) => Pat::Lit(LitPat::Str(StrLit::from(*str))),
                     DeconstructedCtor::Array(Array { kind }) => {
-                        let children = fields.iter_patterns().map(|p| self.construct_pat(p).into());
-                        let pats = self.new_pat_list(children);
+                        let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
+                        let pats = PatOrCapture::seq_data(children);
 
                         match kind {
                             ArrayKind::Fixed(_) => {
@@ -288,7 +290,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 };
 
                 // Now put the pat on the store and return it
-                self.new_pat(pat)
+                Pat::create(pat)
             })
         })
     }
@@ -302,14 +304,14 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .iter_patterns()
             .enumerate()
             .filter(|(_, p)| !self.get_deconstructed_pat_ctor(*p).is_wildcard())
-            .map(|(index, p)| PatArgData {
-                target: self.get_param_index((params, index).into()),
+            .map(|(index, p)| PatArg {
+                target: ParamId(params, index).as_param_index(),
                 pat: self.construct_pat(p).into(),
             })
             .collect_vec();
 
         let field_count = fields.len();
-        let args = self.param_utils().create_pat_args(fields.into_iter());
+        let args = PatArg::seq_data(fields);
 
         if field_count != params.len() {
             (args, Some(Spread { name: Symbol::fresh(), index: field_count }))
@@ -453,9 +455,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             // verified that no un-named arguments appear after named arguments as this
             // creates an ambiguous ordering of arguments.
             .map(|(index, arg)| -> FieldPat {
-                let field = if let Some(arg_index) =
-                    self.param_utils().try_get_actual_param_index(params_id, arg.target)
-                {
+                let field = if let Some(arg_index) = params_id.at_param_index(arg.target) {
                     arg_index
                 } else {
                     index

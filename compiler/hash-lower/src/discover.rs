@@ -7,12 +7,15 @@ use std::ops::ControlFlow;
 use derive_more::Constructor;
 use hash_pipeline::workspace::StageInfo;
 use hash_source::identifier::IDENTS;
-use hash_storage::store::{statics::StoreId, PartialStore};
+use hash_storage::store::{statics::StoreId, PartialStore, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    environment::env::{AccessToEnv, Env},
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::tir_stores,
+    },
     fns::{FnBody, FnDefId},
-    mods::{ModKind, ModMemberValue},
+    mods::{ModDef, ModKind, ModMemberValue},
     terms::TermId,
     utils::{traversing::Atom, AccessToUtils},
 };
@@ -94,7 +97,7 @@ impl FnDiscoverer<'_> {
             FnBody::Defined(body) => {
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.
-                self.stores().directives().map_fast(def.into(), |maybe_directives| {
+                tir_stores().directives().map_fast(def.into(), |maybe_directives| {
                     if let Some(directives) = maybe_directives && directives.contains(IDENTS.foreign) {
                         None
                     } else {
@@ -113,19 +116,19 @@ impl FnDiscoverer<'_> {
     pub fn discover_fns(&self) -> DiscoveredFns {
         let mut fns = DiscoveredFns::new();
 
-        for mod_def in self.mod_utils().iter_all_mods() {
+        for mod_def_id in ModDef::iter_all_mods() {
             // Check if we can skip this module as it may of already been queued before
             // during some other pipeline run.
             //
             // @@Incomplete: mod-blocks that are already lowered won't be caught by
             // the queue-deduplication.
-            match mod_def.borrow().kind {
+            match mod_def_id.borrow().kind {
                 ModKind::Source(id, _) if !self.stage_info.get(id).is_lowered() => {}
                 _ => continue,
             };
 
-            for member in self.mod_utils().iter_mod_members(mod_def) {
-                match member.value {
+            for member in mod_def_id.borrow().members.iter() {
+                match member.borrow().value {
                     ModMemberValue::Mod(_) => {
                         // Will be handled later in the loop
                     }

@@ -3,9 +3,7 @@
 use std::{cell::Cell, collections::HashSet};
 
 use derive_more::Deref;
-use hash_storage::store::{
-    statics::StoreId, CloneStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
-};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
     context::ScopeKind,
@@ -18,7 +16,7 @@ use hash_tir::{
     symbols::Symbol,
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::{common::CommonUtils, traversing::Atom},
+    utils::traversing::Atom,
 };
 use once_cell::unsync::OnceCell;
 
@@ -166,8 +164,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
             f1.return_ty = self.sub_ops().apply_sub_to_ty(f1.return_ty, &backward_sub);
 
-            self.stores().ty().set(src_id, f1.into());
-            self.stores().ty().set(target_id, f2.into());
+            src_id.set(f1.into());
+            target_id.set(f2.into());
 
             Ok(())
         }
@@ -188,13 +186,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
 
         let hole_symbol = match hole_atom {
             Atom::Term(term_id) => {
-                let dest_term = self.get_term(norm_ops.to_term(sub_dest_atom));
-                match self.get_term(term_id) {
+                let dest_term = (norm_ops.to_term(sub_dest_atom)).value();
+                match term_id.value() {
                     Term::Hole(Hole(h)) => {
                         if self.modify_terms.get() {
-                            self.stores().term().modify_fast(term_id, |term| {
-                                *term = dest_term;
-                            });
+                            term_id.set(dest_term);
                         }
                         h
                     }
@@ -202,13 +198,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                 }
             }
             Atom::Ty(ty_id) => {
-                let dest_ty = self.get_ty(norm_ops.to_ty(sub_dest_atom));
-                match self.get_ty(ty_id) {
+                let dest_ty = norm_ops.to_ty(sub_dest_atom).value();
+                match ty_id.value() {
                     Ty::Hole(Hole(h)) => {
                         if self.modify_terms.get() {
-                            self.stores().ty().modify_fast(ty_id, |ty| {
-                                *ty = dest_ty;
-                            });
+                            ty_id.set(dest_ty);
                         }
                         h
                     }
@@ -279,8 +273,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         norm_ops.normalise_in_place(src_id.into())?;
         norm_ops.normalise_in_place(target_id.into())?;
 
-        let src = self.get_ty(src_id);
-        let target = self.get_ty(target_id);
+        let src = src_id.value();
+        let target = target_id.value();
 
         match (src, target) {
             (Ty::Hole(h1), Ty::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
@@ -288,11 +282,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             (_, Ty::Hole(_b)) => self.unify_hole_with(target_id, src_id),
 
             (Ty::Var(a), _) if self.pat_binds.get().is_some() => {
-                self.add_unification(a, self.use_ty_as_term(target_id));
+                self.add_unification(a, target_id.as_term());
                 Ok(())
             }
             (_, Ty::Var(b)) if self.pat_binds.get().is_some() => {
-                self.add_unification(b, self.use_ty_as_term(src_id));
+                self.add_unification(b, src_id.as_term());
                 Ok(())
             }
 
@@ -301,7 +295,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             (_, _) if self.is_uninhabitable(src_id)? => Ok(()),
 
             (Ty::Var(a), Ty::Var(b)) => {
-                self.unify_vars(a, b, self.use_ty_as_term(src_id), self.use_ty_as_term(target_id))
+                self.unify_vars(a, b, src_id.as_term(), target_id.as_term())
             }
             (Ty::Var(_), _) | (_, Ty::Var(_)) => self.mismatching_atoms(src_id, target_id),
 
@@ -363,10 +357,10 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         norm_ops.normalise_in_place(src_id.into())?;
         norm_ops.normalise_in_place(target_id.into())?;
 
-        let src = self.get_term(src_id);
-        let target = self.get_term(target_id);
+        let src = src_id.value();
+        let target = target_id.value();
 
-        match (self.try_use_term_as_ty(src_id), self.try_use_term_as_ty(target_id)) {
+        match (src_id.try_as_ty(), target_id.try_as_ty()) {
             (Some(src_ty), Some(target_ty)) => self.unify_tys(src_ty, target_ty),
             _ => match (src, target) {
                 (Term::Hole(h1), Term::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
@@ -398,8 +392,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     self.mismatching_atoms(src_id, target_id)
                 }
 
-                (Term::Ty(t1), _) => self.unify_terms(self.use_ty_as_term(t1), target_id),
-                (_, Term::Ty(t2)) => self.unify_terms(src_id, self.use_ty_as_term(t2)),
+                (Term::Ty(t1), _) => self.unify_terms(t1.as_term(), target_id),
+                (_, Term::Ty(t2)) => self.unify_terms(src_id, t2.as_term()),
 
                 (Term::Lit(l1), Term::Lit(l2)) => {
                     self.ok_or_mismatching_atoms(self.lits_are_equal(l1, l2), src_id, target_id)
@@ -470,7 +464,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     self.context().add_assignment(
                         src_param.name,
                         src_param.ty,
-                        self.new_term(target_param.name),
+                        Term::from(target_param.name),
                     );
 
                     // Unify the types
@@ -505,8 +499,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             });
         }
         for (src_arg_id, target_arg_id) in src_id.iter().zip(target_id.iter()) {
-            let src_arg = self.get_arg(src_arg_id);
-            let target_arg = self.get_arg(target_arg_id);
+            let src_arg = src_arg_id.value();
+            let target_arg = target_arg_id.value();
             self.unify_terms(src_arg.value, target_arg.value)?;
         }
         Ok(())
@@ -531,9 +525,9 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     /// for types that are actually uninhabitable.
     pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
         let ty = self.norm_ops().to_ty(self.norm_ops().normalise(ty.into())?);
-        match self.get_ty(ty) {
+        match ty.value() {
             Ty::Data(data_ty) => {
-                let data_def = self.stores().data_def().get(data_ty.data_def);
+                let data_def = data_ty.data_def.borrow();
                 match data_def.ctors {
                     DataDefCtors::Defined(ctors) => Ok(ctors.len() == 0),
                     DataDefCtors::Primitive(_) => Ok(false),
@@ -542,85 +536,4 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             _ => Ok(false),
         }
     }
-
-    // @@Todo pats
-    // pub fn pat_lists_are_equal(&self, src_id: PatListId, target_id: PatListId) ->
-    // bool {     if src_id.len() != target_id.len() {
-    //         false
-    //     } else {
-    //         self.map_pat_list(src_id, |src| {
-    //             self.map_pat_list(target_id, |target| {
-    //                 src.iter()
-    //                     .zip(target.iter())
-    //                     .map(|(src, target)| match (src, target) {
-    //                         (PatOrCapture::Pat(src_pat),
-    // PatOrCapture::Pat(target_pat)) => {
-    // self.pats_are_equal(*src_pat, *target_pat)                         }
-    //                         (PatOrCapture::Capture, PatOrCapture::Capture) =>
-    // true,                         _ => false,
-    //                     })
-    //                     .all(|x| x)
-    //             })
-    //         })
-    //     }
-    // }
-
-    // pub fn pats_are_equal(&self, src_id: PatId, target_id: PatId) -> bool {
-    //     match (self.get_pat(src_id), self.get_pat(target_id)) {
-    //         (Pat::Binding(v1), Pat::Binding(v2)) => {
-    //             v1.is_mutable == v2.is_mutable && v1.name == v2.name
-    //         }
-    //         (_, Pat::Binding(_)) | (Pat::Binding(_), _) => false,
-
-    //         (Pat::Range(r1), Pat::Range(r2)) => {
-    //             self.lits_are_equal(r1.start.into(), r2.start.into())
-    //                 && self.lits_are_equal(r1.end.into(), r2.end.into())
-    //                 && r1.range_end == r2.range_end
-    //         }
-    //         (Pat::Range(_), _) | (_, Pat::Range(_)) => false,
-
-    //         (Pat::Lit(l1), Pat::Lit(l2)) => self.lits_are_equal(l1.into(),
-    // l2.into()),         (Pat::Lit(_), _) | (_, Pat::Lit(_)) => false,
-
-    //         (Pat::Tuple(t1), Pat::Tuple(t2)) => {
-    //             self.pat_args_are_equal(t1.data, t2.data) && t1.data_spread ==
-    // t2.data_spread         }
-    //         (Pat::Tuple(_), _) | (_, Pat::Tuple(_)) => false,
-
-    //         (Pat::Array(a1), Pat::Array(a2)) => {
-    //             self.pat_lists_are_equal(a1.pats, a2.pats) && a1.spread ==
-    // a2.spread         }
-    //         (Pat::Array(_), _) | (_, Pat::Array(_)) => false,
-
-    //         (Pat::Ctor(_c1), Pat::Ctor(_c2)) => {
-    //             todo!()
-    //         }
-    //         (Pat::Ctor(_), _) | (_, Pat::Ctor(_)) => todo!(),
-    //         (Pat::Or(_), Pat::Or(_)) => todo!(),
-    //         (Pat::Or(_), _) | (_, Pat::Or(_)) => todo!(),
-    //         (Pat::If(_), Pat::If(_)) => todo!(),
-    //     }
-    // }
-
-    // /// Unify two pattern argument lists, creating a substitution of holes.
-    // pub fn pat_args_are_equal(&self, src_id: PatArgsId, target_id: PatArgsId) ->
-    // bool {     if src_id.len() != target_id.len() {
-    //         false
-    //     } else {
-    //         self.map_pat_args(src_id, |src| {
-    //             self.map_pat_args(target_id, |target| {
-    //                 src.iter()
-    //                     .zip(target.iter())
-    //                     .map(|(src, target)| match (src.pat, target.pat) {
-    //                         (PatOrCapture::Pat(src_pat),
-    // PatOrCapture::Pat(target_pat)) => {
-    // self.pats_are_equal(src_pat, target_pat)                         }
-    //                         (PatOrCapture::Capture, PatOrCapture::Capture) =>
-    // true,                         _ => false,
-    //                     })
-    //                     .all(|x| x)
-    //             })
-    //         })
-    //     }
-    // }
 }

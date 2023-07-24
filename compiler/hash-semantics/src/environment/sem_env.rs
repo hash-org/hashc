@@ -1,8 +1,5 @@
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
-    primitives::{AccessToPrimitives, DefinedPrimitives},
-};
+use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_pipeline::settings::CompilerSettings;
 use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
 use hash_source::entry_point::EntryPointState;
@@ -18,7 +15,7 @@ use once_cell::unsync::OnceCell;
 use super::analysis_progress::AnalysisProgress;
 use crate::{
     diagnostics::{error::SemanticError, warning::SemanticWarning},
-    ops::bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
+    ops::bootstrap::DefinedIntrinsicsOrUnset,
 };
 
 macro_rules! sem_env {
@@ -80,7 +77,6 @@ sem_env! {
     diagnostics: DiagnosticsStore,
     entry_point: EntryPoint,
     prelude_or_unset: PreludeOrUnset,
-    primitives_or_unset: DefinedPrimitivesOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
     root_mod_or_unset: RootModOrUnset,
     analysis_progress: AnalysisProgress,
@@ -96,15 +92,6 @@ impl<'tc> AccessToSemEnv for SemEnv<'tc> {
 impl<'tc> AccessToEnv for SemEnv<'tc> {
     fn env(&self) -> &Env {
         self.env
-    }
-}
-
-impl<'tc> AccessToPrimitives for SemEnv<'tc> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        match self.primitives_or_unset().get() {
-            Some(primitives) => primitives,
-            None => panic!("Tried to get primitives but they are not set yet"),
-        }
     }
 }
 
@@ -170,12 +157,6 @@ impl<'tc, T> AccessToSemEnv for WithSemEnv<'tc, T> {
 impl<'tc, T> AccessToEnv for WithSemEnv<'tc, T> {
     fn env(&self) -> &Env {
         self.sem_env.env()
-    }
-}
-
-impl<'tc, T> AccessToPrimitives for WithSemEnv<'tc, T> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        self.sem_env.primitives()
     }
 }
 
@@ -259,12 +240,6 @@ macro_rules! impl_access_to_sem_env {
         impl hash_tir::environment::env::AccessToEnv for $ty {
             fn env(&self) -> &hash_tir::environment::env::Env {
                 self.sem_env().env()
-            }
-        }
-
-        impl hash_intrinsics::primitives::AccessToPrimitives for $ty {
-            fn primitives(&self) -> &hash_intrinsics::primitives::DefinedPrimitives {
-                self.sem_env().primitives()
             }
         }
 

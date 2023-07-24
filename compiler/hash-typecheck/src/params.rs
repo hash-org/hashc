@@ -1,15 +1,14 @@
 use std::collections::HashSet;
 
 use derive_more::{Constructor, Deref};
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    SequenceStoreKey, TrivialSequenceStoreKey,
+};
 use hash_tir::{
-    args::{
-        ArgData, ArgId, ArgsId, PatArgData, PatArgId, PatArgsId, PatOrCapture, SomeArgId,
-        SomeArgsId,
-    },
+    args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
-    utils::{common::CommonUtils, AccessToUtils},
 };
 
 use crate::{errors::TcResult, AccessToTypechecking};
@@ -44,7 +43,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
         for param in params_id.iter() {
             // Check for duplicate parameters
-            if let Some(param_name) = self.get_param_name_ident(param) {
+            if let Some(param_name) = param.borrow().name_ident() {
                 if seen.contains(&param_name) {
                     error_state
                         .add_error(ParamError::DuplicateParam { first: param, second: param });
@@ -55,7 +54,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
             // Ensure that parameters with defaults follow parameters without
             // defaults
             if let Some(default_param) = found_default {
-                if self.get_param_default(param).is_none() {
+                if param.borrow().default.is_none() {
                     // Required parameter after named parameter,
                     // error
                     error_state.add_error(ParamError::RequiredParamAfterDefaultParam {
@@ -63,7 +62,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                         next_required: param,
                     });
                 }
-            } else if self.get_param_default(param).is_some() {
+            } else if param.borrow().default.is_some() {
                 // Found the first default parameter
                 found_default = Some(param);
             }
@@ -102,13 +101,10 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
         for arg in args_id.iter() {
             // Check for duplicate arguments
-            match self.get_arg_index(arg) {
+            match arg.target() {
                 ParamIndex::Name(arg_name) => {
                     if seen.contains(&arg_name) {
-                        error_state.add_error(ParamError::DuplicateArg {
-                            first: arg.into(),
-                            second: arg.into(),
-                        });
+                        error_state.add_error(ParamError::DuplicateArg { first: arg, second: arg });
                     }
                     seen.insert(arg_name);
                 }
@@ -121,7 +117,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
             // Ensure that named arguments follow positional arguments
             match found_named {
                 Some(named_arg) => {
-                    match self.get_arg_index(arg) {
+                    match arg.target() {
                         ParamIndex::Name(_) => {
                             // Named arguments, ok
                         }
@@ -129,15 +125,15 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                             // Positional arguments after named arguments, error
                             error_state.add_error(ParamError::PositionalArgAfterNamedArg {
                                 first_named: named_arg,
-                                next_positional: arg.into(),
+                                next_positional: arg,
                             });
                         }
                     }
                 }
-                None => match self.get_arg_index(arg) {
+                None => match arg.target() {
                     ParamIndex::Name(_) => {
                         // Found the first named argument
-                        found_named = Some(arg.into());
+                        found_named = Some(arg);
                     }
                     ParamIndex::Position(_) => {
                         // Still positional arguments, ok
@@ -166,7 +162,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         self.validate_args_against_params(args_id.into(), params_id)?;
 
         let mut error_state = self.new_error_state();
-        let mut result: Vec<Option<ArgData>> = vec![None; params_id.len()];
+        let mut result: Vec<Option<Arg>> = vec![None; params_id.len()];
 
         // Note: We have already validated that the number of arguments is less than
         // or equal to the number of parameters
@@ -179,9 +175,9 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                 ParamIndex::Position(j_received) => {
                     assert!(j_received == j);
 
-                    result[j] = Some(ArgData {
+                    result[j] = Some(Arg {
                         // Add the name if present
-                        target: self.get_param_index(ParamId(params_id, j)),
+                        target: (ParamId(params_id, j).as_param_index()),
                         value: arg.value,
                     });
                 }
@@ -189,7 +185,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                     // Find the position in the parameter list of the parameter with the
                     // same name as the argument
                     let maybe_param_index = params_id.iter().position(|param_id| {
-                        match self.get_param_name_ident(param_id) {
+                        match param_id.borrow().name_ident() {
                             Some(name) => name == arg_name,
                             None => false,
                         }
@@ -206,7 +202,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                                 });
                             } else {
                                 // Found an uncrossed parameter, add it to the result
-                                result[i] = Some(ArgData { target: arg.target, value: arg.value });
+                                result[i] = Some(Arg { target: arg.target, value: arg.value });
                             }
                         }
                         None => {
@@ -230,12 +226,12 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         for i in params_id.to_index_range() {
             if result[i].is_none() {
                 let param_id = ParamId(params_id, i);
-                let default = self.get_param_default(param_id);
+                let param = param_id.borrow();
+                let default = param.default;
 
                 if let Some(default) = default {
                     // If there is a default value, add it to the result
-                    result[i] =
-                        Some(ArgData { target: self.get_param_index(param_id), value: default });
+                    result[i] = Some(Arg { target: param_id.as_param_index(), value: default });
                 } else {
                     // No default value, and not present in the arguments, so
                     // this is an error
@@ -254,8 +250,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
         // Now, create the new argument list
         // There should be no `None` elements at this point
-        let new_args_id =
-            self.param_utils().create_args(result.into_iter().map(|arg| arg.unwrap()));
+        let new_args_id = Arg::seq_data(result.into_iter().map(|arg| arg.unwrap()));
 
         Ok(new_args_id)
     }
@@ -283,7 +278,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         self.validate_args_against_params(args_id.into(), params_id)?;
 
         let mut error_state = self.new_error_state();
-        let mut result: Vec<Option<PatArgData>> = vec![None; params_id.len()];
+        let mut result: Vec<Option<PatArg>> = vec![None; params_id.len()];
 
         // Note: We have already validated that the number of arguments is less than
         // or equal to the number of parameters
@@ -303,20 +298,21 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                         });
                     }
 
-                    result[j] = Some(PatArgData {
+                    result[j] = Some(PatArg {
                         // Add the name if present
-                        target: self.get_param_index(ParamId(params_id, j)),
+                        target: (ParamId(params_id, j)).as_param_index(),
                         pat: arg.pat,
                     });
                 }
                 ParamIndex::Name(arg_name) => {
                     // Find the position in the parameter list of the parameter with the
                     // same name as the argument
-                    let maybe_param_index = params_id.iter().position(|param_id| {
-                        match self.get_param_name_ident(param_id) {
-                            Some(name) => name == arg_name,
-                            None => false,
-                        }
+                    let maybe_param_index = params_id.iter().position(|param_id| match (param_id)
+                        .borrow()
+                        .name_ident()
+                    {
+                        Some(name) => name == arg_name,
+                        None => false,
                     });
 
                     match maybe_param_index {
@@ -330,7 +326,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
                                 });
                             } else {
                                 // Found an uncrossed parameter, add it to the result
-                                result[i] = Some(PatArgData { target: arg.target, pat: arg.pat });
+                                result[i] = Some(PatArg { target: arg.target, pat: arg.pat });
                             }
                         }
                         None => {
@@ -355,8 +351,8 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
             if result[i].is_none() {
                 let param_id = ParamId(params_id, i);
                 if spread.is_some() {
-                    result[i] = Some(PatArgData {
-                        target: self.get_param_index(param_id),
+                    result[i] = Some(PatArg {
+                        target: param_id.as_param_index(),
                         pat: PatOrCapture::Capture,
                     });
                 } else {
@@ -377,8 +373,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
         // Now, create the new argument list
         // There should be no `None` elements at this point
-        let new_args_id =
-            self.param_utils().create_pat_args(result.into_iter().map(|arg| arg.unwrap()));
+        let new_args_id = PatArg::seq_data(result.into_iter().map(|arg| arg.unwrap()));
 
         Ok(new_args_id)
     }

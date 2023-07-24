@@ -10,20 +10,22 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_storage::store::{SequenceStore, SequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue},
+    SequenceStoreKey,
+};
 use hash_tir::{
-    args::{PatArgData, PatArgsId, PatOrCapture},
+    args::{PatArg, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     lits::{CharLit, IntLit, LitPat, StrLit},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
     symbols::Symbol,
     tuples::TuplePat,
-    utils::{common::CommonUtils, AccessToUtils},
 };
 
 use super::{
@@ -34,10 +36,7 @@ use super::{
     },
     ResolutionPass,
 };
-use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    ops::common::CommonOps,
-};
+use crate::diagnostics::error::{SemanticError, SemanticResult};
 
 impl ResolutionPass<'_> {
     /// Make TC pattern arguments from the given set of AST pattern arguments.
@@ -49,7 +48,7 @@ impl ResolutionPass<'_> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(PatArgData {
+                Ok(PatArg {
                     target: match arg.name.as_ref() {
                         Some(name) => ParamIndex::Name(name.ident),
                         None => ParamIndex::Position(i),
@@ -58,7 +57,7 @@ impl ResolutionPass<'_> {
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.param_utils().create_pat_args(args.into_iter()))
+        Ok(PatArg::seq_data(args))
     }
 
     /// Create a [`PatListId`] from the given [`ast::Pat`]s.
@@ -70,7 +69,7 @@ impl ResolutionPass<'_> {
             .iter()
             .map(|pat| Ok(PatOrCapture::Pat(self.make_pat_from_ast_pat(pat.ast_ref())?)))
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.stores().pat_list().create_from_iter_fast(pats))
+        Ok(PatOrCapture::seq_data(pats))
     }
 
     /// Create a [`Spread`] from the given [`ast::SpreadPat`].
@@ -201,21 +200,23 @@ impl ResolutionPass<'_> {
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::CtorPat(ctor_pat) => {
                     // Constructor pattern
-                    Ok(self.new_pat(Pat::Ctor(*ctor_pat)))
+                    Ok(Pat::create(Pat::Ctor(*ctor_pat)))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Binding pattern
                     // @@Todo: is_mutable, perhaps refactor `BindingPat`?
-                    Ok(self
-                        .new_pat(Pat::Binding(BindingPat { name: *bound_var, is_mutable: false })))
+                    Ok(Pat::create(Pat::Binding(BindingPat {
+                        name: *bound_var,
+                        is_mutable: false,
+                    })))
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term)
                     if ctor_term.ctor_args.is_empty() =>
                 {
                     // @@Hack: Constructor term without args is a valid pattern
-                    Ok(self.new_pat(Pat::Ctor(CtorPat {
+                    Ok(Pat::create(Pat::Ctor(CtorPat {
                         ctor: ctor_term.ctor,
-                        ctor_pat_args: self.param_utils().create_pat_args(empty()),
+                        ctor_pat_args: PatArg::seq_data(empty()),
                         ctor_pat_args_spread: None,
                         data_args: ctor_term.data_args,
                     })))
@@ -243,11 +244,15 @@ impl ResolutionPass<'_> {
     /// This panics if the given literal is not a valid literal pattern.
     fn make_pat_from_ast_lit(&self, lit_pat: AstNodeRef<ast::Lit>) -> PatId {
         match lit_pat.body() {
-            ast::Lit::Str(str_lit) => self.new_pat(LitPat::Str(StrLit { underlying: *str_lit })),
-            ast::Lit::Char(char_lit) => {
-                self.new_pat(LitPat::Char(CharLit { underlying: *char_lit }))
+            ast::Lit::Str(str_lit) => {
+                Pat::create_from(LitPat::Str(StrLit { underlying: *str_lit }))
             }
-            ast::Lit::Int(int_lit) => self.new_pat(LitPat::Int(IntLit { underlying: *int_lit })),
+            ast::Lit::Char(char_lit) => {
+                Pat::create_from(LitPat::Char(CharLit { underlying: *char_lit }))
+            }
+            ast::Lit::Int(int_lit) => {
+                Pat::create_from(LitPat::Int(IntLit { underlying: *int_lit }))
+            }
             ast::Lit::Bool(bool_lit) => self.new_bool_pat(bool_lit.data),
             ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
                 panic!("Found invalid literal in pattern")
@@ -279,7 +284,7 @@ impl ResolutionPass<'_> {
         node: AstNodeRef<ast::Pat>,
     ) -> SemanticResult<PatId> {
         // Maybe it has already been made:
-        if let Some(pat_id) = self.ast_info().pats().get_data_by_node(node.id()) {
+        if let Some(pat_id) = tir_stores().ast_info().pats().get_data_by_node(node.id()) {
             return Ok(pat_id);
         }
 
@@ -307,36 +312,36 @@ impl ResolutionPass<'_> {
                     "Found module pattern during symbol resolution"
                 )
             }
-            ast::Pat::Tuple(tuple_pat) => self.new_pat(Pat::Tuple(TuplePat {
+            ast::Pat::Tuple(tuple_pat) => Pat::create(Pat::Tuple(TuplePat {
                 data: self.make_pat_args_from_ast_pat_args(&tuple_pat.fields)?,
                 data_spread: self.make_spread_from_ast_spread(&tuple_pat.spread)?,
             })),
-            ast::Pat::Array(array_pat) => self.new_pat(Pat::Array(ArrayPat {
+            ast::Pat::Array(array_pat) => Pat::create(Pat::Array(ArrayPat {
                 pats: self.make_pat_list_from_ast_pats(&array_pat.fields)?,
                 spread: self.make_spread_from_ast_spread(&array_pat.spread)?,
             })),
             ast::Pat::Lit(lit_pat) => self.make_pat_from_ast_lit(lit_pat.data.ast_ref()),
-            ast::Pat::Or(or_pat) => self.new_pat(Pat::Or(OrPat {
+            ast::Pat::Or(or_pat) => Pat::create(Pat::Or(OrPat {
                 alternatives: self.make_pat_list_from_ast_pats(&or_pat.variants)?,
             })),
-            ast::Pat::If(if_pat) => self.new_pat(Pat::If(IfPat {
+            ast::Pat::If(if_pat) => Pat::create(Pat::If(IfPat {
                 condition: self.make_term_from_ast_expr(if_pat.condition.ast_ref())?,
                 pat: self.make_pat_from_ast_pat(if_pat.pat.ast_ref())?,
             })),
             ast::Pat::Wild(_) => {
-                self.new_pat(Pat::Binding(BindingPat { name: Symbol::fresh(), is_mutable: false }))
+                Pat::create(Pat::Binding(BindingPat { name: Symbol::fresh(), is_mutable: false }))
             }
             ast::Pat::Range(ast::RangePat { lo, hi, end }) => {
                 let lo =
                     lo.as_ref().map(|lo| self.make_lit_pat_from_non_bool_ast_lit(lo.ast_ref()));
                 let hi =
                     hi.as_ref().map(|hi| self.make_lit_pat_from_non_bool_ast_lit(hi.ast_ref()));
-                self.new_pat(Pat::Range(RangePat { lo, hi, end: *end }))
+                Pat::create(Pat::Range(RangePat { lo, hi, end: *end }))
             }
         };
 
-        self.ast_info().pats().insert(node.id(), pat_id);
-        self.stores().location().add_location_to_target(pat_id, node.span());
+        tir_stores().ast_info().pats().insert(node.id(), pat_id);
+        tir_stores().location().add_location_to_target(pat_id, node.span());
         Ok(pat_id)
     }
 }

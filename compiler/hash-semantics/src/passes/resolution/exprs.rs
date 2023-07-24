@@ -9,34 +9,33 @@ use std::collections::HashSet;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
-    primitives::AccessToPrimitives,
+    primitives::primitives,
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_storage::store::{
-    PartialCloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
-    TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
+    PartialCloneStore, PartialStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
-    args::{ArgData, ArgsId},
+    args::{Arg, ArgsId},
     arrays::{ArrayTerm, IndexTerm},
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
     directives::AppliedDirectives,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
     refs::{DerefTerm, RefKind, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
     term_as_variant,
     terms::{Term, TermId, UnsafeTerm},
     tuples::TupleTerm,
     tys::{Ty, TypeOfTerm},
-    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::itertools::Itertools;
 
@@ -71,7 +70,7 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(ArgData {
+                Ok(Arg {
                     target: arg
                         .name
                         .as_ref()
@@ -81,7 +80,7 @@ impl<'tc> ResolutionPass<'tc> {
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.param_utils().create_args(args.into_iter()))
+        Ok(Arg::seq_data(args))
     }
 
     /// Make TC arguments from the given set of AST constructor call arguments
@@ -94,7 +93,7 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(ArgData {
+                Ok(Arg {
                     target: arg
                         .name
                         .as_ref()
@@ -104,7 +103,7 @@ impl<'tc> ResolutionPass<'tc> {
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.param_utils().create_args(args.into_iter()))
+        Ok(Arg::seq_data(args))
     }
 
     /// Make a term from the given [`ast::Expr`] and assign it to the node in
@@ -209,8 +208,8 @@ impl<'tc> ResolutionPass<'tc> {
             }
         };
 
-        self.ast_info().terms().insert(node.id(), term_id);
-        self.stores().location().add_location_to_target(term_id, node.span());
+        tir_stores().ast_info().terms().insert(node.id(), term_id);
+        tir_stores().location().add_location_to_target(term_id, node.span());
         Ok(term_id)
     }
 
@@ -320,7 +319,7 @@ impl<'tc> ResolutionPass<'tc> {
                 match non_terminal {
                     NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
                         // Data type
-                        Ok(self.new_term(Term::Ty(self.new_ty(Ty::Data(DataTy {
+                        Ok(Term::from(Term::Ty(Ty::from(Ty::Data(DataTy {
                             data_def: *data_def_id,
                             args: *data_def_args,
                         })))))
@@ -336,7 +335,7 @@ impl<'tc> ResolutionPass<'tc> {
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(fn_def_id) => {
                     // Reference to a function definition
-                    Ok(self.new_term(Term::FnRef(*fn_def_id)))
+                    Ok(Term::from(Term::FnRef(*fn_def_id)))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
@@ -347,15 +346,15 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
                     // Constructor
-                    Ok(self.new_term(Term::Ctor(*ctor_term)))
+                    Ok(Term::from(Term::Ctor(*ctor_term)))
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
                     // Function call
-                    Ok(self.new_term(Term::FnCall(*fn_call_term)))
+                    Ok(Term::from(Term::FnCall(*fn_call_term)))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Bound variable
-                    Ok(self.new_term(Term::Var(*bound_var)))
+                    Ok(Term::from(Term::Var(*bound_var)))
                 }
             },
         }
@@ -389,11 +388,9 @@ impl<'tc> ResolutionPass<'tc> {
                     self.try_or_add_error(self.make_args_from_constructor_call_args(&node.args));
 
                 match (subject, args) {
-                    (Some(subject), Some(args)) => Ok(self.new_term(Term::FnCall(FnCallTerm {
-                        subject,
-                        args,
-                        implicit: false,
-                    }))),
+                    (Some(subject), Some(args)) => {
+                        Ok(Term::from(Term::FnCall(FnCallTerm { subject, args, implicit: false })))
+                    }
                     _ => Err(SemanticError::Signal),
                 }
             }
@@ -420,7 +417,7 @@ impl<'tc> ResolutionPass<'tc> {
                     ast::PropertyKind::NumericField(number) => ParamIndex::Position(*number),
                 };
 
-                Ok(self.new_term(Term::Access(AccessTerm { subject, field })))
+                Ok(Term::from(Term::Access(AccessTerm { subject, field })))
             }
         }
     }
@@ -428,7 +425,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a term from an [`ast::TyExpr`].
     fn make_term_from_ast_ty_expr(&self, node: AstNodeRef<ast::TyExpr>) -> SemanticResult<TermId> {
         let ty = self.make_ty_from_ast_ty(node.ty.ast_ref())?;
-        Ok(self.use_ty_as_term(ty))
+        Ok(ty.as_term())
     }
 
     /// Make a term from an [`ast::DirectiveExpr`].
@@ -441,20 +438,22 @@ impl<'tc> ResolutionPass<'tc> {
 
         // If this is an already-resolved function definition, register the directives
         // on the function before we pass to the inner expression:
-        if let Some(fn_def_id) = self.ast_info().fn_defs().get_data_by_node(node.subject.id()) {
+        if let Some(fn_def_id) =
+            tir_stores().ast_info().fn_defs().get_data_by_node(node.subject.id())
+        {
             // Register directives on the term:
-            self.stores().directives().insert(fn_def_id.into(), directives.clone());
+            tir_stores().directives().insert(fn_def_id.into(), directives.clone());
         }
 
         // Pass to the inner expression
         let inner = self.make_term_from_ast_expr(node.subject.ast_ref())?;
 
         // Register directives on the term:
-        self.stores().directives().insert(inner.into(), directives.clone());
+        tir_stores().directives().insert(inner.into(), directives.clone());
 
         // If this is a type, also register the directives on the type
-        if let Term::Ty(ty_id) = self.get_term(inner) {
-            self.stores().directives().insert(ty_id.into(), directives);
+        if let Term::Ty(ty_id) = inner.value() {
+            tir_stores().directives().insert(ty_id.into(), directives);
         }
 
         Ok(inner)
@@ -486,7 +485,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         match (pat, ty, value) {
             (Some(pat), Some(ty), Some(value)) => {
-                Ok(self.new_term(Term::Decl(DeclTerm { bind_pat: pat, ty, value })))
+                Ok(Term::from(Term::Decl(DeclTerm { bind_pat: pat, ty, value })))
             }
             _ => {
                 // If pat had an error, then we can't make a term, and the
@@ -502,7 +501,7 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::RefExpr>,
     ) -> SemanticResult<TermId> {
         let subject = self.make_term_from_ast_expr(node.inner_expr.ast_ref())?;
-        Ok(self.new_term(Term::Ref(RefTerm {
+        Ok(Term::from(Term::Ref(RefTerm {
             kind: match node.kind {
                 ast::RefKind::Raw => RefKind::Raw,
                 ast::RefKind::Normal => RefKind::Local,
@@ -522,7 +521,7 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::DerefExpr>,
     ) -> SemanticResult<TermId> {
         let subject = self.make_term_from_ast_expr(node.data.ast_ref())?;
-        Ok(self.new_term(Term::Deref(DerefTerm { subject })))
+        Ok(Term::from(Term::Deref(DerefTerm { subject })))
     }
 
     /// Make a term from an [`ast::UnsafeExpr`].
@@ -531,7 +530,7 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::UnsafeExpr>,
     ) -> SemanticResult<TermId> {
         let inner = self.make_term_from_ast_expr(node.data.ast_ref())?;
-        Ok(self.new_term(Term::Unsafe(UnsafeTerm { inner })))
+        Ok(Term::from(Term::Unsafe(UnsafeTerm { inner })))
     }
 
     /// Make a term from an [`ast::LitExpr`].
@@ -542,7 +541,7 @@ impl<'tc> ResolutionPass<'tc> {
         // Macro to make a literal primitive term
         macro_rules! lit_prim {
             ($name:ident,$lit_name:ident, $contents:expr) => {
-                self.new_term(Term::Lit(Lit::$name($lit_name { underlying: $contents })))
+                Term::from(Term::Lit(Lit::$name($lit_name { underlying: $contents })))
             };
         }
 
@@ -554,7 +553,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Lit::Bool(bool_lit) => Ok(self.sem_env().new_bool_term(bool_lit.data)),
             ast::Lit::Tuple(tuple_lit) => {
                 let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
-                Ok(self.new_term(Term::Tuple(TupleTerm { data: args })))
+                Ok(Term::from(Term::Tuple(TupleTerm { data: args })))
             }
             ast::Lit::Array(array_lit) => {
                 let element_vec: Vec<_> = array_lit
@@ -562,8 +561,8 @@ impl<'tc> ResolutionPass<'tc> {
                     .ast_ref_iter()
                     .map(|element| self.make_term_from_ast_expr(element))
                     .collect::<SemanticResult<_>>()?;
-                let elements = self.new_term_list(element_vec);
-                Ok(self.new_term(Term::Array(ArrayTerm { elements })))
+                let elements = TermId::seq_data(element_vec);
+                Ok(Term::from(Term::Array(ArrayTerm { elements })))
             }
         }
     }
@@ -577,7 +576,7 @@ impl<'tc> ResolutionPass<'tc> {
         let ty = self.try_or_add_error(self.make_ty_from_ast_ty(node.ty.ast_ref()));
         match (subject, ty) {
             (Some(subject), Some(ty)) => {
-                Ok(self.new_term(Term::Cast(CastTerm { subject_term: subject, target_ty: ty })))
+                Ok(Term::from(Term::Cast(CastTerm { subject_term: subject, target_ty: ty })))
             }
             _ => Err(SemanticError::Signal),
         }
@@ -592,7 +591,7 @@ impl<'tc> ResolutionPass<'tc> {
             Some(expr) => self.make_term_from_ast_expr(expr.ast_ref())?,
             None => Term::void(),
         };
-        Ok(self.new_term(Term::Return(ReturnTerm { expression })))
+        Ok(Term::from(Term::Return(ReturnTerm { expression })))
     }
 
     /// Make a term from an [`ast::BreakStatement`].
@@ -600,7 +599,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         _: AstNodeRef<ast::BreakStatement>,
     ) -> SemanticResult<TermId> {
-        Ok(self.new_term(Term::LoopControl(LoopControlTerm::Break)))
+        Ok(Term::from(Term::LoopControl(LoopControlTerm::Break)))
     }
 
     /// Make a term from an [`ast::ContinueStatement`].
@@ -608,7 +607,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         _: AstNodeRef<ast::ContinueStatement>,
     ) -> SemanticResult<TermId> {
-        Ok(self.new_term(Term::LoopControl(LoopControlTerm::Continue)))
+        Ok(Term::from(Term::LoopControl(LoopControlTerm::Continue)))
     }
 
     /// Make a term from an [`ast::AssignExpr`].
@@ -621,7 +620,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         match (lhs, rhs) {
             (Some(lhs), Some(rhs)) => {
-                Ok(self.new_term(Term::Assign(AssignTerm { subject: lhs, value: rhs })))
+                Ok(Term::from(Term::Assign(AssignTerm { subject: lhs, value: rhs })))
             }
             _ => Err(SemanticError::Signal),
         }
@@ -636,26 +635,30 @@ impl<'tc> ResolutionPass<'tc> {
         let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
 
         // Convert all the cases and their bodies
-        let cases =
-            self.stores().match_cases().create_from_iter(node.cases.iter().filter_map(|case| {
-                self.scoping().enter_match_case(case.ast_ref(), |stack_id| {
-                    let bind_pat =
-                        self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
-                    let value =
-                        self.try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
-                    match (bind_pat, value) {
-                        (Some(bind_pat), Some(value)) => {
-                            Some(MatchCase { bind_pat, value, stack_id })
+        let cases = MatchCase::seq_data(
+            node.cases
+                .iter()
+                .filter_map(|case| {
+                    self.scoping().enter_match_case(case.ast_ref(), |stack_id| {
+                        let bind_pat =
+                            self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
+                        let value = self
+                            .try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
+                        match (bind_pat, value) {
+                            (Some(bind_pat), Some(value)) => {
+                                Some(MatchCase { bind_pat, value, stack_id })
+                            }
+                            _ => None,
                         }
-                        _ => None,
-                    }
+                    })
                 })
-            }));
+                .collect_vec(),
+        );
 
         // Create a term if all ok
         match (subject, cases.len() == node.cases.len()) {
             (Some(subject), true) => {
-                Ok(self.new_term(Term::Match(MatchTerm { subject, cases, origin: node.origin })))
+                Ok(Term::from(Term::Match(MatchTerm { subject, cases, origin: node.origin })))
             }
             _ => Err(SemanticError::Signal),
         }
@@ -674,15 +677,12 @@ impl<'tc> ResolutionPass<'tc> {
                 let mut mod_member_ids = HashSet::new();
 
                 // First handle local mod members
-                if let Some(local_mod_def) =
-                    self.stores().stack().map_fast(stack_id, |stack| stack.local_mod_def)
-                {
-                    let local_mod_members =
-                        self.stores().mod_def().map_fast(local_mod_def, |mod_def| mod_def.members);
+                if let Some(local_mod_def) = stack_id.borrow().local_mod_def {
+                    let local_mod_members = local_mod_def.borrow().members;
 
                     // Get the ids of the local mod members
                     mod_member_ids.extend(local_mod_members.iter().map(|member_id| {
-                        self.ast_info().mod_members().get_node_by_data(member_id).unwrap()
+                        tir_stores().ast_info().mod_members().get_node_by_data(member_id).unwrap()
                     }));
 
                     // Resolve them
@@ -731,17 +731,17 @@ impl<'tc> ResolutionPass<'tc> {
                         == (node.statements.len().saturating_sub(mod_member_ids.len())),
                 ) {
                     (Some(Some(expr)), true) => {
-                        let statements = self.new_term_list(statements);
-                        Ok(self.new_term(Term::Block(BlockTerm {
+                        let statements = TermId::seq_data(statements);
+                        Ok(Term::from(Term::Block(BlockTerm {
                             statements,
                             return_value: expr,
                             stack_id,
                         })))
                     }
                     (None, true) => {
-                        let statements = self.new_term_list(statements);
+                        let statements = TermId::seq_data(statements);
                         let return_value = Term::void();
-                        Ok(self.new_term(Term::Block(BlockTerm {
+                        Ok(Term::from(Term::Block(BlockTerm {
                             statements,
                             return_value,
                             stack_id,
@@ -768,15 +768,15 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Block::Body(body_block) => {
                 self.make_term_from_ast_body_block(node.contents.with_body(body_block))?
             }
-            inner => self.new_term(BlockTerm {
+            inner => Term::from(BlockTerm {
                 return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
-                statements: self.stores().term_list().create_from_slice(&[]),
-                stack_id: self.stack_utils().create_stack(),
+                statements: TermId::empty_seq(),
+                stack_id: Stack::empty(),
             }),
         };
 
-        let block = term_as_variant!(self, self.get_term(inner), Block);
-        Ok(self.new_term(Term::Loop(LoopTerm { block })))
+        let block = term_as_variant!(self, inner.value(), Block);
+        Ok(Term::from(Term::Loop(LoopTerm { block })))
     }
 
     /// Make a term from an [`ast::Block`].
@@ -821,11 +821,10 @@ impl<'tc> ResolutionPass<'tc> {
         node_id: AstNodeId,
     ) -> SemanticResult<TermId> {
         // Function should already be discovered
-        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
+        let fn_def_id = tir_stores().ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // Whether the function has been marked as pure by a directive
-        let is_pure_by_directive = self
-            .stores()
+        let is_pure_by_directive = tir_stores()
             .directives()
             .get(fn_def_id.into())
             .map(|directives| directives.contains(IDENTS.pure))
@@ -836,18 +835,17 @@ impl<'tc> ResolutionPass<'tc> {
                 // First resolve the parameters
                 let params = self.try_or_add_error(self.resolve_params_from_ast_params(
                     params,
-                    self.stores().fn_def().map_fast(fn_def_id, |fn_def| fn_def.ty.implicit),
+                    fn_def_id.borrow().ty.implicit,
                     fn_def_id.into(),
                 ));
 
                 // Modify the existing fn def for the params:
                 if let Some(params) = params {
-                    self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
-                        fn_def.ty.params = params;
-                        if is_pure_by_directive {
-                            fn_def.ty.pure = true;
-                        }
-                    });
+                    let mut fn_def = fn_def_id.borrow_mut();
+                    fn_def.ty.params = params;
+                    if is_pure_by_directive {
+                        fn_def.ty.pure = true;
+                    }
                 }
 
                 // In the scope of the parameters, resolve the return type and value
@@ -857,29 +855,25 @@ impl<'tc> ResolutionPass<'tc> {
 
                 // Modify the existing fn def for the return type:
                 if let Some(Some(return_ty)) = return_ty {
-                    self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
-                        // This is a double option: one for potential error, another for not
-                        // specifying return type.
-                        fn_def.ty.return_ty = return_ty;
-                    });
+                    // This is a double option: one for potential error, another for not
+                    // specifying return type.
+                    fn_def_id.borrow_mut().ty.return_ty = return_ty;
                 }
 
                 let return_value =
                     self.try_or_add_error(self.make_term_from_ast_expr(body.ast_ref()));
 
                 // Modify the existing fn def for the return value:
-                self.stores().fn_def().modify_fast(fn_def_id, |fn_def| {
-                    if let Some(return_value) = return_value {
-                        fn_def.body = FnBody::Defined(return_value);
-                    }
-                });
+                if let Some(return_value) = return_value {
+                    fn_def_id.borrow_mut().body = FnBody::Defined(return_value);
+                }
 
                 (params, return_ty, return_value, fn_def_id)
             });
 
         // If all ok, create a fn ref term
         match (params, return_ty, return_value) {
-            (Some(_), None | Some(Some(_)), Some(_)) => Ok(self.new_term(Term::FnRef(fn_def_id))),
+            (Some(_), None | Some(Some(_)), Some(_)) => Ok(Term::from(Term::FnRef(fn_def_id))),
             _ => Err(SemanticError::Signal),
         }
     }
@@ -919,7 +913,7 @@ impl<'tc> ResolutionPass<'tc> {
             node.lhs.ast_ref(),
             node.rhs.ast_ref(),
         )?;
-        Ok(self.new_term(AssignTerm { subject, value }))
+        Ok(Term::from(AssignTerm { subject, value }))
     }
 
     /// Make a term from an [`ast::BinaryExpr`].
@@ -941,7 +935,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let subject = self.make_term_from_ast_expr(node.subject.ast_ref())?;
         let index = self.make_term_from_ast_expr(node.index_expr.ast_ref())?;
-        Ok(self.new_term(IndexTerm { subject, index }))
+        Ok(Term::from(IndexTerm { subject, index }))
     }
 
     /// Make a term from a binary expression.
@@ -955,7 +949,7 @@ impl<'tc> ResolutionPass<'tc> {
         let rhs = self.make_term_from_ast_expr(rhs)?;
 
         // For the type, we use the type of the lhs
-        let typeof_lhs = self.new_term(TypeOfTerm { term: lhs });
+        let typeof_lhs = Term::from(TypeOfTerm { term: lhs });
 
         // Pick the right intrinsic function and binary operator number
         let (intrinsic_fn_def, bin_op_num): (FnDefId, u8) = match op {
@@ -983,23 +977,18 @@ impl<'tc> ResolutionPass<'tc> {
             ast::BinOp::Div => (self.intrinsics().endo_bin_op(), EndoBinOp::Div.into()),
             ast::BinOp::Mod => (self.intrinsics().endo_bin_op(), EndoBinOp::Mod.into()),
             ast::BinOp::As => {
-                return Ok(self.new_term(CastTerm {
-                    subject_term: lhs,
-                    target_ty: self.use_term_as_ty(rhs),
-                }));
+                return Ok(Term::from(CastTerm { subject_term: lhs, target_ty: rhs.as_ty() }));
             }
             ast::BinOp::Merge => {
-                let args = self.param_utils().create_positional_args(vec![typeof_lhs, lhs, rhs]);
-                return Ok(self.use_ty_as_term(
-                    self.new_ty(DataTy { data_def: self.primitives().equal(), args }),
-                ));
+                let args = Arg::seq_positional([typeof_lhs, lhs, rhs]);
+                return Ok(Ty::from(DataTy { data_def: primitives().equal(), args }).as_term());
             }
         };
 
         // Invoke the intrinsic function
-        Ok(self.new_term(FnCallTerm {
-            subject: self.new_term(intrinsic_fn_def),
-            args: self.param_utils().create_positional_args(vec![
+        Ok(Term::from(FnCallTerm {
+            subject: Term::from(intrinsic_fn_def),
+            args: Arg::seq_positional([
                 typeof_lhs,
                 self.create_term_from_integer_lit(bin_op_num),
                 lhs,
@@ -1015,12 +1004,12 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::UnaryExpr>,
     ) -> SemanticResult<TermId> {
         let a = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-        let typeof_a = self.new_term(TypeOfTerm { term: a });
+        let typeof_a = Term::from(TypeOfTerm { term: a });
 
         let (intrinsic_fn_def, op_num): (FnDefId, u8) = match node.operator.body() {
             ast::UnOp::TypeOf => {
                 let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-                return Ok(self.new_term(TypeOfTerm { term: inner }));
+                return Ok(Term::from(TypeOfTerm { term: inner }));
             }
             ast::UnOp::BitNot => (self.intrinsics().un_op(), UnOp::BitNot.into()),
             ast::UnOp::Not => (self.intrinsics().un_op(), UnOp::Not.into()),
@@ -1028,13 +1017,9 @@ impl<'tc> ResolutionPass<'tc> {
         };
 
         // Invoke the intrinsic function
-        Ok(self.new_term(FnCallTerm {
-            subject: self.new_term(intrinsic_fn_def),
-            args: self.param_utils().create_positional_args(vec![
-                typeof_a,
-                self.create_term_from_integer_lit(op_num),
-                a,
-            ]),
+        Ok(Term::from(FnCallTerm {
+            subject: Term::from(intrinsic_fn_def),
+            args: Arg::seq_positional([typeof_a, self.create_term_from_integer_lit(op_num), a]),
             implicit: false,
         }))
     }

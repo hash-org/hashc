@@ -2,10 +2,7 @@
 //! information required to lower all the TIR into IR, among
 //! other operations.
 
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
-    primitives::{AccessToPrimitives, DefinedPrimitives},
-};
+use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{ty::IrTyId, IrCtx};
 use hash_layout::{
     compute::{LayoutComputer, LayoutError},
@@ -34,10 +31,6 @@ pub(crate) struct BuilderCtx<'ir> {
     /// The type storage needed for accessing the types of the traversed terms
     pub env: &'ir Env<'ir>,
 
-    /// The primitive definitions that are needed for creating and comparing
-    /// primitive types with the TIR.
-    pub primitives: &'ir DefinedPrimitives,
-
     /// The intrinsic definitions that are needed for
     /// dealing with intrinsic functions within the TIR.
     pub intrinsics: &'ir DefinedIntrinsics,
@@ -49,12 +42,6 @@ pub(crate) struct BuilderCtx<'ir> {
 impl<'ir> AccessToEnv for BuilderCtx<'ir> {
     fn env(&self) -> &Env {
         self.env
-    }
-}
-
-impl<'ir> AccessToPrimitives for BuilderCtx<'ir> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        self.primitives
     }
 }
 
@@ -73,11 +60,6 @@ impl<'ir> BuilderCtx<'ir> {
         env: &'ir Env<'ir>,
         storage: &'ir SemanticStorage,
     ) -> Self {
-        let primitives = match storage.primitives_or_unset.get() {
-            Some(primitives) => primitives,
-            None => panic!("Tried to get primitives but they are not set yet"),
-        };
-
         let intrinsics = match storage.intrinsics_or_unset.get() {
             Some(intrinsics) => intrinsics,
             None => panic!("Tried to get intrinsics but they are not set yet"),
@@ -88,7 +70,7 @@ impl<'ir> BuilderCtx<'ir> {
             None => panic!("Tried to get prelude but it is not set yet"),
         };
 
-        Self { env, lcx, layouts, primitives, intrinsics, prelude }
+        Self { env, lcx, layouts, intrinsics, prelude }
     }
 
     /// Get a [LayoutComputer] which can be used to compute layouts and

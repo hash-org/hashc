@@ -3,28 +3,31 @@ use std::{fmt::Debug, process};
 
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
-    statics::SequenceStoreValue, DefaultPartialStore, PartialCloneStore, PartialStore,
-    SequenceStoreKey, Store,
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey,
 };
 use hash_tir::{
-    environment::env::{AccessToEnv, Env},
+    self,
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::tir_stores,
+    },
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
     lits::Lit,
     mods::{ModMemberData, ModMemberValue},
-    params::{Param, ParamData},
+    params::Param,
     refs::RefKind,
     symbols::Symbol,
     terms::{Term, TermId},
     tys::Ty,
-    utils::{common::CommonUtils, AccessToUtils},
 };
 use hash_utils::stream_less_writeln;
 use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
-    primitives::{AccessToPrimitives, DefinedPrimitives},
+    primitives::primitives,
     utils::{LitTy, PrimitiveUtils},
 };
 
@@ -52,20 +55,11 @@ pub trait IntrinsicAbilities {
 
     /// Get the current environment.
     fn env(&self) -> &Env;
-
-    /// Get the current primitives.
-    fn primitives(&self) -> &DefinedPrimitives;
 }
 
 impl AccessToEnv for dyn IntrinsicAbilities + '_ {
     fn env(&self) -> &Env {
         <Self as IntrinsicAbilities>::env(self)
-    }
-}
-
-impl AccessToPrimitives for dyn IntrinsicAbilities + '_ {
-    fn primitives(&self) -> &DefinedPrimitives {
-        <Self as IntrinsicAbilities>::primitives(self)
     }
 }
 
@@ -91,11 +85,11 @@ macro_rules! defined_intrinsics {
             /// Create a list of [`ModMemberData`] that corresponds to the defined intrinsics.
             ///
             /// This can be used to make a module and enter its scope.
-            pub fn as_mod_members(&self, env: &Env) -> Vec<ModMemberData> {
+            pub fn as_mod_members(&self) -> Vec<ModMemberData> {
                 vec![
                     $(
                         ModMemberData {
-                            name: env.stores().fn_def().map_fast(self.$name, |def| def.name),
+                            name: self.$name.borrow().name,
                             value: ModMemberValue::Fn(self.$name)
                         },
                     )*
@@ -217,26 +211,20 @@ impl DefinedIntrinsics {
     ///
     /// The `op` parameter is an integer which represents the operation to
     /// perform, which is one of the `UnOp` variants. The `a` is the operand
-    fn add_un_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(
-        env: T,
-
+    fn add_un_op_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = Symbol::from_name("T");
         let op_sym = Symbol::from_name("op");
         let a_sym = Symbol::from_name("a");
-        let params = env.param_utils().create_params(
-            [
-                ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                ParamData { default: None, name: op_sym, ty: Ty::data(env.primitives().u8()) },
-                ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
-            ]
-            .into_iter(),
-        );
-        let ret = env.new_ty(t_sym);
+        let params = Param::seq_data([
+            Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+            Param { default: None, name: op_sym, ty: Ty::data(primitives().u8()) },
+            Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+        ]);
+        let ret = Ty::from(t_sym);
 
         Self::add_intrinsic(
-            env,
             implementations,
             "un_op",
             FnTy::builder().params(params).return_ty(ret).build(),
@@ -290,7 +278,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
+                match env.try_use_ty_as_lit_ty(t.as_ty()) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::I8 => handle_integer!(i8),
                         LitTy::I16 => handle_integer!(i16),
@@ -328,28 +316,23 @@ impl DefinedIntrinsics {
     /// ```ignore
     /// short_circuiting_bin_op: (op: u8, a: bool, b: bool) -> bool
     /// ```
-    fn add_short_circuiting_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(
-        env: T,
+    fn add_short_circuiting_op_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = Symbol::from_name("T");
         let op_sym = Symbol::from_name("op");
         let a_sym = Symbol::from_name("a");
         let b_sym = Symbol::from_name("b");
-        let ty = Ty::data(env.primitives().bool());
+        let ty = Ty::data(primitives().bool());
 
-        let params = env.param_utils().create_params(
-            [
-                ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                ParamData { default: None, name: op_sym, ty: Ty::data(env.primitives().u8()) },
-                ParamData { default: None, name: a_sym, ty },
-                ParamData { default: None, name: b_sym, ty },
-            ]
-            .into_iter(),
-        );
+        let params = Param::seq_data([
+            Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+            Param { default: None, name: op_sym, ty: Ty::data(primitives().u8()) },
+            Param { default: None, name: a_sym, ty },
+            Param { default: None, name: b_sym, ty },
+        ]);
 
         Self::add_intrinsic(
-            env,
             implementations,
             "bool_bin_op",
             FnTy::builder().params(params).return_ty(ty).build(),
@@ -391,27 +374,22 @@ impl DefinedIntrinsics {
     /// perform, which is one of the `BoolBinOp` variants. The `a` and `b`
     /// parameters are the two operands, and the return value is the result
     /// of the operation.
-    fn add_bool_bin_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(
-        env: T,
+    fn add_bool_bin_op_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = Symbol::from_name("T");
         let op_sym = Symbol::from_name("op");
         let a_sym = Symbol::from_name("a");
         let b_sym = Symbol::from_name("b");
-        let params = env.param_utils().create_params(
-            [
-                ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                ParamData { default: None, name: op_sym, ty: Ty::data(env.primitives().u8()) },
-                ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
-                ParamData { default: None, name: b_sym, ty: env.new_ty(t_sym) },
-            ]
-            .into_iter(),
-        );
-        let ret = Ty::data(env.primitives().bool());
+        let params = Param::seq_data([
+            Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+            Param { default: None, name: op_sym, ty: Ty::data(primitives().u8()) },
+            Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            Param { default: None, name: b_sym, ty: Ty::from(t_sym) },
+        ]);
+        let ret = Ty::data(primitives().bool());
 
         Self::add_intrinsic(
-            env,
             implementations,
             "bool_bin_op",
             FnTy::builder().params(params).return_ty(ret).build(),
@@ -489,7 +467,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
+                match env.try_use_ty_as_lit_ty(t.as_ty()) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::U8 => handle_integer!(u8),
                         LitTy::U16 => handle_integer!(u16),
@@ -539,27 +517,22 @@ impl DefinedIntrinsics {
     /// perform, which is one of the `EndoBinOp` variants. The `a` and `b`
     /// parameters are the two operands, and the return value is the result
     /// of the operation.
-    fn add_endo_bin_op_intrinsic<T: AccessToEnv + AccessToPrimitives + Copy>(
-        env: T,
+    fn add_endo_bin_op_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = Symbol::from_name("T");
         let op_sym = Symbol::from_name("op");
         let a_sym = Symbol::from_name("a");
         let b_sym = Symbol::from_name("b");
-        let params = env.param_utils().create_params(
-            [
-                ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                ParamData { default: None, name: op_sym, ty: Ty::data(env.primitives().u8()) },
-                ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
-                ParamData { default: None, name: b_sym, ty: env.new_ty(t_sym) },
-            ]
-            .into_iter(),
-        );
-        let ret = env.new_ty(t_sym);
+        let params = Param::seq_data([
+            Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+            Param { default: None, name: op_sym, ty: Ty::data(primitives().u8()) },
+            Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            Param { default: None, name: b_sym, ty: Ty::from(t_sym) },
+        ]);
+        let ret = Ty::from(t_sym);
 
         Self::add_intrinsic(
-            env,
             implementations,
             "endo_bin_op",
             FnTy::builder().params(params).return_ty(ret).build(),
@@ -643,7 +616,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(env.use_term_as_ty(t)) {
+                match env.try_use_ty_as_lit_ty(t.as_ty()) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::U8 => handle_integer!(u8),
                         LitTy::U16 => handle_integer!(u16),
@@ -677,30 +650,26 @@ impl DefinedIntrinsics {
     }
 
     /// Add a primitive to check for primitive data type equality.
-    fn add_prim_type_eq_op<T: AccessToEnv + AccessToPrimitives + Copy>(
-        env: T,
+    fn add_prim_type_eq_op(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let ty = Ty::flexible_universe();
-        let bool_ty = Ty::data(env.primitives().bool());
+        let bool_ty = Ty::data(primitives().bool());
         let bin_op_name = "prim_type_eq".to_string();
 
         Self::add_intrinsic(
-            env,
             implementations,
             bin_op_name,
-            FnTy::builder().params(env.new_params(&[ty, ty])).return_ty(bool_ty).build(),
+            FnTy::builder().params(Param::seq_positional([ty, ty])).return_ty(bool_ty).build(),
             |prim, args| {
                 let (lhs, rhs) = (args[0], args[1]);
                 let invalid = || {
                     Err("Invalid arguments for type equality intrinsic. Only data types with no arguments can be compared".to_string())
                 };
 
-                if let (Term::Ty(lhs_ty), Term::Ty(rhs_ty)) =
-                    (prim.get_term(lhs), prim.get_term(rhs))
-                {
+                if let (Term::Ty(lhs_ty), Term::Ty(rhs_ty)) = (lhs.value(), rhs.value()) {
                     if let (Ty::Data(lhs_data), Ty::Data(rhs_data)) =
-                        (prim.get_ty(lhs_ty), prim.get_ty(rhs_ty))
+                        (lhs_ty.value(), rhs_ty.value())
                     {
                         if lhs_data.args.len() == 0 && rhs_data.args.len() == 0 {
                             return Ok(prim.new_bool_term(lhs_data.data_def == rhs_data.data_def));
@@ -714,12 +683,11 @@ impl DefinedIntrinsics {
     }
 
     /// Create the default intrinsics.
-    pub fn create<T: AccessToEnv + AccessToPrimitives + Copy>(env: T) -> Self {
-        let prim = env.primitives();
+    pub fn create<T: AccessToEnv + Copy>(env: T) -> Self {
         let implementations = DefaultPartialStore::new();
 
         let add = |name: &'static str, fn_ty: FnTy, implementation: IntrinsicImpl| {
-            Self::add_intrinsic(env, &implementations, name, fn_ty, implementation)
+            Self::add_intrinsic(&implementations, name, fn_ty, implementation)
         };
 
         // Aborting
@@ -733,10 +701,10 @@ impl DefinedIntrinsics {
         let panic = add(
             "panic",
             FnTy::builder()
-                .params(env.new_params(&[Ty::data(prim.str())]))
+                .params(Param::seq_positional([Ty::data(primitives().str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
-            |_env, args| {
+            |_, args| {
                 stream_less_writeln!("{}", args[1]);
                 process::exit(1);
             },
@@ -746,10 +714,10 @@ impl DefinedIntrinsics {
         let user_error = add(
             "user_error",
             FnTy::builder()
-                .params(env.new_params(&[Ty::data(prim.str())]))
+                .params(Param::seq_positional([Ty::data(primitives().str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
-            |env, args| match env.get_term(args[0]) {
+            |_, args| match args[0].value() {
                 Term::Lit(Lit::Str(str_lit)) => Err(str_lit.value().to_string()),
                 _ => Err("`user_error` expects a string literal as argument".to_string())?,
             },
@@ -758,13 +726,10 @@ impl DefinedIntrinsics {
         let debug_print = {
             let t_sym = Symbol::from_name("T");
             let a_sym = Symbol::from_name("a");
-            let params = env.param_utils().create_params(
-                [
-                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
-                ]
-                .into_iter(),
-            );
+            let params = Param::seq_data([
+                Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            ]);
             let ret = Ty::void();
             add("debug_print", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
                 stream_less_writeln!("{}", args[1]);
@@ -775,21 +740,18 @@ impl DefinedIntrinsics {
         let print_fn_directives = {
             let t_sym = Symbol::from_name("T");
             let a_sym = Symbol::from_name("a");
-            let params = env.param_utils().create_params(
-                [
-                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
-                ]
-                .into_iter(),
-            );
+            let params = Param::seq_data([
+                Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            ]);
             let ret = Ty::void();
             add(
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
-                |env, args| {
-                    if let Term::FnRef(fn_def_id) = env.get_term(args[1]) {
+                |_, args| {
+                    if let Term::FnRef(fn_def_id) = args[1].value() {
                         let directives =
-                            env.stores().directives().get(fn_def_id.into()).unwrap_or_default();
+                            tir_stores().directives().get(fn_def_id.into()).unwrap_or_default();
                         stream_less_writeln!("{:?}", directives.directives);
                     }
                     Ok(Term::void())
@@ -800,14 +762,11 @@ impl DefinedIntrinsics {
         let eval = {
             let t_sym = Symbol::from_name("T");
             let a_sym = Symbol::from_name("a");
-            let params = env.param_utils().create_params(
-                [
-                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
-                ]
-                .into_iter(),
-            );
-            let ret = env.new_ty(t_sym);
+            let params = Param::seq_data([
+                Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            ]);
+            let ret = Ty::from(t_sym);
             add("eval", FnTy::builder().params(params).return_ty(ret).build(), |env, args| {
                 let evaluated = env.normalise_term(args[1])?;
                 Ok(evaluated)
@@ -815,27 +774,29 @@ impl DefinedIntrinsics {
         };
 
         // Primitive type equality
-        let prim_type_eq_op = Self::add_prim_type_eq_op(env, &implementations);
+        let prim_type_eq_op = Self::add_prim_type_eq_op(&implementations);
 
         // Endo bin ops
-        let endo_bin_op = Self::add_endo_bin_op_intrinsic(env, &implementations);
+        let endo_bin_op = Self::add_endo_bin_op_intrinsic(&implementations);
 
         // Bool bin ops
-        let bool_bin_op = Self::add_bool_bin_op_intrinsic(env, &implementations);
+        let bool_bin_op = Self::add_bool_bin_op_intrinsic(&implementations);
 
         // Short circuiting ops
-        let short_circuiting_op = Self::add_short_circuiting_op_intrinsic(env, &implementations);
+        let short_circuiting_op = Self::add_short_circuiting_op_intrinsic(&implementations);
 
         // Unary ops
-        let un_op = Self::add_un_op_intrinsic(env, &implementations);
+        let un_op = Self::add_un_op_intrinsic(&implementations);
 
         // Size of
         let size_of = {
             let t_sym = Symbol::from_name("T");
-            let params = env.param_utils().create_params(
-                [ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() }].into_iter(),
-            );
-            let ret = Ty::data(prim.usize());
+            let params = Param::seq_data([Param {
+                default: None,
+                name: t_sym,
+                ty: Ty::flexible_universe(),
+            }]);
+            let ret = Ty::data(primitives().usize());
             add("size_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`size_of` intrinsic evaluation")
             })
@@ -844,17 +805,19 @@ impl DefinedIntrinsics {
         // Align of
         let align_of = {
             let t_sym = Symbol::from_name("T");
-            let params = env.param_utils().create_params(
-                [ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() }].into_iter(),
-            );
-            let ret = Ty::data(prim.usize());
+            let params = Param::seq_data([Param {
+                default: None,
+                name: t_sym,
+                ty: Ty::flexible_universe(),
+            }]);
+            let ret = Ty::data(primitives().usize());
             add("align_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`align_of` intrinsic evaluation")
             })
         };
 
-        let u8 = Ty::data(prim.u8());
-        let usize = Ty::data(prim.usize());
+        let u8 = Ty::data(primitives().u8());
+        let usize = Ty::data(primitives().usize());
         let raw_ptr_ty = env.new_ref_ty(u8, RefKind::Raw, false);
 
         // ptr_offset
@@ -862,13 +825,10 @@ impl DefinedIntrinsics {
             let t_sym = Symbol::from_name("bytes");
             let a_sym = Symbol::from_name("len");
 
-            let params = env.param_utils().create_params(
-                [
-                    ParamData { default: None, name: t_sym, ty: raw_ptr_ty },
-                    ParamData { default: None, name: a_sym, ty: usize },
-                ]
-                .into_iter(),
-            );
+            let params = Param::seq_data([
+                Param { default: None, name: t_sym, ty: raw_ptr_ty },
+                Param { default: None, name: a_sym, ty: usize },
+            ]);
 
             add(
                 "ptr_offset",
@@ -881,16 +841,13 @@ impl DefinedIntrinsics {
             let t_sym = Symbol::from_name("T");
             let a_sym = Symbol::from_name("item");
             let u_sym = Symbol::from_name("U");
-            let params = env.param_utils().create_params(
-                [
-                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                    ParamData { default: None, name: u_sym, ty: Ty::flexible_universe() },
-                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
-                ]
-                .into_iter(),
-            );
+            let params = Param::seq_data([
+                Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                Param { default: None, name: u_sym, ty: Ty::flexible_universe() },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            ]);
 
-            let ret = env.new_ty(u_sym);
+            let ret = Ty::from(u_sym);
             add("transmute", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
                 // No-op
                 Ok(args[2])
@@ -901,16 +858,13 @@ impl DefinedIntrinsics {
             let t_sym = Symbol::from_name("T");
             let a_sym = Symbol::from_name("item");
             let u_sym = Symbol::from_name("U");
-            let params = env.param_utils().create_params(
-                [
-                    ParamData { default: None, name: t_sym, ty: Ty::flexible_universe() },
-                    ParamData { default: None, name: u_sym, ty: Ty::flexible_universe() },
-                    ParamData { default: None, name: a_sym, ty: env.new_ty(t_sym) },
-                ]
-                .into_iter(),
-            );
+            let params = Param::seq_data([
+                Param { default: None, name: t_sym, ty: Ty::flexible_universe() },
+                Param { default: None, name: u_sym, ty: Ty::flexible_universe() },
+                Param { default: None, name: a_sym, ty: Ty::from(t_sym) },
+            ]);
 
-            let ret = env.new_ty(u_sym);
+            let ret = Ty::from(u_sym);
             add("cast", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`cast` intrinsic evaluation")
             })
@@ -938,8 +892,7 @@ impl DefinedIntrinsics {
     }
 
     /// Add an intrinsic to the store.
-    fn add_intrinsic<T: AccessToEnv + AccessToPrimitives>(
-        env: T,
+    fn add_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
         name: impl Into<Identifier>,
         fn_ty: FnTy,
@@ -948,7 +901,7 @@ impl DefinedIntrinsics {
         let name = name.into();
         let intrinsic_id = IntrinsicId(Symbol::from_name(name));
 
-        let fn_def = env.stores().fn_def().create_with(|id| {
+        let fn_def = FnDef::create_with(|id| {
             FnDef::builder()
                 .id(id)
                 .name(intrinsic_id.0)

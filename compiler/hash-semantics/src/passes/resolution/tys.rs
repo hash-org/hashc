@@ -7,19 +7,19 @@
 use std::iter::once;
 
 use hash_ast::ast::{self, AstNodeRef};
-use hash_intrinsics::primitives::AccessToPrimitives;
+use hash_intrinsics::primitives::primitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    args::{ArgData, ArgsId},
+    args::{Arg, ArgsId},
     data::DataTy,
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     fns::FnCallTerm,
     params::ParamIndex,
     refs::{RefKind, RefTy},
     terms::Term,
     tys::{Ty, TyId, TypeOfTerm},
-    utils::{common::CommonUtils, AccessToUtils},
 };
 
 use super::{
@@ -46,17 +46,17 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(ArgData {
+                Ok(Arg {
                     target: arg
                         .name
                         .as_ref()
                         .map(|name| ParamIndex::Name(name.ident))
                         .unwrap_or_else(|| ParamIndex::Position(i)),
-                    value: self.use_ty_as_term(self.make_ty_from_ast_ty(arg.ty.ast_ref())?),
+                    value: self.make_ty_from_ast_ty(arg.ty.ast_ref())?.as_term(),
                 })
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(self.param_utils().create_args(args.into_iter()))
+        Ok(Arg::seq_data(args))
     }
 
     /// Use the given [`ast::NamedTy`] as a path.
@@ -117,8 +117,7 @@ impl<'tc> ResolutionPass<'tc> {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
                 NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
                     // Data type
-                    Ok(self
-                        .new_ty(Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args })))
+                    Ok(Ty::from(Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args })))
                 }
                 NonTerminalResolvedPathComponent::Mod(_) => {
                     // Modules are not allowed in type positions
@@ -129,7 +128,7 @@ impl<'tc> ResolutionPass<'tc> {
             },
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(fn_def_id) => {
-                    Ok(self.use_term_as_ty(self.new_term(Term::FnRef(*fn_def_id))))
+                    Ok(Term::from(Term::FnRef(*fn_def_id)).as_ty())
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
@@ -139,14 +138,12 @@ impl<'tc> ResolutionPass<'tc> {
                     )
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
-                    Ok(self.use_term_as_ty(self.new_term(Term::Ctor(*ctor_term))))
+                    Ok(Term::from(Term::Ctor(*ctor_term)).as_ty())
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                    Ok(self.use_term_as_ty(self.new_term(Term::FnCall(*fn_call_term))))
+                    Ok(Term::from(Term::FnCall(*fn_call_term)).as_ty())
                 }
-                TerminalResolvedPathComponent::Var(bound_var) => {
-                    Ok(self.new_ty(Ty::Var(*bound_var)))
-                }
+                TerminalResolvedPathComponent::Var(bound_var) => Ok(Ty::from(Ty::Var(*bound_var))),
             },
         }
     }
@@ -211,11 +208,8 @@ impl<'tc> ResolutionPass<'tc> {
 
                 match (subject, args) {
                     (Some(subject), Some(args)) => {
-                        Ok(self.use_term_as_ty(self.new_term(Term::FnCall(FnCallTerm {
-                            subject,
-                            args,
-                            implicit: true,
-                        }))))
+                        Ok(Term::from(Term::FnCall(FnCallTerm { subject, args, implicit: true }))
+                            .as_ty())
                     }
                     _ => Err(SemanticError::Signal),
                 }
@@ -231,7 +225,7 @@ impl<'tc> ResolutionPass<'tc> {
         } else {
             self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
                 tuple_ty.data = self.resolve_params_from_ast_ty_args(&node.entries)?;
-                Ok(self.new_ty(tuple_ty))
+                Ok(Ty::from(tuple_ty))
             })
         }
     }
@@ -242,18 +236,14 @@ impl<'tc> ResolutionPass<'tc> {
         match node.len.as_ref() {
             Some(len) => {
                 let length_term = self.make_term_from_ast_expr(len.ast_ref())?;
-                Ok(self.new_ty(Ty::Data(DataTy {
-                    data_def: self.primitives().array(),
-                    args: self
-                        .param_utils()
-                        .create_positional_args([self.use_ty_as_term(inner_ty), length_term]),
+                Ok(Ty::from(Ty::Data(DataTy {
+                    data_def: primitives().array(),
+                    args: Arg::seq_positional([inner_ty.as_term(), length_term]),
                 })))
             }
-            None => Ok(self.new_ty(Ty::Data(DataTy {
-                data_def: self.primitives().list(),
-                args: self
-                    .param_utils()
-                    .create_positional_args(once(self.use_ty_as_term(inner_ty))),
+            None => Ok(Ty::from(Ty::Data(DataTy {
+                data_def: primitives().list(),
+                args: Arg::seq_positional(once(inner_ty.as_term())),
             }))),
         }
     }
@@ -261,7 +251,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::RefTy`].
     fn make_ty_from_ref_ty(&self, node: AstNodeRef<ast::RefTy>) -> SemanticResult<TyId> {
         let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
-        Ok(self.new_ty(Ty::Ref(RefTy {
+        Ok(Ty::from(Ty::Ref(RefTy {
             ty: inner_ty,
             kind: match node.kind.as_ref() {
                 Some(kind) => match kind.body() {
@@ -306,7 +296,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
 
             match (params, return_ty) {
-                (Some(_params), Some(_return_ty)) => Ok(self.new_ty(ty_fn)),
+                (Some(_params), Some(_return_ty)) => Ok(Ty::from(ty_fn)),
                 _ => Err(SemanticError::Signal),
             }
         })
@@ -334,7 +324,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
 
             match (params, return_ty) {
-                (Some(_params), Some(_return_ty)) => Ok(self.new_ty(fn_ty)),
+                (Some(_params), Some(_return_ty)) => Ok(Ty::from(fn_ty)),
                 _ => Err(SemanticError::Signal),
             }
         })
@@ -350,13 +340,9 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
-        let typeof_lhs = self.new_term(TypeOfTerm { term: self.use_ty_as_term(lhs) });
-        let args = self.param_utils().create_positional_args(vec![
-            typeof_lhs,
-            self.use_ty_as_term(lhs),
-            self.use_ty_as_term(rhs),
-        ]);
-        Ok(self.new_ty(DataTy { data_def: self.primitives().equal(), args }))
+        let typeof_lhs = Term::from(TypeOfTerm { term: lhs.as_term() });
+        let args = Arg::seq_positional(vec![typeof_lhs, lhs.as_term(), rhs.as_term()]);
+        Ok(Ty::from(DataTy { data_def: primitives().equal(), args }))
     }
 
     /// Make a type from the given [`ast::Ty`] and assign it to the node in
@@ -381,15 +367,15 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Ty::Merge(merge_ty) => self.make_ty_from_merge_ty(node.with_body(merge_ty))?,
             ast::Ty::Expr(expr) => {
                 let expr = self.make_term_from_ast_expr(expr.expr.ast_ref())?;
-                self.new_ty(expr)
+                Ty::from(expr)
             }
             ast::Ty::Union(_) => {
                 panic_on_span!(node.span(), self.source_map(), "Found union type after discovery")
             }
         };
 
-        self.ast_info().tys().insert(node.id(), ty_id);
-        self.stores().location().add_location_to_target(ty_id, node.span());
+        tir_stores().ast_info().tys().insert(node.id(), ty_id);
+        tir_stores().location().add_location_to_target(ty_id, node.span());
         Ok(ty_id)
     }
 }

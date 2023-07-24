@@ -14,6 +14,7 @@ use super::{
 };
 use crate::{
     directives::DirectiveTarget,
+    environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
     locations::{IndexedLocationTarget, LocationTarget},
 };
@@ -148,7 +149,7 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
         Item: Into<IndexedLocationTarget>,
     {
         self.register_atom_inference_without_location(key, inferred, inferred_ty);
-        self.stores().location().copy_locations(key.into(), inferred.into());
+        tir_stores().location().copy_locations(key.into(), inferred.into());
 
         if key != inferred {
             // Set the mapping from the inferred value to itself too.
@@ -162,8 +163,8 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
         Item: Into<LocationTarget> + Into<DirectiveTarget>,
     {
         self.register_atom_inference_without_location(key, inferred, inferred_ty);
-        self.stores().location().copy_location(key, inferred);
-        self.stores().directives().duplicate(key.into(), inferred.into());
+        tir_stores().location().copy_location(key, inferred);
+        tir_stores().directives().duplicate(key.into(), inferred.into());
 
         if key != inferred {
             // Set the mapping from the inferred value to itself too.
@@ -206,7 +207,7 @@ macro_rules! atom_info {
         $(
             impl<T: AccessToEnv> ItemInAtomInfo<$item, $item_ty> for T {
                 fn data(&self) -> &AtomInfoStoreData<$item, $item_ty> {
-                    &self.stores().atom_info().$name
+                    &tir_stores().atom_info().$name
                 }
             }
         )*

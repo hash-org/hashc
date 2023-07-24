@@ -7,8 +7,13 @@ use derive_more::Constructor;
 use hash_ast::ast::{self};
 use hash_pipeline::settings::CompilerStageKind;
 use hash_source::ModuleKind;
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    environment::env::AccessToEnv, fns::FnCallTerm, terms::TermId, utils::common::CommonUtils,
+    args::Arg,
+    environment::{env::AccessToEnv, stores::tir_stores},
+    fns::FnCallTerm,
+    terms::{Term, TermId},
+    utils::common::dump_tir,
 };
 use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
 use hash_utils::stream_less_writeln;
@@ -48,10 +53,10 @@ impl EvaluationPass<'_> {
                 let def = AccessToSemEnv::entry_point(self).def();
                 match def {
                     Some(def) => {
-                        let call_term = self.new_term(FnCallTerm {
-                            subject: self.new_term(def),
+                        let call_term = Term::from(FnCallTerm {
+                            subject: Term::from(def),
                             implicit: false,
-                            args: self.new_empty_args(),
+                            args: Arg::empty_seq(),
                         });
                         Ok(Some(call_term))
                     }
@@ -78,11 +83,11 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::diagnostics::error::SemanticResult<()> {
-        let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
+        let term = tir_stores().ast_info().terms().get_data_by_node(node.id()).unwrap();
 
         // Potentially dump the TIR and evaluate it depending on flags.
         if self.settings().semantic_settings.dump_tir {
-            self.dump_tir(term);
+            dump_tir(term);
         }
 
         // Interactive mode is always evaluated.
@@ -96,14 +101,14 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::diagnostics::error::SemanticResult<()> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        let mod_def_id = tir_stores().ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         let main_call_term = self.find_and_construct_main_call()?;
 
         // Potentially dump the TIR and evaluate it depending on flags.
         let settings = self.settings().semantic_settings();
 
         if settings.dump_tir {
-            self.dump_tir(mod_def_id);
+            dump_tir(mod_def_id);
         }
 
         if settings.eval_tir {

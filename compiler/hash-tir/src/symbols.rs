@@ -68,6 +68,12 @@ impl Symbol {
         SymbolData::create_with(|symbol| SymbolData { symbol, name: None })
     }
 
+    /// Create a new symbol with the same name as this one.
+    pub fn duplicate(&self) -> Symbol {
+        let name = self.borrow().name;
+        SymbolData::create_with(|symbol| SymbolData { symbol, name })
+    }
+
     /// Create a new symbol with an `_` as its name.
     pub fn fresh_underscore() -> Self {
         SymbolData::create_with(|symbol| SymbolData { symbol, name: Some(IDENTS.underscore) })

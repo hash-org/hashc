@@ -21,7 +21,7 @@ use hash_reporting::{diagnostic::Diagnostics, reporter::Reports};
 use hash_source::SourceId;
 use hash_tir::{
     context::Context,
-    environment::{env::Env, source_info::CurrentSourceInfo, stores::tir_stores},
+    environment::{env::Env, source_info::CurrentSourceInfo},
 };
 use once_cell::unsync::OnceCell;
 use ops::{
@@ -115,7 +115,6 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
 
         // Construct the core TIR environment.
         let env = Env::new(
-            tir_stores(),
             &semantic_storage.context,
             &workspace.node_map,
             &workspace.source_map,
@@ -129,7 +128,6 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &semantic_storage.diagnostics,
             &semantic_storage.entry_point,
             &semantic_storage.prelude_or_unset,
-            &semantic_storage.primitives_or_unset,
             &semantic_storage.intrinsics_or_unset,
             &semantic_storage.root_mod_or_unset,
             &semantic_storage.analysis_progress,

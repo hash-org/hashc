@@ -1,21 +1,47 @@
 //! This defines a bunch of store variants (including single and sequence)
 //! which can be used as a static store.
 
-use std::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
+use std::marker::PhantomData;
 
 use parking_lot::RwLock;
 
 use super::{SequenceStore, SequenceStoreInternalData, SequenceStoreKey};
 
 /// A trait for a store ID which can be used to access a store in a store.
+pub trait PartialStoreId: Sized + Copy {
+    type Value;
+    type ValueRef: ?Sized;
+    type ValueBorrow;
+    type ValueBorrowMut;
+
+    /// Borrow the value associated with this ID.
+    fn borrow(self) -> Option<Self::ValueBorrow>;
+
+    /// Borrow the value associated with this ID mutably.
+    fn borrow_mut(self) -> Option<Self::ValueBorrowMut>;
+
+    /// Get the value associated with this ID.
+    fn value(self) -> Option<Self::Value>;
+
+    /// Map the value associated with this ID to a new value.
+    fn map<R>(self, f: impl FnOnce(Option<&Self::ValueRef>) -> R) -> R;
+
+    /// Modify the value associated with this ID.
+    fn modify<R>(self, f: impl FnOnce(Option<&mut Self::ValueRef>) -> R) -> R;
+
+    /// Insert or set the value associated with this ID.
+    fn insert(self, value: Self::Value);
+
+    /// Whether the value associated with this ID exists.
+    fn exists(self) -> bool;
+}
+
+/// A trait for a store ID which can be used to access a store in a store.
 pub trait StoreId: Sized + Copy {
     type Value;
     type ValueRef: ?Sized;
-    type ValueBorrow: Deref<Target = Self::ValueRef>;
-    type ValueBorrowMut: DerefMut<Target = Self::ValueRef>;
+    type ValueBorrow;
+    type ValueBorrowMut;
 
     /// Borrow the value associated with this ID.
     fn borrow(self) -> Self::ValueBorrow;
@@ -40,7 +66,7 @@ pub trait StoreId: Sized + Copy {
 /// `STORES`.
 pub trait SequenceStoreValue: Sized {
     type Id: StoreId;
-    type ElementId: StoreId;
+    type ElementId;
 
     /// Create a new empty value in the store.
     fn empty_seq() -> Self::Id;
@@ -49,12 +75,22 @@ pub trait SequenceStoreValue: Sized {
     fn seq<F: FnOnce(Self::ElementId) -> Self, I: IntoIterator<Item = F>>(iter: I) -> Self::Id
     where
         I::IntoIter: ExactSizeIterator;
+
+    /// Create a new value in the store from the given iterator of values.
+    fn seq_data<I: IntoIterator<Item = Self>>(iter: I) -> Self::Id
+    where
+        I::IntoIter: ExactSizeIterator;
 }
 
 /// A trait for a store ID containing single items which can be used to access a
 /// store in `STORES`.
 pub trait SingleStoreValue: Sized {
     type Id: StoreId;
+
+    /// Create a new value in the store from the given function.
+    fn create_from(x: impl Into<Self>) -> Self::Id {
+        Self::create_with(|_| x.into())
+    }
 
     /// Create a new value in the store from the given function.
     fn create(self) -> Self::Id {
@@ -130,6 +166,29 @@ macro_rules! static_sequence_store_indirect {
             }
         }
 
+        impl $crate::store::statics::SequenceStoreValue for $el_id {
+            type Id = $id;
+            type ElementId = $el_id;
+
+            fn empty_seq() -> Self::Id {
+                $store_source.$store_name().create_from_slice(&[])
+            }
+
+            fn seq<F: FnOnce($el_id) -> Self, I: IntoIterator<Item = F>>(values: I) -> Self::Id
+            where
+                I::IntoIter: ExactSizeIterator,
+            {
+                $store_source.$store_name().create_from_iter_with(values)
+            }
+
+            fn seq_data<I: IntoIterator<Item = Self>>(values: I) -> Self::Id
+            where
+                I::IntoIter: ExactSizeIterator,
+            {
+                $store_source.$store_name().create_from_iter(values)
+            }
+        }
+
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_list().entries(self.value().iter()).finish()
@@ -146,8 +205,8 @@ macro_rules! static_sequence_store_indirect {
     };
 }
 
-/// Automatically implement `StoreId` and `SequenceStoreId` for a sequence store
-/// ID type.
+/// Automatically implement `StoreId` and `SequenceStoreValue` for a sequence
+/// store ID type.
 #[macro_export]
 macro_rules! static_sequence_store_direct {
     (
@@ -185,7 +244,7 @@ macro_rules! static_sequence_store_direct {
             type ValueBorrowMut = $crate::store::sequence::SequenceStoreBorrowMutHandle<'static, [$value]>;
 
             fn borrow(self) -> Self::ValueBorrow {
-                $store_source.$store_name().borrow(self)
+                $crate::store::SequenceStore::borrow($store_source.$store_name(), self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
@@ -233,6 +292,13 @@ macro_rules! static_sequence_store_direct {
             {
                 $store_source.$store_name().create_from_iter_with(values)
             }
+
+            fn seq_data<I: IntoIterator<Item = Self>>(values: I) -> Self::Id
+            where
+                I::IntoIter: ExactSizeIterator,
+            {
+                $store_source.$store_name().create_from_iter(values)
+            }
         }
 
         impl $crate::store::statics::StoreId for $el_id {
@@ -271,8 +337,8 @@ macro_rules! static_sequence_store_direct {
     };
 }
 
-/// Automatically implement `StoreId` and `SingleStoreId` for a single store ID
-/// type.
+/// Automatically implement `StoreId` and `SingleStoreValue` for a single store
+/// ID type.
 #[macro_export]
 macro_rules! static_single_store {
     (
@@ -309,7 +375,7 @@ macro_rules! static_single_store {
             type ValueBorrowMut = $crate::store::StoreBorrowMutHandle<'static, $value>;
 
             fn borrow(self) -> Self::ValueBorrow {
-                $store_source.$store_name().borrow(self)
+                $crate::store::Store::borrow($store_source.$store_name(), self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
@@ -339,6 +405,80 @@ macro_rules! static_single_store {
             type Id = $id;
             fn create_with<F: FnOnce(Self::Id) -> Self>(value: F) -> Self::Id {
                 $store_source.$store_name().create_with(value)
+            }
+        }
+    };
+}
+
+/// Automatically implement `StoreId` and `SingleStoreValue` for a single store
+/// ID type.
+#[macro_export]
+macro_rules! static_partial_store {
+    (
+        store = $store_vis:vis $store:ident,
+        id = $id_vis:vis $id:ident,
+        value = $value:ty,
+        store_name = $store_name:ident,
+        store_source = $store_source:expr,
+        derives = Debug
+    ) => {
+        static_partial_store! {
+            store = $store_vis $store,
+            id = $id_vis $id,
+            value = $value,
+            store_name = $store_name,
+            store_source = $store_source
+        }
+        $crate::impl_debug_for_store_key!($id);
+    };
+    (
+        store = $store_vis:vis $store:ident,
+        id = $id_vis:vis $id:ident,
+        value = $value:ty,
+        store_name = $store_name:ident,
+        store_source = $store_source:expr
+        $(, derives = $($extra_derives:ident),*)?) => {
+        $store_vis type $store = $crate::store::DefaultPartialStore<$id, $value>;
+
+        impl $crate::store::statics::PartialStoreId for $id {
+            type Value = $value;
+            type ValueRef = $value;
+            type ValueBorrow = $crate::store::partial::PartialStoreBorrowHandle<'static, $id, $value>;
+            type ValueBorrowMut = $crate::store::partial::PartialStoreBorrowMutHandle<'static, $id, $value>;
+
+            fn borrow(self) -> Option<Self::ValueBorrow> {
+                use $crate::store::PartialStore;
+                $crate::store::partial::PartialStore::borrow($store_source.$store_name(), self)
+            }
+
+            fn borrow_mut(self) -> Option<Self::ValueBorrowMut> {
+                use $crate::store::PartialStore;
+                $store_source.$store_name().borrow_mut(self)
+            }
+
+            fn value(self) -> Option<Self::Value> {
+                use $crate::store::PartialCloneStore;
+                $store_source.$store_name().get(self)
+            }
+
+            fn map<R>(self, f: impl FnOnce(Option<&Self::Value>) -> R) -> R {
+                use $crate::store::PartialStore;
+                $store_source.$store_name().map_fast(self, f)
+            }
+
+            fn modify<R>(self, f: impl FnOnce(Option<&mut Self::Value>) -> R) -> R {
+                use $crate::store::PartialStore;
+                $store_source.$store_name().modify_fast(self, f)
+            }
+
+            fn insert(self, value: Self::Value) {
+                use $crate::store::PartialStore;
+                $store_source.$store_name().insert(self, value);
+            }
+
+            fn exists(self) -> bool {
+                use $crate::store::PartialStore;
+                $store_source.$store_name().has(self)
             }
         }
     };

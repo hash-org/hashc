@@ -1,16 +1,8 @@
 //! Utility functions for working with TC primitives.
-use self::{
-    data::DataUtils, defs::DefUtils, fns::FnUtils, mods::ModUtils, params::ParamUtils,
-    stack::StackUtils, traversing::TraversingUtils,
-};
+use self::{mods::ModUtils, traversing::TraversingUtils};
 
 pub mod common;
-pub mod data;
-pub mod defs;
-pub mod fns;
 pub mod mods;
-pub mod params;
-pub mod stack;
 pub mod traversing;
 
 macro_rules! utils {
@@ -27,11 +19,6 @@ macro_rules! utils {
 }
 
 utils! {
-  data_utils: DataUtils,
-  def_utils: DefUtils,
-  param_utils: ParamUtils,
-  fn_utils: FnUtils,
   mod_utils: ModUtils,
-  stack_utils: StackUtils,
   traversing_utils: TraversingUtils,
 }

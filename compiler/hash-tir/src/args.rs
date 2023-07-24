@@ -6,9 +6,12 @@ use std::fmt::Debug;
 use derive_more::From;
 use hash_storage::{
     static_sequence_store_direct,
-    store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+    store::{
+        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    },
 };
-use utility_types::omit;
+use hash_utils::itertools::Itertools;
 
 use super::{
     locations::{IndexedLocationTarget, LocationTarget},
@@ -16,26 +19,23 @@ use super::{
     pats::PatId,
 };
 use crate::{
-    environment::stores::tir_stores, terms::TermId, tir_debug_value_of_sequence_store_element_id,
+    environment::stores::tir_stores,
+    params::ParamsId,
+    symbols::Symbol,
+    terms::{Term, TermId},
+    tir_debug_value_of_sequence_store_element_id,
 };
 
 /// An argument to a parameter.
 ///
 /// This might be used for arguments in constructor calls `C(...)`, function
 /// calls `f(...)` or `f<...>`, or type arguments.
-#[omit(ArgData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct Arg {
     /// Argument target (named or positional), if known.
     pub target: ParamIndex,
     /// The term that is the value of the argument.
     pub value: TermId,
-}
-
-impl From<Arg> for ArgData {
-    fn from(value: Arg) -> Self {
-        ArgData { target: value.target, value: value.value }
-    }
 }
 
 static_sequence_store_direct!(
@@ -47,6 +47,57 @@ static_sequence_store_direct!(
 );
 
 tir_debug_value_of_sequence_store_element_id!(ArgId);
+
+impl Arg {
+    /// From the given parameters, create arguments that directly refer to the
+    /// parameters using `Term::Var`.
+    ///
+    /// Example:
+    /// ```notrust
+    /// X := datatype <A: Type, B: Type, C: Type> { foo: () -> X<A, B, C> }
+    ///                                                         ^^^^^^^^^ this is what this function creates
+    /// ```
+    pub fn seq_from_param_names_as_vars(params_id: ParamsId) -> ArgsId {
+        Arg::seq(
+            // For each parameter, create an argument referring to it
+            params_id
+                .iter()
+                .enumerate()
+                .map(|(i, param)| {
+                    move |_| Arg {
+                        target: ParamIndex::Position(i),
+                        value: Term::create(Term::Var(param.borrow().name)),
+                    }
+                })
+                .collect_vec(),
+        )
+    }
+
+    /// Create definition arguments for the given data definition
+    ///
+    /// Each argument will be a positional argument. Note that the outer
+    /// iterator is for the argument groups, and the inner iterator is for
+    /// the arguments in each group.
+    pub fn seq_positional(args: impl IntoIterator<Item = TermId>) -> ArgsId {
+        Arg::seq(
+            args.into_iter()
+                .enumerate()
+                .map(|(i, arg)| move |_| Arg { target: ParamIndex::Position(i), value: arg })
+                .collect_vec(),
+        )
+    }
+
+    /// Instantiate the given parameters with holes for each argument.
+    pub fn seq_from_params_as_holes(params_id: ParamsId) -> ArgsId {
+        Arg::seq(
+            params_id
+                .iter()
+                .enumerate()
+                .map(|(i, _)| move |_| Arg { target: ParamIndex::Position(i), value: Term::hole() })
+                .collect_vec(),
+        )
+    }
+}
 
 /// A pattern or a capture.
 ///
@@ -80,19 +131,12 @@ impl PatOrCapture {
 /// A pattern argument to a parameter
 ///
 /// This might be used for constructor patterns like `C(true, x)`.
-#[omit(PatArgData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct PatArg {
     /// Argument target (named or positional).
     pub target: ParamIndex,
     /// The pattern in place for this argument.
     pub pat: PatOrCapture,
-}
-
-impl From<PatArg> for PatArgData {
-    fn from(value: PatArg) -> Self {
-        PatArgData { target: value.target, pat: value.pat }
-    }
 }
 
 static_sequence_store_direct!(
@@ -116,8 +160,23 @@ pub enum SomeArgsId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
 pub struct SomeArgId(pub SomeArgsId, pub usize);
 
+impl SomeArgId {
+    pub fn into_name(&self) -> Symbol {
+        self.target().into_symbol()
+    }
+
+    // Get the actual numerical parameter index from a given [ParamsId] and
+    // [ParamIndex].
+    pub fn target(&self) -> ParamIndex {
+        match self.0 {
+            SomeArgsId::PatArgs(id) => PatArgId(id, self.1).borrow().target,
+            SomeArgsId::Args(id) => ArgId(id, self.1).borrow().target,
+        }
+    }
+}
+
 impl SequenceStoreKey for SomeArgsId {
-    type ElementKey = (SomeArgsId, usize);
+    type ElementKey = SomeArgId;
 
     fn to_index_and_len(self) -> (usize, usize) {
         match self {

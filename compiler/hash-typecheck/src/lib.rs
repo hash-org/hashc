@@ -10,10 +10,7 @@
 
 use errors::{TcError, TcErrorState, TcResult};
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, IntrinsicAbilities},
-    primitives::{AccessToPrimitives, DefinedPrimitives},
-};
+use hash_intrinsics::intrinsics::{AccessToIntrinsics, IntrinsicAbilities};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
 use hash_source::entry_point::EntryPointState;
 use hash_tir::{
@@ -33,7 +30,7 @@ pub mod substitution;
 pub mod unification;
 
 pub trait AccessToTypechecking:
-    AccessToEnv + AccessToPrimitives + AccessToIntrinsics + AccessToDiagnostics + Sized
+    AccessToEnv + AccessToIntrinsics + AccessToDiagnostics + Sized
 {
     /// Convert a typechecking error to a diagnostic error.
     ///
@@ -118,9 +115,5 @@ impl<T: AccessToTypechecking> IntrinsicAbilities for IntrinsicAbilitiesWrapper<'
 
     fn env(&self) -> &Env {
         self.tc.env()
-    }
-
-    fn primitives(&self) -> &DefinedPrimitives {
-        self.tc.primitives()
     }
 }

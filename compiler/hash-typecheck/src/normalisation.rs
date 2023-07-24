@@ -5,17 +5,18 @@ use derive_more::{Deref, From};
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{
-    statics::StoreId, CloneStore, PartialStore, SequenceStore, SequenceStoreKey, Store,
-    TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
+    PartialStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
-    args::{ArgData, ArgsId, PatArgsId, PatOrCapture},
+    args::{Arg, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
+    environment::stores::tir_stores,
     fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
@@ -28,7 +29,6 @@ use hash_tir::{
     tuples::TupleTerm,
     tys::{Ty, TyId, TypeOfTerm},
     utils::{
-        common::CommonUtils,
         traversing::{Atom, TraversingUtils},
         AccessToUtils,
     },
@@ -178,15 +178,15 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         if let Some(result) = self.potentially_normalise(atom)? {
             match atom {
                 Atom::Term(term_id) => {
-                    self.stores().term().set(term_id, self.get_term(self.to_term(result)));
+                    term_id.set(self.to_term(result).value());
                 }
                 Atom::Ty(ty_id) => {
-                    self.stores().ty().set(ty_id, self.get_ty(self.to_ty(result)));
+                    ty_id.set(self.to_ty(result).value());
                 }
                 // Fn defs are already normalised.
                 Atom::FnDef(_) => return Ok(false),
                 Atom::Pat(pat_id) => {
-                    self.stores().pat().set(pat_id, self.get_pat(self.to_pat(result)));
+                    pat_id.set(self.to_pat(result).value());
                 }
             }
             Ok(true)
@@ -224,7 +224,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Try to use the given atom as a type.
     pub fn maybe_to_ty(&self, atom: Atom) -> Option<TyId> {
         match atom {
-            Atom::Term(term) => self.try_use_term_as_ty(term),
+            Atom::Term(term) => term.try_as_ty(),
             Atom::Ty(ty) => Some(ty),
             _ => None,
         }
@@ -233,7 +233,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Normalise the given atom, and try to use it as a function definition.
     pub fn maybe_to_fn_def(&self, atom: Atom) -> Option<FnDefId> {
         match atom {
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 Term::FnRef(fn_def_id) => Some(fn_def_id),
                 _ => None,
             },
@@ -246,8 +246,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     pub fn maybe_to_term(&self, atom: Atom) -> Option<TermId> {
         match atom {
             Atom::Term(term) => Some(term),
-            Atom::Ty(ty) => Some(self.use_ty_as_term(ty)),
-            Atom::FnDef(fn_def_id) => Some(self.new_term(fn_def_id)),
+            Atom::Ty(ty) => Some(ty.as_term()),
+            Atom::FnDef(fn_def_id) => Some(Term::from(fn_def_id)),
             _ => None,
         }
     }
@@ -287,7 +287,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         has_effects: &mut Option<bool>,
     ) -> Result<ControlFlow<()>, !> {
         match atom {
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 // Never has effects
                 Term::Hole(_) | Term::FnRef(_) => Ok(ControlFlow::Break(())),
 
@@ -311,7 +311,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     // Get its inferred type and check if it is pure
                     match self.try_get_inferred_ty(fn_call.subject) {
                         Some(fn_ty) => {
-                            match self.get_ty(fn_ty) {
+                            match fn_ty.value() {
                                 Ty::Fn(fn_ty) => {
                                     // If it is a function, check if it is pure
                                     if fn_ty.pure {
@@ -363,7 +363,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             },
             Atom::Ty(_) => Ok(ControlFlow::Continue(())),
             Atom::FnDef(fn_def_id) => {
-                let fn_ty = self.get_fn_def(fn_def_id).ty;
+                let fn_ty = fn_def_id.value().ty;
                 // Check its params and return type only (no body)
                 traversing_utils.visit_params(fn_ty.params, &mut |atom| {
                     self.atom_has_effects_once(traversing_utils, atom, has_effects)
@@ -440,11 +440,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         self.context().enter_scope(ScopeKind::Stack(block_term.stack_id), || {
             let st = eval_state();
 
-            for statement in block_term
-                .statements
-                .to_index_range()
-                .map(|i| self.stores().term_list().get_at_index(block_term.statements, i))
-            {
+            for statement in block_term.statements.iter() {
                 let _ = self.eval_and_record(statement.into(), &st)?;
             }
 
@@ -460,7 +456,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn eval_var(&self, var: Symbol) -> AtomEvaluation {
         match self.context().try_get_decl_value(var) {
             Some(result) => {
-                if matches!(self.get_term(result), Term::Var(v) if v == var) {
+                if matches!(result.value(), Term::Var(v) if v == var) {
                     already_evaluated()
                 } else {
                     evaluation_to(self.eval(result.into())?)
@@ -482,12 +478,12 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         deref_term.subject = self.to_term(self.eval_and_record(deref_term.subject.into(), &st)?);
 
         // Reduce:
-        if let Term::Ref(ref_expr) = self.get_term(deref_term.subject) {
+        if let Term::Ref(ref_expr) = deref_term.subject.value() {
             // Should never be effectful
             return evaluation_to(ref_expr.subject);
         }
 
-        evaluation_if(|| self.new_term(deref_term), &st)
+        evaluation_if(|| Term::from(deref_term), &st)
     }
 
     /// Get the parameter at the given index in the given argument list.
@@ -507,7 +503,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         for arg_i in args.iter() {
             let arg = arg_i.value();
             if arg.target == target || ParamIndex::Position(arg_i.1) == target {
-                self.stores().args().modify_fast(arg_i.0, |args| args[arg_i.1].value = value);
+                arg_i.borrow_mut().value = value;
                 return;
             }
         }
@@ -518,8 +514,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Assumes that the index is normalised.
     fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
-        self.try_use_term_as_integer_lit::<usize>(index)
-            .map(|idx| self.stores().term_list().get_at_index(elements, idx).into())
+        self.try_use_term_as_integer_lit::<usize>(index).map(|idx| elements.at(idx).unwrap().into())
     }
 
     /// Evaluate an access term.
@@ -527,7 +522,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let st = eval_state();
         access_term.subject = self.to_term(self.eval_and_record(access_term.subject.into(), &st)?);
 
-        let result = match self.get_term(access_term.subject) {
+        let result = match access_term.subject.value() {
             Term::Tuple(tuple) => self.get_param_in_args(tuple.data, access_term.field),
             Term::Ctor(ctor) => self.get_param_in_args(ctor.ctor_args, access_term.field),
             _ => {
@@ -544,7 +539,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let st = eval_state();
         index_term.subject = self.to_term(self.eval_and_record(index_term.subject.into(), &st)?);
 
-        if let Term::Array(arr) = self.get_term(index_term.subject) &&
+        if let Term::Array(arr) = index_term.subject.value() &&
            let Some(result) = self.get_index_in_array(arr.elements, index_term.index)
         {
             let result = self.eval_and_record(result, &st)?;
@@ -584,10 +579,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn eval_assign(&self, mut assign_term: AssignTerm) -> FullEvaluation<Atom> {
         assign_term.value = self.to_term(self.eval(assign_term.value.into())?);
 
-        match self.get_term(assign_term.subject) {
+        match assign_term.subject.value() {
             Term::Access(mut access_term) => {
                 access_term.subject = self.to_term(self.eval(access_term.subject.into())?);
-                match self.get_term(access_term.subject) {
+                match access_term.subject.value() {
                     Term::Tuple(tuple) => self.set_param_in_args(
                         tuple.data,
                         access_term.field,
@@ -672,7 +667,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 }
                 MatchResult::Stuck => {
                     info!("Stuck evaluating let-binding: {}", &decl_term);
-                    evaluation_if(|| self.new_term(decl_term), &st)
+                    evaluation_if(|| Term::from(decl_term), &st)
                 }
             },
             None => {
@@ -705,7 +700,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let evaluated = self.eval_and_record(term.into(), &st)?;
         match evaluated {
             Atom::Ty(_) => evaluation_to(evaluated),
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 Term::Ty(ty) => evaluation_to(Atom::Ty(ty)),
                 _ => evaluation_if(|| term, &st),
             },
@@ -715,20 +710,20 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     /// Evaluate some arguments
     fn eval_args(&self, args: ArgsId) -> Evaluation<ArgsId> {
-        let args = self.stores().args().get_vec(args);
+        let args = args.value();
         let st = eval_state();
 
         let evaluated_arg_data = args
             .into_iter()
             .map(|arg| -> Result<_, Signal> {
-                Ok(ArgData {
+                Ok(Arg {
                     target: arg.target,
                     value: self.to_term(self.eval_nested_and_record(arg.value.into(), &st)?),
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        evaluation_if(|| self.param_utils().create_args(evaluated_arg_data.into_iter()), &st)
+        evaluation_if(|| Arg::seq_data(evaluated_arg_data), &st)
     }
 
     /// Evaluate a function call.
@@ -739,8 +734,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         fn_call.args = st.update_from_evaluation(fn_call.args, self.eval_args(fn_call.args))?;
 
         // Beta-reduce:
-        if let Term::FnRef(fn_def_id) = self.get_term(fn_call.subject) {
-            let fn_def = self.get_fn_def(fn_def_id);
+        if let Term::FnRef(fn_def_id) = fn_call.subject.value() {
+            let fn_def = fn_def_id.value();
             if (fn_def.ty.pure || matches!(self.mode.get(), NormalisationMode::Full))
                 && self.try_get_inferred_ty(fn_def_id).is_some()
             {
@@ -766,9 +761,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     FnBody::Intrinsic(intrinsic_id) => {
                         return self.context().enter_scope(fn_def_id.into(), || {
                             let args_as_terms =
-                                self.stores().args().map_fast(fn_call.args, |args| {
-                                    args.iter().map(|arg| arg.value).collect_vec()
-                                });
+                                fn_call.args.borrow().iter().map(|arg| arg.value).collect_vec();
 
                             // Run intrinsic:
                             let result: TermId = self
@@ -794,7 +787,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             }
         }
 
-        evaluation_if(|| self.new_term(fn_call), &st)
+        evaluation_if(|| Term::from(fn_call), &st)
     }
 
     /// Evaluate an atom, performing at least a single step of normalisation.
@@ -834,7 +827,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             result
         })?;
 
-        self.stores().location().copy_location(atom, result);
+        tir_stores().location().copy_location(atom, result);
         evaluation_if(|| result, &st)
     }
 
@@ -849,7 +842,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         }
 
         match atom {
-            Atom::Term(term) => match self.get_term(term) {
+            Atom::Term(term) => match term.value() {
                 // Types
                 Term::Ty(_) => ctrl_continue(),
 
@@ -879,7 +872,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::Block(block_term) => ctrl_map(self.eval_block(block_term)),
                 Term::Loop(loop_term) => ctrl_map_full(self.eval_loop(loop_term)),
             },
-            Atom::Ty(ty) => match self.get_ty(ty) {
+            Atom::Ty(ty) => match ty.value() {
                 Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
                 Ty::Hole(Hole(var)) | Ty::Var(var) => ctrl_map(self.eval_var(var)),
                 Ty::Fn(_) | Ty::Tuple(_) | Ty::Data(_) | Ty::Universe(_) | Ty::Ref(_) => {
@@ -895,39 +888,36 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// arguments that are part of the given spread.
     fn extract_spread_list(&self, term_list: TermListId, pat_list: PatListId) -> TermListId {
         // Create a new list term with the spread elements
-        let spread_term_list = self.stores().pat_list().map_fast(pat_list, |pat_data| {
-            self.stores().term_list().map_fast(term_list, |data| {
-                pat_list
-                    .to_index_range()
-                    .filter_map(|i| match pat_data[i] {
-                        PatOrCapture::Pat(_) => None,
-                        PatOrCapture::Capture => Some(data[i]),
-                    })
-                    .collect_vec()
+        let spread_term_list = pat_list
+            .borrow()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| match p {
+                PatOrCapture::Pat(_) => None,
+                PatOrCapture::Capture => Some(term_list.at(i).unwrap()),
             })
-        });
-        self.new_term_list(spread_term_list)
+            .collect_vec();
+        TermId::seq_data(spread_term_list)
     }
 
     /// From the given arguments matching with the given parameters, extract the
     /// arguments that are part of the given spread.
     fn extract_spread_args(&self, term_args: ArgsId, pat_args: PatArgsId) -> ArgsId {
         // Create a new tuple term with the spread elements
-        let spread_term_args = self.stores().pat_args().map_fast(pat_args, |pat_data| {
-            self.stores().args().map_fast(term_args, |data| {
-                pat_args
-                    .to_index_range()
-                    .filter_map(|i| match pat_data[i].pat {
-                        PatOrCapture::Pat(_) => None,
-                        PatOrCapture::Capture => {
-                            Some(ArgData { target: data[i].target, value: data[i].value })
-                        }
-                    })
-                    .collect_vec()
+        let spread_term_args = pat_args
+            .borrow()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| match p.pat {
+                PatOrCapture::Pat(_) => None,
+                PatOrCapture::Capture => {
+                    let arg = term_args.at(i).unwrap().value();
+                    Some(Arg { target: arg.target, value: arg.value })
+                }
             })
-        });
+            .collect_vec();
 
-        self.param_utils().create_args(spread_term_args.into_iter())
+        Arg::seq_data(spread_term_args)
     }
 
     /// Match the given arguments with the given pattern arguments.
@@ -1001,9 +991,9 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         self.match_some_list_and_get_binds(
             term_args.len(),
             spread,
-            |_| self.new_term(TupleTerm { data: self.extract_spread_args(term_args, pat_args) }),
-            |i| self.stores().pat_args().get_at_index(pat_args, i).pat,
-            |i| self.stores().args().get_at_index(term_args, i).value,
+            |_| Term::from(TupleTerm { data: self.extract_spread_args(term_args, pat_args) }),
+            |i| pat_args.at(i).unwrap().borrow().pat,
+            |i| term_args.at(i).unwrap().borrow().value,
             f,
         )
     }
@@ -1022,10 +1012,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Assumes that the atom is normalised.
     fn is_true(&self, atom: Atom) -> bool {
         match atom {
-            Atom::Term(term) => self.stores().term().map_fast(term, |term| match term {
+            Atom::Term(term) => match &*term.borrow() {
                 Term::Ctor(ctor_term) => ctor_term.ctor == self.get_bool_ctor(true),
                 _ => false,
-            }),
+            },
             Atom::Ty(_) | Atom::FnDef(_) | Atom::Pat(_) => false,
         }
     }
@@ -1071,8 +1061,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         f: &mut impl FnMut(Symbol, TermId),
     ) -> Result<MatchResult, Signal> {
         let evaluated_id = self.to_term(self.eval(term_id.into())?);
-        let evaluated = self.get_term(evaluated_id);
-        match (evaluated, self.get_pat(pat_id)) {
+        let evaluated = evaluated_id.value();
+        match (evaluated, pat_id.value()) {
             (_, Pat::Or(pats)) => {
                 // Try each alternative in turn:
                 for pat in pats.alternatives.iter() {
@@ -1208,12 +1198,12 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 list_pat.spread,
                 |_| {
                     // Lists can have spreads, which return sublists
-                    self.new_term(Term::Array(ArrayTerm {
+                    Term::from(Term::Array(ArrayTerm {
                         elements: self.extract_spread_list(array_term.elements, list_pat.pats),
                     }))
                 },
-                |i| self.stores().pat_list().get_at_index(list_pat.pats, i),
-                |i| self.stores().term_list().get_at_index(array_term.elements, i),
+                |i| list_pat.pats.at(i).unwrap(),
+                |i| array_term.elements.at(i).unwrap(),
                 f,
             ),
             (_, Pat::Lit(_)) => Ok(MatchResult::Stuck),

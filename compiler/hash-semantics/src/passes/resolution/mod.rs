@@ -5,12 +5,9 @@
 //! Any scoping errors are reported here.
 
 use hash_ast::ast::{self};
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, DefinedIntrinsics},
-    primitives::{AccessToPrimitives, DefinedPrimitives},
-};
+use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_source::ModuleKind;
-use hash_tir::environment::env::AccessToEnv;
+use hash_tir::environment::{env::AccessToEnv, stores::tir_stores};
 
 use self::scoping::{ContextKind, Scoping};
 use super::ast_utils::AstPass;
@@ -45,12 +42,6 @@ impl AccessToIntrinsics for ResolutionPass<'_> {
     }
 }
 
-impl AccessToPrimitives for ResolutionPass<'_> {
-    fn primitives(&self) -> &DefinedPrimitives {
-        self.sem_env.primitives()
-    }
-}
-
 impl AccessToEnv for ResolutionPass<'_> {
     fn env(&self) -> &hash_tir::environment::env::Env {
         self.sem_env.env()
@@ -75,7 +66,7 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         }
 
         let term_id = self.make_term_from_ast_body_block(node)?;
-        self.ast_info().terms().insert(node.id(), term_id);
+        tir_stores().ast_info().terms().insert(node.id(), term_id);
         Ok(())
     }
 
