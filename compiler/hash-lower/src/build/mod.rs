@@ -22,7 +22,7 @@ use hash_ir::{
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_storage::store::{statics::StoreId, FxHashMap, PartialCloneStore, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, FxHashMap, PartialStore, SequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     directives::DirectiveTarget,
@@ -246,7 +246,7 @@ impl<'ctx> BodyBuilder<'ctx> {
 
         // check if this fn_def has the `#dump_ir` directive applied onto it...
         let needs_dumping = |item: DirectiveTarget| {
-            if let Some(applied_directives) = tir_stores().directives().get(item) {
+            if let Some(applied_directives) = tir_stores().directives().borrow(item) {
                 applied_directives.directives.contains(&IDENTS.dump_ir)
             } else {
                 false
