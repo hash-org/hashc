@@ -5,7 +5,7 @@ use hash_ast::ast::{MatchOrigin, RangeEnd};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{diagnostic::DiagnosticCellStore, reporter::Reporter};
 use hash_source::location::Span;
-use hash_tir::{environment::env::Env, lits::LitPat, pats::PatId, utils::common::get_location};
+use hash_tir::{lits::LitPat, pats::PatId, utils::common::get_location};
 use hash_utils::{
     itertools::Itertools,
     pluralise,
@@ -64,7 +64,7 @@ pub enum ExhaustivenessError {
 
 impl ExhaustivenessError {
     /// Adds the given [ExhaustivenessError] to the report builder.
-    pub fn add_to_reports(&self, _env: &Env, reporter: &mut Reporter) {
+    pub fn add_to_reports(&self, reporter: &mut Reporter) {
         match self {
             ExhaustivenessError::RefutablePat { pat, origin, uncovered_pats } => {
                 let origin = match origin {
@@ -162,7 +162,7 @@ pub enum ExhaustivenessWarning {
 }
 
 impl ExhaustivenessWarning {
-    pub fn add_to_reports(&self, _env: &Env, reporter: &mut Reporter) {
+    pub fn add_to_reports(&self, reporter: &mut Reporter) {
         match self {
             ExhaustivenessWarning::UselessMatchCase { pat, location } => {
                 reporter

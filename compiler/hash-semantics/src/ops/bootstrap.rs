@@ -48,7 +48,7 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
             kind: ModKind::ModBlock,
             members: ModMember::seq(
                 intrinsics
-                    .as_mod_members(self.env())
+                    .as_mod_members()
                     .into_iter()
                     .map(|data| move |id| ModMember { id, name: data.name, value: data.value }),
             ),

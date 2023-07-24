@@ -85,7 +85,7 @@ macro_rules! defined_intrinsics {
             /// Create a list of [`ModMemberData`] that corresponds to the defined intrinsics.
             ///
             /// This can be used to make a module and enter its scope.
-            pub fn as_mod_members(&self, _env: &Env) -> Vec<ModMemberData> {
+            pub fn as_mod_members(&self) -> Vec<ModMemberData> {
                 vec![
                     $(
                         ModMemberData {
@@ -211,9 +211,7 @@ impl DefinedIntrinsics {
     ///
     /// The `op` parameter is an integer which represents the operation to
     /// perform, which is one of the `UnOp` variants. The `a` is the operand
-    fn add_un_op_intrinsic<T: AccessToEnv + Copy>(
-        env: T,
-
+    fn add_un_op_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = Symbol::from_name("T");
@@ -227,7 +225,6 @@ impl DefinedIntrinsics {
         let ret = Ty::from(t_sym);
 
         Self::add_intrinsic(
-            env,
             implementations,
             "un_op",
             FnTy::builder().params(params).return_ty(ret).build(),
@@ -319,8 +316,7 @@ impl DefinedIntrinsics {
     /// ```ignore
     /// short_circuiting_bin_op: (op: u8, a: bool, b: bool) -> bool
     /// ```
-    fn add_short_circuiting_op_intrinsic<T: AccessToEnv + Copy>(
-        env: T,
+    fn add_short_circuiting_op_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = Symbol::from_name("T");
@@ -337,7 +333,6 @@ impl DefinedIntrinsics {
         ]);
 
         Self::add_intrinsic(
-            env,
             implementations,
             "bool_bin_op",
             FnTy::builder().params(params).return_ty(ty).build(),
@@ -379,8 +374,7 @@ impl DefinedIntrinsics {
     /// perform, which is one of the `BoolBinOp` variants. The `a` and `b`
     /// parameters are the two operands, and the return value is the result
     /// of the operation.
-    fn add_bool_bin_op_intrinsic<T: AccessToEnv + Copy>(
-        env: T,
+    fn add_bool_bin_op_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = Symbol::from_name("T");
@@ -396,7 +390,6 @@ impl DefinedIntrinsics {
         let ret = Ty::data(primitives().bool());
 
         Self::add_intrinsic(
-            env,
             implementations,
             "bool_bin_op",
             FnTy::builder().params(params).return_ty(ret).build(),
@@ -524,8 +517,7 @@ impl DefinedIntrinsics {
     /// perform, which is one of the `EndoBinOp` variants. The `a` and `b`
     /// parameters are the two operands, and the return value is the result
     /// of the operation.
-    fn add_endo_bin_op_intrinsic<T: AccessToEnv + Copy>(
-        env: T,
+    fn add_endo_bin_op_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let t_sym = Symbol::from_name("T");
@@ -541,7 +533,6 @@ impl DefinedIntrinsics {
         let ret = Ty::from(t_sym);
 
         Self::add_intrinsic(
-            env,
             implementations,
             "endo_bin_op",
             FnTy::builder().params(params).return_ty(ret).build(),
@@ -659,8 +650,7 @@ impl DefinedIntrinsics {
     }
 
     /// Add a primitive to check for primitive data type equality.
-    fn add_prim_type_eq_op<T: AccessToEnv + Copy>(
-        env: T,
+    fn add_prim_type_eq_op(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
         let ty = Ty::flexible_universe();
@@ -668,7 +658,6 @@ impl DefinedIntrinsics {
         let bin_op_name = "prim_type_eq".to_string();
 
         Self::add_intrinsic(
-            env,
             implementations,
             bin_op_name,
             FnTy::builder().params(Param::seq_positional([ty, ty])).return_ty(bool_ty).build(),
@@ -698,7 +687,7 @@ impl DefinedIntrinsics {
         let implementations = DefaultPartialStore::new();
 
         let add = |name: &'static str, fn_ty: FnTy, implementation: IntrinsicImpl| {
-            Self::add_intrinsic(env, &implementations, name, fn_ty, implementation)
+            Self::add_intrinsic(&implementations, name, fn_ty, implementation)
         };
 
         // Aborting
@@ -715,7 +704,7 @@ impl DefinedIntrinsics {
                 .params(Param::seq_positional([Ty::data(primitives().str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
-            |_env, args| {
+            |_, args| {
                 stream_less_writeln!("{}", args[1]);
                 process::exit(1);
             },
@@ -728,7 +717,7 @@ impl DefinedIntrinsics {
                 .params(Param::seq_positional([Ty::data(primitives().str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
-            |_env, args| match args[0].value() {
+            |_, args| match args[0].value() {
                 Term::Lit(Lit::Str(str_lit)) => Err(str_lit.value().to_string()),
                 _ => Err("`user_error` expects a string literal as argument".to_string())?,
             },
@@ -759,7 +748,7 @@ impl DefinedIntrinsics {
             add(
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
-                |_env, args| {
+                |_, args| {
                     if let Term::FnRef(fn_def_id) = args[1].value() {
                         let directives =
                             tir_stores().directives().get(fn_def_id.into()).unwrap_or_default();
@@ -785,19 +774,19 @@ impl DefinedIntrinsics {
         };
 
         // Primitive type equality
-        let prim_type_eq_op = Self::add_prim_type_eq_op(env, &implementations);
+        let prim_type_eq_op = Self::add_prim_type_eq_op(&implementations);
 
         // Endo bin ops
-        let endo_bin_op = Self::add_endo_bin_op_intrinsic(env, &implementations);
+        let endo_bin_op = Self::add_endo_bin_op_intrinsic(&implementations);
 
         // Bool bin ops
-        let bool_bin_op = Self::add_bool_bin_op_intrinsic(env, &implementations);
+        let bool_bin_op = Self::add_bool_bin_op_intrinsic(&implementations);
 
         // Short circuiting ops
-        let short_circuiting_op = Self::add_short_circuiting_op_intrinsic(env, &implementations);
+        let short_circuiting_op = Self::add_short_circuiting_op_intrinsic(&implementations);
 
         // Unary ops
-        let un_op = Self::add_un_op_intrinsic(env, &implementations);
+        let un_op = Self::add_un_op_intrinsic(&implementations);
 
         // Size of
         let size_of = {
@@ -903,8 +892,7 @@ impl DefinedIntrinsics {
     }
 
     /// Add an intrinsic to the store.
-    fn add_intrinsic<T: AccessToEnv>(
-        _env: T,
+    fn add_intrinsic(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
         name: impl Into<Identifier>,
         fn_ty: FnTy,

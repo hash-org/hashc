@@ -6,9 +6,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::location::Span;
-use hash_tir::{
-    environment::env::AccessToEnv, symbols::Symbol, terms::TermId, utils::common::get_location,
-};
+use hash_tir::{symbols::Symbol, terms::TermId, utils::common::get_location};
 use hash_typecheck::errors::{TcError, TcErrorReporter};
 
 use crate::{
@@ -323,9 +321,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                     "cannot use this type annotation as it is not the defining type of the enum",
                 );
             }
-            SemanticError::ExhaustivenessError { error } => {
-                error.add_to_reports(self.env(), reporter)
-            }
+            SemanticError::ExhaustivenessError { error } => error.add_to_reports(reporter),
         }
     }
 }

@@ -1,6 +1,5 @@
 use hash_exhaustiveness::diagnostics::ExhaustivenessWarning;
 use hash_reporting::reporter::{Reporter, Reports};
-use hash_tir::environment::env::AccessToEnv;
 
 use crate::environment::sem_env::{AccessToSemEnv, WithSemEnv};
 
@@ -34,7 +33,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticWarning> {
     fn add_to_reporter(&self, reporter: &mut Reporter) {
         match self.value {
             SemanticWarning::ExhaustivenessWarning { warning } => {
-                warning.add_to_reports(self.env(), reporter);
+                warning.add_to_reports(reporter);
             }
             SemanticWarning::Compound { warnings } => {
                 for warning in warnings {
