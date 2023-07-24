@@ -72,10 +72,12 @@ impl<'ir> BuilderCtx<'ir> {
             // be defined in a recursive way, the `ty_from_tir_data` will deal with
             // its own caching, but we still want to add an entry here for `TyId` since
             // we want to avoid computing the `ty_from_tir_data` as well.
-            let result = if let Ty::Data(data_ty) = ty {
-                self.ty_from_tir_data(data_ty)
-            } else {
-                self.uncached_ty_from_tir_ty(id, &ty)
+            let result = match ty {
+                Ty::Data(data_ty) => self.ty_from_tir_data(data_ty),
+
+                // Hot path for unit types.
+                Ty::Tuple(tuple) if tuple.data.is_empty() => COMMON_IR_TYS.unit,
+                _ => self.uncached_ty_from_tir_ty(id, &ty),
             };
 
             (result, false)
@@ -86,6 +88,11 @@ impl<'ir> BuilderCtx<'ir> {
     fn uncached_ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> IrTyId {
         let ty = match *ty {
             Ty::Tuple(TupleTy { data }) => {
+                // Optimise, if this is a UNIT, then we can just return a unit type.
+                if data.is_empty() {
+                    return COMMON_IR_TYS.unit;
+                }
+
                 let mut flags = AdtFlags::empty();
                 flags |= AdtFlags::TUPLE;
 
@@ -132,8 +139,8 @@ impl<'ir> BuilderCtx<'ir> {
                     let ty = term.as_ty().value();
                     return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {
-                    // We just return the unit type for now.
-                    IrTy::Adt(AdtId::UNIT)
+                    return COMMON_IR_TYS.unit; // We just return the unit type
+                                               // for now.
                 }
             }
             ty @ Ty::Hole(_) => {
