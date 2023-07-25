@@ -1,6 +1,0 @@
-// run=fail
-
-// using types in return position
-bing := (x: i32) -> Type => {
-  i32
-}
