@@ -11,5 +11,5 @@ Dog := struct(
 main := () => {
     viktor := Dog("viktor", 18, 123.6, 129.9);
 
-    Dog(name, height) := viktor;
+    Dog(name=name, height=height) := viktor;
 };

@@ -1,4 +1,0 @@
-// run=fail
-
-
-Foo := struct(bar: Type)

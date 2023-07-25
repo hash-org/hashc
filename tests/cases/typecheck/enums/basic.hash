@@ -10,8 +10,6 @@ main := () => {
   ensure<PrimaryColour>(PrimaryColour::Blue);
 
   red := PrimaryColour::Red;
-  // @@FixMe(feds01): Figure out why this isn't working with the unit/enum modification...?
-  // ensure<PrimaryColour::Red>(red);
   ensure<PrimaryColour>(red);
 
   many := [PrimaryColour::Red as PrimaryColour, PrimaryColour::Blue as PrimaryColour, PrimaryColour::Green as PrimaryColour];

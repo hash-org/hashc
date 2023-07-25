@@ -1,0 +1,40 @@
+// stage=typecheck
+
+/// Binary operators.
+BinOp := enum(
+  Add,
+  Mul,
+  Sub,
+  Div,
+)
+/// Unary operators.
+UnOp := enum(
+  Neg,
+)
+/// A simple expression tree.
+Expr := enum <T> (
+  Const(T),
+  BinOp(BinOp, Expr<T>, Expr<T>),
+  UnOp(UnOp, Expr<T>),
+)
+
+/// Evaluate an expression of i32.
+eval := (e: Expr<i32>) -> i32 => {
+  match e {
+    Expr::Const(t) => t,
+    Expr::BinOp(op, e1, e2) => match op {
+      BinOp::Add => eval(e1) + eval(e2),
+      BinOp::Mul => eval(e1) * eval(e2),
+      BinOp::Sub => eval(e1) - eval(e2),
+      BinOp::Div => eval(e1) / eval(e2),
+    },
+    Expr::UnOp(op, e1) => match op {
+      UnOp::Neg => -eval(e1),
+    },
+  }
+}
+
+main := () => {
+  e := Expr::BinOp(BinOp::Add, Expr::Const(41), Expr::Const(1))
+  n := eval(e)
+}

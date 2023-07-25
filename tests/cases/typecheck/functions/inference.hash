@@ -5,11 +5,9 @@ foo := (a: str) => 3;
 
 bar := (a: i32) => a;
 
-  // @@Todo: support untyped parameters
-// baz := (a) -> i32 => a;
+baz := (a) -> i32 => a;
 
-// @@Todo: change the syntax to be := for default value
-bin := (a = 3) => a;
+bin := (a: i32 = 3) => a;
 
 boo := (bing: bool) => {
   if bing {
@@ -30,7 +28,7 @@ main := () => {
   ensure<(a: i32) -> i32>(bar);
 
   // parameter type inference
-  // ensure<(a: i32) -> i32>(baz);
+  ensure<(a: i32) -> i32>(baz);
 
   // default value inference
   ensure<(a: i32) -> i32>(bin);

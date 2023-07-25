@@ -1,5 +1,0 @@
-error[0020]: types mismatch, wanted `Type`, but got `Trait`
- --> $DIR/malformed-field-types.hash:4:20
-3 |   
-4 |   Foo := struct(bar: Type)
-  |                      ^^^^ ...but this is of type `Trait`

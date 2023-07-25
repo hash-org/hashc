@@ -1,7 +1,7 @@
 // stage=typecheck
 
 Bin := struct(bang: char);
-Foo := struct(foo: str, bar: i32, baz: i32 = 10, bin: Bin);
+Foo := struct(foo: str, bar: i32, bin: Bin, baz: i32 = 10);
 
 ensure := <T> => (t: T) => {};
 

@@ -1,9 +1,0 @@
-// run=pass, stage=typecheck
-
-// @@Todo: make this work
-// fib := (n: i32) => {
-//   match n {
-//     0 | 1 => 1;
-//     _ => fib(n - 1) + fib(n - 2);
-//   }
-// };

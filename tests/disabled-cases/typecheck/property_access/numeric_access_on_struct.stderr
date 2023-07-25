@@ -1,6 +1,0 @@
-error[0015]: the field `2` is not present within `Frobulate(data = 23_i32, other = 'c')`
-  --> $DIR/numeric_access_on_struct.hash:11:3
-10 |   main := () -> i32 => {
-11 |     t.2
-   |     ^ `Frobulate(data = 23_i32, other = 'c')` does not contain the property `2`
-12 |   }

@@ -1,10 +1,9 @@
 // run=pass, stage=typecheck
 
-t := (1u32, 2);
-b := (name := "str", data := 'c');
-
-
 main := () -> i32 => {
+  t := (1u32, 2);
+  b := (name := "str", data := 'c');
+
   t1 := t.1;
   b0 := b.name;
 

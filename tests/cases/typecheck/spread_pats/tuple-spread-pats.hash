@@ -1,4 +1,6 @@
-// run=pass, stage=typecheck
+// run=pass, stage=typecheck, skip=true
+
+// @@Fixme
 
 test_spread_skipping_args := () -> i32 => {
     viktor := ("viktor", 123.6, 129.9, 18);

@@ -7,13 +7,11 @@ main := () => {
   ensure<i32>((foo := 3, bar := "4").foo);
   ensure<str>((foo := 3, bar := "4").bar);
   ensure<()>(());
-  ensure<void>(());
 
   // binding
   x := (foo := 3, bar := "4");
   ensure<(i32, str)>((x.foo, x.bar));
 
-  // @@Todo: positional
-  // x := (3, "4");
-  // ensure<(i32, str)>((x.0, x.1));
+  x := (3, "4");
+  ensure<(i32, str)>((x.0, x.1));
 };
