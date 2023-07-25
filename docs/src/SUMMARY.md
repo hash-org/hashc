@@ -14,7 +14,7 @@
     - [Traits and implementations](./features/traits-impls.md)
     - [Type functions](./features/type-functions.md)
     - [🚧 Memory management](./features/memory.md)
-    - [🚧 Directives](./features/directives.md)
+    - [🚧 Macros](./features/macros.md)
 - [Standard library](./standard-library/intro.md)
 - [Interpreter](./interpreter/intro.md)
     - [Interpreter options](./interpreter/options.md)
