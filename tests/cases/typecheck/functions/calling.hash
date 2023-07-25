@@ -1,0 +1,16 @@
+// stage=typecheck
+ensure := <T> => (t: T) => {};
+
+foo := () => 3;
+
+id := (u: (str, i32)) => u;
+
+curry2 := <A, B, C> => (f: (A, B) -> C) -> (A) -> (B) -> C => {
+  (a: A) => (b: B) => f(a, b)
+};
+
+main := () => {
+  ensure<i32>(foo());
+  ensure<(str, i32)>(id(("a", 1)));
+  ensure<(i32) -> str>(curry2<char, i32, str>((a: char, b: i32) => "aaaa")('a'));
+};

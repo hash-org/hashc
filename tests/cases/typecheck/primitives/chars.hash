@@ -1,0 +1,7 @@
+// run=pass, stage=typecheck
+
+ensure := <T> => (t: T) => {};
+
+main := () => {
+  ensure<char>('a');
+};

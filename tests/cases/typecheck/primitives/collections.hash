@@ -1,0 +1,21 @@
+// run=pass, stage=typecheck
+
+ensure := <T> => (t: T) => {};
+
+main := () => {
+  ensure<List<i32>>([1, 2, 3]);
+
+  rest := ["1", "2", "3"];
+  ensure<List<str>>(rest);
+
+  // @@Fixme
+  // match ["1", "2", "3"] {
+  //   [first, ...rest] => {
+  //     ensure<str>(first);
+  //     ensure<List<str>>(rest);
+  //   },
+  //   [...best] => {
+  //     ensure<List<str>>(best);
+  //   }
+  // }
+};

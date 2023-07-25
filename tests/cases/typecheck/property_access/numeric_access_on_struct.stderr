@@ -1,0 +1,6 @@
+error[0016]: property `2` not found on type `Frobulate`
+  --> $DIR/numeric_access_on_struct.hash:9:3
+ 8 |     t := Frobulate(data = 23)
+ 9 |     t.2
+   |     ^ term has type `Frobulate`. Property `2` is not present on this type
+10 |   }

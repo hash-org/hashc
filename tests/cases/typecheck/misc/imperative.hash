@@ -1,0 +1,21 @@
+// stage=typecheck
+
+calc_pi := (precision: i32) -> f64 => {
+  mut d := 1.0
+  mut sum := 0.0
+  mut i := 0
+  while i < precision {
+    if i % 2 == 0 {
+      sum += 4.0 / d
+    } else {
+      sum -= 4.0 / d
+    }
+    i += 1
+    d += 2.0
+  }
+  sum
+}
+
+main := () => {
+  pi := calc_pi(10000)
+}

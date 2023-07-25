@@ -1,0 +1,16 @@
+// run=pass, stage=typecheck
+
+main := () -> i32 => {
+  t := (1u32, 2);
+  b := (name := "str", data := 'c');
+
+  t1 := t.1;
+  b0 := b.name;
+
+  match t.0 {
+    0u32..1_000_000u32 => 1,
+    0u32..1_000_000_000u32 => 2,
+    _ => 3,
+  }
+}
+

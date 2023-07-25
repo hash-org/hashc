@@ -1,0 +1,10 @@
+// run=fail
+Frobulate := struct(
+  data: i32,
+  other: char = 'c',
+)
+
+main := () -> i32 => {
+  t := Frobulate(data = 23)
+  t.2
+}

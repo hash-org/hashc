@@ -1,0 +1,47 @@
+// stage=typecheck
+
+/// M is a monad.
+Monad := struct <M: <T: Type> -> Type> (
+  bind: <U, V> -> (a: M<U>, b: U -> M<V>) -> M<V>,
+  ret: <U> -> (x: U) -> M<U>,
+)
+
+/// F is an (endo)functor
+Functor := struct <F: <T: Type> -> Type> (
+  fmap: <U, V> -> (a: F<U>, b: U -> V) -> F<V>,
+)
+
+// @@Fixme:
+/// Proof by construction that M is a monad if it is
+/// an endofunctor `Type -> Type` and it is a monoid:
+///    unit       join
+/// 1 ------> M <------ M * M
+// monad_from_join_and_unit := (
+//   M: <T: Type> -> Type,
+//   M_functor: Functor<M>,
+//   join: <U> -> (a: M<M<U>>) -> M<U>,
+//   unit: <U> -> (x: U) -> M<U>,
+// ) -> Monad<M> => {
+//   Monad <M> (
+//     bind = <U, V> => (a: M<U>, b: U -> M<V>) -> M<V> => {
+//       join(M_functor.fmap<U, V>(a, b))
+//     },
+//     ret = <U> => (x: U) -> M<U> => unit<U>(x)
+//   )
+// }
+
+// Option is a monad
+option_monad := () => {
+  Monad<{<T> => Option<T>}>(
+    bind = <U, V> => (
+      a: Option<U>,
+      b: U -> Option<V>
+    ) -> Option<V> => {
+      match a {
+        Option::Some(x) => b(x),
+        Option::None => Option::None
+      }
+    },
+    ret = <U> => (x: U) -> Option<U> => Option::Some(x)
+  )
+}
