@@ -5,8 +5,8 @@ tokens.
 
 ## AST macros 
 
-AST level macros are written with the syntax `#marco_name <subject>`
-or `#[macro_name] <subject>`. The first form is a used as a shorthand 
+AST-level macros are written with the syntax `#macro_name <subject>`
+or `#[macro_name(macro_arg)] <subject>`. The first form is a used as a shorthand 
 for macros that don't have any additional arguments to the macro itself. 
 
 For example, the `#dump_ast` macro will accept any AST item as the subject and print the parsed AST to the console. 
@@ -17,7 +17,7 @@ For example, the `#dump_ast` macro will accept any AST item as the subject and p
 }
 ```
 
-An example of the AST macro being used to set some attributes on a function:
+An example of an AST macro being used to set some attributes on a function:
 ```rust
 #[attr(foreign(c), no_mangle, link_name = "jpeg_read_header")]
 jpeg_read_header := (&raw cinfo, bool require_image) -> i32;
@@ -25,7 +25,7 @@ jpeg_read_header := (&raw cinfo, bool require_image) -> i32;
 
 ## Token macros
 
-Token macros follow a similar syntax to AST macros, but instead of working on AST items, they work on tokens. The syntax for token macros is `@macro_name <subject>` or `@[macro_name] <subject>`. The first form is a used as a shorthand for token macros that have no arguments. However, one significant difference between token macros and AST macros is that the token macro only accepts a token tree 
+Token macros follow a similar syntax to AST macros, but instead of working on AST items, they work on tokens. The syntax for token macros is `@macro_name <subject>` or `@[macro_name(macro_arg)] <subject>`. The first form is a used as a shorthand for token macros that have no arguments. However, one significant difference between token macros and AST macros is that the token macro only accepts a token tree 
 as the subject. A token tree is a sequence of tokens that are 
 enclosed in a pair of delimiters. Token trees are either `[...]`, `{...}` or `(...)`. It is then up to the macro to define various 
 rules for accepting the token tree:
@@ -113,12 +113,12 @@ bing := (#param x: i32) -> #ty i32 => {
 ```
 
 
-### Syntax
+### Grammar
 
 Formally, the macro syntax invocation can be written as follows:
 
 ```bnf
-token_macro_invocation ::= "@" { macro_name | macro_args } token_tree;
+token_macro_invocation ::= "@" ( macro_name | macro_args ) token_tree;
 
 token_tree ::= "{" any "}" 
              | "[" any "]" 
@@ -138,10 +138,10 @@ macro_subject ::= expr
                   | match_case 
                   | enum_variant;  
 
-macro_args ::= "[" { ∅ | macro_invocation ("," macro_invocation)* ","? } "]";
+macro_args ::= "[" ( ∅ | macro_invocation ("," macro_invocation)* ","? ) "]";
 
 macro_invocation ::= macro_name ( "("  ∅ | expr ("," expr )* ","?  ")" )?;
 
-macro_name ::= ident;
+macro_name ::= access_name;
 ```
 
