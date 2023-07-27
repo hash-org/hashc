@@ -15,7 +15,7 @@ use hash_source::{
 };
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    PartialCloneStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
@@ -26,8 +26,7 @@ use hash_tir::{
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    directives::DirectiveTarget,
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::env::AccessToEnv,
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -795,11 +794,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// This is only done if the expression has a `#run` annotation.
     pub fn potentially_run_expr(&self, expr: TermId, term_ty: TyId) -> TcResult<()> {
         if self.should_monomorphise() {
-            let has_run_directive = tir_stores()
-                .directives()
-                .get(expr.into())
-                .map(|directives| directives.contains(IDENTS.run))
-                == Some(true);
+            // @@ReAddDirectives: check if it has a `#run` on it...
+            // let has_run_directive = tir_stores()
+            //     .directives()
+            //     .get(expr.into())
+            //     .map(|directives| directives.contains(IDENTS.run))
+            //     == Some(true);
+            let has_run_directive = false;
+
             if has_run_directive {
                 let norm_ops = self.norm_ops();
                 norm_ops.with_mode(NormalisationMode::Full);
@@ -906,15 +908,18 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let fn_def_symbol = fn_def_id.borrow().name;
         let fn_def_name = fn_def_symbol.borrow().name.unwrap();
 
+        // @@ReAddDirectives: check if on item if it has `entry_point`
+        // if tir_stores()
+        //     .directives()
+        //     .get(fn_def_id.into())
+        //     .map(|x| x.contains(IDENTS.entry_point))
+        //     == Some(true)
+        // {
+        //     Some(EntryPointKind::Named(fn_def_name))
+        // } else
+
         // Find the entry point either by name "main" or by the #entry_point directive.
-        let entry_point = if tir_stores()
-            .directives()
-            .get(fn_def_id.into())
-            .map(|x| x.contains(IDENTS.entry_point))
-            == Some(true)
-        {
-            Some(EntryPointKind::Named(fn_def_name))
-        } else if fn_def_name == IDENTS.main
+        let entry_point = if fn_def_name == IDENTS.main
             && self.source_map().module_kind_by_id(self.current_source_info().source_id())
                 == Some(ModuleKind::EntryPoint)
         {
@@ -1888,11 +1893,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Dump the TIR for the given target if it has a `#dump_tir` directive
     /// applied on it.
-    pub fn potentially_dump_tir(&self, target: impl Into<DirectiveTarget>) {
-        let target = target.into();
-        let has_dump_dir =
-            tir_stores().directives().get(target).map(|d| d.contains(IDENTS.dump_tir))
-                == Some(true);
+    pub fn potentially_dump_tir(&self, target: impl ToString) {
+        // @@ReAddDirectives: check if the item has a `#dump_tir` directive.
+
+        // let target = target.into();
+        // let has_dump_dir =
+        //     tir_stores().directives().get(target).map(|d|
+        // d.contains(IDENTS.dump_tir))         == Some(true);
+        let has_dump_dir = false;
+
         if has_dump_dir {
             dump_tir(target);
         }

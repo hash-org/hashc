@@ -341,7 +341,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     Some(ModMemberData { name, value: ModMemberValue::Mod(imported_mod_def_id) })
                 }
                 // Directive, recurse
-                ast::Expr::Directive(inner) => {
+                ast::Expr::MacroInvocation(inner) => {
                     self.get_mod_member_data_from_def_node_id(name, inner.subject.id())
                 }
                 // Get the `ModMemberData` from the `def_node_id` of the declaration.

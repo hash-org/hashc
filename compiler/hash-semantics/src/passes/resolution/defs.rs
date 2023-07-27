@@ -7,10 +7,9 @@ use std::cell::Cell;
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_storage::store::{statics::StoreId, PartialStore, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors},
-    directives::AppliedDirectives,
     environment::{env::AccessToEnv, stores::tir_stores},
     mods::{ModDefId, ModMemberValue},
     tys::Ty,
@@ -178,19 +177,11 @@ impl<'tc> ResolutionPass<'tc> {
         // By this point, all members should be declarations (caught at pre-TC)
         match member_expr.body() {
             ast::Expr::Declaration(decl) => decl.value.as_ref().unwrap().ast_ref(),
-            ast::Expr::Directive(directive) => {
-                // Add all directives to the target
-                tir_stores().directives().insert(
-                    member.into(),
-                    AppliedDirectives {
-                        directives: directive.directives.iter().map(|d| d.ident).collect(),
-                    },
-                );
-
+            ast::Expr::MacroInvocation(invocation) => {
                 // Recurse to the inner declaration
                 Self::use_expr_as_mod_def_declaration_and_get_rhs(
                     member,
-                    directive.subject.ast_ref(),
+                    invocation.subject.ast_ref(),
                 )
             }
             _ => unreachable!("Found non-declaration in module definition"),

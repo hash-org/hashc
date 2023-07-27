@@ -394,7 +394,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             | ast::Expr::ModDef(_)
             | ast::Expr::FnDef(_)
             | ast::Expr::TraitImpl(_)
-            | ast::Expr::Directive(_) => {} // These accept a name hint
+            | ast::Expr::MacroInvocation(_) => {} // These accept a name hint
             _ => {
                 // Everything else should not have a name hint
                 self.name_hint.take();

@@ -16,10 +16,7 @@ use super::super::{
     terms::{TermListStore, TermStore},
     tys::TyStore,
 };
-use crate::{
-    ast_info::AstInfo, atom_info::AtomInfoStore, control::MatchCasesStore,
-    directives::AppliedDirectivesStore,
-};
+use crate::{ast_info::AstInfo, atom_info::AtomInfoStore, control::MatchCasesStore};
 
 // All the stores that contain definitions for the typechecker.
 stores! {
@@ -43,7 +40,6 @@ stores! {
     match_cases: MatchCasesStore,
     atom_info: AtomInfoStore,
     ast_info: AstInfo,
-    directives: AppliedDirectivesStore,
 }
 
 /// The global [`Stores`] instance.

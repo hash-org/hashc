@@ -4,7 +4,7 @@
 use std::{cell::Cell, collections::HashSet, mem};
 
 use hash_ast::{
-    ast::{AstNodeRef, Block, BlockExpr, BodyBlock, DirectiveExpr, Expr},
+    ast::{AstNodeRef, Block, BlockExpr, BodyBlock, Expr, ExprMacroInvocation},
     origin::BlockOrigin,
     visitor::AstVisitorMutSelf,
 };
@@ -50,7 +50,7 @@ impl SemanticAnalyser<'_> {
             loop {
                 let current_value = current.get();
                 match current_value.body {
-                    Expr::Directive(DirectiveExpr { subject, .. }) => {
+                    Expr::MacroInvocation(ExprMacroInvocation { subject, .. }) => {
                         current.set(subject.ast_ref());
                     }
                     Expr::Block(BlockExpr { data }) => {

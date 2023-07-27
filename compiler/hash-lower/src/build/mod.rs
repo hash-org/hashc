@@ -21,15 +21,11 @@ use hash_ir::{
     ty::{IrTy, Mutability},
 };
 use hash_pipeline::settings::CompilerSettings;
-use hash_source::identifier::{Identifier, IDENTS};
-use hash_storage::store::{statics::StoreId, FxHashMap, PartialStore, SequenceStoreKey};
+use hash_source::identifier::Identifier;
+use hash_storage::store::{statics::StoreId, FxHashMap, SequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
-    directives::DirectiveTarget,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     symbols::Symbol,
     terms::TermId,
@@ -244,19 +240,25 @@ impl<'ctx> BodyBuilder<'ctx> {
             }
         }
 
+        // @@ReAddDirectives: check if this item has a `#dump_ir` directive on it.
+        //
         // check if this fn_def has the `#dump_ir` directive applied onto it...
-        let needs_dumping = |item: DirectiveTarget| {
-            if let Some(applied_directives) = tir_stores().directives().borrow(item) {
-                applied_directives.directives.contains(&IDENTS.dump_ir)
-            } else {
-                false
-            }
-        };
+        // let needs_dumping = <T>|item: | {
+        // if let Some(applied_directives) = tir_stores().directives().borrow(item) {
+        //     applied_directives.directives.contains(&IDENTS.dump_ir)
+        // } else {
+        //     false
+        // }
+        // };
 
         // Compute the span of the item that was just lowered.
         let (span, needs_dumping) = match self.item {
-            BuildItem::FnDef(def) => (self.span_of_def(def), needs_dumping(def.into())),
-            BuildItem::Const(term) => (self.span_of_term(term), needs_dumping(term.into())),
+            BuildItem::FnDef(def) => {
+                (self.span_of_def(def), false /* needs_dumping(def.into()) */)
+            }
+            BuildItem::Const(term) => {
+                (self.span_of_term(term), false /* needs_dumping(term.into()) */)
+            }
         };
 
         let mut body = Body::new(

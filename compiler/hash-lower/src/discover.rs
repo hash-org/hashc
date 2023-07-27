@@ -6,14 +6,10 @@ use std::ops::ControlFlow;
 
 use derive_more::Constructor;
 use hash_pipeline::workspace::StageInfo;
-use hash_source::identifier::IDENTS;
-use hash_storage::store::{statics::StoreId, PartialStore, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDefId},
     mods::{ModDef, ModKind, ModMemberValue},
     terms::TermId,
@@ -95,15 +91,20 @@ impl FnDiscoverer<'_> {
 
         match def_body {
             FnBody::Defined(body) => {
+                Some(body)
+
+                // @@ReAddDirectives: check for `foreign` directive on item.
+                //
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.
-                tir_stores().directives().map_fast(def.into(), |maybe_directives| {
-                    if let Some(directives) = maybe_directives && directives.contains(IDENTS.foreign) {
-                        None
-                    } else {
-                        Some(body)
-                    }
-                })
+                // tir_stores().directives().map_fast(def.into(),
+                // |maybe_directives| {     if let
+                // Some(directives) = maybe_directives &&
+                // directives.contains(IDENTS.foreign) {
+                //         None
+                //     } else {
+                //     }
+                // })
             }
 
             // Intrinsics and axioms have no effect on the IR lowering
