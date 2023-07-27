@@ -2,7 +2,7 @@
 
 use std::{convert::Infallible, iter};
 
-use hash_utils::tree_writing::TreeNode;
+use hash_utils::{itertools::Itertools, tree_writing::TreeNode};
 
 use crate::{
     ast::{self, FloatLit, IntLit},
@@ -137,26 +137,6 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let walk::VariableExpr { name } = walk::walk_variable_expr(self, node)?;
         Ok(TreeNode::branch("variable", vec![TreeNode::leaf(labelled("named", name.label, "\""))]))
-    }
-
-    type DirectiveExprRet = TreeNode;
-    fn visit_directive_expr(
-        &self,
-        node: ast::AstNodeRef<ast::DirectiveExpr>,
-    ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, node)?;
-
-        let mut directives_iter = node.directives.iter().rev();
-        let mut node = TreeNode::branch(
-            labelled("directive", directives_iter.next().unwrap().ident, "\""),
-            vec![subject],
-        );
-
-        for directive in directives_iter {
-            node = TreeNode::branch(labelled("directive", directive.ident, "\""), vec![node])
-        }
-
-        Ok(node)
     }
 
     type ConstructorCallArgRet = TreeNode;
@@ -532,15 +512,16 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
-        let walk::Param { name, ty, default } = walk::walk_param(self, node)?;
-        Ok(TreeNode::branch(
-            "param",
-            iter::empty()
-                .chain(name.map(|t| TreeNode::branch("name", vec![t])))
-                .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
-                .chain(default.map(|d| TreeNode::branch("default", vec![d])))
-                .collect(),
-        ))
+        let walk::Param { name, ty, default, macro_args } = walk::walk_param(self, node)?;
+
+        let children = iter::empty()
+            .chain(name.map(|t| TreeNode::branch("name", vec![t])))
+            .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
+            .chain(default.map(|d| TreeNode::branch("default", vec![d])))
+            .chain(macro_args)
+            .collect_vec();
+
+        Ok(TreeNode::branch("param", children))
     }
 
     type BlockRet = TreeNode;
@@ -557,8 +538,15 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        let walk::MatchCase { expr, pat: pattern } = walk::walk_match_case(self, node)?;
-        Ok(TreeNode::branch("case", vec![pattern, TreeNode::branch("branch", vec![expr])]))
+        let walk::MatchCase { expr, pat, macro_args } = walk::walk_match_case(self, node)?;
+
+        let mut children = vec![pat, TreeNode::branch("branch", vec![expr])];
+
+        if let Some(macro_args) = macro_args {
+            children.push(macro_args)
+        }
+
+        Ok(TreeNode::branch("case", children))
     }
 
     type MatchBlockRet = TreeNode;
@@ -861,14 +849,22 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, fields, ty } = walk::walk_enum_def_entry(self, node)?;
+        let walk::EnumDefEntry { name, fields, ty, macro_args } =
+            walk::walk_enum_def_entry(self, node)?;
         let mut children = Vec::new();
+
         if !fields.is_empty() {
             children.push(TreeNode::branch("fields", fields))
         }
+
         if let Some(ty) = ty {
             children.push(TreeNode::branch("type", vec![ty]))
         }
+
+        if let Some(macro_args) = macro_args {
+            children.push(macro_args)
+        }
+
         Ok(TreeNode::branch(labelled("variant", name.label, "\""), children))
     }
 
@@ -963,15 +959,19 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::TuplePatEntry>,
     ) -> Result<Self::TuplePatEntryRet, Self::Error> {
-        let walk::TuplePatEntry { name, pat: pattern } = walk::walk_tuple_pat_entry(self, node)?;
+        let walk::TuplePatEntry { name, pat, macro_args } = walk::walk_tuple_pat_entry(self, node)?;
 
-        Ok(TreeNode::branch(
-            "entry",
-            name.map(|t| TreeNode::branch("name", vec![t]))
-                .into_iter()
-                .chain(iter::once(TreeNode::branch("pattern", vec![pattern])))
-                .collect(),
-        ))
+        let mut children = name
+            .map(|t| TreeNode::branch("name", vec![t]))
+            .into_iter()
+            .chain(iter::once(TreeNode::branch("pattern", vec![pat])))
+            .collect_vec();
+
+        if let Some(macro_args) = macro_args {
+            children.push(macro_args);
+        }
+
+        Ok(TreeNode::branch("entry", children))
     }
 
     type TuplePatRet = TreeNode;
@@ -1134,5 +1134,99 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::ModuleRet, Self::Error> {
         let walk::Module { contents } = walk::walk_module(self, node)?;
         Ok(TreeNode::branch("module", contents))
+    }
+
+    type MacroInvocationRet = TreeNode;
+
+    type MacroInvocationArgRet = TreeNode;
+
+    fn visit_macro_invocation_arg(
+        &self,
+        node: ast::AstNodeRef<ast::MacroInvocationArg>,
+    ) -> Result<Self::MacroInvocationArgRet, Self::Error> {
+        let walk::MacroInvocationArg { value, .. } = walk::walk_macro_invocation_arg(self, node)?;
+
+        if let Some(name) = &node.name {
+            Ok(TreeNode::branch(
+                "arg",
+                vec![
+                    TreeNode::leaf(labelled("named", name.ident, "\"")),
+                    TreeNode::branch("value", vec![value]),
+                ],
+            ))
+        } else {
+            Ok(value)
+        }
+    }
+
+    fn visit_macro_invocation(
+        &self,
+        node: ast::AstNodeRef<ast::MacroInvocation>,
+    ) -> Result<Self::MacroInvocationRet, Self::Error> {
+        let walk::MacroInvocation { args, .. } = walk::walk_macro_invocation(self, node)?;
+
+        let mut children = vec![TreeNode::leaf(labelled("name", node.name.ident, "\""))];
+
+        if !node.args.is_empty() {
+            children.push(TreeNode::branch("args", args))
+        }
+
+        Ok(TreeNode::branch("macro", children))
+    }
+
+    type MacroInvocationsRet = TreeNode;
+
+    fn visit_macro_invocations(
+        &self,
+        node: ast::AstNodeRef<ast::MacroInvocations>,
+    ) -> Result<Self::MacroInvocationsRet, Self::Error> {
+        let walk::MacroInvocations { invocations } = walk::walk_macro_invocations(self, node)?;
+
+        Ok(TreeNode::branch("macro_invocations", invocations))
+    }
+
+    type PatMacroInvocationRet = TreeNode;
+
+    fn visit_pat_macro_invocation(
+        &self,
+        node: ast::AstNodeRef<ast::PatMacroInvocation>,
+    ) -> Result<Self::PatMacroInvocationRet, Self::Error> {
+        let walk::PatMacroInvocation { macro_args, subject } =
+            walk::walk_pat_macro_invocation(self, node)?;
+
+        Ok(TreeNode::branch(
+            "pattern_macro",
+            vec![macro_args, TreeNode::branch("pattern", vec![subject])],
+        ))
+    }
+
+    type ExprMacroInvocationRet = TreeNode;
+
+    fn visit_expr_macro_invocation(
+        &self,
+        node: ast::AstNodeRef<ast::ExprMacroInvocation>,
+    ) -> Result<Self::ExprMacroInvocationRet, Self::Error> {
+        let walk::ExprMacroInvocation { macro_args, subject } =
+            walk::walk_expr_macro_invocation(self, node)?;
+
+        Ok(TreeNode::branch(
+            "expr_macro",
+            vec![macro_args, TreeNode::branch("expr", vec![subject])],
+        ))
+    }
+
+    type TyMacroInvocationRet = TreeNode;
+
+    fn visit_ty_macro_invocation(
+        &self,
+        node: ast::AstNodeRef<ast::TyMacroInvocation>,
+    ) -> Result<Self::TyMacroInvocationRet, Self::Error> {
+        let walk::TyMacroInvocation { macro_args, subject } =
+            walk::walk_ty_macro_invocation(self, node)?;
+
+        Ok(TreeNode::branch(
+            "type_macro",
+            vec![macro_args, TreeNode::branch("type", vec![subject])],
+        ))
     }
 }

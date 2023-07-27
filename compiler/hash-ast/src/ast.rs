@@ -17,7 +17,7 @@ use hash_tree_def::define_tree;
 use hash_utils::{
     index_vec::{define_index_type, IndexVec},
     parking_lot::RwLock,
-    smallvec::SmallVec,
+    thin_vec::{thin_vec, ThinVec},
 };
 use once_cell::sync::Lazy;
 use replace_with::replace_with_or_abort;
@@ -100,6 +100,11 @@ impl<T> AstNode<T> {
     /// Create a new node with a given body and location.
     pub fn new(body: T, span: Span) -> Self {
         let id = SpanMap::add_span(span);
+        Self { body: Box::new(body), id }
+    }
+
+    /// Create an [AstNode] with an existing [AstNodeId].
+    fn with_id(body: T, id: AstNodeId) -> Self {
         Self { body: Box::new(body), id }
     }
 
@@ -296,29 +301,19 @@ pub trait OwnsAstNode<T> {
 #[derive(Debug, PartialEq, Clone)]
 pub struct AstNodes<T> {
     /// The nodes that the [AstNodes] holds.
-    pub nodes: Vec<AstNode<T>>,
+    pub nodes: ThinVec<AstNode<T>>,
 
     /// The id that is used to refer to the span of the [AstNodes].
     id: AstNodeId,
 }
 
-#[macro_export]
-macro_rules! ast_nodes {
-    ($($item:expr),*; $span:expr) => {
-        $crate::ast::AstNodes::new(vec![$($item,)*], $span)
-    };
-    ($($item:expr,)*; $span:expr) => {
-        $crate::ast::AstNodes::new(vec![$($item,)*], $span)
-    };
-}
-
 impl<T> AstNodes<T> {
     /// Create a new [AstNodes].
     pub fn empty(span: Span) -> Self {
-        Self::new(vec![], span)
+        Self::new(thin_vec![], span)
     }
 
-    pub fn new(nodes: Vec<AstNode<T>>, span: Span) -> Self {
+    pub fn new(nodes: ThinVec<AstNode<T>>, span: Span) -> Self {
         let id = SpanMap::add_span(span);
         Self { nodes, id }
     }
@@ -399,6 +394,94 @@ define_tree! {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "{}", self.ident)
         }
+    }
+
+    /// Function call argument.
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct MacroInvocationArg {
+        /// Optional name for the function argument, e.g `f(x = 3);`.
+        pub name: OptionalChild!(Name),
+
+        /// Each argument of the function call, as an expression.
+        pub value: Child!(Expr),
+    }
+
+
+
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct MacroInvocation {
+        /// The name of the macro. @@Todo: make this into an access-name.
+        pub name: Child!(Name),
+
+        /// Any arguments to the macro itself.
+        pub args: Children!(MacroInvocationArg),
+    }
+
+    /// This is a collection of macro invocations that can occur on a single
+    /// item which are collected into a single node.
+    ///
+    /// @@Note: the `AstNodeId` of the `MacroInvocations` will be the same as
+    /// the id of the children `invocations` node. The [`MacroInvocations`]
+    /// struct is only to effectively collect logic for handling clumps of such
+    /// invocations under one node.
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct MacroInvocations {
+        pub invocations: Children!(MacroInvocation),
+    }
+
+    impl MacroInvocations {
+        /// Create a new empty [MacroInvocations].
+        pub fn empty(span: Span) -> AstNode<Self> {
+            let contents = Self { invocations: AstNodes::empty(span) };
+            let id = contents.invocations.id;
+            AstNode::with_id(contents, id)
+        }
+
+        /// Get the number of invocations that are contained within this node.
+        pub fn len(&self) -> usize {
+            self.invocations.len()
+        }
+
+        /// Check whether this node contains any invocations.
+        pub fn is_empty(&self) -> bool {
+            self.invocations.is_empty()
+        }
+    }
+
+    /// A macro invocation on an expression.
+    #[derive(PartialEq, Debug, Clone)]
+    #[node]
+    pub struct ExprMacroInvocation {
+        /// The directives that apply on the subject expression.
+        pub macro_args: Child!(MacroInvocations),
+
+        /// The subjection expression of the invocation.
+        pub subject: Child!(Expr),
+    }
+
+    /// A macro invocation on a type.
+    #[derive(PartialEq, Debug, Clone)]
+    #[node]
+    pub struct TyMacroInvocation {
+        /// The directives that apply on the subject type.
+        pub macro_args: Child!(MacroInvocations),
+
+        /// The subject type of the invocation.
+        pub subject: Child!(Ty),
+    }
+
+    /// A macro invocation on an expression.
+    #[derive(PartialEq, Debug, Clone)]
+    #[node]
+    pub struct PatMacroInvocation {
+        /// The directives that apply on the subject pattern.
+        pub macro_args: Child!(MacroInvocations),
+
+        /// The subject pattern of the invocation.
+        pub subject: Child!(Pat),
     }
 
     /// A concrete/"named" type.
@@ -565,6 +648,9 @@ define_tree! {
 
         /// Array type
         Array(ArrayTy),
+
+        /// Macro invocation on a type.
+        MacroInvocation(TyMacroInvocation),
 
         /// Function type
         Fn(FnTy),
@@ -829,8 +915,12 @@ define_tree! {
     pub struct TuplePatEntry {
         /// If the tuple pattern entry binds a name to the pattern
         pub name: OptionalChild!(Name),
+
         /// The pattern that is being applied on the tuple entry
         pub pat: Child!(Pat),
+
+        /// Any applied macro invocations on this argument.
+        pub macro_args: OptionalChild!(MacroInvocations),
     }
 
     /// A tuple pattern, e.g. `(1, 2, x)`
@@ -1291,6 +1381,7 @@ define_tree! {
     pub struct StructDef {
         /// Type parameters that are attached to the definition.
         pub ty_params: Children!(Param),
+
         /// The fields of the struct, in the form of [Param].
         pub fields: Children!(Param),
     }
@@ -1301,10 +1392,15 @@ define_tree! {
     pub struct EnumDefEntry {
         /// The name of the enum variant.
         pub name: Child!(Name),
+
         /// The parameters of the enum variant, if any.
         pub fields: Children!(Param),
+
         /// The type of the enum variant, if any.
         pub ty: OptionalChild!(Ty),
+
+        /// Any macro invocations that occur on the enum variant.
+        pub macro_args: OptionalChild!(MacroInvocations),
     }
 
     /// An enum definition, e.g.
@@ -1319,6 +1415,7 @@ define_tree! {
     pub struct EnumDef {
         /// Type parameters that are attached to the definition.
         pub ty_params: Children!(Param),
+
         /// The variants of the enum, in the form of [EnumDefEntry].
         pub entries: Children!(EnumDefEntry),
     }
@@ -1368,6 +1465,9 @@ define_tree! {
         ///
         /// Will be executed if the pattern succeeds.
         pub expr: Child!(Expr),
+
+        /// Any macro invocations that occur on this match case.
+        pub macro_args: OptionalChild!(MacroInvocations),
     }
 
     impl MatchCase {
@@ -1713,6 +1813,9 @@ define_tree! {
         /// The origin of the parameter, whether it is from a struct field, function
         /// def, type function def, etc.
         pub origin: ParamOrigin,
+
+        /// Any macros are invoked on the parameter.
+        pub macro_args: OptionalChild!(MacroInvocations),
     }
 
     /// A function definition.
@@ -1735,8 +1838,12 @@ define_tree! {
     pub struct ConstructorCallArg {
         /// Optional name for the function argument, e.g `f(x = 3);`.
         pub name: OptionalChild!(Name),
+
         /// Each argument of the function call, as an expression.
         pub value: Child!(Expr),
+
+        /// Any macros are invoked on the parameter.
+        pub macro_args: OptionalChild!(MacroInvocations),
     }
 
     /// A constructor call expression. This can either be a function
@@ -1746,18 +1853,9 @@ define_tree! {
     pub struct ConstructorCallExpr {
         /// An expression which evaluates to a function value.
         pub subject: Child!(Expr),
+
         /// Arguments to the function, a list of [ConstructorCallArg]s.
         pub args: Children!(ConstructorCallArg),
-    }
-
-    /// An directive expression.
-    #[derive(PartialEq, Debug, Clone)]
-    #[node]
-    pub struct DirectiveExpr {
-        /// The directives that apply on the subject expression.
-        pub directives: SmallVec<[AstNode<Name>; 2]>,
-        /// An expression which is referenced in the directive
-        pub subject: Child!(Expr),
     }
 
     /// A the kind of access an [AccessExpr] has
@@ -1934,8 +2032,8 @@ define_tree! {
         /// function call e.g. `foo(5)`.
         ConstructorCall(ConstructorCallExpr),
 
-        /// A directive expression
-        Directive(DirectiveExpr),
+        /// A directive expression.
+        MacroInvocation(ExprMacroInvocation),
 
         /// Declaration e.g. `x := 5;`
         Declaration(Declaration),
@@ -2061,7 +2159,7 @@ mod size_asserts {
 
     use super::*;
 
-    static_assert_size!(Expr, 72);
-    static_assert_size!(Pat, 72);
+    static_assert_size!(Expr, 56);
+    static_assert_size!(Pat, 56);
     static_assert_size!(Ty, 56);
 }
