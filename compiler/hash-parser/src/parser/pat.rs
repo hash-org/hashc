@@ -4,6 +4,7 @@ use hash_ast::{ast::*, origin::PatOrigin};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{identifier::IDENTS, location::ByteRange};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
 use crate::diagnostics::error::{ParseErrorKind, ParseResult};
@@ -22,7 +23,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Parse the first pattern, but throw away the location information since that
         // will be computed at the end anyway...
-        let mut variants = self.nodes_with_span(vec![], start);
+        let mut variants = self.nodes_with_span(thin_vec![], start);
 
         while self.has_token() {
             let pat = self.parse_pat_with_if()?;
@@ -309,7 +310,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         span: ByteRange,
     ) -> ParseResult<ModulePat> {
         let mut gen = self.from_stream(tree, span);
-        let mut fields = vec![];
+        let mut fields = thin_vec![];
 
         while gen.has_token() {
             let start = gen.offset();
@@ -381,7 +382,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             if token.has_kind(TokenKind::Comma) {
                 return Ok(self.node_with_span(
                     Pat::Tuple(TuplePat {
-                        fields: self.nodes_with_span(vec![], parent_span),
+                        fields: self.nodes_with_span(thin_vec![], parent_span),
                         spread: None,
                     }),
                     parent_span,
@@ -455,7 +456,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => (None, self.parse_pat()?),
         };
 
-        Ok(self.node_with_joined_span(TuplePatEntry { name, pat }, start))
+        // @@ParseMacroArgs
+        Ok(self.node_with_joined_span(TuplePatEntry { name, pat, macro_args: None }, start))
     }
 
     /// Parse a spread operator from the current token tree. A spread operator

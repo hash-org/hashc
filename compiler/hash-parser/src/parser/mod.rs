@@ -20,6 +20,7 @@ use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
     Token, TokenKind, TokenKindVector,
 };
+use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use crate::{
     diagnostics::{
@@ -308,7 +309,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create [AstNodes] with a span.
     pub(crate) fn nodes_with_span<T>(
         &self,
-        nodes: Vec<AstNode<T>>,
+        nodes: ThinVec<AstNode<T>>,
         location: ByteRange,
     ) -> AstNodes<T> {
         AstNodes::new(nodes, self.make_span(location))
@@ -318,7 +319,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// the current [ByteRange].
     pub(crate) fn nodes_with_joined_span<T>(
         &self,
-        nodes: Vec<AstNode<T>>,
+        nodes: ThinVec<AstNode<T>>,
         start: ByteRange,
     ) -> AstNodes<T> {
         AstNodes::new(nodes, self.make_span(start.join(self.current_pos())))
@@ -451,7 +452,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> AstNodes<T> {
         let start = self.current_pos();
-        let mut args = vec![];
+        let mut args = thin_vec![];
 
         // flag specifying if the parser has errored but is trying to recover
         // by parsing the next item
@@ -509,7 +510,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> AstNodes<T> {
         let start = self.current_pos();
-        let mut args = vec![];
+        let mut args = thin_vec![];
 
         // flag specifying if the parser has errored but is trying to recover
         // by parsing the next item
@@ -626,7 +627,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// should get all the diagnostics for the current session.
     pub(crate) fn parse_module(&mut self) -> AstNode<Module> {
         let start = self.current_pos();
-        let mut contents = vec![];
+        let mut contents = thin_vec![];
 
         while self.has_token() {
             match self.parse_top_level_expr() {

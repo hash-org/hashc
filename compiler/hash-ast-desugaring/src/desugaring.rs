@@ -1,26 +1,19 @@
 //! AST De-sugaring standalone function that are called from the visitor
 //! implementation.
-use hash_ast::{
-    ast::{
-        AstNode, AstNodes, BindingPat, Block, BlockExpr, BodyBlock, BoolLit, BreakStatement,
-        ConstructorCallArg, ConstructorCallExpr, ConstructorPat, Expr, ForLoopBlock, IfBlock,
-        IfClause, IfPat, Lit, LitExpr, LitPat, LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name,
-        Pat, TuplePatEntry, VariableExpr, WhileLoopBlock, WildPat,
-    },
-    ast_nodes,
-};
+use hash_ast::ast;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
+use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use crate::visitor::AstDesugaring;
 
 impl<'s> AstDesugaring<'s> {
     /// This function is responsible for converting a [ForLoopBlock] into a
-    /// simpler [LoopBlock]. This is not obvious from the function definition
-    /// because it accepts a [AstNode<Block>], not specifically a
-    /// [ForLoopBlock]. This is because it operates by using
-    /// [hash_ast::ast::AstNodeRefMut::replace] in order to convert the for-loop
-    /// into a de-sugared loop.
+    /// simpler [ast::LoopBlock]. This is not obvious from the function
+    /// definition because it accepts a [ast::AstNode<ast::Block>], not
+    /// specifically a [ast::ForLoopBlock]. This is because it operates by
+    /// using [`ast::AstNodeRefMut::replace`] in order to convert the
+    /// for-loop into a de-sugared loop.
     ///
     /// The process is as follows: de-sugaring a for-loop from:
     /// ```text
@@ -42,10 +35,10 @@ impl<'s> AstDesugaring<'s> {
     ///
     /// So essentially the for-loop becomes a simple loop with a match block on
     /// the given iterator since for-loops only support iterators.
-    pub(crate) fn desugar_for_loop_block(&self, node: Block, parent_span: Span) -> Block {
+    pub(crate) fn desugar_for_loop_block(&self, node: ast::Block, parent_span: Span) -> ast::Block {
         // Since this function expects it to be a for-loop block, we match it and unwrap
         let block = match node {
-            Block::For(body) => body,
+            ast::Block::For(body) => body,
             block => panic_on_span!(
                 parent_span,
                 self.source_map,
@@ -54,15 +47,15 @@ impl<'s> AstDesugaring<'s> {
             ),
         };
 
-        let ForLoopBlock { pat, iterator, for_body } = block;
+        let ast::ForLoopBlock { pat, iterator, for_body } = block;
         let (iter_span, pat_span, body_span) = (iterator.span(), pat.span(), for_body.span());
 
         // Utility to create binding patterns for when de-sugaring the result of the
         // iterator.
-        let make_binding_pat = |label: &str| -> AstNode<Pat> {
-            AstNode::new(
-                Pat::Binding(BindingPat {
-                    name: AstNode::new(Name { ident: label.into() }, iter_span),
+        let make_binding_pat = |label: &str| -> ast::AstNode<ast::Pat> {
+            ast::AstNode::new(
+                ast::Pat::Binding(ast::BindingPat {
+                    name: ast::AstNode::new(ast::Name { ident: label.into() }, iter_span),
                     visibility: None,
                     mutability: None,
                 }),
@@ -71,62 +64,89 @@ impl<'s> AstDesugaring<'s> {
         };
 
         // Convert the pattern into a constructor pattern like `Some(<pat>)`
-        let pat = AstNode::new(
-            Pat::Constructor(ConstructorPat {
+        let pat = ast::AstNode::new(
+            ast::Pat::Constructor(ast::ConstructorPat {
                 subject: make_binding_pat("Some"),
                 spread: None,
-                fields: ast_nodes![AstNode::new(TuplePatEntry { name: None, pat }, pat_span); pat_span],
+                fields: ast::AstNodes::new(
+                    thin_vec![ast::AstNode::new(
+                        ast::TuplePatEntry { name: None, pat, macro_args: None },
+                        pat_span
+                    )],
+                    pat_span,
+                ),
             }),
             pat_span,
         );
 
         // Create the match cases, one for when the iterator is `Some(_)` and the
         // other is `None` so that it should break.
-        let match_cases = ast_nodes![
-            AstNode::new(
-                MatchCase {
-                    pat,
-                    expr: AstNode::new(Expr::Block(BlockExpr { data: for_body }), body_span)
-                },
-                pat_span
-            ),
-            AstNode::new(
-                MatchCase {
-                    pat: AstNode::new(
-                        Pat::Constructor(ConstructorPat {
-                            subject: make_binding_pat("None"),
-                            spread: None,
-                            fields: ast_nodes![; pat_span],
-                        },),
-                        pat_span
-                    ),
-                    expr: AstNode::new(Expr::Break(BreakStatement {}), body_span),
-                },
-                pat_span
-            ); parent_span
-        ];
+        let match_cases = ast::AstNodes::new(
+            thin_vec![
+                ast::AstNode::new(
+                    ast::MatchCase {
+                        pat,
+                        expr: ast::AstNode::new(
+                            ast::Expr::Block(ast::BlockExpr { data: for_body }),
+                            body_span
+                        ),
+                        macro_args: None
+                    },
+                    pat_span
+                ),
+                ast::AstNode::new(
+                    ast::MatchCase {
+                        pat: ast::AstNode::new(
+                            ast::Pat::Constructor(ast::ConstructorPat {
+                                subject: make_binding_pat("None"),
+                                spread: None,
+                                fields: ast::AstNodes::empty(pat_span),
+                            },),
+                            pat_span,
+                        ),
+                        macro_args: None,
+                        expr: ast::AstNode::new(
+                            ast::Expr::Break(ast::BreakStatement {}),
+                            body_span
+                        ),
+                    },
+                    pat_span
+                )
+            ],
+            parent_span,
+        );
 
         // Here want to transform the for-loop into just a loop block
-        Block::Loop(LoopBlock {
-            contents: AstNode::new(
-                Block::Match(MatchBlock {
-                    subject: AstNode::new(
-                        Expr::ConstructorCall(ConstructorCallExpr {
-                            subject: AstNode::new(
-                                Expr::Variable(VariableExpr {
-                                    name: AstNode::new(Name { ident: "next".into() }, iter_span),
+        ast::Block::Loop(ast::LoopBlock {
+            contents: ast::AstNode::new(
+                ast::Block::Match(ast::MatchBlock {
+                    subject: ast::AstNode::new(
+                        ast::Expr::ConstructorCall(ast::ConstructorCallExpr {
+                            subject: ast::AstNode::new(
+                                ast::Expr::Variable(ast::VariableExpr {
+                                    name: ast::AstNode::new(
+                                        ast::Name { ident: "next".into() },
+                                        iter_span,
+                                    ),
                                 }),
                                 iter_span,
                             ),
-                            args: ast_nodes![AstNode::new(
-                                ConstructorCallArg { name: None, value: iterator },
-                                iter_span
-                            ); iter_span],
+                            args: ast::AstNodes::new(
+                                thin_vec![ast::AstNode::new(
+                                    ast::ConstructorCallArg {
+                                        name: None,
+                                        value: iterator,
+                                        macro_args: None
+                                    },
+                                    iter_span
+                                )],
+                                iter_span,
+                            ),
                         }),
                         body_span,
                     ),
                     cases: match_cases,
-                    origin: MatchOrigin::For,
+                    origin: ast::MatchOrigin::For,
                 }),
                 parent_span,
             ),
@@ -134,10 +154,10 @@ impl<'s> AstDesugaring<'s> {
     }
 
     /// This function is responsible for converting a [WhileLoopBlock] into a
-    /// [LoopBlock]. This is not obvious from the function definition
-    /// because it accepts a [AstNode<Block>], not specifically a
-    /// [WhileLoopBlock]. This is because it operates by using
-    /// [hash_ast::ast::AstNodeRefMut::replace()] in order to convert the
+    /// [ast::LoopBlock]. This is not obvious from the function definition
+    /// because it accepts a [ast::AstNode<ast::Block>], not specifically a
+    /// [ast::WhileLoopBlock]. This is because it operates by using
+    /// [`ast::AstNodeRefMut::replace`] in order to convert the
     /// while-loop into a de-sugared loop.
     ///
     /// The process is as follows: de-sugaring a for-loop from:
@@ -163,10 +183,14 @@ impl<'s> AstDesugaring<'s> {
     /// executing is treated like a matchable pattern, and then matched on
     /// whether if it is true or not. If it is true, the body block is
     /// executed, otherwise the loop breaks.
-    pub(crate) fn desugar_while_loop_block(&self, node: Block, parent_span: Span) -> Block {
+    pub(crate) fn desugar_while_loop_block(
+        &self,
+        node: ast::Block,
+        parent_span: Span,
+    ) -> ast::Block {
         // Since this function expects it to be a for-loop block, we match it and unwrap
         let block = match node {
-            Block::While(body) => body,
+            ast::Block::While(body) => body,
             block => panic_on_span!(
                 parent_span,
                 self.source_map,
@@ -175,59 +199,66 @@ impl<'s> AstDesugaring<'s> {
             ),
         };
 
-        let WhileLoopBlock { condition, while_body } = block;
+        let ast::WhileLoopBlock { condition, while_body } = block;
         let (body_span, condition_span) = (while_body.span(), condition.span());
 
-        Block::Loop(LoopBlock {
-            contents: AstNode::new(
-                Block::Match(MatchBlock {
+        ast::Block::Loop(ast::LoopBlock {
+            contents: ast::AstNode::new(
+                ast::Block::Match(ast::MatchBlock {
                     subject: condition,
-                    cases: ast_nodes![
-                        AstNode::new(
-                            MatchCase {
-                                pat: AstNode::new(
-                                    Pat::Lit(LitPat {
-                                        data: AstNode::new(
-                                            Lit::Bool(BoolLit { data: true }),
-                                            condition_span
-                                        )
-                                    }),
-                                    condition_span
-                                ),
-                                expr: AstNode::new(
-                                    Expr::Block(BlockExpr { data: while_body }),
-                                    body_span
-                                ),
-                            },
-                            condition_span
-                        ),
-                        AstNode::new(
-                            MatchCase {
-                                pat: AstNode::new(
-                                    Pat::Lit(LitPat {
-                                        data: AstNode::new(
-                                            Lit::Bool(BoolLit { data: false }),
-                                            condition_span
-                                        )
-                                    }),
-                                    condition_span
-                                ),
-                                expr: AstNode::new(Expr::Break(BreakStatement {}), condition_span)
-                            },
-                            condition_span
-                        );
-                        parent_span
-                    ],
-                    origin: MatchOrigin::While,
+                    cases: ast::AstNodes::new(
+                        thin_vec![
+                            ast::AstNode::new(
+                                ast::MatchCase {
+                                    pat: ast::AstNode::new(
+                                        ast::Pat::Lit(ast::LitPat {
+                                            data: ast::AstNode::new(
+                                                ast::Lit::Bool(ast::BoolLit { data: true }),
+                                                condition_span
+                                            )
+                                        }),
+                                        condition_span
+                                    ),
+                                    expr: ast::AstNode::new(
+                                        ast::Expr::Block(ast::BlockExpr { data: while_body }),
+                                        body_span
+                                    ),
+                                    macro_args: None
+                                },
+                                condition_span
+                            ),
+                            ast::AstNode::new(
+                                ast::MatchCase {
+                                    pat: ast::AstNode::new(
+                                        ast::Pat::Lit(ast::LitPat {
+                                            data: ast::AstNode::new(
+                                                ast::Lit::Bool(ast::BoolLit { data: false }),
+                                                condition_span
+                                            )
+                                        }),
+                                        condition_span
+                                    ),
+                                    expr: ast::AstNode::new(
+                                        ast::Expr::Break(ast::BreakStatement {}),
+                                        condition_span
+                                    ),
+                                    macro_args: None
+                                },
+                                condition_span
+                            )
+                        ],
+                        parent_span,
+                    ),
+                    origin: ast::MatchOrigin::While,
                 }),
                 parent_span,
             ),
         })
     }
 
-    /// This function converts a [AstNode<IfClause>] into a
-    /// [AstNode<MatchCase>]. This is part of the de-sugaring process for
-    /// if-statements. Each branch in the if-block is converted into a
+    /// This function converts a [ast::AstNode<ast::IfClause>] into a
+    /// [ast::AstNode<ast::MatchCase>]. This is part of the de-sugaring process
+    /// for if-statements. Each branch in the if-block is converted into a
     /// branch within a match block using the `if-guard` pattern.
     ///
     /// For example, take the branch:
@@ -246,34 +277,38 @@ impl<'s> AstDesugaring<'s> {
     /// ```
     ///
     /// This function is not responsible for generating the match block, but
-    /// only de-sugaring the specific [IfClause] into a [MatchCase].
-    fn desugar_if_clause(&self, node: AstNode<IfClause>) -> AstNode<MatchCase> {
+    /// only de-sugaring the specific [ast::IfClause] into a [ast::MatchCase].
+    fn desugar_if_clause(&self, node: ast::AstNode<ast::IfClause>) -> ast::AstNode<ast::MatchCase> {
         let branch_span = node.span();
 
-        let IfClause { condition, if_body } = node.into_body();
+        let ast::IfClause { condition, if_body } = node.into_body();
         let (body_span, condition_span) = (if_body.span(), condition.span());
 
-        AstNode::new(
-            MatchCase {
-                pat: AstNode::new(
-                    Pat::If(IfPat {
-                        pat: AstNode::new(Pat::Wild(WildPat {}), condition_span),
+        ast::AstNode::new(
+            ast::MatchCase {
+                pat: ast::AstNode::new(
+                    ast::Pat::If(ast::IfPat {
+                        pat: ast::AstNode::new(ast::Pat::Wild(ast::WildPat {}), condition_span),
                         condition,
                     }),
                     branch_span,
                 ),
-                expr: AstNode::new(Expr::Block(BlockExpr { data: if_body }), body_span),
+                expr: ast::AstNode::new(
+                    ast::Expr::Block(ast::BlockExpr { data: if_body }),
+                    body_span,
+                ),
+                macro_args: None,
             },
             branch_span,
         )
     }
 
     /// This function is responsible for de-sugaring an if-block into a match
-    /// case. This function converts a [IfBlock] into a [MatchBlock]. This
+    /// case. This function converts a [ast::IfBlock] into a [MatchBlock]. This
     /// is not obvious from the function definition because it accepts a
-    /// [Block], not specifically a [IfBlock]. This is because it operates
-    /// by using [hash_ast::ast::AstNodeRefMut::replace()] in order to convert
-    /// the if-block into a match-block.
+    /// [ast::Block], not specifically a [ast::IfBlock]. This is because it
+    /// operates by using [`ast::AstNodeRefMut::replace`] in order to
+    /// convert the if-block into a match-block.
     ///
     /// The de-sugaring process is as follows, take the following if block:
     ///
@@ -292,7 +327,7 @@ impl<'s> AstDesugaring<'s> {
     /// ```
     ///
     /// The condition of the if-branch is converted into a
-    /// [hash_ast::ast::MatchCase] by using the `if-guard` pattern with the
+    /// [ast::MatchCase] by using the `if-guard` pattern with the
     /// condition being the guard. As can be seen in the example, the condition
     /// that the match-block is matching is `true`. This is essentially a
     /// filler for the de-sugaring process and will be optimised out. This
@@ -330,10 +365,10 @@ impl<'s> AstDesugaring<'s> {
     /// complicate things with pattern exhaustiveness because then there
     /// would be no base case branch, thus the exhaustiveness checking would
     /// also need to know about the omitted else branch.
-    pub(crate) fn desugar_if_block(&self, node: Block, parent_span: Span) -> Block {
+    pub(crate) fn desugar_if_block(&self, node: ast::Block, parent_span: Span) -> ast::Block {
         // Since this function expects it to be a for-loop block, we match it and unwrap
         let block = match node {
-            Block::If(body) => body,
+            ast::Block::If(body) => body,
             block => panic_on_span!(
                 parent_span,
                 self.source_map,
@@ -344,7 +379,7 @@ impl<'s> AstDesugaring<'s> {
 
         // We don't case about 'clauses' because we can use the visitor to transform
         // the clauses separately
-        let IfBlock { clauses, otherwise } = block;
+        let ast::IfBlock { clauses, otherwise } = block;
         let clauses_span = clauses.span();
 
         // Iterate over the clauses and transform them
@@ -352,7 +387,7 @@ impl<'s> AstDesugaring<'s> {
             .nodes
             .into_iter()
             .map(|clause| self.desugar_if_clause(clause))
-            .collect::<Vec<_>>();
+            .collect::<ThinVec<_>>();
 
         // Deal with the `otherwise` case, if there is no otherwise case then we can
         // just push an ignore branch and the body of the else block, otherwise it
@@ -360,10 +395,14 @@ impl<'s> AstDesugaring<'s> {
         let else_block = if let Some(block) = otherwise {
             let else_block_span = block.span();
 
-            AstNode::new(
-                MatchCase {
-                    pat: AstNode::new(Pat::Wild(WildPat {}), else_block_span),
-                    expr: AstNode::new(Expr::Block(BlockExpr { data: block }), else_block_span),
+            ast::AstNode::new(
+                ast::MatchCase {
+                    pat: ast::AstNode::new(ast::Pat::Wild(ast::WildPat {}), else_block_span),
+                    expr: ast::AstNode::new(
+                        ast::Expr::Block(ast::BlockExpr { data: block }),
+                        else_block_span,
+                    ),
+                    macro_args: None,
                 },
                 else_block_span,
             )
@@ -374,14 +413,14 @@ impl<'s> AstDesugaring<'s> {
             // to a missing else-branch because the return type of the block doesn't become
             // the same anymore. Therefore, we might later want to re-think which span we
             // use for generating the else-branch.
-            AstNode::new(
-                MatchCase {
-                    pat: AstNode::new(Pat::Wild(WildPat {}), parent_span),
-                    expr: AstNode::new(
-                        Expr::Block(BlockExpr {
-                            data: AstNode::new(
-                                Block::Body(BodyBlock {
-                                    statements: AstNodes::empty(parent_span),
+            ast::AstNode::new(
+                ast::MatchCase {
+                    pat: ast::AstNode::new(ast::Pat::Wild(ast::WildPat {}), parent_span),
+                    expr: ast::AstNode::new(
+                        ast::Expr::Block(ast::BlockExpr {
+                            data: ast::AstNode::new(
+                                ast::Block::Body(ast::BodyBlock {
+                                    statements: ast::AstNodes::empty(parent_span),
                                     expr: None,
                                 }),
                                 parent_span,
@@ -389,6 +428,7 @@ impl<'s> AstDesugaring<'s> {
                         }),
                         parent_span,
                     ),
+                    macro_args: None,
                 },
                 parent_span,
             )
@@ -398,15 +438,18 @@ impl<'s> AstDesugaring<'s> {
         // generated from the if-clause pass.
         clauses.push(else_block);
 
-        Block::Match(MatchBlock {
-            subject: AstNode::new(
-                Expr::Lit(LitExpr {
-                    data: AstNode::new(Lit::Bool(BoolLit { data: true }), parent_span),
+        ast::Block::Match(ast::MatchBlock {
+            subject: ast::AstNode::new(
+                ast::Expr::Lit(ast::LitExpr {
+                    data: ast::AstNode::new(
+                        ast::Lit::Bool(ast::BoolLit { data: true }),
+                        parent_span,
+                    ),
                 }),
                 parent_span,
             ),
-            cases: AstNodes::new(clauses, clauses_span),
-            origin: MatchOrigin::If,
+            cases: ast::AstNodes::new(clauses, clauses_span),
+            origin: ast::MatchOrigin::If,
         })
     }
 }

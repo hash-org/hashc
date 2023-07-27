@@ -3,6 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticsMut};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
+use hash_utils::thin_vec::thin_vec;
 
 use super::{AstGen, ParseResult};
 use crate::diagnostics::error::ParseErrorKind;
@@ -110,12 +111,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// expression branch.
     pub(crate) fn parse_match_case(&mut self) -> ParseResult<AstNode<MatchCase>> {
         let start = self.current_pos();
-        let pattern = self.parse_pat()?;
+        let pat = self.parse_pat()?;
 
         self.parse_arrow()?;
         let expr = self.parse_expr_with_precedence(0)?;
 
-        Ok(self.node_with_joined_span(MatchCase { pat: pattern, expr }, start))
+        Ok(self.node_with_joined_span(MatchCase { pat, expr, macro_args: None }, start))
     }
 
     /// Parse a match block statement, which is composed of a subject and an
@@ -143,7 +144,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let start = self.current_pos();
 
-        let mut clauses = vec![];
+        let mut clauses = thin_vec![];
         let mut otherwise_clause = None;
         let mut if_span = self.current_pos();
 

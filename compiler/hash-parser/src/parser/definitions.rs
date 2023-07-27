@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
-use hash_utils::smallvec::smallvec;
+use hash_utils::{smallvec::smallvec, thin_vec::thin_vec};
 
 use super::AstGen;
 use crate::{
@@ -57,7 +57,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_enum_def_entry(&mut self) -> ParseResult<AstNode<EnumDefEntry>> {
         let name = self.parse_name()?;
         let name_span = name.byte_range();
-        let mut fields = self.nodes_with_span(vec![], name_span);
+        let mut fields = self.nodes_with_span(thin_vec![], name_span);
 
         if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
             let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
@@ -79,7 +79,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => None,
         };
 
-        Ok(self.node_with_joined_span(EnumDefEntry { name, fields, ty }, name_span))
+        Ok(self
+            .node_with_joined_span(EnumDefEntry { name, fields, ty, macro_args: None }, name_span))
     }
 
     /// Parses an nominal definition type field, which could either be a named
@@ -123,7 +124,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(Param { name, ty, default, origin }, start))
+        Ok(self.node_with_joined_span(Param { name, ty, default, origin, macro_args: None }, start))
     }
 
     /// Parse a [TyFnDef]. Type functions specify logic at the type
@@ -179,6 +180,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                 }),
                 origin: ParamOrigin::TyFn,
+                macro_args: None,
             },
             start,
         ))
@@ -226,7 +228,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
                 self.parse_ty_params(def_kind)
             }
-            _ => Ok(self.nodes_with_span(vec![], self.current_pos())),
+            _ => Ok(self.nodes_with_span(thin_vec![], self.current_pos())),
         }
     }
 
@@ -234,7 +236,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// definitions, and trait definitions.
     fn parse_ty_params(&mut self, def_kind: DefinitionKind) -> ParseResult<AstNodes<Param>> {
         let start_span = self.current_pos();
-        let mut params = self.nodes_with_span(vec![], start_span);
+        let mut params = self.nodes_with_span(thin_vec![], start_span);
 
         // Flag denoting that we were able to parse the ending `>` within the function
         // def arg

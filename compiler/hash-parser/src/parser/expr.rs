@@ -1,10 +1,10 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use hash_ast::{ast::*, ast_nodes};
+use hash_ast::ast::*;
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{constant::CONSTANT_MAP, location::ByteRange};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-use hash_utils::smallvec::smallvec;
+use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
 use crate::diagnostics::{
@@ -479,7 +479,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
-        let mut args = vec![];
+        let mut args = thin_vec![];
 
         while gen.has_token() {
             let start = gen.next_pos();
@@ -502,7 +502,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Now here we expect an expression...
             let value = gen.parse_expr_with_precedence(0)?;
 
-            args.push(gen.node_with_span(ConstructorCallArg { name, value }, start));
+            // @@ParseMacroArgs
+            args.push(
+                gen.node_with_span(ConstructorCallArg { name, value, macro_args: None }, start),
+            );
 
             // now we eat the next token, checking that it is a comma
             match gen.peek() {
@@ -625,55 +628,57 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Expr::UnaryExpr(UnaryExpr { expr, operator })
             }
             TokenKind::Hash => {
+                // @@ParseMacroArgs
+
                 // First get the directive subject, and expect a possible singular expression
                 // followed by the directive.
-                let mut directives = smallvec![];
-                let mut prefixed = true;
+                // let mut directives = smallvec![];
+                // let mut prefixed = true;
 
-                // We parse as many "directives" as possible in order to group all of them
-                // that are being applied on a single expression together, this simplifies
-                // the logic for processing directives significantly... which means that there
-                // should be no directly nested directives when the parser is complete.
-                loop {
-                    match self.peek() {
-                        Some(Token { kind: TokenKind::Ident(ident), span }) if prefixed => {
-                            let mut directive_span = self.current_pos();
-                            self.skip_token();
+                // // We parse as many "directives" as possible in order to group all of them
+                // // that are being applied on a single expression together, this simplifies
+                // // the logic for processing directives significantly... which means that
+                // there // should be no directly nested directives when the
+                // parser is complete. loop {
+                //     match self.peek() {
+                //         Some(Token { kind: TokenKind::Ident(ident), span }) if prefixed => {
+                //             let mut directive_span = self.current_pos();
+                //             self.skip_token();
 
-                            directive_span = directive_span.join(*span);
-                            directives
-                                .push(self.node_with_span(Name { ident: *ident }, directive_span));
-                            prefixed = false;
-                        }
-                        Some(Token { kind: TokenKind::Hash, .. }) if !prefixed => {
-                            self.skip_token();
-                            prefixed = true;
-                        }
-                        // This is a hard error since this might lead to invalid syntax being
-                        // parsed i.e. `#foo ; #bar <expr>` is invalid, but it would be parsed as
-                        // `#foo ( #bar <expr>)` which leads to them not
-                        // being grouped.
-                        Some(Token { kind, span }) if matches!(kind, TokenKind::Semi) => {
-                            self.err_with_location(
-                                ParseErrorKind::ExpectedExpr,
-                                None,
-                                Some(*kind),
-                                *span,
-                            )?;
-                        }
-                        // We expected at least one directive here, so more specifically an
-                        // identifier after the hash.
-                        token if directives.is_empty() => {
-                            self.err_with_location(
-                                ParseErrorKind::ExpectedName,
-                                None,
-                                token.map(|t| t.kind),
-                                token.map_or_else(|| self.next_pos(), |t| t.span),
-                            )?;
-                        }
-                        _ => break,
-                    }
-                }
+                //             directive_span = directive_span.join(*span);
+                //             directives
+                //                 .push(self.node_with_span(Name { ident: *ident },
+                // directive_span));             prefixed = false;
+                //         }
+                //         Some(Token { kind: TokenKind::Hash, .. }) if !prefixed => {
+                //             self.skip_token();
+                //             prefixed = true;
+                //         }
+                //         // This is a hard error since this might lead to invalid syntax being
+                //         // parsed i.e. `#foo ; #bar <expr>` is invalid, but it would be
+                // parsed as         // `#foo ( #bar <expr>)` which leads to
+                // them not         // being grouped.
+                //         Some(Token { kind, span }) if matches!(kind, TokenKind::Semi) => {
+                //             self.err_with_location(
+                //                 ParseErrorKind::ExpectedExpr,
+                //                 None,
+                //                 Some(*kind),
+                //                 *span,
+                //             )?;
+                //         }
+                //         // We expected at least one directive here, so more specifically an
+                //         // identifier after the hash.
+                //         token if directives.is_empty() => {
+                //             self.err_with_location(
+                //                 ParseErrorKind::ExpectedName,
+                //                 None,
+                //                 token.map(|t| t.kind),
+                //                 token.map_or_else(|| self.next_pos(), |t| t.span),
+                //             )?;
+                //         }
+                //         _ => break,
+                //     }
+                // }
 
                 // Continue attempting to parse a 'top level' expression since directives
                 // can accept the whole set of expressions. The looping is necessary to
@@ -686,7 +691,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     if let Some((_, subject)) = expr {
                         // create the subject node
                         return Ok(self.node_with_joined_span(
-                            Expr::Directive(DirectiveExpr { directives, subject }),
+                            Expr::MacroInvocation(ExprMacroInvocation {
+                                macro_args: MacroInvocations::empty(subject.span()),
+                                subject,
+                            }),
                             start,
                         ));
                     }
@@ -894,7 +902,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             let tuple = gen.node_with_joined_span(
                 Expr::Lit(LitExpr {
                     data: gen.node_with_joined_span(
-                        Lit::Tuple(TupleLit { elements: gen.nodes_with_span(vec![], start) }),
+                        Lit::Tuple(TupleLit { elements: gen.nodes_with_span(thin_vec![], start) }),
                         start,
                     ),
                 }),
@@ -932,7 +940,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             return Ok(expr);
         }
 
-        let mut elements = ast_nodes![entry; gen.span()];
+        let mut elements = AstNodes::new(thin_vec![entry], gen.span());
 
         loop {
             match gen.peek() {
@@ -987,7 +995,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(
-            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn },
+            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn, macro_args: None },
             name_span,
         ))
     }
@@ -1026,7 +1034,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_exprs_from_braces(&mut self) -> ParseResult<AstNodes<Expr>> {
         let mut gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
 
-        let mut exprs = vec![];
+        let mut exprs = thin_vec![];
 
         // Continue eating the generator until no more tokens are present
         //

@@ -3,6 +3,7 @@
 use hash_ast::ast::*;
 use hash_source::{constant::CONSTANT_MAP, location::ByteRange};
 use hash_token::{keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
 use crate::diagnostics::error::{ParseErrorKind, ParseResult};
@@ -169,7 +170,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
-        let mut elements = self.nodes_with_joined_span(vec![], span);
+        let mut elements = self.nodes_with_joined_span(thin_vec![], span);
 
         while gen.has_token() {
             let expr = gen.parse_expr_with_precedence(0)?;

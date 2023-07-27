@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_source::identifier::IDENTS;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-use hash_utils::smallvec::smallvec;
+use hash_utils::{smallvec::smallvec, thin_vec::thin_vec};
 
 use super::AstGen;
 use crate::diagnostics::error::{ParseErrorKind, ParseResult};
@@ -190,7 +190,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }, span);
 
                     Ty::Fn(FnTy {
-                        params: self.nodes_with_span(vec![ty_arg], span),
+                        params: self.nodes_with_span(thin_vec![ty_arg], span),
                         return_ty,
                     })
                 }
@@ -222,7 +222,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         let start = self.current_pos();
-        let mut ty_args = vec![];
+        let mut ty_args = thin_vec![];
 
         loop {
             // The name part of the `NamedFieldTypeEntry` is an identifier followed by an
@@ -346,7 +346,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         debug_assert!(matches!(self.current_token(), Token { kind: TokenKind::Lt, .. }));
 
         let mut arg_span = self.current_pos();
-        let mut args = vec![];
+        let mut args = thin_vec![];
 
         loop {
             let span = self.current_pos();
@@ -366,6 +366,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 None => None,
             };
 
+            // @@ParseMacroArgs
             args.push(self.node_with_span(
                 Param {
                     name: Some(name),
@@ -375,6 +376,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                     }),
                     origin: ParamOrigin::TyFn,
+                    macro_args: None,
                 },
                 span,
             ));
