@@ -89,7 +89,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // constructor pattern.
                     let mut spread = None;
 
-                    let fields = gen.parse_separated_fn_with_skips(
+                    let fields = gen.parse_nodes_with_skips(
                         |g, pos| {
                             // If the next token is a dot, then we try to parse a spread pattern
                             // since this is the only case where a dot can appear in a tuple pattern.
@@ -346,7 +346,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // fields, so we must check for it separately.
         let mut spread = None;
 
-        let fields = gen.parse_separated_fn_with_skips(
+        let fields = gen.parse_nodes_with_skips(
             |g, pos| {
                 // Check if we encounter a dot, if so then we try to parse a
                 // spread pattern, if not then we parse a normal pattern.
@@ -400,7 +400,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // tuple pattern fields.
         let mut spread = None;
 
-        let mut fields = gen.parse_separated_fn_with_skips(
+        let mut fields = gen.parse_nodes_with_skips(
             |g, pos| {
                 // If the next token is a dot, then we try to parse a spread pattern
                 // since this is the only case where a dot can appear in a tuple pattern.
@@ -426,8 +426,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // for this particular pattern
             self.consume_gen(gen);
 
-            let element = fields.nodes.pop().unwrap().into_body();
-            Ok(element.pat)
+            let TuplePatEntry { pat, macro_args, .. } = fields.nodes.pop().unwrap().into_body();
+
+            if let Some(macro_args) = macro_args {
+                Ok(AstNode::with_id(
+                    Pat::Macro(PatMacroInvocation { macro_args, subject: pat }),
+                    fields.id(),
+                ))
+            } else {
+                Ok(pat)
+            }
         } else {
             self.consume_gen(gen);
             Ok(self.node_with_span(Pat::Tuple(TuplePat { fields, spread }), parent_span))
@@ -438,6 +446,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// [Name] node.
     pub(crate) fn parse_tuple_pat_entry(&mut self) -> ParseResult<AstNode<TuplePatEntry>> {
         let start = self.next_pos();
+        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
 
         let (name, pat) = match self.peek() {
             Some(Token { kind: TokenKind::Ident(_), .. }) => {
@@ -456,8 +465,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => (None, self.parse_pat()?),
         };
 
-        // @@ParseMacroArgs
-        Ok(self.node_with_joined_span(TuplePatEntry { name, pat, macro_args: None }, start))
+        Ok(self.node_with_joined_span(TuplePatEntry { name, pat, macro_args }, start))
     }
 
     /// Parse a spread operator from the current token tree. A spread operator

@@ -26,7 +26,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut gen = self
             .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
 
-        let fields = gen.parse_separated_fn(
+        let fields = gen.parse_nodes(
             |g| g.parse_nominal_def_param(ParamOrigin::Struct),
             |g| g.parse_token(TokenKind::Comma),
         );
@@ -46,8 +46,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut gen = self
             .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
 
-        let entries = gen
-            .parse_separated_fn(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
+        let entries =
+            gen.parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
 
         Ok(EnumDef { ty_params, entries })
@@ -55,13 +55,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&mut self) -> ParseResult<AstNode<EnumDefEntry>> {
+        let start = self.current_pos();
+        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+
         let name = self.parse_name()?;
         let name_span = name.byte_range();
         let mut fields = self.nodes_with_span(thin_vec![], name_span);
 
         if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
             let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-            fields = gen.parse_separated_fn(
+            fields = gen.parse_nodes(
                 |g| g.parse_nominal_def_param(ParamOrigin::EnumVariant),
                 |g| g.parse_token(TokenKind::Comma),
             );
@@ -79,8 +82,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => None,
         };
 
-        Ok(self
-            .node_with_joined_span(EnumDefEntry { name, fields, ty, macro_args: None }, name_span))
+        Ok(self.node_with_joined_span(EnumDefEntry { name, fields, ty, macro_args }, start))
     }
 
     /// Parses an nominal definition type field, which could either be a named
@@ -92,6 +94,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         origin: ParamOrigin,
     ) -> ParseResult<AstNode<Param>> {
         let start = self.next_pos();
+        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
 
         // Try and parse the name and type
         let (name, ty) = match self.peek_second() {
@@ -124,7 +127,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(Param { name, ty, default, origin, macro_args: None }, start))
+        Ok(self.node_with_joined_span(Param { name, ty, default, origin, macro_args }, start))
     }
 
     /// Parse a [TyFnDef]. Type functions specify logic at the type
@@ -154,6 +157,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     // that are separated by a `~`
     fn parse_ty_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
         let start = self.current_pos();
+        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+
         let name = self.parse_name()?;
 
         // Now it's followed by a colon
@@ -180,7 +185,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                 }),
                 origin: ParamOrigin::TyFn,
-                macro_args: None,
+                macro_args,
             },
             start,
         ))

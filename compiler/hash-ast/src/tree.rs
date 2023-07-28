@@ -1167,8 +1167,8 @@ impl AstVisitor for AstTreeGenerator {
 
         let mut children = vec![TreeNode::leaf(labelled("name", node.name.ident, "\""))];
 
-        if !node.args.is_empty() {
-            children.push(TreeNode::branch("args", args))
+        if let Some(args) = args {
+            children.push(args)
         }
 
         Ok(TreeNode::branch("macro", children))
@@ -1228,5 +1228,16 @@ impl AstVisitor for AstTreeGenerator {
             "type_macro",
             vec![macro_args, TreeNode::branch("type", vec![subject])],
         ))
+    }
+
+    type MacroInvocationArgsRet = TreeNode;
+
+    fn visit_macro_invocation_args(
+        &self,
+        node: ast::AstNodeRef<ast::MacroInvocationArgs>,
+    ) -> Result<Self::MacroInvocationArgsRet, Self::Error> {
+        let walk::MacroInvocationArgs { args } = walk::walk_macro_invocation_args(self, node)?;
+
+        Ok(TreeNode::branch("args", args))
     }
 }

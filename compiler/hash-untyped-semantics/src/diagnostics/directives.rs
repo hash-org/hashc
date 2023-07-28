@@ -97,7 +97,7 @@ impl From<&Expr> for DirectiveArgument {
     fn from(expr: &Expr) -> Self {
         match expr {
             Expr::ConstructorCall(_) => DirectiveArgument::ConstructorCall,
-            Expr::MacroInvocation(_) => DirectiveArgument::MacroInvocation,
+            Expr::Macro(_) => DirectiveArgument::MacroInvocation,
             Expr::Declaration(_) => DirectiveArgument::Declaration,
             Expr::Unsafe(_) => DirectiveArgument::Unsafe,
             Expr::Lit(_) => DirectiveArgument::Lit,

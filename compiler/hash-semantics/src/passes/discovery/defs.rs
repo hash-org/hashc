@@ -341,7 +341,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     Some(ModMemberData { name, value: ModMemberValue::Mod(imported_mod_def_id) })
                 }
                 // Directive, recurse
-                ast::Expr::MacroInvocation(inner) => {
+                ast::Expr::Macro(inner) => {
                     self.get_mod_member_data_from_def_node_id(name, inner.subject.id())
                 }
                 // Get the `ModMemberData` from the `def_node_id` of the declaration.
@@ -459,6 +459,9 @@ impl<'tc> DiscoveryPass<'tc> {
                 for field in fields.ast_ref_iter() {
                     self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
+            }
+            ast::Pat::Macro(ast::PatMacroInvocation { subject, .. }) => {
+                self.add_stack_members_in_pat_to_buf(subject.ast_ref(), buf)
             }
             ast::Pat::Array(ast::ArrayPat { fields, spread }) => {
                 if let Some(spread_node) = &spread {

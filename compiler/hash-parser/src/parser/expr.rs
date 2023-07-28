@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{constant::CONSTANT_MAP, location::ByteRange};
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -203,10 +203,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let mut is_func = false;
 
                 // Now here we have to look ahead after the token_tree to see if there is an
-                // arrow @@Speed: avoid using parse_token_atom() because we
-                // don't care about error messages          We just want to
-                // purely look if there are is a combination of symbols following
-                //          which make up an '=>'.
+                // arrow.
+                //
+                // @@Speed: avoid using parse_token_atom() because we don't care about error
+                // messages We just want to purely look if there are is a
+                // combination of symbols following which make up an '=>'.
                 let has_arrow = self
                     .peek_resultant_fn(|g| -> Result<(), ()> {
                         match g.peek() {
@@ -470,6 +471,37 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
+    /// Parse a constructor call argument in two forms:
+    ///
+    /// - A named argument which appear in the form of `name = valye`
+    ///
+    /// - Just a value for the argument.
+    fn parse_constructor_call_arg(&mut self) -> ParseResult<AstNode<ConstructorCallArg>> {
+        let start = self.current_pos();
+
+        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+
+        // here we trying to check if this argument is in form of just an expression or
+        // if there is a name being assigned here...
+        let name = match (self.peek(), self.peek_second()) {
+            (
+                Some(Token { kind: TokenKind::Ident(_), .. }),
+                Some(Token { kind: TokenKind::Eq, .. }),
+            ) => {
+                let name = self.parse_name()?;
+                self.skip_token(); // '='
+
+                Some(name)
+            }
+            _ => None,
+        };
+
+        // Now here we expect an expression...
+        let value = self.parse_expr_with_precedence(0)?;
+
+        Ok(self.node_with_span(ConstructorCallArg { name, value, macro_args }, start))
+    }
+
     /// Parse a [ConstructorCallExpr] which accepts the `subject` that the
     /// constructor is being called on.
     pub(crate) fn parse_constructor_call(
@@ -479,55 +511,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
-        let mut args = thin_vec![];
 
-        while gen.has_token() {
-            let start = gen.next_pos();
-
-            // here we trying to check if this argument is in form of just an expression or
-            // if there is a name being assigned here...
-            let name = match (gen.peek(), gen.peek_second()) {
-                (
-                    Some(Token { kind: TokenKind::Ident(_), .. }),
-                    Some(Token { kind: TokenKind::Eq, .. }),
-                ) => {
-                    let name = gen.parse_name()?;
-                    gen.skip_token(); // '='
-
-                    Some(name)
-                }
-                _ => None,
-            };
-
-            // Now here we expect an expression...
-            let value = gen.parse_expr_with_precedence(0)?;
-
-            // @@ParseMacroArgs
-            args.push(
-                gen.node_with_span(ConstructorCallArg { name, value, macro_args: None }, start),
-            );
-
-            // now we eat the next token, checking that it is a comma
-            match gen.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => gen.next_token(),
-                Some(token) => gen.err_with_location(
-                    ParseErrorKind::UnExpected,
-                    Some(TokenKindVector::singleton(TokenKind::Comma)),
-                    Some(token.kind),
-                    token.span,
-                )?,
-                None => break,
-            };
-        }
+        let args = gen
+            .parse_nodes(|g| g.parse_constructor_call_arg(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
 
         let subject_span = subject.byte_range();
 
         Ok(self.node_with_joined_span(
-            Expr::ConstructorCall(ConstructorCallExpr {
-                subject,
-                args: self.nodes_with_span(args, span),
-            }),
+            Expr::ConstructorCall(ConstructorCallExpr { subject, args }),
             subject_span,
         ))
     }
@@ -627,58 +619,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 Expr::UnaryExpr(UnaryExpr { expr, operator })
             }
-            TokenKind::Hash => {
-                // @@ParseMacroArgs
-
-                // First get the directive subject, and expect a possible singular expression
-                // followed by the directive.
-                // let mut directives = smallvec![];
-                // let mut prefixed = true;
-
-                // // We parse as many "directives" as possible in order to group all of them
-                // // that are being applied on a single expression together, this simplifies
-                // // the logic for processing directives significantly... which means that
-                // there // should be no directly nested directives when the
-                // parser is complete. loop {
-                //     match self.peek() {
-                //         Some(Token { kind: TokenKind::Ident(ident), span }) if prefixed => {
-                //             let mut directive_span = self.current_pos();
-                //             self.skip_token();
-
-                //             directive_span = directive_span.join(*span);
-                //             directives
-                //                 .push(self.node_with_span(Name { ident: *ident },
-                // directive_span));             prefixed = false;
-                //         }
-                //         Some(Token { kind: TokenKind::Hash, .. }) if !prefixed => {
-                //             self.skip_token();
-                //             prefixed = true;
-                //         }
-                //         // This is a hard error since this might lead to invalid syntax being
-                //         // parsed i.e. `#foo ; #bar <expr>` is invalid, but it would be
-                // parsed as         // `#foo ( #bar <expr>)` which leads to
-                // them not         // being grouped.
-                //         Some(Token { kind, span }) if matches!(kind, TokenKind::Semi) => {
-                //             self.err_with_location(
-                //                 ParseErrorKind::ExpectedExpr,
-                //                 None,
-                //                 Some(*kind),
-                //                 *span,
-                //             )?;
-                //         }
-                //         // We expected at least one directive here, so more specifically an
-                //         // identifier after the hash.
-                //         token if directives.is_empty() => {
-                //             self.err_with_location(
-                //                 ParseErrorKind::ExpectedName,
-                //                 None,
-                //                 token.map(|t| t.kind),
-                //                 token.map_or_else(|| self.next_pos(), |t| t.span),
-                //             )?;
-                //         }
-                //         _ => break,
-                //     }
-                // }
+            TokenKind::Pound => {
+                self.offset.update(|x| x - 1); // go back a token so we can parse the macro invocation
+                let macro_args = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
 
                 // Continue attempting to parse a 'top level' expression since directives
                 // can accept the whole set of expressions. The looping is necessary to
@@ -691,10 +634,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     if let Some((_, subject)) = expr {
                         // create the subject node
                         return Ok(self.node_with_joined_span(
-                            Expr::MacroInvocation(ExprMacroInvocation {
-                                macro_args: MacroInvocations::empty(subject.span()),
-                                subject,
-                            }),
+                            Expr::Macro(ExprMacroInvocation { macro_args, subject }),
                             start,
                         ));
                     }
@@ -702,6 +642,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     continue;
                 }
             }
+            TokenKind::At => todo!(),
             TokenKind::Keyword(Keyword::Unsafe) => {
                 let arg = self.parse_expr()?;
                 Expr::Unsafe(UnsafeExpr { data: arg })
@@ -975,8 +916,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a function definition argument, which is made of an identifier and
     /// a function type.
     pub(crate) fn parse_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
+        let start = self.current_pos();
+        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+
         let name = self.parse_name()?;
-        let name_span = name.byte_range();
 
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Colon) => {
@@ -995,8 +938,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(
-            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn, macro_args: None },
-            name_span,
+            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn, macro_args },
+            start,
         ))
     }
 
@@ -1008,7 +951,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // parse function definition parameters.
         let params =
-            gen.parse_separated_fn(|g| g.parse_fn_def_param(), |g| g.parse_token(TokenKind::Comma));
+            gen.parse_nodes(|g| g.parse_fn_def_param(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
 
         // check if there is a return type

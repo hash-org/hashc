@@ -1269,6 +1269,26 @@ where
         self.visit_expr(value.ast_ref())
     }
 
+    type MacroInvocationArgsRet = ();
+
+    fn visit_macro_invocation_args(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocationArgs>,
+    ) -> Result<Self::MacroInvocationArgsRet, Self::Error> {
+        let ast::MacroInvocationArgs { args } = node.body();
+
+        // This shouldn't really happen, but in case it does, we can just return
+        // early.
+        if args.is_empty() {
+            return Ok(());
+        }
+
+        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
+        self.print_separated_collection(args, opts, |this, arg| {
+            this.visit_macro_invocation_arg(arg)
+        })
+    }
+
     type MacroInvocationRet = ();
 
     fn visit_macro_invocation(
@@ -1279,11 +1299,8 @@ where
 
         self.visit_name(name.ast_ref())?;
 
-        if !args.is_empty() {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-            self.print_separated_collection(args, opts, |this, arg| {
-                this.visit_macro_invocation_arg(arg)
-            })?;
+        if let Some(args) = args {
+            self.visit_macro_invocation_args(args.ast_ref())?;
         }
 
         Ok(())
@@ -1306,7 +1323,7 @@ where
         // Start of the
         self.write("#")?;
 
-        if invocations.len() == 1 && invocations[0].args.is_empty() {
+        if invocations.len() == 1 && invocations[0].args.is_none() {
             return self.visit_name(invocations[0].name.ast_ref());
         }
 

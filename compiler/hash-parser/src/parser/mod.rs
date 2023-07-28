@@ -6,6 +6,7 @@ mod block;
 mod definitions;
 mod expr;
 mod lit;
+mod macros;
 mod name;
 mod operator;
 mod pat;
@@ -446,7 +447,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// **Note**: Call `consume_gen()` in the passed generator in order to
     /// merge any generated errors, and to emit a possible `expected_eof` at
     /// the end if applicable.
-    pub(crate) fn parse_separated_fn<T>(
+    pub(crate) fn parse_nodes<T>(
         &mut self,
         mut item: impl FnMut(&mut Self) -> ParseResult<AstNode<T>>,
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
@@ -504,7 +505,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// that is generated. Additionally, this provides an index for the the
     /// `item` closure to keep track of how many items have already
     /// been parsed.
-    pub(crate) fn parse_separated_fn_with_skips<T>(
+    pub(crate) fn parse_nodes_with_skips<T>(
         &mut self,
         mut item: impl FnMut(&mut Self, usize) -> ParseResult<Option<AstNode<T>>>,
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,

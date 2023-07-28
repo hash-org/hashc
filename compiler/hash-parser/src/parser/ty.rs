@@ -143,6 +143,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 })
             }
 
+            // Parse a macro invocation
+            TokenKind::Pound => {
+                let macro_args = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
+                let subject = self.parse_singular_ty()?;
+
+                Ty::Macro(TyMacroInvocation { macro_args, subject })
+            }
+
             // Type function, which is a collection of arguments enclosed in `<...>` and then
             // followed by a return type
             TokenKind::Lt => {
@@ -288,7 +296,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 gen.skip_token();
             }
             _ => {
-                params = gen.parse_separated_fn(
+                params = gen.parse_nodes(
                     |g| {
                         let start = g.next_pos();
 
@@ -350,6 +358,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         loop {
             let span = self.current_pos();
+
+            let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
             let name = self.parse_name()?;
 
             let ty = match self.parse_token_fast(TokenKind::Colon) {
@@ -366,7 +376,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 None => None,
             };
 
-            // @@ParseMacroArgs
             args.push(self.node_with_span(
                 Param {
                     name: Some(name),
@@ -376,7 +385,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                     }),
                     origin: ParamOrigin::TyFn,
-                    macro_args: None,
+                    macro_args,
                 },
                 span,
             ));

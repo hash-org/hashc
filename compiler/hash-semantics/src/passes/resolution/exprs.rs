@@ -125,7 +125,7 @@ impl<'tc> ResolutionPass<'tc> {
                 self.make_term_from_ast_access_expr(node.with_body(access_expr))?
             }
             ast::Expr::Ty(expr_ty) => self.make_term_from_ast_ty_expr(node.with_body(expr_ty))?,
-            ast::Expr::MacroInvocation(invocation) => {
+            ast::Expr::Macro(invocation) => {
                 self.make_term_from_ast_macro_invocation_expr(node.with_body(invocation))?
             }
             ast::Expr::Declaration(declaration) => {

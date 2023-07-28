@@ -104,7 +104,7 @@ impl<T> AstNode<T> {
     }
 
     /// Create an [AstNode] with an existing [AstNodeId].
-    fn with_id(body: T, id: AstNodeId) -> Self {
+    pub fn with_id(body: T, id: AstNodeId) -> Self {
         Self { body: Box::new(body), id }
     }
 
@@ -313,6 +313,7 @@ impl<T> AstNodes<T> {
         Self::new(thin_vec![], span)
     }
 
+    /// Create an [AstNodes] with items and a [Span].
     pub fn new(nodes: ThinVec<AstNode<T>>, span: Span) -> Self {
         let id = SpanMap::add_span(span);
         Self { nodes, id }
@@ -327,6 +328,11 @@ impl<T> AstNodes<T> {
     }
 
     /// Get the [AstNodeId] of this [AstNodes].
+    pub fn id(&self) -> AstNodeId {
+        self.id
+    }
+
+    /// Get the [Span] of this [AstNodes].
     pub fn span(&self) -> Span {
         SpanMap::span_of(self.id)
     }
@@ -407,6 +413,11 @@ define_tree! {
         pub value: Child!(Expr),
     }
 
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct MacroInvocationArgs {
+        pub args: Children!(MacroInvocationArg),
+    }
 
 
     #[derive(Debug, PartialEq, Clone)]
@@ -416,7 +427,7 @@ define_tree! {
         pub name: Child!(Name),
 
         /// Any arguments to the macro itself.
-        pub args: Children!(MacroInvocationArg),
+        pub args: OptionalChild!(MacroInvocationArgs),
     }
 
     /// This is a collection of macro invocations that can occur on a single
@@ -482,6 +493,18 @@ define_tree! {
 
         /// The subject pattern of the invocation.
         pub subject: Child!(Pat),
+    }
+
+    /// The kind of macros that can be invoked and written in the source.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum MacroKind {
+        /// A token macro, which accepts a token tree and returns a parseable token
+        /// tree which is later converted into AST. Token macros begin with a `@`.
+        Token,
+
+        /// An AST-level macro which is directly applied onto an AST node. AST-level
+        /// macros begin with a `#`.
+        Ast
     }
 
     /// A concrete/"named" type.
@@ -650,7 +673,7 @@ define_tree! {
         Array(ArrayTy),
 
         /// Macro invocation on a type.
-        MacroInvocation(TyMacroInvocation),
+        Macro(TyMacroInvocation),
 
         /// Function type
         Fn(FnTy),
@@ -1051,8 +1074,11 @@ define_tree! {
 
         /// A representation of a constructor in the pattern space. Constructors in
         /// patterns can either be enum or struct values. The subject of the
-        /// constructor can be either an [Pat::Access] or a [Pat::Binding].
+        /// constructor can be either an [`Pat::Access`] or a [`Pat::Binding`].
         Constructor(ConstructorPat),
+
+        /// A macro invocation on a pattern.
+        Macro(PatMacroInvocation),
 
         /// Module pattern is used to destructure entries from an import.
         Module(ModulePat),
@@ -2032,8 +2058,8 @@ define_tree! {
         /// function call e.g. `foo(5)`.
         ConstructorCall(ConstructorCallExpr),
 
-        /// A directive expression.
-        MacroInvocation(ExprMacroInvocation),
+        /// A macro invocation on an expression.
+        Macro(ExprMacroInvocation),
 
         /// Declaration e.g. `x := 5;`
         Declaration(Declaration),

@@ -268,7 +268,7 @@ impl<'a> Lexer<'a> {
             ';' => TokenKind::Semi,
             ',' => TokenKind::Comma,
             '.' => TokenKind::Dot,
-            '#' => TokenKind::Hash,
+            '#' => TokenKind::Pound,
             '$' => TokenKind::Dollar,
             '?' => TokenKind::Question,
 
