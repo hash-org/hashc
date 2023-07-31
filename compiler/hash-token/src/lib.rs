@@ -225,7 +225,7 @@ impl TokenKind {
             TokenKind::FloatLit(lit) => format!("`{lit}`"),
             TokenKind::CharLit(ch) => format!("`{ch}`"),
             TokenKind::StrLit(str) => format!("the string `{}`", *str),
-            TokenKind::Keyword(kwd) => format!("`{kwd}`"),
+            TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
             TokenKind::Ident(ident) => format!("the identifier `{}`", *ident),
             kind => format!("a `{kind}`"),
         }

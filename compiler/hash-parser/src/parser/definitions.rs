@@ -27,7 +27,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
 
         let fields = gen.parse_nodes(
-            |g| g.parse_nominal_def_param(ParamOrigin::Struct),
+            |g| g.parse_def_param(ParamOrigin::Struct),
             |g| g.parse_token(TokenKind::Comma),
         );
         self.consume_gen(gen);
@@ -65,7 +65,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
             let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
             fields = gen.parse_nodes(
-                |g| g.parse_nominal_def_param(ParamOrigin::EnumVariant),
+                |g| g.parse_def_param(ParamOrigin::EnumVariant),
                 |g| g.parse_token(TokenKind::Comma),
             );
             fields.set_span(gen.span());
@@ -89,7 +89,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// or un-named field. The un-named field is just a specified type,
     /// whilst a named variant, is a specified name and then an optional
     /// type annotation and a default value.
-    pub(crate) fn parse_nominal_def_param(
+    pub(crate) fn parse_def_param(
         &mut self,
         origin: ParamOrigin,
     ) -> ParseResult<AstNode<Param>> {
@@ -223,7 +223,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse optional type [Param]s, if the next token is not a
     /// `<`, the function will return an empty [AstNodes<Param>].
-    #[inline]
+    #[inline(always)]
     pub(crate) fn parse_optional_ty_params(
         &mut self,
         def_kind: DefinitionKind,
