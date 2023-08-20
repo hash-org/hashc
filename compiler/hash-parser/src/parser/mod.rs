@@ -115,7 +115,7 @@ pub struct AstGen<'stream, 'resolver> {
     /// `k[]` was being parsed, the index component `[]` is expected to be
     /// non-empty, so the error reporting can grab the span of the `[]` and
     /// report it as an expected expression.
-    parent_span: Option<ByteRange>,
+    parent_span: ByteRange,
 
     /// The token stream
     stream: &'stream [Token],
@@ -145,12 +145,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         token_trees: &'stream [Vec<Token>],
         resolver: &'resolver ImportResolver,
     ) -> Self {
+        // We compute the `parent_span` from the given strem.
+        // If the stream has no tokens, then we assume that the
+        // byte range is empty.
+        let parent_span = match (stream.first(), stream.last()) {
+            (Some(first), Some(last)) => first.span.join(last.span),
+            _ => ByteRange::default(),
+        };
+
         Self {
             stream,
             token_trees,
-            parent_span: None,
-            is_compound_expr: Cell::new(false),
             offset: Cell::new(0),
+            parent_span,
+            is_compound_expr: Cell::new(false),
             resolver,
             diagnostics: DiagnosticStore::default(),
         }
@@ -165,7 +173,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             token_trees: self.token_trees,
             offset: Cell::new(0),
             is_compound_expr: self.is_compound_expr.clone(),
-            parent_span: Some(parent_span),
+            parent_span,
             resolver: self.resolver,
             diagnostics: DiagnosticStore::default(),
         }
@@ -174,7 +182,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Get the [Span] of the current generator, this asserts that a parent
     /// [Span] is present.
     pub(crate) fn span(&self) -> Span {
-        Span { span: self.parent_span.unwrap(), id: self.resolver.source() }
+        Span { span: self.parent_span, id: self.resolver.source() }
     }
 
     /// Function to create a [Span] from a [ByteRange] by using the
@@ -255,7 +263,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn current_pos(&self) -> ByteRange {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {
-            return self.parent_span.unwrap_or_default();
+            return self.parent_span;
         }
 
         let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
