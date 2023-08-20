@@ -73,7 +73,7 @@ impl<T> Display for DefMember<T> {
             "{}: {}{}",
             self.name,
             self.ty,
-            self.value.map(|x| format!(" = {}", x)).unwrap_or_else(|| "".to_string())
+            self.value.map(|x| format!(" = {}", x)).unwrap_or_default()
         )
     }
 }
@@ -85,7 +85,7 @@ impl Display for DefMemberData {
             "{}: {}{}",
             self.name,
             self.ty,
-            self.value.map(|x| format!(" = {}", x)).unwrap_or_else(|| "".to_string())
+            self.value.map(|x| format!(" = {}", x)).unwrap_or_default()
         )
     }
 }
