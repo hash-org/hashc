@@ -33,7 +33,6 @@ impl Sub {
 
     /// Get the substitution for the given [`SubSubject`], if any.
     pub fn get_sub_for(&self, subject: Symbol) -> Option<TermId> {
-        let subject = subject;
         self.data.iter().find(|entry| entry.from == subject).map(|entry| entry.to)
     }
 
@@ -71,7 +70,6 @@ impl Sub {
 
     /// Add a variable substitution.
     pub fn insert(&mut self, from: Symbol, to: TermId) {
-        let from = from;
         self.data.push(SubEntry { from, to })
     }
 

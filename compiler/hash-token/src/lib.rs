@@ -9,8 +9,8 @@ use hash_source::{
     identifier::Identifier,
     location::ByteRange,
 };
+use hash_utils::smallvec::{smallvec, SmallVec};
 use keyword::Keyword;
-use smallvec::{smallvec, SmallVec};
 
 /// A Lexeme token that represents the smallest code unit of a hash source file.
 /// The token contains a kind which is elaborated by [TokenKind] and a

@@ -323,7 +323,7 @@ impl Workspace {
     /// Add a module dependency specified by a [SourceId] to a specific source
     /// specified by a [SourceId].
     pub fn add_dependency(&mut self, source_id: SourceId, dependency: ModuleId) {
-        self.dependencies.entry(source_id).or_insert_with(FxHashSet::default).insert(dependency);
+        self.dependencies.entry(source_id).or_default().insert(dependency);
     }
 
     /// Utility function used by AST-like stages in order to print the
@@ -396,7 +396,7 @@ impl CodeMap {
     /// Add a module library dependency to the [CodeMap] for the specified
     /// [ModuleId].
     pub fn add_library_dependency(&mut self, module: ModuleId, path: PathBuf) {
-        self.library_dependencies.entry(module).or_insert_with(HashSet::default).insert(path);
+        self.library_dependencies.entry(module).or_default().insert(path);
     }
 
     /// Iterate over all of the module objects that have been generated.
