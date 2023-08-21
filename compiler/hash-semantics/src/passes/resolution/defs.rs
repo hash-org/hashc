@@ -171,7 +171,6 @@ impl<'tc> ResolutionPass<'tc> {
     ///
     /// This registers any directives and returns the RHS of the declaration.
     fn use_expr_as_mod_def_declaration_and_get_rhs(
-        member: ModMemberValue,
         member_expr: ast::AstNodeRef<'_, ast::Expr>,
     ) -> ast::AstNodeRef<'_, ast::Expr> {
         // By this point, all members should be declarations (caught at pre-TC)
@@ -179,10 +178,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Expr::Declaration(decl) => decl.value.as_ref().unwrap().ast_ref(),
             ast::Expr::Macro(invocation) => {
                 // Recurse to the inner declaration
-                Self::use_expr_as_mod_def_declaration_and_get_rhs(
-                    member,
-                    invocation.subject.ast_ref(),
-                )
+                Self::use_expr_as_mod_def_declaration_and_get_rhs(invocation.subject.ast_ref())
             }
             _ => unreachable!("Found non-declaration in module definition"),
         }
@@ -206,7 +202,7 @@ impl<'tc> ResolutionPass<'tc> {
             for (i, member_expr) in members.to_index_range().zip(member_exprs) {
                 let member_value = members.borrow()[i].value;
                 let member_rhs_expr =
-                    Self::use_expr_as_mod_def_declaration_and_get_rhs(member_value, member_expr);
+                    Self::use_expr_as_mod_def_declaration_and_get_rhs(member_expr);
 
                 match member_value {
                     ModMemberValue::Data(_) => {
