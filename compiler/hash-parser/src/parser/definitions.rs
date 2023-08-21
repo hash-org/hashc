@@ -89,10 +89,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// or un-named field. The un-named field is just a specified type,
     /// whilst a named variant, is a specified name and then an optional
     /// type annotation and a default value.
-    pub(crate) fn parse_def_param(
-        &mut self,
-        origin: ParamOrigin,
-    ) -> ParseResult<AstNode<Param>> {
+    pub(crate) fn parse_def_param(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Param>> {
         let start = self.next_pos();
         let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
 

@@ -30,6 +30,29 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         };
 
+        // If we are starting with a macro invocation, then we have
+        // to recurse and re-try parsing the top level expression
+        if let Some(macro_args) = self.parse_macro_invocations(MacroKind::Ast)? {
+            let top_level_expr = self.parse_top_level_expr()?;
+
+            if let Some((_, subject)) = top_level_expr {
+                let expr = self.node_with_joined_span(
+                    Expr::Macro(ExprMacroInvocation { macro_args, subject }),
+                    start,
+                );
+
+                let semi = maybe_eat_semi(self);
+                return Ok(Some((semi, expr)));
+            } else {
+                return self.err_with_location(
+                    ParseErrorKind::ExpectedExpr,
+                    None,
+                    None,
+                    self.current_pos(),
+                );
+            }
+        }
+
         // So here we want to check that the next token(s) could make up a singular
         // pattern which is then followed by a `:` to denote that this is a
         // declaration.
@@ -622,25 +645,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Pound => {
                 self.offset.update(|x| x - 1); // go back a token so we can parse the macro invocation
                 let macro_args = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
-
-                // Continue attempting to parse a 'top level' expression since directives
-                // can accept the whole set of expressions. The looping is necessary to
-                // continue eating tokens until we actually get a top level expression, as
-                // in for `;;;; x`, all of the semi-colons are represented as an empty
-                // expression and thus skipped...
-                loop {
-                    let expr = self.parse_top_level_expr()?;
-
-                    if let Some((_, subject)) = expr {
-                        // create the subject node
-                        return Ok(self.node_with_joined_span(
-                            Expr::Macro(ExprMacroInvocation { macro_args, subject }),
-                            start,
-                        ));
-                    }
-
-                    continue;
-                }
+                let subject = self.parse_expr()?;
+                Expr::Macro(ExprMacroInvocation { macro_args, subject })
             }
             TokenKind::At => todo!(),
             TokenKind::Keyword(Keyword::Unsafe) => {

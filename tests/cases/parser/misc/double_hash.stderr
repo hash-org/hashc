@@ -1,4 +1,4 @@
-error: expected a name here, however received a `#`
+error: expected a macro invocation, either being a name identifier or a parameterised invocation `[...]`, however received a `#`
  --> $DIR/double_hash.hash:3:7
 2 |   
 3 |   k := ##naughty_intrinsic();
