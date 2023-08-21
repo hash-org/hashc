@@ -22,7 +22,7 @@ use hash_ir::{
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::identifier::Identifier;
-use hash_storage::store::{statics::StoreId, FxHashMap, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     environment::env::{AccessToEnv, Env},
@@ -30,7 +30,7 @@ use hash_tir::{
     symbols::Symbol,
     terms::TermId,
 };
-use hash_utils::index_vec::IndexVec;
+use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
 
 use crate::{cfg::ControlFlowGraph, ctx::BuilderCtx};
 

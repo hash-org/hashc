@@ -5,7 +5,8 @@ use std::cell::RefCell;
 
 use hash_abi::{ArgAbi, FnAbi, FnAbiId};
 use hash_ir::ty::InstanceId;
-use hash_storage::store::{DefaultStore, FxHashMap, Store, StoreInternalData};
+use hash_storage::store::{DefaultStore, Store, StoreInternalData};
+use hash_utils::fxhash::FxHashMap;
 
 use super::{layout::LayoutMethods, BackendTypes, HasCtxMethods};
 use crate::lower::{abi::compute_fn_abi_from_instance, place::PlaceRef};

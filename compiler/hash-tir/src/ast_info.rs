@@ -1,8 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use hash_ast::ast::AstNodeId;
-use hash_storage::store::FxHashMap;
-use hash_utils::parking_lot::RwLock;
+use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
 
 use crate::{
     args::ArgId,
