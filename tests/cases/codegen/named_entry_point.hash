@@ -1,5 +1,7 @@
 // stage=full, run=pass, skip=true
 
+// @@Todo: re-enable when we add full attribute support!
+
 #entry_point foo := () => {
 
 }

@@ -447,6 +447,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-attrs"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-error-codes",
+ "hash-reporting",
+ "hash-source",
+ "hash-storage",
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-backend"
 version = "0.1.0"
 dependencies = [
