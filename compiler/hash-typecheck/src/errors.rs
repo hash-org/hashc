@@ -1,7 +1,8 @@
-use std::{fmt, mem::take};
+use std::fmt;
 
 use derive_more::{Constructor, From};
 use hash_reporting::{
+    diagnostic::IntoCompound,
     hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
     writer::ReportWriter,
@@ -22,64 +23,6 @@ use hash_tir::{
     tys::TyId,
     utils::{common::get_location, params::ParamError, traversing::Atom},
 };
-
-/// Accumulates errors that occur during typechecking in a local scope.
-///
-/// This is used for error recovery, so that multiple errors can be reported
-/// at once.
-#[derive(Debug)]
-pub struct TcErrorState {
-    pub errors: Vec<TcError>,
-    pub has_blocked: bool,
-}
-
-impl TcErrorState {
-    pub fn new() -> Self {
-        Self { errors: vec![], has_blocked: false }
-    }
-
-    /// Add an error to the error state.
-    pub fn add_error(&mut self, error: impl Into<TcError>) -> &TcError {
-        let error = error.into();
-        if let TcError::Blocked(_) = error {
-            self.has_blocked = true;
-        }
-        self.errors.push(error);
-        self.errors.last().unwrap()
-    }
-
-    /// Add an error to the error state if the given result is an error.
-    pub fn try_or_add_error<F>(&mut self, f: TcResult<F>) -> Option<F> {
-        match f {
-            Ok(v) => Some(v),
-            Err(e) => {
-                self.add_error(e);
-                None
-            }
-        }
-    }
-
-    /// Add a set of errors to the error state.
-    pub fn add_errors(&mut self, errors: impl IntoIterator<Item = impl Into<TcError>>) {
-        self.errors.extend(errors.into_iter().map(|err| err.into()));
-    }
-
-    /// Whether the error state has any errors.
-    pub fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
-    }
-
-    /// Take the errors from the error state.
-    pub fn take_errors(&mut self) -> Vec<TcError> {
-        take(&mut self.errors)
-    }
-}
-
-impl Default for TcErrorState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// A kind of wrong term usage.
 #[derive(Clone, Debug)]
@@ -167,6 +110,12 @@ pub enum TcError {
 
     /// An error that occurred in an intrinsic.
     Intrinsic(String),
+}
+
+impl IntoCompound for TcError {
+    fn into_compound(errors: Vec<Self>) -> Self {
+        TcError::Compound { errors }
+    }
 }
 
 pub type TcResult<T> = Result<T, TcError>;

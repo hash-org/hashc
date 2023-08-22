@@ -6,7 +6,7 @@ use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
-use hash_reporting::diagnostic::Diagnostics;
+use hash_reporting::diagnostic::{Diagnostics, ErrorState};
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
     entry_point::EntryPointKind,
@@ -1853,7 +1853,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.infer_params(data_def_params, || {
             match data_def_ctors {
                 DataDefCtors::Defined(data_def_ctors_id) => {
-                    let mut error_state = self.new_error_state();
+                    let mut error_state = ErrorState::new();
 
                     // Infer each member
                     for ctor_idx in data_def_ctors_id.to_index_range() {
@@ -1862,7 +1862,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         );
                     }
 
-                    self.return_or_register_errors(|| Ok(()), error_state)
+                    error_state.into_error(|| Ok(()))
                 }
                 DataDefCtors::Primitive(primitive) => {
                     match primitive {
@@ -1928,8 +1928,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_mod_def(&self, mod_def_id: ModDefId, fn_mode: FnInferMode) -> TcResult<()> {
         self.context().enter_scope(mod_def_id.into(), || {
             let members = mod_def_id.borrow().members;
+            let mut error_state = ErrorState::new();
 
-            let mut error_state = self.new_error_state();
             // Infer each member signature
             for member_idx in members.to_index_range() {
                 let _ = error_state.try_or_add_error(
@@ -1937,7 +1937,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 );
             }
 
-            self.return_or_register_errors(|| Ok(()), error_state)
+            error_state.into_error(|| Ok(()))
         })
     }
 }

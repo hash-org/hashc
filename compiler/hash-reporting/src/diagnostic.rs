@@ -299,7 +299,7 @@ pub trait AccessToDiagnosticsMut {
     }
 }
 
-/// A convinient trait which specifies that an error type can be converted
+/// A convenient trait which specifies that an error type can be converted
 /// into a compound error version.
 pub trait IntoCompound: Sized {
     fn into_compound(items: Vec<Self>) -> Self;
@@ -314,7 +314,7 @@ pub struct ErrorState<E> {
     pub errors: Vec<E>,
 }
 
-impl<E: IntoCompound> ErrorState<E> {
+impl<E> ErrorState<E> {
     /// Create a new [ErrorState].
     pub fn new() -> Self {
         Self { errors: vec![] }
@@ -352,7 +352,9 @@ impl<E: IntoCompound> ErrorState<E> {
     pub fn take_errors(&mut self) -> Vec<E> {
         std::mem::take(&mut self.errors)
     }
+}
 
+impl<E: IntoCompound> ErrorState<E> {
     /// Convert the accumulated [ErrorState] into a single error. This is
     /// possible since [ErrorState] implements [IntoCompound].
     pub fn into_error<T>(&mut self, t: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
@@ -365,7 +367,7 @@ impl<E: IntoCompound> ErrorState<E> {
     }
 }
 
-impl<E: IntoCompound> Default for ErrorState<E> {
+impl<E> Default for ErrorState<E> {
     fn default() -> Self {
         Self::new()
     }

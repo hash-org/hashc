@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use derive_more::Constructor;
 use hash_reporting::{
     diagnostic::{ErrorState, IntoCompound},
     hash_error_codes::error_codes::HashErrorCode,
@@ -15,7 +14,6 @@ use super::common::{get_location, get_overall_location};
 use crate::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     environment::env::Env,
-    impl_access_to_env,
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
 };
@@ -50,7 +48,7 @@ pub enum ParamError {
     RequiredParamNotFoundInArgs { param: ParamId, args: SomeArgsId },
 
     /// When a spread is specified before a positional argument, which makes
-    /// it imposiible to determine which positional argument the spread should
+    /// it impossible to determine which positional argument the spread should
     /// apply to.
     SpreadBeforePositionalArg { next_positional: SomeArgId },
 
@@ -218,14 +216,14 @@ impl IntoCompound for ParamError {
 pub type ParamResult<T> = Result<T, ParamError>;
 
 /// Operations related to module definitions.
-#[derive(Constructor)]
-pub struct ParamUtils<'tc> {
-    env: &'tc Env<'tc>,
-}
+pub struct ParamUtils;
 
-impl_access_to_env!(ParamUtils<'tc>);
+impl ParamUtils {
+    /// Create a new instance of [ParamUtils].
+    pub fn new(_: &Env) -> Self {
+        Self
+    }
 
-impl<'tc> ParamUtils<'tc> {
     /// Validate the given parameters, returning an error if they are invalid.
     ///
     /// Conditions for valid parameters are:

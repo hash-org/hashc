@@ -8,7 +8,7 @@
     if_let_guard
 )]
 
-use errors::{TcError, TcErrorState, TcResult};
+use errors::TcError;
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_intrinsics::intrinsics::{AccessToIntrinsics, IntrinsicAbilities};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
@@ -51,31 +51,11 @@ pub trait AccessToTypechecking:
         warning: ExhaustivenessWarning,
     ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Warning;
 
-    /// Create a new error state.
-    fn new_error_state(&self) -> TcErrorState {
-        TcErrorState::new()
-    }
-
     /// Get the entry point of the current compilation, if any.
     fn entry_point(&self) -> &EntryPointState<FnDefId>;
 
     /// Whether the typechecker should monomorphise all pure functions.
     fn should_monomorphise(&self) -> bool;
-
-    /// Absorb an error state into the diagnostics.
-    ///
-    /// Returns the error or the closure result if successful.
-    fn return_or_register_errors<T>(
-        &self,
-        t: impl FnOnce() -> TcResult<T>,
-        mut error_state: TcErrorState,
-    ) -> TcResult<T> {
-        if error_state.has_errors() {
-            Err(TcError::Compound { errors: error_state.take_errors() })
-        } else {
-            t()
-        }
-    }
 
     fn infer_ops(&self) -> InferenceOps<Self> {
         InferenceOps::new(self)
