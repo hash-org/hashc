@@ -747,7 +747,9 @@ impl DefinedIntrinsics {
                 FnTy::builder().params(params).return_ty(ret).build(),
                 |_, args| {
                     if let Term::FnRef(_fn_def_id) = args[1].value() {
-                        todo!()
+                        // @@ReAddDirectives: add attribute lookup when they are
+                        // re-added.
+                        //
                         // let directives =
                         //     tir_stores().directives().get(fn_def_id.into()).
                         // unwrap_or_default();

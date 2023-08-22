@@ -402,7 +402,7 @@ define_tree! {
         }
     }
 
-    /// Function call argument.
+    /// Macro invocation argument.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
     pub struct MacroInvocationArg {
@@ -498,7 +498,7 @@ define_tree! {
     /// The kind of macros that can be invoked and written in the source.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum MacroKind {
-        /// A token macro, which accepts a token tree and returns a parseable token
+        /// A token macro, which accepts a token tree and returns a parse-able token
         /// tree which is later converted into AST. Token macros begin with a `@`.
         Token,
 

@@ -11,6 +11,11 @@ use super::AstGen;
 use crate::diagnostics::error::{ParseErrorKind, ParseResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+    /// Parse a macro prefix character, which depending on [MacroKind] is either
+    /// a `#` or a `@`.
+    ///
+    /// **Note**: This function will consume the token if it is a macro prefix,
+    /// otherwise it will not consume the token.
     fn parse_macro_prefix(&self, kind: MacroKind) -> Option<()> {
         match kind {
             MacroKind::Token if self.parse_token_fast(TokenKind::At).is_some() => {
@@ -25,6 +30,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
+    /// Parse a macro argument, which has the same syntax as a standard
+    /// argument. This means that it can either be a name followed by an
+    /// equals sign, or just an expression.
     fn parse_macro_arg(&mut self) -> ParseResult<AstNode<MacroInvocationArg>> {
         let start = self.current_pos();
 
@@ -68,6 +76,19 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(MacroInvocation { name, args }, start))
     }
 
+    /// Parse a list of macro invocations, which can either be a single
+    /// macro invocation, or a nested collection of macros. A single
+    /// invocation might look like the following:
+    /// ```notrust, ignore
+    /// #foo main := () => { ... }
+    /// ```
+    /// And a nest invocation might look like the following:
+    /// ```notrust, ignore
+    /// #foo #bar #baz main := () => { ... }
+    /// ```
+    ///
+    /// This function will parse single and nested invocations into a single
+    /// batch of invocations.
     fn parse_macros(&mut self, kind: MacroKind) -> ParseResult<AstNode<MacroInvocations>> {
         let start = self.current_pos();
         let mut initial_prefix = true;
@@ -79,7 +100,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // single macro invocation. These kind of invocations don't support
         // macro arguments, and can either be followed by another invocation. If
         // the next token is a `[...]` this means that we are parsing a list of
-        // comma seperated invocations.
+        // comma separated invocations.
         loop {
             if initial_prefix {
                 initial_prefix = false;
