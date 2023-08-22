@@ -1,8 +1,8 @@
 use std::{fmt, mem::take};
 
 use derive_more::{Constructor, From};
-use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
+    hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
     writer::ReportWriter,
 };

@@ -11,7 +11,6 @@ rayon = "1.5.0"
 
 hash-ast = { path = "../hash-ast" }
 hash-utils = { path = "../hash-utils" }
-hash-error-codes = { path = "../hash-error-codes" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }

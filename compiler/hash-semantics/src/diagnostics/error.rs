@@ -1,8 +1,7 @@
 //! Error-related data structures for errors that occur during typechecking.
-use hash_error_codes::error_codes::HashErrorCode;
 use hash_exhaustiveness::diagnostics::ExhaustivenessError;
 use hash_reporting::{
-    self,
+    hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
 };
 use hash_source::location::Span;

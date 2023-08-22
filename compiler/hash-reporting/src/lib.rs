@@ -8,3 +8,5 @@ mod render;
 pub mod report;
 pub mod reporter;
 pub mod writer;
+
+pub use hash_error_codes;

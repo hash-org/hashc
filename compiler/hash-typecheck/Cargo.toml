@@ -12,7 +12,6 @@ num-bigint = "0.4"
 once_cell = "1.17"
 
 hash-ast = { path = "../hash-ast" }
-hash-error-codes = { path = "../hash-error-codes" }
 hash-exhaustiveness = { path = "../hash-exhaustiveness" }
 hash-intrinsics = { path = "../hash-intrinsics" }
 hash-reporting = { path = "../hash-reporting" }

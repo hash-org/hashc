@@ -6,7 +6,6 @@ edition = "2021"
 
 [dependencies]
 hash-ast = { path = "../hash-ast" }
-hash-error-codes = { path = "../hash-error-codes" }
 hash-intrinsics = { path = "../hash-intrinsics" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }

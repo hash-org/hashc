@@ -2,8 +2,10 @@
 //! for pattern matching.
 
 use hash_ast::ast::{MatchOrigin, RangeEnd};
-use hash_error_codes::error_codes::HashErrorCode;
-use hash_reporting::{diagnostic::DiagnosticCellStore, reporter::Reporter};
+use hash_reporting::{
+    diagnostic::DiagnosticCellStore, hash_error_codes::error_codes::HashErrorCode,
+    reporter::Reporter,
+};
 use hash_source::location::Span;
 use hash_tir::{lits::LitPat, pats::PatId, utils::common::get_location};
 use hash_utils::{
