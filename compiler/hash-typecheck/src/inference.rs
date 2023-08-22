@@ -218,7 +218,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<U> {
         self.register_new_atom(args, annotation_params);
         let reordered_args_id =
-            self.param_ops().validate_and_reorder_args_against_params(args, annotation_params)?;
+            self.param_utils().validate_and_reorder_args_against_params(args, annotation_params)?;
 
         let result = self.infer_some_args(
             reordered_args_id.iter(),
@@ -281,11 +281,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_arg_scope: impl FnOnce(PatArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
         self.register_new_atom(pat_args, annotation_params);
-        let reordered_pat_args_id = self.param_ops().validate_and_reorder_pat_args_against_params(
-            pat_args,
-            spread,
-            annotation_params,
-        )?;
+        let reordered_pat_args_id = self
+            .param_utils()
+            .validate_and_reorder_pat_args_against_params(pat_args, spread, annotation_params)?;
 
         self.infer_some_args(
             reordered_pat_args_id.iter(),
@@ -332,7 +330,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_param_scope: impl FnOnce() -> TcResult<U>,
     ) -> TcResult<U> {
         // Validate the parameters
-        self.param_ops().validate_params(params)?;
+        self.param_utils().validate_params(params)?;
 
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {

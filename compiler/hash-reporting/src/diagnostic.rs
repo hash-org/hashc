@@ -298,3 +298,75 @@ pub trait AccessToDiagnosticsMut {
         self.diagnostics().merge_diagnostics(other)
     }
 }
+
+/// A convinient trait which specifies that an error type can be converted
+/// into a compound error version.
+pub trait IntoCompound: Sized {
+    fn into_compound(items: Vec<Self>) -> Self;
+}
+
+/// Accumulates errors that occur during typechecking in a local scope.
+///
+/// This is used for error recovery, so that multiple errors can be reported
+/// at once.
+#[derive(Debug)]
+pub struct ErrorState<E> {
+    pub errors: Vec<E>,
+}
+
+impl<E: IntoCompound> ErrorState<E> {
+    /// Create a new [ErrorState].
+    pub fn new() -> Self {
+        Self { errors: vec![] }
+    }
+
+    /// Add an error to the error state.
+    pub fn add_error(&mut self, error: impl Into<E>) -> &E {
+        let error = error.into();
+        self.errors.push(error);
+        self.errors.last().unwrap()
+    }
+
+    /// Add an error to the error state if the given result is an error.
+    pub fn try_or_add_error<F>(&mut self, f: Result<F, E>) -> Option<F> {
+        match f {
+            Ok(v) => Some(v),
+            Err(e) => {
+                self.add_error(e);
+                None
+            }
+        }
+    }
+
+    /// Add a set of errors to the error state.
+    pub fn add_errors(&mut self, errors: impl IntoIterator<Item = impl Into<E>>) {
+        self.errors.extend(errors.into_iter().map(|err| err.into()));
+    }
+
+    /// Whether the error state has any errors.
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    /// Take the errors from the error state.
+    pub fn take_errors(&mut self) -> Vec<E> {
+        std::mem::take(&mut self.errors)
+    }
+
+    /// Convert the accumulated [ErrorState] into a single error. This is
+    /// possible since [ErrorState] implements [IntoCompound].
+    pub fn into_error<T>(&mut self, t: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+        if self.has_errors() {
+            let errors = self.take_errors();
+            Err(E::into_compound(errors))
+        } else {
+            t()
+        }
+    }
+}
+
+impl<E: IntoCompound> Default for ErrorState<E> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
