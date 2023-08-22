@@ -7,7 +7,7 @@ use hash_source::identifier::Identifier;
 use hash_storage::store::DefaultPartialStore;
 use hash_utils::fxhash::FxHashMap;
 
-use crate::register::AttrId;
+use crate::ty::AttrId;
 
 #[derive(Debug, Clone)]
 pub struct Attr {

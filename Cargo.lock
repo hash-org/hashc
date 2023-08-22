@@ -452,9 +452,11 @@ version = "0.1.0"
 dependencies = [
  "hash-ast",
  "hash-error-codes",
+ "hash-intrinsics",
  "hash-reporting",
  "hash-source",
  "hash-storage",
+ "hash-tir",
  "hash-utils",
 ]
 
@@ -899,11 +901,13 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "backtrace",
+ "bitflags 2.4.0",
  "dashmap",
  "fixedbitset",
  "fxhash",
  "index_vec",
  "itertools",
+ "lazy_static",
  "log",
  "num-traits",
  "parking_lot",

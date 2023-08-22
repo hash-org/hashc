@@ -9,7 +9,6 @@ use hash_reporting::{
 use self::{error::AnalysisError, warning::AnalysisWarning};
 use crate::analysis::SemanticAnalyser;
 
-pub(crate) mod directives;
 pub(crate) mod error;
 pub(crate) mod warning;
 

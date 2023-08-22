@@ -9,9 +9,9 @@ use hash_reporting::{
     report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
-use hash_source::{identifier::Identifier, location::Span, ModuleKind};
+use hash_source::{identifier::Identifier, location::Span};
 
-use super::directives::DirectiveArgument;
+// use super::directives::DirectiveArgument;
 use crate::analysis::params::FieldNamingExpectation;
 
 /// An error that can occur during the semantic pass
@@ -79,24 +79,24 @@ pub(crate) enum AnalysisErrorKind {
     SelfInFreeStandingFn,
 
     /// When a directive is not allowed in the current module or context
-    DisallowedDirective { name: Identifier, module_kind: Option<ModuleKind> },
+    // DisallowedDirective { name: Identifier, module_kind: Option<ModuleKind> },
 
     /// When a directive is expecting a particular expression, but received an
     /// unexpected kind...
-    InvalidDirectiveArgument {
-        /// The name of the directive.
-        name: Identifier,
+    // InvalidDirectiveArgument {
+    //     /// The name of the directive.
+    //     name: Identifier,
 
-        /// A collection of allowed directive arguments, e.g. `struct` or `enum`
-        /// definition.
-        expected: DirectiveArgument,
+    //     /// A collection of allowed directive arguments, e.g. `struct` or `enum`
+    //     /// definition.
+    //     expected: DirectiveArgument,
 
-        /// The received argument.
-        received: DirectiveArgument,
+    //     /// The received argument.
+    //     received: DirectiveArgument,
 
-        /// Any additional information about this particular invocation.
-        notes: Vec<String>,
-    },
+    //     /// Any additional information about this particular invocation.
+    //     notes: Vec<String>,
+    // },
 
     /// When a directive is used within an un-expected scope,
     InvalidDirectiveScope { name: Identifier, expected: BlockOrigin, received: BlockOrigin },
@@ -207,21 +207,22 @@ impl From<AnalysisError> for Reports {
                         format!("consider giving this {origin} field a type annotation"),
                     )));
             }
-            AnalysisErrorKind::DisallowedDirective { name, module_kind } => {
-                let origin = match module_kind {
-                    Some(_) => "this module",
-                    None => "an interactive",
-                };
+            // AnalysisErrorKind::DisallowedDirective { name, module_kind } => {
+            //     let origin = match module_kind {
+            //         Some(_) => "this module",
+            //         None => "an interactive",
+            //     };
 
-                error
-                    .title(format!("the `{name}` directive is disallowed within {origin} context"));
+            //     error
+            //         .title(format!("the `{name}` directive is disallowed within {origin}
+            // context"));
 
-                // Show the location where the directive is being used...
-                error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                    err.location,
-                    format!("`{name}` cannot be used within {origin} context"),
-                )));
-            }
+            //     // Show the location where the directive is being used...
+            //     error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+            //         err.location,
+            //         format!("`{name}` cannot be used within {origin} context"),
+            //     )));
+            // }
             AnalysisErrorKind::InvalidDirectiveScope { name, expected, received } => {
                 error.title(format!("the `{name}` directive is must be within a {expected} block"));
 
@@ -231,20 +232,20 @@ impl From<AnalysisError> for Reports {
                     format!("`{name}` cannot be used within {received} block"),
                 )));
             }
-            AnalysisErrorKind::InvalidDirectiveArgument { name, expected, received, notes } => {
-                error.title(format!("the `{name}` directive expects {expected} as an argument"));
+            // AnalysisErrorKind::InvalidDirectiveArgument { name, expected, received, notes } => {
+            //     error.title(format!("the `{name}` directive expects {expected} as an argument"));
 
-                // Show the location where the directive is being used...
-                error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                    err.location,
-                    format!("{received} cannot be given to the `{name}` directive"),
-                )));
+            //     // Show the location where the directive is being used...
+            //     error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+            //         err.location,
+            //         format!("{received} cannot be given to the `{name}` directive"),
+            //     )));
 
-                // Add any notes that were given with this error
-                for note in notes {
-                    error.add_note(note);
-                }
-            }
+            //     // Add any notes that were given with this error
+            //     for note in notes {
+            //         error.add_note(note);
+            //     }
+            // }
             AnalysisErrorKind::DisallowedFloatPat => {
                 error.title("float literals are disallowed within a pattern position");
 
