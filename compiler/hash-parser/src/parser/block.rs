@@ -111,14 +111,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// expression branch.
     pub(crate) fn parse_match_case(&mut self) -> ParseResult<AstNode<MatchCase>> {
         let start = self.current_pos();
-        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         let pat = self.parse_pat()?;
 
         self.parse_arrow()?;
         let expr = self.parse_expr_with_precedence(0)?;
 
-        Ok(self.node_with_joined_span(MatchCase { pat, expr, macro_args }, start))
+        Ok(self.node_with_joined_span(MatchCase { pat, expr, macros }, start))
     }
 
     /// Parse a match block statement, which is composed of a subject and an

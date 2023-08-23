@@ -166,11 +166,11 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let ast::EnumDefEntry { name, fields, ty, macro_args } = node.body();
+        let ast::EnumDefEntry { name, fields, ty, macros } = node.body();
 
         // We have to visit the macro args first...
-        if let Some(macro_args) = macro_args {
-            self.visit_macro_invocations(macro_args.ast_ref())?;
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
             self.terminate_line("")?;
         }
 
@@ -243,11 +243,11 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::ExprArg>,
     ) -> Result<Self::ExprArgRet, Self::Error> {
-        let ast::ExprArg { name, value, macro_args } = node.body();
+        let ast::ExprArg { name, value, macros } = node.body();
 
         // We have to visit the macro args first...
-        if let Some(macro_args) = macro_args {
-            self.visit_macro_invocations(macro_args.ast_ref())?;
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
         }
 
         if let Some(name) = name {
@@ -581,11 +581,11 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
-        let ast::TyArg { name, ty, macro_args } = node.body();
+        let ast::TyArg { name, ty, macros } = node.body();
 
         // We have to visit the macro args first...
-        if let Some(macro_args) = macro_args {
-            self.visit_macro_invocations(macro_args.ast_ref())?;
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
         }
 
         if let Some(name) = name {
@@ -1057,11 +1057,11 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        let ast::MatchCase { pat, expr, macro_args } = node.body();
+        let ast::MatchCase { pat, expr, macros } = node.body();
 
         // We have to visit the macro args first...
-        if let Some(macro_args) = macro_args {
-            self.visit_macro_invocations(macro_args.ast_ref())?;
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
         }
 
         self.visit_pat(pat.ast_ref())?;
@@ -1085,11 +1085,11 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::PatArg>,
     ) -> Result<Self::PatArgRet, Self::Error> {
-        let ast::PatArg { name, pat, macro_args } = node.body();
+        let ast::PatArg { name, pat, macros } = node.body();
 
         // We have to visit the macro args first...
-        if let Some(macro_args) = macro_args {
-            self.visit_macro_invocations(macro_args.ast_ref())?;
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
         }
 
         if let Some(name) = name {
@@ -1338,10 +1338,10 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::TyMacroInvocation>,
     ) -> Result<Self::TyMacroInvocationRet, Self::Error> {
-        let ast::TyMacroInvocation { subject, macro_args } = node.body();
+        let ast::TyMacroInvocation { subject, macros } = node.body();
 
-        if !macro_args.is_empty() {
-            self.visit_macro_invocations(macro_args.ast_ref())?;
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
         }
 
         self.visit_ty(subject.ast_ref())
@@ -1353,10 +1353,10 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::PatMacroInvocation>,
     ) -> Result<Self::PatMacroInvocationRet, Self::Error> {
-        let ast::PatMacroInvocation { subject, macro_args } = node.body();
+        let ast::PatMacroInvocation { subject, macros } = node.body();
 
-        if !macro_args.is_empty() {
-            self.visit_macro_invocations(macro_args.ast_ref())?;
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
         }
 
         self.visit_pat(subject.ast_ref())
@@ -1368,10 +1368,10 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::ExprMacroInvocation>,
     ) -> Result<Self::ExprMacroInvocationRet, Self::Error> {
-        let ast::ExprMacroInvocation { subject, macro_args } = node.body();
+        let ast::ExprMacroInvocation { subject, macros } = node.body();
 
-        if !macro_args.is_empty() {
-            self.visit_macro_invocations(macro_args.ast_ref())?;
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
             self.terminate_line("")?;
         }
 

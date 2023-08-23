@@ -32,12 +32,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // If we are starting with a macro invocation, then we have
         // to recurse and re-try parsing the top level expression
-        if let Some(macro_args) = self.parse_macro_invocations(MacroKind::Ast)? {
+        if let Some(macros) = self.parse_macro_invocations(MacroKind::Ast)? {
             let top_level_expr = self.parse_top_level_expr()?;
 
             if let Some((_, subject)) = top_level_expr {
                 let expr = self.node_with_joined_span(
-                    Expr::Macro(ExprMacroInvocation { macro_args, subject }),
+                    Expr::Macro(ExprMacroInvocation { macros, subject }),
                     start,
                 );
 
@@ -502,7 +502,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn parse_constructor_call_arg(&mut self) -> ParseResult<AstNode<ExprArg>> {
         let start = self.current_pos();
 
-        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         // here we trying to check if this argument is in form of just an expression or
         // if there is a name being assigned here...
@@ -522,7 +522,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Now here we expect an expression...
         let value = self.parse_expr_with_precedence(0)?;
 
-        Ok(self.node_with_span(ExprArg { name, value, macro_args }, start))
+        Ok(self.node_with_span(ExprArg { name, value, macros }, start))
     }
 
     /// Parse a [ConstructorCallExpr] which accepts the `subject` that the
@@ -644,9 +644,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             TokenKind::Pound => {
                 self.offset.update(|x| x - 1); // go back a token so we can parse the macro invocation
-                let macro_args = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
+                let macros = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
                 let subject = self.parse_expr()?;
-                Expr::Macro(ExprMacroInvocation { macro_args, subject })
+                Expr::Macro(ExprMacroInvocation { macros, subject })
             }
             TokenKind::At => todo!(),
             TokenKind::Keyword(Keyword::Unsafe) => {
@@ -923,7 +923,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// a function type.
     pub(crate) fn parse_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
         let start = self.current_pos();
-        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         let name = self.parse_name()?;
 
@@ -944,7 +944,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(
-            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn, macro_args },
+            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn, macros },
             start,
         ))
     }

@@ -56,7 +56,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&mut self) -> ParseResult<AstNode<EnumDefEntry>> {
         let start = self.current_pos();
-        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         let name = self.parse_name()?;
         let name_span = name.byte_range();
@@ -82,7 +82,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => None,
         };
 
-        Ok(self.node_with_joined_span(EnumDefEntry { name, fields, ty, macro_args }, start))
+        Ok(self.node_with_joined_span(EnumDefEntry { name, fields, ty, macros }, start))
     }
 
     /// Parses an nominal definition type field, which could either be a named
@@ -91,7 +91,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// type annotation and a default value.
     pub(crate) fn parse_def_param(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Param>> {
         let start = self.next_pos();
-        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         // Try and parse the name and type
         let (name, ty) = match self.peek_second() {
@@ -124,7 +124,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(Param { name, ty, default, origin, macro_args }, start))
+        Ok(self.node_with_joined_span(Param { name, ty, default, origin, macros }, start))
     }
 
     /// Parse a [TyFnDef]. Type functions specify logic at the type
@@ -154,7 +154,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     // that are separated by a `~`
     fn parse_ty_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
         let start = self.current_pos();
-        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         let name = self.parse_name()?;
 
@@ -182,7 +182,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                 }),
                 origin: ParamOrigin::TyFn,
-                macro_args,
+                macros,
             },
             start,
         ))

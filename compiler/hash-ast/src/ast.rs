@@ -467,7 +467,7 @@ define_tree! {
     #[node]
     pub struct ExprMacroInvocation {
         /// The directives that apply on the subject expression.
-        pub macro_args: Child!(MacroInvocations),
+        pub macros: Child!(MacroInvocations),
 
         /// The subjection expression of the invocation.
         pub subject: Child!(Expr),
@@ -478,7 +478,7 @@ define_tree! {
     #[node]
     pub struct TyMacroInvocation {
         /// The directives that apply on the subject type.
-        pub macro_args: Child!(MacroInvocations),
+        pub macros: Child!(MacroInvocations),
 
         /// The subject type of the invocation.
         pub subject: Child!(Ty),
@@ -489,7 +489,7 @@ define_tree! {
     #[node]
     pub struct PatMacroInvocation {
         /// The directives that apply on the subject pattern.
-        pub macro_args: Child!(MacroInvocations),
+        pub macros: Child!(MacroInvocations),
 
         /// The subject pattern of the invocation.
         pub subject: Child!(Pat),
@@ -559,7 +559,7 @@ define_tree! {
         pub ty: Child!(Ty),
 
         /// Any macros are invoked on the parameter.
-        pub macro_args: OptionalChild!(MacroInvocations),
+        pub macros: OptionalChild!(MacroInvocations),
     }
 
     /// The tuple type.
@@ -948,7 +948,7 @@ define_tree! {
         pub pat: Child!(Pat),
 
         /// Any applied macro invocations on this argument.
-        pub macro_args: OptionalChild!(MacroInvocations),
+        pub macros: OptionalChild!(MacroInvocations),
     }
 
     /// A tuple pattern, e.g. `(1, 2, x)`
@@ -1431,7 +1431,7 @@ define_tree! {
         pub ty: OptionalChild!(Ty),
 
         /// Any macro invocations that occur on the enum variant.
-        pub macro_args: OptionalChild!(MacroInvocations),
+        pub macros: OptionalChild!(MacroInvocations),
     }
 
     /// An enum definition, e.g.
@@ -1498,7 +1498,7 @@ define_tree! {
         pub expr: Child!(Expr),
 
         /// Any macro invocations that occur on this match case.
-        pub macro_args: OptionalChild!(MacroInvocations),
+        pub macros: OptionalChild!(MacroInvocations),
     }
 
     impl MatchCase {
@@ -1846,7 +1846,7 @@ define_tree! {
         pub origin: ParamOrigin,
 
         /// Any macros are invoked on the parameter.
-        pub macro_args: OptionalChild!(MacroInvocations),
+        pub macros: OptionalChild!(MacroInvocations),
     }
 
     /// A function definition.
@@ -1875,7 +1875,7 @@ define_tree! {
         pub value: Child!(Expr),
 
         /// Any macros are invoked on the parameter.
-        pub macro_args: OptionalChild!(MacroInvocations),
+        pub macros: OptionalChild!(MacroInvocations),
     }
 
     /// A constructor call expression. This can either be a function

@@ -426,11 +426,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // for this particular pattern
             self.consume_gen(gen);
 
-            let PatArg { pat, macro_args, .. } = fields.nodes.pop().unwrap().into_body();
+            let PatArg { pat, macros, .. } = fields.nodes.pop().unwrap().into_body();
 
-            if let Some(macro_args) = macro_args {
+            if let Some(macros) = macros {
                 Ok(AstNode::with_id(
-                    Pat::Macro(PatMacroInvocation { macro_args, subject: pat }),
+                    Pat::Macro(PatMacroInvocation { macros, subject: pat }),
                     fields.id(),
                 ))
             } else {
@@ -447,7 +447,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// argument.
     pub(crate) fn parse_pat_arg(&mut self) -> ParseResult<AstNode<PatArg>> {
         let start = self.next_pos();
-        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         let (name, pat) = match self.peek() {
             Some(Token { kind: TokenKind::Ident(_), .. }) => {
@@ -466,7 +466,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => (None, self.parse_pat()?),
         };
 
-        Ok(self.node_with_joined_span(PatArg { name, pat, macro_args }, start))
+        Ok(self.node_with_joined_span(PatArg { name, pat, macros }, start))
     }
 
     /// Parse a spread operator from the current token tree. A spread operator

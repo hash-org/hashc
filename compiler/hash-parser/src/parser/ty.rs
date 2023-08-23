@@ -145,10 +145,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // Parse a macro invocation
             TokenKind::Pound => {
-                let macro_args = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
+                let macros = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
                 let subject = self.parse_singular_ty()?;
 
-                Ty::Macro(TyMacroInvocation { macro_args, subject })
+                Ty::Macro(TyMacroInvocation { macros, subject })
             }
 
             // Type function, which is a collection of arguments enclosed in `<...>` and then
@@ -198,8 +198,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         // @@Note: this will always be none since the above function
                         // will parse the args and then apply it to us as the subject.
                         // 
-                        // So if `#foo U -> T` is present, we parse as `TyMacroInvocation { subject: U -> T, macro_args: #foo }`
-                        macro_args: None
+                        // So if `#foo U -> T` is present, we parse as `TyMacroInvocation { subject: U -> T, macros: #foo }`
+                        macros: None
                     }, span);
 
                     Ty::Fn(FnTy {
@@ -266,7 +266,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn parse_ty_arg(&mut self) -> ParseResult<AstNode<TyArg>> {
         let start = self.next_pos();
 
-        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         // Here we have to essentially try and parse a identifier. If this is the
         // case and then there is a colon present then we
@@ -290,7 +290,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => (None, self.parse_ty()?),
         };
 
-        Ok(self.node_with_joined_span(TyArg { name, ty, macro_args }, start))
+        Ok(self.node_with_joined_span(TyArg { name, ty, macros }, start))
     }
 
     /// Parses a [Ty::Fn] which involves a parenthesis token tree with some
@@ -351,7 +351,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         loop {
             let span = self.current_pos();
 
-            let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+            let macros = self.parse_macro_invocations(MacroKind::Ast)?;
             let name = self.parse_name()?;
 
             let ty = match self.parse_token_fast(TokenKind::Colon) {
@@ -377,7 +377,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                     }),
                     origin: ParamOrigin::TyFn,
-                    macro_args,
+                    macros,
                 },
                 span,
             ));

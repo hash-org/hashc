@@ -70,7 +70,7 @@ impl<'s> AstDesugaring<'s> {
                 spread: None,
                 fields: ast::AstNodes::new(
                     thin_vec![ast::AstNode::new(
-                        ast::PatArg { name: None, pat, macro_args: None },
+                        ast::PatArg { name: None, pat, macros: None },
                         pat_span
                     )],
                     pat_span,
@@ -90,7 +90,7 @@ impl<'s> AstDesugaring<'s> {
                             ast::Expr::Block(ast::BlockExpr { data: for_body }),
                             body_span
                         ),
-                        macro_args: None
+                        macros: None
                     },
                     pat_span
                 ),
@@ -104,7 +104,7 @@ impl<'s> AstDesugaring<'s> {
                             },),
                             pat_span,
                         ),
-                        macro_args: None,
+                        macros: None,
                         expr: ast::AstNode::new(
                             ast::Expr::Break(ast::BreakStatement {}),
                             body_span
@@ -133,7 +133,7 @@ impl<'s> AstDesugaring<'s> {
                             ),
                             args: ast::AstNodes::new(
                                 thin_vec![ast::AstNode::new(
-                                    ast::ExprArg { name: None, value: iterator, macro_args: None },
+                                    ast::ExprArg { name: None, value: iterator, macros: None },
                                     iter_span
                                 )],
                                 iter_span,
@@ -219,7 +219,7 @@ impl<'s> AstDesugaring<'s> {
                                         ast::Expr::Block(ast::BlockExpr { data: while_body }),
                                         body_span
                                     ),
-                                    macro_args: None
+                                    macros: None
                                 },
                                 condition_span
                             ),
@@ -238,7 +238,7 @@ impl<'s> AstDesugaring<'s> {
                                         ast::Expr::Break(ast::BreakStatement {}),
                                         condition_span
                                     ),
-                                    macro_args: None
+                                    macros: None
                                 },
                                 condition_span
                             )
@@ -293,7 +293,7 @@ impl<'s> AstDesugaring<'s> {
                     ast::Expr::Block(ast::BlockExpr { data: if_body }),
                     body_span,
                 ),
-                macro_args: None,
+                macros: None,
             },
             branch_span,
         )
@@ -398,7 +398,7 @@ impl<'s> AstDesugaring<'s> {
                         ast::Expr::Block(ast::BlockExpr { data: block }),
                         else_block_span,
                     ),
-                    macro_args: None,
+                    macros: None,
                 },
                 else_block_span,
             )
@@ -424,7 +424,7 @@ impl<'s> AstDesugaring<'s> {
                         }),
                         parent_span,
                     ),
-                    macro_args: None,
+                    macros: None,
                 },
                 parent_span,
             )
