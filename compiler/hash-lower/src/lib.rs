@@ -34,7 +34,10 @@ use hash_semantics::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::statics::StoreId;
 use hash_tir::environment::{env::Env, source_info::CurrentSourceInfo};
-use hash_utils::timing::{time_item, AccessToMetrics};
+use hash_utils::{
+    rayon,
+    timing::{time_item, AccessToMetrics},
+};
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.

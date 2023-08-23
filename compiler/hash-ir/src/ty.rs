@@ -9,7 +9,6 @@ use std::{
     fmt::{self, Debug},
 };
 
-use bitflags::bitflags;
 use hash_ast::ast;
 use hash_source::{
     attributes::ItemAttributes,
@@ -26,7 +25,11 @@ use hash_target::{
     data_layout::HasDataLayout,
     size::Size,
 };
-use hash_utils::index_vec::{self, index_vec, IndexVec};
+use hash_utils::{
+    bitflags::bitflags,
+    index_vec::{self, index_vec, IndexVec},
+    lazy_static,
+};
 
 use crate::{
     ir::{LocalDecls, Place, PlaceProjection},

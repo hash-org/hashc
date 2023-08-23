@@ -10,7 +10,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use bitflags::bitflags;
 use hash_ast::{
     ast::{AstVisitor, AstVisitorMutSelf, OwnsAstNode},
     node_map::{InteractiveBlock, ModuleEntry, NodeMap},
@@ -19,6 +18,7 @@ use hash_ast::{
 use hash_fmt::AstPrinter;
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_utils::{
+    bitflags::bitflags,
     fxhash::{FxHashMap, FxHashSet},
     tree_writing::{TreeWriter, TreeWriterConfig},
 };

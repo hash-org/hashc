@@ -5,8 +5,6 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-rayon = "1.5.0"
-
 hash-codegen = { path = "../hash-codegen" }
 hash-codegen-llvm = { path = "../hash-codegen-llvm" }
 hash-ir = { path = "../hash-ir" }

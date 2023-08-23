@@ -36,6 +36,7 @@ use hash_source::{SourceId, SourceMap};
 use hash_untyped_semantics::{
     UntypedSemanticAnalysis, UntypedSemanticAnalysisCtx, UntypedSemanticAnalysisCtxQuery,
 };
+use hash_utils::rayon;
 
 /// A struct that is used to construct a [Compiler] with
 /// either a default or a custom configuration.

@@ -10,7 +10,6 @@ use std::{
     ops::{IndexMut, Neg},
 };
 
-use dashmap::DashMap;
 use fnv::FnvBuildHasher;
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
@@ -18,11 +17,12 @@ pub use hash_target::primitives::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_target::size::Size;
 use hash_utils::{
     counter,
+    dashmap::DashMap,
     fxhash::FxBuildHasher,
     index_vec::{define_index_type, IndexVec},
+    lazy_static::lazy_static,
     parking_lot::RwLock,
 };
-use lazy_static::lazy_static;
 use num_bigint::{BigInt, Sign};
 use FloatConstantValue::*;
 use IntConstantValue::*;

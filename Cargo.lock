@@ -399,7 +399,6 @@ checksum = "b6c80984affa11d98d1b88b66ac8853f143217b399d3c74116778ff8fdb4ed2e"
 name = "hash-abi"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "hash-ir",
  "hash-layout",
  "hash-source",
@@ -430,7 +429,6 @@ dependencies = [
  "hash-source",
  "hash-tree-def",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
@@ -458,14 +456,12 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
 name = "hash-codegen"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "fixedbitset",
  "hash-abi",
  "hash-ir",
@@ -476,7 +472,6 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
@@ -487,14 +482,12 @@ dependencies = [
  "hash-ir",
  "hash-source",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
 name = "hash-codegen-llvm"
 version = "0.1.0"
 dependencies = [
- "fxhash",
  "hash-codegen",
  "hash-ir",
  "hash-pipeline",
@@ -504,7 +497,6 @@ dependencies = [
  "hash-utils",
  "inkwell",
  "llvm-sys",
- "rayon",
 ]
 
 [[package]]
@@ -530,7 +522,6 @@ dependencies = [
  "hash-untyped-semantics",
  "hash-utils",
  "num_cpus",
- "rayon",
 ]
 
 [[package]]
@@ -580,7 +571,6 @@ dependencies = [
 name = "hash-ir"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "fixedbitset",
  "hash-ast",
  "hash-intrinsics",
@@ -590,7 +580,6 @@ dependencies = [
  "hash-tir",
  "hash-utils",
  "html-escape",
- "lazy_static",
 ]
 
 [[package]]
@@ -633,7 +622,6 @@ dependencies = [
 name = "hash-lower"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "derive_more",
  "fixedbitset",
  "hash-ast",
@@ -651,14 +639,12 @@ dependencies = [
  "hash-utils",
  "indexmap 1.9.3",
  "num-traits",
- "rayon",
 ]
 
 [[package]]
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
- "crossbeam-channel",
  "derive_more",
  "hash-ast",
  "hash-lexer",
@@ -670,14 +656,12 @@ dependencies = [
  "hash-utils",
  "num-bigint",
  "profiling",
- "rayon",
 ]
 
 [[package]]
 name = "hash-pipeline"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "clap",
  "const_format",
  "hash-ast",
@@ -703,8 +687,6 @@ dependencies = [
 name = "hash-semantics"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
- "dashmap",
  "derive_more",
  "hash-ast",
  "hash-exhaustiveness",
@@ -728,13 +710,11 @@ version = "0.1.0"
 dependencies = [
  "bimap",
  "bytecount",
- "dashmap",
  "derive_more",
  "fnv",
  "hash-storage",
  "hash-target",
  "hash-utils",
- "lazy_static",
  "num-bigint",
  "once_cell",
 ]
@@ -820,7 +800,6 @@ dependencies = [
  "hash-target",
  "hash-utils",
  "indexmap 1.9.3",
- "lazy_static",
  "num-bigint",
  "textwrap",
  "typed-builder",
@@ -851,7 +830,6 @@ dependencies = [
 name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
- "dashmap",
  "derive_more",
  "hash-ast",
  "hash-exhaustiveness",
@@ -871,15 +849,12 @@ dependencies = [
 name = "hash-untyped-semantics"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
- "crossbeam-channel",
  "hash-ast",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
  "hash-tree-def",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
@@ -888,14 +863,18 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "backtrace",
+ "bitflags 2.4.0",
+ "crossbeam-channel",
  "dashmap",
  "fixedbitset",
  "fxhash",
  "index_vec",
  "itertools",
+ "lazy_static",
  "log",
  "num-traits",
  "parking_lot",
+ "rayon",
  "smallvec",
  "stacker",
  "thin-vec",

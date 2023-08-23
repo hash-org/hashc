@@ -3,7 +3,6 @@
 //! tasks to finalise the LLVM IR and compile it into a native executable.
 use std::cell::{Cell, RefCell};
 
-use fxhash::FxHashMap;
 use hash_codegen::{
     backend::CodeGenStorage,
     layout::{compute::LayoutComputer, LayoutCtx},
@@ -16,6 +15,7 @@ use hash_ir::{
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::InternedStr;
+use hash_utils::fxhash::FxHashMap;
 use inkwell as llvm;
 use llvm::values::FunctionValue;
 

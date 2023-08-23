@@ -25,6 +25,7 @@ use hash_codegen::{
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
 use hash_storage::store::{statics::StoreId, Store};
+use hash_utils::rayon::iter::Either;
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
@@ -35,7 +36,6 @@ use inkwell::{
     },
 };
 use llvm_sys::core::{LLVMBuildExactUDiv, LLVMGetTypeKind};
-use rayon::iter::Either;
 
 use super::{
     abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,

@@ -10,6 +10,7 @@ use hash_pipeline::{
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
+use hash_utils::rayon;
 use visitor::AstDesugaring;
 
 pub mod desugaring;
