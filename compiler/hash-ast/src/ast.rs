@@ -554,8 +554,12 @@ define_tree! {
     pub struct TyArg {
         /// An optional name to the argument
         pub name: OptionalChild!(Name),
+
         /// The assigned value of the type argument
         pub ty: Child!(Ty),
+
+        /// Any macros are invoked on the parameter.
+        pub macro_args: OptionalChild!(MacroInvocations),
     }
 
     /// The tuple type.
@@ -908,7 +912,7 @@ define_tree! {
         pub subject: Child!(Pat),
 
         /// The arguments of the constructor pattern.
-        pub fields: Children!(TuplePatEntry),
+        pub fields: Children!(PatArg),
 
         /// If there is a spread argument in the constructor pattern.
         pub spread: OptionalChild!(SpreadPat),
@@ -932,10 +936,11 @@ define_tree! {
         pub fields: Children!(ModulePatEntry),
     }
 
-    /// A tuple pattern entry
+    /// A pattern argument with an optional name, pattern value
+    /// and optional macro invocations.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct TuplePatEntry {
+    pub struct PatArg {
         /// If the tuple pattern entry binds a name to the pattern
         pub name: OptionalChild!(Name),
 
@@ -951,7 +956,7 @@ define_tree! {
     #[node]
     pub struct TuplePat {
         /// The element of the tuple, as patterns.
-        pub fields: Children!(TuplePatEntry),
+        pub fields: Children!(PatArg),
 
         /// If there is a spread argument in the tuple pattern.
         pub spread: OptionalChild!(SpreadPat),
@@ -1858,10 +1863,11 @@ define_tree! {
         pub fn_body: Child!(Expr),
     }
 
-    /// Function call argument.
+    /// Generic argument with a optional name, expression and optional
+    /// macro invocations on the argument itself.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct ConstructorCallArg {
+    pub struct ExprArg {
         /// Optional name for the function argument, e.g `f(x = 3);`.
         pub name: OptionalChild!(Name),
 
@@ -1881,7 +1887,7 @@ define_tree! {
         pub subject: Child!(Expr),
 
         /// Arguments to the function, a list of [ConstructorCallArg]s.
-        pub args: Children!(ConstructorCallArg),
+        pub args: Children!(ExprArg),
     }
 
     /// A the kind of access an [AccessExpr] has

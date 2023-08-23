@@ -237,13 +237,13 @@ where
         Ok(())
     }
 
-    type ConstructorCallArgRet = ();
+    type ExprArgRet = ();
 
-    fn visit_constructor_call_arg(
+    fn visit_expr_arg(
         &mut self,
-        node: ast::AstNodeRef<ast::ConstructorCallArg>,
-    ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
-        let ast::ConstructorCallArg { name, value, macro_args } = node.body();
+        node: ast::AstNodeRef<ast::ExprArg>,
+    ) -> Result<Self::ExprArgRet, Self::Error> {
+        let ast::ExprArg { name, value, macro_args } = node.body();
 
         // We have to visit the macro args first...
         if let Some(macro_args) = macro_args {
@@ -484,9 +484,7 @@ where
         let ast::TuplePat { fields, spread } = node.body();
 
         self.write("(")?;
-        self.print_pattern_collection(fields, spread, |this, field| {
-            this.visit_tuple_pat_entry(field)
-        })?;
+        self.print_pattern_collection(fields, spread, |this, field| this.visit_pat_arg(field))?;
         self.write(")")
     }
 
@@ -583,7 +581,12 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
-        let ast::TyArg { name, ty } = node.body();
+        let ast::TyArg { name, ty, macro_args } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macro_args) = macro_args {
+            self.visit_macro_invocations(macro_args.ast_ref())?;
+        }
 
         if let Some(name) = name {
             self.visit_name(name.ast_ref())?;
@@ -848,9 +851,7 @@ where
         self.visit_expr(subject.ast_ref())?;
 
         let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(args, opts, |this, arg| {
-            this.visit_constructor_call_arg(arg)
-        })
+        self.print_separated_collection(args, opts, |this, arg| this.visit_expr_arg(arg))
     }
 
     type ConstructorPatRet = ();
@@ -866,9 +867,7 @@ where
 
         if fields.len() > 0 || spread_pos.is_some() {
             let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-            self.print_separated_collection(fields, opts, |this, field| {
-                this.visit_tuple_pat_entry(field)
-            })?;
+            self.print_separated_collection(fields, opts, |this, field| this.visit_pat_arg(field))?;
         }
 
         Ok(())
@@ -1080,13 +1079,13 @@ where
         self.write(format!("{}", node.body.value))
     }
 
-    type TuplePatEntryRet = ();
+    type PatArgRet = ();
 
-    fn visit_tuple_pat_entry(
+    fn visit_pat_arg(
         &mut self,
-        node: ast::AstNodeRef<ast::TuplePatEntry>,
-    ) -> Result<Self::TuplePatEntryRet, Self::Error> {
-        let ast::TuplePatEntry { name, pat, macro_args } = node.body();
+        node: ast::AstNodeRef<ast::PatArg>,
+    ) -> Result<Self::PatArgRet, Self::Error> {
+        let ast::PatArg { name, pat, macro_args } = node.body();
 
         // We have to visit the macro args first...
         if let Some(macro_args) = macro_args {

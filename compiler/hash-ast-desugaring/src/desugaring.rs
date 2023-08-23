@@ -70,7 +70,7 @@ impl<'s> AstDesugaring<'s> {
                 spread: None,
                 fields: ast::AstNodes::new(
                     thin_vec![ast::AstNode::new(
-                        ast::TuplePatEntry { name: None, pat, macro_args: None },
+                        ast::PatArg { name: None, pat, macro_args: None },
                         pat_span
                     )],
                     pat_span,
@@ -133,11 +133,7 @@ impl<'s> AstDesugaring<'s> {
                             ),
                             args: ast::AstNodes::new(
                                 thin_vec![ast::AstNode::new(
-                                    ast::ConstructorCallArg {
-                                        name: None,
-                                        value: iterator,
-                                        macro_args: None
-                                    },
+                                    ast::ExprArg { name: None, value: iterator, macro_args: None },
                                     iter_span
                                 )],
                                 iter_span,

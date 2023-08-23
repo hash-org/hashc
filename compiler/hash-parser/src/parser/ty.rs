@@ -194,7 +194,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     let ty_arg = self.node_with_span(TyArg {
                         name: None,
-                        ty: self.node_with_joined_span(ty, span)
+                        ty: self.node_with_joined_span(ty, span),
+                        // @@Note: this will always be none since the above function
+                        // will parse the args and then apply it to us as the subject.
+                        // 
+                        // So if `#foo U -> T` is present, we parse as `TyMacroInvocation { subject: U -> T, macro_args: #foo }`
+                        macro_args: None
                     }, span);
 
                     Ty::Fn(FnTy {
@@ -233,31 +238,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut ty_args = thin_vec![];
 
         loop {
-            // The name part of the `NamedFieldTypeEntry` is an identifier followed by an
-            // `=`, which will then should contain a type setting.
-            let name = match (self.peek(), self.peek_second()) {
-                (
-                    Some(Token { kind: TokenKind::Ident(_), .. }),
-                    Some(Token { kind: TokenKind::Eq, .. }),
-                ) => {
-                    let name = self.parse_name()?;
-                    self.skip_token(); // '='
-
-                    Some(name)
-                }
-                _ => None,
-            };
-
-            // Either way, even if the name is not specified, we still want to parse a name
-            // here and hard-error if we don't encounter a type.
-            let ty = self.parse_ty()?;
-
-            // Here, we want to use either a joined span between the name or just the span
-            // of the parsed type
-            let arg_span =
-                name.as_ref().map_or_else(|| ty.span(), |node| node.span().join(ty.span())).span;
-
-            ty_args.push(self.node_with_span(TyArg { name, ty }, arg_span));
+            ty_args.push(self.parse_ty_arg()?);
 
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
@@ -281,6 +262,37 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.nodes_with_joined_span(ty_args, start))
     }
 
+    /// Parse a type argument.
+    fn parse_ty_arg(&mut self) -> ParseResult<AstNode<TyArg>> {
+        let start = self.next_pos();
+
+        let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
+
+        // Here we have to essentially try and parse a identifier. If this is the
+        // case and then there is a colon present then we
+        // have a named field.
+        let (name, ty) = match (self.peek(), self.peek_second()) {
+            (
+                Some(Token { kind: TokenKind::Ident(_), .. }),
+                Some(Token { kind: TokenKind::Eq | TokenKind::Colon, .. }),
+            ) => {
+                // If the 3rd token is a colon, then this is a pure type
+                // without a name...
+                if matches!(self.peek_nth(2), Some(Token { kind: TokenKind::Colon, .. })) {
+                    (None, self.parse_ty()?)
+                } else {
+                    let ident = self.parse_name()?;
+                    self.skip_token(); // :
+
+                    (Some(ident), self.parse_ty()?)
+                }
+            }
+            _ => (None, self.parse_ty()?),
+        };
+
+        Ok(self.node_with_joined_span(TyArg { name, ty, macro_args }, start))
+    }
+
     /// Parses a [Ty::Fn] which involves a parenthesis token tree with some
     /// arbitrary number of comma separated types followed by a return
     /// [Ty] that is preceded by an `thin-arrow` (->) after the
@@ -296,27 +308,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 gen.skip_token();
             }
             _ => {
-                params = gen.parse_nodes(
-                    |g| {
-                        let start = g.next_pos();
-
-                        // Here we have to essentially try and parse a identifier. If this is the
-                        // case and then there is a colon present then we
-                        // have a named field.
-                        let (name, ty) = match g.peek_second() {
-                            Some(token) if token.has_kind(TokenKind::Colon) => {
-                                let ident = g.parse_name()?;
-                                g.skip_token(); // :
-
-                                (Some(ident), g.parse_ty()?)
-                            }
-                            _ => (None, g.parse_ty()?),
-                        };
-
-                        Ok(g.node_with_joined_span(TyArg { name, ty }, start))
-                    },
-                    |g| g.parse_token(TokenKind::Comma),
-                );
+                params = gen.parse_nodes(|g| g.parse_ty_arg(), |g| g.parse_token(TokenKind::Comma));
             }
         };
 

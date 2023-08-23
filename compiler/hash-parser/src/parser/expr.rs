@@ -499,7 +499,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// - A named argument which appear in the form of `name = valye`
     ///
     /// - Just a value for the argument.
-    fn parse_constructor_call_arg(&mut self) -> ParseResult<AstNode<ConstructorCallArg>> {
+    fn parse_constructor_call_arg(&mut self) -> ParseResult<AstNode<ExprArg>> {
         let start = self.current_pos();
 
         let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
@@ -522,7 +522,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Now here we expect an expression...
         let value = self.parse_expr_with_precedence(0)?;
 
-        Ok(self.node_with_span(ConstructorCallArg { name, value, macro_args }, start))
+        Ok(self.node_with_span(ExprArg { name, value, macro_args }, start))
     }
 
     /// Parse a [ConstructorCallExpr] which accepts the `subject` that the

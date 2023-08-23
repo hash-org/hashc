@@ -97,7 +97,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 g.parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)?;
                                 Ok(None)
                             } else {
-                                Ok(Some(g.parse_tuple_pat_entry()?))
+                                Ok(Some(g.parse_pat_arg()?))
                             }
                         },
                         |g| g.parse_token(TokenKind::Comma),
@@ -408,7 +408,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     g.parse_spread_pat(&mut spread, pos, PatOrigin::Tuple)?;
                     Ok(None)
                 } else {
-                    Ok(Some(g.parse_tuple_pat_entry()?))
+                    Ok(Some(g.parse_pat_arg()?))
                 }
             },
             |g| g.parse_token(TokenKind::Comma),
@@ -426,7 +426,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // for this particular pattern
             self.consume_gen(gen);
 
-            let TuplePatEntry { pat, macro_args, .. } = fields.nodes.pop().unwrap().into_body();
+            let PatArg { pat, macro_args, .. } = fields.nodes.pop().unwrap().into_body();
 
             if let Some(macro_args) = macro_args {
                 Ok(AstNode::with_id(
@@ -442,9 +442,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse an entry within a tuple pattern which might contain an optional
-    /// [Name] node.
-    pub(crate) fn parse_tuple_pat_entry(&mut self) -> ParseResult<AstNode<TuplePatEntry>> {
+    /// Parse an pattern argument which might consists of an optional
+    /// [Name], a value [Pat], and optional macro invocations on the
+    /// argument.
+    pub(crate) fn parse_pat_arg(&mut self) -> ParseResult<AstNode<PatArg>> {
         let start = self.next_pos();
         let macro_args = self.parse_macro_invocations(MacroKind::Ast)?;
 
@@ -465,7 +466,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => (None, self.parse_pat()?),
         };
 
-        Ok(self.node_with_joined_span(TuplePatEntry { name, pat, macro_args }, start))
+        Ok(self.node_with_joined_span(PatArg { name, pat, macro_args }, start))
     }
 
     /// Parse a spread operator from the current token tree. A spread operator

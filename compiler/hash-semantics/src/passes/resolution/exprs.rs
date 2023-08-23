@@ -85,7 +85,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make TC arguments from the given set of AST constructor call arguments
     pub(super) fn make_args_from_constructor_call_args(
         &self,
-        args: &ast::AstNodes<ast::ConstructorCallArg>,
+        args: &ast::AstNodes<ast::ExprArg>,
     ) -> SemanticResult<ArgsId> {
         // @@Todo: error recovery
         let args = args

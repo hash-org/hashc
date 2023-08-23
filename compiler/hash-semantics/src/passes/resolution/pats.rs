@@ -42,7 +42,7 @@ impl ResolutionPass<'_> {
     /// Make TC pattern arguments from the given set of AST pattern arguments.
     pub(super) fn make_pat_args_from_ast_pat_args(
         &self,
-        entries: &ast::AstNodes<ast::TuplePatEntry>,
+        entries: &ast::AstNodes<ast::PatArg>,
     ) -> SemanticResult<PatArgsId> {
         let args = entries
             .iter()

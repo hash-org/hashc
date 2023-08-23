@@ -139,11 +139,11 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("variable", vec![TreeNode::leaf(labelled("named", name.label, "\""))]))
     }
 
-    type ConstructorCallArgRet = TreeNode;
-    fn visit_constructor_call_arg(
+    type ExprArgRet = TreeNode;
+    fn visit_expr_arg(
         &self,
-        node: ast::AstNodeRef<ast::ConstructorCallArg>,
-    ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
+        node: ast::AstNodeRef<ast::ExprArg>,
+    ) -> Result<Self::ExprArgRet, Self::Error> {
         if let Some(name) = &node.name {
             Ok(TreeNode::branch(
                 "arg",
@@ -336,13 +336,16 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
-        let walk::TyArg { name, ty } = walk::walk_ty_arg(self, node)?;
+        let walk::TyArg { name, ty, macro_args } = walk::walk_ty_arg(self, node)?;
 
-        if let Some(name) = name {
-            Ok(TreeNode::branch(
-                "field",
-                vec![TreeNode::branch("name", vec![name]), TreeNode::branch("type", vec![ty])],
-            ))
+        if name.is_some() || macro_args.is_some() {
+            let children = iter::empty()
+                .chain(name.map(|t| TreeNode::branch("name", vec![t])))
+                .chain(iter::once(TreeNode::branch("type", vec![ty])))
+                .chain(macro_args)
+                .collect_vec();
+
+            Ok(TreeNode::branch("field", children))
         } else {
             Ok(ty)
         }
@@ -954,12 +957,12 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("constructor", children))
     }
 
-    type TuplePatEntryRet = TreeNode;
-    fn visit_tuple_pat_entry(
+    type PatArgRet = TreeNode;
+    fn visit_pat_arg(
         &self,
-        node: ast::AstNodeRef<ast::TuplePatEntry>,
-    ) -> Result<Self::TuplePatEntryRet, Self::Error> {
-        let walk::TuplePatEntry { name, pat, macro_args } = walk::walk_tuple_pat_entry(self, node)?;
+        node: ast::AstNodeRef<ast::PatArg>,
+    ) -> Result<Self::PatArgRet, Self::Error> {
+        let walk::PatArg { name, pat, macro_args } = walk::walk_pat_arg(self, node)?;
 
         let mut children = name
             .map(|t| TreeNode::branch("name", vec![t]))
