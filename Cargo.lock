@@ -541,7 +541,6 @@ name = "hash-exhaustiveness"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
- "hash-error-codes",
  "hash-intrinsics",
  "hash-reporting",
  "hash-source",
@@ -707,7 +706,6 @@ dependencies = [
  "dashmap",
  "derive_more",
  "hash-ast",
- "hash-error-codes",
  "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-pipeline",
@@ -815,6 +813,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "hash-ast",
+ "hash-reporting",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -853,7 +852,6 @@ dependencies = [
  "dashmap",
  "derive_more",
  "hash-ast",
- "hash-error-codes",
  "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-reporting",
@@ -874,7 +872,6 @@ dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
  "hash-ast",
- "hash-error-codes",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",

@@ -1,13 +1,14 @@
-use std::{fmt, mem::take};
+use std::fmt;
 
 use derive_more::{Constructor, From};
-use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
+    diagnostic::IntoCompound,
+    hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
     writer::ReportWriter,
 };
 use hash_source::location::Span;
-use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::SequenceStoreKey;
 use hash_tir::{
     environment::{
         env::{AccessToEnv, Env},
@@ -20,68 +21,8 @@ use hash_tir::{
     pats::PatId,
     terms::TermId,
     tys::TyId,
-    utils::{common::get_location, traversing::Atom},
+    utils::{common::get_location, params::ParamError, traversing::Atom},
 };
-
-use crate::params::ParamError;
-
-/// Accumulates errors that occur during typechecking in a local scope.
-///
-/// This is used for error recovery, so that multiple errors can be reported
-/// at once.
-#[derive(Debug)]
-pub struct TcErrorState {
-    pub errors: Vec<TcError>,
-    pub has_blocked: bool,
-}
-
-impl TcErrorState {
-    pub fn new() -> Self {
-        Self { errors: vec![], has_blocked: false }
-    }
-
-    /// Add an error to the error state.
-    pub fn add_error(&mut self, error: impl Into<TcError>) -> &TcError {
-        let error = error.into();
-        if let TcError::Blocked(_) = error {
-            self.has_blocked = true;
-        }
-        self.errors.push(error);
-        self.errors.last().unwrap()
-    }
-
-    /// Add an error to the error state if the given result is an error.
-    pub fn try_or_add_error<F>(&mut self, f: TcResult<F>) -> Option<F> {
-        match f {
-            Ok(v) => Some(v),
-            Err(e) => {
-                self.add_error(e);
-                None
-            }
-        }
-    }
-
-    /// Add a set of errors to the error state.
-    pub fn add_errors(&mut self, errors: impl IntoIterator<Item = impl Into<TcError>>) {
-        self.errors.extend(errors.into_iter().map(|err| err.into()));
-    }
-
-    /// Whether the error state has any errors.
-    pub fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
-    }
-
-    /// Take the errors from the error state.
-    pub fn take_errors(&mut self) -> Vec<TcError> {
-        take(&mut self.errors)
-    }
-}
-
-impl Default for TcErrorState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// A kind of wrong term usage.
 #[derive(Clone, Debug)]
@@ -169,6 +110,12 @@ pub enum TcError {
 
     /// An error that occurred in an intrinsic.
     Intrinsic(String),
+}
+
+impl IntoCompound for TcError {
+    fn into_compound(errors: Vec<Self>) -> Self {
+        TcError::Compound { errors }
+    }
 }
 
 pub type TcResult<T> = Result<T, TcError>;
@@ -306,153 +253,9 @@ impl<'tc> TcErrorReporter<'tc> {
                     error.add_labelled_span(location, "not a valid range literal");
                 }
             }
-            TcError::ParamMatch(err) => match err {
-                ParamError::TooManyArgs { expected, got } => {
-                    let error = reporter
-                        .error()
-                        .code(HashErrorCode::ParameterLengthMismatch)
-                        .title(format!(
-                            "received {} arguments, but expected at most {} arguments",
-                            got.len(),
-                            expected.len()
-                        ));
-                    if let Some(location) = locations.get_overall_location(*expected) {
-                        error.add_labelled_span(
-                            location,
-                            format!(
-                                "expected at most {} arguments by this definition",
-                                expected.len()
-                            ),
-                        );
-                    }
-                    if let Some(location) = locations.get_overall_location(*got) {
-                        error.add_labelled_span(
-                            location,
-                            format!("received {} arguments here", got.len()),
-                        );
-                    }
-                }
-                ParamError::DuplicateArg { first, second } => {
-                    let error = reporter
-                        .error()
-                        .code(HashErrorCode::ParameterInUse)
-                        .title("received a duplicate argument");
-                    if let Some(location) = locations.get_location(first) {
-                        error.add_labelled_span(location, "first occurrence of this argument");
-                    }
-                    if let Some(location) = locations.get_location(second) {
-                        error.add_labelled_span(location, "second occurrence of this argument");
-                    }
-                }
-                ParamError::DuplicateParam { first, second } => {
-                    let error = reporter
-                        .error()
-                        .code(HashErrorCode::ParameterInUse)
-                        .title("received a duplicate parameter");
-                    if let Some(location) = locations.get_location(first) {
-                        error.add_labelled_span(location, "first occurrence of this parameter");
-                    }
-                    if let Some(location) = locations.get_location(second) {
-                        error.add_labelled_span(location, "second occurrence of this parameter");
-                    }
-                }
-                ParamError::PositionalArgAfterNamedArg { first_named, next_positional } => {
-                    let error = reporter
-                        .error()
-                        .code(HashErrorCode::ParameterInUse)
-                        .title("received a positional argument after a named argument");
-                    if let Some(location) = locations.get_location(first_named) {
-                        error.add_labelled_span(location, "first named argument");
-                    }
-                    if let Some(location) = locations.get_location(next_positional) {
-                        error.add_labelled_span(location, "next positional argument");
-                    }
-                    error.add_info("positional arguments must come before named arguments");
-                }
-                ParamError::RequiredParamAfterDefaultParam {
-                    first_default,
-                    next_required: next_non_default,
-                } => {
-                    let error = reporter
-                        .error()
-                        .code(HashErrorCode::ParameterInUse)
-                        .title("found a required parameter after a default parameter");
-                    if let Some(location) = locations.get_location(first_default) {
-                        error.add_labelled_span(location, "first default parameter");
-                    }
-                    if let Some(location) = locations.get_location(next_non_default) {
-                        error.add_labelled_span(location, "next required parameter");
-                    }
-                    error.add_info("parameters with defaults must come after required parameters");
-                }
-                ParamError::ArgNameNotFoundInParams { arg, params } => {
-                    let error =
-                        reporter.error().code(HashErrorCode::ParameterInUse).title(format!(
-                        "received an argument named `{}` but no parameter with that name exists",
-                        arg.target()
-                    ));
-                    if let Some(location) = locations.get_location(arg) {
-                        error.add_labelled_span(location, "argument with this name");
-                    }
-                    if let Some(location) = locations.get_overall_location(*params) {
-                        error.add_labelled_span(
-                            location,
-                            format!(
-                                "expected one of these parameters: {}",
-                                params
-                                    .iter()
-                                    .map(|param| format!("`{}`", param.as_param_index()))
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            ),
-                        );
-                    }
-                }
-                ParamError::RequiredParamNotFoundInArgs { param, args } => {
-                    let error =
-                        reporter.error().code(HashErrorCode::ParameterInUse).title(format!(
-                            "expected an argument named `{}` but none was found",
-                            param.as_param_index()
-                        ));
-                    if let Some(location) = locations.get_location(param) {
-                        error.add_labelled_span(location, "parameter with this name");
-                    }
-                    if let Some(location) = locations.get_overall_location(*args) {
-                        error.add_labelled_span(
-                            location,
-                            format!(
-                                "received these arguments: {}",
-                                args.iter()
-                                    .map(|arg| format!("`{}`", arg.target()))
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            ),
-                        );
-                    }
-                }
-                ParamError::SpreadBeforePositionalArg { next_positional } => {
-                    let error = reporter
-                        .error()
-                        .code(HashErrorCode::ParameterInUse)
-                        .title("received a positional argument after a spread argument");
-                    if let Some(location) = locations.get_location(next_positional) {
-                        error.add_labelled_span(location, "next positional argument");
-                    }
-                    error.add_info("positional arguments must come before spread arguments");
-                }
-                ParamError::ParamNameMismatch { param_a, param_b } => {
-                    let error = reporter
-                        .error()
-                        .code(HashErrorCode::ParameterInUse)
-                        .title("received two parameters with different names");
-                    if let Some(location) = locations.get_location(param_a) {
-                        error.add_labelled_span(location, "first parameter with this name");
-                    }
-                    if let Some(location) = locations.get_location(param_b) {
-                        error.add_labelled_span(location, "second parameter with this name");
-                    }
-                }
-            },
+            TcError::ParamMatch(err) => {
+                ParamError::add_to_reporter(err, reporter);
+            }
             TcError::WrongTy { term, inferred_term_ty, kind } => {
                 let kind_name = match kind {
                     WrongTermKind::NotAFunction => "function".to_string(),

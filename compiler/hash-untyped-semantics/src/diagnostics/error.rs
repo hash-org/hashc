@@ -4,8 +4,8 @@ use hash_ast::{
     ast::{AstNodeId, AstNodeRef, ParamOrigin, RangeEnd, Visibility},
     origin::BlockOrigin,
 };
-use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
+    hash_error_codes::error_codes::HashErrorCode,
     report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
