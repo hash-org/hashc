@@ -55,8 +55,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&mut self) -> ParseResult<AstNode<EnumDefEntry>> {
-        let start = self.current_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.current_pos();
 
         let name = self.parse_name()?;
         let name_span = name.byte_range();
@@ -90,8 +90,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// whilst a named variant, is a specified name and then an optional
     /// type annotation and a default value.
     pub(crate) fn parse_def_param(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Param>> {
-        let start = self.next_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.next_pos();
 
         // Try and parse the name and type
         let (name, ty) = match self.peek_second() {
@@ -153,10 +153,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     // then any specified bounds on the argument which are essentially types
     // that are separated by a `~`
     fn parse_ty_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
-        let start = self.current_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
-
+        let start = self.current_pos();
         let name = self.parse_name()?;
+
+        // @@CopyPasta: replace with `parse_ty_param()`
 
         // Now it's followed by a colon
         let ty = match self.parse_token_fast(TokenKind::Colon) {

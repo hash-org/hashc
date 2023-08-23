@@ -264,9 +264,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a type argument.
     fn parse_ty_arg(&mut self) -> ParseResult<AstNode<TyArg>> {
-        let start = self.next_pos();
-
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.next_pos();
 
         // Here we have to essentially try and parse a identifier. If this is the
         // case and then there is a colon present then we
@@ -349,9 +348,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut args = thin_vec![];
 
         loop {
-            let span = self.current_pos();
-
+            // @@CopyPasta: replace with `parse_ty_param()`
             let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+            let span = self.current_pos();
             let name = self.parse_name()?;
 
             let ty = match self.parse_token_fast(TokenKind::Colon) {
