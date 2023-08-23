@@ -13,7 +13,6 @@ use super::{
     tys::TyId,
 };
 use crate::{
-    directives::DirectiveTarget,
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
     locations::{IndexedLocationTarget, LocationTarget},
@@ -160,11 +159,10 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
     /// Register the inferred value and type, for the given value.
     fn register_atom_inference(&self, key: Item, inferred: Item, inferred_ty: ItemTy)
     where
-        Item: Into<LocationTarget> + Into<DirectiveTarget>,
+        Item: Into<LocationTarget>,
     {
         self.register_atom_inference_without_location(key, inferred, inferred_ty);
         tir_stores().location().copy_location(key, inferred);
-        tir_stores().directives().duplicate(key.into(), inferred.into());
 
         if key != inferred {
             // Set the mapping from the inferred value to itself too.

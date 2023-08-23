@@ -13,10 +13,10 @@ use hash_intrinsics::{
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::IDENTS, location::Span};
+use hash_source::location::Span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    PartialCloneStore, PartialStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
@@ -25,7 +25,6 @@ use hash_tir::{
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
-    directives::AppliedDirectives,
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
@@ -86,7 +85,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make TC arguments from the given set of AST constructor call arguments
     pub(super) fn make_args_from_constructor_call_args(
         &self,
-        args: &ast::AstNodes<ast::ConstructorCallArg>,
+        args: &ast::AstNodes<ast::ExprArg>,
     ) -> SemanticResult<ArgsId> {
         // @@Todo: error recovery
         let args = args
@@ -126,8 +125,8 @@ impl<'tc> ResolutionPass<'tc> {
                 self.make_term_from_ast_access_expr(node.with_body(access_expr))?
             }
             ast::Expr::Ty(expr_ty) => self.make_term_from_ast_ty_expr(node.with_body(expr_ty))?,
-            ast::Expr::Directive(directive_expr) => {
-                self.make_term_from_ast_directive_expr(node.with_body(directive_expr))?
+            ast::Expr::Macro(invocation) => {
+                self.make_term_from_ast_macro_invocation_expr(node.with_body(invocation))?
             }
             ast::Expr::Declaration(declaration) => {
                 self.make_term_from_ast_stack_declaration(node.with_body(declaration))?
@@ -429,34 +428,11 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::DirectiveExpr`].
-    fn make_term_from_ast_directive_expr(
+    fn make_term_from_ast_macro_invocation_expr(
         &self,
-        node: AstNodeRef<ast::DirectiveExpr>,
+        node: AstNodeRef<ast::ExprMacroInvocation>,
     ) -> SemanticResult<TermId> {
-        let directives =
-            AppliedDirectives { directives: node.directives.iter().map(|d| d.ident).collect() };
-
-        // If this is an already-resolved function definition, register the directives
-        // on the function before we pass to the inner expression:
-        if let Some(fn_def_id) =
-            tir_stores().ast_info().fn_defs().get_data_by_node(node.subject.id())
-        {
-            // Register directives on the term:
-            tir_stores().directives().insert(fn_def_id.into(), directives.clone());
-        }
-
-        // Pass to the inner expression
-        let inner = self.make_term_from_ast_expr(node.subject.ast_ref())?;
-
-        // Register directives on the term:
-        tir_stores().directives().insert(inner.into(), directives.clone());
-
-        // If this is a type, also register the directives on the type
-        if let Term::Ty(ty_id) = inner.value() {
-            tir_stores().directives().insert(ty_id.into(), directives);
-        }
-
-        Ok(inner)
+        self.make_term_from_ast_expr(node.subject.ast_ref())
     }
 
     /// Make a term from an [`ast::Declaration`] in non-constant scope.
@@ -824,11 +800,14 @@ impl<'tc> ResolutionPass<'tc> {
         let fn_def_id = tir_stores().ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // Whether the function has been marked as pure by a directive
-        let is_pure_by_directive = tir_stores()
-            .directives()
-            .get(fn_def_id.into())
-            .map(|directives| directives.contains(IDENTS.pure))
-            == Some(true);
+        //
+        // @@ReAddDirectives: check if function is annotated with pure.
+        let is_pure_by_directive = false;
+        // let is_pure_by_directive = tir_stores()
+        //     .directives()
+        //     .get(fn_def_id.into())
+        //     .map(|directives| directives.contains(IDENTS.pure))
+        //     == Some(true);
 
         let (params, return_ty, return_value, fn_def_id) =
             self.scoping().enter_scope(ContextKind::Environment, || {

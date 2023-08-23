@@ -22,10 +22,7 @@ use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
 };
-use hash_layout::{
-    write::{LayoutWriter, LayoutWriterConfig},
-    LayoutCtx, TyInfo,
-};
+use hash_layout::LayoutCtx;
 use hash_pipeline::{
     interface::{
         CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
@@ -34,21 +31,10 @@ use hash_pipeline::{
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_semantics::SemanticStorage;
-use hash_source::{identifier::IDENTS, SourceId};
-use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
-    PartialStore,
-};
-use hash_tir::{
-    args::Arg,
-    data::DataTy,
-    directives::DirectiveTarget,
-    environment::{env::Env, source_info::CurrentSourceInfo, stores::tir_stores},
-};
-use hash_utils::{
-    stream_writeln,
-    timing::{time_item, AccessToMetrics},
-};
+use hash_source::SourceId;
+use hash_storage::store::statics::StoreId;
+use hash_tir::environment::{env::Env, source_info::CurrentSourceInfo};
+use hash_utils::timing::{time_item, AccessToMetrics};
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.
@@ -176,49 +162,55 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         Ok(())
     }
 
-    fn cleanup(&mut self, entry: SourceId, stage_data: &mut Ctx) {
-        let LoweringCtx {
-            semantic_storage,
-            ir_storage,
-            layout_storage,
-            workspace,
-            mut stdout,
-            settings,
-            ..
-        } = stage_data.data();
-        let source_info = CurrentSourceInfo::new(entry);
-        let env = Env::new(
-            &semantic_storage.context,
-            &workspace.node_map,
-            &workspace.source_map,
-            settings.target(),
-            &source_info,
-        );
+    fn cleanup(&mut self, _entry: SourceId, _stage_data: &mut Ctx) {
+        // let LoweringCtx {
+        //     semantic_storage,
+        //     ir_storage,
+        //     layout_storage,
+        //     workspace,
+        //     stdout,
+        //     settings,
+        //     ..
+        // } = stage_data.data();
+        // let source_info = CurrentSourceInfo::new(entry);
+        // let env = Env::new(
+        //     &semantic_storage.context,
+        //     &workspace.node_map,
+        //     &workspace.source_map,
+        //     settings.target(),
+        //     &source_info,
+        // );
 
-        let ctx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env, semantic_storage);
+        // let ctx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env,
+        // semantic_storage);
 
         // @@Future: support generic substitutions here.
-        let empty_args = Arg::empty_seq();
+        // let empty_args = Arg::empty_seq();
 
-        tir_stores().directives().internal_data().iter().for_each(|entry| {
-            let (id, directives) = entry.pair();
-            if directives.contains(IDENTS.layout_of) && let DirectiveTarget::DataDefId(data_def) = *id {
-                let ty = ctx.ty_from_tir_data(DataTy { args: empty_args, data_def });
+        // @@ReAddDirectives: we need to check for any type that might have a
+        // `#layout_of` invocation.
+        //
+        // tir_stores().directives().internal_data().iter().for_each(|entry| {
+        //     let (id, directives) = entry.pair();
+        //     if directives.contains(IDENTS.layout_of) && let
+        // DirectiveTarget::DataDefId(data_def) = *id {         let ty =
+        // ctx.ty_from_tir_data(DataTy { args: empty_args, data_def });
 
-                // @@ErrorHandling: propagate this error if it occurs.
-                if let Ok(layout) = ctx.layout_of(ty) {
-                    let writer_config = LayoutWriterConfig::from_character_set(settings.character_set);
+        //         // @@ErrorHandling: propagate this error if it occurs.
+        //         if let Ok(layout) = ctx.layout_of(ty) {
+        //             let writer_config =
+        // LayoutWriterConfig::from_character_set(settings.character_set);
 
-                    // Print the layout and add spacing between all of the specified layouts
-                    // that were requested.
-                    stream_writeln!(
-                        stdout,
-                        "{}",
-                        LayoutWriter::new_with_config(TyInfo { ty, layout }, ctx.layout_computer(), writer_config)
-                    );
-                }
-            }
-        });
+        //             // Print the layout and add spacing between all of the
+        // specified layouts             // that were requested.
+        //             stream_writeln!(
+        //                 stdout,
+        //                 "{}",
+        //                 LayoutWriter::new_with_config(TyInfo { ty, layout },
+        // ctx.layout_computer(), writer_config)             );
+        //         }
+        //     }
+        // });
     }
 }
 

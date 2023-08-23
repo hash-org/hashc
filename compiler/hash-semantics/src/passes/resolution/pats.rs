@@ -42,7 +42,7 @@ impl ResolutionPass<'_> {
     /// Make TC pattern arguments from the given set of AST pattern arguments.
     pub(super) fn make_pat_args_from_ast_pat_args(
         &self,
-        entries: &ast::AstNodes<ast::TuplePatEntry>,
+        entries: &ast::AstNodes<ast::PatArg>,
     ) -> SemanticResult<PatArgsId> {
         let args = entries
             .iter()
@@ -164,6 +164,7 @@ impl ResolutionPass<'_> {
             ast::Pat::Binding(binding_pat) => {
                 Ok(Some(self.binding_pat_as_ast_path(node.with_body(binding_pat))?))
             }
+            ast::Pat::Macro(invocation) => self.pat_as_ast_path(invocation.subject.ast_ref()),
             ast::Pat::Array(_)
             | ast::Pat::Lit(_)
             | ast::Pat::Or(_)
@@ -303,6 +304,9 @@ impl ResolutionPass<'_> {
                 let path = self.constructor_pat_as_ast_path(node.with_body(ctor_pat))?;
                 let resolved_path = self.resolve_ast_path(&path)?;
                 self.make_pat_from_resolved_ast_path(&resolved_path, node.span())?
+            }
+            ast::Pat::Macro(invocation) => {
+                return self.make_pat_from_ast_pat(invocation.subject.ast_ref())
             }
             ast::Pat::Module(_) => {
                 // This should be handled earlier

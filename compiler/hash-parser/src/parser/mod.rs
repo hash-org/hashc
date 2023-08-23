@@ -6,6 +6,7 @@ mod block;
 mod definitions;
 mod expr;
 mod lit;
+mod macros;
 mod name;
 mod operator;
 mod pat;
@@ -20,6 +21,7 @@ use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
     Token, TokenKind, TokenKindVector,
 };
+use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use crate::{
     diagnostics::{
@@ -308,7 +310,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create [AstNodes] with a span.
     pub(crate) fn nodes_with_span<T>(
         &self,
-        nodes: Vec<AstNode<T>>,
+        nodes: ThinVec<AstNode<T>>,
         location: ByteRange,
     ) -> AstNodes<T> {
         AstNodes::new(nodes, self.make_span(location))
@@ -318,7 +320,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// the current [ByteRange].
     pub(crate) fn nodes_with_joined_span<T>(
         &self,
-        nodes: Vec<AstNode<T>>,
+        nodes: ThinVec<AstNode<T>>,
         start: ByteRange,
     ) -> AstNodes<T> {
         AstNodes::new(nodes, self.make_span(start.join(self.current_pos())))
@@ -445,13 +447,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// **Note**: Call `consume_gen()` in the passed generator in order to
     /// merge any generated errors, and to emit a possible `expected_eof` at
     /// the end if applicable.
-    pub(crate) fn parse_separated_fn<T>(
+    pub(crate) fn parse_nodes<T>(
         &mut self,
         mut item: impl FnMut(&mut Self) -> ParseResult<AstNode<T>>,
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> AstNodes<T> {
         let start = self.current_pos();
-        let mut args = vec![];
+        let mut args = thin_vec![];
 
         // flag specifying if the parser has errored but is trying to recover
         // by parsing the next item
@@ -503,13 +505,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// that is generated. Additionally, this provides an index for the the
     /// `item` closure to keep track of how many items have already
     /// been parsed.
-    pub(crate) fn parse_separated_fn_with_skips<T>(
+    pub(crate) fn parse_nodes_with_skips<T>(
         &mut self,
         mut item: impl FnMut(&mut Self, usize) -> ParseResult<Option<AstNode<T>>>,
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> AstNodes<T> {
         let start = self.current_pos();
-        let mut args = vec![];
+        let mut args = thin_vec![];
 
         // flag specifying if the parser has errored but is trying to recover
         // by parsing the next item
@@ -626,7 +628,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// should get all the diagnostics for the current session.
     pub(crate) fn parse_module(&mut self) -> AstNode<Module> {
         let start = self.current_pos();
-        let mut contents = vec![];
+        let mut contents = thin_vec![];
 
         while self.has_token() {
             match self.parse_top_level_expr() {

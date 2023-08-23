@@ -1,15 +1,15 @@
 //! Visitor pattern for the semantic analysis stage. This file implements
-//! the [AstVisitor] pattern on the AST for [SemanticAnalyser]. During
+//! the [ast::AstVisitor] pattern on the AST for [SemanticAnalyser]. During
 //! traversal, the visitor calls various functions that are defined on the
 //! analyser to perform a variety of semantic checks.
+#![allow(unused)] // @@Temporary
 
 use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
     ast::{
         self, walk_mut_self, AstNodeRef, AstVisitorMutSelf, BindingPat, Block, BlockExpr,
-        Declaration, DirectiveExpr, EnumDef, Expr, LitExpr, Mutability, Name, ParamOrigin,
-        StructDef,
+        Declaration, EnumDef, Expr, LitExpr, Mutability, Name, ParamOrigin, StructDef,
     },
     ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
@@ -306,21 +306,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
             self.append_error(AnalysisErrorKind::DisallowedFloatPat, node);
         }
 
-        Ok(())
-    }
-
-    type DirectiveExprRet = ();
-
-    fn visit_directive_expr(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
-    ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        let DirectiveExpr { directives, .. } = node.body();
-        let _ = walk_mut_self::walk_directive_expr(self, node);
-
-        for directive in directives.iter() {
-            self.validate_directive(directive.ast_ref(), node.subject.ast_ref())?;
-        }
         Ok(())
     }
 

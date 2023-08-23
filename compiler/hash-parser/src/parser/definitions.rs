@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
-use hash_utils::smallvec::smallvec;
+use hash_utils::{smallvec::smallvec, thin_vec::thin_vec};
 
 use super::AstGen;
 use crate::{
@@ -26,8 +26,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut gen = self
             .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
 
-        let fields = gen.parse_separated_fn(
-            |g| g.parse_nominal_def_param(ParamOrigin::Struct),
+        let fields = gen.parse_nodes(
+            |g| g.parse_def_param(ParamOrigin::Struct),
             |g| g.parse_token(TokenKind::Comma),
         );
         self.consume_gen(gen);
@@ -46,8 +46,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut gen = self
             .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
 
-        let entries = gen
-            .parse_separated_fn(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
+        let entries =
+            gen.parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
 
         Ok(EnumDef { ty_params, entries })
@@ -55,14 +55,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&mut self) -> ParseResult<AstNode<EnumDefEntry>> {
+        let start = self.current_pos();
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+
         let name = self.parse_name()?;
         let name_span = name.byte_range();
-        let mut fields = self.nodes_with_span(vec![], name_span);
+        let mut fields = self.nodes_with_span(thin_vec![], name_span);
 
         if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
             let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-            fields = gen.parse_separated_fn(
-                |g| g.parse_nominal_def_param(ParamOrigin::EnumVariant),
+            fields = gen.parse_nodes(
+                |g| g.parse_def_param(ParamOrigin::EnumVariant),
                 |g| g.parse_token(TokenKind::Comma),
             );
             fields.set_span(gen.span());
@@ -79,18 +82,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => None,
         };
 
-        Ok(self.node_with_joined_span(EnumDefEntry { name, fields, ty }, name_span))
+        Ok(self.node_with_joined_span(EnumDefEntry { name, fields, ty, macros }, start))
     }
 
     /// Parses an nominal definition type field, which could either be a named
     /// or un-named field. The un-named field is just a specified type,
     /// whilst a named variant, is a specified name and then an optional
     /// type annotation and a default value.
-    pub(crate) fn parse_nominal_def_param(
-        &mut self,
-        origin: ParamOrigin,
-    ) -> ParseResult<AstNode<Param>> {
+    pub(crate) fn parse_def_param(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Param>> {
         let start = self.next_pos();
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
         // Try and parse the name and type
         let (name, ty) = match self.peek_second() {
@@ -123,7 +124,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(Param { name, ty, default, origin }, start))
+        Ok(self.node_with_joined_span(Param { name, ty, default, origin, macros }, start))
     }
 
     /// Parse a [TyFnDef]. Type functions specify logic at the type
@@ -153,6 +154,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     // that are separated by a `~`
     fn parse_ty_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
         let start = self.current_pos();
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+
         let name = self.parse_name()?;
 
         // Now it's followed by a colon
@@ -179,6 +182,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
                 }),
                 origin: ParamOrigin::TyFn,
+                macros,
             },
             start,
         ))
@@ -216,7 +220,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse optional type [Param]s, if the next token is not a
     /// `<`, the function will return an empty [AstNodes<Param>].
-    #[inline]
+    #[inline(always)]
     pub(crate) fn parse_optional_ty_params(
         &mut self,
         def_kind: DefinitionKind,
@@ -226,7 +230,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
                 self.parse_ty_params(def_kind)
             }
-            _ => Ok(self.nodes_with_span(vec![], self.current_pos())),
+            _ => Ok(self.nodes_with_span(thin_vec![], self.current_pos())),
         }
     }
 
@@ -234,7 +238,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// definitions, and trait definitions.
     fn parse_ty_params(&mut self, def_kind: DefinitionKind) -> ParseResult<AstNodes<Param>> {
         let start_span = self.current_pos();
-        let mut params = self.nodes_with_span(vec![], start_span);
+        let mut params = self.nodes_with_span(thin_vec![], start_span);
 
         // Flag denoting that we were able to parse the ending `>` within the function
         // def arg

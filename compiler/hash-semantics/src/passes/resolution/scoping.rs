@@ -302,6 +302,9 @@ impl<'tc> Scoping<'tc> {
                     Self::for_each_stack_member_of_pat(field.pat.ast_ref(), f);
                 }
             }
+            ast::Pat::Macro(invocation) => {
+                Self::for_each_stack_member_of_pat(invocation.subject.ast_ref(), f);
+            }
             ast::Pat::Array(array_pat) => {
                 if let Some(spread_node) = &array_pat.spread {
                     for_spread_pat!(spread_node);

@@ -4,14 +4,11 @@ use std::{fmt::Debug, process};
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    DefaultPartialStore, PartialCloneStore, PartialStore, SequenceStoreKey,
+    DefaultPartialStore, PartialStore, SequenceStoreKey,
 };
 use hash_tir::{
     self,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
     lits::Lit,
@@ -749,10 +746,14 @@ impl DefinedIntrinsics {
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
                 |_, args| {
-                    if let Term::FnRef(fn_def_id) = args[1].value() {
-                        let directives =
-                            tir_stores().directives().get(fn_def_id.into()).unwrap_or_default();
-                        stream_less_writeln!("{:?}", directives.directives);
+                    if let Term::FnRef(_fn_def_id) = args[1].value() {
+                        // @@ReAddDirectives: add attribute lookup when they are
+                        // re-added.
+                        //
+                        // let directives =
+                        //     tir_stores().directives().get(fn_def_id.into()).
+                        // unwrap_or_default();
+                        // stream_less_writeln!("{:?}", directives.directives);
                     }
                     Ok(Term::void())
                 },

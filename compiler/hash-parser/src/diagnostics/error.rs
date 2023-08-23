@@ -55,6 +55,10 @@ pub enum ParseErrorKind {
     /// Expected a name here.
     ExpectedName,
 
+    /// Expected a macro invocation, either being a name identifier or a
+    /// bracketed list of macro invocations.
+    ExpectedMacroInvocation,
+
     /// Expected a binary operator that ties two expressions together to create
     /// a binary expression.
     ExpectedOperator,
@@ -154,6 +158,10 @@ impl From<ParseError> for Reports {
             ParseErrorKind::ExpectedOperator => "expected an operator".to_string(),
             ParseErrorKind::ExpectedExpr => "expected an expression".to_string(),
             ParseErrorKind::ExpectedName => "expected a name here".to_string(),
+            ParseErrorKind::ExpectedMacroInvocation => {
+                "expected a macro invocation, either being a name identifier or a parameterised invocation `[...]`"
+                    .to_string()
+            }
             ParseErrorKind::ExpectedArrow => "expected an arrow `=>` ".to_string(),
             ParseErrorKind::ExpectedFnArrow => {
                 "expected an arrow `->` after type arguments denoting a function type".to_string()

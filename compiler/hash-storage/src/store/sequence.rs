@@ -9,7 +9,6 @@ use std::{
     ops::Range,
 };
 
-pub use fxhash::{FxHashMap, FxHashSet};
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };

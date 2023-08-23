@@ -7,15 +7,14 @@ use hash_ir::{
     lang_items::LangItem,
     ty::{
         self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
-        IrTyListId, Mutability, RepresentationFlags, COMMON_IR_TYS,
+        IrTyListId, Mutability, COMMON_IR_TYS,
     },
     TyCacheEntry,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{attributes::Attribute, identifier::IDENTS};
 use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
-    PartialCloneStore, PartialStore, SequenceStoreKey,
+    SequenceStoreKey,
 };
 use hash_target::size::Size;
 use hash_tir::{
@@ -23,7 +22,7 @@ use hash_tir::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::env::AccessToEnv,
     fns::{FnDef, FnDefId, FnTy},
     refs::RefTy,
     tuples::TupleTy,
@@ -209,13 +208,15 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Lookup any applied directives on the fn_def and add them to the
         // instance
-        tir_stores().directives().map_fast(fn_def.into(), |maybe_directives| {
-            if let Some(directives) = maybe_directives {
-                for directive in directives.iter() {
-                    instance.attributes.add(Attribute::word(directive));
-                }
-            }
-        });
+
+        // @@ReAddDirectives: we should access the new attributes stuff later...
+        // tir_stores().directives().map_fast(fn_def.into(), |maybe_directives| {
+        //     if let Some(directives) = maybe_directives {
+        //         for directive in directives.iter() {
+        //             instance.attributes.add(Attribute::word(directive));
+        //         }
+        //     }
+        // });
 
         if Intrinsic::from_str_name(ident.into()).is_some() {
             instance.is_intrinsic = true;
@@ -297,11 +298,14 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Deal with any specific attributes that were set on the type, i.e.
         // `#repr_c`.
-        if let Some(directives) = tir_stores().directives().get(def.id.into()) {
-            if directives.contains(IDENTS.repr_c) {
-                adt.metadata.add_flags(RepresentationFlags::C_LIKE);
-            }
-        }
+        //
+        // @@ReAddDirectives: check whether this has `repr(c)` on it.
+        //
+        // if let Some(directives) = tir_stores().directives().get(def.id.into()) {
+        //     if directives.contains(IDENTS.repr_c) {
+        //         adt.metadata.add_flags(RepresentationFlags::C_LIKE);
+        //     }
+        // }
 
         // Update the type in the slot that was reserved for it.
         reserved_ty.modify(|ty| *ty = IrTy::Adt(Adt::create(adt)));

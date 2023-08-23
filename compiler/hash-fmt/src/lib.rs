@@ -166,7 +166,13 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let ast::EnumDefEntry { name, fields, ty } = node.body();
+        let ast::EnumDefEntry { name, fields, ty, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+            self.terminate_line("")?;
+        }
 
         self.visit_name(name.ast_ref())?;
 
@@ -231,13 +237,18 @@ where
         Ok(())
     }
 
-    type ConstructorCallArgRet = ();
+    type ExprArgRet = ();
 
-    fn visit_constructor_call_arg(
+    fn visit_expr_arg(
         &mut self,
-        node: ast::AstNodeRef<ast::ConstructorCallArg>,
-    ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
-        let ast::ConstructorCallArg { name, value } = node.body();
+        node: ast::AstNodeRef<ast::ExprArg>,
+    ) -> Result<Self::ExprArgRet, Self::Error> {
+        let ast::ExprArg { name, value, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
 
         if let Some(name) = name {
             self.visit_name(name.ast_ref())?;
@@ -473,9 +484,7 @@ where
         let ast::TuplePat { fields, spread } = node.body();
 
         self.write("(")?;
-        self.print_pattern_collection(fields, spread, |this, field| {
-            this.visit_tuple_pat_entry(field)
-        })?;
+        self.print_pattern_collection(fields, spread, |this, field| this.visit_pat_arg(field))?;
         self.write(")")
     }
 
@@ -572,7 +581,12 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
-        let ast::TyArg { name, ty } = node.body();
+        let ast::TyArg { name, ty, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
 
         if let Some(name) = name {
             self.visit_name(name.ast_ref())?;
@@ -580,23 +594,6 @@ where
         }
 
         self.visit_ty(ty.ast_ref())
-    }
-
-    type DirectiveExprRet = ();
-
-    fn visit_directive_expr(
-        &mut self,
-        node: ast::AstNodeRef<ast::DirectiveExpr>,
-    ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        let ast::DirectiveExpr { directives, subject } = node.body();
-
-        for directive in directives {
-            self.write("#")?;
-            self.visit_name(directive.ast_ref())?;
-            self.write(" ")?;
-        }
-
-        self.visit_expr(subject.ast_ref())
     }
 
     type AssignExprRet = ();
@@ -854,9 +851,7 @@ where
         self.visit_expr(subject.ast_ref())?;
 
         let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(args, opts, |this, arg| {
-            this.visit_constructor_call_arg(arg)
-        })
+        self.print_separated_collection(args, opts, |this, arg| this.visit_expr_arg(arg))
     }
 
     type ConstructorPatRet = ();
@@ -872,9 +867,7 @@ where
 
         if fields.len() > 0 || spread_pos.is_some() {
             let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-            self.print_separated_collection(fields, opts, |this, field| {
-                this.visit_tuple_pat_entry(field)
-            })?;
+            self.print_separated_collection(fields, opts, |this, field| this.visit_pat_arg(field))?;
         }
 
         Ok(())
@@ -1064,7 +1057,13 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        let ast::MatchCase { pat, expr } = node.body();
+        let ast::MatchCase { pat, expr, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
+
         self.visit_pat(pat.ast_ref())?;
         self.write(" => ")?;
 
@@ -1080,13 +1079,18 @@ where
         self.write(format!("{}", node.body.value))
     }
 
-    type TuplePatEntryRet = ();
+    type PatArgRet = ();
 
-    fn visit_tuple_pat_entry(
+    fn visit_pat_arg(
         &mut self,
-        node: ast::AstNodeRef<ast::TuplePatEntry>,
-    ) -> Result<Self::TuplePatEntryRet, Self::Error> {
-        let ast::TuplePatEntry { name, pat } = node.body();
+        node: ast::AstNodeRef<ast::PatArg>,
+    ) -> Result<Self::PatArgRet, Self::Error> {
+        let ast::PatArg { name, pat, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
 
         if let Some(name) = name {
             self.visit_name(name.ast_ref())?;
@@ -1246,6 +1250,132 @@ where
         }
 
         self.visit_expr(inner_expr.ast_ref())
+    }
+
+    type MacroInvocationArgRet = ();
+
+    fn visit_macro_invocation_arg(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocationArg>,
+    ) -> Result<Self::MacroInvocationArgRet, Self::Error> {
+        let ast::MacroInvocationArg { name, value } = node.body();
+
+        if let Some(name) = name {
+            self.visit_name(name.ast_ref())?;
+            self.write(" = ")?;
+        }
+
+        self.visit_expr(value.ast_ref())
+    }
+
+    type MacroInvocationArgsRet = ();
+
+    fn visit_macro_invocation_args(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocationArgs>,
+    ) -> Result<Self::MacroInvocationArgsRet, Self::Error> {
+        let ast::MacroInvocationArgs { args } = node.body();
+
+        // This shouldn't really happen, but in case it does, we can just return
+        // early.
+        if args.is_empty() {
+            return Ok(());
+        }
+
+        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
+        self.print_separated_collection(args, opts, |this, arg| {
+            this.visit_macro_invocation_arg(arg)
+        })
+    }
+
+    type MacroInvocationRet = ();
+
+    fn visit_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocation>,
+    ) -> Result<Self::MacroInvocationRet, Self::Error> {
+        let ast::MacroInvocation { name, args } = node.body();
+
+        self.visit_name(name.ast_ref())?;
+
+        if let Some(args) = args {
+            self.visit_macro_invocation_args(args.ast_ref())?;
+        }
+
+        Ok(())
+    }
+
+    type MacroInvocationsRet = ();
+
+    fn visit_macro_invocations(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocations>,
+    ) -> Result<Self::MacroInvocationsRet, Self::Error> {
+        let ast::MacroInvocations { invocations } = node.body();
+
+        // This shouldn't really happen, but in case it does, we can just return
+        // early.
+        if invocations.is_empty() {
+            return Ok(());
+        }
+
+        // Start of the
+        self.write("#")?;
+
+        if invocations.len() == 1 && invocations[0].args.is_none() {
+            return self.visit_name(invocations[0].name.ast_ref());
+        }
+
+        let opts = CollectionPrintingOptions::delimited(Delimiter::Bracket, ", ");
+        self.print_separated_collection(invocations, opts, |this, arg| {
+            this.visit_macro_invocation(arg)
+        })
+    }
+
+    type TyMacroInvocationRet = ();
+
+    fn visit_ty_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::TyMacroInvocation>,
+    ) -> Result<Self::TyMacroInvocationRet, Self::Error> {
+        let ast::TyMacroInvocation { subject, macros } = node.body();
+
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
+
+        self.visit_ty(subject.ast_ref())
+    }
+
+    type PatMacroInvocationRet = ();
+
+    fn visit_pat_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::PatMacroInvocation>,
+    ) -> Result<Self::PatMacroInvocationRet, Self::Error> {
+        let ast::PatMacroInvocation { subject, macros } = node.body();
+
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
+
+        self.visit_pat(subject.ast_ref())
+    }
+
+    type ExprMacroInvocationRet = ();
+
+    fn visit_expr_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::ExprMacroInvocation>,
+    ) -> Result<Self::ExprMacroInvocationRet, Self::Error> {
+        let ast::ExprMacroInvocation { subject, macros } = node.body();
+
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
+            self.terminate_line("")?;
+        }
+
+        self.visit_expr(subject.ast_ref())
     }
 
     ast_visitor_mut_self_default_impl!(

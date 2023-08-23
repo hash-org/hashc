@@ -26,16 +26,13 @@ use crate::{
 #[derive(Copy, Clone, Debug)]
 pub enum AstArgGroup<'a> {
     /// A group of explicit `(a, b, c)` arguments.
-    ExplicitArgs(&'a ast::AstNodes<ast::ConstructorCallArg>),
+    ExplicitArgs(&'a ast::AstNodes<ast::ExprArg>),
     /// A group of tuple `(a, b, c)` arguments
     TupleArgs(&'a ast::AstNodes<ast::TupleLitEntry>),
     /// A group of implicit `<a, b, c>` arguments.
     ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
     /// A group of explicit `(p, q, r)` pattern arguments
-    ExplicitPatArgs(
-        &'a ast::AstNodes<ast::TuplePatEntry>,
-        &'a Option<ast::AstNode<ast::SpreadPat>>,
-    ),
+    ExplicitPatArgs(&'a ast::AstNodes<ast::PatArg>, &'a Option<ast::AstNode<ast::SpreadPat>>),
     // @@Todo: implicit pattern arguments when AST supports this
 }
 

@@ -76,7 +76,7 @@ impl TokenKind {
                     | TokenKind::Minus
                     | TokenKind::Star
                     | TokenKind::Slash
-                    | TokenKind::Hash // directives
+                    | TokenKind::Pound // directives
                     | TokenKind::Amp
                     | TokenKind::Tilde
                     | TokenKind::Exclamation
@@ -164,7 +164,11 @@ pub enum TokenKind {
     /// ';'
     Semi,
     /// '#'
-    Hash,
+    Pound,
+
+    /// `@`
+    At,
+
     /// '$'
     Dollar,
     /// ','
@@ -221,7 +225,7 @@ impl TokenKind {
             TokenKind::FloatLit(lit) => format!("`{lit}`"),
             TokenKind::CharLit(ch) => format!("`{ch}`"),
             TokenKind::StrLit(str) => format!("the string `{}`", *str),
-            TokenKind::Keyword(kwd) => format!("`{kwd}`"),
+            TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
             TokenKind::Ident(ident) => format!("the identifier `{}`", *ident),
             kind => format!("a `{kind}`"),
         }
@@ -248,7 +252,8 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Dot => write!(f, "."),
             TokenKind::Colon => write!(f, ":"),
             TokenKind::Semi => write!(f, ";"),
-            TokenKind::Hash => write!(f, "#"),
+            TokenKind::Pound => write!(f, "#"),
+            TokenKind::At => write!(f, "@"),
             TokenKind::Dollar => write!(f, "$"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),

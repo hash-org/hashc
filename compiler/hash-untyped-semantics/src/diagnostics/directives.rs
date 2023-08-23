@@ -26,7 +26,7 @@ bitflags::bitflags! {
         const ConstructorCall = 1 << 2;
 
         /// A directive expression.
-        const Directive = 1 << 3;
+        const MacroInvocation = 1 << 3;
 
         /// A declaration.
         const Declaration = 1 << 4;
@@ -97,7 +97,7 @@ impl From<&Expr> for DirectiveArgument {
     fn from(expr: &Expr) -> Self {
         match expr {
             Expr::ConstructorCall(_) => DirectiveArgument::ConstructorCall,
-            Expr::Directive(_) => DirectiveArgument::Directive,
+            Expr::Macro(_) => DirectiveArgument::MacroInvocation,
             Expr::Declaration(_) => DirectiveArgument::Declaration,
             Expr::Unsafe(_) => DirectiveArgument::Unsafe,
             Expr::Lit(_) => DirectiveArgument::Lit,
@@ -138,7 +138,7 @@ impl fmt::Display for DirectiveArgument {
                 DirectiveArgument::ConstructorCall => {
                     allowed_argument_kinds.push("constructor call")
                 }
-                DirectiveArgument::Directive => allowed_argument_kinds.push("directive"),
+                DirectiveArgument::MacroInvocation => allowed_argument_kinds.push("directive"),
                 DirectiveArgument::Declaration => allowed_argument_kinds.push("declaration"),
                 DirectiveArgument::MergeDeclaration => {
                     allowed_argument_kinds.push("merge declaration")
