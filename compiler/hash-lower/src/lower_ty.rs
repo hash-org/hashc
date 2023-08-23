@@ -12,6 +12,7 @@ use hash_ir::{
     TyCacheEntry,
 };
 use hash_reporting::macros::panic_on_span;
+use hash_source::identifier::IDENTS;
 use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
     SequenceStoreKey,
@@ -22,7 +23,7 @@ use hash_tir::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnDef, FnDefId, FnTy},
     refs::RefTy,
     tuples::TupleTy,
@@ -163,7 +164,7 @@ impl<'ir> BuilderCtx<'ir> {
         self.with_cache(def, || {
             let instance = self.create_instance_from_fn_def(def);
 
-            let is_lang = instance.attributes.contains("lang".into());
+            let is_lang = instance.has_attr(IDENTS.lang);
             let name = instance.name();
 
             // Check if the instance has the `lang` attribute, specifying that it is
@@ -193,6 +194,11 @@ impl<'ir> BuilderCtx<'ir> {
     fn create_instance_from_fn_def(&self, fn_def: FnDefId) -> Instance {
         let FnDef { name, ty, .. } = fn_def.value();
 
+        // Get the AstNodeId of the function definition, this is used to
+        // link this instance to any attributes that might be applied
+        // to the function definition.
+        let attr_id = tir_stores().ast_info().fn_defs().get_node_by_data(fn_def).unwrap();
+
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
 
@@ -204,7 +210,7 @@ impl<'ir> BuilderCtx<'ir> {
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
         let ident = name.ident();
-        let mut instance = Instance::new(ident, source, params, ret_ty);
+        let mut instance = Instance::new(ident, source, params, ret_ty, attr_id);
 
         // Lookup any applied directives on the fn_def and add them to the
         // instance

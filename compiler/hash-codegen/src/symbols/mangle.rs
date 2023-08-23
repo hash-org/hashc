@@ -68,9 +68,7 @@ pub fn compute_symbol_name(instance_id: InstanceId) -> String {
     let m = &mut Mangler { out: String::new() };
 
     instance_id.map(|instance| {
-        if !instance.attributes.contains(IDENTS.no_mangle)
-            && !instance.attributes.contains(IDENTS.foreign)
-        {
+        if !instance.has_attr(IDENTS.no_mangle) && !instance.has_attr(IDENTS.foreign) {
             if let Some(source) = instance.source {
                 if source.is_module() {
                     // If the source is a module, then we need to

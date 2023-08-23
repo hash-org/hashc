@@ -10,15 +10,15 @@ use std::{
 };
 
 use hash_ast::ast;
+use hash_attrs::attr::attr_store;
 use hash_source::{
-    attributes::ItemAttributes,
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
     SourceId,
 };
 use hash_storage::{
     static_sequence_store_indirect, static_single_store,
-    store::{statics::SingleStoreValue, SequenceStore, Store, StoreKey},
+    store::{statics::SingleStoreValue, PartialStore, SequenceStore, Store, StoreKey},
 };
 use hash_target::{
     abi::{self, Abi, Integer, ScalarKind},
@@ -100,7 +100,7 @@ pub struct Instance {
 
     /// Any attributes that are present  on the instance, this is used
     /// to specify special behaviour of the function.
-    pub attributes: ItemAttributes,
+    pub attr_id: ast::AstNodeId,
 
     /// The source of this function instance. This is useful
     /// for when symbol names are mangled, and we need to
@@ -132,6 +132,7 @@ impl Instance {
         source: Option<SourceId>,
         params: IrTyListId,
         ret_ty: IrTyId,
+        attr_id: ast::AstNodeId,
     ) -> Self {
         Self {
             name,
@@ -141,8 +142,15 @@ impl Instance {
             ret_ty,
             generic_origin: false,
             abi: Abi::Hash,
-            attributes: ItemAttributes::default(),
+            attr_id,
         }
+    }
+
+    /// Check if this instance has an attribute.
+    pub fn has_attr(&self, attr: Identifier) -> bool {
+        attr_store().map_fast(self.attr_id, |maybe_attrs| {
+            maybe_attrs.map_or(false, |attrs| attrs.has_attr(attr))
+        })
     }
 
     /// Get the name from the instance.
@@ -810,7 +818,7 @@ impl ToIrTy for ScalarKind {
     }
 }
 
-index_vec::define_index_type! {
+define_index_type! {
     /// Index for [VariantIdx] stores within generated [Body]s.
     pub struct VariantIdx = u32;
 

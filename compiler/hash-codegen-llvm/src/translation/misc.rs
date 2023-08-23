@@ -103,7 +103,7 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
 
         // If the instance has the "foreign" attribute, then we need to
         // specify that the linkage is external.
-        if instance.borrow().attributes.contains(IDENTS.foreign) {
+        if instance.borrow().has_attr(IDENTS.foreign) {
             decl.set_linkage(Linkage::External);
         }
 
