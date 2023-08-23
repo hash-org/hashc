@@ -5,10 +5,8 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-crossbeam-channel = "0.5.1"
 derive_more = "0.99"
 num-bigint = "0.4"
-rayon = "1.5.0"
 
 # For profiling the parser
 profiling = "1.0"

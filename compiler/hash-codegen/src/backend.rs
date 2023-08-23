@@ -12,6 +12,7 @@ use hash_pipeline::{
     settings::CompilerSettings,
     workspace::Workspace,
 };
+use hash_utils::rayon;
 
 use crate::traits::abi::FnAbiStore;
 

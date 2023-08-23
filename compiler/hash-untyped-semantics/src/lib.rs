@@ -8,7 +8,6 @@ pub(crate) mod diagnostics;
 pub mod visitor;
 
 use analysis::SemanticAnalyser;
-use crossbeam_channel::unbounded;
 use diagnostics::AnalysisDiagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMutSelf};
 use hash_pipeline::{
@@ -18,6 +17,7 @@ use hash_pipeline::{
 };
 use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
+use hash_utils::{crossbeam_channel::unbounded, rayon};
 
 pub struct UntypedSemanticAnalysis;
 

@@ -5,10 +5,6 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-bitflags = "2.0.0-rc.1"
-crossbeam-channel = "0.5.1"
-rayon = "1.5.0"
-
 hash-ast = { path = "../hash-ast" }
 hash-utils = { path = "../hash-utils" }
 hash-pipeline = { path = "../hash-pipeline" }

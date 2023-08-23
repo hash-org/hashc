@@ -4,10 +4,10 @@
 mod block;
 pub(crate) mod params;
 
-use crossbeam_channel::Sender;
 use hash_ast::{ast::AstNodeRef, origin::BlockOrigin};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::SourceMap;
+use hash_utils::crossbeam_channel::Sender;
 
 use crate::diagnostics::{
     error::{AnalysisError, AnalysisErrorKind},
