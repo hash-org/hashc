@@ -577,9 +577,9 @@ pub enum CompilerStageKind {
     /// Parse the source code into an AST.
     Parse,
 
-    /// Transform the AST into a desugared AST, whilst also
-    /// expanding macros, and resolving all imports.
-    DeSugar,
+    /// Run the compilation pipeline until AST expansion
+    /// terminates.
+    Expand,
 
     /// Perform semantic analysis on the AST, this includes
     /// only untyped semantic checks that must occur before
@@ -623,7 +623,7 @@ impl CompilerStageKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             CompilerStageKind::Parse => "parse",
-            CompilerStageKind::DeSugar => "desugar",
+            CompilerStageKind::Expand => "expand",
             CompilerStageKind::UntypedAnalysis => "untyped-analysis",
             CompilerStageKind::Analysis => "analysis",
             CompilerStageKind::Lower => "lower",

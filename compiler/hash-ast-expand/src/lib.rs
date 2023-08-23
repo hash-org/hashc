@@ -43,7 +43,7 @@ pub trait AstExpansionCtxQuery: CompilerInterface {
 
 impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::DeSugar
+        CompilerStageKind::Expand
     }
 
     /// This will perform a pass on the AST by expanding any macros or
