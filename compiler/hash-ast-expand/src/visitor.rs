@@ -23,8 +23,9 @@ use std::convert::Infallible;
 use hash_ast::{
     ast, ast_visitor_mut_self_default_impl,
     tree::AstTreeGenerator,
-    visitor::{walk_mut_self, AstVisitor, AstVisitorMutSelf},
+    visitor::{walk_mut, walk_mut_self, AstVisitor, AstVisitorMutSelf},
 };
+use hash_attrs::target::AttrTarget;
 use hash_fmt::AstPrinter;
 use hash_pipeline::{
     interface::CompilerOutputStream,
@@ -32,6 +33,7 @@ use hash_pipeline::{
 };
 use hash_source::{identifier::IDENTS, SourceMap};
 use hash_utils::{
+    state::LightState,
     stream_writeln,
     tree_writing::{TreeNode, TreeWriter, TreeWriterConfig},
 };
@@ -43,6 +45,9 @@ pub struct AstExpander<'s> {
 
     /// The settings to the AST expansion pass.
     pub(crate) settings: &'s CompilerSettings,
+
+    /// The current attribute target.
+    pub(crate) target: LightState<AttrTarget>,
 
     /// The [CompilerOutputStream] that will be used to dump the AST.
     stdout: CompilerOutputStream,
@@ -56,40 +61,172 @@ impl<'s> AstExpander<'s> {
         settings: &'s CompilerSettings,
         stdout: CompilerOutputStream,
     ) -> Self {
-        Self { source_map, settings, stdout }
+        Self { source_map, settings, stdout, target: LightState::new(AttrTarget::ModDef) }
+    }
+
+    pub fn with_target<T>(&mut self, target: AttrTarget, f: impl FnOnce(&mut Self) -> T) -> T {
+        let old = self.target.swap(target);
+        let result = f(self);
+        self.target.swap(old);
+        result
+    }
+
+    /// Check a macro attribute invocation based on the kind of macro that was
+    /// invoked.
+    pub fn check_macro_invocation(
+        &mut self,
+        node: &ast::MacroInvocation,
+    ) -> Result<(), Infallible> {
+        Ok(())
     }
 }
 
 impl<'s> AstVisitorMutSelf for AstExpander<'s> {
     type Error = Infallible;
 
-    ast_visitor_mut_self_default_impl!(hiding: ExprMacroInvocation, TyMacroInvocation, PatMacroInvocation);
+    ast_visitor_mut_self_default_impl!(hiding:
+        ExprMacroInvocation, TyMacroInvocation, PatMacroInvocation,
+        ExprArg, TyArg, PatArg, EnumDefEntry, Param, MatchCase,
+        MacroInvocation
+    );
 
     type ExprMacroInvocationRet = ();
 
     fn visit_expr_macro_invocation(
         &mut self,
-        _node: ast::AstNodeRef<ast::ExprMacroInvocation>,
+        node: ast::AstNodeRef<ast::ExprMacroInvocation>,
     ) -> Result<Self::ExprMacroInvocationRet, Self::Error> {
-        Ok(())
+        self.with_target(AttrTarget::classify_expr(node.subject.body()), |this| {
+            walk_mut_self::walk_expr_macro_invocation(this, node);
+            Ok(())
+        })
     }
 
     type TyMacroInvocationRet = ();
 
     fn visit_ty_macro_invocation(
         &mut self,
-        _node: ast::AstNodeRef<ast::TyMacroInvocation>,
+        node: ast::AstNodeRef<ast::TyMacroInvocation>,
     ) -> Result<Self::TyMacroInvocationRet, Self::Error> {
-        Ok(())
+        self.with_target(AttrTarget::Ty, |this| {
+            walk_mut_self::walk_ty_macro_invocation(this, node)?;
+            Ok(())
+        })
     }
 
     type PatMacroInvocationRet = ();
 
     fn visit_pat_macro_invocation(
         &mut self,
-        _node: ast::AstNodeRef<ast::PatMacroInvocation>,
+        node: ast::AstNodeRef<ast::PatMacroInvocation>,
     ) -> Result<Self::PatMacroInvocationRet, Self::Error> {
+        self.with_target(AttrTarget::Pat, |this| {
+            walk_mut_self::walk_pat_macro_invocation(this, node)?;
+            Ok(())
+        })
+    }
+
+    type PatArgRet = ();
+
+    fn visit_pat_arg(
+        &mut self,
+        node: ast::AstNodeRef<ast::PatArg>,
+    ) -> Result<Self::PatArgRet, Self::Error> {
+        if let Some(macros) = node.body.macros.as_ref() {
+            self.with_target(AttrTarget::Field, |this| walk_mut_self::walk_pat_arg(this, node))?;
+        } else {
+            walk_mut_self::walk_pat_arg(self, node)?;
+        }
+
         Ok(())
+    }
+
+    type EnumDefEntryRet = ();
+
+    fn visit_enum_def_entry(
+        &mut self,
+        node: ast::AstNodeRef<ast::EnumDefEntry>,
+    ) -> Result<Self::EnumDefEntryRet, Self::Error> {
+        if let Some(macros) = node.body.macros.as_ref() {
+            self.with_target(AttrTarget::EnumVariant, |this| {
+                walk_mut_self::walk_enum_def_entry(this, node)
+            })?;
+        } else {
+            walk_mut_self::walk_enum_def_entry(self, node)?;
+        }
+
+        Ok(())
+    }
+
+    type ParamRet = ();
+
+    fn visit_param(
+        &mut self,
+        node: ast::AstNodeRef<ast::Param>,
+    ) -> Result<Self::ParamRet, Self::Error> {
+        if let Some(macros) = node.body.macros.as_ref() {
+            self.with_target(AttrTarget::Field, |this| walk_mut_self::walk_param(this, node))?;
+        } else {
+            walk_mut_self::walk_param(self, node)?;
+        }
+
+        Ok(())
+    }
+
+    type MatchCaseRet = ();
+
+    fn visit_match_case(
+        &mut self,
+        node: ast::AstNodeRef<ast::MatchCase>,
+    ) -> Result<Self::MatchCaseRet, Self::Error> {
+        if let Some(macros) = node.body.macros.as_ref() {
+            self.with_target(AttrTarget::MatchCase, |this| {
+                walk_mut_self::walk_match_case(this, node)
+            })?;
+        } else {
+            walk_mut_self::walk_match_case(self, node)?;
+        }
+
+        Ok(())
+    }
+
+    type TyArgRet = ();
+
+    fn visit_ty_arg(
+        &mut self,
+        node: ast::AstNodeRef<ast::TyArg>,
+    ) -> Result<Self::TyArgRet, Self::Error> {
+        if let Some(macros) = node.body.macros.as_ref() {
+            self.with_target(AttrTarget::TyArg, |this| walk_mut_self::walk_ty_arg(this, node))?;
+        } else {
+            walk_mut_self::walk_ty_arg(self, node)?;
+        }
+
+        Ok(())
+    }
+
+    type ExprArgRet = ();
+
+    fn visit_expr_arg(
+        &mut self,
+        node: ast::AstNodeRef<ast::ExprArg>,
+    ) -> Result<Self::ExprArgRet, Self::Error> {
+        if let Some(macros) = node.body.macros.as_ref() {
+            self.with_target(AttrTarget::Field, |this| walk_mut_self::walk_expr_arg(this, node))?;
+        } else {
+            walk_mut_self::walk_expr_arg(self, node)?;
+        }
+
+        Ok(())
+    }
+
+    type MacroInvocationRet = ();
+
+    fn visit_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocation>,
+    ) -> Result<Self::MacroInvocationRet, Self::Error> {
+        self.check_macro_invocation(node.body())
     }
 
     // type DirectiveExprRet = ();

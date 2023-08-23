@@ -11,6 +11,7 @@ use hash_pipeline::{
 use hash_source::SourceId;
 use visitor::AstExpander;
 
+mod diagnostics;
 mod visitor;
 
 /// The [AstExpansionPass] represents the stage in the pipeline that will

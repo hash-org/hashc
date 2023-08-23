@@ -28,68 +28,78 @@ bitflags::bitflags! {
         /// A directive expression.
         const MacroInvocation = 1 << 3;
 
-        /// A declaration.
-        const Declaration = 1 << 4;
-
         /// Unsafe block expression
-        const Unsafe = 1 << 5;
+        const Unsafe = 1 << 4;
 
         /// Literal expression.
-        const Lit = 1 << 6;
-
-        /// A cast expression, casting the lhs to the rhs type.
-        const Cast = 1 << 7;
+        const Lit = 1 << 5;
 
         /// A loop expression, representing `loop`, `while` and `for` expressions.
-        const Loop = 1 << 8;
+        const Loop = 1 << 6;
 
         /// A match block, represents for `match` and `if` expressions.
-        const Match = 1 << 9;
+        const Match = 1 << 7;
 
         /// An implementation definition block.
-        const ImplDef = 1 << 10;
+        const ImplDef = 1 << 8;
+
+        /// A top-level module.
+        const Mod = 1 << 9;
 
         /// A module definition block.
-        const ModDef = 1 << 11;
+        const ModDef = 1 << 10;
 
         /// A block, specifically the [`hash_ast::ast::Block::Body`] variant.
-        const Block = 1 << 12;
+        const Block = 1 << 11;
 
         /// An `import` statement.
-        const Import = 1 << 13;
+        const Import = 1 << 12;
 
         /// A type function definition.
-        const TyFnDef = 1 << 14;
-
-        /// A trait implementation block e.g. `impl T {}`.
-        const TraitImpl = 1 << 16;
+        const TyFnDef = 1 << 13;
 
         /// A `struct` definition.
-        const StructDef = 1 << 17;
+        const StructDef = 1 << 14;
 
         /// An `enum` definition.
-        const EnumDef = 1 << 18;
+        const EnumDef = 1 << 15;
 
         /// A function definition, regardless of the position.
-        const FnDef = 1 << 19;
+        const FnDef = 1 << 16;
 
         /// A type.
-        const Ty = 1 << 20;
+        const Ty = 1 << 17;
+
+        /// A type argument, whilst this has similar implications to
+        /// a type, it adds additional context that this is a type
+        /// argument.
+        const TyArg = 1 << 18;
+
+        /// A field in a struct or enum.
+        const Field = 1 << 19;
+
+        /// An enum variant.
+        const EnumVariant = 1 << 20;
+
+        /// A match branch.
+        const MatchCase = 1 << 21;
+
+        /// A pattern.
+        const Pat  = 1 << 22;
 
         /// A general item definition e.g. `struct`, `enum`, `impl`, `mod` and `fn`.
         const Item = Self::StructDef.bits() | Self::EnumDef.bits() | Self::FnDef.bits() | Self::TyFnDef.bits() | Self::ImplDef.bits() | Self::ModDef.bits();
     }
 }
 
-impl From<&ast::Expr> for AttrTarget {
-    fn from(expr: &ast::Expr) -> Self {
+impl AttrTarget {
+    /// Classify the given [ast::Expr] into a [AttrTarget].
+    pub fn classify_expr(expr: &ast::Expr) -> Self {
         match expr {
             ast::Expr::ConstructorCall(_) => AttrTarget::ConstructorCall,
             ast::Expr::Macro(_) => AttrTarget::MacroInvocation,
-            ast::Expr::Declaration(_) => AttrTarget::Declaration,
             ast::Expr::Unsafe(_) => AttrTarget::Unsafe,
             ast::Expr::Lit(_) => AttrTarget::Lit,
-            ast::Expr::Cast(_) => AttrTarget::Cast,
             ast::Expr::Block(ast::BlockExpr { data: block }) => match block.body() {
                 ast::Block::Loop(_) | ast::Block::While(_) | ast::Block::For(_) => AttrTarget::Loop,
                 ast::Block::Match(_) | ast::Block::If(_) => AttrTarget::Match,
@@ -104,7 +114,6 @@ impl From<&ast::Expr> for AttrTarget {
             ast::Expr::ModDef(_) => AttrTarget::ModDef,
             ast::Expr::FnDef(_) => AttrTarget::FnDef,
             ast::Expr::Ty(_) => AttrTarget::Ty,
-            ast::Expr::TraitImpl(_) => AttrTarget::TraitImpl,
             _ => AttrTarget::Expr,
         }
     }
@@ -121,10 +130,8 @@ impl fmt::Display for AttrTarget {
             match kind {
                 AttrTarget::ConstructorCall => allowed_argument_kinds.push("constructor call"),
                 AttrTarget::MacroInvocation => allowed_argument_kinds.push("directive"),
-                AttrTarget::Declaration => allowed_argument_kinds.push("declaration"),
                 AttrTarget::Unsafe => allowed_argument_kinds.push("unsafe expression"),
                 AttrTarget::Lit => allowed_argument_kinds.push("literal"),
-                AttrTarget::Cast => allowed_argument_kinds.push("type cast"),
                 AttrTarget::Loop => allowed_argument_kinds.push("loop block"),
                 AttrTarget::Match => allowed_argument_kinds.push("match block"),
                 AttrTarget::ImplDef => allowed_argument_kinds.push("impl block"),
@@ -136,7 +143,6 @@ impl fmt::Display for AttrTarget {
                 AttrTarget::TyFnDef => allowed_argument_kinds.push("type function definition"),
                 AttrTarget::FnDef => allowed_argument_kinds.push("`function` definition"),
                 AttrTarget::Ty => allowed_argument_kinds.push("type"),
-                AttrTarget::TraitImpl => allowed_argument_kinds.push("trait implementation"),
                 AttrTarget::Expr => allowed_argument_kinds.push("expression"),
                 _ => unreachable!(),
             }

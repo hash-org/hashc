@@ -12,3 +12,4 @@ hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-utils = { path = "../hash-utils" }
+hash-attrs = { path = "../hash-attrs" }

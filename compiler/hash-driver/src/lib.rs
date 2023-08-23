@@ -57,8 +57,8 @@ impl CompilerBuilder {
             interface,
             vec![
                 Box::new(Parser),
-                Box::new(AstDesugaringPass),
                 Box::new(AstExpansionPass),
+                Box::new(AstDesugaringPass),
                 Box::new(UntypedSemanticAnalysis),
                 Box::new(SemanticAnalysis),
                 Box::<IrGen>::default(),
