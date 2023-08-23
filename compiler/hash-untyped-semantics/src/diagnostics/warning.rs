@@ -55,19 +55,7 @@ impl From<AnalysisWarning> for Reports {
                         ReportNoteKind::Note,
                         "A constant expression in a body block that has no side-effects is redundant",
                     )));
-            } /* AnalysisWarningKind::UnknownDirective { name } => {
-               *     warning
-               *         .title(format!("`{name}` is not a known directive"))
-               *         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-               *             warn.location,
-               *             "",
-               *         )))
-               *         .add_element(ReportElement::Note(ReportNote::new(
-               *             ReportNoteKind::Note,
-               *             "unknown directives are currently 'invisible' to the compiler and
-               * are treated as if they were just the inner expression. However, in the future
-               * this will become a hard error.",         )));
-               * } */
+            }
         }
 
         reporter.into_reports()
