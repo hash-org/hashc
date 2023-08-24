@@ -165,7 +165,7 @@ impl Ty {
     pub fn expect_is(atom: impl Into<Atom>, ty: TyId) -> TyId {
         let atom: Atom = atom.into();
         let (ast_info, location) = match atom {
-            Atom::Term(origin_term) => match origin_term.value() {
+            Atom::Term(origin_term) => match *origin_term.value() {
                 Term::Ty(ty) => {
                     (tir_stores().ast_info().tys().get_node_by_data(ty), get_location(ty))
                 }

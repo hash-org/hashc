@@ -8,6 +8,7 @@ use hash_tir::{
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
     environment::env::AccessToEnv,
     lits::{CharLit, FloatLit, IntLit, Lit},
+    node,
     pats::{Pat, PatId},
     refs::{RefKind, RefTy},
     terms::{Term, TermId},
@@ -113,7 +114,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Create a boolean term of the given value.
     fn new_bool_term(&self, value: bool) -> TermId {
-        Term::create(Term::Ctor(CtorTerm {
+        node!(Term::Ctor(CtorTerm {
             ctor: self.get_bool_ctor(value),
             ctor_args: Arg::empty_seq(),
             data_args: Arg::empty_seq(),
@@ -229,7 +230,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn create_term_from_float_lit<L: Into<f64>>(&self, lit: L) -> TermId {
-        Term::create(Term::Lit(Lit::Float(FloatLit {
+        node!(Term::Lit(Lit::Float(FloatLit {
             underlying: ast::FloatLit {
                 kind: ast::FloatLitKind::Unsuffixed,
                 value: CONSTANT_MAP.create_f64_float(lit.into(), None),
@@ -239,7 +240,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn try_use_term_as_float_lit<L: From<f64>>(&self, term: TermId) -> Option<L> {
-        match term.value() {
+        match *term.value() {
             Term::Lit(Lit::Float(i)) => i.value().try_into().ok(),
             _ => None,
         }
@@ -247,7 +248,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn create_term_from_integer_lit<L: Into<BigInt>>(&self, lit: L) -> TermId {
-        Term::create(Term::Lit(Lit::Int(IntLit {
+        node!(Term::Lit(Lit::Int(IntLit {
             underlying: ast::IntLit {
                 kind: ast::IntLitKind::Unsuffixed,
                 value: CONSTANT_MAP.create_int(IntConstant::new(
@@ -260,7 +261,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn try_use_term_as_char_lit(&self, term: TermId) -> Option<char> {
-        match term.value() {
+        match *term.value() {
             Term::Lit(Lit::Char(c)) => Some(c.underlying.data),
             _ => None,
         }
@@ -268,12 +269,12 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a character literal if possible.
     fn create_term_from_char_lit(&self, lit: char) -> TermId {
-        Term::create(Term::Lit(Lit::Char(CharLit { underlying: ast::CharLit { data: lit } })))
+        node!(Term::Lit(Lit::Char(CharLit { underlying: ast::CharLit { data: lit } })))
     }
 
-    /// Get the given term as an integer literal if possible.
+    /// Get the given terman integer literal if possible.
     fn try_use_term_as_integer_lit<L: TryFrom<BigInt>>(&self, term: TermId) -> Option<L> {
-        match term.value() {
+        match *term.value() {
             Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),
             Term::Var(sym) => self
                 .context()
@@ -286,7 +287,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn try_use_term_as_bool(&self, term: TermId) -> Option<bool> {
-        match term.value() {
+        match *term.value() {
             Term::Ctor(CtorTerm { ctor, .. }) if ctor == self.get_bool_ctor(true) => Some(true),
             Term::Ctor(CtorTerm { ctor, .. }) if ctor == self.get_bool_ctor(false) => Some(false),
             _ => None,

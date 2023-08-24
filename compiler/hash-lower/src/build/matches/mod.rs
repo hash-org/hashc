@@ -105,7 +105,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If this is a `&&`, we can create a `then-else` block sequence
         // that respects the short-circuiting behaviour of `&&`.
-        if let Term::FnCall(ref fn_call) = expr.value() {
+        if let Term::FnCall(ref fn_call) = *expr.value() {
             if let FnCallTermKind::LogicalBinOp(LogicalBinOp::And, lhs, rhs) =
                 self.classify_fn_call_term(fn_call)
             {

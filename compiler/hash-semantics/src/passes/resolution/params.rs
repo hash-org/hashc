@@ -308,7 +308,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
             }
         }
-        match current_subject.value() {
+        match *current_subject.value() {
             Term::FnCall(call) => Ok(call),
             _ => unreachable!(),
         }

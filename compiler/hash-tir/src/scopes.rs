@@ -183,7 +183,7 @@ impl fmt::Display for DeclTerm {
             Some(term_id) => {
                 match self.bind_pat.value() {
                     Pat::Binding(binding_pat) => {
-                        match term_id.value() {
+                        match *term_id.value() {
                             // If a function is being declared, print the body, otherwise just
                             // its name.
                             Term::FnRef(fn_def_id)

@@ -115,7 +115,7 @@ impl TraversingUtils {
                 Atom::FnDef(fn_def_id) => Ok(Term::from(fn_def_id)),
                 Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
             },
-            ControlFlow::Continue(()) => match term_id.value() {
+            ControlFlow::Continue(()) => match *term_id.value() {
                 Term::Tuple(tuple_term) => {
                     let data = self.fmap_args(tuple_term.data, f)?;
                     Ok(Term::from(Term::Tuple(TupleTerm { data })))
@@ -454,7 +454,7 @@ impl TraversingUtils {
     pub fn visit_term<E, F: Visitor<E>>(&self, term_id: TermId, f: &mut F) -> Result<(), E> {
         match f(term_id.into())? {
             ControlFlow::Break(_) => Ok(()),
-            ControlFlow::Continue(()) => match term_id.value() {
+            ControlFlow::Continue(()) => match *term_id.value() {
                 Term::Tuple(tuple_term) => self.visit_args(tuple_term.data, f),
                 Term::Lit(_) => Ok(()),
                 Term::Array(list_ctor) => self.visit_term_list(list_ctor.elements, f),

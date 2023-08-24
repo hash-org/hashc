@@ -154,7 +154,7 @@ impl fmt::Display for MatchCase {
 
 impl fmt::Display for ReturnTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if matches!(self.expression.value(), Term::Tuple(tuple_term) if tuple_term.data.is_empty())
+        if matches!(*self.expression.value(), Term::Tuple(tuple_term) if tuple_term.data.is_empty())
         {
             write!(f, "return")
         } else {

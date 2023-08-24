@@ -28,7 +28,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) -> BlockAnd<()> {
         let span = self.span_of_term(block_term);
 
-        match block_term.value() {
+        match *block_term.value() {
             Term::Block(ref body) => self.body_block_into_dest(place, block, body),
             Term::Loop(LoopTerm { block: ref body }) => {
                 // Begin the loop block by connecting the previous block
@@ -80,7 +80,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // unit if there is no expression.
 
             for statement in statements.iter() {
-                match statement.value() {
+                match *statement.value() {
                     // We need to handle declarations here specifically, otherwise
                     // in order to not have to create a temporary for the declaration
                     // which doesn't make sense because we are just declaring a local(s)

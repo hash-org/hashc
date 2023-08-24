@@ -118,7 +118,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match term.value() {
+            Atom::Term(term) => match *term.value() {
                 Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
                     Some(subbed_term) => {
                         let subbed_term_val = subbed_term.value();
@@ -177,7 +177,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match term.value() {
+            Atom::Term(term) => match *term.value() {
                 Term::Hole(Hole(symbol)) | Term::Var(symbol) if var_matches.contains(&symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
@@ -312,7 +312,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match term.value() {
+            Atom::Term(term) => match *term.value() {
                 Term::Hole(_) => {
                     *has_holes = Some(atom);
                     ControlFlow::Break(())
@@ -478,7 +478,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// the value is not a variable with the same name.
     pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: Symbol, value: TermId) {
         let subbed_value = self.apply_sub_to_term(value, sub);
-        if !matches!(subbed_value.value(), Term::Var(v) if v == name) {
+        if !matches!(*subbed_value.value(), Term::Var(v) if v == name) {
             sub.insert(name, subbed_value);
         }
     }
@@ -563,7 +563,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn reverse_sub(&self, sub: &Sub) -> Sub {
         let mut reversed_sub = Sub::identity();
         for (name, value) in sub.iter() {
-            match value.value() {
+            match *value.value() {
                 Term::Var(v) => {
                     reversed_sub.insert(v, Term::from(name));
                 }

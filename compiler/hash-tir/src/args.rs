@@ -20,6 +20,7 @@ use super::{
 };
 use crate::{
     environment::stores::tir_stores,
+    node,
     params::ParamsId,
     symbols::Symbol,
     terms::{Term, TermId},
@@ -66,7 +67,7 @@ impl Arg {
                 .map(|(i, param)| {
                     move |_| Arg {
                         target: ParamIndex::Position(i),
-                        value: Term::create(Term::Var(param.borrow().name)),
+                        value: node!(Term::Var(param.borrow().name)),
                     }
                 })
                 .collect_vec(),

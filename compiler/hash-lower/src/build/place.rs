@@ -98,7 +98,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         term: TermId,
         mutability: Mutability,
     ) -> BlockAnd<PlaceBuilder> {
-        match term.value() {
+        match *term.value() {
             Term::Var(variable) => {
                 // Get the current scope, and resolve the variable within the scope. This will
                 // get us the scope that this variable comes from. Using the id and the name, we

@@ -32,6 +32,7 @@ use hash_tir::{
     lits::Lit,
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
+    node, node_value,
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::{DerefTerm, RefTerm, RefTy},
@@ -409,7 +410,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let mut tuple_term = *tuple_term;
             self.infer_args(tuple_term.data, params, |new_args| {
                 tuple_term.data = new_args;
-                original_term_id.set(tuple_term.into());
+                original_term_id.set(node_value!(tuple_term.into()));
                 Ok(())
             })?;
 
@@ -752,7 +753,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // These arguments might have been updated so we need to set them
                 term.data_args = inferred_ctor_data_args;
                 term.ctor_args = inferred_term_ctor_args;
-                original_term_id.set(term.into());
+                original_term_id.set(node_value!(term.into()));
 
                 // We are exiting the constructor scope, so we need to hide the binds
                 let hidden_ctor_sub =
@@ -777,7 +778,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_data_args, &final_sub);
         // Set data args because they might have been updated again
         term.data_args = inferred_ctor_data_args;
-        original_term_id.set(term.into());
+        original_term_id.set(node_value!(term.into()));
         self.sub_ops().apply_sub_to_ty_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in term.data_args.iter().zip(subbed_ctor_result_args.iter())
@@ -847,13 +848,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     // Potentially fill-in implicit args
                     if let Ty::Fn(_) = fn_ty.return_ty.value() && fn_ty.implicit && !fn_call_term.implicit {
                         let applied_args = Arg::seq_from_params_as_holes(fn_ty.params);
-                        let copied_subject = Term::inherited_from(fn_call_term.subject, fn_call_term.subject.value());
+                        let copied_subject = Term::inherited_from(fn_call_term.subject, *fn_call_term.subject.value());
                         let new_subject = FnCallTerm {
                             args: applied_args,
                             subject: copied_subject,
                             implicit: fn_ty.implicit,
                         };
-                        fn_call_term.subject.set(new_subject.into());
+                        fn_call_term.subject.set(node_value!(new_subject.into()));
                         return self.infer_fn_call_term(fn_call_term, annotation_ty, original_term_id);
                     }
 
@@ -872,7 +873,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let mut fn_call_term = *fn_call_term;
                     self.infer_args(fn_call_term.args, copied_params, |inferred_fn_call_args| {
                         fn_call_term.args = inferred_fn_call_args;
-                        original_term_id.set(fn_call_term.into());
+                        original_term_id.set(node_value!(fn_call_term.into()));
 
                         self.sub_ops().apply_sub_to_atom_from_context(copied_return_ty);
                         self.check_by_unify(copied_return_ty, annotation_ty)?;
@@ -927,11 +928,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         if let Some(entry_point) = entry_point {
             // Ensure it is well-typed
-            let call_term = Term::create_from(FnCallTerm {
-                subject: Term::create_from(fn_def_id),
+            let call_term = node!(Term::FnCall(FnCallTerm {
+                subject: node!(fn_def_id.into()),
                 implicit: false,
                 args: Arg::empty_seq(),
-            });
+            }));
 
             self.infer_term(call_term, Ty::hole())?;
 
@@ -987,7 +988,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.infer_params(fn_def.ty.params, || {
                 self.infer_ty(fn_def.ty.return_ty, Ty::flexible_universe())?;
                 if let FnBody::Defined(fn_body) = fn_def.body {
-                    if let Term::FnRef(immediate_body_fn) = fn_body.value() {
+                    if let Term::FnRef(immediate_body_fn) = *fn_body.value() {
                         self.infer_fn_def(
                             immediate_body_fn,
                             Ty::hole_for(fn_body),
@@ -1433,7 +1434,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let match_subject_ty = Ty::hole_for(match_term.subject);
         self.infer_term(match_term.subject, match_subject_ty)?;
 
-        let match_subject_var = match match_term.subject.value() {
+        let match_subject_var = match *match_term.subject.value() {
             Term::Var(v) => Some(v),
             _ => None,
         };
@@ -1515,7 +1516,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
         self.register_new_atom(term_id, annotation_ty);
 
-        match term_id.value() {
+        match *term_id.value() {
             Term::Tuple(tuple_term) => {
                 self.infer_tuple_term(&tuple_term, annotation_ty, term_id)?
             }
@@ -1790,7 +1791,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.infer_pat(pat.pat, annotation_ty, None)?;
         let expected_condition_ty = Ty::expect_is(pat.condition, Ty::data(primitives().bool()));
         self.infer_term(pat.condition, expected_condition_ty)?;
-        if let Term::Var(v) = pat.condition.value() {
+        if let Term::Var(v) = *pat.condition.value() {
             self.context().add_assignment(v, expected_condition_ty, self.new_bool_term(true));
         }
         Ok(())

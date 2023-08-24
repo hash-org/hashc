@@ -22,6 +22,8 @@ use crate::{
     environment::stores::tir_stores,
     fns::{FnCallTerm, FnDefId},
     lits::Lit,
+    node,
+    node::Node,
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     tir_debug_value_of_single_store_id,
@@ -104,7 +106,7 @@ pub enum Term {
 static_single_store!(
     store = pub TermStore,
     id = pub TermId,
-    value = Term,
+    value = Node<Term>,
     store_name = term,
     store_source = tir_stores()
 );
@@ -124,15 +126,15 @@ impl Term {
     }
 
     pub fn void() -> TermId {
-        Term::create(Term::Tuple(TupleTerm { data: Arg::empty_seq() }))
+        node!(Term::Tuple(TupleTerm { data: Arg::empty_seq() }))
     }
 
     pub fn hole() -> TermId {
-        Term::create(Term::Hole(Hole::fresh()))
+        node!(Term::Hole(Hole::fresh()))
     }
 
     pub fn var(symbol: Symbol) -> TermId {
-        Term::create(Term::Var(symbol))
+        node!(Term::Var(symbol))
     }
 
     /// Create a new term.
@@ -149,7 +151,7 @@ impl Term {
             Term::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Term::create(term);
+        let created = node!(term);
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }
@@ -182,7 +184,7 @@ impl TermId {
 
     /// Try to use the given term as a type if easily possible.
     pub fn try_as_ty(&self) -> Option<TyId> {
-        match self.value() {
+        match *self.value() {
             Term::Var(var) => Some(Ty::from(var)),
             Term::Ty(ty) => Some(ty),
             Term::Hole(hole) => Some(Ty::from(hole)),
@@ -245,7 +247,7 @@ impl fmt::Display for Term {
 
 impl fmt::Display for TermId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

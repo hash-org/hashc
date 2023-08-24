@@ -8,7 +8,7 @@ use crate::{environment::stores::tir_stores, locations::LocationTarget};
 macro_rules! term_as_variant {
     ($self:expr, $term:expr, $variant:ident) => {{
         let term = $term;
-        if let $crate::terms::Term::$variant(term) = term {
+        if let $crate::terms::Term::$variant(term) = *term {
             term
         } else {
             panic!("Expected term to be a {}", stringify!($variant))

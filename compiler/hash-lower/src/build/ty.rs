@@ -94,7 +94,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn classify_fn_call_term(&self, term: &FnCallTerm) -> FnCallTermKind {
         let FnCallTerm { subject, args, .. } = term;
 
-        match subject.value() {
+        match *subject.value() {
             Term::FnRef(fn_def) => {
                 // Check if the fn_def is a `un_op` intrinsic
                 if fn_def == self.intrinsics().un_op() {

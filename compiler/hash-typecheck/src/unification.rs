@@ -187,7 +187,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         let hole_symbol = match hole_atom {
             Atom::Term(term_id) => {
                 let dest_term = (norm_ops.to_term(sub_dest_atom)).value();
-                match term_id.value() {
+                match *term_id.value() {
                     Term::Hole(Hole(h)) => {
                         if self.modify_terms.get() {
                             term_id.set(dest_term);
@@ -362,7 +362,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
 
         match (src_id.try_as_ty(), target_id.try_as_ty()) {
             (Some(src_ty), Some(target_ty)) => self.unify_tys(src_ty, target_ty),
-            _ => match (src, target) {
+            _ => match (*src, *target) {
                 (Term::Hole(h1), Term::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
                 (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
                 (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),

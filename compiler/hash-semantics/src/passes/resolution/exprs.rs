@@ -452,7 +452,7 @@ impl<'tc> ResolutionPass<'tc> {
         tir_stores().directives().insert(inner.into(), directives.clone());
 
         // If this is a type, also register the directives on the type
-        if let Term::Ty(ty_id) = inner.value() {
+        if let Term::Ty(ty_id) = *inner.value() {
             tir_stores().directives().insert(ty_id.into(), directives);
         }
 
