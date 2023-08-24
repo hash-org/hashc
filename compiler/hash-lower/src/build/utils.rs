@@ -38,7 +38,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn span_of_pat(&self, id: PatId) -> AstNodeId {
         tir_stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected pattern `{}` to have a location", id);
-            AstNodeId::new(0)
+            AstNodeId::null()
         })
     }
 
@@ -46,7 +46,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn span_of_def(&self, id: FnDefId) -> AstNodeId {
         tir_stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected function definition `{}` to have a location", id);
-            AstNodeId::new(0)
+            AstNodeId::null()
         })
     }
 
@@ -54,7 +54,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn span_of_term(&self, id: TermId) -> AstNodeId {
         tir_stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
             log::debug!("expected term `{:?}` to have a location", id);
-            AstNodeId::new(0)
+            AstNodeId::null()
         })
     }
 

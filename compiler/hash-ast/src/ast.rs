@@ -32,6 +32,11 @@ define_index_type! {
 }
 
 impl AstNodeId {
+    /// Create a null node id.
+    pub fn null() -> Self {
+        AstNodeId::new(0)
+    }
+
     /// Get the [Span] of this [AstNodeId].
     pub fn span(&self) -> Span {
         SpanMap::span_of(*self)
@@ -49,8 +54,15 @@ impl AstNodeId {
 /// to query the [Span] of a node simply by using the [AstNodeId] of the
 /// node.
 
-static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, Span>>> =
-    Lazy::new(|| RwLock::new(IndexVec::new()));
+static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, Span>>> = Lazy::new(|| {
+    let mut map = IndexVec::new();
+
+    // We push a NULL node-id so we can use it as the default
+    // for items that need a node, but don't have one.
+    map.push(Span::new(ByteRange::new(0, 0), SourceId::default()));
+
+    RwLock::new(map)
+});
 
 /// Utilities for working with the [`SPAN_MAP`].
 pub struct SpanMap;

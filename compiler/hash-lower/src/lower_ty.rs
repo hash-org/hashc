@@ -1,6 +1,7 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
 
+use hash_ast::ast;
 use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
 use hash_ir::{
     intrinsics::Intrinsic,
@@ -24,7 +25,7 @@ use hash_tir::{
         PrimitiveCtorInfo,
     },
     environment::{env::AccessToEnv, stores::tir_stores},
-    fns::{FnDef, FnDefId, FnTy},
+    fns::{FnBody, FnDef, FnDefId, FnTy},
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
@@ -192,16 +193,22 @@ impl<'ir> BuilderCtx<'ir> {
     // / instance including the name, types (monomorphised), and attributes
     /// that are associated with the function definition.
     fn create_instance_from_fn_def(&self, fn_def: FnDefId) -> Instance {
-        let FnDef { name, ty, .. } = fn_def.value();
+        let FnDef { name, ty, body, .. } = fn_def.value();
 
         // Get the AstNodeId of the function definition, this is used to
         // link this instance to any attributes that might be applied
         // to the function definition.
-        let attr_id = tir_stores().ast_info().fn_defs().get_node_by_data(fn_def).unwrap();
+        let attr_id = if let FnBody::Defined(_) = body {
+            let store = tir_stores().ast_info().fn_defs();
+            store.get_node_by_data(fn_def).unwrap()
+        } else {
+            // We can't get an AstNodeId for intrinsics, so we just return
+            // the default node.
+            ast::AstNodeId::null()
+        };
 
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
-
         let source = get_location(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 

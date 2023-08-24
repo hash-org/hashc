@@ -97,6 +97,8 @@ impl<'tc> DiscoveryPass<'tc> {
         f: impl FnOnce() -> T,
     ) -> T {
         let def_id = def_id.into();
+        let ast_info = tir_stores().ast_info();
+        let node_id = originating_node.id();
 
         // Add location information to the definition.
         self.add_node_location_to_def(def_id, originating_node);
@@ -105,14 +107,18 @@ impl<'tc> DiscoveryPass<'tc> {
         match def_id {
             DefId::Mod(id) => {
                 self.def_state().mod_members.insert(id, vec![]);
+                ast_info.mod_defs().insert(node_id, id);
             }
             DefId::Data(id) => {
                 self.def_state().data_ctors.insert(id, vec![]);
+                ast_info.data_defs().insert(node_id, id);
             }
             DefId::Stack(id) => {
                 self.def_state().stack_members.insert(id, vec![]);
             }
-            DefId::Fn(_) => {}
+            DefId::Fn(id) => {
+                ast_info.fn_defs().insert(node_id, id);
+            }
         }
 
         let result = self.enter_item(originating_node, ItemId::Def(def_id), f);
