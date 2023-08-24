@@ -114,6 +114,11 @@ impl AttrTarget {
             ast::Expr::ModDef(_) => AttrTarget::ModDef,
             ast::Expr::FnDef(_) => AttrTarget::FnDef,
             ast::Expr::Ty(_) => AttrTarget::Ty,
+
+            // If this is a declaration, we have to recurse into the subject...
+            ast::Expr::Declaration(ast::Declaration { value: Some(value), .. }) => {
+                AttrTarget::classify_expr(value.body())
+            }
             _ => AttrTarget::Expr,
         }
     }
@@ -144,7 +149,13 @@ impl fmt::Display for AttrTarget {
                 AttrTarget::FnDef => allowed_argument_kinds.push("`function` definition"),
                 AttrTarget::Ty => allowed_argument_kinds.push("type"),
                 AttrTarget::Expr => allowed_argument_kinds.push("expression"),
-                _ => unreachable!(),
+                /* AttrTarget::Item => allowed_argument_kinds.push("item"), */
+                AttrTarget::Pat => allowed_argument_kinds.push("pattern"),
+                AttrTarget::TyArg => allowed_argument_kinds.push("type argument"),
+                AttrTarget::Field => allowed_argument_kinds.push("field"),
+                AttrTarget::EnumVariant => allowed_argument_kinds.push("enum variant"),
+                AttrTarget::MatchCase => allowed_argument_kinds.push("match case"),
+                _ => {}
             }
         }
 

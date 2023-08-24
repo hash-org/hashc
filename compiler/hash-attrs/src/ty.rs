@@ -54,9 +54,14 @@ impl AttrTyMap {
         &self.map[id]
     }
 
+    /// Get the [AttrId] by the name of the attribute.
+    pub fn get_id_by_name(&self, name: Identifier) -> Option<AttrId> {
+        self.name_map.get(&name).copied()
+    }
+
     /// Get the [AttrTy] by the name of the attribute.
-    pub fn get_by_name(&self, name: &Identifier) -> Option<&AttrTy> {
-        self.name_map.get(name).map(|id| &self.map[*id])
+    pub fn get_by_name(&self, name: Identifier) -> Option<&AttrTy> {
+        self.name_map.get(&name).map(|id| &self.map[*id])
     }
 }
 
@@ -155,11 +160,16 @@ lazy_static::lazy_static! {
             // Function attributes.
             // ------------------------------------------
             define_attr!(table, lang, AttrTarget::FnDef);
+            define_attr!(table, entry_point, AttrTarget::FnDef);
             define_attr!(table, pure, AttrTarget::FnDef);
             define_attr!(table, foreign, AttrTarget::FnDef);
             define_attr!(table, no_mangle, AttrTarget::FnDef);
-            define_attr!(table, link_nmae, (name: str), AttrTarget::FnDef);
-            define_attr!(table, repr, (abi: str), AttrTarget::Expr);
+            define_attr!(table, link_name, (name: str), AttrTarget::FnDef);
+
+            // ------------------------------------------
+            // Type attributes.
+            // ------------------------------------------
+            define_attr!(table, repr, (abi: str), AttrTarget::StructDef | AttrTarget::EnumDef);
 
             table
         })

@@ -435,12 +435,16 @@ dependencies = [
 name = "hash-ast-expand"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-attrs",
  "hash-fmt",
+ "hash-intrinsics",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
+ "hash-tir",
  "hash-tree-def",
  "hash-utils",
 ]
@@ -588,6 +592,7 @@ version = "0.1.0"
 dependencies = [
  "fixedbitset",
  "hash-ast",
+ "hash-attrs",
  "hash-intrinsics",
  "hash-source",
  "hash-storage",

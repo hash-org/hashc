@@ -1,16 +1,21 @@
 //! Hash AST expanding passes crate. This crate holds an implementation for the
 //! visitor pattern on the AST in order to expand any directives or macros that
 //! need to run after the parsing stage. Currently this function does not have
+#![feature(let_chains)]
 
+use diagnostics::ExpansionDiagnostic;
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind},
     workspace::{SourceStageInfo, Workspace},
 };
+use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
+use hash_utils::{crossbeam_channel::unbounded, rayon};
 use visitor::AstExpander;
 
+mod attr;
 mod diagnostics;
 mod visitor;
 
@@ -33,6 +38,8 @@ pub struct AstExpansionCtx<'ast> {
 
     /// Reference to the output stream
     pub stdout: CompilerOutputStream,
+
+    pub pool: &'ast rayon::ThreadPool,
 }
 
 /// A trait that allows the [AstExpansionPass] stage to query the
@@ -55,39 +62,57 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace, stdout, settings } = ctx.data();
+        let AstExpansionCtx { workspace, pool, .. } = ctx.data();
+        let (sender, receiver) = unbounded::<ExpansionDiagnostic>();
 
         let node_map = &mut workspace.node_map;
-        let source_map = &workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
-        let source_info = source_stage_info.get(entry_point);
+        pool.scope(|scope| {
+            let source_info = source_stage_info.get(entry_point);
 
-        // De-sugar the target if it isn't already de-sugared
-        if source_info.is_expanded() && entry_point.is_interactive() {
-            let mut expander = AstExpander::new(source_map, settings, stdout.clone());
-            let source = node_map.get_interactive_block(entry_point.into());
+            // De-sugar the target if it isn't already de-sugared
+            if source_info.is_expanded() && entry_point.is_interactive() {
+                let mut expander = AstExpander::new();
+                let source = node_map.get_interactive_block(entry_point.into());
 
-            expander.visit_body_block(source.node_ref()).unwrap();
-        }
-
-        for (id, module) in node_map.iter_modules().enumerate() {
-            let source_id = SourceId::new_module(id as u32);
-            let stage_info = source_stage_info.get(source_id);
-
-            // Skip any modules that have already been de-sugared
-            if stage_info.is_expanded() {
-                continue;
+                expander.visit_body_block(source.node_ref()).unwrap();
             }
 
-            let mut expander = AstExpander::new(source_map, settings, stdout.clone());
-            expander.visit_module(module.node_ref()).unwrap();
-        }
+            for (id, module) in node_map.iter_modules().enumerate() {
+                let source_id = SourceId::new_module(id as u32);
+                let stage_info = source_stage_info.get(source_id);
+
+                // Skip any modules that have already been de-sugared
+                if stage_info.is_expanded() {
+                    continue;
+                }
+
+                for expr in module.node().contents.iter() {
+                    let sender = sender.clone();
+                    scope.spawn(move |_| {
+                        let mut expander = AstExpander::new();
+                        expander.visit_expr(expr.ast_ref()).unwrap();
+                        expander.emit_diagnostics_to(&sender);
+                    });
+                }
+            }
+        });
 
         // Update all entries that they have been expanded
         source_stage_info.set_all(SourceStageInfo::EXPANDED);
 
-        Ok(())
+        drop(sender);
+        let mut messages = receiver.into_iter().collect::<Vec<_>>();
+
+        if messages.is_empty() {
+            Ok(())
+        } else {
+            // We need to sort the reports by the source order so that the reports always
+            // come out in a stable order.
+            messages.sort_by_key(|item| item.id());
+            Err(messages.into_iter().flat_map(Reports::from).collect())
+        }
     }
 
     /// Check whether the compiler settings specify that the generated

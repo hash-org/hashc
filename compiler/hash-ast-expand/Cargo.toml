@@ -5,6 +5,8 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
+derive_more = "0.99"
+
 hash-ast = { path = "../hash-ast" }
 hash-fmt = { path = "../hash-fmt" }
 hash-pipeline = { path = "../hash-pipeline" }
@@ -13,3 +15,6 @@ hash-source = { path = "../hash-source" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-utils = { path = "../hash-utils" }
 hash-attrs = { path = "../hash-attrs" }
+hash-tir = { path = "../hash-tir" }
+hash-storage = { path = "../hash-storage" }
+hash-intrinsics = { path = "../hash-intrinsics" }

@@ -16,78 +16,57 @@
 //! - @@Future: Perform expansions on macro invocations. Depending on whether
 //!   this is an AST level macro or a token level macro, the expansion will be
 //!   different.
-#![allow(unused)]
 
 use std::convert::Infallible;
 
 use hash_ast::{
     ast, ast_visitor_mut_self_default_impl,
-    tree::AstTreeGenerator,
-    visitor::{walk_mut, walk_mut_self, AstVisitor, AstVisitorMutSelf},
+    visitor::{walk_mut_self, AstVisitorMutSelf},
 };
-use hash_attrs::target::AttrTarget;
-use hash_fmt::AstPrinter;
-use hash_pipeline::{
-    interface::CompilerOutputStream,
-    settings::{AstDumpMode, CompilerSettings},
+use hash_attrs::{
+    attr::{attr_store, Attrs},
+    target::AttrTarget,
 };
-use hash_source::{identifier::IDENTS, SourceMap};
-use hash_utils::{
-    state::LightState,
-    stream_writeln,
-    tree_writing::{TreeNode, TreeWriter, TreeWriterConfig},
+use hash_storage::store::PartialStore;
+use hash_utils::{crossbeam_channel::Sender, state::LightState};
+
+use crate::{
+    attr::ApplicationTarget,
+    diagnostics::{ExpansionDiagnostic, ExpansionDiagnostics},
 };
 
-#[derive(Debug)]
-pub struct AstExpander<'s> {
-    /// The map of the current workspace sources.
-    pub(crate) source_map: &'s SourceMap,
-
-    /// The settings to the AST expansion pass.
-    pub(crate) settings: &'s CompilerSettings,
-
+pub struct AstExpander {
     /// The current attribute target.
-    pub(crate) target: LightState<AttrTarget>,
+    pub(crate) target: LightState<ApplicationTarget>,
 
-    /// The [CompilerOutputStream] that will be used to dump the AST.
-    stdout: CompilerOutputStream,
+    /// Any diagnostics that have been emitted during the expansion stage.
+    pub diagnostics: ExpansionDiagnostics,
 }
 
-impl<'s> AstExpander<'s> {
-    /// Create a new [AstDesugaring]. Contains the [SourceMap] and the
+impl AstExpander {
+    /// Create a new [AstExpander]. Contains the [SourceMap] and the
     /// current id of the source in reference.
-    pub fn new(
-        source_map: &'s SourceMap,
-        settings: &'s CompilerSettings,
-        stdout: CompilerOutputStream,
-    ) -> Self {
-        Self { source_map, settings, stdout, target: LightState::new(AttrTarget::ModDef) }
+    pub fn new() -> Self {
+        Self {
+            target: LightState::new(ApplicationTarget::default()),
+            diagnostics: ExpansionDiagnostics::new(),
+        }
     }
 
-    pub fn with_target<T>(&mut self, target: AttrTarget, f: impl FnOnce(&mut Self) -> T) -> T {
-        let old = self.target.swap(target);
-        let result = f(self);
-        self.target.swap(old);
-        result
-    }
-
-    /// Check a macro attribute invocation based on the kind of macro that was
-    /// invoked.
-    pub fn check_macro_invocation(
-        &mut self,
-        node: &ast::MacroInvocation,
-    ) -> Result<(), Infallible> {
-        Ok(())
+    /// Emit all diagnostics that have been collected during the expansion
+    /// stage.
+    pub(crate) fn emit_diagnostics_to(self, sender: &Sender<ExpansionDiagnostic>) {
+        self.diagnostics.errors.into_iter().for_each(|d| sender.send(d.into()).unwrap());
     }
 }
 
-impl<'s> AstVisitorMutSelf for AstExpander<'s> {
+impl AstVisitorMutSelf for AstExpander {
     type Error = Infallible;
 
     ast_visitor_mut_self_default_impl!(hiding:
         ExprMacroInvocation, TyMacroInvocation, PatMacroInvocation,
         ExprArg, TyArg, PatArg, EnumDefEntry, Param, MatchCase,
-        MacroInvocation
+        MacroInvocations
     );
 
     type ExprMacroInvocationRet = ();
@@ -96,8 +75,13 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::ExprMacroInvocation>,
     ) -> Result<Self::ExprMacroInvocationRet, Self::Error> {
-        self.with_target(AttrTarget::classify_expr(node.subject.body()), |this| {
-            walk_mut_self::walk_expr_macro_invocation(this, node);
+        let target = ApplicationTarget::new(
+            AttrTarget::classify_expr(node.subject.body()),
+            node.subject.id(),
+        );
+
+        self.with_target(target, |this| {
+            walk_mut_self::walk_expr_macro_invocation(this, node)?;
             Ok(())
         })
     }
@@ -108,7 +92,8 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::TyMacroInvocation>,
     ) -> Result<Self::TyMacroInvocationRet, Self::Error> {
-        self.with_target(AttrTarget::Ty, |this| {
+        let target = ApplicationTarget::new(AttrTarget::Ty, node.subject.id());
+        self.with_target(target, |this| {
             walk_mut_self::walk_ty_macro_invocation(this, node)?;
             Ok(())
         })
@@ -120,7 +105,8 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::PatMacroInvocation>,
     ) -> Result<Self::PatMacroInvocationRet, Self::Error> {
-        self.with_target(AttrTarget::Pat, |this| {
+        let target = ApplicationTarget::new(AttrTarget::Pat, node.subject.id());
+        self.with_target(target, |this| {
             walk_mut_self::walk_pat_macro_invocation(this, node)?;
             Ok(())
         })
@@ -132,8 +118,9 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::PatArg>,
     ) -> Result<Self::PatArgRet, Self::Error> {
-        if let Some(macros) = node.body.macros.as_ref() {
-            self.with_target(AttrTarget::Field, |this| walk_mut_self::walk_pat_arg(this, node))?;
+        if node.body.macros.as_ref().is_some() {
+            let target = ApplicationTarget::new(AttrTarget::Field, node.id());
+            self.with_target(target, |this| walk_mut_self::walk_pat_arg(this, node))?;
         } else {
             walk_mut_self::walk_pat_arg(self, node)?;
         }
@@ -147,10 +134,9 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        if let Some(macros) = node.body.macros.as_ref() {
-            self.with_target(AttrTarget::EnumVariant, |this| {
-                walk_mut_self::walk_enum_def_entry(this, node)
-            })?;
+        if node.body.macros.as_ref().is_some() {
+            let target = ApplicationTarget::new(AttrTarget::EnumVariant, node.id());
+            self.with_target(target, |this| walk_mut_self::walk_enum_def_entry(this, node))?;
         } else {
             walk_mut_self::walk_enum_def_entry(self, node)?;
         }
@@ -164,8 +150,9 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
-        if let Some(macros) = node.body.macros.as_ref() {
-            self.with_target(AttrTarget::Field, |this| walk_mut_self::walk_param(this, node))?;
+        if node.body.macros.as_ref().is_some() {
+            let target = ApplicationTarget::new(AttrTarget::Field, node.id());
+            self.with_target(target, |this| walk_mut_self::walk_param(this, node))?;
         } else {
             walk_mut_self::walk_param(self, node)?;
         }
@@ -179,10 +166,9 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        if let Some(macros) = node.body.macros.as_ref() {
-            self.with_target(AttrTarget::MatchCase, |this| {
-                walk_mut_self::walk_match_case(this, node)
-            })?;
+        if node.body.macros.as_ref().is_some() {
+            let target = ApplicationTarget::new(AttrTarget::MatchCase, node.id());
+            self.with_target(target, |this| walk_mut_self::walk_match_case(this, node))?;
         } else {
             walk_mut_self::walk_match_case(self, node)?;
         }
@@ -196,8 +182,9 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
-        if let Some(macros) = node.body.macros.as_ref() {
-            self.with_target(AttrTarget::TyArg, |this| walk_mut_self::walk_ty_arg(this, node))?;
+        if node.body.macros.as_ref().is_some() {
+            let target = ApplicationTarget::new(AttrTarget::TyArg, node.id());
+            self.with_target(target, |this| walk_mut_self::walk_ty_arg(this, node))?;
         } else {
             walk_mut_self::walk_ty_arg(self, node)?;
         }
@@ -211,8 +198,9 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         &mut self,
         node: ast::AstNodeRef<ast::ExprArg>,
     ) -> Result<Self::ExprArgRet, Self::Error> {
-        if let Some(macros) = node.body.macros.as_ref() {
-            self.with_target(AttrTarget::Field, |this| walk_mut_self::walk_expr_arg(this, node))?;
+        if node.body.macros.as_ref().is_some() {
+            let target = ApplicationTarget::new(AttrTarget::Field, node.id());
+            self.with_target(target, |this| walk_mut_self::walk_expr_arg(this, node))?;
         } else {
             walk_mut_self::walk_expr_arg(self, node)?;
         }
@@ -220,13 +208,25 @@ impl<'s> AstVisitorMutSelf for AstExpander<'s> {
         Ok(())
     }
 
-    type MacroInvocationRet = ();
+    type MacroInvocationsRet = ();
 
-    fn visit_macro_invocation(
+    fn visit_macro_invocations(
         &mut self,
-        node: ast::AstNodeRef<ast::MacroInvocation>,
-    ) -> Result<Self::MacroInvocationRet, Self::Error> {
-        self.check_macro_invocation(node.body())
+        node: ast::AstNodeRef<ast::MacroInvocations>,
+    ) -> Result<Self::MacroInvocationsRet, Self::Error> {
+        // If the macro invocation is correct, then we can append
+        // all of the attributes that are being applied onto the
+        // the target.
+        let mut attrs = Attrs::with_capacity(node.body.invocations.len());
+
+        for invocation in node.invocations.iter() {
+            if let Some(attr) = self.try_create_attr_from_macro(invocation.ast_ref()) {
+                attrs.add_attr(attr);
+            }
+        }
+
+        attr_store().insert(node.id(), attrs);
+        Ok(())
     }
 
     // type DirectiveExprRet = ();
