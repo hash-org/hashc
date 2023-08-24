@@ -113,10 +113,20 @@ static_single_store!(
 
 tir_debug_value_of_single_store_id!(TermId);
 
-static_sequence_store_indirect!(
+static_single_store!(
     store = pub TermListStore,
-    id = pub TermListId[TermId],
+    id = pub TermListId,
+    value = Node<TermListSeqId>,
     store_name = term_list,
+    store_source = tir_stores()
+);
+
+tir_debug_value_of_single_store_id!(TermListId);
+
+static_sequence_store_indirect!(
+    store = pub TermListSeqStore,
+    id = pub TermListSeqId[TermId],
+    store_name = term_list_seq,
     store_source = tir_stores()
 );
 
@@ -253,7 +263,7 @@ impl fmt::Display for TermId {
 
 impl fmt::Display for TermListId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, term) in self.iter().enumerate() {
+        for (i, term) in self.value().iter().enumerate() {
             if i > 0 {
                 write!(f, ", ")?;
             }

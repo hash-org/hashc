@@ -20,6 +20,7 @@ use hash_tir::{
     fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
+    node,
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::DerefTerm,
@@ -440,7 +441,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         self.context().enter_scope(ScopeKind::Stack(block_term.stack_id), || {
             let st = eval_state();
 
-            for statement in block_term.statements.iter() {
+            for statement in block_term.statements.value().iter() {
                 let _ = self.eval_and_record(statement.into(), &st)?;
             }
 
@@ -514,7 +515,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Assumes that the index is normalised.
     fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
-        self.try_use_term_as_integer_lit::<usize>(index).map(|idx| elements.at(idx).unwrap().into())
+        self.try_use_term_as_integer_lit::<usize>(index)
+            .map(|idx| elements.value().at(idx).unwrap().into())
     }
 
     /// Evaluate an access term.
@@ -894,10 +896,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             .enumerate()
             .filter_map(|(i, p)| match p {
                 PatOrCapture::Pat(_) => None,
-                PatOrCapture::Capture => Some(term_list.at(i).unwrap()),
+                PatOrCapture::Capture => Some(term_list.value().at(i).unwrap()),
             })
             .collect_vec();
-        TermId::seq_data(spread_term_list)
+        node!(TermId::seq_data(spread_term_list))
     }
 
     /// From the given arguments matching with the given parameters, extract the
@@ -1194,7 +1196,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             },
             // Lists
             (Term::Array(array_term), Pat::Array(list_pat)) => self.match_some_list_and_get_binds(
-                array_term.elements.len(),
+                array_term.elements.value().len(),
                 list_pat.spread,
                 |_| {
                     // Lists can have spreads, which return sublists
@@ -1203,7 +1205,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     }))
                 },
                 |i| list_pat.pats.at(i).unwrap(),
-                |i| array_term.elements.at(i).unwrap(),
+                |i| array_term.elements.value().at(i).unwrap(),
                 f,
             ),
             (_, Pat::Lit(_)) => Ok(MatchResult::Stuck),

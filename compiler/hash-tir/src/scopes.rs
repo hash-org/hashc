@@ -260,7 +260,7 @@ impl fmt::Display for BlockTerm {
             write!(f, "{}", indent(&members, "  "))?;
         }
 
-        for term in self.statements.iter() {
+        for term in self.statements.value().iter() {
             let term = term.to_string();
             writeln!(f, "{};", indent(&term, "  "))?;
         }

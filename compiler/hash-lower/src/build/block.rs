@@ -79,7 +79,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // the return type of this block as the last expression, or an empty
             // unit if there is no expression.
 
-            for statement in statements.iter() {
+            for statement in statements.value().iter() {
                 match *statement.value() {
                     // We need to handle declarations here specifically, otherwise
                     // in order to not have to create a temporary for the declaration

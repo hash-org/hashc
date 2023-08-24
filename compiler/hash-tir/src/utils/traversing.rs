@@ -19,6 +19,7 @@ use crate::{
     fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
+    node,
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId},
     refs::{DerefTerm, RefTerm, RefTy},
@@ -329,11 +330,11 @@ impl TraversingUtils {
         term_list: TermListId,
         f: F,
     ) -> Result<TermListId, E> {
-        let mut new_list = Vec::with_capacity(term_list.len());
-        for term_id in term_list.value() {
+        let mut new_list = Vec::with_capacity(term_list.value().len());
+        for term_id in term_list.value().value() {
             new_list.push(self.fmap_term(term_id, f)?);
         }
-        Ok(TermId::seq_data(new_list))
+        Ok(node!(TermId::seq_data(new_list)))
     }
 
     pub fn fmap_pat_list<E, F: Mapper<E>>(
@@ -594,7 +595,7 @@ impl TraversingUtils {
         term_list_id: TermListId,
         f: &mut F,
     ) -> Result<(), E> {
-        for term in term_list_id.value() {
+        for term in term_list_id.value().value() {
             self.visit_term(term, f)?;
         }
         Ok(())

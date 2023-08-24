@@ -184,7 +184,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         element_annotation_ty: TyId,
     ) -> TcResult<()> {
         let terms = term_list_id.value();
-        self.infer_unified_list(&terms, element_annotation_ty, |term, ty| {
+        self.infer_unified_list(&terms.value(), element_annotation_ty, |term, ty| {
             self.infer_term(term, ty)?;
             Ok(())
         })?;
@@ -615,7 +615,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
-            let inferred_len_term = self.create_term_from_integer_lit(array_term.elements.len());
+            let inferred_len_term =
+                self.create_term_from_integer_lit(array_term.elements.value().len());
             if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
                 return Err(TcError::MismatchingArrayLengths {
                     expected_len: len,
@@ -929,7 +930,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         if let Some(entry_point) = entry_point {
             // Ensure it is well-typed
             let call_term = node!(Term::FnCall(FnCallTerm {
-                subject: node!(fn_def_id.into()),
+                subject: node!(Term::FnRef(fn_def_id)),
                 implicit: false,
                 args: Arg::empty_seq(),
             }));
@@ -1187,7 +1188,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // type.
             let mut diverges = false;
 
-            for statement in block_term.statements.iter() {
+            for statement in block_term.statements.value().iter() {
                 let statement_ty = Ty::hole_for(statement);
                 self.infer_term(statement, statement_ty)?;
 

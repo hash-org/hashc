@@ -87,6 +87,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let aggregate_kind = AggregateKind::Array(ty);
                 let args = elements
                     .borrow()
+                    .value()
                     .iter()
                     .copied()
                     .enumerate()

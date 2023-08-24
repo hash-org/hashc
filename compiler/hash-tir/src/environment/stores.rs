@@ -18,7 +18,7 @@ use super::super::{
 };
 use crate::{
     ast_info::AstInfo, atom_info::AtomInfoStore, control::MatchCasesStore,
-    directives::AppliedDirectivesStore,
+    directives::AppliedDirectivesStore, terms::TermListSeqStore,
 };
 
 // All the stores that contain definitions for the typechecker.
@@ -39,6 +39,7 @@ stores! {
     symbol: SymbolStore,
     term: TermStore,
     term_list: TermListStore,
+    term_list_seq: TermListSeqStore,
     ty: TyStore,
     match_cases: MatchCasesStore,
     atom_info: AtomInfoStore,

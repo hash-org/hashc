@@ -29,6 +29,7 @@ use hash_tir::{
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
+    node,
     params::ParamIndex,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
@@ -561,7 +562,7 @@ impl<'tc> ResolutionPass<'tc> {
                     .ast_ref_iter()
                     .map(|element| self.make_term_from_ast_expr(element))
                     .collect::<SemanticResult<_>>()?;
-                let elements = TermId::seq_data(element_vec);
+                let elements = node!(TermId::seq_data(element_vec));
                 Ok(Term::from(Term::Array(ArrayTerm { elements })))
             }
         }
@@ -731,7 +732,7 @@ impl<'tc> ResolutionPass<'tc> {
                         == (node.statements.len().saturating_sub(mod_member_ids.len())),
                 ) {
                     (Some(Some(expr)), true) => {
-                        let statements = TermId::seq_data(statements);
+                        let statements = node!(TermId::seq_data(statements));
                         Ok(Term::from(Term::Block(BlockTerm {
                             statements,
                             return_value: expr,
@@ -739,7 +740,7 @@ impl<'tc> ResolutionPass<'tc> {
                         })))
                     }
                     (None, true) => {
-                        let statements = TermId::seq_data(statements);
+                        let statements = node!(TermId::seq_data(statements));
                         let return_value = Term::void();
                         Ok(Term::from(Term::Block(BlockTerm {
                             statements,
@@ -770,7 +771,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
             inner => Term::from(BlockTerm {
                 return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
-                statements: TermId::empty_seq(),
+                statements: node!(TermId::empty_seq()),
                 stack_id: Stack::empty(),
             }),
         };

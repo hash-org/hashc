@@ -58,12 +58,13 @@ impl NodeOrigin {
 /// Helper to create a node which is the value of a static store.
 #[macro_export]
 macro_rules! node {
-    ($data:expr) => {
+    ($data:expr) => {{
+        use hash_storage::store::statics::SingleStoreValue;
         $crate::node::Node::create($crate::node::Node::new(
             $data,
             $crate::node::NodeOrigin::Generated,
         ))
-    };
+    }};
     ($data:expr, $origin:expr) => {
         $crate::node::Node::create($crate::node::Node::new($data, $origin))
     };
