@@ -219,18 +219,6 @@ impl<'ir> BuilderCtx<'ir> {
         let ident = name.ident();
         let mut instance = Instance::new(ident, source, params, ret_ty, attr_id);
 
-        // Lookup any applied directives on the fn_def and add them to the
-        // instance
-
-        // @@ReAddDirectives: we should access the new attributes stuff later...
-        // tir_stores().directives().map_fast(fn_def.into(), |maybe_directives| {
-        //     if let Some(directives) = maybe_directives {
-        //         for directive in directives.iter() {
-        //             instance.attributes.add(Attribute::word(directive));
-        //         }
-        //     }
-        // });
-
         if Intrinsic::from_str_name(ident.into()).is_some() {
             instance.is_intrinsic = true;
         }

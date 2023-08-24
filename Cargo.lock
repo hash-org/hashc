@@ -645,6 +645,7 @@ dependencies = [
  "derive_more",
  "fixedbitset",
  "hash-ast",
+ "hash-attrs",
  "hash-intrinsics",
  "hash-ir",
  "hash-layout",
@@ -851,6 +852,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "hash-ast",
+ "hash-attrs",
  "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-reporting",

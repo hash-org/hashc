@@ -27,7 +27,6 @@ use hash_attrs::{
     attr::{attr_store, Attrs},
     target::AttrTarget,
 };
-use hash_storage::store::PartialStore;
 use hash_utils::{crossbeam_channel::Sender, state::LightState};
 
 use crate::{
@@ -75,10 +74,7 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::ExprMacroInvocation>,
     ) -> Result<Self::ExprMacroInvocationRet, Self::Error> {
-        let target = ApplicationTarget::new(
-            AttrTarget::classify_expr(node.subject.body()),
-            node.subject.id(),
-        );
+        let target = ApplicationTarget::from_expr(node.subject.ast_ref());
 
         self.with_target(target, |this| {
             walk_mut_self::walk_expr_macro_invocation(this, node)?;
@@ -218,6 +214,7 @@ impl AstVisitorMutSelf for AstExpander {
         // all of the attributes that are being applied onto the
         // the target.
         let mut attrs = Attrs::with_capacity(node.body.invocations.len());
+        let ApplicationTarget { id, .. } = self.target.get();
 
         for invocation in node.invocations.iter() {
             if let Some(attr) = self.try_create_attr_from_macro(invocation.ast_ref()) {
@@ -225,7 +222,7 @@ impl AstVisitorMutSelf for AstExpander {
             }
         }
 
-        attr_store().insert(node.id(), attrs);
+        attr_store().insert(id, attrs);
         Ok(())
     }
 

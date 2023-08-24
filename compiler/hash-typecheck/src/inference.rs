@@ -4,6 +4,7 @@ use std::{cell::Cell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
+use hash_attrs::attr::attr_store;
 use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
 use hash_reporting::diagnostic::{Diagnostics, ErrorState};
@@ -26,7 +27,7 @@ use hash_tir::{
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::env::AccessToEnv,
+    environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -908,18 +909,16 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let fn_def_symbol = fn_def_id.borrow().name;
         let fn_def_name = fn_def_symbol.borrow().name.unwrap();
 
-        // @@ReAddDirectives: check if on item if it has `entry_point`
-        // if tir_stores()
-        //     .directives()
-        //     .get(fn_def_id.into())
-        //     .map(|x| x.contains(IDENTS.entry_point))
-        //     == Some(true)
-        // {
-        //     Some(EntryPointKind::Named(fn_def_name))
-        // } else
+        // check if on item if it has `entry_point`
+        let has_entry_point_attr = tir_stores()
+            .ast_info()
+            .fn_defs()
+            .get_node_by_data(fn_def_id)
+            .map_or(false, |id| attr_store().node_has_attr(id, IDENTS.entry_point));
 
-        // Find the entry point either by name "main" or by the #entry_point directive.
-        let entry_point = if fn_def_name == IDENTS.main
+        let entry_point = if has_entry_point_attr {
+            Some(EntryPointKind::Named(fn_def_name))
+        } else if fn_def_name == IDENTS.main
             && self.source_map().module_kind_by_id(self.current_source_info().source_id())
                 == Some(ModuleKind::EntryPoint)
         {

@@ -1,7 +1,7 @@
 //! Any logic related with attribute checking.
 
 use derive_more::Constructor;
-use hash_ast::ast;
+use hash_ast::ast::{self, Declaration};
 use hash_attrs::{
     attr::{Attr, AttrArgIdx, AttrValue, AttrValueKind},
     target::AttrTarget,
@@ -31,12 +31,36 @@ use crate::{
 /// The target of the attribute application, and the [ast::AstNodeId] of the
 /// target.
 #[derive(Debug, Clone, Copy, Constructor)]
-pub struct ApplicationTarget {
+pub(crate) struct ApplicationTarget {
     /// The current attribute target.
-    target: AttrTarget,
+    pub(crate) target: AttrTarget,
 
     /// The id of the node.
-    id: ast::AstNodeId,
+    pub(crate) id: ast::AstNodeId,
+}
+
+impl ApplicationTarget {
+    /// Create an [ApplicationTarget] from an [ast::Expr]. This will essentially
+    /// compute a target from the expression.
+    ///
+    /// It follows the following rules:
+    ///
+    /// - If the expression is a declaration, we apply recurse and try to get
+    ///   [ApplicationTarget] from the subject of the declaration. If the
+    ///   declaration does not have a `value` we return an empty [AttrTarget].
+    ///
+    /// - Otherwise, get the equivalent [AttrTarget] from the expression.
+    pub fn from_expr(expr: ast::AstNodeRef<ast::Expr>) -> Self {
+        match expr.body() {
+            ast::Expr::Declaration(Declaration { value: Some(value), .. }) => {
+                Self::from_expr(value.ast_ref())
+            }
+            ast::Expr::Declaration(Declaration { .. }) => {
+                ApplicationTarget::new(AttrTarget::empty(), expr.id())
+            }
+            e => Self::new(AttrTarget::classify_expr(e), expr.id()),
+        }
+    }
 }
 
 impl Default for ApplicationTarget {
@@ -53,7 +77,7 @@ impl AstExpander {
 
     /// Set the current [ApplicationTarget] for the duration of the given
     /// function, and reset the target to the previous value.
-    pub fn with_target<T>(
+    pub(crate) fn with_target<T>(
         &mut self,
         target: ApplicationTarget,
         f: impl FnOnce(&mut Self) -> T,

@@ -7,7 +7,7 @@ use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
 };
-use hash_storage::store::DefaultPartialStore;
+use hash_storage::store::{DefaultPartialStore, PartialStore};
 use hash_tir::params::ParamIndex;
 use hash_utils::fxhash::FxHashMap;
 
@@ -139,7 +139,26 @@ impl Attrs {
     }
 }
 
-pub type AttrStore = DefaultPartialStore<AstNodeId, Attrs>;
+#[derive(Default)]
+pub struct AttrStore(DefaultPartialStore<AstNodeId, Attrs>);
+
+impl AttrStore {
+    /// Insert a new set of attributes into the store.
+    pub fn insert(&self, id: AstNodeId, attrs: Attrs) {
+        self.0.insert(id, attrs);
+    }
+
+    /// Check whether a particular [AstNodeId] has a specific
+    /// attribute.
+    pub fn node_has_attr(&self, id: AstNodeId, attr: Identifier) -> bool {
+        self.0.borrow(id).map_or(false, |attrs| attrs.has_attr(attr))
+    }
+
+    /// Get an [Attr] by name, from a node.
+    pub fn get_attr(&self, id: AstNodeId, attr: Identifier) -> Option<Attr> {
+        self.0.borrow(id).and_then(|attrs| attrs.attrs.get(&attr).cloned())
+    }
+}
 
 /// The global [`AttrStore`] instance.
 static STORES: OnceLock<AttrStore> = OnceLock::new();
@@ -147,5 +166,5 @@ static STORES: OnceLock<AttrStore> = OnceLock::new();
 /// Access the global [`AttrStore`] instance.
 #[inline]
 pub fn attr_store() -> &'static AttrStore {
-    STORES.get_or_init(AttrStore::new)
+    STORES.get_or_init(AttrStore::default)
 }

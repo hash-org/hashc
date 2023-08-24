@@ -18,7 +18,7 @@ use hash_source::{
 };
 use hash_storage::{
     static_sequence_store_indirect, static_single_store,
-    store::{statics::SingleStoreValue, PartialStore, SequenceStore, Store, StoreKey},
+    store::{statics::SingleStoreValue, SequenceStore, Store, StoreKey},
 };
 use hash_target::{
     abi::{self, Abi, Integer, ScalarKind},
@@ -148,9 +148,7 @@ impl Instance {
 
     /// Check if this instance has an attribute.
     pub fn has_attr(&self, attr: Identifier) -> bool {
-        attr_store().map_fast(self.attr_id, |maybe_attrs| {
-            maybe_attrs.map_or(false, |attrs| attrs.has_attr(attr))
-        })
+        attr_store().node_has_attr(self.attr_id, attr)
     }
 
     /// Get the name from the instance.
