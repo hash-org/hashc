@@ -23,20 +23,17 @@ use hash_ast::{
     ast, ast_visitor_mut_self_default_impl,
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
-use hash_attrs::{
-    attr::{attr_store, Attrs},
-    target::AttrTarget,
-};
-use hash_utils::{crossbeam_channel::Sender, state::LightState};
+use hash_attrs::{checks::AttrChecker, target::AttrNode};
+use hash_source::SourceId;
+use hash_utils::crossbeam_channel::Sender;
 
-use crate::{
-    attr::ApplicationTarget,
-    diagnostics::{ExpansionDiagnostic, ExpansionDiagnostics},
-};
+use crate::diagnostics::{ExpansionDiagnostic, ExpansionDiagnostics};
 
 pub struct AstExpander {
-    /// The current attribute target.
-    pub(crate) target: LightState<ApplicationTarget>,
+    /// An attribute checker, used to check that attributes are being applied
+    /// correctly. This is for checks that are more specific to the context
+    /// of the attribute, and not just the attribute itself.
+    pub checker: AttrChecker,
 
     /// Any diagnostics that have been emitted during the expansion stage.
     pub diagnostics: ExpansionDiagnostics,
@@ -45,16 +42,14 @@ pub struct AstExpander {
 impl AstExpander {
     /// Create a new [AstExpander]. Contains the [SourceMap] and the
     /// current id of the source in reference.
-    pub fn new() -> Self {
-        Self {
-            target: LightState::new(ApplicationTarget::default()),
-            diagnostics: ExpansionDiagnostics::new(),
-        }
+    pub fn new(id: SourceId) -> Self {
+        Self { diagnostics: ExpansionDiagnostics::new(), checker: AttrChecker::new(id) }
     }
 
     /// Emit all diagnostics that have been collected during the expansion
     /// stage.
     pub(crate) fn emit_diagnostics_to(self, sender: &Sender<ExpansionDiagnostic>) {
+        self.diagnostics.warnings.into_iter().for_each(|d| sender.send(d.into()).unwrap());
         self.diagnostics.errors.into_iter().for_each(|d| sender.send(d.into()).unwrap());
     }
 }
@@ -64,8 +59,7 @@ impl AstVisitorMutSelf for AstExpander {
 
     ast_visitor_mut_self_default_impl!(hiding:
         ExprMacroInvocation, TyMacroInvocation, PatMacroInvocation,
-        ExprArg, TyArg, PatArg, EnumDefEntry, Param, MatchCase,
-        MacroInvocations
+        ExprArg, TyArg, PatArg, EnumDefEntry, Param, MatchCase
     );
 
     type ExprMacroInvocationRet = ();
@@ -74,12 +68,11 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::ExprMacroInvocation>,
     ) -> Result<Self::ExprMacroInvocationRet, Self::Error> {
-        let target = ApplicationTarget::from_expr(node.subject.ast_ref());
+        let target = AttrNode::from_expr(node.subject.ast_ref());
+        self.check_macro_invocations(node.macros.ast_ref(), target);
 
-        self.with_target(target, |this| {
-            walk_mut_self::walk_expr_macro_invocation(this, node)?;
-            Ok(())
-        })
+        walk_mut_self::walk_expr_macro_invocation(self, node)?;
+        Ok(())
     }
 
     type TyMacroInvocationRet = ();
@@ -88,11 +81,11 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::TyMacroInvocation>,
     ) -> Result<Self::TyMacroInvocationRet, Self::Error> {
-        let target = ApplicationTarget::new(AttrTarget::Ty, node.subject.id());
-        self.with_target(target, |this| {
-            walk_mut_self::walk_ty_macro_invocation(this, node)?;
-            Ok(())
-        })
+        let target = AttrNode::Ty(node.subject.ast_ref());
+        self.check_macro_invocations(node.macros.ast_ref(), target);
+
+        walk_mut_self::walk_ty_macro_invocation(self, node)?;
+        Ok(())
     }
 
     type PatMacroInvocationRet = ();
@@ -101,11 +94,11 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::PatMacroInvocation>,
     ) -> Result<Self::PatMacroInvocationRet, Self::Error> {
-        let target = ApplicationTarget::new(AttrTarget::Pat, node.subject.id());
-        self.with_target(target, |this| {
-            walk_mut_self::walk_pat_macro_invocation(this, node)?;
-            Ok(())
-        })
+        let target = AttrNode::Pat(node.subject.ast_ref());
+        self.check_macro_invocations(node.macros.ast_ref(), target);
+
+        walk_mut_self::walk_pat_macro_invocation(self, node)?;
+        Ok(())
     }
 
     type PatArgRet = ();
@@ -114,13 +107,12 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::PatArg>,
     ) -> Result<Self::PatArgRet, Self::Error> {
-        if node.body.macros.as_ref().is_some() {
-            let target = ApplicationTarget::new(AttrTarget::Field, node.id());
-            self.with_target(target, |this| walk_mut_self::walk_pat_arg(this, node))?;
-        } else {
-            walk_mut_self::walk_pat_arg(self, node)?;
+        if let Some(macros) = node.body.macros.as_ref() {
+            let target = AttrNode::PatArg(node);
+            self.check_macro_invocations(macros.ast_ref(), target);
         }
 
+        walk_mut_self::walk_pat_arg(self, node)?;
         Ok(())
     }
 
@@ -130,13 +122,12 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        if node.body.macros.as_ref().is_some() {
-            let target = ApplicationTarget::new(AttrTarget::EnumVariant, node.id());
-            self.with_target(target, |this| walk_mut_self::walk_enum_def_entry(this, node))?;
-        } else {
-            walk_mut_self::walk_enum_def_entry(self, node)?;
+        if let Some(macros) = node.body.macros.as_ref() {
+            let target = AttrNode::EnumVariant(node);
+            self.check_macro_invocations(macros.ast_ref(), target);
         }
 
+        walk_mut_self::walk_enum_def_entry(self, node)?;
         Ok(())
     }
 
@@ -146,13 +137,12 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
-        if node.body.macros.as_ref().is_some() {
-            let target = ApplicationTarget::new(AttrTarget::Field, node.id());
-            self.with_target(target, |this| walk_mut_self::walk_param(this, node))?;
-        } else {
-            walk_mut_self::walk_param(self, node)?;
+        if let Some(macros) = node.body.macros.as_ref() {
+            let target = AttrNode::Param(node);
+            self.check_macro_invocations(macros.ast_ref(), target);
         }
 
+        walk_mut_self::walk_param(self, node)?;
         Ok(())
     }
 
@@ -162,13 +152,12 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        if node.body.macros.as_ref().is_some() {
-            let target = ApplicationTarget::new(AttrTarget::MatchCase, node.id());
-            self.with_target(target, |this| walk_mut_self::walk_match_case(this, node))?;
-        } else {
-            walk_mut_self::walk_match_case(self, node)?;
+        if let Some(macros) = node.body.macros.as_ref() {
+            let target = AttrNode::MatchCase(node);
+            self.check_macro_invocations(macros.ast_ref(), target);
         }
 
+        walk_mut_self::walk_match_case(self, node)?;
         Ok(())
     }
 
@@ -178,13 +167,12 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
-        if node.body.macros.as_ref().is_some() {
-            let target = ApplicationTarget::new(AttrTarget::TyArg, node.id());
-            self.with_target(target, |this| walk_mut_self::walk_ty_arg(this, node))?;
-        } else {
-            walk_mut_self::walk_ty_arg(self, node)?;
+        if let Some(macros) = node.body.macros.as_ref() {
+            let target = AttrNode::TyArg(node);
+            self.check_macro_invocations(macros.ast_ref(), target);
         }
 
+        walk_mut_self::walk_ty_arg(self, node)?;
         Ok(())
     }
 
@@ -194,35 +182,11 @@ impl AstVisitorMutSelf for AstExpander {
         &mut self,
         node: ast::AstNodeRef<ast::ExprArg>,
     ) -> Result<Self::ExprArgRet, Self::Error> {
-        if node.body.macros.as_ref().is_some() {
-            let target = ApplicationTarget::new(AttrTarget::Field, node.id());
-            self.with_target(target, |this| walk_mut_self::walk_expr_arg(this, node))?;
-        } else {
-            walk_mut_self::walk_expr_arg(self, node)?;
+        if let Some(macros) = node.body.macros.as_ref() {
+            let target = AttrNode::ExprArg(node);
+            self.check_macro_invocations(macros.ast_ref(), target);
         }
-
-        Ok(())
-    }
-
-    type MacroInvocationsRet = ();
-
-    fn visit_macro_invocations(
-        &mut self,
-        node: ast::AstNodeRef<ast::MacroInvocations>,
-    ) -> Result<Self::MacroInvocationsRet, Self::Error> {
-        // If the macro invocation is correct, then we can append
-        // all of the attributes that are being applied onto the
-        // the target.
-        let mut attrs = Attrs::with_capacity(node.body.invocations.len());
-        let ApplicationTarget { id, .. } = self.target.get();
-
-        for invocation in node.invocations.iter() {
-            if let Some(attr) = self.try_create_attr_from_macro(invocation.ast_ref()) {
-                attrs.add_attr(attr);
-            }
-        }
-
-        attr_store().insert(id, attrs);
+        walk_mut_self::walk_expr_arg(self, node)?;
         Ok(())
     }
 

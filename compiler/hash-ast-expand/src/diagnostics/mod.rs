@@ -4,12 +4,10 @@
 use hash_ast::ast::AstNodeId;
 use hash_reporting::{diagnostic::DiagnosticStore, reporter::Reports};
 
-use self::error::ExpansionError;
+use self::{error::ExpansionError, warning::ExpansionWarning};
 
 pub mod error;
-
-/// @@Future: potentially add warning diagnostics too.
-pub type ExpansionWarning = ();
+pub mod warning;
 
 pub type ExpansionDiagnostics = DiagnosticStore<ExpansionError, ExpansionWarning>;
 
@@ -18,12 +16,16 @@ pub type ExpansionDiagnostics = DiagnosticStore<ExpansionError, ExpansionWarning
 pub enum ExpansionDiagnostic {
     /// An error occurred.
     Error(ExpansionError),
+
+    /// An emitted warning.
+    Warning(ExpansionWarning),
 }
 
 impl ExpansionDiagnostic {
     pub(crate) fn id(&self) -> AstNodeId {
         match self {
             ExpansionDiagnostic::Error(e) => e.id,
+            ExpansionDiagnostic::Warning(e) => e.id,
         }
     }
 }
@@ -34,10 +36,17 @@ impl From<ExpansionError> for ExpansionDiagnostic {
     }
 }
 
+impl From<ExpansionWarning> for ExpansionDiagnostic {
+    fn from(warning: ExpansionWarning) -> Self {
+        Self::Warning(warning)
+    }
+}
+
 impl From<ExpansionDiagnostic> for Reports {
     fn from(diagnostic: ExpansionDiagnostic) -> Self {
         match diagnostic {
             ExpansionDiagnostic::Error(e) => e.into(),
+            ExpansionDiagnostic::Warning(e) => e.into(),
         }
     }
 }

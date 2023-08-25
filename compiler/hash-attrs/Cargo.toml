@@ -5,6 +5,8 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
+derive_more = "0.99"
+
 hash-ast = { path = "../hash-ast" }
 hash-error-codes = { path = "../hash-error-codes" }
 hash-reporting = { path = "../hash-reporting" }

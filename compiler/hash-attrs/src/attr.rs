@@ -2,6 +2,7 @@
 
 use std::{fmt, sync::OnceLock};
 
+use derive_more::From;
 use hash_ast::{ast, ast::AstNodeId};
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
@@ -16,19 +17,26 @@ pub struct Attr {
     /// The name of the attribute.
     pub name: Identifier,
 
+    /// The origin of the attribute.
+    pub origin: AstNodeId,
+
     /// The kind of attribute that this is, either named, or with arguments.
     pub args: FxHashMap<AttrArgIdx, AttrValue>,
 }
 
 impl Attr {
     /// Create a new attribute without arguments.
-    pub fn new(name: Identifier) -> Self {
-        Self { name, args: FxHashMap::default() }
+    pub fn new(name: Identifier, origin: AstNodeId) -> Self {
+        Self { name, origin, args: FxHashMap::default() }
     }
 
     /// Create a new attribute with arguments.
-    pub fn with_args(name: Identifier, args: FxHashMap<AttrArgIdx, AttrValue>) -> Self {
-        Self { name, args }
+    pub fn with_args(
+        name: Identifier,
+        origin: AstNodeId,
+        args: FxHashMap<AttrArgIdx, AttrValue>,
+    ) -> Self {
+        Self { name, origin, args }
     }
 
     /// Add an argument to the attribute.
@@ -36,16 +44,21 @@ impl Attr {
         self.args.insert(index, value);
     }
 
+    /// Get argument [AttrValueKind] by positional index.
+    pub fn get_arg_value_at(&self, index: impl Into<AttrArgIdx>) -> Option<&AttrValueKind> {
+        self.args.get(&index.into()).map(|arg| &arg.value)
+    }
+
     /// Get an attribute value with the given [AttrArgIdx].
-    pub fn get_arg(&self, index: AttrArgIdx) -> Option<&AttrValue> {
-        self.args.get(&index)
+    pub fn get_arg(&self, index: impl Into<AttrArgIdx>) -> Option<&AttrValue> {
+        self.args.get(&index.into())
     }
 }
 
 /// An index into an attribute's arguments. The index can either be
 /// the name of the argument to the attribute, or just the positional
 /// value of the supplied argument.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
 pub enum AttrArgIdx {
     Name(Identifier),
     Position(u32),
@@ -69,7 +82,7 @@ impl fmt::Display for AttrArgIdx {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AttrValue {
     /// The origin (in source) of the attribute value.
     pub origin: AstNodeId,
@@ -78,8 +91,19 @@ pub struct AttrValue {
     pub value: AttrValueKind,
 }
 
+impl fmt::Display for AttrValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            AttrValueKind::Str(value) => write!(f, "{}", value),
+            AttrValueKind::Int(value) => write!(f, "{}", value),
+            AttrValueKind::Float(value) => write!(f, "{}", value),
+            AttrValueKind::Char(value) => write!(f, "'{}'", value),
+        }
+    }
+}
+
 /// A literal value, represented as a token stream.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttrValueKind {
     /// A string literal.
     Str(InternedStr),
@@ -106,6 +130,23 @@ impl AttrValueKind {
                 _ => None,
             },
             _ => None,
+        }
+    }
+
+    pub fn ty_name(&self) -> &'static str {
+        match self {
+            Self::Str(_) => "string",
+            Self::Int(_) => "integer",
+            Self::Float(_) => "float",
+            Self::Char(_) => "character",
+        }
+    }
+
+    /// Ensure that the [AttrValueKind] is a string value, and return it.
+    pub fn as_str_value(&self) -> InternedStr {
+        match self {
+            Self::Str(value) => *value,
+            value => panic!("value is not a string, but a {}", value.ty_name()),
         }
     }
 }
@@ -136,6 +177,11 @@ impl Attrs {
     /// Check whether an attribute exists on this node.
     pub fn has_attr(&self, id: Identifier) -> bool {
         self.attrs.contains_key(&id)
+    }
+
+    /// Get an attribute by name.
+    pub fn get_attr(&self, id: Identifier) -> Option<&Attr> {
+        self.attrs.get(&id)
     }
 }
 

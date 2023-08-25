@@ -760,6 +760,13 @@ counter! {
     derives: (Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd),
 }
 
+impl InternedStr {
+    /// Get the value of the string literal.
+    pub fn value(&self) -> &'static str {
+        CONSTANT_MAP.lookup_string(*self)
+    }
+}
+
 impl fmt::Display for InternedStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", CONSTANT_MAP.lookup_string(*self))

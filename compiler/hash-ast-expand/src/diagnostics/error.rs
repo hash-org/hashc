@@ -4,6 +4,7 @@ use derive_more::Constructor;
 use hash_ast::ast::AstNodeId;
 use hash_attrs::{
     attr::{AttrArgIdx, AttrValueKind},
+    diagnostics::AttrError,
     target::AttrTarget,
     ty::ATTR_MAP,
 };
@@ -64,18 +65,7 @@ pub enum ExpansionErrorKind {
 
     /// A more general error that can occur from specific restrictions on
     /// attributes being applied, this is generated specific attribute checks.
-    ///
-    /// @@Cleanup: maybe use a code instead of a string for the title?
-    InvalidAttributeApplication {
-        /// The name of the attribute that is not being correctly applied.
-        name: Identifier,
-
-        /// The title of the error that has occurred.
-        title: String,
-
-        /// Any additional notes about the error that has occurred.
-        notes: Vec<String>,
-    },
+    InvalidAttributeApplication(AttrError),
 
     /// When an argument to an attribute is a non-literal, non string, integer,
     /// character or float value. This is only a temporary restriction until
@@ -124,16 +114,8 @@ impl From<ExpansionError> for Reports {
                         attr.subject
                     ));
             }
-            ExpansionErrorKind::InvalidAttributeApplication { name, title, notes } => {
-                let error = reporter
-                    .error()
-                    .title(title)
-                    .add_labelled_span(subject, format!("`{name}` cannot be applied to this item"));
-
-                // Add any notes that were given with this error
-                for note in notes {
-                    error.add_note(note);
-                }
+            ExpansionErrorKind::InvalidAttributeApplication(error) => {
+                error.add_to_reporter(&mut reporter);
             }
             ExpansionErrorKind::InvalidAttributeArg(target) => {
                 reporter
@@ -164,20 +146,3 @@ impl From<ExpansionError> for Reports {
         reporter.into_reports()
     }
 }
-
-// AnalysisErrorKind::DisallowedDirective { name, module_kind } => {
-//     let origin = match module_kind {
-//         Some(_) => "this module",
-//         None => "an interactive",
-//     };
-
-//     error
-//         .title(format!("the `{name}` directive is disallowed within {origin}
-// context"));
-
-//     // Show the location where the directive is being used...
-//     error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-//         err.location,
-//         format!("`{name}` cannot be used within {origin} context"),
-//     )));
-// }

@@ -1,10 +1,9 @@
 //! Any logic related with attribute checking.
 
-use derive_more::Constructor;
-use hash_ast::ast::{self, Declaration};
+use hash_ast::ast;
 use hash_attrs::{
-    attr::{Attr, AttrArgIdx, AttrValue, AttrValueKind},
-    target::AttrTarget,
+    attr::{attr_store, Attr, AttrArgIdx, AttrValue, AttrValueKind, Attrs},
+    target::{AttrNode, AttrTarget},
     ty::ATTR_MAP,
 };
 use hash_intrinsics::primitives::primitives;
@@ -24,50 +23,12 @@ use hash_tir::{
 };
 
 use crate::{
-    diagnostics::error::{ExpansionError, ExpansionErrorKind},
+    diagnostics::{
+        error::{ExpansionError, ExpansionErrorKind},
+        warning::ExpansionWarning,
+    },
     visitor::AstExpander,
 };
-
-/// The target of the attribute application, and the [ast::AstNodeId] of the
-/// target.
-#[derive(Debug, Clone, Copy, Constructor)]
-pub(crate) struct ApplicationTarget {
-    /// The current attribute target.
-    pub(crate) target: AttrTarget,
-
-    /// The id of the node.
-    pub(crate) id: ast::AstNodeId,
-}
-
-impl ApplicationTarget {
-    /// Create an [ApplicationTarget] from an [ast::Expr]. This will essentially
-    /// compute a target from the expression.
-    ///
-    /// It follows the following rules:
-    ///
-    /// - If the expression is a declaration, we apply recurse and try to get
-    ///   [ApplicationTarget] from the subject of the declaration. If the
-    ///   declaration does not have a `value` we return an empty [AttrTarget].
-    ///
-    /// - Otherwise, get the equivalent [AttrTarget] from the expression.
-    pub fn from_expr(expr: ast::AstNodeRef<ast::Expr>) -> Self {
-        match expr.body() {
-            ast::Expr::Declaration(Declaration { value: Some(value), .. }) => {
-                Self::from_expr(value.ast_ref())
-            }
-            ast::Expr::Declaration(Declaration { .. }) => {
-                ApplicationTarget::new(AttrTarget::empty(), expr.id())
-            }
-            e => Self::new(AttrTarget::classify_expr(e), expr.id()),
-        }
-    }
-}
-
-impl Default for ApplicationTarget {
-    fn default() -> Self {
-        Self::new(AttrTarget::empty(), ast::AstNodeId::null())
-    }
-}
 
 impl AstExpander {
     /// Make a [ParamUtils].
@@ -75,17 +36,28 @@ impl AstExpander {
         ParamUtils
     }
 
-    /// Set the current [ApplicationTarget] for the duration of the given
-    /// function, and reset the target to the previous value.
-    pub(crate) fn with_target<T>(
+    pub fn check_macro_invocations(
         &mut self,
-        target: ApplicationTarget,
-        f: impl FnOnce(&mut Self) -> T,
-    ) -> T {
-        let old = self.target.swap(target);
-        let result = f(self);
-        self.target.swap(old);
-        result
+        node: ast::AstNodeRef<ast::MacroInvocations>,
+        subject: AttrNode<'_>,
+    ) {
+        // If the macro invocation is correct, then we can append
+        // all of the attributes that are being applied onto the
+        // the target.
+        let mut attrs = Attrs::with_capacity(node.body.invocations.len());
+        let id = subject.id();
+
+        for invocation in node.invocations.iter() {
+            let maybe_attr = self.try_create_attr_from_macro(invocation.ast_ref(), subject);
+
+            // Create a new attribute checker, and check that the attribute
+            // is valid.
+            if let Some(attr) = maybe_attr && self.check_attrs(&attrs, &attr, subject) {
+                attrs.add_attr(attr);
+            }
+        }
+
+        attr_store().insert(id, attrs);
     }
 
     /// Check that the attribute argument type matches the expected parameter
@@ -141,6 +113,7 @@ impl AstExpander {
     pub fn try_create_attr_from_macro(
         &mut self,
         node: ast::AstNodeRef<ast::MacroInvocation>,
+        subject: AttrNode<'_>,
     ) -> Option<Attr> {
         // @@Temporary: since we don't fully support macros yet, we're checking within
         // the attributes that are currently builtin for all of the available
@@ -150,7 +123,7 @@ impl AstExpander {
         // Try to look this up in the ATTR_MAP
         if let Some(attr_id) = ATTR_MAP.get_id_by_name(macro_name) {
             let attr_ty = ATTR_MAP.get(attr_id);
-            let mut attr = Attr::new(macro_name);
+            let mut attr = Attr::new(macro_name, node.id());
             let mut is_valid = true;
 
             // We have to build the arguments to the macro invocation
@@ -232,12 +205,12 @@ impl AstExpander {
             }
 
             // Check that the subject of the attribute is correct...
-            let ApplicationTarget { target, id } = self.target.get();
+            let target = subject.target();
 
             if !attr_ty.subject.contains(target) {
                 self.diagnostics.add_error(ExpansionError::new(
                     ExpansionErrorKind::InvalidAttributeSubject { name: macro_name, target },
-                    id,
+                    node.id(),
                 ));
 
                 is_valid = false;
@@ -256,6 +229,27 @@ impl AstExpander {
             ));
 
             None
+        }
+    }
+
+    /// Invoke a check on an attribute, and emit any diagnostics if the
+    /// attribute is invalid.
+    pub fn check_attrs(&mut self, attrs: &Attrs, attr: &Attr, subject: AttrNode<'_>) -> bool {
+        let result = self.checker.check_attr(attrs, attr, subject);
+
+        // Add any warnings that the checker may of produced.
+        self.checker.take_warnings().into_iter().for_each(|warning| {
+            self.diagnostics.add_warning(ExpansionWarning::new(warning.into(), attr.origin))
+        });
+
+        if let Err(error) = result {
+            self.diagnostics.add_error(ExpansionError::new(
+                ExpansionErrorKind::InvalidAttributeApplication(error),
+                attr.origin,
+            ));
+            false
+        } else {
+            true
         }
     }
 }

@@ -453,6 +453,7 @@ dependencies = [
 name = "hash-attrs"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-error-codes",
  "hash-intrinsics",

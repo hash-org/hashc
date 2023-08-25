@@ -4,7 +4,10 @@
 use std::fmt;
 
 use hash_ast::ast;
-use hash_utils::{bitflags, printing::SequenceDisplay};
+use hash_utils::{
+    bitflags,
+    printing::{SequenceDisplay, SequenceDisplayOptions, SequenceJoinMode},
+};
 
 bitflags::bitflags! {
     /// [AttrTarget] is a mapping between [Expr] to a simplified
@@ -64,28 +67,34 @@ bitflags::bitflags! {
         /// An `enum` definition.
         const EnumDef = 1 << 15;
 
+        /// An enum variant.
+        const EnumVariant = 1 << 16;
+
         /// A function definition, regardless of the position.
-        const FnDef = 1 << 16;
+        const FnDef = 1 << 17;
 
         /// A type.
-        const Ty = 1 << 17;
+        const Ty = 1 << 18;
 
         /// A type argument, whilst this has similar implications to
         /// a type, it adds additional context that this is a type
         /// argument.
-        const TyArg = 1 << 18;
+        const TyArg = 1 << 19;
+
+        /// A parameter in a struct, enum, tuple or function definition.
+        const Param = 1 << 20;
 
         /// A field in a struct or enum.
-        const Field = 1 << 19;
-
-        /// An enum variant.
-        const EnumVariant = 1 << 20;
+        const Field = 1 << 21;
 
         /// A match branch.
-        const MatchCase = 1 << 21;
+        const MatchCase = 1 << 22;
 
         /// A pattern.
-        const Pat  = 1 << 22;
+        const Pat  = 1 << 23;
+
+        /// A pattern argument.
+        const PatArg  = 1 << 24;
 
         /// A general item definition e.g. `struct`, `enum`, `impl`, `mod` and `fn`.
         const Item = Self::StructDef.bits() | Self::EnumDef.bits() | Self::FnDef.bits() | Self::TyFnDef.bits() | Self::ImplDef.bits() | Self::ModDef.bits();
@@ -140,17 +149,17 @@ impl fmt::Display for AttrTarget {
                 AttrTarget::Loop => allowed_argument_kinds.push("loop block"),
                 AttrTarget::Match => allowed_argument_kinds.push("match block"),
                 AttrTarget::ImplDef => allowed_argument_kinds.push("impl block"),
+                AttrTarget::Mod => allowed_argument_kinds.push("module"),
                 AttrTarget::ModDef => allowed_argument_kinds.push("mod block"),
                 AttrTarget::Block => allowed_argument_kinds.push("body block"),
                 AttrTarget::Import => allowed_argument_kinds.push("import"),
-                AttrTarget::StructDef => allowed_argument_kinds.push("struct definition"),
-                AttrTarget::EnumDef => allowed_argument_kinds.push("enum definition"),
+                AttrTarget::StructDef => allowed_argument_kinds.push("`struct` definition"),
+                AttrTarget::EnumDef => allowed_argument_kinds.push("`enum` definition"),
                 AttrTarget::TyFnDef => allowed_argument_kinds.push("type function definition"),
                 AttrTarget::FnDef => allowed_argument_kinds.push("`function` definition"),
                 AttrTarget::Ty => allowed_argument_kinds.push("type"),
                 AttrTarget::Expr => allowed_argument_kinds.push("expression"),
-                /* AttrTarget::Item => allowed_argument_kinds.push("item"), */
-                AttrTarget::Pat => allowed_argument_kinds.push("pattern"),
+                AttrTarget::Pat | AttrTarget::PatArg => allowed_argument_kinds.push("pattern"),
                 AttrTarget::TyArg => allowed_argument_kinds.push("type argument"),
                 AttrTarget::Field => allowed_argument_kinds.push("field"),
                 AttrTarget::EnumVariant => allowed_argument_kinds.push("enum variant"),
@@ -159,6 +168,125 @@ impl fmt::Display for AttrTarget {
             }
         }
 
-        write!(f, "{}", SequenceDisplay::either(&allowed_argument_kinds))
+        write!(
+            f,
+            "{}",
+            SequenceDisplay::new(
+                &allowed_argument_kinds,
+                SequenceDisplayOptions {
+                    quote: false,
+                    mode: SequenceJoinMode::Either,
+                    ..Default::default()
+                }
+            )
+        )
+    }
+}
+
+/// The various kinds of AST nodes that an attribute can be applied to. The
+/// [AttrNode] is used to perform further validation checks on attribute
+/// applications after the initial parameter/subject checks have finished.
+#[derive(Clone, Copy, Debug)]
+pub enum AttrNode<'ast> {
+    /// A more general reference to an expression.
+    Expr(ast::AstNodeRef<'ast, ast::Expr>),
+
+    /// A function.
+    Fn(ast::AstNodeRef<'ast, ast::FnDef>),
+
+    /// A struct definition.
+    Struct(ast::AstNodeRef<'ast, ast::StructDef>),
+
+    /// An enum definition.
+    Enum(ast::AstNodeRef<'ast, ast::EnumDef>),
+
+    /// A enum definition variant.
+    EnumVariant(ast::AstNodeRef<'ast, ast::EnumDefEntry>),
+
+    /// A module definition.
+    Mod(ast::AstNodeRef<'ast, ast::ModDef>),
+
+    /// A match case.
+    MatchCase(ast::AstNodeRef<'ast, ast::MatchCase>),
+
+    /// A field or function parameter.
+    Param(ast::AstNodeRef<'ast, ast::Param>),
+
+    /// An argument to a constructor.
+    ExprArg(ast::AstNodeRef<'ast, ast::ExprArg>),
+
+    /// A pattern.
+    Pat(ast::AstNodeRef<'ast, ast::Pat>),
+
+    /// A pattern argument.
+    PatArg(ast::AstNodeRef<'ast, ast::PatArg>),
+
+    /// A type.
+    Ty(ast::AstNodeRef<'ast, ast::Ty>),
+
+    /// A type argument.
+    TyArg(ast::AstNodeRef<'ast, ast::TyArg>),
+}
+
+impl<'ast> AttrNode<'ast> {
+    /// Create an [ApplicationTarget] from an [ast::Expr]. This will essentially
+    /// compute a target from the expression.
+    ///
+    /// It follows the following rules:
+    ///
+    /// - If the expression is a declaration, we apply recurse and try to get
+    ///   [ApplicationTarget] from the subject of the declaration. If the
+    ///   declaration does not have a `value` we return an empty [AttrTarget].
+    ///
+    /// - Otherwise, get the equivalent [AttrTarget] from the expression.
+    pub fn from_expr(expr: ast::AstNodeRef<'ast, ast::Expr>) -> Self {
+        match expr.body() {
+            ast::Expr::Declaration(ast::Declaration { value: Some(value), .. }) => {
+                Self::from_expr(value.ast_ref())
+            }
+            ast::Expr::StructDef(def) => Self::Struct(expr.with_body(def)),
+            ast::Expr::EnumDef(def) => Self::Enum(expr.with_body(def)),
+            ast::Expr::FnDef(def) => Self::Fn(expr.with_body(def)),
+            ast::Expr::ModDef(def) => Self::Mod(expr.with_body(def)),
+            _ => Self::Expr(expr),
+        }
+    }
+
+    /// Compute the [AttrTarget] from the [AttrNode].
+    pub fn target(&self) -> AttrTarget {
+        match self {
+            AttrNode::Expr(expr) => AttrTarget::classify_expr(expr.body()),
+            AttrNode::Fn(_) => AttrTarget::FnDef,
+            AttrNode::Struct(_) => AttrTarget::StructDef,
+            AttrNode::Enum(_) => AttrTarget::EnumDef,
+            AttrNode::EnumVariant(_) => AttrTarget::EnumVariant,
+            AttrNode::Mod(_) => AttrTarget::ModDef,
+            AttrNode::MatchCase(_) => AttrTarget::MatchCase,
+            AttrNode::Param(_) => AttrTarget::Param,
+            AttrNode::ExprArg(_) => AttrTarget::Field,
+            AttrNode::Pat(_) => AttrTarget::Pat,
+            AttrNode::PatArg(_) => AttrTarget::PatArg,
+            AttrNode::Ty(_) => AttrTarget::Ty,
+            AttrNode::TyArg(_) => AttrTarget::TyArg,
+        }
+    }
+
+    /// Get the [ast::AstNodeId] of the node.
+    pub fn id(&self) -> ast::AstNodeId {
+        match self {
+            AttrNode::Expr(expr) => expr.id(),
+            AttrNode::Fn(func) => func.id(),
+            AttrNode::Struct(struct_def) => struct_def.id(),
+            AttrNode::Enum(enum_def) => enum_def.id(),
+            AttrNode::EnumVariant(enum_variant) => enum_variant.id(),
+            AttrNode::Mod(mod_def) => mod_def.id(),
+            AttrNode::MatchCase(match_case) => match_case.id(),
+            AttrNode::Param(param) => param.id(),
+            AttrNode::ExprArg(expr_arg) => expr_arg.id(),
+            AttrNode::Pat(pat) => pat.id(),
+            AttrNode::Ty(ty) => ty.id(),
+            AttrNode::TyArg(ty_arg) => ty_arg.id(),
+            AttrNode::PatArg(pat_arg) => pat_arg.id(),
+        }
     }
 }

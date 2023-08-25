@@ -255,7 +255,7 @@ core_idents! {
     foreign: "foreign",
 
     // Layout intrinsics
-    repr_c: "repr_c",
+    repr: "repr",
     layout_of: "layout_of",
 
     // Function flags
