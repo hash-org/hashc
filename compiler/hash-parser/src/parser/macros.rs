@@ -57,8 +57,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     fn parse_macro_invocation(&mut self) -> ParseResult<AstNode<MacroInvocation>> {
-        let start = self.current_pos();
         let name = self.parse_name()?; // Parse a name for the macro invocation.
+        let start = self.current_pos();
 
         let args = match self.peek() {
             Some(token) if token.is_paren_tree() => {
