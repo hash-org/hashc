@@ -16,6 +16,27 @@ use crate::{
     tys::TyId,
 };
 
+/// A trait used to access AST information about a particular
+/// type. This is useful for when we want to access the [AstNodeId]
+/// of a particular node.
+///
+/// @@Temporary: This will probably only exist until the TIR stores
+/// NodeIds directly in the structure, instead of using the [AstMap].
+pub trait HasNodeId {
+    /// Get the [AstNodeId] of the node.
+    fn node_id(&self) -> Option<AstNodeId>;
+
+    /// Get the [AstNodeId] of the node, or panic if it does not exist.
+    fn node_id_ensured(&self) -> AstNodeId {
+        self.node_id().expect("Expected node id to exist")
+    }
+
+    /// Get the [AstNodeId] or default to a [`AstNodeId::null()`].
+    fn node_id_or_default(&self) -> AstNodeId {
+        self.node_id().unwrap_or_else(AstNodeId::null)
+    }
+}
+
 /// This is used to store the relations between [AstNodeId]s and their
 /// respective [`T`]. There is no assumption that the relation is uniquely
 /// biderctional, e.g. multiple function definitions may point to one
@@ -78,10 +99,12 @@ impl<T: Hash + Eq + Copy> Default for AstMap<T> {
 }
 
 impl<T: Hash + Eq + Copy> AstMap<T> {
+    /// Get the data by the [AstNodeId].
     pub fn get_data_by_node(&self, ast_id: AstNodeId) -> Option<T> {
         self.data.read().get_by_left(ast_id)
     }
 
+    /// Get the [AstNodeId] by the data.
     pub fn get_node_by_data(&self, data: T) -> Option<AstNodeId> {
         self.data.read().get_by_right(&data)
     }

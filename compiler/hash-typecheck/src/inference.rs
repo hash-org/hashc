@@ -22,12 +22,13 @@ use hash_tir::{
     access::AccessTerm,
     args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
+    ast_info::HasNodeId,
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::env::AccessToEnv,
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -796,13 +797,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// This is only done if the expression has a `#run` annotation.
     pub fn potentially_run_expr(&self, expr: TermId, term_ty: TyId) -> TcResult<()> {
         if self.should_monomorphise() {
-            // @@ReAddDirectives: check if it has a `#run` on it...
-            // let has_run_directive = tir_stores()
-            //     .directives()
-            //     .get(expr.into())
-            //     .map(|directives| directives.contains(IDENTS.run))
-            //     == Some(true);
-            let has_run_directive = false;
+            let has_run_directive = if let Some(id) = expr.node_id() {
+                attr_store().node_has_attr(id, IDENTS.run)
+            } else {
+                false
+            };
 
             if has_run_directive {
                 let norm_ops = self.norm_ops();
@@ -911,11 +910,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let fn_def_name = fn_def_symbol.borrow().name.unwrap();
 
         // check if on item if it has `entry_point`
-        let has_entry_point_attr = tir_stores()
-            .ast_info()
-            .fn_defs()
-            .get_node_by_data(fn_def_id)
-            .map_or(false, |id| attr_store().node_has_attr(id, IDENTS.entry_point));
+        let has_entry_point_attr =
+            attr_store().node_has_attr(fn_def_id.node_id_or_default(), IDENTS.entry_point);
 
         let entry_point = if has_entry_point_attr {
             Some(EntryPointKind::Named(fn_def_name))
@@ -1893,14 +1889,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Dump the TIR for the given target if it has a `#dump_tir` directive
     /// applied on it.
-    pub fn potentially_dump_tir(&self, target: impl ToString) {
-        // @@ReAddDirectives: check if the item has a `#dump_tir` directive.
-
-        // let target = target.into();
-        // let has_dump_dir =
-        //     tir_stores().directives().get(target).map(|d|
-        // d.contains(IDENTS.dump_tir))         == Some(true);
-        let has_dump_dir = false;
+    pub fn potentially_dump_tir(&self, target: impl ToString + HasNodeId) {
+        let has_dump_dir = if let Some(id) = target.node_id() {
+            attr_store().node_has_attr(id, IDENTS.dump_tir)
+        } else {
+            false
+        };
 
         if has_dump_dir {
             dump_tir(target);

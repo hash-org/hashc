@@ -10,6 +10,7 @@ num-bigint = "0.4"
 num_enum = "0.5"
 
 hash-ast = { path = "../hash-ast" }
+hash-attrs = { path = "../hash-attrs" }
 hash-source = { path = "../hash-source" }
 hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }

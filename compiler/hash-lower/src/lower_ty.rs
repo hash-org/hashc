@@ -20,11 +20,12 @@ use hash_storage::store::{
 };
 use hash_target::size::Size;
 use hash_tir::{
+    ast_info::HasNodeId,
     data::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::env::AccessToEnv,
     fns::{FnBody, FnDef, FnDefId, FnTy},
     primitives::primitives,
     refs::RefTy,
@@ -200,8 +201,7 @@ impl<'ir> BuilderCtx<'ir> {
         // link this instance to any attributes that might be applied
         // to the function definition.
         let attr_id = if let FnBody::Defined(_) = body {
-            let store = tir_stores().ast_info().fn_defs();
-            store.get_node_by_data(fn_def).unwrap()
+            fn_def.node_id_ensured()
         } else {
             // We can't get an AstNodeId for intrinsics, so we just return
             // the default node.

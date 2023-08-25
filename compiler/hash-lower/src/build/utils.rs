@@ -16,15 +16,14 @@ use hash_source::constant::CONSTANT_MAP;
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     args::Arg,
+    ast_info::HasNodeId,
     data::DataTy,
-    environment::stores::tir_stores,
     fns::FnDefId,
     mods::{ModMember, ModMemberValue},
     pats::PatId,
     symbols::Symbol,
     terms::TermId,
 };
-use hash_utils::log;
 
 use super::BodyBuilder;
 
@@ -36,26 +35,17 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Get the interned span of a given [PatId].
     pub(crate) fn span_of_pat(&self, id: PatId) -> AstNodeId {
-        tir_stores().ast_info().pats().get_node_by_data(id).unwrap_or_else(|| {
-            log::debug!("expected pattern `{}` to have a location", id);
-            AstNodeId::null()
-        })
+        id.node_id_or_default()
     }
 
     /// Get the interned span of a [FnDefId].
     pub(crate) fn span_of_def(&self, id: FnDefId) -> AstNodeId {
-        tir_stores().ast_info().fn_defs().get_node_by_data(id).unwrap_or_else(|| {
-            log::debug!("expected function definition `{}` to have a location", id);
-            AstNodeId::null()
-        })
+        id.node_id_or_default()
     }
 
     /// Get the interned span of a given [TermId].
     pub(crate) fn span_of_term(&self, id: TermId) -> AstNodeId {
-        tir_stores().ast_info().terms().get_node_by_data(id).unwrap_or_else(|| {
-            log::debug!("expected term `{:?}` to have a location", id);
-            AstNodeId::null()
-        })
+        id.node_id_or_default()
     }
 
     /// Lookup a [Local] by a specified [Symbol].

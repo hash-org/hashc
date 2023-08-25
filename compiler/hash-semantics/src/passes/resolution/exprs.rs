@@ -7,12 +7,13 @@
 use std::collections::HashSet;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
+use hash_attrs::attr::attr_store;
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
+use hash_source::{identifier::IDENTS, location::Span};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -800,14 +801,7 @@ impl<'tc> ResolutionPass<'tc> {
         let fn_def_id = tir_stores().ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // Whether the function has been marked as pure by a directive
-        //
-        // @@ReAddDirectives: check if function is annotated with pure.
-        let is_pure_by_directive = false;
-        // let is_pure_by_directive = tir_stores()
-        //     .directives()
-        //     .get(fn_def_id.into())
-        //     .map(|directives| directives.contains(IDENTS.pure))
-        //     == Some(true);
+        let is_pure_by_directive = attr_store().node_has_attr(node_id, IDENTS.pure);
 
         let (params, return_ty, return_value, fn_def_id) =
             self.scoping().enter_scope(ContextKind::Environment, || {

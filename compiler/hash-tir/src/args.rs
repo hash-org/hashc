@@ -4,6 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
+use hash_ast::ast;
 use hash_storage::{
     static_sequence_store_direct,
     store::{
@@ -19,6 +20,7 @@ use super::{
     pats::PatId,
 };
 use crate::{
+    ast_info::HasNodeId,
     environment::stores::tir_stores,
     params::ParamsId,
     symbols::Symbol,
@@ -45,6 +47,12 @@ static_sequence_store_direct!(
     store_name = args,
     store_source = tir_stores()
 );
+
+impl HasNodeId for ArgsId {
+    fn node_id(&self) -> Option<ast::AstNodeId> {
+        tir_stores().ast_info().args_seq().get_node_by_data(*self)
+    }
+}
 
 tir_debug_value_of_sequence_store_element_id!(ArgId);
 

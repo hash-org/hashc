@@ -10,6 +10,7 @@ num-bigint = "0.4"
 once_cell = "1.17"
 
 hash-ast = { path = "../hash-ast" }
+hash-attrs = { path = "../hash-attrs" }
 hash-exhaustiveness = { path = "../hash-exhaustiveness" }
 hash-intrinsics = { path = "../hash-intrinsics" }
 hash-pipeline = { path = "../hash-pipeline" }

@@ -2,6 +2,7 @@
 
 use std::{fmt::Display, path::Path};
 
+use hash_ast::ast;
 use hash_source::{identifier::Identifier, SourceId};
 use hash_storage::{
     static_sequence_store_direct, static_single_store,
@@ -12,7 +13,8 @@ use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::tir_stores, symbols::Symbol, tir_debug_name_of_store_id, tir_get,
+    ast_info::HasNodeId, environment::stores::tir_stores, symbols::Symbol,
+    tir_debug_name_of_store_id, tir_get,
 };
 
 /// The kind of a module.
@@ -129,6 +131,12 @@ static_single_store!(
     store_name = mod_def,
     store_source = tir_stores()
 );
+
+impl HasNodeId for ModDefId {
+    fn node_id(&self) -> Option<ast::AstNodeId> {
+        tir_stores().ast_info().mod_defs().get_node_by_data(*self)
+    }
+}
 
 tir_debug_name_of_store_id!(ModDefId);
 

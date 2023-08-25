@@ -10,11 +10,9 @@ use hash_pipeline::workspace::StageInfo;
 use hash_source::identifier::IDENTS;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
+    ast_info::HasNodeId,
     atom_info::ItemInAtomInfo,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDefId},
     mods::{ModDef, ModKind, ModMemberValue},
     terms::TermId,
@@ -96,12 +94,7 @@ impl FnDiscoverer<'_> {
 
         match def_body {
             FnBody::Defined(body) => {
-                let is_foreign = tir_stores()
-                    .ast_info()
-                    .fn_defs()
-                    .get_node_by_data(def)
-                    .map(|id| attr_store().node_has_attr(id, IDENTS.foreign))
-                    .unwrap_or_default();
+                let is_foreign = attr_store().node_has_attr(def.node_id_ensured(), IDENTS.foreign);
 
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.

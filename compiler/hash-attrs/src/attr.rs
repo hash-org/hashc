@@ -188,10 +188,20 @@ impl Attrs {
 #[derive(Default)]
 pub struct AttrStore(DefaultPartialStore<AstNodeId, Attrs>);
 
+lazy_static! {
+    static ref EMPTY_ATTR: Attrs = Attrs { attrs: FxHashMap::default() };
+}
+
 impl AttrStore {
     /// Insert a new set of attributes into the store.
     pub fn insert(&self, id: AstNodeId, attrs: Attrs) {
         self.0.insert(id, attrs);
+    }
+
+    /// Get the attributes of a particular [AstNodeId] or return
+    /// an empty set of attributes.
+    pub fn map_with_default<T>(&self, id: AstNodeId, f: impl FnOnce(&Attrs) -> T) -> T {
+        self.0.map_fast(id, |attrs| f(attrs.unwrap_or(&EMPTY_ATTR)))
     }
 
     /// Check whether a particular [AstNodeId] has a specific

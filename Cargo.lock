@@ -576,6 +576,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "hash-ast",
+ "hash-attrs",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -709,6 +710,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "hash-ast",
+ "hash-attrs",
  "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-pipeline",
