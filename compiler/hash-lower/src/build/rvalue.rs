@@ -58,7 +58,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // the type, and a negation occurs. This causes the value to overflow. We
                         // check for this case here, and emit an assertion check for this (assuming
                         // checked operations are enabled).
-                        if self.settings.lowering_settings().checked_operations
+                        if self.ctx.settings.lowering_settings().checked_operations
                             && matches!(op, UnaryOp::Neg)
                             && ty.borrow().is_signed()
                         {
@@ -217,7 +217,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
-        if self.settings.lowering_settings().checked_operations {
+        if self.ctx.settings.lowering_settings().checked_operations {
             let is_integral = ty.borrow().is_integral();
 
             if op.is_checkable() && is_integral {

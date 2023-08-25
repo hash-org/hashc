@@ -20,7 +20,6 @@ use hash_ir::{
     },
     ty::{IrTy, Mutability},
 };
-use hash_pipeline::settings::CompilerSettings;
 use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{HasTarget, Target};
@@ -139,10 +138,6 @@ pub(crate) struct BodyBuilder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
     ctx: BuilderCtx<'tcx>,
 
-    /// The stage settings, sometimes used to determine what the lowering
-    /// behaviour should be.
-    settings: &'tcx CompilerSettings,
-
     /// Info that is derived during the lowering process of the type.
     info: BodyInfo,
 
@@ -195,7 +190,7 @@ impl HasTarget for BodyBuilder<'_> {
 
 impl<'ctx> AccessToEnv for BodyBuilder<'ctx> {
     fn env(&self) -> &Env {
-        self.ctx.env
+        &self.ctx.env
     }
 }
 
@@ -206,12 +201,7 @@ impl<'ctx> AccessToIntrinsics for BodyBuilder<'ctx> {
 }
 
 impl<'ctx> BodyBuilder<'ctx> {
-    pub(crate) fn new(
-        name: Identifier,
-        item: BuildItem,
-        tcx: BuilderCtx<'ctx>,
-        settings: &'ctx CompilerSettings,
-    ) -> Self {
+    pub(crate) fn new(name: Identifier, item: BuildItem, ctx: BuilderCtx<'ctx>) -> Self {
         let (arg_count, source) = match item {
             BuildItem::FnDef(fn_def) => {
                 // Get the type of this function definition, we need to
@@ -223,9 +213,8 @@ impl<'ctx> BodyBuilder<'ctx> {
         };
 
         Self {
-            settings,
             item,
-            ctx: tcx,
+            ctx,
             info: BodyInfo::new(name, source),
             arg_count,
             control_flow_graph: ControlFlowGraph::new(),

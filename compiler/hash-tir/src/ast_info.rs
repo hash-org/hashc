@@ -124,6 +124,19 @@ impl<T: Hash + Eq + Copy> AstMap<T> {
             self.data.write().insert_right(dest, ast_id);
         }
     }
+
+    /// Iterate over all of the entries in the map whilst also calling a
+    /// function on each entry.
+    pub fn iter_with<F>(&self, mut f: F)
+    where
+        F: FnMut(AstNodeId, T),
+    {
+        let data = self.data.read();
+
+        for (ast_id, data) in data.left.iter() {
+            f(*ast_id, *data);
+        }
+    }
 }
 
 macro_rules! ast_info {
