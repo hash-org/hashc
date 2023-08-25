@@ -2,7 +2,7 @@
 //! to convert types and [Ty]s into [IrTy]s.
 
 use hash_ast::ast;
-use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
+use hash_intrinsics::utils::PrimitiveUtils;
 use hash_ir::{
     intrinsics::Intrinsic,
     lang_items::LangItem,
@@ -26,6 +26,7 @@ use hash_tir::{
     },
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnBody, FnDef, FnDefId, FnTy},
+    primitives::primitives,
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},

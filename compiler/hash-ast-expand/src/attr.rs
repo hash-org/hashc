@@ -6,7 +6,6 @@ use hash_attrs::{
     target::{AttrNode, AttrTarget},
     ty::ATTR_MAP,
 };
-use hash_intrinsics::primitives::primitives;
 use hash_reporting::diagnostic::DiagnosticsMut;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
@@ -17,6 +16,7 @@ use hash_tir::{
     environment::stores::tir_stores,
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
+    primitives::primitives,
     terms::Term,
     tys::{Ty, TyId},
     utils::params::ParamUtils,

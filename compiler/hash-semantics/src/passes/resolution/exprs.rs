@@ -9,7 +9,6 @@ use std::collections::HashSet;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
-    primitives::primitives,
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
@@ -29,6 +28,7 @@ use hash_tir::{
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
+    primitives::primitives,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
     term_as_variant,

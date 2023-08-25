@@ -2,7 +2,8 @@
 use std::{iter::once, sync::OnceLock};
 
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
-use hash_tir::{
+
+use crate::{
     args::Arg,
     data::{
         ArrayCtorInfo, DataDef, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,

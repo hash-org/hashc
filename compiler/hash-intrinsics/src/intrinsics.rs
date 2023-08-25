@@ -14,6 +14,7 @@ use hash_tir::{
     lits::Lit,
     mods::{ModMemberData, ModMemberValue},
     params::Param,
+    primitives::primitives,
     refs::RefKind,
     symbols::Symbol,
     terms::{Term, TermId},
@@ -23,10 +24,7 @@ use hash_utils::stream_less_writeln;
 use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::{
-    primitives::primitives,
-    utils::{LitTy, PrimitiveUtils},
-};
+use crate::utils::{LitTy, PrimitiveUtils};
 
 /// Information about an intrinsic.
 ///

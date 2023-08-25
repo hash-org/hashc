@@ -9,13 +9,12 @@ use hash_tir::{
     environment::env::AccessToEnv,
     lits::{CharLit, FloatLit, IntLit, Lit},
     pats::{Pat, PatId},
+    primitives::primitives,
     refs::{RefKind, RefTy},
     terms::{Term, TermId},
     tys::{Ty, TyId},
 };
 use num_bigint::BigInt;
-
-use crate::primitives::primitives;
 
 /// Primitive literal types.
 ///

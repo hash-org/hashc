@@ -4,11 +4,11 @@
 
 use std::sync::LazyLock;
 
-use hash_intrinsics::primitives::primitives;
 use hash_source::identifier::Identifier;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     params::{Param, ParamsId},
+    primitives::primitives,
     symbols::sym,
     tys::Ty,
 };

@@ -17,4 +17,3 @@ hash-utils = { path = "../hash-utils" }
 hash-attrs = { path = "../hash-attrs" }
 hash-tir = { path = "../hash-tir" }
 hash-storage = { path = "../hash-storage" }
-hash-intrinsics = { path = "../hash-intrinsics" }

@@ -7,7 +7,6 @@
 use std::iter::once;
 
 use hash_ast::ast::{self, AstNodeRef};
-use hash_intrinsics::primitives::primitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_storage::store::statics::SequenceStoreValue;
@@ -17,6 +16,7 @@ use hash_tir::{
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::FnCallTerm,
     params::ParamIndex,
+    primitives::primitives,
     refs::{RefKind, RefTy},
     terms::Term,
     tys::{Ty, TyId, TypeOfTerm},

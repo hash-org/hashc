@@ -6,7 +6,7 @@ use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_attrs::attr::attr_store;
 use hash_exhaustiveness::ExhaustivenessChecker;
-use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
+use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::diagnostic::{Diagnostics, ErrorState};
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
@@ -34,6 +34,7 @@ use hash_tir::{
     mods::{ModDefId, ModMemberId, ModMemberValue},
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
+    primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     sub::Sub,

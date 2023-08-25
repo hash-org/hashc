@@ -22,6 +22,7 @@ pub mod locations;
 pub mod mods;
 pub mod params;
 pub mod pats;
+pub mod primitives;
 pub mod refs;
 pub mod scopes;
 pub mod sub;
