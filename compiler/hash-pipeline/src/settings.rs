@@ -11,7 +11,7 @@ use std::{
 
 use clap::{Args, Parser, ValueEnum};
 use hash_source::constant::CONSTANT_MAP;
-use hash_target::{Target, HOST_TARGET_TRIPLE};
+use hash_target::{HasTarget, Target, HOST_TARGET_TRIPLE};
 use hash_utils::tree_writing::CharacterSet;
 
 use crate::{error::PipelineError, fs::resolve_path};
@@ -249,9 +249,10 @@ impl CompilerSettings {
     pub fn codegen_settings(&self) -> &CodeGenSettings {
         &self.codegen_settings
     }
+}
 
-    /// Get a reference to the current compiled [Target].
-    pub fn target(&self) -> &Target {
+impl HasTarget for CompilerSettings {
+    fn target(&self) -> &Target {
         &self.codegen_settings.target_info.target
     }
 }

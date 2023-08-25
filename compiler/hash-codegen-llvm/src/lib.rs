@@ -24,10 +24,10 @@ use hash_codegen::{
     layout::LayoutCtx,
     lower::codegen_ir_body,
     symbols::mangle::compute_symbol_name,
-    target::TargetArch,
+    target::{HasTarget, TargetArch},
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
-        misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
     },
 };
 use hash_ir::{ir::BodySource, IrStorage};

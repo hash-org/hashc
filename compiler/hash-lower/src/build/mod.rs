@@ -23,6 +23,7 @@ use hash_ir::{
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, ScopeKind},
     environment::env::{AccessToEnv, Env},
@@ -184,6 +185,12 @@ pub(crate) struct BodyBuilder<'tcx> {
     /// `tmp_place` is [None], then we create a new temporary place and store
     /// it in the field for later use.
     tmp_place: Option<Place>,
+}
+
+impl HasTarget for BodyBuilder<'_> {
+    fn target(&self) -> &Target {
+        self.ctx.settings.target()
+    }
 }
 
 impl<'ctx> AccessToEnv for BodyBuilder<'ctx> {

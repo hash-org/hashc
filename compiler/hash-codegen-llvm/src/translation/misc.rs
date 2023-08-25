@@ -3,6 +3,7 @@
 use hash_codegen::{
     abi::{CallingConvention, FnAbi},
     symbols::mangle::compute_symbol_name,
+    target::HasTarget,
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::InstanceId;

@@ -16,7 +16,10 @@ use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
 use hash_backend::{BackendCtxQuery, CodeGenPass};
-use hash_codegen::backend::{BackendCtx, CodeGenStorage};
+use hash_codegen::{
+    backend::{BackendCtx, CodeGenStorage},
+    target::HasTarget,
+};
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;
 use hash_link::{CompilerLinker, LinkerCtx, LinkerCtxQuery};

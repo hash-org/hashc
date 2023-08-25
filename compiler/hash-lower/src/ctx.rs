@@ -7,6 +7,9 @@ use hash_ir::{ty::IrTyId, IrCtx};
 use hash_layout::{
     compute::{LayoutComputer, LayoutError},
     LayoutCtx, LayoutId,
+use hash_target::{
+    data_layout::{HasDataLayout, TargetDataLayout},
+    HasTarget,
 };
 use hash_semantics::SemanticStorage;
 use hash_tir::{
@@ -37,6 +40,12 @@ pub(crate) struct BuilderCtx<'ir> {
 
     /// The prelude that is used for lowering the TIR.
     pub prelude: ModDefId,
+}
+
+impl HasDataLayout for BuilderCtx<'_> {
+    fn data_layout(&self) -> &TargetDataLayout {
+        &self.layouts.data_layout
+    }
 }
 
 impl<'ir> AccessToEnv for BuilderCtx<'ir> {

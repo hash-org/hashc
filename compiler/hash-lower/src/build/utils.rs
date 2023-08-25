@@ -14,6 +14,7 @@ use hash_ir::{
 };
 use hash_source::constant::CONSTANT_MAP;
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
+use hash_target::HasTarget;
 use hash_tir::{
     args::Arg,
     ast_info::HasNodeId,
@@ -103,7 +104,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         metadata: usize,
     ) -> RValue {
         let adt = ty.borrow().as_adt();
-        let ptr_width = self.settings.target().ptr_size();
+        let ptr_width = self.target().ptr_size();
         let metadata =
             Operand::Const(Const::Int(CONSTANT_MAP.create_usize_int(metadata, ptr_width)).into());
 

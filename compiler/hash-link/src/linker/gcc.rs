@@ -6,6 +6,7 @@ use std::{
 };
 
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
+use hash_target::HasTarget;
 
 use super::{LinkOutputKind, Linker};
 use crate::command::LinkCommand;

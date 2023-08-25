@@ -9,6 +9,7 @@ use hash_ir::{
 };
 use hash_source::constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP};
 use hash_storage::store::statics::StoreId;
+use hash_target::HasTarget;
 use hash_tir::terms::{Term, TermId};
 
 use super::{
@@ -139,7 +140,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let value = ty.map(|ty| match ty {
             IrTy::Int(signed_ty) => {
                 // Create and intern the constant
-                let ptr_size = self.settings.target().ptr_size();
+                let ptr_size = self.target().ptr_size();
                 let int_ty: IntTy = (*signed_ty).into();
                 let const_int =
                     InternedInt::from_u128(int_ty.numeric_min(ptr_size), int_ty, ptr_size);
