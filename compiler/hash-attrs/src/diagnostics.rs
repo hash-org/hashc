@@ -6,6 +6,9 @@ use hash_utils::printing::SequenceDisplay;
 
 use crate::{attr::AttrValue, target::AttrTarget, ty::REPR_OPTIONS};
 
+/// Utility type which wraps a [Result] with an [AttrError].
+pub type AttrResult<T = ()> = Result<T, AttrError>;
+
 #[derive(Debug)]
 pub enum AttrError {
     /// When the `#intrinsics` directive is being used in the
@@ -60,6 +63,9 @@ pub enum AttrError {
         /// The node of the generics.
         generics: AstNodeId,
     },
+
+    /// When a `ubig` or `ibig` is being used as a `repr` value.
+    InvalidReprIntKind { arg: AttrValue },
 }
 
 impl AttrError {
@@ -103,6 +109,13 @@ impl AttrError {
                     .title(format!("cannot use `#layout_of` on {item} with generic parameters"))
                     .add_labelled_span(origin.span(), "this item is generic")
                     .add_labelled_span(generics.span(), "generic parameters declared here");
+            }
+            AttrError::InvalidReprIntKind { arg } => {
+                reporter
+                    .error()
+                    .title("invalid `repr` integer kind")
+                    .add_labelled_span(arg.origin.span(), "this `repr` argument is invalid")
+                    .add_note("`ubig` and `ibig` cannot be used as a `repr` argument because they are unbounded integer types.");
             }
         }
     }

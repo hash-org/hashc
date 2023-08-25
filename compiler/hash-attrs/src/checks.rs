@@ -2,30 +2,32 @@
 //!
 //!  
 use hash_source::{identifier::IDENTS, SourceId};
+use hash_target::data_layout::TargetDataLayout;
 
 use crate::{
-    attr::{Attr, Attrs},
-    diagnostics::{AttrError, AttrWarning},
+    attr::{Attr, Attrs, ReprAttr},
+    diagnostics::{AttrError, AttrResult, AttrWarning},
     target::{AttrNode, AttrTarget},
 };
 
-type AttrCheckResult = Result<(), AttrError>;
-
 /// Used to check attributes, and emit diagnostics if the attributes
 /// are not correct or have been used incorrectly.
-pub struct AttrChecker {
+pub struct AttrChecker<'env> {
     /// The current source that the checker is
     /// checking attributes for.
     source: SourceId,
 
     /// Any warnings collected by the checker.
     warnings: Vec<AttrWarning>,
+
+    /// The current compilation target.
+    data_layout: &'env TargetDataLayout,
 }
 
-impl<'ast> AttrChecker {
+impl<'env> AttrChecker<'env> {
     /// Create a new [AttrChecker].
-    pub fn new(source: SourceId) -> Self {
-        Self { source, warnings: Vec::new() }
+    pub fn new(source: SourceId, target: &'env TargetDataLayout) -> Self {
+        Self { source, warnings: Vec::new(), data_layout: target }
     }
 
     /// Take any warnings that the checker has collected.
@@ -34,12 +36,7 @@ impl<'ast> AttrChecker {
     }
 
     /// Check that adding an attribute with the current context is valid.
-    pub fn check_attr(
-        &mut self,
-        attrs: &Attrs,
-        attr: &Attr,
-        node: AttrNode<'ast>,
-    ) -> AttrCheckResult {
+    pub fn check_attr(&mut self, attrs: &Attrs, attr: &Attr, node: AttrNode<'_>) -> AttrResult {
         match attr.name {
             n if n == IDENTS.intrinsics => self.check_intrinsics_attr(attrs, attr, node)?,
             n if n == IDENTS.repr => self.check_repr_attr(attrs, attr, node)?,
@@ -56,7 +53,7 @@ impl<'ast> AttrChecker {
     /// A function to emit a warning if the an attribute that is being
     /// applied has already been registered. This is only a warning because
     /// attributes that introduce a "conflict" produce an error.
-    pub fn check_duplicate_attr(&mut self, attrs: &Attrs, attr: &Attr) -> AttrCheckResult {
+    pub fn check_duplicate_attr(&mut self, attrs: &Attrs, attr: &Attr) -> AttrResult {
         if let Some(prev) = attrs.get_attr(attr.name) {
             self.warnings
                 .push(AttrWarning::Unused { origin: attr.origin, preceeding: prev.origin });
@@ -76,8 +73,8 @@ impl<'ast> AttrChecker {
         &mut self,
         attrs: &Attrs,
         attr: &Attr,
-        node: AttrNode<'ast>,
-    ) -> AttrCheckResult {
+        node: AttrNode<'_>,
+    ) -> AttrResult {
         // Check if we are in the prelude module, and if not we emit an error.
         if !self.source.is_prelude() {
             return Err(AttrError::NonPreludeIntrinsics { origin: node.id() });
@@ -98,36 +95,27 @@ impl<'ast> AttrChecker {
     ///
     /// - If a previous repr hint has been applied to the item, and the new repr
     ///   are incompatible.
-    fn check_repr_attr(
-        &mut self,
-        attrs: &Attrs,
-        attr: &Attr,
-        node: AttrNode<'ast>,
-    ) -> AttrCheckResult {
+    fn check_repr_attr(&mut self, attrs: &Attrs, attr: &Attr, node: AttrNode<'_>) -> AttrResult {
         let arg = attr.get_arg(0).unwrap();
-        let inner = arg.value.as_str_value();
 
         // Check that the specified `#repr` attribute is valid.
-        match inner.value() {
-            "c" => {}
-            "u8" | "u16" | "u32" | "u64" | "u128" => {
-                if let AttrNode::Struct(_) = node {
-                    return Err(AttrError::InvalidReprForItem {
-                        origin: attr.origin,
-                        item: AttrTarget::StructDef,
-                        arg: *arg,
-                    });
-                }
-            }
-            _ => {
-                return Err(AttrError::UnknownReprArg { arg: *arg });
-            }
+        let repr = ReprAttr::parse(attr, self.data_layout)?;
+
+        if let ReprAttr::Int(_) = repr && let AttrNode::Struct(_) = node {
+            return Err(AttrError::InvalidReprForItem {
+                origin: attr.origin,
+                item: AttrTarget::StructDef,
+                arg: *arg,
+            });
         }
 
         // Check if we have a conflicting representation argument with a previously
         // applied representation argument.
         if let Some(prev) = attrs.get_attr(attr.name) {
-            if prev.get_arg_value_at(0).unwrap() != &arg.value {
+            // @@Improve: we're re-parsing the repr attribute here, which is
+            // wasteful!.
+            let prev_repr = ReprAttr::parse(prev, self.data_layout).unwrap();
+            if prev_repr != repr {
                 return Err(AttrError::IncompatibleReprArgs {
                     origin: prev.origin,
                     second: attr.origin,
@@ -149,8 +137,8 @@ impl<'ast> AttrChecker {
         &mut self,
         attrs: &Attrs,
         attr: &Attr,
-        node: AttrNode<'ast>,
-    ) -> AttrCheckResult {
+        node: AttrNode<'_>,
+    ) -> AttrResult {
         self.check_duplicate_attr(attrs, attr)?;
 
         let emit_err = |generics, item| {

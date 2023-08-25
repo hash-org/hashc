@@ -10,10 +10,10 @@ use std::{
 };
 
 use hash_ast::ast;
-use hash_attrs::attr::attr_store;
+use hash_attrs::attr::{attr_store, Attr, ReprAttr};
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
-    identifier::Identifier,
+    identifier::{Identifier, IDENTS},
     SourceId,
 };
 use hash_storage::{
@@ -841,6 +841,10 @@ pub struct Adt {
     /// All of the variants that are defined for this variant.
     pub variants: IndexVec<VariantIdx, AdtVariant>,
 
+    /// An origin node, this is specified if this is a
+    /// type created from a type definition in source.
+    pub origin: Option<ast::AstNodeId>,
+
     /// Any type substitutions that appeared when the type was
     /// lowered. This is not important for the type itself, but for
     /// printing the type, and computing the name of the type does
@@ -865,16 +869,44 @@ impl Adt {
             metadata: AdtRepresentation::default(),
             flags: AdtFlags::empty(),
             substitutions: None,
+            origin: None,
         }
     }
 
-    /// Create [AdtData] with specified [AdtFlags].
+    /// Create [Adt] with specified [AdtFlags].
     pub fn new_with_flags(
         name: Identifier,
         variants: IndexVec<VariantIdx, AdtVariant>,
         flags: AdtFlags,
     ) -> Self {
-        Self { name, variants, metadata: AdtRepresentation::default(), flags, substitutions: None }
+        Self {
+            name,
+            variants,
+            metadata: AdtRepresentation::default(),
+            flags,
+            substitutions: None,
+            origin: None,
+        }
+    }
+
+    /// Apply a given origin onto the ADT. This will update
+    /// any representation flags, or anything that can be
+    /// derived from attributes that were specified on the ADT.
+    pub fn apply_origin<C: HasDataLayout>(&mut self, origin: ast::AstNodeId, ctx: &C) {
+        self.origin = Some(origin);
+
+        attr_store().map_with_default(origin, |attrs| {
+            // If we have a representation hint, we update the repr flags
+            // on this ADT accordingly...
+            if let Some(repr_hint) = attrs.get_attr(IDENTS.repr) {
+                self.metadata = AdtRepresentation::from_attr(repr_hint, ctx);
+            }
+        })
+    }
+
+    /// Get the origin of the ADT, if it exists.
+    pub fn origin(&self) -> Option<ast::AstNodeId> {
+        self.origin
     }
 
     /// Get the variant at the given [VariantIdx].
@@ -1011,6 +1043,9 @@ bitflags! {
 ///     - add layout randomisation configuration
 #[derive(Clone, Debug, Default)]
 pub struct AdtRepresentation {
+    /// Whether to use a specific type for the discriminant.
+    pub discriminant: Option<Integer>,
+
     /// Flags that determine the representation of the type. Currently, if
     /// no flags are set the type is treated normally, if the `C_LIKE` flag
     /// is set, then the type is treated as a C-like type, and hence adheres
@@ -1019,6 +1054,25 @@ pub struct AdtRepresentation {
 }
 
 impl AdtRepresentation {
+    /// Parse a [AdtRepresentation] from an [Attr].
+    fn from_attr<C: HasDataLayout>(attr: &Attr, ctx: &C) -> Self {
+        debug_assert!(attr.name == IDENTS.repr);
+
+        let parsed = ReprAttr::parse(attr, ctx).unwrap();
+        let mut represention = AdtRepresentation::default();
+
+        match parsed {
+            ReprAttr::C => {
+                represention.add_flags(RepresentationFlags::C_LIKE);
+            }
+            ReprAttr::Int(value) => {
+                represention.discriminant = Some(value);
+            }
+        }
+
+        represention
+    }
+
     /// Specify [RepresentationFlags] on the [AdtRepresentation].
     pub fn add_flags(&mut self, flags: RepresentationFlags) {
         self.representation |= flags;

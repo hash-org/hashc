@@ -12,6 +12,7 @@ use hash_pipeline::{
 };
 use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
+use hash_target::data_layout::TargetDataLayout;
 use hash_utils::{crossbeam_channel::unbounded, rayon};
 use visitor::AstExpander;
 
@@ -29,17 +30,21 @@ pub struct AstExpansionPass;
 
 /// The [AstExpansionCtx] represents all of the required information
 /// that the [AstExpansionPass] stage needs to query from the pipeline.
-pub struct AstExpansionCtx<'ast> {
+pub struct AstExpansionCtx<'ctx> {
     /// Reference to the current compiler workspace.
-    pub workspace: &'ast mut Workspace,
+    pub workspace: &'ctx mut Workspace,
 
     /// Settings to the compiler
-    pub settings: &'ast CompilerSettings,
+    pub settings: &'ctx CompilerSettings,
 
     /// Reference to the output stream
     pub stdout: CompilerOutputStream,
 
-    pub pool: &'ast rayon::ThreadPool,
+    /// Information about the current target data layout.
+    pub data_layout: &'ctx TargetDataLayout,
+
+    /// The thread pool.
+    pub pool: &'ctx rayon::ThreadPool,
 }
 
 /// A trait that allows the [AstExpansionPass] stage to query the
@@ -62,7 +67,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace, pool, .. } = ctx.data();
+        let AstExpansionCtx { workspace, pool, data_layout, .. } = ctx.data();
         let (sender, receiver) = unbounded::<ExpansionDiagnostic>();
 
         let node_map = &mut workspace.node_map;
@@ -73,7 +78,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
 
             // De-sugar the target if it isn't already de-sugared
             if source_info.is_expanded() && entry_point.is_interactive() {
-                let mut expander = AstExpander::new(entry_point);
+                let mut expander = AstExpander::new(entry_point, data_layout);
                 let source = node_map.get_interactive_block(entry_point.into());
 
                 expander.visit_body_block(source.node_ref()).unwrap();
@@ -91,7 +96,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
                 for expr in module.node().contents.iter() {
                     let sender = sender.clone();
                     scope.spawn(move |_| {
-                        let mut expander = AstExpander::new(source_id);
+                        let mut expander = AstExpander::new(source_id, data_layout);
                         expander.visit_expr(expr.ast_ref()).unwrap();
                         expander.emit_diagnostics_to(&sender);
                     });

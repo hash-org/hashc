@@ -30,7 +30,7 @@ use crate::{
     visitor::AstExpander,
 };
 
-impl AstExpander {
+impl AstExpander<'_> {
     /// Make a [ParamUtils].
     fn param_utils(&self) -> ParamUtils {
         ParamUtils

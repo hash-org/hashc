@@ -299,15 +299,10 @@ impl<'ir> BuilderCtx<'ir> {
         adt.substitutions = subs;
 
         // Deal with any specific attributes that were set on the type, i.e.
-        // `#repr_c`.
-        //
-        // @@ReAddDirectives: check whether this has `repr(c)` on it.
-        //
-        // if let Some(directives) = tir_stores().directives().get(def.id.into()) {
-        //     if directives.contains(IDENTS.repr_c) {
-        //         adt.metadata.add_flags(RepresentationFlags::C_LIKE);
-        //     }
-        // }
+        // `#repr`.
+        if let Some(origin) = ty.data_def.node_id() {
+            adt.apply_origin(origin, self)
+        }
 
         // Update the type in the slot that was reserved for it.
         reserved_ty.modify(|ty| *ty = IrTy::Adt(Adt::create(adt)));

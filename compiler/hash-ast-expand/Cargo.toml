@@ -8,12 +8,13 @@ edition = "2021"
 derive_more = "0.99"
 
 hash-ast = { path = "../hash-ast" }
+hash-attrs = { path = "../hash-attrs" }
 hash-fmt = { path = "../hash-fmt" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
+hash-storage = { path = "../hash-storage" }
+hash-target = { path = "../hash-target" }
+hash-tir = { path = "../hash-tir" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-utils = { path = "../hash-utils" }
-hash-attrs = { path = "../hash-attrs" }
-hash-tir = { path = "../hash-tir" }
-hash-storage = { path = "../hash-storage" }

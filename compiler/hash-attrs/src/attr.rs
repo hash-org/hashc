@@ -9,8 +9,48 @@ use hash_source::{
     identifier::Identifier,
 };
 use hash_storage::store::{DefaultPartialStore, PartialStore};
+use hash_target::{abi::Integer, data_layout::HasDataLayout, primitives::IntTy};
 use hash_tir::params::ParamIndex;
-use hash_utils::fxhash::FxHashMap;
+use hash_utils::{fxhash::FxHashMap, lazy_static::lazy_static};
+
+use crate::diagnostics::{AttrError, AttrResult};
+
+/// A rerpresnetation of the variants that the `repr` attribute
+/// can be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReprAttr {
+    /// The representation specifies that the layout of the type
+    /// should be the same as a C layout of the type.
+    C,
+
+    /// The representation is annotated with a `u8`, `u16`, `u32`, `u64`,
+    /// `u128`, or `usize`.
+    Int(Integer),
+}
+
+impl ReprAttr {
+    /// Parse a [ReprAttr] from an [Attr].
+    pub fn parse<C: HasDataLayout>(attr: &Attr, ctx: &C) -> AttrResult<Self> {
+        let arg = attr.get_arg(0).unwrap();
+        let inner = arg.value.as_str_value();
+
+        match inner.value() {
+            "c" => Ok(ReprAttr::C),
+            kind => {
+                let Ok(ty) = IntTy::try_from(Identifier::from(kind)) else {
+                    return Err(AttrError::UnknownReprArg { arg: *arg });
+                };
+
+                // We reject the type if it is non-sized...
+                if !ty.is_bounded() {
+                    return Err(AttrError::InvalidReprIntKind { arg: *arg });
+                }
+
+                Ok(ReprAttr::Int(Integer::from_int_ty(ty, ctx)))
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Attr {

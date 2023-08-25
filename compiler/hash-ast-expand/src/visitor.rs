@@ -25,25 +25,29 @@ use hash_ast::{
 };
 use hash_attrs::{checks::AttrChecker, target::AttrNode};
 use hash_source::SourceId;
+use hash_target::data_layout::TargetDataLayout;
 use hash_utils::crossbeam_channel::Sender;
 
 use crate::diagnostics::{ExpansionDiagnostic, ExpansionDiagnostics};
 
-pub struct AstExpander {
+pub struct AstExpander<'ctx> {
     /// An attribute checker, used to check that attributes are being applied
     /// correctly. This is for checks that are more specific to the context
     /// of the attribute, and not just the attribute itself.
-    pub checker: AttrChecker,
+    pub checker: AttrChecker<'ctx>,
 
     /// Any diagnostics that have been emitted during the expansion stage.
     pub diagnostics: ExpansionDiagnostics,
 }
 
-impl AstExpander {
+impl<'ctx> AstExpander<'ctx> {
     /// Create a new [AstExpander]. Contains the [SourceMap] and the
     /// current id of the source in reference.
-    pub fn new(id: SourceId) -> Self {
-        Self { diagnostics: ExpansionDiagnostics::new(), checker: AttrChecker::new(id) }
+    pub fn new(id: SourceId, data_layout: &'ctx TargetDataLayout) -> Self {
+        Self {
+            diagnostics: ExpansionDiagnostics::new(),
+            checker: AttrChecker::new(id, data_layout),
+        }
     }
 
     /// Emit all diagnostics that have been collected during the expansion
@@ -54,7 +58,7 @@ impl AstExpander {
     }
 }
 
-impl AstVisitorMutSelf for AstExpander {
+impl AstVisitorMutSelf for AstExpander<'_> {
     type Error = Infallible;
 
     ast_visitor_mut_self_default_impl!(hiding:

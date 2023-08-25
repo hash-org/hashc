@@ -328,6 +328,11 @@ pub enum IntTy {
 }
 
 impl IntTy {
+    /// Check if the type is is bounded, i.e. not a `ubig` or `ibig` type.
+    pub fn is_bounded(&self) -> bool {
+        !matches!(self, IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig))
+    }
+
     /// Convert a [Integer] with signed-ness into a [IntTy]
     pub fn from_integer(integer: Integer, signed: bool) -> Self {
         if signed {

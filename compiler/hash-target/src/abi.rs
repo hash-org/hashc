@@ -7,7 +7,7 @@ use std::fmt;
 use crate::{
     alignment::{Alignment, Alignments},
     data_layout::HasDataLayout,
-    primitives::{FloatTy, SIntTy, UIntTy},
+    primitives::{FloatTy, IntTy, SIntTy, UIntTy},
     size::Size,
 };
 
@@ -107,6 +107,40 @@ impl Integer {
 
         I8
     }
+
+    /// Convert a [UIntTy] into a [Integer].
+    pub fn from_unsigned_int_ty<C: HasDataLayout>(ty: UIntTy, ctx: &C) -> Self {
+        match ty {
+            UIntTy::U8 => Integer::I8,
+            UIntTy::U16 => Integer::I16,
+            UIntTy::U32 => Integer::I32,
+            UIntTy::U64 => Integer::I64,
+            UIntTy::U128 => Integer::I128,
+            UIntTy::USize => ctx.data_layout().ptr_sized_integer(),
+            UIntTy::UBig => unreachable!("`ubig` cannot be converted into a scalar"),
+        }
+    }
+
+    /// Convert a [SIntTy] into a [Integer].
+    pub fn from_signed_int_ty<C: HasDataLayout>(ty: SIntTy, ctx: &C) -> Self {
+        match ty {
+            SIntTy::I8 => Integer::I8,
+            SIntTy::I16 => Integer::I16,
+            SIntTy::I32 => Integer::I32,
+            SIntTy::I64 => Integer::I64,
+            SIntTy::I128 => Integer::I128,
+            SIntTy::ISize => ctx.data_layout().ptr_sized_integer(),
+            SIntTy::IBig => unreachable!("`ibig` cannot be converted into a scalar"),
+        }
+    }
+
+    /// Convert an [IntTy] into a [Integer].
+    pub fn from_int_ty<C: HasDataLayout>(ty: IntTy, ctx: &C) -> Self {
+        match ty {
+            IntTy::UInt(ty) => Self::from_unsigned_int_ty(ty, ctx),
+            IntTy::Int(ty) => Self::from_signed_int_ty(ty, ctx),
+        }
+    }
 }
 
 /// Represents all of the primitive [AbiRepresentation::Scalar]s that are
@@ -163,32 +197,12 @@ impl ScalarKind {
 
     /// Convert a [UIntTy] into a [ScalarKind].
     pub fn from_unsigned_int_ty<C: HasDataLayout>(ty: UIntTy, ctx: &C) -> Self {
-        let kind = match ty {
-            UIntTy::U8 => Integer::I8,
-            UIntTy::U16 => Integer::I16,
-            UIntTy::U32 => Integer::I32,
-            UIntTy::U64 => Integer::I64,
-            UIntTy::U128 => Integer::I128,
-            UIntTy::USize => ctx.data_layout().ptr_sized_integer(),
-            UIntTy::UBig => unreachable!("`ubig` cannot be converted into a scalar"),
-        };
-
-        Self::Int { kind, signed: false }
+        Self::Int { kind: Integer::from_unsigned_int_ty(ty, ctx), signed: false }
     }
 
     /// Convert a [SIntTy] into a [ScalarKind].
     pub fn from_signed_int_ty<C: HasDataLayout>(ty: SIntTy, ctx: &C) -> Self {
-        let kind = match ty {
-            SIntTy::I8 => Integer::I8,
-            SIntTy::I16 => Integer::I16,
-            SIntTy::I32 => Integer::I32,
-            SIntTy::I64 => Integer::I64,
-            SIntTy::I128 => Integer::I128,
-            SIntTy::ISize => ctx.data_layout().ptr_sized_integer(),
-            SIntTy::IBig => unreachable!("`ibig` cannot be converted into a scalar"),
-        };
-
-        Self::Int { kind, signed: false }
+        Self::Int { kind: Integer::from_signed_int_ty(ty, ctx), signed: true }
     }
 }
 

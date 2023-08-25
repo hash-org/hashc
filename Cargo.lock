@@ -443,6 +443,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-storage",
+ "hash-target",
  "hash-tir",
  "hash-tree-def",
  "hash-utils",
@@ -458,6 +459,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-storage",
+ "hash-target",
  "hash-tir",
  "hash-utils",
 ]

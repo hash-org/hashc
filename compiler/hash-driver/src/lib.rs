@@ -314,6 +314,7 @@ impl AstExpansionCtxQuery for Compiler {
             workspace: &mut self.workspace,
             settings: &self.settings,
             stdout: output_stream,
+            data_layout: &self.layout_storage.data_layout,
             pool: &self.pool,
         }
     }
