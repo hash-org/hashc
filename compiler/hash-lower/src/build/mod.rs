@@ -12,6 +12,7 @@ mod temp;
 mod ty;
 mod utils;
 
+use hash_attrs::attr::attr_store;
 use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{
     ir::{
@@ -20,7 +21,7 @@ use hash_ir::{
     },
     ty::{IrTy, Mutability},
 };
-use hash_source::identifier::Identifier;
+use hash_source::identifier::{Identifier, IDENTS};
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
@@ -236,25 +237,10 @@ impl<'ctx> BodyBuilder<'ctx> {
             }
         }
 
-        // @@ReAddDirectives: check if this item has a `#dump_ir` directive on it.
-        //
-        // check if this fn_def has the `#dump_ir` directive applied onto it...
-        // let needs_dumping = <T>|item: | {
-        // if let Some(applied_directives) = tir_stores().directives().borrow(item) {
-        //     applied_directives.directives.contains(&IDENTS.dump_ir)
-        // } else {
-        //     false
-        // }
-        // };
-
         // Compute the span of the item that was just lowered.
-        let (span, needs_dumping) = match self.item {
-            BuildItem::FnDef(def) => {
-                (self.span_of_def(def), false /* needs_dumping(def.into()) */)
-            }
-            BuildItem::Const(term) => {
-                (self.span_of_term(term), false /* needs_dumping(term.into()) */)
-            }
+        let span = match self.item {
+            BuildItem::FnDef(def) => self.span_of_def(def),
+            BuildItem::Const(term) => self.span_of_term(term),
         };
 
         let mut body = Body::new(
@@ -266,7 +252,7 @@ impl<'ctx> BodyBuilder<'ctx> {
         );
 
         // If the body needs to be dumped, then we mark it as such.
-        if needs_dumping {
+        if attr_store().node_has_attr(span, IDENTS.dump_ir) {
             body.mark_to_dump()
         }
 
