@@ -15,7 +15,6 @@ use hash_tir::{
 use hash_utils::{
     fxhash::FxHashMap,
     index_vec::{define_index_type, IndexVec},
-    lazy_static,
 };
 
 use crate::target::AttrTarget;
@@ -92,18 +91,11 @@ impl AttrTy {
     }
 }
 
+// @@Future: add more complex rules which allow to specify more exotic types,
+// i.e. a list of values.
 macro_rules! make_ty {
-    (str) => {
-        Ty::data(primitives().str())
-    };
-    (int) => {
-        Ty::data(primitives().i32())
-    };
-    (float) => {
-        Ty::data(primitives().f64())
-    };
-    (char) => {
-        Ty::data(primitives().char())
+    ($kind: ident) => {
+        Ty::data(primitives().$kind())
     };
 }
 
@@ -115,11 +107,15 @@ macro_rules! define_attr {
     ($table:expr, $name:ident, ($($arg:ident : $ty:ident),*), $subject:expr) => {
         let name: Identifier = stringify!($name).into();
 
-        let params = Param::seq_data([
-            $(
-                Param { name: sym(name), ty: make_ty!($ty), default: None }
-            ),*
-        ]);
+        let params = if ${count(arg)} == 0 {
+            Param::empty_seq()
+        } else {
+            Param::seq_data([
+                $(
+                    Param { name: sym(name), ty: make_ty!($ty), default: None }
+                ),*
+            ])
+        };
 
         let index = $table.map.push(AttrTy::new(name, params, $subject));
         if $table.name_map.insert(name, index).is_some() {
@@ -127,54 +123,46 @@ macro_rules! define_attr {
         }
     };
     ($table:expr, $name:ident, $subject:expr) => {
-        let name: Identifier = stringify!($name).into();
-        let index = $table.map.push(AttrTy::new(name, Param::empty_seq(), $subject));
-
-        if $table.name_map.insert(name, index).is_some() {
-            panic!("duplicate attribute name: `{}`", name);
-        }
+        define_attr!($table, $name, (), $subject);
     }
 }
 
-lazy_static::lazy_static! {
-    pub static ref ATTR_MAP: LazyLock<AttrTyMap> = {
-        LazyLock::new(|| {
-            let mut table = AttrTyMap::new();
+pub static ATTR_MAP: LazyLock<AttrTyMap> = {
+    LazyLock::new(|| {
+        let mut table = AttrTyMap::new();
 
-            // ------------------------------------------
-            // Internal compiler attributes and tooling.
-            // ------------------------------------------
-            define_attr!(table, dump_ast, AttrTarget::all());
-            define_attr!(table, dump_tir, AttrTarget::all());
-            define_attr!(table, dump_ir, AttrTarget::FnDef);
-            define_attr!(table, dump_llvm_ir, AttrTarget::FnDef);
-            define_attr!(table, layout_of, AttrTarget::StructDef | AttrTarget::EnumDef);
+        // ------------------------------------------
+        // Internal compiler attributes and tooling.
+        // ------------------------------------------
+        define_attr!(table, dump_ast, AttrTarget::all());
+        define_attr!(table, dump_tir, AttrTarget::all());
+        define_attr!(table, dump_ir, AttrTarget::FnDef);
+        define_attr!(table, dump_llvm_ir, AttrTarget::FnDef);
+        define_attr!(table, layout_of, AttrTarget::StructDef | AttrTarget::EnumDef);
 
+        // ------------------------------------------
+        // Language feature based attributes.
+        // ------------------------------------------
+        define_attr!(table, run, AttrTarget::Expr);
 
-            // ------------------------------------------
-            // Language feature based attributes.
-            // ------------------------------------------
-            define_attr!(table, run, AttrTarget::Expr);
+        // ------------------------------------------
+        // Function attributes.
+        // ------------------------------------------
+        define_attr!(table, lang, AttrTarget::FnDef);
+        define_attr!(table, entry_point, AttrTarget::FnDef);
+        define_attr!(table, pure, AttrTarget::FnDef);
+        define_attr!(table, foreign, AttrTarget::FnDef);
+        define_attr!(table, no_mangle, AttrTarget::FnDef);
+        define_attr!(table, link_name, (name: str), AttrTarget::FnDef);
 
-            // ------------------------------------------
-            // Function attributes.
-            // ------------------------------------------
-            define_attr!(table, lang, AttrTarget::FnDef);
-            define_attr!(table, entry_point, AttrTarget::FnDef);
-            define_attr!(table, pure, AttrTarget::FnDef);
-            define_attr!(table, foreign, AttrTarget::FnDef);
-            define_attr!(table, no_mangle, AttrTarget::FnDef);
-            define_attr!(table, link_name, (name: str), AttrTarget::FnDef);
+        // ------------------------------------------
+        // Type attributes.
+        // ------------------------------------------
+        define_attr!(table, repr, (abi: str), AttrTarget::StructDef | AttrTarget::EnumDef);
 
-            // ------------------------------------------
-            // Type attributes.
-            // ------------------------------------------
-            define_attr!(table, repr, (abi: str), AttrTarget::StructDef | AttrTarget::EnumDef);
-
-            table
-        })
-    };
-}
+        table
+    })
+};
 
 /// Valid `#[repr(...)]` options, ideally we should be able to just generate
 /// this in the macro.

@@ -6,6 +6,7 @@ use std::fmt;
 use hash_ast::ast;
 use hash_utils::{
     bitflags,
+    itertools::Itertools,
     printing::{SequenceDisplay, SequenceDisplayOptions, SequenceJoinMode},
 };
 
@@ -96,8 +97,11 @@ bitflags::bitflags! {
         /// A pattern argument.
         const PatArg  = 1 << 24;
 
+        /// A trait definition.
+        const TraitDef = 1 << 25;
+
         /// A general item definition e.g. `struct`, `enum`, `impl`, `mod` and `fn`.
-        const Item = Self::StructDef.bits() | Self::EnumDef.bits() | Self::FnDef.bits() | Self::TyFnDef.bits() | Self::ImplDef.bits() | Self::ModDef.bits();
+        const Item = Self::StructDef.bits() | Self::EnumDef.bits() | Self::FnDef.bits() | Self::TyFnDef.bits() | Self::ImplDef.bits() | Self::ModDef.bits() | Self::TraitDef.bits();
     }
 }
 
@@ -118,7 +122,7 @@ impl AttrTarget {
             ast::Expr::StructDef(_) => AttrTarget::StructDef,
             ast::Expr::EnumDef(_) => AttrTarget::EnumDef,
             ast::Expr::TyFnDef(_) => AttrTarget::TyFnDef,
-            ast::Expr::TraitDef(_) => AttrTarget::Item,
+            ast::Expr::TraitDef(_) => AttrTarget::TraitDef,
             ast::Expr::ImplDef(_) => AttrTarget::ImplDef,
             ast::Expr::ModDef(_) => AttrTarget::ModDef,
             ast::Expr::FnDef(_) => AttrTarget::FnDef,
@@ -135,38 +139,36 @@ impl AttrTarget {
 
 impl fmt::Display for AttrTarget {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let item_count = self.bits().count_ones();
-
         // We will collect all of the allowed argument kinds into a vector
-        let mut allowed_argument_kinds = Vec::with_capacity(item_count as usize);
-
-        for kind in (*self).iter() {
-            match kind {
-                AttrTarget::ConstructorCall => allowed_argument_kinds.push("constructor call"),
-                AttrTarget::MacroInvocation => allowed_argument_kinds.push("directive"),
-                AttrTarget::Unsafe => allowed_argument_kinds.push("unsafe expression"),
-                AttrTarget::Lit => allowed_argument_kinds.push("literal"),
-                AttrTarget::Loop => allowed_argument_kinds.push("loop block"),
-                AttrTarget::Match => allowed_argument_kinds.push("match block"),
-                AttrTarget::ImplDef => allowed_argument_kinds.push("impl block"),
-                AttrTarget::Mod => allowed_argument_kinds.push("module"),
-                AttrTarget::ModDef => allowed_argument_kinds.push("mod block"),
-                AttrTarget::Block => allowed_argument_kinds.push("body block"),
-                AttrTarget::Import => allowed_argument_kinds.push("import"),
-                AttrTarget::StructDef => allowed_argument_kinds.push("`struct` definition"),
-                AttrTarget::EnumDef => allowed_argument_kinds.push("`enum` definition"),
-                AttrTarget::TyFnDef => allowed_argument_kinds.push("type function definition"),
-                AttrTarget::FnDef => allowed_argument_kinds.push("`function` definition"),
-                AttrTarget::Ty => allowed_argument_kinds.push("type"),
-                AttrTarget::Expr => allowed_argument_kinds.push("expression"),
-                AttrTarget::Pat | AttrTarget::PatArg => allowed_argument_kinds.push("pattern"),
-                AttrTarget::TyArg => allowed_argument_kinds.push("type argument"),
-                AttrTarget::Field => allowed_argument_kinds.push("field"),
-                AttrTarget::EnumVariant => allowed_argument_kinds.push("enum variant"),
-                AttrTarget::MatchCase => allowed_argument_kinds.push("match case"),
-                _ => {}
-            }
-        }
+        let allowed_argument_kinds = self
+            .iter()
+            .map(|item| match item {
+                AttrTarget::ConstructorCall => "constructor call",
+                AttrTarget::MacroInvocation => "directive",
+                AttrTarget::Unsafe => "unsafe expression",
+                AttrTarget::Lit => "literal",
+                AttrTarget::Loop => "loop block",
+                AttrTarget::Match => "match block",
+                AttrTarget::ImplDef => "impl block",
+                AttrTarget::Mod => "module",
+                AttrTarget::ModDef => "mod block",
+                AttrTarget::Block => "body block",
+                AttrTarget::Import => "import",
+                AttrTarget::StructDef => "`struct` definition",
+                AttrTarget::EnumDef => "`enum` definition",
+                AttrTarget::TyFnDef => "implicit function definition",
+                AttrTarget::FnDef => "`function` definition",
+                AttrTarget::Ty => "type",
+                AttrTarget::Expr => "expression",
+                AttrTarget::Pat | AttrTarget::PatArg => "pattern",
+                AttrTarget::TyArg => "type argument",
+                AttrTarget::Field => "field",
+                AttrTarget::EnumVariant => "enum variant",
+                AttrTarget::MatchCase => "match case",
+                AttrTarget::TraitDef => "trait definition",
+                _ => unreachable!(),
+            })
+            .collect_vec();
 
         write!(
             f,
