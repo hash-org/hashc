@@ -348,7 +348,7 @@ impl<'tc> Scoping<'tc> {
     /// Enter the scope of a type function type
     pub(super) fn enter_ty_fn_ty<T>(
         &self,
-        node: ast::AstNodeRef<ast::TyFn>,
+        node: ast::AstNodeRef<ast::TyFnTy>,
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = tir_stores().ast_info().tys().get_data_by_node(node.id()).unwrap();

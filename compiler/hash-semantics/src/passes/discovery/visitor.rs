@@ -39,7 +39,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         EnumDef,
         FnDef,
         FnTy,
-        TyFn,
+        TyFnTy,
         TyFnDef,
         TupleTy,
         BodyBlock,
@@ -192,7 +192,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Create a data definition for the struct
         let struct_def_id = DataDef::struct_def(
             struct_name,
-            self.create_hole_params(&node.ty_params),
+            self.create_hole_params_from_ty_params(node.ty_params.as_ref()),
             self.create_hole_params(&node.fields),
         );
 
@@ -214,15 +214,18 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
         // Create a data definition for the enum
 
-        let enum_def_id =
-            DataDef::indexed_enum_def(enum_name, self.create_hole_params(&node.ty_params), |_| {
+        let enum_def_id = DataDef::indexed_enum_def(
+            enum_name,
+            self.create_hole_params_from_ty_params(node.ty_params.as_ref()),
+            |_| {
                 node.entries
                     .iter()
                     .map(|variant| {
                         (sym(variant.name.ident), self.create_hole_params(&variant.fields), None)
                     })
                     .collect_vec()
-            });
+            },
+        );
 
         // Traverse the enum; the variants have already been created.
         self.enter_item(node, ItemId::Def(enum_def_id.into()), || walk::walk_enum_def(self, node))?;
@@ -273,7 +276,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             ty: FnTy {
                 implicit: true,
                 is_unsafe: false,
-                params: self.create_hole_params(&node.params),
+                params: self.create_hole_params_from_ty_params(Some(&node.params)),
                 pure: true,
                 return_ty: Ty::hole(),
             },
@@ -322,19 +325,22 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         }
     }
 
-    type TyFnRet = ();
-    fn visit_ty_fn(&self, node: AstNodeRef<ast::TyFn>) -> Result<Self::TyFnRet, Self::Error> {
+    type TyFnTyRet = ();
+    fn visit_ty_fn_ty(
+        &self,
+        node: AstNodeRef<ast::TyFnTy>,
+    ) -> Result<Self::TyFnTyRet, Self::Error> {
         // This will be filled in during resolution
         let fn_ty_id = Ty::from(FnTy {
             implicit: true,
             is_unsafe: false,
-            params: self.create_hole_params(&node.params),
+            params: self.create_hole_params_from_ty_params(Some(&node.params)),
             pure: true,
             return_ty: Ty::hole(),
         });
 
         // Traverse the type function body
-        self.enter_item(node, fn_ty_id, || walk::walk_ty_fn(self, node))?;
+        self.enter_item(node, fn_ty_id, || walk::walk_ty_fn_ty(self, node))?;
 
         Ok(())
     }
@@ -345,7 +351,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_ty_id = Ty::from(FnTy {
             implicit: false,
             is_unsafe: false,
-            params: self.create_hole_params_from(&node.params, |params| &params.name),
+            params: self.create_hole_params_from_ty_params(Some(&node.params)),
             pure: false,
             return_ty: Ty::hole(),
         });
@@ -362,9 +368,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         // This will be filled in during resolution
-        let tuple_ty_id = Ty::from(TupleTy {
-            data: self.create_hole_params_from(&node.entries, |params| &params.name),
-        });
+        let tuple_ty_id =
+            Ty::from(TupleTy { data: self.create_hole_params_from_ty_params(Some(&node.entries)) });
 
         // Traverse the tuple body
         self.enter_item(node, tuple_ty_id, || walk::walk_tuple_ty(self, node))?;

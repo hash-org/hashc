@@ -1,6 +1,6 @@
 //! Hash Compiler parser error utilities.
 use derive_more::Constructor;
-use hash_ast::origin::PatOrigin;
+use hash_ast::{ast::TyParamOrigin, origin::PatOrigin};
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
     report::{ReportElement, ReportNote, ReportNoteKind},
@@ -9,8 +9,6 @@ use hash_reporting::{
 use hash_source::{identifier::Identifier, location::Span};
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
-
-use crate::parser::DefinitionKind;
 
 /// Utility wrapper type for [ParseError] in [Result]
 pub type ParseResult<T> = Result<T, ParseError>;
@@ -50,7 +48,7 @@ pub enum ParseErrorKind {
     /// it can either be 'struct' or 'enum' type arguments. The reason why
     /// there are two variants is to add additional information in the error
     /// message.
-    TypeDefinition(DefinitionKind),
+    TypeDefinition(TyParamOrigin),
 
     /// Expected a name here.
     ExpectedName,
@@ -150,7 +148,7 @@ impl From<ParseError> for Reports {
             ParseErrorKind::Block => "expected block body, which begins with a `{`".to_string(),
             ParseErrorKind::ReAssignmentOp => "expected a re-assignment operator".to_string(),
             ParseErrorKind::TypeDefinition(ty) => {
-                format!("expected {ty} definition entries here which begin with a `<` or `(`")
+                format!("expected {} definition entries here which begin with a `<` or `(`", ty.name())
             }
             ParseErrorKind::ExpectedValueAfterTyAnnotation => {
                 "expected value assignment after type annotation within named tuple".to_string()

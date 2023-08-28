@@ -313,7 +313,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::TupleTyRet, Self::Error> {
         let walk::TupleTy { entries } = walk::walk_tuple_ty(self, node)?;
 
-        Ok(TreeNode::branch("tuple", entries))
+        Ok(TreeNode::branch("tuple", vec![entries]))
     }
 
     type ArrayTyRet = TreeNode;
@@ -358,28 +358,27 @@ impl AstVisitor for AstTreeGenerator {
         let return_child = TreeNode::branch("return", vec![return_ty]);
 
         let children = {
-            if params.is_empty() {
+            if params.children.is_empty() {
                 vec![return_child]
             } else {
-                vec![TreeNode::branch("parameters", params), return_child]
+                vec![params, return_child]
             }
         };
 
         Ok(TreeNode::branch("function", children))
     }
 
-    type TyFnRet = TreeNode;
-    fn visit_ty_fn(&self, node: ast::AstNodeRef<ast::TyFn>) -> Result<Self::TyFnRet, Self::Error> {
-        let walk::TyFn { params, return_ty } = walk::walk_ty_fn(self, node)?;
+    type TyFnTyRet = TreeNode;
+    fn visit_ty_fn_ty(
+        &self,
+        node: ast::AstNodeRef<ast::TyFnTy>,
+    ) -> Result<Self::TyFnTyRet, Self::Error> {
+        let walk::TyFnTy { params, return_ty } = walk::walk_ty_fn_ty(self, node)?;
 
-        let mut children = vec![TreeNode::branch("return", vec![return_ty])];
-
-        // Add the parameters branch to the start
-        if !params.is_empty() {
-            children.insert(0, TreeNode::branch("parameters", params));
-        }
-
-        Ok(TreeNode::branch("type_function", children))
+        Ok(TreeNode::branch(
+            "type_function",
+            vec![params, TreeNode::branch("return", vec![return_ty])],
+        ))
     }
 
     type TyFnCallRet = TreeNode;
@@ -482,12 +481,11 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let walk::TyFnDef { params: args, return_ty, ty_fn_body } =
-            walk::walk_ty_fn_def(self, node)?;
+        let walk::TyFnDef { params, return_ty, ty_fn_body } = walk::walk_ty_fn_def(self, node)?;
 
         Ok(TreeNode::branch(
             "type_function",
-            iter::once(TreeNode::branch("args", args))
+            iter::once(params)
                 .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
                 .chain(iter::once(TreeNode::branch("body", vec![ty_fn_body])))
                 .collect(),
@@ -525,6 +523,32 @@ impl AstVisitor for AstTreeGenerator {
             .collect_vec();
 
         Ok(TreeNode::branch("param", children))
+    }
+
+    type TyParamRet = TreeNode;
+    fn visit_ty_param(
+        &self,
+        node: ast::AstNodeRef<ast::TyParam>,
+    ) -> Result<Self::ParamRet, Self::Error> {
+        let walk::TyParam { name, ty, default, macros } = walk::walk_ty_param(self, node)?;
+
+        let children = iter::empty()
+            .chain(name.map(|t| TreeNode::branch("name", vec![t])))
+            .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
+            .chain(default.map(|d| TreeNode::branch("default", vec![d])))
+            .chain(macros)
+            .collect_vec();
+
+        Ok(TreeNode::branch("ty_param", children))
+    }
+
+    type TyParamsRet = TreeNode;
+    fn visit_ty_params(
+        &self,
+        node: ast::AstNodeRef<ast::TyParams>,
+    ) -> Result<Self::TyParamsRet, Self::Error> {
+        let walk::TyParams { params } = walk::walk_ty_params(self, node)?;
+        Ok(TreeNode::branch("ty_params", params))
     }
 
     type BlockRet = TreeNode;
@@ -603,10 +627,10 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::ModDefRet, Self::Error> {
         let walk::ModDef { block, ty_params } = walk::walk_mod_def(self, node)?;
         let children = {
-            if ty_params.is_empty() {
-                vec![block]
+            if let Some(ty_params) = ty_params {
+                vec![ty_params, block]
             } else {
-                vec![TreeNode::branch("ty_params", ty_params), block]
+                vec![block]
             }
         };
 
@@ -621,10 +645,10 @@ impl AstVisitor for AstTreeGenerator {
         let walk::ImplDef { block, ty_params } = walk::walk_impl_def(self, node)?;
 
         let children = {
-            if ty_params.is_empty() {
-                vec![block]
+            if let Some(ty_params) = ty_params && !ty_params.children.is_empty() {
+                vec![ty_params, block]
             } else {
-                vec![TreeNode::branch("ty_params", ty_params), block]
+                vec![block]
             }
         };
 
@@ -836,11 +860,12 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::StructDefRet, Self::Error> {
         let walk::StructDef { fields, ty_params } = walk::walk_struct_def(self, node)?;
 
+        let fields = TreeNode::branch("fields", fields);
         let children = {
-            if ty_params.is_empty() {
-                vec![TreeNode::branch("fields", fields)]
+            if let Some(ty_params) = ty_params && !ty_params.children.is_empty() {
+                vec![ty_params, fields]
             } else {
-                vec![TreeNode::branch("ty_params", ty_params), TreeNode::branch("fields", fields)]
+                vec![fields]
             }
         };
 
@@ -878,14 +903,12 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let walk::EnumDef { entries, ty_params } = walk::walk_enum_def(self, node)?;
 
+        let variants = TreeNode::branch("variants", entries);
         let children = {
-            if ty_params.is_empty() {
-                vec![TreeNode::branch("variants", entries)]
+            if let Some(ty_params) = ty_params && !ty_params.children.is_empty() {
+                vec![ty_params, variants]
             } else {
-                vec![
-                    TreeNode::branch("ty_params", ty_params),
-                    TreeNode::branch("variants", entries),
-                ]
+                vec![variants]
             }
         };
 

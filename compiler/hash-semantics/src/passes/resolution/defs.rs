@@ -68,11 +68,11 @@ impl<'tc> ResolutionPass<'tc> {
                 // Resolve the data of the definition depending on its kind:
                 ast::Expr::StructDef(struct_def) => {
                     // Type parameters
-                    attempt(self.resolve_params_from_ast_params(
-                        &struct_def.ty_params,
-                        true,
-                        data_def_id.into(),
-                    ));
+                    if let Some(ty_params) = &struct_def.ty_params {
+                        attempt(self.resolve_params_from_ast_ty_params(
+                            ty_params
+                        ));
+                    }
 
                     // Struct variant
                     let struct_ctor =
@@ -99,11 +99,11 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 ast::Expr::EnumDef(enum_def) => {
                     // Type parameters
-                    attempt(self.resolve_params_from_ast_params(
-                        &enum_def.ty_params,
-                        true,
-                        data_def_id.into(),
-                    ));
+                    if let Some(ty_params) = &enum_def.ty_params {
+                        attempt(self.resolve_params_from_ast_ty_params(
+                            ty_params
+                        ));
+                    }
 
                     // Enum variants
                     let data_def_ctors =

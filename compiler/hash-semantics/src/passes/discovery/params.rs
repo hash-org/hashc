@@ -1,5 +1,6 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     environment::stores::tir_stores,
     params::{Param, ParamId, ParamIndex, ParamsId},
@@ -38,5 +39,18 @@ impl<'tc> DiscoveryPass<'tc> {
     /// type of each parameter is a hole.
     pub(super) fn create_hole_params(&self, params: &ast::AstNodes<ast::Param>) -> ParamsId {
         self.create_hole_params_from(params, |param| &param.name)
+    }
+
+    /// Create a parameter list from the given AST parameter list, where the
+    /// type of each parameter is a hole.
+    pub(super) fn create_hole_params_from_ty_params(
+        &self,
+        params: Option<&ast::AstNode<ast::TyParams>>,
+    ) -> ParamsId {
+        if let Some(ty_params) = params {
+            self.create_hole_params_from(&ty_params.params, |param| &param.name)
+        } else {
+            Param::empty_seq()
+        }
     }
 }

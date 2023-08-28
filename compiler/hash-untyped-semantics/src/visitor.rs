@@ -168,7 +168,7 @@ impl<'s> SemanticAnalyser<'s> {
                     match value.body() {
                         Expr::StructDef(StructDef { ty_params, .. })
                         | Expr::EnumDef(EnumDef { ty_params, .. })
-                            if ty_params.is_empty() => {}
+                            if let Some(node) = ty_params && node.params.is_empty() => {}
                         expr => {
                             let mut notes = vec![];
                             // Add an additional note if the type is a function definition
