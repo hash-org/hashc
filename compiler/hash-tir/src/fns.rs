@@ -11,7 +11,7 @@ use utility_types::omit;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
-    args::ArgsId, environment::stores::tir_stores, params::ParamsId, symbols::Symbol,
+    args::ArgsId, environment::stores::tir_stores, node::Node, params::ParamsId, symbols::Symbol,
     terms::TermId, tir_debug_name_of_store_id, tys::TyId,
 };
 
@@ -79,11 +79,7 @@ pub enum FnBody {
 /// definitions follow the syntax of function types, but followed by `=>
 /// r(a_1,...,a_n,p_1,...,p_n)`.
 #[derive(Debug, Clone, Copy, TypedBuilder)]
-#[omit(FnDefData, [id], [Debug, Clone, Copy])]
 pub struct FnDef {
-    /// The ID of the function definition.
-    pub id: FnDefId,
-
     /// The symbolic name of the function, which resolves to its definition name
     /// if given by the user, by querying the data of the symbol.
     pub name: Symbol,
@@ -109,7 +105,7 @@ impl FnDef {
 static_single_store!(
     store = pub FnDefStore,
     id = pub FnDefId,
-    value = FnDef,
+    value = Node<FnDef>,
     store_name = fn_def,
     store_source = tir_stores()
 );
@@ -170,7 +166,7 @@ impl Display for FnTy {
 
 impl Display for FnDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if matches!(self.ty.return_ty.value(), Ty::Fn(_)) {
+        if matches!(*self.ty.return_ty.value(), Ty::Fn(_)) {
             if self.ty.is_unsafe {
                 write!(f, "unsafe ")?;
             }
@@ -209,7 +205,7 @@ impl Display for FnDef {
 
 impl Display for FnDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

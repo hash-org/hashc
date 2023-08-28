@@ -379,6 +379,7 @@ macro_rules! static_single_store {
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
+                use $crate::store::Store;
                 $store_source.$store_name().borrow_mut(self)
             }
 
@@ -388,10 +389,12 @@ macro_rules! static_single_store {
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::Value) -> R) -> R {
+                use $crate::store::Store;
                 $store_source.$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::Value) -> R) -> R {
+                use $crate::store::Store;
                 $store_source.$store_name().modify_fast(self, f)
             }
 
@@ -404,6 +407,7 @@ macro_rules! static_single_store {
         impl $crate::store::statics::SingleStoreValue for $value {
             type Id = $id;
             fn create_with<F: FnOnce(Self::Id) -> Self>(value: F) -> Self::Id {
+                use $crate::store::Store;
                 $store_source.$store_name().create_with(value)
             }
         }

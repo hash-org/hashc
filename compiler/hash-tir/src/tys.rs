@@ -18,6 +18,8 @@ use crate::{
     data::{DataDefId, DataTy},
     environment::stores::tir_stores,
     fns::FnTy,
+    node,
+    node::{Node, NodeOrigin},
     params::Param,
     refs::RefTy,
     terms::{Term, TermId},
@@ -80,7 +82,7 @@ pub enum Ty {
 static_single_store!(
     store = pub TyStore,
     id = pub TyId,
-    value = Ty,
+    value = Node<Ty>,
     store_name = ty,
     store_source = tir_stores()
 );
@@ -96,40 +98,51 @@ pub struct TypeOfTerm {
 impl Ty {
     /// Create a type of types, i.e. small `Type`.
     pub fn small_universe() -> TyId {
-        Ty::create(Ty::Universe(UniverseTy { size: Some(0) }))
+        Node::create(Node::value(Ty::Universe(UniverseTy { size: Some(0) }), NodeOrigin::Generated))
     }
 
     /// Create a large type of types, i.e. `Type(n)` for some natural number
     /// `n`.
     pub fn universe(n: usize) -> TyId {
-        Ty::create(Ty::Universe(UniverseTy { size: Some(n) }))
+        Node::create(Node::value(Ty::Universe(UniverseTy { size: Some(n) }), NodeOrigin::Generated))
     }
 
     /// Create a type of types, with a flexible universe size.
     ///
     /// This is the default when `Type` is used in a type signature.
     pub fn flexible_universe() -> TyId {
-        Ty::create(Ty::Universe(UniverseTy { size: None }))
+        Node::create(Node::value(Ty::Universe(UniverseTy { size: None }), NodeOrigin::Generated))
     }
 
     /// Create a new empty tuple type.
     pub fn void() -> TyId {
-        Ty::create(Ty::Tuple(TupleTy { data: Param::empty_seq() }))
+        Node::create(Node::value(
+            Ty::Tuple(TupleTy {
+                data: Node::create(Node::value(Node::<Param>::empty_seq(), NodeOrigin::Generated)),
+            }),
+            NodeOrigin::Generated,
+        ))
     }
 
     /// Create a new variable type.
     pub fn var(symbol: Symbol) -> TyId {
-        Ty::create(Ty::Var(symbol))
+        Node::create(Node::value(Ty::Var(symbol), NodeOrigin::Generated))
     }
 
     /// Create a new hole type.
     pub fn hole() -> TyId {
-        Ty::create(Ty::Hole(Hole::fresh()))
+        Node::create(Node::value(Ty::Hole(Hole::fresh()), NodeOrigin::Generated))
     }
 
     /// Create a new data type with no arguments.
     pub fn data(data_def: DataDefId) -> TyId {
-        Ty::create(Ty::Data(DataTy { data_def, args: Arg::empty_seq() }))
+        Node::create(Node::value(
+            Ty::Data(DataTy {
+                data_def,
+                args: Node::create(Node::value(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+            }),
+            NodeOrigin::Generated,
+        ))
     }
 
     /// Create a new type.
@@ -142,7 +155,7 @@ impl Ty {
             Ty::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Ty::create(ty);
+        let created = Node::create(Node::value(ty, NodeOrigin::Generated));
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }
@@ -207,7 +220,7 @@ impl Ty {
 impl TyId {
     /// Try to use the given type as a term.
     pub fn as_term(&self) -> TermId {
-        match self.value() {
+        match *self.value() {
             Ty::Var(var) => Term::from(var),
             Ty::Hole(hole) => Term::from(hole),
             Ty::Eval(term) => match term.try_as_ty() {
@@ -231,7 +244,7 @@ impl fmt::Display for UniverseTy {
 
 impl fmt::Display for TyId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

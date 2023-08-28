@@ -20,7 +20,8 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, environment::stores::tir_stores, tir_debug_value_of_single_store_id, tir_get,
+    arrays::ArrayPat, environment::stores::tir_stores, node::Node,
+    tir_debug_value_of_single_store_id, tir_get,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -109,17 +110,27 @@ impl Pat {
 static_single_store!(
     store = pub PatStore,
     id = pub PatId,
-    value = Pat,
+    value = Node<Pat>,
     store_name = pat,
     store_source = tir_stores()
 );
 
 tir_debug_value_of_single_store_id!(PatId);
 
-static_sequence_store_indirect!(
+static_single_store!(
     store = pub PatListStore,
-    id = pub PatListId[PatOrCapture],
+    id = pub PatListId,
+    value = Node<PatListSeqId>,
     store_name = pat_list,
+    store_source = tir_stores()
+);
+
+tir_debug_value_of_single_store_id!(PatListId);
+
+static_sequence_store_indirect!(
+    store = pub PatListSeqStore,
+    id = pub PatListSeqId[PatOrCapture],
+    store_name = pat_list_seq,
     store_source = tir_stores()
 );
 
@@ -163,7 +174,7 @@ impl fmt::Display for Pat {
 
 impl fmt::Display for PatId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
@@ -176,7 +187,7 @@ pub struct PatArgsWithSpread {
 impl fmt::Display for PatArgsWithSpread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut pat_args_formatted =
-            self.pat_args.iter().map(|arg| (arg).to_string()).collect::<Vec<_>>();
+            self.pat_args.value().iter().map(|arg| (arg).to_string()).collect::<Vec<_>>();
 
         if let Some(spread) = self.spread {
             pat_args_formatted.insert(spread.index, spread.to_string());

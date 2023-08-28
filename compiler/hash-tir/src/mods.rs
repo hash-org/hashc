@@ -12,7 +12,8 @@ use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::tir_stores, symbols::Symbol, tir_debug_name_of_store_id, tir_get,
+    environment::stores::tir_stores, node::Node, symbols::Symbol, tir_debug_name_of_store_id,
+    tir_debug_value_of_single_store_id, tir_get,
 };
 
 /// The kind of a module.
@@ -96,14 +97,26 @@ pub struct ModMember {
     pub value: ModMemberValue,
 }
 
-static_sequence_store_direct!(
+static_single_store!(
     store = pub ModMembersStore,
-    id = pub ModMembersId[ModMemberId],
-    value = ModMember,
+    id = pub ModMembersId,
+    value = Node<ModMembersSeqId>,
     store_name = mod_members,
+    store_source = tir_stores()
+);
+
+tir_debug_value_of_single_store_id!(ModMembersId);
+
+static_sequence_store_direct!(
+    store = pub ModMembersSeqStore,
+    id = pub ModMembersSeqId[ModMemberId],
+    value = Node<ModMember>,
+    store_name = mod_members_seq,
     store_source = tir_stores(),
     derives = Debug
 );
+
+// left off here
 
 /// A module definition.
 ///
@@ -111,9 +124,6 @@ static_sequence_store_direct!(
 #[derive(Debug, Clone, Copy)]
 #[omit(ModDefData, [id], [Debug, Clone, Copy])]
 pub struct ModDef {
-    /// The ID of the module definition.
-    pub id: ModDefId,
-
     /// The name of the module.
     pub name: Symbol,
     /// The kind is parametrised over `params`.
@@ -136,7 +146,7 @@ impl ModDef {
     /// Get a module function member by name.
     pub fn get_mod_fn_member_by_ident(&self, name: impl Into<Identifier>) -> Option<FnDefId> {
         let name = name.into();
-        self.members.iter().find_map(|member| {
+        self.members.value().iter().find_map(|member| {
             if let ModMemberValue::Fn(fn_def_id) = member.borrow().value {
                 if member.borrow().name.borrow().name.is_some_and(|sym| sym == name) {
                     return Some(fn_def_id);
@@ -147,9 +157,9 @@ impl ModDef {
     }
 
     /// Get a module member by name.
-    pub fn get_mod_member_by_ident(&self, name: impl Into<Identifier>) -> Option<ModMember> {
+    pub fn get_mod_member_by_ident(&self, name: impl Into<Identifier>) -> Option<Node<ModMember>> {
         let name = name.into();
-        self.members.iter().find_map(|member| {
+        self.members.value().iter().find_map(|member| {
             if member.borrow().name.borrow().name.is_some_and(|sym| sym == name) {
                 Some(member.value())
             } else {
@@ -209,13 +219,13 @@ impl Display for ModMember {
 
 impl Display for ModMemberId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
 impl Display for ModMembersId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for member in self.iter() {
+        for member in self.value().iter() {
             writeln!(f, "{}", member)?;
         }
         Ok(())

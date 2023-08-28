@@ -17,24 +17,38 @@ use super::super::{
     tys::TyStore,
 };
 use crate::{
-    ast_info::AstInfo, atom_info::AtomInfoStore, control::MatchCasesStore,
-    directives::AppliedDirectivesStore, terms::TermListSeqStore,
+    args::{ArgsSeqStore, PatArgsSeqStore},
+    ast_info::AstInfo,
+    atom_info::AtomInfoStore,
+    control::{MatchCasesSeqStore, MatchCasesStore},
+    data::CtorDefsSeqStore,
+    directives::AppliedDirectivesStore,
+    mods::ModMembersSeqStore,
+    params::ParamsSeqStore,
+    pats::PatListSeqStore,
+    terms::TermListSeqStore,
 };
 
 // All the stores that contain definitions for the typechecker.
 stores! {
     Stores;
     args: ArgsStore,
+    args_seq: ArgsSeqStore,
     ctor_defs: CtorDefsStore,
+    ctor_defs_seq: CtorDefsSeqStore,
     data_def: DataDefStore,
     fn_def: FnDefStore,
     location: LocationStore,
     mod_def: ModDefStore,
     mod_members: ModMembersStore,
+    mod_members_seq: ModMembersSeqStore,
     params: ParamsStore,
+    params_seq: ParamsSeqStore,
     pat: PatStore,
     pat_args: PatArgsStore,
+    pat_args_seq: PatArgsSeqStore,
     pat_list: PatListStore,
+    pat_list_seq: PatListSeqStore,
     stack: StackStore,
     symbol: SymbolStore,
     term: TermStore,
@@ -42,6 +56,7 @@ stores! {
     term_list_seq: TermListSeqStore,
     ty: TyStore,
     match_cases: MatchCasesStore,
+    match_cases_seq: MatchCasesSeqStore,
     atom_info: AtomInfoStore,
     ast_info: AstInfo,
     directives: AppliedDirectivesStore,

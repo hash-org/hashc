@@ -16,6 +16,12 @@ use super::{
     terms::TermId,
     tys::TyId,
 };
+use crate::{
+    args::{ArgsSeqId, PatArgsSeqId},
+    data::CtorDefsSeqId,
+    mods::ModMembersSeqId,
+    params::ParamsSeqId,
+};
 
 macro_rules! location_targets {
     ($($name:ident: $ty:ty $(= sequence $indexed_name:ident: $indexed_type:ident)?),* $(,)?) => {
@@ -109,19 +115,19 @@ location_targets! {
     Symbol: Symbol,
 
     DataDef: DataDefId,
-    CtorDef: CtorDefId = sequence CtorDefs: CtorDefsId,
+    CtorDef: CtorDefId = sequence CtorDefs: CtorDefsSeqId,
 
     ModDef: ModDefId,
-    ModMember: ModMemberId = sequence ModMembers: ModMembersId,
+    ModMember: ModMemberId = sequence ModMembers: ModMembersSeqId,
 
     Stack: StackId,
     StackMember: StackMemberId,
 
     FnDef: FnDefId,
 
-    Arg: ArgId = sequence Args: ArgsId,
-    Param: ParamId = sequence Params: ParamsId,
-    PatArg: PatArgId = sequence PatArgs: PatArgsId,
+    Arg: ArgId = sequence Args: ArgsSeqId,
+    Param: ParamId = sequence Params: ParamsSeqId,
+    PatArg: PatArgId = sequence PatArgs: PatArgsSeqId,
 }
 
 /// Stores the source location of various targets in the term tree.

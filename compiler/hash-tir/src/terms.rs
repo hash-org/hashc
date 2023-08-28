@@ -22,10 +22,10 @@ use crate::{
     environment::stores::tir_stores,
     fns::{FnCallTerm, FnDefId},
     lits::Lit,
-    node,
-    node::Node,
+    node::{self, Node, NodeOrigin},
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
+    symbols::sym,
     tir_debug_value_of_single_store_id,
     tuples::TupleTerm,
     tys::{Ty, TyId},
@@ -132,19 +132,24 @@ static_sequence_store_indirect!(
 
 impl Term {
     pub fn is_void(&self) -> bool {
-        matches!(self, Term::Tuple(tuple_term) if tuple_term.data.is_empty())
+        matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
     }
 
     pub fn void() -> TermId {
-        node!(Term::Tuple(TupleTerm { data: Arg::empty_seq() }))
+        Node::create(Node::value(
+            Term::Tuple(TupleTerm {
+                data: Node::create(Node::value(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+            }),
+            NodeOrigin::Generated,
+        ))
     }
 
     pub fn hole() -> TermId {
-        node!(Term::Hole(Hole::fresh()))
+        Node::create(Node::value(Term::Hole(Hole::fresh()), NodeOrigin::Generated))
     }
 
     pub fn var(symbol: Symbol) -> TermId {
-        node!(Term::Var(symbol))
+        Node::create(Node::value(Term::Var(symbol), NodeOrigin::Generated))
     }
 
     /// Create a new term.
@@ -161,7 +166,7 @@ impl Term {
             Term::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = node!(term);
+        let created = Node::create(Node::value(term, NodeOrigin::Generated));
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }

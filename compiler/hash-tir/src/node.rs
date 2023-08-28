@@ -1,6 +1,7 @@
 use derive_more::Deref;
 use hash_ast::ast::AstNodeId;
 use hash_source::{location::Span, SourceId};
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
 
 /// Represents a node in the TIR.
 ///
@@ -12,8 +13,17 @@ pub struct Node<Data> {
     pub data: Data,
 }
 
+impl<Data> Node<Data>
+where
+    Self: SingleStoreValue,
+{
+    pub fn create_value(data: Data, origin: NodeOrigin) -> <Self as SingleStoreValue>::Id {
+        Self::create(Self::value(data, origin))
+    }
+}
+
 impl<Data> Node<Data> {
-    pub fn new(data: Data, origin: NodeOrigin) -> Self {
+    pub fn value(data: Data, origin: NodeOrigin) -> Self {
         Self { data, origin }
     }
 
@@ -28,11 +38,15 @@ impl<Data> Node<Data> {
     pub fn source(&self) -> Option<SourceId> {
         self.node().map(|n| n.source())
     }
+
+    pub fn with_data<E>(&self, new_data: E) -> Node<E> {
+        Node { data: new_data, origin: self.origin }
+    }
 }
 
 impl<D, Data: From<D>> From<(D, NodeOrigin)> for Node<Data> {
     fn from((d, o): (D, NodeOrigin)) -> Self {
-        Node::new(d.into(), o)
+        Node::value(d.into(), o)
     }
 }
 
@@ -53,30 +67,4 @@ impl NodeOrigin {
             NodeOrigin::Generated => None,
         }
     }
-}
-
-/// Helper to create a node which is the value of a static store.
-#[macro_export]
-macro_rules! node {
-    ($data:expr) => {{
-        use hash_storage::store::statics::SingleStoreValue;
-        $crate::node::Node::create($crate::node::Node::new(
-            $data,
-            $crate::node::NodeOrigin::Generated,
-        ))
-    }};
-    ($data:expr, $origin:expr) => {
-        $crate::node::Node::create($crate::node::Node::new($data, $origin))
-    };
-}
-
-/// Helper to create a node which is the value of a static store.
-#[macro_export]
-macro_rules! node_value {
-    ($data:expr) => {
-        $crate::node::Node::new($data, $crate::node::NodeOrigin::Generated)
-    };
-    ($data:expr, $origin:expr) => {
-        $crate::node::Node::new($data, $origin)
-    };
 }

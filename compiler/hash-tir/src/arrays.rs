@@ -44,7 +44,7 @@ impl ArrayPat {
         let mut prefix = vec![];
         let mut suffix = vec![];
 
-        let args = self.pats.borrow();
+        let args = self.pats.value().borrow();
         if let Some(pos) = self.spread.map(|s| s.index) {
             prefix.extend(args[..pos].iter().copied().map(|p| p.assert_pat()));
             suffix.extend(args[pos..].iter().copied().map(|p| p.assert_pat()));
@@ -66,7 +66,7 @@ impl fmt::Display for ArrayPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
         let mut pat_args_formatted =
-            self.pats.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
+            self.pats.value().iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
 
         if let Some(spread) = self.spread {
             pat_args_formatted.insert(spread.index, spread.to_string());

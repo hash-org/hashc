@@ -22,11 +22,14 @@ use super::{
 use crate::{
     args::Arg,
     environment::stores::tir_stores,
+    node,
+    node::{Node, NodeOrigin},
     params::{Param, ParamsId},
     pats::PatArgsWithSpread,
     symbols::Symbol,
     terms::TermId,
-    tir_debug_name_of_store_id, tir_get,
+    tir_debug_name_of_store_id, tir_debug_value_of_sequence_store_element_id,
+    tir_debug_value_of_single_store_id, tir_get,
 };
 
 /// A constructor of a data-type definition.
@@ -40,8 +43,6 @@ use crate::{
 #[derive(Debug, Copy, Clone)]
 #[omit(CtorDefData, [id, data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
 pub struct CtorDef {
-    /// The ID of the constructor.
-    pub id: CtorDefId,
     /// The name of the constructor, for example `symbol("Red")` in `Red: Color`
     /// if given as a constructor to a `Colour := datatype...`.
     pub name: Symbol,
@@ -65,11 +66,21 @@ pub struct CtorDef {
     pub result_args: ArgsId,
 }
 
-static_sequence_store_direct!(
+static_single_store!(
     store = pub CtorDefsStore,
-    id = pub CtorDefsId[CtorDefId],
-    value = CtorDef,
+    id = pub CtorDefsId,
+    value = Node<CtorDefsSeqId>,
     store_name = ctor_defs,
+    store_source = tir_stores()
+);
+
+tir_debug_value_of_single_store_id!(CtorDefsId);
+
+static_sequence_store_direct!(
+    store = pub CtorDefsSeqStore,
+    id = pub CtorDefsSeqId[CtorDefId],
+    value = Node<CtorDef>,
+    store_name = ctor_defs_seq,
     store_source = tir_stores()
 );
 
@@ -173,16 +184,21 @@ impl CtorDef {
     where
         I::IntoIter: ExactSizeIterator,
     {
-        CtorDef::seq(data.into_iter().enumerate().map(|(index, data)| {
-            move |id| CtorDef {
-                id,
-                name: data.name,
-                data_def_id,
-                data_def_ctor_index: index,
-                params: data.params,
-                result_args: data.result_args,
-            }
-        }))
+        Node::create(Node::value(
+            Node::seq_data(data.into_iter().enumerate().map(|(index, data)| {
+                Node::value(
+                    CtorDef {
+                        name: data.name,
+                        data_def_id,
+                        data_def_ctor_index: index,
+                        params: data.params,
+                        result_args: data.result_args,
+                    },
+                    NodeOrigin::Generated,
+                )
+            })),
+            NodeOrigin::Generated,
+        ))
     }
 }
 
@@ -204,8 +220,6 @@ impl DataDefCtors {
 #[omit(DataDefData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct DataDef {
-    /// The ID of the data-type definition.
-    pub id: DataDefId,
     /// The name of the data-type.
     ///
     /// For example `symbol("Colour")` in `Colour := datatype...`.
@@ -225,7 +239,7 @@ pub struct DataDef {
 static_single_store!(
     store = pub DataDefStore,
     id = pub DataDefId,
-    value = DataDef,
+    value = Node<DataDef>,
     store_name = data_def,
     store_source = tir_stores()
 );
@@ -235,22 +249,32 @@ tir_debug_name_of_store_id!(DataDefId);
 impl DataDef {
     /// Create an empty data definition.
     pub fn empty(name: Symbol, params: ParamsId) -> DataDefId {
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Defined(CtorDef::empty_seq()),
-        })
+        Node::create(Node::value(
+            DataDef {
+                name,
+                params,
+                ctors: DataDefCtors::Defined(Node::create(Node::value(
+                    Node::<CtorDef>::empty_seq(),
+                    NodeOrigin::Generated,
+                ))),
+            },
+            NodeOrigin::Generated,
+        ))
     }
 
     /// Create a primitive data definition.
     pub fn primitive(name: Symbol, info: PrimitiveCtorInfo) -> DataDefId {
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params: Param::empty_seq(),
-            ctors: DataDefCtors::Primitive(info),
-        })
+        Node::create(Node::value(
+            DataDef {
+                name,
+                params: Node::create(Node::value(
+                    Node::<Param>::empty_seq(),
+                    NodeOrigin::Generated,
+                )),
+                ctors: DataDefCtors::Primitive(info),
+            },
+            NodeOrigin::Generated,
+        ))
     }
 
     /// Create a primitive data definition with parameters.
@@ -261,25 +285,22 @@ impl DataDef {
         params: ParamsId,
         info: impl FnOnce(DataDefId) -> PrimitiveCtorInfo,
     ) -> DataDefId {
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Primitive(info(id)),
+        Node::create_with(|id| {
+            Node::value(
+                DataDef { name, params, ctors: DataDefCtors::Primitive(info(id)) },
+                NodeOrigin::Generated,
+            )
         })
     }
 
     /// Get the single constructor of the given data definition, if it is indeed
     /// a single constructor.
-    pub fn get_single_ctor(&self) -> Option<CtorDef> {
+    pub fn get_single_ctor(&self) -> Option<Node<CtorDef>> {
         match self.borrow().ctors {
-            DataDefCtors::Defined(ctors) => {
-                if ctors.len() == 1 {
-                    Some(ctors.borrow()[0])
-                } else {
-                    None
-                }
-            }
+            DataDefCtors::Defined(ctors) => match ctors.value().at(0) {
+                Some(x) if ctors.value().len() == 1 => Some(x.value()),
+                _ => None,
+            },
             DataDefCtors::Primitive(_) => None,
         }
     }
@@ -297,23 +318,28 @@ impl DataDef {
         let result_args = Arg::seq_from_param_names_as_vars(params);
 
         // Create the data definition
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
-                id,
-                once({
-                    CtorDefData {
-                        // Name of the constructor is the same as the data definition, though we
-                        // need to create a new symbol for it
-                        name: name.duplicate(),
-                        // The constructor is the only one
-                        params: fields_params,
-                        result_args,
-                    }
-                }),
-            )),
+        Node::create_with(|id| {
+            Node::value(
+                DataDef {
+                    name,
+                    params,
+                    ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
+                        id,
+                        once({
+                            CtorDefData {
+                                // Name of the constructor is the same as the data definition,
+                                // though we need to create a new
+                                // symbol for it
+                                name: name.duplicate(),
+                                // The constructor is the only one
+                                params: fields_params,
+                                result_args,
+                            }
+                        }),
+                    )),
+                },
+                NodeOrigin::Generated,
+            )
         })
     }
 
@@ -325,28 +351,33 @@ impl DataDef {
         variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId, Option<ArgsId>)>,
     ) -> DataDefId {
         // Create the data definition for the enum
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
-                id,
-                variants(id)
-                    .into_iter()
-                    .map(|(variant_name, fields_params, result_args)| {
-                        // Create a constructor for each variant
-                        CtorDefData {
-                            name: variant_name,
-                            params: fields_params,
-                            result_args: result_args.unwrap_or_else(|| {
-                                // Create the arguments for the constructor, which are the type
-                                // parameters given.
-                                Arg::seq_from_param_names_as_vars(params)
-                            }),
-                        }
-                    })
-                    .collect_vec(),
-            )),
+        Node::create_with(|id| {
+            Node::value(
+                DataDef {
+                    name,
+                    params,
+                    ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
+                        id,
+                        variants(id)
+                            .into_iter()
+                            .map(|(variant_name, fields_params, result_args)| {
+                                // Create a constructor for each variant
+                                CtorDefData {
+                                    name: variant_name,
+                                    params: fields_params,
+                                    result_args: result_args.unwrap_or_else(|| {
+                                        // Create the arguments for the constructor, which are the
+                                        // type parameters
+                                        // given.
+                                        Arg::seq_from_param_names_as_vars(params)
+                                    }),
+                                }
+                            })
+                            .collect_vec(),
+                    )),
+                },
+                NodeOrigin::Generated,
+            )
         })
     }
 
@@ -388,7 +419,7 @@ pub struct DataTy {
 impl fmt::Display for CtorDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: ", self.name)?;
-        if self.params.len() > 0 {
+        if self.params.value().len() > 0 {
             write!(f, "({}) -> ", self.params)?;
         }
 
@@ -401,13 +432,13 @@ impl fmt::Display for CtorDef {
 
 impl fmt::Display for CtorDefId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
 impl fmt::Display for CtorDefsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for ctor_def in self.iter() {
+        for ctor_def in self.value().iter() {
             writeln!(f, "{}", ctor_def)?;
         }
         Ok(())
@@ -423,7 +454,7 @@ impl Display for CtorTerm {
         write!(f, "{}::", &data_ty)?;
 
         write!(f, "{}", ctor_name)?;
-        if self.ctor_args.len() > 0 {
+        if self.ctor_args.value().len() > 0 {
             write!(f, "({})", self.ctor_args)?;
         }
 
@@ -436,14 +467,14 @@ impl Display for CtorPat {
         let data_def_id = tir_get!(self.ctor, data_def_id);
         let data_def_name = tir_get!(data_def_id, name);
 
-        if data_def_id.borrow().ctors.assert_defined().len() == 1 {
+        if data_def_id.borrow().ctors.assert_defined().value().len() == 1 {
             write!(f, "{data_def_name}")?;
         } else {
             let ctor_name = tir_get!(self.ctor, name);
             write!(f, "{data_def_name}::{}", ctor_name)?;
         }
 
-        if self.ctor_pat_args.len() > 0 || self.ctor_pat_args_spread.is_some() {
+        if self.ctor_pat_args.value().len() > 0 || self.ctor_pat_args_spread.is_some() {
             write!(
                 f,
                 "({})",
@@ -506,7 +537,11 @@ impl Display for DataDef {
             f,
             "datatype [name={}] {} {{\n{}}}",
             self.name,
-            if self.params.len() > 0 { format!("<{}>", self.params) } else { "".to_string() },
+            if self.params.value().len() > 0 {
+                format!("<{}>", self.params)
+            } else {
+                "".to_string()
+            },
             indent(&ctors, "  ")
         )
     }
@@ -514,7 +549,7 @@ impl Display for DataDef {
 
 impl Display for DataDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
@@ -522,7 +557,7 @@ impl Display for DataTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data_def_name = tir_get!(self.data_def, name);
         write!(f, "{}", data_def_name)?;
-        if self.args.len() > 0 {
+        if self.args.value().len() > 0 {
             write!(f, "<{}>", self.args)?;
         }
         Ok(())

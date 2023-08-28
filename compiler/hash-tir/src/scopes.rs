@@ -181,7 +181,7 @@ impl fmt::Display for DeclTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self.value {
             Some(term_id) => {
-                match self.bind_pat.value() {
+                match *self.bind_pat.value() {
                     Pat::Binding(binding_pat) => {
                         match *term_id.value() {
                             // If a function is being declared, print the body, otherwise just

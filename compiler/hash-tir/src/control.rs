@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 use hash_ast::ast::MatchOrigin;
 use hash_storage::{
-    static_sequence_store_direct,
+    static_sequence_store_direct, static_single_store,
     store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
 };
 use textwrap::indent;
@@ -16,8 +16,9 @@ use super::{
     terms::Term,
 };
 use crate::{
-    environment::stores::tir_stores, scopes::BlockTerm, terms::TermId,
-    tir_debug_value_of_sequence_store_element_id,
+    environment::stores::tir_stores, node::Node, scopes::BlockTerm, terms::TermId,
+    tir_debug_name_of_store_id, tir_debug_value_of_sequence_store_element_id,
+    tir_debug_value_of_single_store_id,
 };
 
 /// A loop term.
@@ -28,7 +29,7 @@ use crate::{
 /// which case it is `never`).
 #[derive(Debug, Clone, Copy)]
 pub struct LoopTerm {
-    pub block: BlockTerm,
+    pub block: Node<BlockTerm>,
 }
 
 /// A match term.
@@ -57,11 +58,21 @@ pub struct MatchCase {
     pub value: TermId,
 }
 
-static_sequence_store_direct!(
+static_single_store!(
     store = pub MatchCasesStore,
-    id = pub MatchCasesId[MatchCaseId],
-    value = MatchCase,
+    id = pub MatchCasesId,
+    value = Node<MatchCasesSeqId>,
     store_name = match_cases,
+    store_source = tir_stores()
+);
+
+tir_debug_value_of_single_store_id!(MatchCasesId);
+
+static_sequence_store_direct!(
+    store = pub MatchCasesSeqStore,
+    id = pub MatchCasesSeqId[MatchCaseId],
+    value = Node<MatchCase>,
+    store_name = match_cases_seq,
     store_source = tir_stores()
 );
 
@@ -115,7 +126,7 @@ pub struct OrPat {
 
 impl fmt::Display for LoopTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "loop {}", &self.block)
+        write!(f, "loop {}", &*self.block)
     }
 }
 
@@ -130,7 +141,7 @@ impl fmt::Display for MatchTerm {
 
 impl fmt::Display for MatchCasesId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for case in self.iter() {
+        for case in self.value().iter() {
             write!(f, "{}", case)?;
         }
         Ok(())
@@ -139,7 +150,7 @@ impl fmt::Display for MatchCasesId {
 
 impl fmt::Display for MatchCaseId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
@@ -154,7 +165,7 @@ impl fmt::Display for MatchCase {
 
 impl fmt::Display for ReturnTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if matches!(*self.expression.value(), Term::Tuple(tuple_term) if tuple_term.data.is_empty())
+        if matches!(*self.expression.value(), Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
         {
             write!(f, "return")
         } else {
@@ -181,7 +192,7 @@ impl fmt::Display for IfPat {
 impl fmt::Display for OrPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut first = true;
-        for pat in self.alternatives.iter() {
+        for pat in self.alternatives.value().iter() {
             if !first {
                 write!(f, " | ")?;
             }

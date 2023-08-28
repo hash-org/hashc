@@ -11,6 +11,7 @@ use crate::{
     },
     impl_access_to_env,
     mods::{ModDef, ModDefId, ModKind, ModMember},
+    node::{Node, NodeOrigin},
     symbols::Symbol,
 };
 
@@ -32,8 +33,7 @@ impl<'tc> ModUtils<'tc> {
                 // Create a new module definition.
                 let source_id = module_id.into();
                 let module_name: Identifier = self.source_map().source_name(source_id).into();
-                let mod_def_id = ModDef::create_with(|id| ModDef {
-                    id,
+                let mod_def_id = ModDef::create(ModDef {
                     name: Symbol::from_name(module_name),
                     kind: ModKind::Source(
                         source_id,
@@ -48,7 +48,10 @@ impl<'tc> ModUtils<'tc> {
                                 .into_boxed_path(),
                         ),
                     ),
-                    members: ModMember::empty_seq(),
+                    members: Node::create_value(
+                        Node::<ModMember>::empty_seq(),
+                        NodeOrigin::Generated,
+                    ),
                 });
                 tir_stores().ast_info().mod_defs().insert(source_node_id, mod_def_id);
                 mod_def_id
