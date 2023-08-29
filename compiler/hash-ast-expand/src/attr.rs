@@ -41,6 +41,11 @@ impl AstExpander<'_> {
         node: ast::AstNodeRef<ast::MacroInvocations>,
         subject: AttrNode<'_>,
     ) {
+        // If no attributes are present, return early...
+        if node.invocations.is_empty() {
+            return;
+        }
+
         // If the macro invocation is correct, then we can append
         // all of the attributes that are being applied onto the
         // the target.

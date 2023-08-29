@@ -349,6 +349,17 @@ impl<T> AstNodes<T> {
         SpanMap::span_of(self.id)
     }
 
+    /// Merge two [AstNodes] together, this will append the nodes of the
+    /// other [AstNodes] to this one, and then return the new [AstNodes].
+    ///
+    /// **Note** this will automatically update the [Span] of this node
+    /// by extending it with the span of the other node.
+    pub fn merge(&mut self, other: Self) {
+        self.set_span(self.span().join(other.span()));
+        self.nodes.extend(other.nodes);
+    }
+
+    /// Iterate over each child whilst wrapping it in a [AstNodeRef].
     pub fn ast_ref_iter(&self) -> impl Iterator<Item = AstNodeRef<T>> {
         self.nodes.iter().map(|x| x.ast_ref())
     }
@@ -2177,6 +2188,13 @@ define_tree! {
         /// The contents of the module, as a list of expressions terminated with a
         /// semi-colon.
         pub contents: Children!(Expr),
+
+        /// Any kind of top level invocations of macros and applications of attributes, i.e.
+        ///
+        /// ```ignore
+        /// #![feature(some_cool_feat)]
+        /// ```
+        pub macros: Child!(MacroInvocations),
     }
 }
 

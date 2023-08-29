@@ -63,7 +63,7 @@ impl AstVisitorMutSelf for AstExpander<'_> {
 
     ast_visitor_mut_self_default_impl!(hiding:
         ExprMacroInvocation, TyMacroInvocation, PatMacroInvocation,
-        ExprArg, TyArg, PatArg, EnumDefEntry, Param, MatchCase
+        ExprArg, TyArg, PatArg, EnumDefEntry, Param, MatchCase, Module
     );
 
     type ExprMacroInvocationRet = ();
@@ -191,6 +191,20 @@ impl AstVisitorMutSelf for AstExpander<'_> {
             self.check_macro_invocations(macros.ast_ref(), target);
         }
         walk_mut_self::walk_expr_arg(self, node)?;
+        Ok(())
+    }
+
+    type ModuleRet = ();
+
+    fn visit_module(
+        &mut self,
+        node: ast::AstNodeRef<ast::Module>,
+    ) -> Result<Self::ModuleRet, Self::Error> {
+        let target = AttrNode::Module(node);
+        self.check_macro_invocations(node.macros.ast_ref(), target);
+
+        // We don't walk the module because this is handled by the
+        // expander walking each expression in the module.
         Ok(())
     }
 

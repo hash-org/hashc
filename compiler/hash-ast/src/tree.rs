@@ -1135,8 +1135,14 @@ impl AstVisitor for AstTreeGenerator {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let walk::Module { contents } = walk::walk_module(self, node)?;
-        Ok(TreeNode::branch("module", contents))
+        let walk::Module { contents, macros } = walk::walk_module(self, node)?;
+        let children = if !macros.children.is_empty() {
+            vec![TreeNode::branch("contents", contents), macros]
+        } else {
+            contents
+        };
+
+        Ok(TreeNode::branch("module", children))
     }
 
     type MacroInvocationRet = TreeNode;

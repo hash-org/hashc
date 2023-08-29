@@ -205,7 +205,7 @@ pub enum AttrNode<'ast> {
     /// A enum definition variant.
     EnumVariant(ast::AstNodeRef<'ast, ast::EnumDefEntry>),
 
-    /// A module definition.
+    /// A `mod` definition.
     Mod(ast::AstNodeRef<'ast, ast::ModDef>),
 
     /// A match case.
@@ -228,6 +228,9 @@ pub enum AttrNode<'ast> {
 
     /// A type argument.
     TyArg(ast::AstNodeRef<'ast, ast::TyArg>),
+
+    /// A module.
+    Module(ast::AstNodeRef<'ast, ast::Module>),
 }
 
 impl<'ast> AttrNode<'ast> {
@@ -270,6 +273,7 @@ impl<'ast> AttrNode<'ast> {
             AttrNode::PatArg(_) => AttrTarget::PatArg,
             AttrNode::Ty(_) => AttrTarget::Ty,
             AttrNode::TyArg(_) => AttrTarget::TyArg,
+            AttrNode::Module(_) => AttrTarget::Mod,
         }
     }
 
@@ -289,6 +293,7 @@ impl<'ast> AttrNode<'ast> {
             AttrNode::Ty(ty) => ty.id(),
             AttrNode::TyArg(ty_arg) => ty_arg.id(),
             AttrNode::PatArg(pat_arg) => pat_arg.id(),
+            AttrNode::Module(module) => module.id(),
         }
     }
 }

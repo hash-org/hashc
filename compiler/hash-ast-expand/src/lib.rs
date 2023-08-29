@@ -93,6 +93,11 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
                     continue;
                 }
 
+                // Check the module for any module-level invocations.
+                let mut expander = AstExpander::new(source_id, data_layout);
+                expander.visit_module(module.node().ast_ref()).unwrap();
+                expander.emit_diagnostics_to(&sender);
+
                 for expr in module.node().contents.iter() {
                     let sender = sender.clone();
                     scope.spawn(move |_| {

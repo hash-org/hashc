@@ -629,21 +629,47 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_module(&mut self) -> AstNode<Module> {
         let start = self.current_pos();
         let mut contents = thin_vec![];
+        let mut macros = AstNodes::new(thin_vec![], self.make_span(start));
 
         while self.has_token() {
-            match self.parse_top_level_expr() {
-                Ok(Some((_, expr))) => contents.push(expr),
-                Ok(_) => continue,
-                Err(err) => {
-                    // @@Future: attempt error recovery here...
-                    self.add_error(err);
-                    break;
+            // Check if we have a `#!` which represents a top-level
+            // macro invocation.
+            match (self.peek(), self.peek_second()) {
+                (
+                    Some(Token { kind: TokenKind::Pound, .. }),
+                    Some(Token { kind: TokenKind::Exclamation, .. }),
+                ) => {
+                    self.offset.set(self.offset.get() + 2);
+
+                    match self.parse_module_marco_invocations() {
+                        Ok(items) => macros.merge(items),
+                        Err(err) => {
+                            self.add_error(err);
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    match self.parse_top_level_expr() {
+                        Ok(Some((_, expr))) => contents.push(expr),
+                        Ok(_) => continue,
+                        Err(err) => {
+                            // @@Future: attempt error recovery here...
+                            self.add_error(err);
+                            break;
+                        }
+                    }
                 }
             }
         }
 
-        let span = start.join(self.current_pos());
-        self.node_with_span(Module { contents: self.nodes_with_joined_span(contents, span) }, span)
+        self.node_with_joined_span(
+            Module {
+                contents: self.nodes_with_joined_span(contents, start),
+                macros: self.make_macro_invocations(macros),
+            },
+            start,
+        )
     }
 
     /// This function is used to exclusively parse a interactive block which
