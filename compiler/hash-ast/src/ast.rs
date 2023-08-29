@@ -567,7 +567,7 @@ define_tree! {
     #[node]
     pub struct TupleTy {
         /// inner types of the tuple type
-        pub entries: Child!(TyParams),
+        pub entries: Child!(Params),
     }
 
     /// Array type, , e.g. `[T]`, `[T; N]`.
@@ -587,7 +587,7 @@ define_tree! {
     #[node]
     pub struct FnTy {
         /// Any defined parameters for the function type
-        pub params: Child!(TyParams),
+        pub params: Child!(Params),
 
         /// Optional return type
         pub return_ty: Child!(Ty),
@@ -1417,7 +1417,7 @@ define_tree! {
         pub ty_params: OptionalChild!(TyParams),
 
         /// The fields of the struct, in the form of [Param].
-        pub fields: Children!(Param),
+        pub fields: Child!(Params),
     }
 
     /// A variant of an enum definition, e.g. `Some(T)`.
@@ -1428,7 +1428,7 @@ define_tree! {
         pub name: Child!(Name),
 
         /// The parameters of the enum variant, if any.
-        pub fields: Children!(Param),
+        pub fields: OptionalChild!(Params),
 
         /// The type of the enum variant, if any.
         pub ty: OptionalChild!(Ty),
@@ -1756,21 +1756,28 @@ define_tree! {
         }
     }
 
+    /// A parameter list, e.g. `(a: i32, b := 'c')`.
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct Params {
+        /// The parameters.
+        pub params: Children!(Param),
+
+        /// The origin of the type parameters.
+        pub origin: ParamOrigin,
+    }
+
     /// This enum describes the origin kind of the subject that a parameter
     /// unification occurred on.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ParamOrigin {
-        /// If at the current time, it's not known the origin of the parameter list,
-        /// the function will default to using this.
-        Unknown,
-
-        /// Parameters came from a tuple
+        /// Parameters came from a tuple expression or a tuple type.
         Tuple,
 
         /// Parameters came from a struct
         Struct,
 
-        /// Parameters came from a function definition
+        /// Parameters came from a function definition or a function type.
         Fn,
 
         /// Parameters came from a function call
@@ -1778,35 +1785,23 @@ define_tree! {
 
         /// Parameters came from an enum variant initialisation
         EnumVariant,
-
-        /// Array pattern parameters, the parameters are all the same, but it's
-        /// used to represent the inner terms of the array pattern since spread
-        /// patterns may become named parameters.
-        ArrayPat,
-
-        /// Module pattern
-        ModulePat,
-
-        /// Constructor pattern, although this is likely to be erased into a
-        /// [`ParamOrigin::Struct`] or [`ParamOrigin::EnumVariant`] when inspected.
-        ConstructorPat,
     }
 
     impl ParamOrigin {
+        pub fn is_item_def(&self) -> bool {
+            matches!(self, ParamOrigin::Fn | ParamOrigin::EnumVariant)
+        }
+
         /// Get the name of the `field` that the [ParamOrigin] refers to.
         /// In other words, what is the name for the parameters that are
         /// associated with the [ParamOrigin].
         pub fn field_name(&self) -> &'static str {
             match self {
-                ParamOrigin::Unknown => "field",
-                ParamOrigin::Tuple => "field",
-                ParamOrigin::Struct => "field",
                 ParamOrigin::Fn => "parameter",
                 ParamOrigin::FnCall => "argument",
+                ParamOrigin::Tuple |
+                ParamOrigin::Struct |
                 ParamOrigin::EnumVariant => "field",
-                ParamOrigin::ArrayPat => "element",
-                ParamOrigin::ModulePat => "field",
-                ParamOrigin::ConstructorPat => "field",
             }
         }
     }
@@ -1814,14 +1809,10 @@ define_tree! {
     impl Display for ParamOrigin {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                ParamOrigin::Unknown => write!(f, "unknown"),
                 ParamOrigin::Tuple => write!(f, "tuple"),
                 ParamOrigin::Struct => write!(f, "struct"),
                 ParamOrigin::Fn | ParamOrigin::FnCall => write!(f, "function"),
                 ParamOrigin::EnumVariant => write!(f, "enum variant"),
-                ParamOrigin::ArrayPat => write!(f, "list pattern"),
-                ParamOrigin::ModulePat => write!(f, "module pattern"),
-                ParamOrigin::ConstructorPat => write!(f, "constructor pattern"),
             }
         }
     }
@@ -1842,10 +1833,6 @@ define_tree! {
         /// which means that they can be specified by putting the name of the
         /// argument.
         pub default: OptionalChild!(Expr),
-
-        /// The origin of the parameter, whether it is from a struct field, function
-        /// def, type function def, etc.
-        pub origin: ParamOrigin,
 
         /// Any macros are invoked on the parameter.
         pub macros: OptionalChild!(MacroInvocations),
@@ -1905,12 +1892,6 @@ define_tree! {
 
         /// The definition is a `mod` block.
         Mod,
-
-        /// Funtion type.
-        FnTy,
-
-        /// Tuple type.
-        TupleTy,
     }
 
     impl TyParamOrigin {
@@ -1923,15 +1904,7 @@ define_tree! {
                 TyParamOrigin::Trait => "trait",
                 TyParamOrigin::Impl => "impl",
                 TyParamOrigin::Mod => "mod",
-                TyParamOrigin::FnTy => "function type",
-                TyParamOrigin::TupleTy => "tuple type",
             }
-        }
-
-        /// Whether the origin is either a [TyParamOrigin::TupleTy] or
-        /// [TyParamOrigin::FnTy].
-        pub fn is_fn_or_tuple_ty(&self) -> bool {
-            matches!(self, TyParamOrigin::TupleTy | TyParamOrigin::FnTy)
         }
     }
 
@@ -1940,11 +1913,13 @@ define_tree! {
     #[node]
     pub struct FnDef {
         /// The parameters of the function definition.
-        pub params: Children!(Param),
+        pub params: Child!(Params),
+
         /// The return type of the function definition.
         ///
         /// Will be inferred if [None].
         pub return_ty: OptionalChild!(Ty),
+
         /// The body/contents of the function, in the form of an expression.
         pub fn_body: Child!(Expr),
     }

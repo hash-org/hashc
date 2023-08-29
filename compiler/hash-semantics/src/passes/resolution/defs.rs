@@ -9,7 +9,7 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
-    data::{CtorDefId, DataDefCtors},
+    data::DataDefCtors,
     environment::{env::AccessToEnv, stores::tir_stores},
     mods::{ModDefId, ModMemberValue},
     tys::Ty,
@@ -74,17 +74,6 @@ impl<'tc> ResolutionPass<'tc> {
                         ));
                     }
 
-                    // Struct variant
-                    let struct_ctor =
-                        match data_def_id.borrow().ctors {
-                            DataDefCtors::Defined(id) => {
-                                // There should only be one variant
-                                assert!(id.len() == 1);
-                                CtorDefId(id, 0)
-                            },
-                            DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
-                        };
-
                     self.scoping().enter_scope(
                         ContextKind::Environment,
                         || {
@@ -92,7 +81,6 @@ impl<'tc> ResolutionPass<'tc> {
                             attempt(self.resolve_params_from_ast_params(
                                 &struct_def.fields,
                                 false,
-                                struct_ctor.into(),
                             ));
                         },
                     );
@@ -118,18 +106,12 @@ impl<'tc> ResolutionPass<'tc> {
                             ContextKind::Environment,
                             || {
                                 // Variant fields
-                                attempt(self.resolve_params_from_ast_params(
-                                    &variant.fields,
-                                    false,
-                                    CtorDefId(data_def_ctors, i).into(),
-                                ));
-
-                                // Variant type
-                                attempt(self.resolve_params_from_ast_params(
-                                    &variant.fields,
-                                    false,
-                                    CtorDefId(data_def_ctors, i).into(),
-                                ));
+                                if let Some(fields) = &variant.fields {
+                                    attempt(self.resolve_params_from_ast_params(
+                                        fields,
+                                        false,
+                                    ));
+                                }
 
                                 // Variant indices
                                 if let Some(variant_ty) = variant.ty.as_ref() {

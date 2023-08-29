@@ -10,7 +10,7 @@ use hash_tir::{
     args::{ArgsId, PatArgsId},
     environment::stores::tir_stores,
     fns::FnCallTerm,
-    params::{Param, ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
+    params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
     terms::{Term, TermId},
     tys::Ty,
@@ -211,14 +211,13 @@ impl<'tc> ResolutionPass<'tc> {
     /// discovery, and are set in the AST info store.
     pub(super) fn resolve_params_from_ast_params(
         &self,
-        params: &ast::AstNodes<ast::Param>,
+        node: &ast::AstNode<ast::Params>,
         implicit: bool,
-        _origin: ParamOrigin,
     ) -> SemanticResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
 
-        for ast_param in params.ast_ref_iter() {
+        for ast_param in node.params.ast_ref_iter() {
             let param_id =
                 self.try_or_add_error(self.resolve_param_from_ast_param(ast_param, implicit));
             match param_id {

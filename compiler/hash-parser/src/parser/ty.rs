@@ -196,7 +196,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.offset.update(|offset| offset + 2);
                     let return_ty = self.parse_ty()?;
 
-                    let param = self.node_with_span(TyParam {
+                    let param = self.node_with_span(Param {
                         name: None,
                         default: None,
                         ty: Some(self.node_with_joined_span(ty, span)),
@@ -208,7 +208,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     }, span);
 
                     Ty::Fn(FnTy {
-                        params: self.make_ty_params(self.nodes_with_span(thin_vec![param], span), TyParamOrigin::TyFn),
+                        params: self.make_params(self.nodes_with_span(thin_vec![param], span), ParamOrigin::Fn),
                         return_ty,
                     })
                 }
@@ -335,7 +335,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // If there is an arrow '=>', then this must be a function type
         match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
             Some(_) => {
-                let params = self.make_ty_params(params, TyParamOrigin::TupleTy);
+                let params = self.make_params(params, ParamOrigin::Tuple);
                 // Parse the return type here, and then give the function name
                 Ok(Ty::Fn(FnTy { params, return_ty: self.parse_ty()? }))
             }
@@ -347,7 +347,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     return Ok(field.ty.unwrap().into_body());
                 }
 
-                let params = self.make_ty_params(params, TyParamOrigin::FnTy);
+                let params = self.make_params(params, ParamOrigin::Fn);
                 Ok(Ty::Tuple(TupleTy { entries: params }))
             }
         }
@@ -452,7 +452,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// This is only inteded for parameters that appear in function and tuple
     /// types. The other more broad function [`Self::parse_ty_param()`]  is for
     /// parsing type parameters with default values too,
-    fn parse_ty_tuple_or_fn_param(&mut self) -> ParseResult<AstNode<TyParam>> {
+    fn parse_ty_tuple_or_fn_param(&mut self) -> ParseResult<AstNode<Param>> {
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
         let start = self.current_pos();
 
@@ -472,7 +472,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => (None, Some(self.parse_ty()?)),
         };
 
-        Ok(self.node_with_joined_span(TyParam { name, ty, default: None, macros }, start))
+        Ok(self.node_with_joined_span(Param { name, ty, default: None, macros }, start))
     }
 
     /// Parse a [TyParam] which consists the name of the parameter, optional

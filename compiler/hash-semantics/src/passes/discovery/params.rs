@@ -37,8 +37,15 @@ impl<'tc> DiscoveryPass<'tc> {
 
     /// Create a parameter list from the given AST parameter list, where the
     /// type of each parameter is a hole.
-    pub(super) fn create_hole_params(&self, params: &ast::AstNodes<ast::Param>) -> ParamsId {
-        self.create_hole_params_from(params, |param| &param.name)
+    pub(super) fn create_hole_params_from_params(
+        &self,
+        node: Option<&ast::AstNode<ast::Params>>,
+    ) -> ParamsId {
+        if let Some(params) = node {
+            self.create_hole_params_from(&params.params, |param| &param.name)
+        } else {
+            Param::empty_seq()
+        }
     }
 
     /// Create a parameter list from the given AST parameter list, where the

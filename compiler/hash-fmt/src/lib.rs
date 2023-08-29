@@ -9,7 +9,7 @@ mod state;
 use collection::CollectionPrintingOptions;
 use config::AstPrintingConfig;
 use hash_ast::{
-    ast::{self, walk_mut_self, AstVisitorMutSelf},
+    ast::{self, walk_mut_self, AstVisitorMutSelf, ParamOrigin},
     ast_visitor_mut_self_default_impl,
 };
 use hash_source::constant::{IntConstant, CONSTANT_MAP};
@@ -176,9 +176,8 @@ where
 
         self.visit_name(name.ast_ref())?;
 
-        if fields.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-            self.print_separated_collection(fields, opts, |this, field| this.visit_param(field))?;
+        if let Some(params) = fields {
+            self.visit_params(params.ast_ref())?;
         }
 
         if let Some(ty) = ty {
@@ -371,12 +370,7 @@ where
             self.visit_ty_params(ty_params.ast_ref())?;
         }
 
-        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        opts.indented();
-
-        self.print_separated_collection(fields, opts, |this, field| this.visit_param(field))?;
-
-        Ok(())
+        self.visit_params(fields.ast_ref())
     }
 
     type PropertyKindRet = ();
@@ -398,7 +392,7 @@ where
         node: ast::AstNodeRef<ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         let ast::TupleTy { entries } = node.body();
-        self.visit_ty_params(entries.ast_ref())
+        self.visit_params(entries.ast_ref())
     }
 
     type ContinueStatementRet = ();
@@ -478,6 +472,28 @@ where
         self.write(")")
     }
 
+    type ParamsRet = ();
+    fn visit_params(
+        &mut self,
+        node: ast::AstNodeRef<ast::Params>,
+    ) -> Result<Self::TyParamsRet, Self::Error> {
+        let ast::Params { params, origin } = node.body();
+
+        // Return early if no params are specified.
+        if params.is_empty() {
+            return Ok(());
+        }
+
+        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
+
+        // @@HardCoded: Struct definition fields are indented.
+        if *origin == ParamOrigin::Struct {
+            opts.indented();
+        }
+
+        self.print_separated_collection(params, opts, |this, param| this.visit_param(param))
+    }
+
     type ParamRet = ();
 
     fn visit_param(
@@ -539,21 +555,15 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::TyParams>,
     ) -> Result<Self::TyParamsRet, Self::Error> {
-        let ast::TyParams { params, origin } = node.body();
+        let ast::TyParams { params, .. } = node.body();
 
         // Return early if no params are specified.
         if params.is_empty() {
             return Ok(());
         }
 
-        let delimiter = if matches!(origin, ast::TyParamOrigin::FnTy | ast::TyParamOrigin::TupleTy)
-        {
-            Delimiter::Paren
-        } else {
-            Delimiter::Angle
-        };
+        let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
 
-        let opts = CollectionPrintingOptions::delimited(delimiter, ", ");
         self.print_separated_collection(params, opts, |this, param| this.visit_ty_param(param))
     }
 
@@ -802,8 +812,7 @@ where
     ) -> Result<Self::FnDefRet, Self::Error> {
         let ast::FnDef { params, return_ty, fn_body } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(params, opts, |this, param| this.visit_param(param))?;
+        self.visit_params(params.ast_ref())?;
 
         if let Some(return_ty) = return_ty {
             self.write(" -> ")?;
@@ -845,8 +854,7 @@ where
     ) -> Result<Self::FnTyRet, Self::Error> {
         let ast::FnTy { params, return_ty } = node.body();
 
-        self.visit_ty_params(params.ast_ref())?;
-
+        self.visit_params(params.ast_ref())?;
         self.write(" -> ")?;
         self.visit_ty(return_ty.ast_ref())
     }

@@ -56,7 +56,7 @@ use crate::{
 
 pub enum AstParams<'ast> {
     Ty(&'ast ast::AstNode<ast::TyParams>),
-    Param(&'ast ast::AstNodes<ast::Param>),
+    Param(&'ast ast::AstNode<ast::Params>),
 }
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
@@ -819,11 +819,9 @@ impl<'tc> ResolutionPass<'tc> {
                 // First resolve the parameters
                 let params = self.try_or_add_error(match params {
                     AstParams::Ty(params) => self.resolve_params_from_ast_ty_params(params),
-                    AstParams::Param(params) => self.resolve_params_from_ast_params(
-                        params,
-                        fn_def_id.borrow().ty.implicit,
-                        fn_def_id.into(),
-                    ),
+                    AstParams::Param(params) => {
+                        self.resolve_params_from_ast_params(params, fn_def_id.borrow().ty.implicit)
+                    }
                 });
 
                 // Modify the existing fn def for the params:

@@ -225,7 +225,7 @@ impl<'tc> ResolutionPass<'tc> {
             self.make_ty_from_ast_ty(params[0].ty.as_ref().unwrap().ast_ref())
         } else {
             self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
-                tuple_ty.data = self.resolve_params_from_ast_ty_params(&node.entries)?;
+                tuple_ty.data = self.resolve_params_from_ast_params(&node.entries, false)?;
                 Ok(Ty::from(tuple_ty))
             })
         }
@@ -308,7 +308,7 @@ impl<'tc> ResolutionPass<'tc> {
         self.scoping().enter_fn_ty(node, |mut fn_ty| {
             // First, make the params
             let params =
-                self.try_or_add_error(self.resolve_params_from_ast_ty_params(&node.params));
+                self.try_or_add_error(self.resolve_params_from_ast_params(&node.params, false));
 
             // Add the params if they exist
             if let Some(params) = params {

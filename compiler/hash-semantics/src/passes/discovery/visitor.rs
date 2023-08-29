@@ -193,7 +193,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let struct_def_id = DataDef::struct_def(
             struct_name,
             self.create_hole_params_from_ty_params(node.ty_params.as_ref()),
-            self.create_hole_params(&node.fields),
+            self.create_hole_params_from_params(Some(&node.fields)),
         );
 
         // Traverse the struct; note that the fields have already been created, they
@@ -221,7 +221,11 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 node.entries
                     .iter()
                     .map(|variant| {
-                        (sym(variant.name.ident), self.create_hole_params(&variant.fields), None)
+                        (
+                            sym(variant.name.ident),
+                            self.create_hole_params_from_params(variant.fields.as_ref()),
+                            None,
+                        )
                     })
                     .collect_vec()
             },
@@ -246,7 +250,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             ty: FnTy {
                 implicit: false,
                 is_unsafe: false,
-                params: self.create_hole_params(&node.params),
+                params: self.create_hole_params_from_params(Some(&node.params)),
                 pure: false,
                 return_ty: Ty::hole(),
             },
@@ -351,7 +355,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_ty_id = Ty::from(FnTy {
             implicit: false,
             is_unsafe: false,
-            params: self.create_hole_params_from_ty_params(Some(&node.params)),
+            params: self.create_hole_params_from_params(Some(&node.params)),
             pure: false,
             return_ty: Ty::hole(),
         });
@@ -369,7 +373,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     ) -> Result<Self::TupleTyRet, Self::Error> {
         // This will be filled in during resolution
         let tuple_ty_id =
-            Ty::from(TupleTy { data: self.create_hole_params_from_ty_params(Some(&node.entries)) });
+            Ty::from(TupleTy { data: self.create_hole_params_from_params(Some(&node.entries)) });
 
         // Traverse the tuple body
         self.enter_item(node, tuple_ty_id, || walk::walk_tuple_ty(self, node))?;

@@ -501,11 +501,20 @@ impl AstVisitor for AstTreeGenerator {
 
         Ok(TreeNode::branch(
             "function_def",
-            iter::once(TreeNode::branch("params", params))
+            iter::once(params)
                 .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
                 .chain(iter::once(fn_body))
                 .collect(),
         ))
+    }
+
+    type ParamsRet = TreeNode;
+    fn visit_params(
+        &self,
+        node: ast::AstNodeRef<ast::Params>,
+    ) -> Result<Self::TyParamsRet, Self::Error> {
+        let walk::Params { params } = walk::walk_params(self, node)?;
+        Ok(TreeNode::branch(format!("{}s", node.origin.field_name()), params))
     }
 
     type ParamRet = TreeNode;
@@ -860,7 +869,6 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::StructDefRet, Self::Error> {
         let walk::StructDef { fields, ty_params } = walk::walk_struct_def(self, node)?;
 
-        let fields = TreeNode::branch("fields", fields);
         let children = {
             if let Some(ty_params) = ty_params && !ty_params.children.is_empty() {
                 vec![ty_params, fields]
@@ -879,19 +887,12 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         let walk::EnumDefEntry { name, fields, ty, macros } =
             walk::walk_enum_def_entry(self, node)?;
-        let mut children = Vec::new();
 
-        if !fields.is_empty() {
-            children.push(TreeNode::branch("fields", fields))
-        }
-
-        if let Some(ty) = ty {
-            children.push(TreeNode::branch("type", vec![ty]))
-        }
-
-        if let Some(macros) = macros {
-            children.push(macros)
-        }
+        let children = iter::once(TreeNode::leaf("variant"))
+            .chain(macros)
+            .chain(fields)
+            .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
+            .collect_vec();
 
         Ok(TreeNode::branch(labelled("variant", name.label, "\""), children))
     }
