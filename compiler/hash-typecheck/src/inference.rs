@@ -4,7 +4,7 @@ use std::{cell::Cell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
-use hash_attrs::attr::attr_store;
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::diagnostic::{Diagnostics, ErrorState};
@@ -798,7 +798,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn potentially_run_expr(&self, expr: TermId, term_ty: TyId) -> TcResult<()> {
         if self.should_monomorphise() {
             let has_run_directive = if let Some(id) = expr.node_id() {
-                attr_store().node_has_attr(id, IDENTS.run)
+                attr_store().node_has_attr(id, attrs::RUN)
             } else {
                 false
             };
@@ -911,7 +911,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // check if on item if it has `entry_point`
         let has_entry_point_attr =
-            attr_store().node_has_attr(fn_def_id.node_id_or_default(), IDENTS.entry_point);
+            attr_store().node_has_attr(fn_def_id.node_id_or_default(), attrs::ENTRY_POINT);
 
         let entry_point = if has_entry_point_attr {
             Some(EntryPointKind::Named(fn_def_name))
@@ -1891,7 +1891,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// applied on it.
     pub fn potentially_dump_tir(&self, target: impl ToString + HasNodeId) {
         let has_dump_dir = if let Some(id) = target.node_id() {
-            attr_store().node_has_attr(id, IDENTS.dump_tir)
+            attr_store().node_has_attr(id, attrs::DUMP_TIR)
         } else {
             false
         };

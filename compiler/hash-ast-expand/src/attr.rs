@@ -81,7 +81,7 @@ impl AstExpander<'_> {
             if !matches {
                 self.diagnostics.add_error(ExpansionError::new(
                     ExpansionErrorKind::InvalidAttributeArgTy {
-                        name: attr.name,
+                        name: attr.id.name(),
                         target,
                         value,
                         ty: param_ty,
@@ -128,7 +128,7 @@ impl AstExpander<'_> {
         // Try to look this up in the ATTR_MAP
         if let Some(attr_id) = ATTR_MAP.get_id_by_name(macro_name) {
             let attr_ty = ATTR_MAP.get(attr_id);
-            let mut attr = Attr::new(macro_name, node.id());
+            let mut attr = Attr::new(attr_id, node.id());
             let mut is_valid = true;
 
             // We have to build the arguments to the macro invocation

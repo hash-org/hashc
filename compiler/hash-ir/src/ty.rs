@@ -10,10 +10,14 @@ use std::{
 };
 
 use hash_ast::ast;
-use hash_attrs::attr::{attr_store, Attr, ReprAttr};
+use hash_attrs::{
+    attr::{attr_store, Attr, ReprAttr},
+    builtin::attrs,
+    ty::AttrId,
+};
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
-    identifier::{Identifier, IDENTS},
+    identifier::Identifier,
     SourceId,
 };
 use hash_storage::{
@@ -147,7 +151,7 @@ impl Instance {
     }
 
     /// Check if this instance has an attribute.
-    pub fn has_attr(&self, attr: Identifier) -> bool {
+    pub fn has_attr(&self, attr: AttrId) -> bool {
         attr_store().node_has_attr(self.attr_id, attr)
     }
 
@@ -898,7 +902,7 @@ impl Adt {
         attr_store().map_with_default(origin, |attrs| {
             // If we have a representation hint, we update the repr flags
             // on this ADT accordingly...
-            if let Some(repr_hint) = attrs.get_attr(IDENTS.repr) {
+            if let Some(repr_hint) = attrs.get_attr(attrs::REPR) {
                 self.metadata = AdtRepresentation::from_attr(repr_hint, ctx);
             }
         })
@@ -1056,7 +1060,7 @@ pub struct AdtRepresentation {
 impl AdtRepresentation {
     /// Parse a [AdtRepresentation] from an [Attr].
     fn from_attr<C: HasDataLayout>(attr: &Attr, ctx: &C) -> Self {
-        debug_assert!(attr.name == IDENTS.repr);
+        debug_assert!(attr.id == attrs::REPR);
 
         let parsed = ReprAttr::parse(attr, ctx).unwrap();
         let mut represention = AdtRepresentation::default();

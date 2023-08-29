@@ -1,11 +1,12 @@
 //! Implementation of attribute checking for specific attributes.
 //!
 //!  
-use hash_source::{identifier::IDENTS, SourceId};
+use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
 
 use crate::{
     attr::{Attr, Attrs, ReprAttr},
+    builtin::attrs,
     diagnostics::{AttrError, AttrResult, AttrWarning},
     target::{AttrNode, AttrTarget},
 };
@@ -37,10 +38,10 @@ impl<'env> AttrChecker<'env> {
 
     /// Check that adding an attribute with the current context is valid.
     pub fn check_attr(&mut self, attrs: &Attrs, attr: &Attr, node: AttrNode<'_>) -> AttrResult {
-        match attr.name {
-            n if n == IDENTS.intrinsics => self.check_intrinsics_attr(attrs, attr, node)?,
-            n if n == IDENTS.repr => self.check_repr_attr(attrs, attr, node)?,
-            n if n == IDENTS.layout_of => self.check_layout_of_attr(attrs, attr, node)?,
+        match attr.id {
+            attrs::INTRINSICS => self.check_intrinsics_attr(attrs, attr, node)?,
+            attrs::REPR => self.check_repr_attr(attrs, attr, node)?,
+            attrs::LAYOUT_OF => self.check_layout_of_attr(attrs, attr, node)?,
             _ => {
                 // By default, check if we are trying to apply the attribute twice.
                 self.check_duplicate_attr(attrs, attr)?;
@@ -54,7 +55,7 @@ impl<'env> AttrChecker<'env> {
     /// applied has already been registered. This is only a warning because
     /// attributes that introduce a "conflict" produce an error.
     pub fn check_duplicate_attr(&mut self, attrs: &Attrs, attr: &Attr) -> AttrResult {
-        if let Some(prev) = attrs.get_attr(attr.name) {
+        if let Some(prev) = attrs.get_attr(attr.id) {
             self.warnings
                 .push(AttrWarning::Unused { origin: attr.origin, preceeding: prev.origin });
         }
@@ -111,7 +112,7 @@ impl<'env> AttrChecker<'env> {
 
         // Check if we have a conflicting representation argument with a previously
         // applied representation argument.
-        if let Some(prev) = attrs.get_attr(attr.name) {
+        if let Some(prev) = attrs.get_attr(attr.id) {
             // @@Improve: we're re-parsing the repr attribute here, which is
             // wasteful!.
             let prev_repr = ReprAttr::parse(prev, self.data_layout).unwrap();

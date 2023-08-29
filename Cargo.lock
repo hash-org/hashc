@@ -462,6 +462,7 @@ dependencies = [
  "hash-target",
  "hash-tir",
  "hash-utils",
+ "paste",
 ]
 
 [[package]]
@@ -484,6 +485,7 @@ version = "0.1.0"
 dependencies = [
  "fixedbitset",
  "hash-abi",
+ "hash-attrs",
  "hash-ir",
  "hash-layout",
  "hash-pipeline",
@@ -508,6 +510,7 @@ dependencies = [
 name = "hash-codegen-llvm"
 version = "0.1.0"
 dependencies = [
+ "hash-attrs",
  "hash-codegen",
  "hash-ir",
  "hash-pipeline",
@@ -1250,6 +1253,12 @@ dependencies = [
  "smallvec",
  "windows-targets",
 ]
+
+[[package]]
+name = "paste"
+version = "1.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pin-project-lite"

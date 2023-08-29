@@ -12,7 +12,7 @@ mod temp;
 mod ty;
 mod utils;
 
-use hash_attrs::attr::attr_store;
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{
     ir::{
@@ -21,7 +21,7 @@ use hash_ir::{
     },
     ty::{IrTy, Mutability},
 };
-use hash_source::identifier::{Identifier, IDENTS};
+use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
@@ -252,7 +252,7 @@ impl<'ctx> BodyBuilder<'ctx> {
         );
 
         // If the body needs to be dumped, then we mark it as such.
-        if attr_store().node_has_attr(span, IDENTS.dump_ir) {
+        if attr_store().node_has_attr(span, attrs::DUMP_IR) {
             body.mark_to_dump()
         }
 

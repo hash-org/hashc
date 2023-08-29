@@ -13,7 +13,10 @@ use hash_target::{abi::Integer, data_layout::HasDataLayout, primitives::IntTy};
 use hash_tir::params::ParamIndex;
 use hash_utils::{fxhash::FxHashMap, lazy_static::lazy_static};
 
-use crate::diagnostics::{AttrError, AttrResult};
+use crate::{
+    diagnostics::{AttrError, AttrResult},
+    ty::AttrId,
+};
 
 /// Valid `#[repr(...)]` options, ideally we should be able to just generate
 /// this in the macro.
@@ -59,7 +62,7 @@ impl ReprAttr {
 #[derive(Debug, Clone)]
 pub struct Attr {
     /// The name of the attribute.
-    pub name: Identifier,
+    pub id: AttrId,
 
     /// The origin of the attribute.
     pub origin: AstNodeId,
@@ -70,17 +73,17 @@ pub struct Attr {
 
 impl Attr {
     /// Create a new attribute without arguments.
-    pub fn new(name: Identifier, origin: AstNodeId) -> Self {
-        Self { name, origin, args: FxHashMap::default() }
+    pub fn new(id: AttrId, origin: AstNodeId) -> Self {
+        Self { id, origin, args: FxHashMap::default() }
     }
 
     /// Create a new attribute with arguments.
     pub fn with_args(
-        name: Identifier,
+        id: AttrId,
         origin: AstNodeId,
         args: FxHashMap<AttrArgIdx, AttrValue>,
     ) -> Self {
-        Self { name, origin, args }
+        Self { id, origin, args }
     }
 
     /// Add an argument to the attribute.
@@ -199,7 +202,7 @@ impl AttrValueKind {
 #[derive(Default, Debug, Clone)]
 pub struct Attrs {
     /// The attributes that exist on this node.
-    pub attrs: FxHashMap<Identifier, Attr>,
+    pub attrs: FxHashMap<AttrId, Attr>,
 }
 
 impl Attrs {
@@ -215,16 +218,16 @@ impl Attrs {
 
     /// Add an attribute to the set of attributes.
     pub fn add_attr(&mut self, attr: Attr) {
-        self.attrs.insert(attr.name, attr);
+        self.attrs.insert(attr.id, attr);
     }
 
     /// Check whether an attribute exists on this node.
-    pub fn has_attr(&self, id: Identifier) -> bool {
+    pub fn has_attr(&self, id: AttrId) -> bool {
         self.attrs.contains_key(&id)
     }
 
     /// Get an attribute by name.
-    pub fn get_attr(&self, id: Identifier) -> Option<&Attr> {
+    pub fn get_attr(&self, id: AttrId) -> Option<&Attr> {
         self.attrs.get(&id)
     }
 }
@@ -250,12 +253,12 @@ impl AttrStore {
 
     /// Check whether a particular [AstNodeId] has a specific
     /// attribute.
-    pub fn node_has_attr(&self, id: AstNodeId, attr: Identifier) -> bool {
+    pub fn node_has_attr(&self, id: AstNodeId, attr: AttrId) -> bool {
         self.0.borrow(id).map_or(false, |attrs| attrs.has_attr(attr))
     }
 
     /// Get an [Attr] by name, from a node.
-    pub fn get_attr(&self, id: AstNodeId, attr: Identifier) -> Option<Attr> {
+    pub fn get_attr(&self, id: AstNodeId, attr: AttrId) -> Option<Attr> {
         self.0.borrow(id).and_then(|attrs| attrs.attrs.get(&attr).cloned())
     }
 }

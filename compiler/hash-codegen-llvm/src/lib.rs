@@ -19,6 +19,7 @@ use std::time::Duration;
 
 use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
+use hash_attrs::builtin::attrs;
 use hash_codegen::{
     backend::{BackendCtx, CodeGenStorage, CompilerBackend},
     layout::LayoutCtx,
@@ -37,7 +38,7 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::writer::ReportWriter;
-use hash_source::{identifier::IDENTS, ModuleId};
+use hash_source::ModuleId;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::{
     stream_writeln,
@@ -302,7 +303,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();
 
             // Check if we should dump the generated LLVM IR
-            if instance.borrow().has_attr(IDENTS.dump_llvm_ir) {
+            if instance.borrow().has_attr(attrs::DUMP_LLVM_IR) {
                 let mut stdout = self.stdout.clone();
                 let func = FunctionPrinter::new(body.info.name(), ctx.get_fn(instance));
 

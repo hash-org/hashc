@@ -18,7 +18,7 @@ use std::{collections::BTreeMap, time::Duration};
 use build::BodyBuilder;
 use ctx::BuilderCtx;
 use discover::FnDiscoverer;
-use hash_attrs::attr::attr_store;
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
@@ -32,7 +32,7 @@ use hash_pipeline::{
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_semantics::SemanticStorage;
-use hash_source::{identifier::IDENTS, SourceId};
+use hash_source::SourceId;
 use hash_storage::store::statics::StoreId;
 use hash_tir::environment::{source_info::CurrentSourceInfo, stores::tir_stores};
 use hash_utils::{
@@ -164,7 +164,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // then we try to lower the type, and then print the layout of
         // the type.
         tir_stores().ast_info().data_defs().iter_with(|id, def| {
-            if attr_store().node_has_attr(id, IDENTS.layout_of) {
+            if attr_store().node_has_attr(id, attrs::LAYOUT_OF) {
                 builder.dump_ty_layout(def, data.stdout.clone())
             }
         })

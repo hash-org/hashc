@@ -2,6 +2,7 @@
 //! to convert types and [Ty]s into [IrTy]s.
 
 use hash_ast::ast;
+use hash_attrs::builtin::attrs;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_ir::{
     intrinsics::Intrinsic,
@@ -13,7 +14,6 @@ use hash_ir::{
     TyCacheEntry,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::identifier::IDENTS;
 use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
     SequenceStoreKey,
@@ -167,7 +167,7 @@ impl<'ir> BuilderCtx<'ir> {
         self.with_cache(def, || {
             let instance = self.create_instance_from_fn_def(def);
 
-            let is_lang = instance.has_attr(IDENTS.lang);
+            let is_lang = instance.has_attr(attrs::LANG);
             let name = instance.name();
 
             // Check if the instance has the `lang` attribute, specifying that it is

@@ -24,6 +24,7 @@
 //! which prevent the function function from being "mangled", then
 //! we have to avoid mangling the symbol name.
 
+use hash_attrs::builtin::attrs;
 use hash_ir::ty::InstanceId;
 use hash_source::{identifier::IDENTS, InteractiveId, ModuleId};
 use hash_storage::store::{statics::StoreId, StoreKey};
@@ -68,7 +69,7 @@ pub fn compute_symbol_name(instance_id: InstanceId) -> String {
     let m = &mut Mangler { out: String::new() };
 
     instance_id.map(|instance| {
-        if !instance.has_attr(IDENTS.no_mangle) && !instance.has_attr(IDENTS.foreign) {
+        if !instance.has_attr(attrs::NO_MANGLE) && !instance.has_attr(attrs::FOREIGN) {
             if let Some(source) = instance.source {
                 if source.is_module() {
                     // If the source is a module, then we need to

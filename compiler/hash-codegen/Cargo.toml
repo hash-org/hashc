@@ -8,6 +8,7 @@ edition = "2021"
 fixedbitset = "0.4.2"
 
 hash-abi = {path = "../hash-abi" }
+hash-attrs = { path = "../hash-attrs" }
 hash-ir = {path = "../hash-ir" }
 hash-layout = {path = "../hash-layout" }
 hash-pipeline = { path = "../hash-pipeline" }

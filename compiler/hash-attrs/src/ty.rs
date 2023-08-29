@@ -9,7 +9,7 @@ use hash_utils::{
     index_vec::{define_index_type, IndexVec},
 };
 
-use crate::target::AttrTarget;
+use crate::{builtin::ATTR_MAP, target::AttrTarget};
 
 define_index_type! {
     /// This is the unique identifier for an AST node. This is used to
@@ -18,6 +18,13 @@ define_index_type! {
     pub struct AttrId = u32;
     MAX_INDEX = i32::max_value() as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+}
+
+impl AttrId {
+    /// Get the name of the attribute.
+    pub fn name(&self) -> Identifier {
+        ATTR_MAP.map[*self].name
+    }
 }
 
 /// A table that stores the definitions for all of the builtin compiler

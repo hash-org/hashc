@@ -5,9 +5,8 @@
 use std::ops::ControlFlow;
 
 use derive_more::Constructor;
-use hash_attrs::attr::attr_store;
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
-use hash_source::identifier::IDENTS;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     ast_info::HasNodeId,
@@ -94,7 +93,7 @@ impl FnDiscoverer<'_> {
 
         match def_body {
             FnBody::Defined(body) => {
-                let is_foreign = attr_store().node_has_attr(def.node_id_ensured(), IDENTS.foreign);
+                let is_foreign = attr_store().node_has_attr(def.node_id_ensured(), attrs::FOREIGN);
 
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.
