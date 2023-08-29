@@ -10,7 +10,7 @@ use std::{
 use hash_ast::ast::AstNodeId;
 use hash_intrinsics::intrinsics;
 use hash_source::{
-    constant::{IntConstant, InternedFloat, InternedInt, InternedStr, CONSTANT_MAP},
+    constant::{IntConstant, InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
     location::Span,
     SourceId,
@@ -86,12 +86,12 @@ impl Const {
         ty.map(|ty| match ty {
             IrTy::Int(int_ty) => {
                 let value = i128::from_be_bytes(value.to_be_bytes()); // @@ByteCast.
-                let interned_value = IntConstant::from_sint(value, *int_ty);
-                Self::Int(CONSTANT_MAP.create_int(interned_value))
+                let interned_value = IntConstant::from_sint(value, *int_ty).into();
+                Self::Int(interned_value)
             }
             IrTy::UInt(int_ty) => {
-                let interned_value = IntConstant::from_uint(value, *int_ty);
-                Self::Int(CONSTANT_MAP.create_int(interned_value))
+                let interned_value = IntConstant::from_uint(value, *int_ty).into();
+                Self::Int(interned_value)
             }
             IrTy::Bool => Self::Bool(value == (true as u128)),
             IrTy::Char => unsafe { Self::Char(char::from_u32_unchecked(value as u32)) },
@@ -119,11 +119,12 @@ pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
         (Const::Zero(_), Const::Zero(_)) => Some(Ordering::Equal),
         (Const::Bool(left), Const::Bool(right)) => Some(left.cmp(&right)),
         (Const::Char(left), Const::Char(right)) => Some(left.cmp(&right)),
-        (Const::Int(left), Const::Int(right)) => CONSTANT_MAP
-            .map_int(left, |left| CONSTANT_MAP.map_int(right, |right| left.partial_cmp(right))),
-        (Const::Float(left), Const::Float(right)) => CONSTANT_MAP.map_float(left, |left| {
-            CONSTANT_MAP.map_float(right, |right| left.value.partial_cmp(&right.value))
-        }),
+        (Const::Int(left), Const::Int(right)) => {
+            left.map(|left| right.map(|right| left.partial_cmp(right)))
+        }
+        (Const::Float(left), Const::Float(right)) => {
+            left.map(|left| right.map(|right| left.partial_cmp(right)))
+        }
         (Const::Str(left), Const::Str(right)) => Some(left.cmp(&right)),
         _ => None,
     }
@@ -169,12 +170,8 @@ impl ConstKind {
                 Const::Zero(ty) => *ty,
                 Const::Bool(_) => COMMON_IR_TYS.bool,
                 Const::Char(_) => COMMON_IR_TYS.char,
-                Const::Int(interned_int) => {
-                    CONSTANT_MAP.map_int(*interned_int, |int| int.normalised_ty().to_ir_ty())
-                }
-                Const::Float(interned_float) => {
-                    CONSTANT_MAP.map_float(*interned_float, |float| float.ty().to_ir_ty())
-                }
+                Const::Int(value) => value.map(|int| int.normalised_ty().to_ir_ty()),
+                Const::Float(value) => value.map(|float| float.ty().to_ir_ty()),
                 Const::Str(_) => COMMON_IR_TYS.str,
             },
             Self::Unevaluated(UnevaluatedConst { .. }) => {

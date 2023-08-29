@@ -10,7 +10,6 @@ use std::{
 };
 
 use clap::{Args, Parser, ValueEnum};
-use hash_source::constant::CONSTANT_MAP;
 use hash_target::{Target, HOST_TARGET_TRIPLE};
 use hash_utils::tree_writing::CharacterSet;
 
@@ -125,8 +124,7 @@ impl CompilerSettings {
     pub fn try_entry_point(&self) -> Option<Result<PathBuf, PipelineError>> {
         self.entry_point.as_ref().map(|path| {
             let current_dir = env::current_dir().unwrap();
-            let path = CONSTANT_MAP.create_string(path.to_str().unwrap());
-            resolve_path(path, current_dir).map_err(PipelineError::ImportPath)
+            resolve_path(path.to_str().unwrap(), current_dir).map_err(PipelineError::ImportPath)
         })
     }
 

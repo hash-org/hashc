@@ -13,7 +13,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, IrTyId, Mutability, RefKind, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{constant::CONSTANT_MAP, identifier::Identifier};
+use hash_source::{constant::InternedInt, identifier::Identifier};
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
@@ -610,7 +610,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let ptr_width = self.settings.target().ptr_size();
         let element_ty = ty.borrow().element_ty().unwrap();
         let size = self.ctx.size_of(element_ty).unwrap() * args.len();
-        let const_size = CONSTANT_MAP.create_usize_int(size, ptr_width);
+        let const_size = InternedInt::create_usize(size, ptr_width);
         let size_op = Operand::Const(Const::Int(const_size).into());
 
         // find the `malloc` function which is defined in the prelude

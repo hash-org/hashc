@@ -7,7 +7,7 @@ use hash_ir::{
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
     ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
-use hash_source::constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP};
+use hash_source::constant::{IntConstant, IntTy, InternedInt};
 use hash_storage::store::statics::StoreId;
 use hash_tir::terms::{Term, TermId};
 
@@ -256,8 +256,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Check for division/modulo of zero...
                 let is_zero = self.temp_place(COMMON_IR_TYS.bool);
 
-                let const_val =
-                    Const::Int(CONSTANT_MAP.create_int(IntConstant::from_uint(0, uint_ty)));
+                let const_val = Const::Int(IntConstant::from_uint(0, uint_ty).into());
                 let zero_val = Operand::Const(const_val.into());
 
                 self.control_flow_graph.push_assign(
@@ -275,8 +274,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 if int_ty.is_signed() {
                     let sint_ty = int_ty.to_signed();
 
-                    let const_val =
-                        Const::Int(CONSTANT_MAP.create_int(IntConstant::from_sint(-1, sint_ty)));
+                    let const_val = Const::Int(IntConstant::from_sint(-1, sint_ty).into());
                     let negative_one_val = Operand::Const(const_val.into());
                     let minimum_value = self.min_value_of_ty(ty);
 

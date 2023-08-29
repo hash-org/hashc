@@ -8,7 +8,7 @@ use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
 use hash_reporting::diagnostic::{Diagnostics, ErrorState};
 use hash_source::{
-    constant::{FloatTy, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
+    constant::{FloatTy, IntTy, SIntTy, UIntTy},
     entry_point::EntryPointKind,
     identifier::IDENTS,
     ModuleKind,
@@ -424,7 +424,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ///
     /// This might be needed if a literal is unsuffixed in the original source,
     /// and thus represented as something other than its true type in the
-    /// `CONSTANT_MAP`. After `infer_lit`, its true type will be known, and
+    /// `CONSTS`. After `infer_lit`, its true type will be known, and
     /// we can then adjust the underlying constant to match the true type.
     fn adjust_lit_repr(&self, lit: &Lit, inferred_ty: TyId) -> TcResult<()> {
         // @@Future: we could defer parsing these literals until we have inferred their
@@ -434,18 +434,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         match lit {
             Lit::Float(float_lit) => {
                 if let Some(float_ty) = self.try_use_ty_as_float_ty(inferred_ty) {
-                    CONSTANT_MAP.adjust_float(float_lit.underlying.value, float_ty);
+                    float_lit.underlying.value.adjust_to(float_ty)
                 }
                 // @@Incomplete: it is possible that exotic literal
                 // types are defined, what happens then?
             }
             Lit::Int(int_lit) => {
                 if let Some(int_ty) = self.try_use_ty_as_int_ty(inferred_ty) {
-                    CONSTANT_MAP.adjust_int(
-                        int_lit.underlying.value,
-                        int_ty,
-                        self.env().target().ptr_size(),
-                    );
+                    int_lit.underlying.value.adjust_to(int_ty, self.env().target().ptr_size());
                 }
                 // @@Incomplete: as above
             }

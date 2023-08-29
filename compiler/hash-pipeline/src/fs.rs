@@ -7,7 +7,7 @@ use std::{
 };
 
 use hash_reporting::report::{Report, ReportKind};
-use hash_source::constant::{InternedStr, CONSTANT_MAP};
+use hash_source::constant::InternedStr;
 
 /// The location of a build directory of this package, this used to resolve
 /// where the standard library is located at.
@@ -120,10 +120,10 @@ fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
 /// reading the file fails, an [ImportError] is returned.
 pub fn read_in_path(import_path: impl AsRef<Path>) -> Result<String, ImportError> {
     // Create a interned string to represent the path
-    let path = CONSTANT_MAP.create_string(import_path.as_ref().to_str().unwrap());
-
-    fs::read_to_string(import_path)
-        .map_err(|_| ImportError { kind: ImportErrorKind::UnreadableFile, path })
+    fs::read_to_string(import_path.as_ref()).map_err(|_| ImportError {
+        kind: ImportErrorKind::UnreadableFile,
+        path: import_path.as_ref().to_str().unwrap().into(),
+    })
 }
 
 /// Function used to resolve the path of a module according to the language
@@ -157,7 +157,6 @@ pub fn resolve_path<'p>(
 ) -> Result<PathBuf, ImportError> {
     let path = path.into();
     let import_path = Path::new(&path);
-    let interned_path = CONSTANT_MAP.create_string(path);
     let wd = wd.as_ref();
 
     let modules = get_stdlib_modules(STDLIB);
@@ -190,7 +189,7 @@ pub fn resolve_path<'p>(
             return Ok(raw_path_hash);
         }
 
-        Err(ImportError { path: interned_path, kind: ImportErrorKind::MissingIndex })
+        Err(ImportError { path: path.into(), kind: ImportErrorKind::MissingIndex })
     } else {
         // we don't need to anything if the given raw_path already has a extension
         // '.hash', since we don't disallow someone to import a module and
@@ -215,7 +214,7 @@ pub fn resolve_path<'p>(
                 if raw_path.extension().is_none() && raw_path_hash.exists() {
                     Ok(raw_path_hash)
                 } else {
-                    Err(ImportError { path: interned_path, kind: ImportErrorKind::NotFound })
+                    Err(ImportError { path: path.into(), kind: ImportErrorKind::NotFound })
                 }
             }
         }

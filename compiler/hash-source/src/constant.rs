@@ -102,7 +102,7 @@ impl fmt::Display for FloatConstantValue {
 /// Interned float constant which stores the value of the float, and
 /// an optional `type ascription` which is a suffix on the literal
 /// describing which float kind it is, either being `f32` or `f64`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FloatConstant {
     /// Raw value of the float
     pub value: FloatConstantValue,
@@ -148,6 +148,16 @@ impl FloatConstant {
     }
 }
 
+impl PartialOrd for FloatConstant {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (&self.value, &other.value) {
+            (F64(a), F64(b)) => a.partial_cmp(b),
+            (F32(a), F32(b)) => a.partial_cmp(b),
+            _ => None,
+        }
+    }
+}
+
 impl Neg for FloatConstant {
     type Output = Self;
 
@@ -161,15 +171,30 @@ impl Neg for FloatConstant {
     }
 }
 
+impl fmt::Display for FloatConstant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            F64(val) => write!(f, "{val}_f64"),
+            F32(val) => write!(f, "{val}_f32"),
+        }
+    }
+}
+
 /// Provide implementations for converting primitive floating point types into
 /// [FloatConstant]s.
 macro_rules! float_const_impl_into {
-    ($($ty:ident, $kind: ident);*) => {
+    ($($ty:ident, $variant: ident);*) => {
         $(
+            impl From<$ty> for FloatConstantValue {
+                fn from(value: $ty) -> Self {
+                    Self::$variant(value)
+                }
+            }
+
             impl From<$ty> for FloatConstant {
                 fn from(value: $ty) -> Self {
                     Self {
-                        value: FloatConstantValue::$kind(value),
+                        value: value.into(),
                         suffix: Some(IDENTS.$ty),
                     }
                 }
@@ -214,18 +239,47 @@ counter! {
     method_visibility:,
 }
 
-impl fmt::Display for FloatConstant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            F64(val) => write!(f, "{val}_f64"),
-            F32(val) => write!(f, "{val}_f32"),
-        }
+impl InternedFloat {
+    /// Create a [InternedFloat] from a given [FloatConstant].
+    pub fn create(value: impl Into<FloatConstant>) -> InternedFloat {
+        let ident = InternedFloat::new();
+        CONSTS.floats.insert(ident, value.into());
+
+        ident
+    }
+
+    /// Get the value of the interned float.
+    pub fn value(self) -> FloatConstant {
+        *CONSTS.floats.get(&self).unwrap().value()
+    }
+
+    /// Negate the underlying value of the interned float.
+    pub fn negate(self) {
+        CONSTS.floats.alter(&self, |_, value| -value);
+    }
+
+    /// Adjust the underlying [FloatConstant] into a specified
+    /// [FloatTy].
+    pub fn adjust_to(&self, ty: FloatTy) {
+        CONSTS.floats.alter(self, |_, value| value.convert_into(ty));
+    }
+
+    /// Map the interned float.
+    pub fn map<T>(self, f: impl FnOnce(&FloatConstant) -> T) -> T {
+        let constant = CONSTS.floats.get(&self).unwrap();
+        f(constant.value())
+    }
+}
+
+impl From<FloatConstant> for InternedFloat {
+    fn from(value: FloatConstant) -> Self {
+        InternedFloat::create(value)
     }
 }
 
 impl fmt::Display for InternedFloat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", CONSTANT_MAP.lookup_float(*self))
+        write!(f, "{}", self.value())
     }
 }
 
@@ -404,6 +458,24 @@ derive_int_ops! {
     BitXor, bitxor;
     Shl, shl;
     Shr, shr
+}
+
+impl fmt::Display for IntConstantValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            I8(value) => write!(f, "{value}"),
+            I16(value) => write!(f, "{value}"),
+            I32(value) => write!(f, "{value}"),
+            I64(value) => write!(f, "{value}"),
+            I128(value) => write!(f, "{value}"),
+            U8(value) => write!(f, "{value}"),
+            U16(value) => write!(f, "{value}"),
+            U32(value) => write!(f, "{value}"),
+            U64(value) => write!(f, "{value}"),
+            U128(value) => write!(f, "{value}"),
+            Big(value) => write!(f, "{value}"),
+        }
+    }
 }
 
 /// Interned literal constant which stores the raw value of the
@@ -592,15 +664,6 @@ impl Neg for IntConstant {
     }
 }
 
-impl From<BigInt> for IntConstant {
-    fn from(value: BigInt) -> Self {
-        let (sign, mut bytes) = value.to_bytes_be();
-        let value = IntConstantValue::from_be_bytes(&mut bytes, sign == Sign::NoSign);
-
-        Self { value, suffix: None }
-    }
-}
-
 impl PartialOrd for IntConstant {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         use IntConstantValue::*;
@@ -624,16 +687,53 @@ impl PartialOrd for IntConstant {
     }
 }
 
+impl From<BigInt> for IntConstant {
+    fn from(value: BigInt) -> Self {
+        let (sign, mut bytes) = value.to_bytes_be();
+        let value = IntConstantValue::from_be_bytes(&mut bytes, sign == Sign::NoSign);
+
+        Self { value, suffix: None }
+    }
+}
+
+impl fmt::Display for IntConstant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)?;
+
+        // We want to snip the value from the `total` value since we don't care about
+        // the rest...
+        match &self.value {
+            I8(_) => write!(f, "_i8"),
+            I16(_) => write!(f, "_i16"),
+            I32(_) => write!(f, "_i32"),
+            I64(_) => write!(f, "_i64"),
+            I128(_) => write!(f, "_i128"),
+            U8(_) => write!(f, "_u8"),
+            U16(_) => write!(f, "_u16"),
+            U32(_) => write!(f, "_u32"),
+            U64(_) => write!(f, "_u64"),
+            U128(_) => write!(f, "_u128"),
+            _ => Ok(()),
+        }
+    }
+}
+
 /// Provide implementations for converting primitive integer types into
 /// [IntConstant]s.
 macro_rules! int_const_impl_from {
-    ($($ty:ident: $variant: ident),* $(,)?) => {
+    ($($ty:ty: $variant: ident),* $(,)?) => {
         $(
+            impl From<$ty> for IntConstantValue {
+                fn from(value: $ty) -> Self {
+                    Self::$variant(value)
+                }
+            }
+
             impl From<$ty> for IntConstant {
                 fn from(value: $ty) -> Self {
                     Self {
-                        value: IntConstantValue::$variant(value),
-                        suffix: Some(IDENTS.$ty)
+                        value: value.into(),
+                        suffix: None
                     }
                 }
             }
@@ -652,6 +752,7 @@ int_const_impl_from!(
     u32: U32,
     u64: U64,
     u128: U128,
+    Box<BigInt>: Big,
 );
 
 // /// Provide implementations for converting [IntConstant]s into primitive
@@ -696,59 +797,64 @@ counter! {
 }
 
 impl InternedInt {
+    /// Create a new [InternedInt] from a given [IntConstant].
+    pub fn create(constant: IntConstant) -> Self {
+        let ident = InternedInt::new();
+        CONSTS.ints.insert(ident, constant);
+        ident
+    }
+
+    /// Create a new usize value with the specified `value` and the
+    /// current target pointer size.
+    pub fn create_usize(value: usize, ptr_width: Size) -> Self {
+        IntConstant::from_uint(value as u128, UIntTy::USize.normalise(ptr_width)).into()
+    }
+
+    /// Get the value of the integer.
+    pub fn value(self) -> IntConstant {
+        let lookup_value = CONSTS.ints.get(&self).unwrap();
+        lookup_value.value().clone()
+    }
+
+    /// Map a [InternedInt] to a value.
+    pub fn map<T>(self, f: impl FnOnce(&IntConstant) -> T) -> T {
+        let constant = CONSTS.ints.get(&self).unwrap();
+        f(constant.value())
+    }
+
+    /// Flip the sign of the underlying constant.
+    pub fn negate(self) {
+        CONSTS.ints.alter(&self, |_, value| -value);
+    }
+
+    /// Adjust the type of the underlying constant to the newly
+    /// specified type.
+    pub fn adjust_to(&self, ty: IntTy, ptr_width: Size) {
+        CONSTS.ints.alter(self, |_, item| {
+            item.convert_into(ty, ptr_width)
+                .unwrap_or_else(|| panic!("failed to convert `{self}` to `{ty}`"))
+        })
+    }
+
     /// Convert a bias encoded `u128` value with an associated [IntTy] and
     /// convert it into an IntConstantValue.
     pub fn from_u128(value: u128, kind: IntTy, ptr_size: Size) -> Self {
         let size = kind.size(ptr_size).bytes() as usize;
         let is_signed = kind.is_signed();
         let value = IntConstantValue::from_le_bytes(&value.to_le_bytes()[0..size], is_signed);
-        CONSTANT_MAP.create_int(IntConstant { value, suffix: None })
+        Self::create(IntConstant { value, suffix: None })
     }
 }
 
-impl fmt::Display for IntConstantValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            I8(value) => write!(f, "{value}"),
-            I16(value) => write!(f, "{value}"),
-            I32(value) => write!(f, "{value}"),
-            I64(value) => write!(f, "{value}"),
-            I128(value) => write!(f, "{value}"),
-            U8(value) => write!(f, "{value}"),
-            U16(value) => write!(f, "{value}"),
-            U32(value) => write!(f, "{value}"),
-            U64(value) => write!(f, "{value}"),
-            U128(value) => write!(f, "{value}"),
-            Big(value) => write!(f, "{value}"),
-        }
-    }
-}
-
-impl fmt::Display for IntConstant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)?;
-
-        // We want to snip the value from the `total` value since we don't care about
-        // the rest...
-        match &self.value {
-            I8(_) => write!(f, "_i8"),
-            I16(_) => write!(f, "_i16"),
-            I32(_) => write!(f, "_i32"),
-            I64(_) => write!(f, "_i64"),
-            I128(_) => write!(f, "_i128"),
-            U8(_) => write!(f, "_u8"),
-            U16(_) => write!(f, "_u16"),
-            U32(_) => write!(f, "_u32"),
-            U64(_) => write!(f, "_u64"),
-            U128(_) => write!(f, "_u128"),
-            _ => Ok(()),
-        }
+impl From<IntConstant> for InternedInt {
+    fn from(value: IntConstant) -> Self {
+        InternedInt::create(value)
     }
 }
 
 impl fmt::Display for InternedInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", CONSTANT_MAP.lookup_int(*self))
+        write!(f, "{}", self.value())
     }
 }
 
@@ -762,15 +868,38 @@ counter! {
     derives: (Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd),
 }
 
+impl InternedStr {
+    /// Get the value of the interned string.
+    pub fn value(self) -> &'static str {
+        CONSTS.strings.get(&self).unwrap().value()
+    }
+
+    /// Intern a string into the [ConstantMap].
+    pub fn intern(string: &str) -> InternedStr {
+        if let Some(key) = CONSTS.reverse_string_table.get(string) {
+            *key
+        } else {
+            // @@Memory: memory leaks could be avoided/masked by having a wall?
+            // copy over the string so that we can insert it into the reverse lookup table
+            let value_copy = Box::leak(string.to_owned().into_boxed_str());
+            *CONSTS.reverse_string_table.entry(value_copy).or_insert_with(|| {
+                let interned = InternedStr::new();
+                CONSTS.strings.insert(interned, value_copy);
+                interned
+            })
+        }
+    }
+}
+
 impl fmt::Display for InternedStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", CONSTANT_MAP.lookup_string(*self))
+        write!(f, "{}", self.value())
     }
 }
 
 impl fmt::Debug for InternedStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", CONSTANT_MAP.lookup_string(*self))
+        write!(f, "{:?}", self.value())
     }
 }
 
@@ -779,25 +908,25 @@ impl fmt::Debug for InternedStr {
 
 impl From<&str> for InternedStr {
     fn from(string: &str) -> Self {
-        CONSTANT_MAP.create_string(string)
+        InternedStr::intern(string)
     }
 }
 
 impl From<String> for InternedStr {
     fn from(string: String) -> Self {
-        CONSTANT_MAP.create_string(&string)
+        InternedStr::intern(&string)
     }
 }
 
 impl From<InternedStr> for &str {
     fn from(string: InternedStr) -> Self {
-        CONSTANT_MAP.lookup_string(string)
+        string.value()
     }
 }
 
 impl From<InternedStr> for String {
     fn from(string: InternedStr) -> Self {
-        String::from(CONSTANT_MAP.lookup_string(string))
+        String::from(string.value())
     }
 }
 
@@ -808,163 +937,19 @@ impl From<InternedStr> for String {
 #[derive(Debug, Default)]
 pub struct ConstantMap {
     /// Where the interned strings are stored.
-    string_table: DashMap<InternedStr, &'static str, FnvBuildHasher>,
+    strings: DashMap<InternedStr, &'static str, FnvBuildHasher>,
 
-    /// It's useful to lookup [InternedStr] from a raw string.
+    /// Lookup of string references to [InternedStr]. This is the mechansim
+    /// behind interning strings and avoiding unnecessary string duplications.
     reverse_string_table: DashMap<&'static str, InternedStr, FnvBuildHasher>,
 
     /// Float literals store
-    float_table: DashMap<InternedFloat, FloatConstant, FnvBuildHasher>,
+    floats: DashMap<InternedFloat, FloatConstant, FnvBuildHasher>,
 
     /// Integer literal store, `char` constants are not stored here
-    int_table: DashMap<InternedInt, IntConstant, FnvBuildHasher>,
+    ints: DashMap<InternedInt, IntConstant, FnvBuildHasher>,
 }
 
 lazy_static! {
-    pub static ref CONSTANT_MAP: ConstantMap = ConstantMap::default();
-}
-
-impl ConstantMap {
-    /// Add a new string to the map, this will add an additional entry even if
-    /// the string is already within the map.
-    pub fn create_string(&self, value: &str) -> InternedStr {
-        if let Some(key) = self.reverse_string_table.get(value) {
-            *key
-        } else {
-            // @@Memory: memory leaks could be avoided/masked by having a wall?
-            // copy over the string so that we can insert it into the reverse lookup table
-            let value_copy = Box::leak(value.to_owned().into_boxed_str());
-            *self.reverse_string_table.entry(value_copy).or_insert_with(|| {
-                let interned = InternedStr::new();
-                self.string_table.insert(interned, value_copy);
-                interned
-            })
-        }
-    }
-
-    /// Get the [String] behind the [InternedStr]
-    pub fn lookup_string(&self, ident: InternedStr) -> &'static str {
-        self.string_table.get(&ident).unwrap().value()
-    }
-
-    /// Create a `f64` [FloatConstant] within the [ConstantMap]
-    pub fn create_f64_float(&self, value: f64, suffix: Option<Identifier>) -> InternedFloat {
-        let constant = FloatConstant { value: FloatConstantValue::F64(value), suffix };
-        self.create_float(constant)
-    }
-
-    /// Create a `f32` [FloatConstant] within the [ConstantMap]
-    pub fn create_f32_float(&self, value: f32, suffix: Option<Identifier>) -> InternedFloat {
-        let constant = FloatConstant { value: FloatConstantValue::F32(value), suffix };
-        self.create_float(constant)
-    }
-
-    /// Create a [FloatConstant] within the [ConstantMap]
-    pub fn create_float(&self, constant: FloatConstant) -> InternedFloat {
-        let ident = InternedFloat::new();
-        self.float_table.insert(ident, constant);
-
-        ident
-    }
-
-    /// Get the [FloatConstant] behind the [InternedFloat]
-    pub fn lookup_float(&self, id: InternedFloat) -> FloatConstant {
-        *self.float_table.get(&id).unwrap().value()
-    }
-
-    /// Perform a transformation on the [FloatConstant] behind the
-    /// [InternedFloat] without making a copy of the original value.
-    pub fn map_float<T>(&self, id: InternedFloat, f: impl FnOnce(&FloatConstant) -> T) -> T {
-        let lookup_value = self.float_table.get(&id).unwrap();
-        f(lookup_value.value())
-    }
-
-    /// Perform a negation operation on an [InternedFloat].
-    pub fn negate_float(&self, id: InternedFloat) {
-        self.float_table.alter(&id, |_, value| -value);
-    }
-
-    /// Adjust the underlying [FloatConstant] into a specified
-    /// float type.
-    pub fn adjust_float(&self, id: InternedFloat, ty: FloatTy) {
-        self.float_table.alter(&id, |_, value| value.convert_into(ty));
-    }
-
-    /// Create a [IntConstant] within the [ConstantMap].
-    pub fn create_int(&self, constant: IntConstant) -> InternedInt {
-        let ident = InternedInt::new();
-
-        // Insert the entries into the map and the reverse-lookup map
-        self.int_table.insert(ident, constant);
-        ident
-    }
-
-    /// Create a `usize` constant value.
-    pub fn create_usize_int(&self, value: usize, ptr_width: Size) -> InternedInt {
-        let ty = UIntTy::USize.normalise(ptr_width);
-
-        let constant = IntConstant::from_uint(value as u128, ty);
-        self.create_int(constant)
-    }
-
-    /// Get the [IntConstant] behind the [InternedInt]
-    pub fn lookup_int(&self, id: InternedInt) -> IntConstant {
-        let lookup_value = self.int_table.get(&id).unwrap();
-        lookup_value.value().clone()
-    }
-
-    /// Perform a transformation on the [IntConstant] behind the [InternedInt]
-    /// without making a copy of the original value.
-    pub fn map_int<T>(&self, id: InternedInt, f: impl FnOnce(&IntConstant) -> T) -> T {
-        let lookup_value = self.int_table.get(&id).unwrap();
-        f(lookup_value.value())
-    }
-
-    /// Adjust the underlying [IntConstant] into a specified integer type.
-    pub fn adjust_int(&self, id: InternedInt, ty: IntTy, ptr_width: Size) {
-        self.int_table.alter(&id, |_, item| {
-            item.convert_into(ty, ptr_width)
-                .unwrap_or_else(|| panic!("failed to convert `{id}` to `{ty}`"))
-        })
-    }
-
-    /// Perform a negation operation on an [InternedInt].
-    pub fn negate_int(&self, id: InternedInt) {
-        self.int_table.alter(&id, |_, value| -value);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use hash_target::{
-        primitives::{SIntTy, UIntTy},
-        size::Size,
-    };
-    use num_bigint::BigInt;
-
-    #[test]
-    fn test_max_signed_int_value() {
-        // Pointer width is always described using a number of bytes
-        assert_eq!(SIntTy::ISize.max(Size::from_bytes(8)), BigInt::from(isize::MAX));
-        assert_eq!(SIntTy::ISize.min(Size::from_bytes(8)), BigInt::from(isize::MIN));
-
-        assert_eq!(SIntTy::ISize.max(Size::from_bytes(4)), BigInt::from(i32::MAX));
-        assert_eq!(SIntTy::ISize.min(Size::from_bytes(4)), BigInt::from(i32::MIN));
-
-        // Check that computing the size of each type with pointer widths
-        // is consistent.
-        assert_eq!(SIntTy::ISize.size(Size::from_bytes(8)), Size::from_bytes(8));
-        assert_eq!(SIntTy::ISize.size(Size::from_bytes(4)), Size::from_bytes(4));
-    }
-
-    #[test]
-    fn test_max_unsigned_int_value() {
-        // We don't check `min()` for unsigned since this always
-        // returns 0.
-        assert_eq!(UIntTy::USize.max(Size::from_bytes(8)), BigInt::from(usize::MAX));
-        assert_eq!(UIntTy::USize.max(Size::from_bytes(4)), BigInt::from(u32::MAX));
-
-        assert_eq!(UIntTy::USize.size(Size::from_bytes(4)), Size::from_bytes(4));
-        assert_eq!(UIntTy::USize.size(Size::from_bytes(8)), Size::from_bytes(8));
-    }
+    pub(super) static ref CONSTS: ConstantMap = ConstantMap::default();
 }

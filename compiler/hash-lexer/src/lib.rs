@@ -6,7 +6,10 @@ use std::{cell::Cell, iter, num::ParseIntError};
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
-    constant::{IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
+    constant::{
+        FloatConstant, FloatConstantValue, IntConstant, IntConstantValue, IntTy, InternedFloat,
+        SIntTy, UIntTy,
+    },
     identifier::{Identifier, IDENTS},
     location::{ByteRange, Span},
     SourceId,
@@ -158,7 +161,7 @@ impl<'a> Lexer<'a> {
         let offset = self.offset.get();
 
         // ##Safety: We rely that the byte offset is correctly computed when stepping
-        // over the           characters in the iterator.
+        // over the characters in the iterator.
         std::str::from_utf8_unchecked(self.contents.as_bytes().get_unchecked(offset..))
     }
 
@@ -511,8 +514,7 @@ impl<'a> Lexer<'a> {
             IntConstantValue::I32(0)
         });
 
-        let interned = CONSTANT_MAP.create_int(IntConstant { value, suffix });
-        TokenKind::IntLit(interned)
+        TokenKind::IntLit(IntConstant::new(value, suffix).into())
     }
 
     /// Attempt to eat an identifier if the next token is one, otherwise don't
@@ -629,12 +631,15 @@ impl<'a> Lexer<'a> {
                         Ok(parsed) => {
                             // Create interned float constant
                             let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
-                                CONSTANT_MAP.create_f32_float(parsed as f32, suffix)
+                                FloatConstantValue::F32(parsed as f32)
                             } else {
-                                CONSTANT_MAP.create_f64_float(parsed, suffix)
+                                FloatConstantValue::F64(parsed)
                             };
 
-                            TokenKind::FloatLit(float_const)
+                            TokenKind::FloatLit(InternedFloat::create(FloatConstant {
+                                value: float_const,
+                                suffix,
+                            }))
                         }
                     }
                 } else {
@@ -664,7 +669,7 @@ impl<'a> Lexer<'a> {
 
                         // Create interned float constant
                         let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
-                            CONSTANT_MAP.create_f32_float(value as f32, suffix)
+                            FloatConstantValue::F32(value as f32)
                         } else {
                             // Check that the suffix is correct for the literal
                             if let Some(suffix_ident) = suffix && suffix_ident != IDENTS.f64 {
@@ -675,10 +680,13 @@ impl<'a> Lexer<'a> {
                                 );
                             }
 
-                            CONSTANT_MAP.create_f64_float(value, suffix)
+                            FloatConstantValue::F64(value)
                         };
 
-                        TokenKind::FloatLit(float_const)
+                        TokenKind::FloatLit(InternedFloat::create(FloatConstant {
+                            value: float_const,
+                            suffix,
+                        }))
                     }
                     Err(err) => {
                         self.add_error(err);

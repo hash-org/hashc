@@ -4,7 +4,7 @@ use hash_codegen::{
     traits::{constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods},
 };
 use hash_ir::{ir::Const, ty::COMMON_IR_TYS};
-use hash_source::constant::{InternedStr, CONSTANT_MAP};
+use hash_source::constant::InternedStr;
 use inkwell::{module::Linkage, types::BasicTypeEnum, values::AnyValueEnum};
 
 use super::ty::ExtendedTyBuilderMethods;
@@ -143,8 +143,8 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
             Const::Zero(_) => unreachable!("`const_scalar_value` should not be called on a ZST"),
             Const::Bool(val) => self.const_bool(val),
             Const::Char(ch) => self.const_u32(ch as u32),
-            Const::Int(interned_int) => {
-                let const_int = CONSTANT_MAP.lookup_int(interned_int);
+            Const::Int(int) => {
+                let const_int = int.value();
 
                 // Convert the constant into a u128 and then emit the
                 // correct LLVM constant for it.
@@ -157,9 +157,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
                         unimplemented!()
                     })
             }
-            Const::Float(interned_float) => {
-                self.const_float(ty, CONSTANT_MAP.lookup_float(interned_float).as_f64())
-            }
+            Const::Float(interned_float) => self.const_float(ty, interned_float.value().as_f64()),
             Const::Str(str) => self.const_str(str).0,
         }
     }

@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
-use hash_source::{constant::CONSTANT_MAP, location::ByteRange};
+use hash_source::location::ByteRange;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
@@ -767,9 +767,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // If the next token kind is a integer with no sign, then we can assume
             // that this is a numeric field access, otherwise we can say that
             // `-` was an unexpected token here...
-            if let TokenKind::IntLit(value) = token.kind {
+            if let TokenKind::IntLit(int) = token.kind {
                 // Now read the value and verify that it has no numeric prefix
-                let interned_lit = CONSTANT_MAP.lookup_int(value);
+                let interned_lit = int.value();
 
                 if let Some(suffix) = interned_lit.suffix {
                     return self.err_with_location(ParseErrorKind::DisallowedSuffix(suffix), None, None, token.span)?;

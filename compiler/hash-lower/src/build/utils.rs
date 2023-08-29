@@ -12,7 +12,7 @@ use hash_ir::{
     ty::{IrTyId, Mutability, COMMON_IR_TYS},
     IrCtx,
 };
-use hash_source::constant::CONSTANT_MAP;
+use hash_source::constant::InternedInt;
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     args::Arg,
@@ -115,7 +115,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let adt = ty.borrow().as_adt();
         let ptr_width = self.settings.target().ptr_size();
         let metadata =
-            Operand::Const(Const::Int(CONSTANT_MAP.create_usize_int(metadata, ptr_width)).into());
+            Operand::Const(Const::Int(InternedInt::create_usize(metadata, ptr_width)).into());
 
         RValue::Aggregate(AggregateKind::Struct(adt), vec![ptr, metadata])
     }
