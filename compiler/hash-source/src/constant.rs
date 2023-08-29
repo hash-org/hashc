@@ -4,7 +4,11 @@
 //! be passed around each stage of the compiler and can just
 //! be interned, and accessed when needed.
 
-use std::{cmp::Ordering, fmt, ops::Neg};
+use std::{
+    cmp::Ordering,
+    fmt,
+    ops::{IndexMut, Neg},
+};
 
 use dashmap::DashMap;
 use fnv::FnvBuildHasher;
@@ -12,7 +16,11 @@ use fnv::FnvBuildHasher;
 // them who depends on `hash-source`
 pub use hash_target::primitives::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_target::size::Size;
-use hash_utils::counter;
+use hash_utils::{
+    counter,
+    index_vec::{define_index_type, IndexVec},
+    parking_lot::RwLock,
+};
 use lazy_static::lazy_static;
 use num_bigint::{BigInt, Sign};
 use FloatConstantValue::*;
@@ -232,42 +240,46 @@ derive_float_ops!(
     Rem, rem;
 );
 
-counter! {
-    name: InternedFloat,
-    counter_name: INTERNED_FLOAT_COUNTER,
-    visibility: pub,
-    method_visibility:,
+define_index_type! {
+    /// Index for [InternedFloat] which is used to index into the [ConstantMap].
+    pub struct InternedFloat = u32;
+
+    MAX_INDEX = i32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
 impl InternedFloat {
     /// Create a [InternedFloat] from a given [FloatConstant].
-    pub fn create(value: impl Into<FloatConstant>) -> InternedFloat {
-        let ident = InternedFloat::new();
-        CONSTS.floats.insert(ident, value.into());
-
-        ident
+    pub fn create(constant: FloatConstant) -> InternedFloat {
+        let mut store = CONSTS.floats.write();
+        store.push(constant)
     }
 
     /// Get the value of the interned float.
     pub fn value(self) -> FloatConstant {
-        *CONSTS.floats.get(&self).unwrap().value()
+        *CONSTS.floats.read().get(self).unwrap()
     }
 
     /// Negate the underlying value of the interned float.
     pub fn negate(self) {
-        CONSTS.floats.alter(&self, |_, value| -value);
+        let mut store = CONSTS.floats.write();
+        let value = store.get_mut(self).unwrap();
+        *value = -*value;
     }
 
     /// Adjust the underlying [FloatConstant] into a specified
     /// [FloatTy].
-    pub fn adjust_to(&self, ty: FloatTy) {
-        CONSTS.floats.alter(self, |_, value| value.convert_into(ty));
+    pub fn adjust_to(self, ty: FloatTy) {
+        let mut store = CONSTS.floats.write();
+        let value = store.get_mut(self).unwrap();
+        *value = value.convert_into(ty);
     }
 
     /// Map the interned float.
     pub fn map<T>(self, f: impl FnOnce(&FloatConstant) -> T) -> T {
-        let constant = CONSTS.floats.get(&self).unwrap();
-        f(constant.value())
+        let store = CONSTS.floats.read();
+        let constant = store.get(self).unwrap();
+        f(constant)
     }
 }
 
@@ -617,32 +629,36 @@ impl IntConstant {
     }
     /// Convert the [IntConstant] into the [IntConstant] with
     /// the specified `ty`.
-    fn convert_into(self, ty: IntTy, ptr_width: Size) -> Option<Self> {
+    fn convert_into(&mut self, ty: IntTy, ptr_width: Size) {
         if self.ty() == ty {
-            return Some(self);
+            return;
         }
 
         let suffix: Identifier = ty.into();
-        let this = &self;
 
         // Re-make the value based on the new type.
         let value = match ty.normalise(ptr_width) {
-            IntTy::Int(SIntTy::I8) => IntConstantValue::I8(this.try_into().ok()?),
-            IntTy::Int(SIntTy::I16) => IntConstantValue::I16(this.try_into().ok()?),
-            IntTy::Int(SIntTy::I32) => IntConstantValue::I32(this.try_into().ok()?),
-            IntTy::Int(SIntTy::I64) => IntConstantValue::I64(this.try_into().ok()?),
-            IntTy::Int(SIntTy::I128) => IntConstantValue::I128(this.try_into().ok()?),
-            IntTy::Int(SIntTy::IBig) => IntConstantValue::Big(Box::new(this.try_into().ok()?)),
-            IntTy::UInt(UIntTy::U8) => IntConstantValue::U8(this.try_into().ok()?),
-            IntTy::UInt(UIntTy::U16) => IntConstantValue::U16(this.try_into().ok()?),
-            IntTy::UInt(UIntTy::U32) => IntConstantValue::U32(this.try_into().ok()?),
-            IntTy::UInt(UIntTy::U64) => IntConstantValue::U64(this.try_into().ok()?),
-            IntTy::UInt(UIntTy::U128) => IntConstantValue::U128(this.try_into().ok()?),
-            IntTy::UInt(UIntTy::UBig) => IntConstantValue::Big(Box::new(this.try_into().ok()?)),
+            IntTy::Int(SIntTy::I8) => IntConstantValue::I8((&*self).try_into().unwrap()),
+            IntTy::Int(SIntTy::I16) => IntConstantValue::I16((&*self).try_into().unwrap()),
+            IntTy::Int(SIntTy::I32) => IntConstantValue::I32((&*self).try_into().unwrap()),
+            IntTy::Int(SIntTy::I64) => IntConstantValue::I64((&*self).try_into().unwrap()),
+            IntTy::Int(SIntTy::I128) => IntConstantValue::I128((&*self).try_into().unwrap()),
+            IntTy::Int(SIntTy::IBig) => {
+                IntConstantValue::Big(Box::new((&*self).try_into().unwrap()))
+            }
+            IntTy::UInt(UIntTy::U8) => IntConstantValue::U8((&*self).try_into().unwrap()),
+            IntTy::UInt(UIntTy::U16) => IntConstantValue::U16((&*self).try_into().unwrap()),
+            IntTy::UInt(UIntTy::U32) => IntConstantValue::U32((&*self).try_into().unwrap()),
+            IntTy::UInt(UIntTy::U64) => IntConstantValue::U64((&*self).try_into().unwrap()),
+            IntTy::UInt(UIntTy::U128) => IntConstantValue::U128((&*self).try_into().unwrap()),
+            IntTy::UInt(UIntTy::UBig) => {
+                IntConstantValue::Big(Box::new((&*self).try_into().unwrap()))
+            }
             _ => unreachable!(),
         };
 
-        Some(Self { value, suffix: Some(suffix) })
+        self.value = value;
+        self.suffix = Some(suffix);
     }
 }
 
@@ -789,19 +805,19 @@ macro_rules! int_const_impl_into {
 
 int_const_impl_into!(i8, i16, i32, i64, isize, i128, u8, u16, u32, u64, usize, u128, BigInt);
 
-counter! {
-    name: InternedInt,
-    counter_name: INTERNED_INT_COUNTER,
-    visibility: pub,
-    method_visibility:,
+define_index_type! {
+    /// Index for [InternedInt] which is used to index into the [ConstantMap].
+    pub struct InternedInt = u32;
+
+    MAX_INDEX = i32::max_value() as usize;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
 impl InternedInt {
     /// Create a new [InternedInt] from a given [IntConstant].
     pub fn create(constant: IntConstant) -> Self {
-        let ident = InternedInt::new();
-        CONSTS.ints.insert(ident, constant);
-        ident
+        let mut store = CONSTS.ints.write();
+        store.push(constant)
     }
 
     /// Create a new usize value with the specified `value` and the
@@ -812,28 +828,29 @@ impl InternedInt {
 
     /// Get the value of the integer.
     pub fn value(self) -> IntConstant {
-        let lookup_value = CONSTS.ints.get(&self).unwrap();
-        lookup_value.value().clone()
+        let store = CONSTS.ints.read();
+        store[self].clone()
     }
 
     /// Map a [InternedInt] to a value.
     pub fn map<T>(self, f: impl FnOnce(&IntConstant) -> T) -> T {
-        let constant = CONSTS.ints.get(&self).unwrap();
-        f(constant.value())
+        let store = CONSTS.ints.read();
+        f(&store[self])
     }
 
     /// Flip the sign of the underlying constant.
     pub fn negate(self) {
-        CONSTS.ints.alter(&self, |_, value| -value);
+        let mut store = CONSTS.ints.write();
+        let value = store.index_mut(self);
+        *value = value.clone().neg();
     }
 
     /// Adjust the type of the underlying constant to the newly
     /// specified type.
-    pub fn adjust_to(&self, ty: IntTy, ptr_width: Size) {
-        CONSTS.ints.alter(self, |_, item| {
-            item.convert_into(ty, ptr_width)
-                .unwrap_or_else(|| panic!("failed to convert `{self}` to `{ty}`"))
-        })
+    pub fn adjust_to(self, ty: IntTy, ptr_width: Size) {
+        let mut store = CONSTS.ints.write();
+        let value = store.index_mut(self);
+        value.convert_into(ty, ptr_width);
     }
 
     /// Convert a bias encoded `u128` value with an associated [IntTy] and
@@ -944,10 +961,10 @@ pub struct ConstantMap {
     reverse_string_table: DashMap<&'static str, InternedStr, FnvBuildHasher>,
 
     /// Float literals store
-    floats: DashMap<InternedFloat, FloatConstant, FnvBuildHasher>,
+    floats: RwLock<IndexVec<InternedFloat, FloatConstant>>,
 
     /// Integer literal store, `char` constants are not stored here
-    ints: DashMap<InternedInt, IntConstant, FnvBuildHasher>,
+    ints: RwLock<IndexVec<InternedInt, IntConstant>>,
 }
 
 lazy_static! {
