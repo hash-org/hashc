@@ -4,7 +4,10 @@ use hash_ast::ast::AstNodeId;
 use hash_reporting::reporter::Reporter;
 use hash_utils::printing::SequenceDisplay;
 
-use crate::{attr::AttrValue, target::AttrTarget, ty::REPR_OPTIONS};
+use crate::{
+    attr::{AttrValue, REPR_OPTIONS},
+    target::AttrTarget,
+};
 
 /// Utility type which wraps a [Result] with an [AttrError].
 pub type AttrResult<T = ()> = Result<T, AttrError>;

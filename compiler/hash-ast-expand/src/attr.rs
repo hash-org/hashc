@@ -3,8 +3,8 @@
 use hash_ast::ast;
 use hash_attrs::{
     attr::{attr_store, Attr, AttrArgIdx, AttrValue, AttrValueKind, Attrs},
+    builtin::ATTR_MAP,
     target::{AttrNode, AttrTarget},
-    ty::ATTR_MAP,
 };
 use hash_reporting::diagnostic::DiagnosticsMut;
 use hash_storage::store::{

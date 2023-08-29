@@ -15,6 +15,10 @@ use hash_utils::{fxhash::FxHashMap, lazy_static::lazy_static};
 
 use crate::diagnostics::{AttrError, AttrResult};
 
+/// Valid `#[repr(...)]` options, ideally we should be able to just generate
+/// this in the macro.
+pub(crate) const REPR_OPTIONS: &[&str] = &["c", "u8", "u16", "u32", "u64", "u128"];
+
 /// A rerpresnetation of the variants that the `repr` attribute
 /// can be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

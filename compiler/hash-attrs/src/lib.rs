@@ -3,8 +3,8 @@
 #![feature(lazy_cell, let_chains, macro_metavar_expr)]
 
 pub mod attr;
-pub mod ty;
-
+pub mod builtin;
 pub mod checks;
 pub mod diagnostics;
 pub mod target;
+pub mod ty;

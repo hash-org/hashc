@@ -180,7 +180,9 @@ impl ParamError {
                     error.add_labelled_span(
                         location,
                         format!(
-                            "received these arguments: {}",
+                            "received {} argument{}: {}",
+                            pluralise!("this", args.len()),
+                            pluralise!(args.len()),
                             SequenceDisplay::either(
                                 &args
                                     .iter()

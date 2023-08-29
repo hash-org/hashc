@@ -4,9 +4,9 @@ use derive_more::Constructor;
 use hash_ast::ast::AstNodeId;
 use hash_attrs::{
     attr::{AttrArgIdx, AttrValueKind},
+    builtin::ATTR_MAP,
     diagnostics::AttrError,
     target::AttrTarget,
-    ty::ATTR_MAP,
 };
 use hash_reporting::{
     hash_error_codes::error_codes::HashErrorCode,
