@@ -18,6 +18,7 @@ pub use hash_target::primitives::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_target::size::Size;
 use hash_utils::{
     counter,
+    fxhash::FxBuildHasher,
     index_vec::{define_index_type, IndexVec},
     parking_lot::RwLock,
 };
@@ -954,7 +955,7 @@ impl From<InternedStr> for String {
 #[derive(Debug, Default)]
 pub struct ConstantMap {
     /// Where the interned strings are stored.
-    strings: DashMap<InternedStr, &'static str, FnvBuildHasher>,
+    strings: DashMap<InternedStr, &'static str, FxBuildHasher>,
 
     /// Lookup of string references to [InternedStr]. This is the mechansim
     /// behind interning strings and avoiding unnecessary string duplications.
