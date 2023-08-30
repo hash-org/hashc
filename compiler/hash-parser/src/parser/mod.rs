@@ -91,11 +91,6 @@ pub struct AstGen<'stream, 'resolver> {
     /// Token trees that were generated from the stream
     token_trees: &'stream [Vec<Token>],
 
-    /// State set by expression parsers for parents to let them know if the
-    /// parsed expression was made up of multiple expressions with
-    /// precedence operators.
-    is_compound_expr: Cell<bool>,
-
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
     pub(crate) resolver: &'resolver ImportResolver<'resolver>,
@@ -126,7 +121,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             token_trees,
             offset: Cell::new(0),
             parent_span,
-            is_compound_expr: Cell::new(false),
             resolver,
             diagnostics: DiagnosticStore::default(),
         }
@@ -140,7 +134,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             stream,
             token_trees: self.token_trees,
             offset: Cell::new(0),
-            is_compound_expr: self.is_compound_expr.clone(),
             parent_span,
             resolver: self.resolver,
             diagnostics: DiagnosticStore::default(),

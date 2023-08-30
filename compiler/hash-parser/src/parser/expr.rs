@@ -348,9 +348,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut lhs = self.parse_expr()?;
         let lhs_span = lhs.byte_range();
 
-        // reset the compound_expr flag, since this is a new expression...
-        self.is_compound_expr.set(false);
-
         loop {
             let op_start = self.next_pos();
             // this doesn't consider operators that have an 'eq' variant because that is
@@ -394,7 +391,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         min_prec = r_prec;
                     } else {
                         let rhs = self.parse_expr_with_precedence(r_prec)?;
-                        self.is_compound_expr.set(true);
 
                         //v transform the operator into an `BinaryExpr`
                         lhs = self.node_with_joined_span(
