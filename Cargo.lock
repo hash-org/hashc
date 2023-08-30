@@ -438,6 +438,7 @@ name = "hash-ast-expand"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-ast-utils",
  "hash-attrs",
  "hash-fmt",
  "hash-pipeline",
@@ -451,10 +452,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-ast-utils"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-fmt",
+ "hash-source",
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-attrs"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-ast-utils",
  "hash-error-codes",
  "hash-reporting",
  "hash-source",
@@ -687,6 +699,7 @@ dependencies = [
  "clap",
  "const_format",
  "hash-ast",
+ "hash-ast-utils",
  "hash-fmt",
  "hash-reporting",
  "hash-source",
@@ -884,6 +897,7 @@ dependencies = [
  "arrayvec",
  "backtrace",
  "bitflags 2.4.0",
+ "clap",
  "crossbeam-channel",
  "dashmap",
  "derive_more",
@@ -928,7 +942,6 @@ name = "hashc"
 version = "0.1.0"
 dependencies = [
  "cargo-husky",
- "clap",
  "hash-ast",
  "hash-driver",
  "hash-pipeline",

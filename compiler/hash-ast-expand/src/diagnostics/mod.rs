@@ -9,7 +9,16 @@ use self::{error::ExpansionError, warning::ExpansionWarning};
 pub mod error;
 pub mod warning;
 
-pub type ExpansionDiagnostics = DiagnosticStore<ExpansionError, ExpansionWarning>;
+pub(crate) struct ExpansionDiagnostics {
+    pub(crate) store: DiagnosticStore<ExpansionError, ExpansionWarning>,
+}
+
+impl ExpansionDiagnostics {
+    /// Create a new [ExpansionDiagnostics].
+    pub fn new() -> Self {
+        Self { store: DiagnosticStore::new() }
+    }
+}
 
 /// Any diagnostics that can be emitted by the expansion phase.
 #[derive(Debug)]

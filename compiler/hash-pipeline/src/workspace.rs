@@ -11,22 +11,21 @@ use std::{
 };
 
 use hash_ast::{
-    ast::{AstVisitor, AstVisitorMutSelf, OwnsAstNode},
+    ast::OwnsAstNode,
     node_map::{InteractiveBlock, ModuleEntry, NodeMap},
-    tree::AstTreeGenerator,
 };
-use hash_fmt::AstPrinter;
+use hash_ast_utils::dump::{dump_ast, AstDumpMode};
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
 use hash_target::HasTarget;
 use hash_utils::{
     bitflags::bitflags,
     fxhash::{FxHashMap, FxHashSet},
-    tree_writing::{TreeWriter, TreeWriterConfig},
+    tree_writing::CharacterSet,
 };
 
 use crate::{
     error::PipelineError,
-    settings::{AstDumpMode, CompilerSettings, CompilerStageKind},
+    settings::{CompilerSettings, CompilerStageKind},
 };
 
 bitflags! {
@@ -331,41 +330,21 @@ impl Workspace {
     /// current [NodeMap].
     pub fn print_sources(
         &self,
-        entry_point: SourceId,
+        source: SourceId,
+        mode: AstDumpMode,
+        character_set: CharacterSet,
         writer: &mut impl std::io::Write,
-        settings: &CompilerSettings,
     ) -> std::io::Result<()> {
-        if entry_point.is_interactive() {
-            // If this is an interactive statement, we want to print the statement that was
-            // just parsed.
-            let source = self.node_map.get_interactive_block(entry_point.into());
-            let tree = AstTreeGenerator.visit_body_block(source.node_ref()).unwrap();
-
-            let config = TreeWriterConfig::from_character_set(settings.character_set);
-            writeln!(writer, "{}", TreeWriter::new_with_config(&tree, config))
-        } else {
-            let ast_settings = settings.ast_settings();
-
-            // If this is a module, we want to print all of the generated modules from the
-            // parsing stage
-            for module in self.node_map.iter_modules() {
-                writeln!(writer, "AST for `{}`:", module.canonicalised_path(),)?;
-
-                match ast_settings.dump_mode {
-                    AstDumpMode::Pretty => {
-                        let mut printer = AstPrinter::new(writer);
-                        printer.visit_module(module.node_ref())?;
-                    }
-                    AstDumpMode::Tree => {
-                        let tree = AstTreeGenerator.visit_module(module.node_ref()).unwrap();
-                        let config = TreeWriterConfig::from_character_set(settings.character_set);
-                        writeln!(writer, "{}", TreeWriter::new_with_config(&tree, config))?;
-                    }
-                }
-            }
-
-            Ok(())
+        if source.is_interactive() {
+            let node = self.node_map.get_interactive_block(source.into()).node().ast_ref();
+            dump_ast(node.into(), mode, character_set, &self.source_map, writer)?;
         }
+
+        for module in self.node_map.iter_modules() {
+            dump_ast(module.node_ref().into(), mode, character_set, &self.source_map, writer)?;
+        }
+
+        Ok(())
     }
 }
 

@@ -1,12 +1,14 @@
 //! Any logic related with attribute checking.
 
 use hash_ast::ast;
+use hash_ast_utils::{
+    attr::{AttrNode, AttrTarget},
+    dump::dump_ast,
+};
 use hash_attrs::{
     attr::{attr_store, Attr, AttrArgIdx, AttrValue, AttrValueKind, Attrs},
-    builtin::ATTR_MAP,
-    target::{AttrNode, AttrTarget},
+    builtin::{attrs, ATTR_MAP},
 };
-use hash_reporting::diagnostic::DiagnosticsMut;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     TrivialSequenceStoreKey,
@@ -29,7 +31,7 @@ use crate::{
         error::{ExpansionError, ExpansionErrorKind},
         warning::ExpansionWarning,
     },
-    visitor::AstExpander,
+    expander::AstExpander,
 };
 
 impl AstExpander<'_> {
@@ -48,6 +50,10 @@ impl AstExpander<'_> {
             return;
         }
 
+        // Flag denoting whether we should invoke a `#dump_ast`
+        // on the item.
+        let mut should_dump = false;
+
         // If the macro invocation is correct, then we can append
         // all of the attributes that are being applied onto the
         // the target.
@@ -60,11 +66,18 @@ impl AstExpander<'_> {
             // Create a new attribute checker, and check that the attribute
             // is valid.
             if let Some(attr) = maybe_attr && self.check_attrs(&attrs, &attr, subject) {
+                should_dump |= attr.id == attrs::DUMP_AST;
                 attrs.add_attr(attr);
             }
         }
 
         attr_store().insert(id, attrs);
+
+        if should_dump {
+            let mode = self.settings.ast_settings.dump_mode;
+            let character_set = self.settings.character_set;
+            dump_ast(subject, mode, character_set, self.sources, &mut self.stdout).unwrap();
+        }
     }
 
     /// Check that the attribute argument type matches the expected parameter
@@ -81,7 +94,7 @@ impl AstExpander<'_> {
 
         let mut maybe_emit_err = |matches: bool| {
             if !matches {
-                self.diagnostics.add_error(ExpansionError::new(
+                self.add_error(ExpansionError::new(
                     ExpansionErrorKind::InvalidAttributeArgTy {
                         name: attr.id.name(),
                         target,
@@ -161,7 +174,7 @@ impl AstExpander<'_> {
                         Ok(Some(value)) => value,
                         Ok(None) => {
                             let expr_kind = AttrTarget::classify_expr(arg.value.body());
-                            self.diagnostics.add_error(ExpansionError::new(
+                            self.add_error(ExpansionError::new(
                                 ExpansionErrorKind::InvalidAttributeArg(expr_kind),
                                 arg.id(),
                             ));
@@ -173,7 +186,7 @@ impl AstExpander<'_> {
                         // Literal parsing failed, we just push the error into the
                         // expansion diagnostics and let it be handled later.
                         Err(err) => {
-                            self.diagnostics.add_error(ExpansionError::new(err.into(), node.id));
+                            self.add_error(ExpansionError::new(err.into(), node.id));
 
                             is_valid = false;
                             break;
@@ -214,7 +227,7 @@ impl AstExpander<'_> {
             if is_valid && let Err(param_err) =
                 self.param_utils().validate_and_reorder_args_against_params(mac_args, attr_ty.params)
             {
-                self.diagnostics.add_error(ExpansionError::new(
+                self.add_error(ExpansionError::new(
                     param_err.into(),
                     node.id,
                 ));
@@ -236,7 +249,7 @@ impl AstExpander<'_> {
             let target = subject.target();
 
             if !attr_ty.subject.contains(target) {
-                self.diagnostics.add_error(ExpansionError::new(
+                self.add_error(ExpansionError::new(
                     ExpansionErrorKind::InvalidAttributeSubject { name: macro_name, target },
                     node.id(),
                 ));
@@ -251,7 +264,7 @@ impl AstExpander<'_> {
                 None
             }
         } else {
-            self.diagnostics.add_error(ExpansionError::new(
+            self.add_error(ExpansionError::new(
                 ExpansionErrorKind::UnknownAttribute { name: macro_name },
                 node.id,
             ));
@@ -267,11 +280,11 @@ impl AstExpander<'_> {
 
         // Add any warnings that the checker may of produced.
         self.checker.take_warnings().into_iter().for_each(|warning| {
-            self.diagnostics.add_warning(ExpansionWarning::new(warning.into(), attr.origin))
+            self.add_warning(ExpansionWarning::new(warning.into(), attr.origin))
         });
 
         if let Err(error) = result {
-            self.diagnostics.add_error(ExpansionError::new(
+            self.add_error(ExpansionError::new(
                 ExpansionErrorKind::InvalidAttributeApplication(error),
                 attr.origin,
             ));

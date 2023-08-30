@@ -9,9 +9,12 @@ use std::{
     str::FromStr,
 };
 
-use clap::{Args, Parser, ValueEnum};
+use hash_ast_utils::dump::AstDumpMode;
 use hash_target::{HasTarget, Target, HOST_TARGET_TRIPLE};
-use hash_utils::tree_writing::CharacterSet;
+use hash_utils::{
+    clap::{Args, Parser, ValueEnum},
+    tree_writing::CharacterSet,
+};
 
 use crate::{error::PipelineError, fs::resolve_path};
 
@@ -398,26 +401,6 @@ pub struct LoweringSettings {
 impl Default for LoweringSettings {
     fn default() -> Self {
         Self { dump_mode: IrDumpMode::Pretty, checked_operations: true, dump: false }
-    }
-}
-
-/// Enum representing the different options for dumping the IR. It can either
-/// be emitted in the pretty-printing format, or in the `graphviz` format.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum AstDumpMode {
-    /// Dump the AST using a pretty-printed format
-    Pretty,
-
-    /// Dump the AST using the `tree` format
-    Tree,
-}
-
-impl fmt::Display for AstDumpMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Pretty => write!(f, "pretty"),
-            Self::Tree => write!(f, "tree"),
-        }
     }
 }
 
