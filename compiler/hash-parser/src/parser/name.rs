@@ -5,7 +5,10 @@ use hash_source::identifier::IDENTS;
 use hash_token::{Token, TokenKind};
 
 use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Name] from the current token stream.
@@ -24,7 +27,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 err,
-                None,
+                ExpectedItem::Ident,
                 None,
                 token.map(|tok| tok.span).unwrap_or_else(|| self.next_pos()),
             ),
@@ -42,7 +45,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 err,
-                None,
+                ExpectedItem::Ident,
                 None,
                 token.map(|tok| tok.span).unwrap_or_else(|| self.next_pos()),
             ),

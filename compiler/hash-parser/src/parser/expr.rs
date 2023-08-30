@@ -9,6 +9,7 @@ use hash_utils::thin_vec::thin_vec;
 use super::AstGen;
 use crate::diagnostics::{
     error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
     warning::{ParseWarning, WarningKind},
 };
 
@@ -46,7 +47,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             } else {
                 return self.err_with_location(
                     ParseErrorKind::ExpectedExpr,
-                    None,
+                    ExpectedItem::empty(),
                     None,
                     self.current_pos(),
                 );
@@ -118,7 +119,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let token = self
             .next_token()
             .ok_or_else(|| {
-                self.make_err(ParseErrorKind::ExpectedExpr, None, None, Some(self.next_pos()))
+                self.make_err(
+                    ParseErrorKind::ExpectedExpr,
+                    ExpectedItem::empty(),
+                    None,
+                    Some(self.next_pos()),
+                )
             })
             .copied()?;
 
@@ -279,7 +285,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             kind @ TokenKind::Keyword(_) => {
                 return self.err_with_location(
                     ParseErrorKind::Keyword,
-                    None,
+                    ExpectedItem::empty(),
                     Some(kind),
                     token.span,
                 )
@@ -287,7 +293,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             kind => {
                 return self.err_with_location(
                     ParseErrorKind::ExpectedExpr,
-                    None,
+                    ExpectedItem::empty(),
                     Some(kind),
                     token.span,
                 )
@@ -473,7 +479,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let (path, span) = match gen.next_token().copied() {
             Some(Token { kind: TokenKind::StrLit(path), span }) => (path, span),
-            _ => gen.err(ParseErrorKind::ImportPath, None, None)?,
+            _ => gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), None)?,
         };
 
         self.consume_gen(gen);
@@ -486,9 +492,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }),
                 start,
             )),
-            Err(err) => {
-                self.err_with_location(ParseErrorKind::ErroneousImport(err), None, None, span)
-            }
+            Err(err) => self.err_with_location(
+                ParseErrorKind::ErroneousImport(err),
+                ExpectedItem::empty(),
+                None,
+                span,
+            ),
         }
     }
 
@@ -772,12 +781,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let interned_lit = int.value();
 
                 if let Some(suffix) = interned_lit.suffix {
-                    return self.err_with_location(ParseErrorKind::DisallowedSuffix(suffix), None, None, token.span)?;
+                    return self.err_with_location(ParseErrorKind::DisallowedSuffix(suffix), ExpectedItem::empty(), None, token.span)?;
                 }
 
                 self.skip_token();
                 let value = usize::try_from(&interned_lit).map_err(|_| {
-                    self.make_err(ParseErrorKind::InvalidPropertyAccess, None, None, Some(token.span))
+                    self.make_err(ParseErrorKind::InvalidPropertyAccess, ExpectedItem::empty(), None, Some(token.span))
                 })?;
 
                 let property = self.node_with_span(PropertyKind::NumericField(value), token.span);
@@ -897,7 +906,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => gen.err_with_location(
                     ParseErrorKind::ExpectedExpr,
-                    None,
+                    ExpectedItem::Comma,
                     Some(token.kind),
                     token.span,
                 )?,
@@ -931,7 +940,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let fn_body = match self.peek() {
             Some(_) => self.parse_expr_with_precedence(0)?,
-            None => self.err(ParseErrorKind::ExpectedFnBody, None, None)?,
+            None => self.err(ParseErrorKind::ExpectedFnBody, ExpectedItem::empty(), None)?,
         };
 
         Ok(self.node_with_joined_span(Expr::FnDef(FnDef { params, return_ty, fn_body }), start))

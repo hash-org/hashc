@@ -372,8 +372,7 @@ impl<'a> Lexer<'a> {
 
         let name = &self.contents[start..self.offset.get()];
 
-        ident_is_keyword(name)
-            .map_or_else(|| TokenKind::Ident(name.into()), |keyword| TokenKind::Keyword(keyword))
+        ident_is_keyword(name).map_or_else(|| TokenKind::Ident(name.into()), TokenKind::Keyword)
     }
 
     fn parse_int_value(

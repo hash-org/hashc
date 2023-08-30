@@ -7,7 +7,10 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a compound [Pat]. A compound [Pat] means that this could
@@ -139,9 +142,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
         let start = self.next_pos();
         let mut has_range_pat = false;
-        let token = *self
-            .peek()
-            .ok_or_else(|| self.make_err(ParseErrorKind::UnExpected, None, None, None))?;
+
+        let token = *self.peek().ok_or_else(|| {
+            self.make_err(ParseErrorKind::UnExpected, ExpectedItem::Pat, None, None)
+        })?;
 
         let pat = match token {
             Token { kind: TokenKind::Ident(ident), .. } if ident == IDENTS.underscore => {
@@ -177,7 +181,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 None => self.err_with_location(
                     ParseErrorKind::ExpectedPat,
-                    None,
+                    ExpectedItem::Pat,
                     Some(token.kind),
                     token.span,
                 )?,
@@ -207,7 +211,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 ParseErrorKind::ExpectedPat,
-                None,
+                ExpectedItem::Pat,
                 Some(token.kind),
                 token.span,
             )?,
@@ -489,7 +493,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
                 self.make_err(
                     ParseErrorKind::MalformedSpreadPattern(3 - k),
-                    None,
+                    ExpectedItem::Dot,
                     None,
                     Some(self.next_pos()),
                 )
@@ -507,7 +511,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if spread.is_some() {
             self.add_error(self.make_err(
                 ParseErrorKind::MultipleSpreadPats { origin },
-                None,
+                ExpectedItem::empty(),
                 None,
                 Some(span),
             ));
@@ -546,7 +550,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 ParseErrorKind::UnExpected,
-                None,
+                ExpectedItem::Visibility,
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_pos(), |t| t.span),
             ),

@@ -4,7 +4,7 @@
 use std::fmt;
 
 use hash_ast::ast::{Block, BlockExpr, Expr};
-use hash_utils::{printing::SequenceDisplay, bitflags};
+use hash_utils::{bitflags, printing::SequenceDisplay};
 
 bitflags::bitflags! {
     /// [DirectiveArgument] is a mapping between [Expr] to a simplified

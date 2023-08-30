@@ -2,6 +2,7 @@
 //! This module contains all of the logic that provides diagnostic
 //! capabilities within the parser.
 pub(crate) mod error;
+pub(crate) mod expected;
 pub(crate) mod warning;
 
 use hash_reporting::{

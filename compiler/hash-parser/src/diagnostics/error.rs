@@ -7,8 +7,9 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::{identifier::Identifier, location::Span};
-use hash_token::{TokenKind, TokenKindVector};
-use hash_utils::printing::SequenceDisplay;
+use hash_token::TokenKind;
+
+use super::expected::ExpectedItem;
 
 /// Utility wrapper type for [ParseError] in [Result]
 pub type ParseResult<T> = Result<T, ParseError>;
@@ -22,7 +23,7 @@ pub struct ParseError {
     /// Location of where the error references
     location: Span,
     /// An optional vector of tokens that are expected to circumvent the error.
-    expected: Option<TokenKindVector>,
+    expected: ExpectedItem,
     /// An optional token in question that was received byt shouldn't of been
     received: Option<TokenKind>,
 }
@@ -148,7 +149,10 @@ impl From<ParseError> for Reports {
             ParseErrorKind::Block => "expected block body, which begins with a `{`".to_string(),
             ParseErrorKind::ReAssignmentOp => "expected a re-assignment operator".to_string(),
             ParseErrorKind::TypeDefinition(ty) => {
-                format!("expected {} definition entries here which begin with a `<` or `(`", ty.name())
+                format!(
+                    "expected {} definition entries here which begin with a `<` or `(`",
+                    ty.name()
+                )
             }
             ParseErrorKind::ExpectedValueAfterTyAnnotation => {
                 "expected value assignment after type annotation within named tuple".to_string()
@@ -156,10 +160,7 @@ impl From<ParseError> for Reports {
             ParseErrorKind::ExpectedOperator => "expected an operator".to_string(),
             ParseErrorKind::ExpectedExpr => "expected an expression".to_string(),
             ParseErrorKind::ExpectedName => "expected a name here".to_string(),
-            ParseErrorKind::ExpectedMacroInvocation => {
-                "expected a macro invocation, either being a name identifier or a parameterised invocation `[...]`"
-                    .to_string()
-            }
+            ParseErrorKind::ExpectedMacroInvocation => "expected a macro invocation".to_string(),
             ParseErrorKind::ExpectedArrow => "expected an arrow `=>` ".to_string(),
             ParseErrorKind::ExpectedFnArrow => {
                 "expected an arrow `->` after type arguments denoting a function type".to_string()
@@ -207,13 +208,10 @@ impl From<ParseError> for Reports {
         }
 
         // If the generated error has suggested tokens that aren't empty.
-        if let Some(expected_tokens) = expected {
+        if !expected.is_empty() {
             help_notes.push(ReportElement::Note(ReportNote::new(
                 ReportNoteKind::Help,
-                format!(
-                    "consider adding {}",
-                    SequenceDisplay::either(expected_tokens.into_inner().as_slice())
-                ),
+                format!("expected {expected}"),
             )));
         }
 

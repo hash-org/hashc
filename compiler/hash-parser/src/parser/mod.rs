@@ -17,15 +17,13 @@ use std::cell::Cell;
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticStore};
 use hash_source::location::{ByteRange, Span};
-use hash_token::{
-    delimiter::{Delimiter, DelimiterVariant},
-    Token, TokenKind, TokenKindVector,
-};
+use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use crate::{
     diagnostics::{
         error::{ParseError, ParseErrorKind, ParseResult},
+        expected::ExpectedItem,
         warning::ParseWarning,
     },
     import_resolver::ImportResolver,
@@ -299,7 +297,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn make_err(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
         span: Option<ByteRange>,
     ) -> ParseError {
@@ -315,7 +313,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn err<T>(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
     ) -> ParseResult<T> {
         Err(self.make_err(kind, expected, received, None))
@@ -325,7 +323,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn err_with_location<T>(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
         span: ByteRange,
     ) -> ParseResult<T> {
@@ -340,7 +338,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
-        self.err(ParseErrorKind::UnExpected, None, Some(self.current_token().kind))
+        self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), Some(self.current_token().kind))
     }
 
     /// This function `consumes` a generator into the patent [AstGen] whilst
@@ -361,7 +359,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Generate an error representing that the current generator unexpectedly
     /// reached the end of input at this point.
     pub(crate) fn unexpected_eof<T>(&self) -> ParseResult<T> {
-        self.err(ParseErrorKind::UnExpected, None, None)
+        self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), None)
     }
 
     /// Function to peek ahead and match some parsing function that returns a
@@ -543,7 +541,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 ParseErrorKind::UnExpected,
-                Some(TokenKindVector::singleton(atom)),
+                ExpectedItem::from(atom),
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_pos(), |t| t.span),
             ),
@@ -580,10 +578,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 error.unwrap_or(ParseErrorKind::UnExpected),
-                Some(TokenKindVector::singleton(TokenKind::Delimiter(
-                    delimiter,
-                    DelimiterVariant::Left,
-                ))),
+                ExpectedItem::from(delimiter),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_pos(), |tok| tok.span),
             )?,

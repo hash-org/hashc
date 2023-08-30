@@ -4,4 +4,4 @@ error: unexpectedly encountered the identifier `_`
 12 |           _ => -1
    |           ^ 
 13 |       };
-   = help: consider adding a `,`
+   = help: expected a `,`

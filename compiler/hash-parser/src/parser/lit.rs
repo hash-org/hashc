@@ -2,11 +2,14 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_source::location::ByteRange;
-use hash_token::{keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a primitive literal, which means it can be either a `char`,
@@ -25,7 +28,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit { data: true }),
                 _ => self.err_with_location(
                     ParseErrorKind::ExpectedLit,
-                    None,
+                    ExpectedItem::empty(),
                     Some(token.kind),
                     token.span,
                 )?,
@@ -130,7 +133,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.parse_token_fast(TokenKind::Eq).ok_or_else(|| {
                         self.make_err(
                             ParseErrorKind::ExpectedValueAfterTyAnnotation,
-                            Some(TokenKindVector::singleton(TokenKind::Eq)),
+                            ExpectedItem::Eq,
                             None,
                             Some(self.next_pos()),
                         )
@@ -185,7 +188,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // unexpected token error
                     return gen.err(
                         ParseErrorKind::UnExpected,
-                        Some(TokenKindVector::singleton(TokenKind::Comma)),
+                        ExpectedItem::Comma,
                         Some(token.kind),
                     );
                 }
