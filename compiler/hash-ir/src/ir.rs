@@ -1343,14 +1343,14 @@ impl Body {
 
     /// Returns an iterator over all function arguments.
     #[inline]
-    pub fn args_iter(&self) -> impl Iterator<Item = Local> + ExactSizeIterator {
+    pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
         (1..self.arg_count + 1).map(Local::new)
     }
 
     /// Returns an iterator over all variables and temporaries. This
     /// excludes the return place and function arguments.
     #[inline]
-    pub fn vars_iter(&self) -> impl Iterator<Item = Local> + ExactSizeIterator {
+    pub fn vars_iter(&self) -> impl ExactSizeIterator<Item = Local> {
         (self.arg_count + 1..self.declarations.len()).map(Local::new)
     }
 
