@@ -17,7 +17,7 @@ use hash_source::{
 use hash_target::size::Size;
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
-    keyword::Keyword,
+    keyword::ident_is_keyword,
     Token, TokenKind,
 };
 use num_bigint::BigInt;
@@ -372,36 +372,8 @@ impl<'a> Lexer<'a> {
 
         let name = &self.contents[start..self.offset.get()];
 
-        match name {
-            "true" => TokenKind::Keyword(Keyword::True),
-            "false" => TokenKind::Keyword(Keyword::False),
-            "for" => TokenKind::Keyword(Keyword::For),
-            "while" => TokenKind::Keyword(Keyword::While),
-            "loop" => TokenKind::Keyword(Keyword::Loop),
-            "if" => TokenKind::Keyword(Keyword::If),
-            "else" => TokenKind::Keyword(Keyword::Else),
-            "match" => TokenKind::Keyword(Keyword::Match),
-            "as" => TokenKind::Keyword(Keyword::As),
-            "in" => TokenKind::Keyword(Keyword::In),
-            "trait" => TokenKind::Keyword(Keyword::Trait),
-            "enum" => TokenKind::Keyword(Keyword::Enum),
-            "struct" => TokenKind::Keyword(Keyword::Struct),
-            "continue" => TokenKind::Keyword(Keyword::Continue),
-            "break" => TokenKind::Keyword(Keyword::Break),
-            "return" => TokenKind::Keyword(Keyword::Return),
-            "import" => TokenKind::Keyword(Keyword::Import),
-            "raw" => TokenKind::Keyword(Keyword::Raw),
-            "unsafe" => TokenKind::Keyword(Keyword::Unsafe),
-            "priv" => TokenKind::Keyword(Keyword::Priv),
-            "pub" => TokenKind::Keyword(Keyword::Pub),
-            "mut" => TokenKind::Keyword(Keyword::Mut),
-            "mod" => TokenKind::Keyword(Keyword::Mod),
-            "impl" => TokenKind::Keyword(Keyword::Impl),
-            "type" => TokenKind::Keyword(Keyword::Type),
-            "typeof" => TokenKind::Keyword(Keyword::TypeOf),
-            "_" => TokenKind::Ident(IDENTS.underscore),
-            _ => TokenKind::Ident(name.into()),
-        }
+        ident_is_keyword(name)
+            .map_or_else(|| TokenKind::Ident(name.into()), |keyword| TokenKind::Keyword(keyword))
     }
 
     fn parse_int_value(
