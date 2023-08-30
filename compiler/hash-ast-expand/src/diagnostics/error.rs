@@ -109,10 +109,7 @@ impl From<ExpansionError> for Reports {
                     .error()
                     .title(format!("attribute `{name}` cannot be applied to an {target}"))
                     .add_labelled_span(subject, format!("`{name}` cannot be applied to {target}"))
-                    .add_help(format!(
-                        "`{name}` can only be applied to the following items: {}",
-                        attr.subject
-                    ));
+                    .add_help(format!("`{name}` can only be applied to {}", attr.subject));
             }
             ExpansionErrorKind::InvalidAttributeApplication(error) => {
                 error.add_to_reporter(&mut reporter);
