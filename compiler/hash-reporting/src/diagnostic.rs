@@ -8,6 +8,8 @@ use std::{
     mem::take,
 };
 
+use hash_utils::thin_vec::ThinVec;
+
 use crate::reporter::Reports;
 
 /// This macro creates `Diagnostics{,Mut}` trait definitions, which provide
@@ -67,7 +69,7 @@ macro_rules! make_diagnostic_traits {
             /// immediately converting the diagnostics into [Report]s.
             ///
             /// This will modify self.
-            fn into_diagnostics(self: $self_ref) -> (Vec<Self::Error>, Vec<Self::Warning>);
+            fn into_diagnostics(self: $self_ref) -> (ThinVec<Self::Error>, ThinVec<Self::Warning>);
 
             /// Merge another diagnostic store with this one.
             fn merge_diagnostics(self: $self_ref, other: impl $name<Error=Self::Error, Warning=Self::Warning>);
@@ -84,13 +86,13 @@ make_diagnostic_traits!(Diagnostics with &Self, DiagnosticsMut with &mut Self);
 /// A standard implementation of [Diagnostics] that uses a [RefCell] to store
 /// errors and warnings immutably.
 pub struct DiagnosticCellStore<E, W> {
-    pub errors: RefCell<Vec<E>>,
-    pub warnings: RefCell<Vec<W>>,
+    pub errors: RefCell<ThinVec<E>>,
+    pub warnings: RefCell<ThinVec<W>>,
 }
 
 impl<E, W> DiagnosticCellStore<E, W> {
     pub fn new() -> Self {
-        Self { errors: RefCell::new(Vec::new()), warnings: RefCell::new(Vec::new()) }
+        Self { errors: RefCell::new(ThinVec::new()), warnings: RefCell::new(ThinVec::new()) }
     }
 }
 
@@ -144,7 +146,7 @@ impl<E, W> Diagnostics for DiagnosticCellStore<E, W> {
         !self.warnings.borrow().is_empty()
     }
 
-    fn into_diagnostics(&self) -> (Vec<E>, Vec<W>) {
+    fn into_diagnostics(&self) -> (ThinVec<E>, ThinVec<W>) {
         // This drains all the errors and warnings from the diagnostics store.
         let mut errors = self.errors.borrow_mut();
         let mut warnings = self.warnings.borrow_mut();
@@ -161,13 +163,13 @@ impl<E, W> Diagnostics for DiagnosticCellStore<E, W> {
 /// A standard implementation of [DiagnosticsMut] that stores errors and
 /// warnings directly, and thus is mutable.
 pub struct DiagnosticStore<E, W> {
-    pub errors: Vec<E>,
-    pub warnings: Vec<W>,
+    pub errors: ThinVec<E>,
+    pub warnings: ThinVec<W>,
 }
 
 impl<E, W> DiagnosticStore<E, W> {
     pub fn new() -> Self {
-        Self { errors: Vec::new(), warnings: Vec::new() }
+        Self { errors: ThinVec::new(), warnings: ThinVec::new() }
     }
 }
 
@@ -203,7 +205,7 @@ impl<E, W> DiagnosticsMut for DiagnosticStore<E, W> {
         !self.warnings.is_empty()
     }
 
-    fn into_diagnostics(&mut self) -> (Vec<E>, Vec<W>) {
+    fn into_diagnostics(&mut self) -> (ThinVec<E>, ThinVec<W>) {
         (take(&mut self.errors), take(&mut self.warnings))
     }
 

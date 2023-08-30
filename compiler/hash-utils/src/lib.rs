@@ -27,6 +27,7 @@ pub use backtrace;
 pub use bitflags;
 pub use crossbeam_channel;
 pub use dashmap;
+pub use derive_more;
 pub use fxhash;
 pub use index_vec;
 pub use indexmap;

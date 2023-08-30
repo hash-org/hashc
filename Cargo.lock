@@ -864,6 +864,7 @@ dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
  "dashmap",
+ "derive_more",
  "fixedbitset",
  "fxhash",
  "index_vec",
