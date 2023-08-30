@@ -1,0 +1,42 @@
+error: attribute `layout_of` cannot be applied to an a implicit function definition
+  --> $DIR/layout_of.hash:28:2
+27 |   
+28 |   #layout_of ParameterisedValue := <T> => struct (
+   |    ^^^^^^^^^ `layout_of` cannot be applied to a implicit function definition
+29 |       x: T,
+   = help: `layout_of` can only be applied to either `struct` definition, or `enum` definition
+
+error: cannot use `#layout_of` on a `struct` definition with generic parameters
+  --> $DIR/layout_of.hash:34:38
+32 |    );
+33 |    
+34 |    #layout_of ParameterisedValueWith := struct<T> (
+   |  _______________________________________-
+35 | |      x: T,
+36 | |      z: T,
+37 | |  );
+   | |__- this item is generic
+38 |    
+39 |    #layout_of other := 5;
+
+  --> $DIR/layout_of.hash:34:44
+33 |   
+34 |   #layout_of ParameterisedValueWith := struct<T> (
+   |                                              ^^^ generic parameters declared here
+35 |       x: T,
+
+error: attribute `layout_of` cannot be applied to an a literal
+  --> $DIR/layout_of.hash:39:2
+38 |   
+39 |   #layout_of other := 5;
+   |    ^^^^^^^^^ `layout_of` cannot be applied to a literal
+40 |   other := #layout_of 5;
+   = help: `layout_of` can only be applied to either `struct` definition, or `enum` definition
+
+error: attribute `layout_of` cannot be applied to an a literal
+  --> $DIR/layout_of.hash:40:11
+39 |   #layout_of other := 5;
+40 |   other := #layout_of 5;
+   |             ^^^^^^^^^ `layout_of` cannot be applied to a literal
+41 |   
+   = help: `layout_of` can only be applied to either `struct` definition, or `enum` definition
