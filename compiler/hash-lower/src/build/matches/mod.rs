@@ -79,6 +79,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         arms: MatchCasesId,
     ) -> Vec<Candidates<'tcx>> {
         arms.borrow()
+            .borrow()
             .iter()
             .copied()
             .map(|arm| {
@@ -86,7 +87,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let has_guard = arm.bind_pat.borrow().is_if();
 
                 let candidate = Candidate::new(span, arm.bind_pat, subject_place, has_guard);
-                (arm, candidate)
+                (*arm, candidate)
             })
             .collect()
     }
@@ -391,11 +392,17 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         for pair in pairs {
             let or_span = self.span_of_pat(pair.pat);
-            let Pat::Or(pats) = pair.pat.value() else {
+            let Pat::Or(pats) = *pair.pat.value() else {
                 unreachable!("`or` pattern expected after candidate sorting")
             };
 
-            let pats = pats.alternatives.borrow().iter().map(|pat| pat.assert_pat()).collect_vec();
+            let pats = pats
+                .alternatives
+                .borrow()
+                .borrow()
+                .iter()
+                .map(|pat| pat.assert_pat())
+                .collect_vec();
 
             first.visit_leaves(|leaf| {
                 self.test_or_pat(leaf, &mut otherwise, &pair.place, &pats, or_span);
@@ -578,7 +585,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// This function is responsible for putting all of the declared bindings
     /// into scope.
     fn bind_pat(&mut self, origin: AstNodeId, pat: PatId, candidate: Candidate) -> BasicBlock {
-        let guard = match pat.value() {
+        let guard = match *pat.value() {
             Pat::If(IfPat { condition, .. }) => Some(condition),
             _ => None,
         };

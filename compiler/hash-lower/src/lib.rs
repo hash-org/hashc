@@ -44,6 +44,7 @@ use hash_tir::{
     data::DataTy,
     directives::DirectiveTarget,
     environment::{env::Env, source_info::CurrentSourceInfo, stores::tir_stores},
+    node::{Node, NodeOrigin},
 };
 use hash_utils::{
     stream_writeln,
@@ -198,7 +199,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let ctx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env, semantic_storage);
 
         // @@Future: support generic substitutions here.
-        let empty_args = Arg::empty_seq();
+        let empty_args = Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated);
 
         tir_stores().directives().internal_data().iter().for_each(|entry| {
             let (id, directives) = entry.pair();

@@ -209,12 +209,12 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn add_data_params_and_ctors(&self, data_def_id: DataDefId) {
         let params = data_def_id.borrow().params;
         for i in params.to_index_range() {
-            self.add_param_binding(ParamId(params, i));
+            self.add_param_binding(ParamId(*params.value(), i));
         }
         // Add all the constructors
         match data_def_id.borrow().ctors {
             DataDefCtors::Defined(ctors) => {
-                for ctor in ctors.iter() {
+                for ctor in ctors.value().iter() {
                     self.add_named_binding(
                         ctor.borrow().name,
                         BindingKind::Ctor(data_def_id, ctor),
@@ -230,7 +230,7 @@ impl<'tc> Scoping<'tc> {
     /// Add the module members of the definition to the current scope,
     /// also adding them to the `bindings_by_name` map.
     pub(super) fn add_mod_members(&self, mod_def_id: ModDefId) {
-        for member_id in mod_def_id.borrow().members.iter() {
+        for member_id in mod_def_id.borrow().members.value().iter() {
             self.add_named_binding(
                 member_id.borrow().name,
                 BindingKind::ModMember(mod_def_id, member_id),
@@ -349,7 +349,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = tir_stores().ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let fn_ty = ty_as_variant!(self, fn_ty_id.value(), Fn);
+        let fn_ty = ty_as_variant!(self, *fn_ty_id.value(), Fn);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
 
@@ -360,7 +360,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = tir_stores().ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let fn_ty = ty_as_variant!(self, fn_ty_id.value(), Fn);
+        let fn_ty = ty_as_variant!(self, *fn_ty_id.value(), Fn);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
 
@@ -371,7 +371,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(TupleTy) -> T,
     ) -> T {
         let tuple_ty_id = tir_stores().ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let tuple_ty = ty_as_variant!(self, tuple_ty_id.value(), Tuple);
+        let tuple_ty = ty_as_variant!(self, *tuple_ty_id.value(), Tuple);
         self.enter_scope(ContextKind::Environment, || f(tuple_ty))
     }
 

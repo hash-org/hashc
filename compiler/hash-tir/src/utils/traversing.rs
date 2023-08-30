@@ -4,7 +4,7 @@ use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
 use derive_more::{From, TryInto};
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 
@@ -19,7 +19,7 @@ use crate::{
     fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
-    node::{self, Node},
+    node::Node,
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId},
     refs::{DerefTerm, RefTerm, RefTy},
@@ -154,7 +154,7 @@ impl TraversingUtils {
                     let statements = self.fmap_term_list(loop_term.block.statements, f)?;
                     let return_value = self.fmap_term(loop_term.block.return_value, f)?;
                     Ok(Term::from(LoopTerm {
-                        block: Node::value(
+                        block: Node::at(
                             BlockTerm {
                                 statements,
                                 return_value,
@@ -177,7 +177,7 @@ impl TraversingUtils {
                                 let case_value = case.value();
                                 let bind_pat = self.fmap_pat(case_value.bind_pat, f)?;
                                 let value = self.fmap_term(case_value.value, f)?;
-                                Ok(Node::value(
+                                Ok(Node::at(
                                     MatchCase { bind_pat, value, stack_id: case_value.stack_id },
                                     case_value.origin,
                                 ))
@@ -185,7 +185,7 @@ impl TraversingUtils {
                             .collect::<Result<Vec<_>, _>>()?,
                     );
                     Ok(Term::from(MatchTerm {
-                        cases: Node::create_value(cases, match_term.cases.value().origin),
+                        cases: Node::create_at(cases, match_term.cases.value().origin),
                         subject,
                         origin: match_term.origin,
                     }))
@@ -301,19 +301,19 @@ impl TraversingUtils {
         let result = match f(pat_id.into())? {
             ControlFlow::Break(pat) => Ok(PatId::try_from(pat).unwrap()),
             ControlFlow::Continue(()) => match *pat_id.value() {
-                Pat::Binding(binding_pat) => Ok(Node::create_value(Pat::from(binding_pat), origin)),
-                Pat::Range(range_pat) => Ok(Node::create_value(Pat::from(range_pat), origin)),
-                Pat::Lit(lit_pat) => Ok(Node::create_value(Pat::from(lit_pat), origin)),
+                Pat::Binding(binding_pat) => Ok(Node::create_at(Pat::from(binding_pat), origin)),
+                Pat::Range(range_pat) => Ok(Node::create_at(Pat::from(range_pat), origin)),
+                Pat::Lit(lit_pat) => Ok(Node::create_at(Pat::from(lit_pat), origin)),
                 Pat::Tuple(tuple_pat) => {
                     let data = self.fmap_pat_args(tuple_pat.data, f)?;
-                    Ok(Node::create_value(
+                    Ok(Node::create_at(
                         Pat::from(TuplePat { data_spread: tuple_pat.data_spread, data }),
                         origin,
                     ))
                 }
                 Pat::Array(list_pat) => {
                     let pats = self.fmap_pat_list(list_pat.pats, f)?;
-                    Ok(Node::create_value(
+                    Ok(Node::create_at(
                         Pat::from(ArrayPat { spread: list_pat.spread, pats }),
                         origin,
                     ))
@@ -321,7 +321,7 @@ impl TraversingUtils {
                 Pat::Ctor(ctor_pat) => {
                     let data_args = self.fmap_args(ctor_pat.data_args, f)?;
                     let ctor_pat_args = self.fmap_pat_args(ctor_pat.ctor_pat_args, f)?;
-                    Ok(Node::create_value(
+                    Ok(Node::create_at(
                         Pat::from(CtorPat {
                             data_args,
                             ctor_pat_args,
@@ -333,12 +333,12 @@ impl TraversingUtils {
                 }
                 Pat::Or(or_pat) => {
                     let alternatives = self.fmap_pat_list(or_pat.alternatives, f)?;
-                    Ok(Node::create_value(Pat::from(OrPat { alternatives }), origin))
+                    Ok(Node::create_at(Pat::from(OrPat { alternatives }), origin))
                 }
                 Pat::If(if_pat) => {
                     let pat = self.fmap_pat(if_pat.pat, f)?;
                     let condition = self.fmap_term(if_pat.condition, f)?;
-                    Ok(Node::create_value(Pat::from(IfPat { pat, condition }), origin))
+                    Ok(Node::create_at(Pat::from(IfPat { pat, condition }), origin))
                 }
             },
         }?;
@@ -355,7 +355,7 @@ impl TraversingUtils {
         for term_id in term_list.value().value() {
             new_list.push(self.fmap_term(term_id, f)?);
         }
-        Ok(Node::create_value(TermId::seq_data(new_list), term_list.value().origin))
+        Ok(Node::create_at(TermId::seq_data(new_list), term_list.value().origin))
     }
 
     pub fn fmap_pat_list<E, F: Mapper<E>>(
@@ -369,19 +369,19 @@ impl TraversingUtils {
                 PatOrCapture::Pat(pat_id) => {
                     new_list.push(PatOrCapture::Pat(self.fmap_pat(pat_id, f)?));
                 }
-                PatOrCapture::Capture => {
-                    new_list.push(PatOrCapture::Capture);
+                PatOrCapture::Capture(node) => {
+                    new_list.push(PatOrCapture::Capture(node));
                 }
             }
         }
-        Ok(Node::create_value(PatOrCapture::seq_data(new_list), pat_list.value().origin))
+        Ok(Node::create_at(PatOrCapture::seq_data(new_list), pat_list.value().origin))
     }
 
     pub fn fmap_params<E, F: Mapper<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
         let new_params = {
             let mut new_params = Vec::with_capacity(params_id.value().len());
             for param in params_id.value().value() {
-                new_params.push(Node::value(
+                new_params.push(Node::at(
                     Param {
                         name: param.name,
                         ty: self.fmap_ty(param.ty, f)?,
@@ -393,7 +393,7 @@ impl TraversingUtils {
                     param.origin,
                 ));
             }
-            Ok(Node::create_value(Node::<Param>::seq_data(new_params), params_id.value().origin))
+            Ok(Node::create_at(Node::<Param>::seq_data(new_params), params_id.value().origin))
         }?;
 
         tir_stores().location().copy_locations(*params_id.value(), *new_params.value());
@@ -403,13 +403,12 @@ impl TraversingUtils {
     pub fn fmap_args<E, F: Mapper<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
         let mut new_args = Vec::with_capacity(args_id.value().len());
         for arg in args_id.value().value() {
-            new_args.push(Node::value(
+            new_args.push(Node::at(
                 Arg { target: arg.target, value: self.fmap_term(arg.value, f)? },
                 arg.origin,
             ));
         }
-        let new_args_id =
-            Node::create_value(Node::<Arg>::seq_data(new_args), args_id.value().origin);
+        let new_args_id = Node::create_at(Node::<Arg>::seq_data(new_args), args_id.value().origin);
         tir_stores().location().copy_locations(*args_id.value(), *new_args_id.value());
         Ok(new_args_id)
     }
@@ -422,20 +421,20 @@ impl TraversingUtils {
         let new_pat_args = {
             let mut new_args = Vec::with_capacity(pat_args_id.value().len());
             for pat_arg in pat_args_id.value().value() {
-                new_args.push(Node::value(
+                new_args.push(Node::at(
                     PatArg {
                         target: pat_arg.target,
                         pat: match pat_arg.pat {
                             PatOrCapture::Pat(pat_id) => {
                                 PatOrCapture::Pat(self.fmap_pat(pat_id, f)?)
                             }
-                            PatOrCapture::Capture => PatOrCapture::Capture,
+                            PatOrCapture::Capture(node) => PatOrCapture::Capture(node),
                         },
                     },
                     pat_arg.origin,
                 ));
             }
-            Ok(Node::create_value(Node::<PatArg>::seq_data(new_args), pat_args_id.value().origin))
+            Ok(Node::create_at(Node::<PatArg>::seq_data(new_args), pat_args_id.value().origin))
         }?;
 
         tir_stores().location().copy_locations(*pat_args_id.value(), *new_pat_args.value());
@@ -462,7 +461,7 @@ impl TraversingUtils {
                         let params = self.fmap_params(fn_def.ty.params, f)?;
                         let return_ty = self.fmap_ty(fn_def.ty.return_ty, f)?;
                         let body = FnBody::Defined(self.fmap_term(defined, f)?);
-                        Ok(Node::create_value(
+                        Ok(Node::create_at(
                             FnDef {
                                 name: fn_def.name,
                                 ty: FnTy {

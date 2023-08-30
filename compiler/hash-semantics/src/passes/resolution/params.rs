@@ -10,6 +10,7 @@ use hash_tir::{
     args::{ArgsId, PatArgsId},
     environment::stores::tir_stores,
     fns::FnCallTerm,
+    node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
     terms::{Term, TermId},
@@ -184,7 +185,7 @@ impl<'tc> ResolutionPass<'tc> {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
                     self.scoping().add_param_binding(param_id);
-                    params_id = Some(param_id.0);
+                    params_id = Some(Node::create_at(param_id.0, NodeOrigin::Generated));
                 }
                 None => {
                     // Continue resolving the rest of the parameters and report the error at the
@@ -197,7 +198,9 @@ impl<'tc> ResolutionPass<'tc> {
         if found_error {
             Err(SemanticError::Signal)
         } else {
-            Ok(params_id.unwrap_or_else(Param::empty_seq))
+            Ok(params_id.unwrap_or_else(|| {
+                Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
+            }))
         }
     }
 
@@ -221,7 +224,7 @@ impl<'tc> ResolutionPass<'tc> {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
                     self.scoping().add_param_binding(param_id);
-                    params_id = Some(param_id.0);
+                    params_id = Some(Node::create_at(param_id.0, NodeOrigin::Generated));
                 }
                 None => {
                     // Continue resolving the rest of the parameters and report the error at the
@@ -234,7 +237,9 @@ impl<'tc> ResolutionPass<'tc> {
         if found_error {
             Err(SemanticError::Signal)
         } else {
-            Ok(params_id.unwrap_or_else(Param::empty_seq))
+            Ok(params_id.unwrap_or_else(|| {
+                Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
+            }))
         }
     }
 

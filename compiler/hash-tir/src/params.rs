@@ -24,11 +24,9 @@ use crate::{
     data::{CtorDefId, DataDefId},
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
-    node,
     node::{Node, NodeOrigin},
     symbols::Symbol,
-    tir_debug_name_of_store_id, tir_debug_value_of_sequence_store_element_id,
-    tir_debug_value_of_single_store_id,
+    tir_debug_value_of_sequence_store_element_id, tir_debug_value_of_single_store_id,
     tuples::TupleTy,
     tys::{Ty, TyId},
 };
@@ -49,11 +47,11 @@ impl Param {
     /// Create a new parameter list with the given names, and holes for all
     /// types.
     pub fn seq_from_names_with_hole_types(param_names: impl Iterator<Item = Symbol>) -> ParamsId {
-        Node::create(Node::value(
+        Node::create(Node::at(
             Node::seq_data(
                 param_names
                     .map(|name| {
-                        Node::value(
+                        Node::at(
                             Param { name, ty: Ty::hole(), default: None },
                             NodeOrigin::Generated,
                         )
@@ -72,11 +70,11 @@ impl Param {
     }
 
     pub fn seq_positional(tys: impl IntoIterator<Item = TyId>) -> ParamsId {
-        Node::create(Node::value(
+        Node::create(Node::at(
             Node::seq_data(
                 tys.into_iter()
                     .map(|ty| {
-                        Node::value(
+                        Node::at(
                             Param { name: Symbol::fresh(), ty, default: None },
                             NodeOrigin::Generated,
                         )
@@ -135,6 +133,24 @@ static_sequence_store_direct!(
 );
 
 tir_debug_value_of_sequence_store_element_id!(ParamId);
+
+impl SequenceStoreKey for ParamsId {
+    type ElementKey = ParamId;
+
+    fn to_index_and_len(self) -> (usize, usize) {
+        self.value().to_index_and_len()
+    }
+
+    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+        panic!("Creating ParamsId is not allowed, create ParamsSeqId directly")
+    }
+}
+
+impl From<(ParamsId, usize)> for ParamId {
+    fn from(value: (ParamsId, usize)) -> Self {
+        ParamId(*value.0.value(), value.1)
+    }
+}
 
 /// An index of a parameter of a parameter list.
 ///

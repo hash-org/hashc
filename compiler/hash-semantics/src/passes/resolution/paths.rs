@@ -29,6 +29,7 @@ use hash_tir::{
     data::{CtorPat, CtorTerm, DataDefId},
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
+    node::{Node, NodeOrigin},
     symbols::Symbol,
     terms::Term,
 };
@@ -193,14 +194,23 @@ impl<'tc> ResolutionPass<'tc> {
 
                         let (data_args, ctor_args): (ResolvedArgs, Option<ResolvedArgs>) =
                             match &component.args[..] {
-                                [] => (ResolvedArgs::Term(Arg::empty_seq()), None),
+                                [] => (
+                                    ResolvedArgs::Term(Node::create_at(
+                                        Node::<Arg>::empty_seq(),
+                                        NodeOrigin::Generated,
+                                    )),
+                                    None,
+                                ),
                                 [arg_group] if arg_group.is_implicit() => {
                                     (self.make_args_from_ast_arg_group(arg_group)?, None)
                                 }
                                 [arg_group] => {
                                     assert!(!arg_group.is_implicit());
                                     (
-                                        ResolvedArgs::Term(Arg::empty_seq()),
+                                        ResolvedArgs::Term(Node::create_at(
+                                            Node::<Arg>::empty_seq(),
+                                            NodeOrigin::Generated,
+                                        )),
                                         Some(self.make_args_from_ast_arg_group(arg_group)?),
                                     )
                                 }
@@ -232,7 +242,7 @@ impl<'tc> ResolutionPass<'tc> {
                             ) => match data_def_single_ctor {
                                 Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
                                     TerminalResolvedPathComponent::CtorPat(CtorPat {
-                                        ctor: ctor.id,
+                                        ctor,
                                         data_args,
                                         ctor_pat_args,
                                         ctor_pat_args_spread,
@@ -248,7 +258,7 @@ impl<'tc> ResolutionPass<'tc> {
                             ) => match data_def_single_ctor {
                                 Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
                                     TerminalResolvedPathComponent::CtorTerm(CtorTerm {
-                                        ctor: ctor.id,
+                                        ctor,
                                         data_args,
                                         ctor_args,
                                     }),
@@ -287,7 +297,10 @@ impl<'tc> ResolutionPass<'tc> {
             BindingKind::Ctor(data_def_id, ctor_def_id) => {
                 let _ctor_def = ctor_def_id.value();
                 let applied_args = match &component.args[..] {
-                    [] => ResolvedArgs::Term(Arg::empty_seq()),
+                    [] => ResolvedArgs::Term(Node::create_at(
+                        Node::<Arg>::empty_seq(),
+                        NodeOrigin::Generated,
+                    )),
                     [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
                     [_first, second, _rest @ ..] => {
                         return Err(SemanticError::UnexpectedArguments { location: second.span() });

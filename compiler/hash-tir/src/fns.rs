@@ -2,12 +2,8 @@
 
 use std::fmt::Display;
 
-use hash_storage::{
-    static_single_store,
-    store::{statics::StoreId, Store},
-};
+use hash_storage::{static_single_store, store::statics::StoreId};
 use typed_builder::TypedBuilder;
-use utility_types::omit;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
@@ -78,7 +74,7 @@ pub enum FnBody {
 /// Every function literal `(x) => y` is a function definition. Function
 /// definitions follow the syntax of function types, but followed by `=>
 /// r(a_1,...,a_n,p_1,...,p_n)`.
-#[derive(Debug, Clone, Copy, TypedBuilder)]
+#[derive(Debug, Clone, Copy)]
 pub struct FnDef {
     /// The symbolic name of the function, which resolves to its definition name
     /// if given by the user, by querying the data of the symbol.

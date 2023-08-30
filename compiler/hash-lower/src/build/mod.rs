@@ -309,9 +309,9 @@ impl<'ctx> BodyBuilder<'ctx> {
 
         Context::enter_resolved_scope_mut(self, ScopeKind::Fn(fn_def), |this| {
             // The type must be a function type...
-            let FnDef { ty: FnTy { params, .. }, body, .. } = fn_def.value();
+            let FnDef { ty: FnTy { params, .. }, body, .. } = *fn_def.value();
 
-            params.borrow().iter().for_each(|param| {
+            params.borrow().borrow().iter().for_each(|param| {
                 let ir_ty = this.ty_id_from_tir_ty(param.ty);
 
                 // @@Future: deal with parameter attributes that are mutable?

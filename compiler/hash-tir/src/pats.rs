@@ -7,7 +7,7 @@ use derive_more::From;
 use hash_ast::ast::RangeEnd;
 use hash_storage::{
     static_sequence_store_indirect, static_single_store,
-    store::{SequenceStore, Store, TrivialSequenceStoreKey},
+    store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
 };
 
 use super::{
@@ -133,6 +133,24 @@ static_sequence_store_indirect!(
     store_name = pat_list_seq,
     store_source = tir_stores()
 );
+
+impl SequenceStoreKey for PatListId {
+    type ElementKey = PatOrCapture;
+
+    fn to_index_and_len(self) -> (usize, usize) {
+        self.value().to_index_and_len()
+    }
+
+    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+        panic!("Creating PatListId is not allowed, create PatListSeqId directly")
+    }
+}
+
+impl From<(PatListId, usize)> for PatOrCapture {
+    fn from(value: (PatListId, usize)) -> Self {
+        value.0.borrow().at(value.1).unwrap()
+    }
+}
 
 impl fmt::Display for Spread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -18,7 +18,7 @@ use hash_storage::{
     static_single_store,
     store::{
         statics::{SingleStoreValue, StoreId},
-        FxHashMap, Store,
+        FxHashMap,
     },
     stores,
 };

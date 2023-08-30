@@ -8,7 +8,7 @@ use hash_storage::{
     static_sequence_store_indirect, static_single_store,
     store::{
         statics::{SequenceStoreValue, SingleStoreValue},
-        SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
 
@@ -22,10 +22,9 @@ use crate::{
     environment::stores::tir_stores,
     fns::{FnCallTerm, FnDefId},
     lits::Lit,
-    node::{self, Node, NodeOrigin},
+    node::{Node, NodeOrigin},
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    symbols::sym,
     tir_debug_value_of_single_store_id,
     tuples::TupleTerm,
     tys::{Ty, TyId},
@@ -130,26 +129,44 @@ static_sequence_store_indirect!(
     store_source = tir_stores()
 );
 
+impl SequenceStoreKey for TermListId {
+    type ElementKey = TermId;
+
+    fn to_index_and_len(self) -> (usize, usize) {
+        self.value().to_index_and_len()
+    }
+
+    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+        panic!("Creating TermListId is not allowed, create TermListSeqId directly")
+    }
+}
+
+impl From<(TermListId, usize)> for TermId {
+    fn from(value: (TermListId, usize)) -> Self {
+        value.0.borrow().at(value.1).unwrap()
+    }
+}
+
 impl Term {
     pub fn is_void(&self) -> bool {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
     }
 
     pub fn void() -> TermId {
-        Node::create(Node::value(
+        Node::create(Node::at(
             Term::Tuple(TupleTerm {
-                data: Node::create(Node::value(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+                data: Node::create(Node::at(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
             }),
             NodeOrigin::Generated,
         ))
     }
 
     pub fn hole() -> TermId {
-        Node::create(Node::value(Term::Hole(Hole::fresh()), NodeOrigin::Generated))
+        Node::create(Node::at(Term::Hole(Hole::fresh()), NodeOrigin::Generated))
     }
 
     pub fn var(symbol: Symbol) -> TermId {
-        Node::create(Node::value(Term::Var(symbol), NodeOrigin::Generated))
+        Node::create(Node::at(Term::Var(symbol), NodeOrigin::Generated))
     }
 
     /// Create a new term.
@@ -166,7 +183,7 @@ impl Term {
             Term::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Node::create(Node::value(term, NodeOrigin::Generated));
+        let created = Node::create(Node::at(term, NodeOrigin::Generated));
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }

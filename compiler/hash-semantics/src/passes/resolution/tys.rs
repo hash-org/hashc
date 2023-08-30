@@ -16,6 +16,7 @@ use hash_tir::{
     data::DataTy,
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::FnCallTerm,
+    node::{Node, NodeOrigin},
     params::ParamIndex,
     refs::{RefKind, RefTy},
     terms::Term,
@@ -46,17 +47,20 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(Arg {
-                    target: arg
-                        .name
-                        .as_ref()
-                        .map(|name| ParamIndex::Name(name.ident))
-                        .unwrap_or_else(|| ParamIndex::Position(i)),
-                    value: self.make_ty_from_ast_ty(arg.ty.ast_ref())?.as_term(),
-                })
+                Ok(Node::at(
+                    Arg {
+                        target: arg
+                            .name
+                            .as_ref()
+                            .map(|name| ParamIndex::Name(name.ident))
+                            .unwrap_or_else(|| ParamIndex::Position(i)),
+                        value: self.make_ty_from_ast_ty(arg.ty.ast_ref())?.as_term(),
+                    },
+                    NodeOrigin::Generated,
+                ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Arg::seq_data(args))
+        Ok(Node::create_at(Node::<Arg>::seq_data(args), NodeOrigin::Generated))
     }
 
     /// Use the given [`ast::NamedTy`] as a path.

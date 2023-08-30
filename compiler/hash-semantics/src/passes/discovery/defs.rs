@@ -1,17 +1,21 @@
 //! Utilities for keeping track of definitions during the discovery pass.
+use std::fmt::Display;
+
 use derive_more::From;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    statics::{SequenceStoreValue, StoreId},
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
 };
 use hash_tir::{
     context::Decl,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
-    defs::DefId,
     environment::{env::AccessToEnv, stores::tir_stores},
-    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMemberId, ModMemberValue},
+    fns::FnDefId,
+    locations::LocationTarget,
+    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
+    node::{Node, NodeOrigin},
     scopes::StackId,
     symbols::{sym, Symbol},
     tys::TyId,
@@ -23,6 +27,40 @@ use hash_utils::{
 };
 
 use super::DiscoveryPass;
+
+/// The ID of some definition.
+///
+/// This is used to refer to a definition in a generic way, without knowing
+/// what kind of definition it is.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, From)]
+pub enum DefId {
+    Mod(ModDefId),
+    Data(DataDefId),
+    Fn(FnDefId),
+    Stack(StackId),
+}
+
+impl From<DefId> for LocationTarget {
+    fn from(def_id: DefId) -> Self {
+        match def_id {
+            DefId::Mod(mod_id) => LocationTarget::ModDef(mod_id),
+            DefId::Data(data_id) => LocationTarget::DataDef(data_id),
+            DefId::Fn(fn_id) => LocationTarget::FnDef(fn_id),
+            DefId::Stack(stack_id) => LocationTarget::Stack(stack_id),
+        }
+    }
+}
+
+impl Display for DefId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DefId::Mod(mod_id) => write!(f, "{}", mod_id),
+            DefId::Data(data_id) => write!(f, "{}", data_id),
+            DefId::Fn(fn_id) => write!(f, "{}", fn_id),
+            DefId::Stack(stack_id) => write!(f, "{}", stack_id),
+        }
+    }
+}
 
 /// An item that is discovered: either a definition or a function type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, From)]
@@ -36,9 +74,9 @@ pub(super) enum ItemId {
 /// This is used for traversing blocks that might also
 /// contain local definitions.
 #[derive(Debug, Copy, Clone, From)]
-enum StackMemberOrModMemberData {
+enum StackMemberOrModMember {
     StackMember(Decl),
-    ModMember(ModMemberData),
+    ModMember(ModMember),
 }
 
 /// Contains information about seen definitions, members of definitions, as well
@@ -49,11 +87,11 @@ pub(super) struct DefDiscoveryState {
     /// The current definition we are in.
     currently_in: LightState<Option<ItemId>>,
     /// The mod member we have seen, indexed by the mod ID.
-    mod_members: DefaultPartialStore<ModDefId, Vec<(AstNodeId, ModMemberData)>>,
+    mod_members: DefaultPartialStore<ModDefId, Vec<(AstNodeId, ModMember)>>,
     /// The data ctor we have seen, indexed by the data definition ID.
     data_ctors: DefaultPartialStore<DataDefId, Vec<(AstNodeId, CtorDefData)>>,
     /// The stack members we have seen, indexed by the stack ID.
-    stack_members: DefaultPartialStore<StackId, Vec<(AstNodeId, StackMemberOrModMemberData)>>,
+    stack_members: DefaultPartialStore<StackId, Vec<(AstNodeId, StackMemberOrModMember)>>,
 }
 
 impl DefDiscoveryState {
@@ -158,18 +196,25 @@ impl<'tc> DiscoveryPass<'tc> {
                         let members = std::mem::take(members);
 
                         // Set module members.
-                        let mod_members = ModMember::seq(members.iter().map(|(_, data)| {
-                            |id| ModMember { id, name: data.name, value: data.value }
-                        }));
+                        let mod_members = Node::create_at(
+                            Node::<ModMember>::seq_data(members.iter().map(|(_, data)| {
+                                Node::at(
+                                    ModMember { name: data.name, value: data.value },
+                                    NodeOrigin::Generated,
+                                )
+                            })),
+                            NodeOrigin::Generated,
+                        );
                         mod_def_id.borrow_mut().members = mod_members;
 
                         // Set node for each member.
                         for ((node_id, _), mod_member_index) in
                             members.iter().zip(mod_members.to_index_range())
                         {
-                            ast_info
-                                .mod_members()
-                                .insert(*node_id, ModMemberId(mod_members, mod_member_index));
+                            ast_info.mod_members().insert(
+                                *node_id,
+                                ModMemberId(*mod_members.value(), mod_member_index),
+                            );
                         }
                     }
                 })
@@ -192,7 +237,7 @@ impl<'tc> DiscoveryPass<'tc> {
                         {
                             ast_info
                                 .ctor_defs()
-                                .insert(*node_id, CtorDefId(ctors, data_ctor_index));
+                                .insert(*node_id, CtorDefId(*ctors.value(), data_ctor_index));
                         }
                     }
                 })
@@ -208,10 +253,10 @@ impl<'tc> DiscoveryPass<'tc> {
                         let (mut stack_members, mut mod_members) = (vec![], vec![]);
                         for (id, data) in members {
                             match data {
-                                StackMemberOrModMemberData::StackMember(stack_member_data) => {
+                                StackMemberOrModMember::StackMember(stack_member_data) => {
                                     stack_members.push((id, stack_member_data));
                                 }
-                                StackMemberOrModMemberData::ModMember(mod_member_data) => {
+                                StackMemberOrModMember::ModMember(mod_member_data) => {
                                     mod_members.push((id, mod_member_data));
                                 }
                             }
@@ -229,12 +274,17 @@ impl<'tc> DiscoveryPass<'tc> {
                         // If we got local mod members, create a new mod def and
                         // add it to the stack definition.
                         if !mod_members.is_empty() {
-                            let local_mod_def_id = ModDef::create_with(|id| ModDef {
-                                id,
-                                kind: ModKind::ModBlock,
-                                name: sym(format!("stack_mod_{}", stack_id.to_index())),
-                                members: ModMember::empty_seq(),
-                            });
+                            let local_mod_def_id = Node::create_at(
+                                ModDef {
+                                    kind: ModKind::ModBlock,
+                                    name: sym(format!("stack_mod_{}", stack_id.to_index())),
+                                    members: Node::create_at(
+                                        Node::<ModMember>::empty_seq(),
+                                        NodeOrigin::Generated,
+                                    ),
+                                },
+                                NodeOrigin::Generated,
+                            );
                             stack_id.borrow_mut().local_mod_def = Some(local_mod_def_id);
                             self.def_state().mod_members.insert(local_mod_def_id, mod_members);
 
@@ -289,18 +339,19 @@ impl<'tc> DiscoveryPass<'tc> {
         &self,
         name: Symbol,
         def_node_id: AstNodeId,
-    ) -> Option<ModMemberData> {
+    ) -> Option<ModMember> {
         let ast_info = tir_stores().ast_info();
         if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
             // Function definition in a module
-            Some(ModMemberData { name, value: ModMemberValue::Fn(fn_def_id) })
+            Some(ModMember { name, value: ModMemberValue::Fn(fn_def_id) })
         } else if let Some(data_def_id) = ast_info.data_defs().get_data_by_node(def_node_id) {
             // Data definition in a module
-            Some(ModMemberData { name, value: ModMemberValue::Data(data_def_id) })
+            Some(ModMember { name, value: ModMemberValue::Data(data_def_id) })
         } else {
             // Nested module definition
-            ast_info.mod_defs().get_data_by_node(def_node_id).map(|nested_mod_def_id| {
-                ModMemberData { name, value: ModMemberValue::Mod(nested_mod_def_id) }
+            ast_info.mod_defs().get_data_by_node(def_node_id).map(|nested_mod_def_id| ModMember {
+                name,
+                value: ModMemberValue::Mod(nested_mod_def_id),
             })
 
             // If the above `get_data_by_node` returns `None`, do
@@ -311,12 +362,12 @@ impl<'tc> DiscoveryPass<'tc> {
         }
     }
 
-    /// Create `ModMemberData` from a declaration node.
+    /// Create `ModMember` from a declaration node.
     pub(super) fn make_mod_member_data_from_declaration_node(
         &self,
         name: Symbol,
         node: AstNodeRef<ast::Declaration>,
-    ) -> Option<ModMemberData> {
+    ) -> Option<ModMember> {
         // The `def_node_id` is the `AstNodeId` of the actual definition value that
         // this declaration is pointing to. For example, in `Y := mod {...}`, the `mod`
         // node's ID (which is a block) would be `def_node_id`.
@@ -338,13 +389,13 @@ impl<'tc> DiscoveryPass<'tc> {
                         self.source_map().get_id_by_path(&import_expr.data.resolved_path).unwrap();
                     let imported_mod_def_id =
                         self.mod_utils().create_or_get_module_mod_def(source_id.into());
-                    Some(ModMemberData { name, value: ModMemberValue::Mod(imported_mod_def_id) })
+                    Some(ModMember { name, value: ModMemberValue::Mod(imported_mod_def_id) })
                 }
                 // Directive, recurse
                 ast::Expr::Directive(inner) => {
                     self.get_mod_member_data_from_def_node_id(name, inner.subject.id())
                 }
-                // Get the `ModMemberData` from the `def_node_id` of the declaration.
+                // Get the `ModMember` from the `def_node_id` of the declaration.
                 _ => self.get_mod_member_data_from_def_node_id(name, def_node_id),
             },
             None => None,
@@ -355,8 +406,8 @@ impl<'tc> DiscoveryPass<'tc> {
     /// "current").
     ///
     /// This will add the appropriate `MemberData` to the `mod_members` local
-    /// score. In other words, a tuple `(AstNodeId, ModMemberData)`. The
-    /// `ModMemberData` is found by looking at the `ast_info` of the value of
+    /// score. In other words, a tuple `(AstNodeId, ModMember)`. The
+    /// `ModMember` is found by looking at the `ast_info` of the value of
     /// the declaration, which denotes if the value is a resolved
     /// module/function/data definition etc. If the value is not resolved, then
     /// it is not a valid module member.
@@ -384,7 +435,7 @@ impl<'tc> DiscoveryPass<'tc> {
         &self,
         stack_id: StackId,
         mod_member_node_id: AstNodeId,
-        mod_member: ModMemberData,
+        mod_member: ModMember,
     ) {
         self.def_state().stack_members.modify_fast(stack_id, |members| {
             let members = match members {

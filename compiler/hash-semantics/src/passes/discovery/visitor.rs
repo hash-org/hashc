@@ -6,13 +6,13 @@ use hash_ast::{
     visitor::walk,
 };
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
-use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     data::DataDef,
-    defs::DefId,
     environment::env::AccessToEnv,
     fns::{FnBody, FnDef, FnTy},
     mods::{ModDef, ModKind, ModMember},
+    node::{Node, NodeOrigin},
     scopes::Stack,
     symbols::sym,
     terms::Term,
@@ -22,7 +22,10 @@ use hash_tir::{
 };
 use hash_utils::itertools::Itertools;
 
-use super::{defs::ItemId, DiscoveryPass};
+use super::{
+    defs::{DefId, ItemId},
+    DiscoveryPass,
+};
 use crate::{
     diagnostics::error::SemanticError, environment::sem_env::AccessToSemEnv,
     passes::ast_utils::AstPass,
@@ -169,12 +172,14 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // @@Todo: error if the mod block has generics
 
         // Create a mod block definition, with empty members for now.
-        let mod_def_id = ModDef::create_with(|id| ModDef {
-            id,
-            name: mod_block_name,
-            kind: ModKind::ModBlock,
-            members: ModMember::empty_seq(),
-        });
+        let mod_def_id = Node::create_at(
+            ModDef {
+                name: mod_block_name,
+                kind: ModKind::ModBlock,
+                members: Node::create_at(Node::<ModMember>::empty_seq(), NodeOrigin::Generated),
+            },
+            NodeOrigin::Generated,
+        );
 
         // Traverse the mod block
         self.enter_def(node, mod_def_id, || walk::walk_mod_def(self, node))?;
@@ -236,18 +241,20 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_name = self.take_name_hint_or_create_internal_name();
 
         // Create a function definition
-        let fn_def_id = FnDef::create_with(|id| FnDef {
-            id,
-            name: fn_def_name,
-            body: FnBody::Defined(Term::hole()),
-            ty: FnTy {
-                implicit: false,
-                is_unsafe: false,
-                params: self.create_hole_params(&node.params),
-                pure: false,
-                return_ty: Ty::hole(),
+        let fn_def_id = Node::create_at(
+            FnDef {
+                name: fn_def_name,
+                body: FnBody::Defined(Term::hole()),
+                ty: FnTy {
+                    implicit: false,
+                    is_unsafe: false,
+                    params: self.create_hole_params(&node.params),
+                    pure: false,
+                    return_ty: Ty::hole(),
+                },
             },
-        });
+            NodeOrigin::Generated,
+        );
 
         // Traverse the function body
         self.enter_def(node, fn_def_id, || walk::walk_fn_def(self, node))?;
@@ -266,18 +273,20 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_name = self.take_name_hint_or_create_internal_name();
 
         // Create a function definition
-        let fn_def_id = FnDef::create_with(|id| FnDef {
-            id,
-            name: fn_def_name,
-            body: FnBody::Defined(Term::hole()),
-            ty: FnTy {
-                implicit: true,
-                is_unsafe: false,
-                params: self.create_hole_params(&node.params),
-                pure: true,
-                return_ty: Ty::hole(),
+        let fn_def_id = Node::create_at(
+            FnDef {
+                name: fn_def_name,
+                body: FnBody::Defined(Term::hole()),
+                ty: FnTy {
+                    implicit: true,
+                    is_unsafe: false,
+                    params: self.create_hole_params(&node.params),
+                    pure: true,
+                    return_ty: Ty::hole(),
+                },
             },
-        });
+            NodeOrigin::Generated,
+        );
 
         // Traverse the function body
         self.enter_def(node, fn_def_id, || walk::walk_ty_fn_def(self, node))?;

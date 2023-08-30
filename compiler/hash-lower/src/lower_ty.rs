@@ -72,7 +72,7 @@ impl<'ir> BuilderCtx<'ir> {
             // be defined in a recursive way, the `ty_from_tir_data` will deal with
             // its own caching, but we still want to add an entry here for `TyId` since
             // we want to avoid computing the `ty_from_tir_data` as well.
-            let result = match &*ty {
+            let result = match &(*ty).data {
                 Ty::Data(data_ty) => self.ty_from_tir_data(*data_ty),
 
                 // Hot path for unit types.
@@ -99,6 +99,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // Convert the single variant into the tuple variant.
                 let fields = data
                     .borrow()
+                    .borrow()
                     .iter()
                     .map(|field| self.ty_id_from_tir_ty(field.ty))
                     .enumerate()
@@ -111,7 +112,7 @@ impl<'ir> BuilderCtx<'ir> {
             }
             Ty::Fn(FnTy { params, return_ty, .. }) => {
                 let params = IrTyListId::seq(
-                    params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
+                    params.borrow().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
                 );
                 let return_ty = self.ty_id_from_tir_ty(return_ty);
                 IrTy::Fn { params, return_ty }
@@ -192,7 +193,7 @@ impl<'ir> BuilderCtx<'ir> {
     // / instance including the name, types (monomorphised), and attributes
     /// that are associated with the function definition.
     fn create_instance_from_fn_def(&self, fn_def: FnDefId) -> Instance {
-        let FnDef { name, ty, .. } = fn_def.value();
+        let FnDef { name, ty, .. } = *fn_def.value();
 
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
@@ -200,8 +201,9 @@ impl<'ir> BuilderCtx<'ir> {
         let source = get_location(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
-        let params =
-            IrTyListId::seq(params.borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)));
+        let params = IrTyListId::seq(
+            params.borrow().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
+        );
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
         let ident = name.ident();
@@ -262,7 +264,7 @@ impl<'ir> BuilderCtx<'ir> {
         let subs = if ty.args.len() > 0 {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
-            Some(IrTyListId::seq(ty.args.borrow().iter().map(|arg| {
+            Some(IrTyListId::seq(ty.args.borrow().borrow().iter().map(|arg| {
                 let ty = arg.value.as_ty();
                 self.ty_id_from_tir_ty(ty)
             })))
@@ -273,10 +275,12 @@ impl<'ir> BuilderCtx<'ir> {
         // Lower each variant as a constructor.
         let variants = ctor_defs
             .borrow()
+            .borrow()
             .iter()
             .map(|ctor| {
                 let fields = ctor
                     .params
+                    .borrow()
                     .borrow()
                     .iter()
                     .enumerate()
@@ -297,7 +301,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Deal with any specific attributes that were set on the type, i.e.
         // `#repr_c`.
-        if let Some(directives) = tir_stores().directives().get(def.id.into()) {
+        if let Some(directives) = tir_stores().directives().get(ty.data_def.into()) {
             if directives.contains(IDENTS.repr_c) {
                 adt.metadata.add_flags(RepresentationFlags::C_LIKE);
             }

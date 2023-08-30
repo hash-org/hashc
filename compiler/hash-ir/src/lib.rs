@@ -24,7 +24,10 @@ use std::{
 };
 
 use hash_source::entry_point::EntryPointState;
-use hash_storage::{store::SequenceStoreKey, stores};
+use hash_storage::{
+    store::{statics::StoreId, SequenceStoreKey},
+    stores,
+};
 use hash_tir::{
     data::{DataDefId, DataTy},
     fns::FnDefId,
@@ -106,7 +109,7 @@ impl From<TyId> for TyCacheEntry {
 
 impl From<DataTy> for TyCacheEntry {
     fn from(data: DataTy) -> Self {
-        if data.args.len() == 0 {
+        if data.args.value().len() == 0 {
             Self::MonoData(data.data_def)
         } else {
             Self::Data(data)

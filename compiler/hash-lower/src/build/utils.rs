@@ -20,6 +20,7 @@ use hash_tir::{
     environment::stores::tir_stores,
     fns::FnDefId,
     mods::{ModMember, ModMemberValue},
+    node::{Node, NodeOrigin},
     pats::PatId,
     symbols::Symbol,
     terms::TermId,
@@ -70,7 +71,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// @@Future: ideally, we can remove this and just use `#lang_item`
     /// declaration to find the appropriate items.
     pub(crate) fn lookup_libc_fn(&mut self, name: &str) -> Option<IrTyId> {
-        let libc_mod = match self.ctx.prelude.borrow().get_mod_member_by_ident("libc") {
+        let libc_mod = match self.ctx.prelude.borrow().get_mod_member_by_ident("libc").map(|x| *x) {
             Some(ModMember { value: ModMemberValue::Mod(libc_mod), .. }) => libc_mod,
             _ => return None,
         };
@@ -95,7 +96,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         match member.value {
             ModMemberValue::Data(data_def) => {
-                let args = Arg::empty_seq();
+                let args = Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated);
                 let ty_id = self.ty_id_from_tir_data(DataTy { data_def, args });
                 Some(ty_id)
             }

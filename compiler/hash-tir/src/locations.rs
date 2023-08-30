@@ -5,11 +5,11 @@ use hash_storage::store::SequenceStoreKey;
 use hash_utils::parking_lot::RwLock;
 
 use super::{
-    args::{ArgId, ArgsId, PatArgId, PatArgsId},
-    data::{CtorDefId, CtorDefsId, DataDefId},
+    args::{ArgId, PatArgId},
+    data::{CtorDefId, DataDefId},
     fns::FnDefId,
-    mods::{ModDefId, ModMemberId, ModMembersId},
-    params::{ParamId, ParamsId},
+    mods::{ModDefId, ModMemberId},
+    params::ParamId,
     pats::PatId,
     scopes::{StackId, StackMemberId},
     symbols::Symbol,

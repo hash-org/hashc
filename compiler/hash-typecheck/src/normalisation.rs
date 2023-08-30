@@ -20,7 +20,7 @@ use hash_tir::{
     fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
-    node,
+    node::{Node, NodeOrigin},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::DerefTerm,
@@ -312,7 +312,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     // Get its inferred type and check if it is pure
                     match self.try_get_inferred_ty(fn_call.subject) {
                         Some(fn_ty) => {
-                            match fn_ty.value() {
+                            match *fn_ty.value() {
                                 Ty::Fn(fn_ty) => {
                                     // If it is a function, check if it is pure
                                     if fn_ty.pure {
@@ -687,7 +687,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Evaluate a `loop` term.
     fn eval_loop(&self, loop_term: LoopTerm) -> FullEvaluation<Atom> {
         loop {
-            match self.eval_block(loop_term.block) {
+            match self.eval_block(*loop_term.block) {
                 Ok(_) | Err(Signal::Continue) => continue,
                 Err(Signal::Break) => break,
                 Err(e) => return Err(e),
@@ -716,16 +716,23 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         let st = eval_state();
 
         let evaluated_arg_data = args
+            .value()
             .into_iter()
             .map(|arg| -> Result<_, Signal> {
-                Ok(Arg {
-                    target: arg.target,
-                    value: self.to_term(self.eval_nested_and_record(arg.value.into(), &st)?),
-                })
+                Ok(Node::at(
+                    Arg {
+                        target: arg.target,
+                        value: self.to_term(self.eval_nested_and_record(arg.value.into(), &st)?),
+                    },
+                    NodeOrigin::Generated,
+                ))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        evaluation_if(|| Arg::seq_data(evaluated_arg_data), &st)
+        evaluation_if(
+            || Node::create_at(Node::<Arg>::seq_data(evaluated_arg_data), NodeOrigin::Generated),
+            &st,
+        )
     }
 
     /// Evaluate a function call.
@@ -762,8 +769,13 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                     FnBody::Intrinsic(intrinsic_id) => {
                         return self.context().enter_scope(fn_def_id.into(), || {
-                            let args_as_terms =
-                                fn_call.args.borrow().iter().map(|arg| arg.value).collect_vec();
+                            let args_as_terms = fn_call
+                                .args
+                                .value()
+                                .borrow()
+                                .iter()
+                                .map(|arg| arg.value)
+                                .collect_vec();
 
                             // Run intrinsic:
                             let result: TermId = self
@@ -874,7 +886,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::Block(block_term) => ctrl_map(self.eval_block(block_term)),
                 Term::Loop(loop_term) => ctrl_map_full(self.eval_loop(loop_term)),
             },
-            Atom::Ty(ty) => match ty.value() {
+            Atom::Ty(ty) => match *ty.value() {
                 Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
                 Ty::Hole(Hole(var)) | Ty::Var(var) => ctrl_map(self.eval_var(var)),
                 Ty::Fn(_) | Ty::Tuple(_) | Ty::Data(_) | Ty::Universe(_) | Ty::Ref(_) => {
@@ -896,10 +908,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             .enumerate()
             .filter_map(|(i, p)| match p {
                 PatOrCapture::Pat(_) => None,
-                PatOrCapture::Capture => Some(term_list.value().at(i).unwrap()),
+                PatOrCapture::Capture(_) => Some(term_list.value().at(i).unwrap()),
             })
             .collect_vec();
-        node!(TermId::seq_data(spread_term_list))
+        Node::create_at(TermId::seq_data(spread_term_list), NodeOrigin::Generated)
     }
 
     /// From the given arguments matching with the given parameters, extract the
@@ -907,19 +919,23 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn extract_spread_args(&self, term_args: ArgsId, pat_args: PatArgsId) -> ArgsId {
         // Create a new tuple term with the spread elements
         let spread_term_args = pat_args
+            .value()
             .borrow()
             .iter()
             .enumerate()
             .filter_map(|(i, p)| match p.pat {
                 PatOrCapture::Pat(_) => None,
-                PatOrCapture::Capture => {
+                PatOrCapture::Capture(_) => {
                     let arg = term_args.at(i).unwrap().value();
-                    Some(Arg { target: arg.target, value: arg.value })
+                    Some(Node::at(
+                        Arg { target: arg.target, value: arg.value },
+                        NodeOrigin::Generated,
+                    ))
                 }
             })
             .collect_vec();
 
-        Arg::seq_data(spread_term_args)
+        Node::create_at(Node::<Arg>::seq_data(spread_term_args), NodeOrigin::Generated)
     }
 
     /// Match the given arguments with the given pattern arguments.
@@ -960,7 +976,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                         }
                     }
                 }
-                PatOrCapture::Capture => {
+                PatOrCapture::Capture(_) => {
                     // Handled below
                 }
             }
@@ -1064,10 +1080,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ) -> Result<MatchResult, Signal> {
         let evaluated_id = self.to_term(self.eval(term_id.into())?);
         let evaluated = *evaluated_id.value();
-        match (evaluated, pat_id.value()) {
+        match (evaluated, *pat_id.value()) {
             (_, Pat::Or(pats)) => {
                 // Try each alternative in turn:
-                for pat in pats.alternatives.iter() {
+                for pat in pats.alternatives.value().iter() {
                     // First collect the bindings locally
 
                     match self.match_value_and_get_binds(term_id, pat.assert_pat(), f)? {
@@ -1204,7 +1220,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                         elements: self.extract_spread_list(array_term.elements, list_pat.pats),
                     }))
                 },
-                |i| list_pat.pats.at(i).unwrap(),
+                |i| list_pat.pats.value().at(i).unwrap(),
                 |i| array_term.elements.value().at(i).unwrap(),
                 f,
             ),

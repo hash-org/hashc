@@ -1,15 +1,16 @@
-use derive_more::Deref;
+use derive_more::{Deref, DerefMut};
 use hash_ast::ast::AstNodeId;
 use hash_source::{location::Span, SourceId};
-use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
+use hash_storage::store::statics::SingleStoreValue;
 
 /// Represents a node in the TIR.
 ///
 /// Each node has an origin, and data associated with it.
-#[derive(Debug, Deref, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Deref, DerefMut, Copy, Clone, PartialEq, Eq)]
 pub struct Node<Data> {
     pub origin: NodeOrigin,
     #[deref]
+    #[deref_mut]
     pub data: Data,
 }
 
@@ -17,14 +18,22 @@ impl<Data> Node<Data>
 where
     Self: SingleStoreValue,
 {
-    pub fn create_value(data: Data, origin: NodeOrigin) -> <Self as SingleStoreValue>::Id {
-        Self::create(Self::value(data, origin))
+    pub fn create_at(data: Data, origin: NodeOrigin) -> <Self as SingleStoreValue>::Id {
+        Self::create(Self::at(data, origin))
+    }
+
+    pub fn create_gen(data: Data) -> <Self as SingleStoreValue>::Id {
+        Self::create(Self::gen(data))
     }
 }
 
 impl<Data> Node<Data> {
-    pub fn value(data: Data, origin: NodeOrigin) -> Self {
+    pub fn at(data: Data, origin: NodeOrigin) -> Self {
         Self { data, origin }
+    }
+
+    pub fn gen(data: Data) -> Self {
+        Self { data, origin: NodeOrigin::Generated }
     }
 
     pub fn node(&self) -> Option<AstNodeId> {
@@ -46,7 +55,7 @@ impl<Data> Node<Data> {
 
 impl<D, Data: From<D>> From<(D, NodeOrigin)> for Node<Data> {
     fn from((d, o): (D, NodeOrigin)) -> Self {
-        Node::value(d.into(), o)
+        Node::at(d.into(), o)
     }
 }
 

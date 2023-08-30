@@ -96,7 +96,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             Atom::Ty(_) | Atom::FnDef(_) => {}
         }
         match atom {
-            Atom::Ty(ty) => match ty.value() {
+            Atom::Ty(ty) => match *ty.value() {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
                     match sub.get_sub_for_var_or_hole(symbol) {
                         Some(subbed_term) => {
@@ -158,7 +158,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     ) -> ControlFlow<()> {
         let var_matches = &var_matches;
         match atom {
-            Atom::Ty(ty) => match ty.value() {
+            Atom::Ty(ty) => match *ty.value() {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) if var_matches.contains(&symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
@@ -305,7 +305,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// accordingly.
     pub fn has_holes_once(&self, atom: Atom, has_holes: &mut Option<Atom>) -> ControlFlow<()> {
         match atom {
-            Atom::Ty(ty) => match ty.value() {
+            Atom::Ty(ty) => match *ty.value() {
                 Ty::Hole(_) => {
                     *has_holes = Some(atom);
                     ControlFlow::Break(())
@@ -325,7 +325,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Pat(pat) => match pat.value() {
+            Atom::Pat(pat) => match *pat.value() {
                 Pat::Ctor(ctor_pat) => {
                     if let Some(atom) = self.pat_args_have_holes(ctor_pat.ctor_pat_args) {
                         *has_holes = Some(atom);

@@ -109,7 +109,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 // if it a tuple, get the length and that is the arity
                 // if it is a struct or enum, then we get that variant and
                 // we can count the fields from that variant or struct.
-                match ctx.ty.value() {
+                match *ctx.ty.value() {
                     Ty::Data(DataTy { data_def, .. }) => {
                         // We need to extract the variant index from the constructor
                         let variant_idx = match ctor {
@@ -119,9 +119,9 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                         };
 
                         let ctor_id = data_def.borrow().ctors.assert_defined();
-                        CtorDefId(ctor_id, variant_idx).borrow().params.len()
+                        CtorDefId(*ctor_id.value(), variant_idx).borrow().params.value().len()
                     }
-                    Ty::Tuple(TupleTy { data }) => data.len(),
+                    Ty::Tuple(TupleTy { data }) => data.value().len(),
                     ty => panic!("Unexpected type `{ty:?}` when computing arity"),
                 }
             }

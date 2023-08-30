@@ -7,7 +7,7 @@ use hash_reporting::{
     writer::ReportWriter,
 };
 use hash_source::location::Span;
-use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     environment::{
         env::{AccessToEnv, Env},
@@ -225,7 +225,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 }
             }
             TcError::WrongArgLength { params_id, args_id } => {
-                let param_length = params_id.len();
+                let param_length = params_id.value().len();
                 let arg_length = args_id.len();
 
                 let error =
@@ -233,7 +233,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     "mismatch in parameter length: expected {param_length} but got {arg_length}"
                 ));
 
-                if let Some(location) = locations.get_overall_location(*params_id) {
+                if let Some(location) = locations.get_overall_location(*params_id.value()) {
                     error
                         .add_span(location)
                         .add_info(format!("expected {param_length} parameters here"));
@@ -314,9 +314,9 @@ impl<'tc> TcErrorReporter<'tc> {
                         .title(format!(
                             "received {} arguments, but expected at most {} arguments",
                             got.len(),
-                            expected.len()
+                            expected.value().len()
                         ));
-                    if let Some(location) = locations.get_overall_location(*expected) {
+                    if let Some(location) = locations.get_overall_location(*expected.value()) {
                         error.add_labelled_span(
                             location,
                             format!(
@@ -394,12 +394,13 @@ impl<'tc> TcErrorReporter<'tc> {
                     if let Some(location) = locations.get_location(arg) {
                         error.add_labelled_span(location, "argument with this name");
                     }
-                    if let Some(location) = locations.get_overall_location(*params) {
+                    if let Some(location) = locations.get_overall_location(*params.value()) {
                         error.add_labelled_span(
                             location,
                             format!(
                                 "expected one of these parameters: {}",
                                 params
+                                    .value()
                                     .iter()
                                     .map(|param| format!("`{}`", param.as_param_index()))
                                     .collect::<Vec<_>>()
@@ -505,13 +506,15 @@ impl<'tc> TcErrorReporter<'tc> {
                         annotation_params_id.len(),
                         given_params_id.len()
                     ));
-                if let Some(location) = locations.get_overall_location(*given_params_id) {
+                if let Some(location) = locations.get_overall_location(*given_params_id.value()) {
                     error.add_labelled_span(
                         location,
                         format!("got {} parameters here", given_params_id.len(),),
                     );
                 }
-                if let Some(location) = locations.get_overall_location(*annotation_params_id) {
+                if let Some(location) =
+                    locations.get_overall_location(*annotation_params_id.value())
+                {
                     error.add_labelled_span(
                         location,
                         format!("expected {} parameters from here", annotation_params_id.len(),),

@@ -1,5 +1,6 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     environment::stores::tir_stores,
     params::{Param, ParamId, ParamIndex, ParamsId},
@@ -25,10 +26,12 @@ impl<'tc> DiscoveryPass<'tc> {
                 })
                 .map(|index| index.into_symbol()),
         );
-        tir_stores().location().add_locations_to_targets(params_id, |i| Some(params[i].span()));
+        tir_stores()
+            .location()
+            .add_locations_to_targets(*params_id.value(), |i| Some(params[i].span()));
 
         for (i, param) in params.iter().enumerate() {
-            tir_stores().ast_info().params().insert(param.id(), ParamId(params_id, i));
+            tir_stores().ast_info().params().insert(param.id(), ParamId(*params_id.value(), i));
         }
 
         params_id

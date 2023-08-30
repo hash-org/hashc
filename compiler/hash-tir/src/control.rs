@@ -17,8 +17,7 @@ use super::{
 };
 use crate::{
     environment::stores::tir_stores, node::Node, scopes::BlockTerm, terms::TermId,
-    tir_debug_name_of_store_id, tir_debug_value_of_sequence_store_element_id,
-    tir_debug_value_of_single_store_id,
+    tir_debug_value_of_sequence_store_element_id, tir_debug_value_of_single_store_id,
 };
 
 /// A loop term.
@@ -77,6 +76,24 @@ static_sequence_store_direct!(
 );
 
 tir_debug_value_of_sequence_store_element_id!(MatchCaseId);
+
+impl SequenceStoreKey for MatchCasesId {
+    type ElementKey = MatchCaseId;
+
+    fn to_index_and_len(self) -> (usize, usize) {
+        self.value().to_index_and_len()
+    }
+
+    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+        panic!("Creating MatchCasesId is not allowed, create MatchCasesIdSeq directly")
+    }
+}
+
+impl From<(MatchCasesId, usize)> for MatchCaseId {
+    fn from(value: (MatchCasesId, usize)) -> Self {
+        MatchCaseId(*value.0.value(), value.1)
+    }
+}
 
 /// A return term.
 ///

@@ -60,6 +60,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 let args = data
                     .borrow()
+                    .borrow()
                     .iter()
                     .map(|element| {
                         let name = match element.target {
@@ -133,7 +134,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // Get the type of the function into or to to get the
                         // fn-type so that we can enter the scope.
                         let ty = self.get_inferred_ty(subject);
-                        let fn_ty = ty_as_variant!(self, ty.value(), Fn);
+                        let fn_ty = ty_as_variant!(self, *ty.value(), Fn);
 
                         // Try and create the ir_type from a function definition, otherwise
                         // if it is just a function, then we make the the type from the function.
@@ -381,6 +382,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         let args = args
             .borrow()
+            .borrow()
             .iter()
             .map(|arg| unpack!(block = self.as_operand(block, arg.value, Mutability::Immutable)))
             .collect::<Vec<_>>();
@@ -455,6 +457,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
 
         let args = (*ctor_args)
+            .borrow()
             .borrow()
             .iter()
             .map(|arg| {

@@ -7,7 +7,7 @@ use hash_storage::{
     static_sequence_store_direct, static_single_store,
     store::{
         statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -22,14 +22,12 @@ use super::{
 use crate::{
     args::Arg,
     environment::stores::tir_stores,
-    node,
     node::{Node, NodeOrigin},
     params::{Param, ParamsId},
     pats::PatArgsWithSpread,
     symbols::Symbol,
     terms::TermId,
-    tir_debug_name_of_store_id, tir_debug_value_of_sequence_store_element_id,
-    tir_debug_value_of_single_store_id, tir_get,
+    tir_debug_name_of_store_id, tir_debug_value_of_single_store_id, tir_get,
 };
 
 /// A constructor of a data-type definition.
@@ -85,6 +83,24 @@ static_sequence_store_direct!(
 );
 
 tir_debug_name_of_store_id!(CtorDefId);
+
+impl SequenceStoreKey for CtorDefsId {
+    type ElementKey = CtorDefId;
+
+    fn to_index_and_len(self) -> (usize, usize) {
+        self.value().to_index_and_len()
+    }
+
+    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+        panic!("Creating CtorDefsId is not allowed, create CtorDefsSeqId directly")
+    }
+}
+
+impl From<(CtorDefsId, usize)> for CtorDefId {
+    fn from(value: (CtorDefsId, usize)) -> Self {
+        CtorDefId(*value.0.value(), value.1)
+    }
+}
 
 /// A constructor term.
 ///
@@ -184,9 +200,9 @@ impl CtorDef {
     where
         I::IntoIter: ExactSizeIterator,
     {
-        Node::create(Node::value(
+        Node::create(Node::at(
             Node::seq_data(data.into_iter().enumerate().map(|(index, data)| {
-                Node::value(
+                Node::at(
                     CtorDef {
                         name: data.name,
                         data_def_id,
@@ -249,32 +265,29 @@ tir_debug_name_of_store_id!(DataDefId);
 impl DataDef {
     /// Create an empty data definition.
     pub fn empty(name: Symbol, params: ParamsId) -> DataDefId {
-        Node::create(Node::value(
+        Node::create_at(
             DataDef {
                 name,
                 params,
-                ctors: DataDefCtors::Defined(Node::create(Node::value(
+                ctors: DataDefCtors::Defined(Node::create(Node::at(
                     Node::<CtorDef>::empty_seq(),
                     NodeOrigin::Generated,
                 ))),
             },
             NodeOrigin::Generated,
-        ))
+        )
     }
 
     /// Create a primitive data definition.
     pub fn primitive(name: Symbol, info: PrimitiveCtorInfo) -> DataDefId {
-        Node::create(Node::value(
+        Node::create_at(
             DataDef {
                 name,
-                params: Node::create(Node::value(
-                    Node::<Param>::empty_seq(),
-                    NodeOrigin::Generated,
-                )),
+                params: Node::create(Node::at(Node::<Param>::empty_seq(), NodeOrigin::Generated)),
                 ctors: DataDefCtors::Primitive(info),
             },
             NodeOrigin::Generated,
-        ))
+        )
     }
 
     /// Create a primitive data definition with parameters.
@@ -286,7 +299,7 @@ impl DataDef {
         info: impl FnOnce(DataDefId) -> PrimitiveCtorInfo,
     ) -> DataDefId {
         Node::create_with(|id| {
-            Node::value(
+            Node::at(
                 DataDef { name, params, ctors: DataDefCtors::Primitive(info(id)) },
                 NodeOrigin::Generated,
             )
@@ -295,10 +308,10 @@ impl DataDef {
 
     /// Get the single constructor of the given data definition, if it is indeed
     /// a single constructor.
-    pub fn get_single_ctor(&self) -> Option<Node<CtorDef>> {
+    pub fn get_single_ctor(&self) -> Option<CtorDefId> {
         match self.borrow().ctors {
             DataDefCtors::Defined(ctors) => match ctors.value().at(0) {
-                Some(x) if ctors.value().len() == 1 => Some(x.value()),
+                Some(x) if ctors.value().len() == 1 => Some(x),
                 _ => None,
             },
             DataDefCtors::Primitive(_) => None,
@@ -319,7 +332,7 @@ impl DataDef {
 
         // Create the data definition
         Node::create_with(|id| {
-            Node::value(
+            Node::at(
                 DataDef {
                     name,
                     params,
@@ -352,7 +365,7 @@ impl DataDef {
     ) -> DataDefId {
         // Create the data definition for the enum
         Node::create_with(|id| {
-            Node::value(
+            Node::at(
                 DataDef {
                     name,
                     params,

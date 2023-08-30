@@ -2,7 +2,7 @@
 use derive_more::Constructor;
 use hash_ast::ast::OwnsAstNode;
 use hash_source::{identifier::Identifier, ModuleId};
-use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
+use hash_storage::store::statics::SequenceStoreValue;
 
 use crate::{
     environment::{
@@ -33,26 +33,29 @@ impl<'tc> ModUtils<'tc> {
                 // Create a new module definition.
                 let source_id = module_id.into();
                 let module_name: Identifier = self.source_map().source_name(source_id).into();
-                let mod_def_id = ModDef::create(ModDef {
-                    name: Symbol::from_name(module_name),
-                    kind: ModKind::Source(
-                        source_id,
-                        // @@Hack: leak the path to still allow ModKind to implement Copy.
-                        // We need the path inside ModKind so that we can print it without
-                        // requiring access to source map. Ideally SourceMap should be static so
-                        // that this is not needed.
-                        Box::leak(
-                            self.source_map()
-                                .source_path(source_id)
-                                .to_path_buf()
-                                .into_boxed_path(),
+                let mod_def_id = Node::create_at(
+                    ModDef {
+                        name: Symbol::from_name(module_name),
+                        kind: ModKind::Source(
+                            source_id,
+                            // @@Hack: leak the path to still allow ModKind to implement Copy.
+                            // We need the path inside ModKind so that we can print it without
+                            // requiring access to source map. Ideally SourceMap should be static
+                            // so that this is not needed.
+                            Box::leak(
+                                self.source_map()
+                                    .source_path(source_id)
+                                    .to_path_buf()
+                                    .into_boxed_path(),
+                            ),
                         ),
-                    ),
-                    members: Node::create_value(
-                        Node::<ModMember>::empty_seq(),
-                        NodeOrigin::Generated,
-                    ),
-                });
+                        members: Node::create_at(
+                            Node::<ModMember>::empty_seq(),
+                            NodeOrigin::Generated,
+                        ),
+                    },
+                    NodeOrigin::Generated,
+                );
                 tir_stores().ast_info().mod_defs().insert(source_node_id, mod_def_id);
                 mod_def_id
             }

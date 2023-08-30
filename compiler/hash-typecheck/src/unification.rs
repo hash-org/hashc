@@ -164,8 +164,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
             f1.return_ty = self.sub_ops().apply_sub_to_ty(f1.return_ty, &backward_sub);
 
-            src_id.set(f1.into());
-            target_id.set(f2.into());
+            src_id.set(src_id.value().with_data(f1.into()));
+            target_id.set(target_id.value().with_data(f2.into()));
 
             Ok(())
         }
@@ -199,7 +199,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             }
             Atom::Ty(ty_id) => {
                 let dest_ty = norm_ops.to_ty(sub_dest_atom).value();
-                match ty_id.value() {
+                match *ty_id.value() {
                     Ty::Hole(Hole(h)) => {
                         if self.modify_terms.get() {
                             ty_id.set(dest_ty);
@@ -276,7 +276,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         let src = src_id.value();
         let target = target_id.value();
 
-        match (src, target) {
+        match (*src, *target) {
             (Ty::Hole(h1), Ty::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
             (Ty::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
             (_, Ty::Hole(_b)) => self.unify_hole_with(target_id, src_id),
@@ -525,11 +525,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     /// for types that are actually uninhabitable.
     pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
         let ty = self.norm_ops().to_ty(self.norm_ops().normalise(ty.into())?);
-        match ty.value() {
+        match *ty.value() {
             Ty::Data(data_ty) => {
                 let data_def = data_ty.data_def.borrow();
                 match data_def.ctors {
-                    DataDefCtors::Defined(ctors) => Ok(ctors.len() == 0),
+                    DataDefCtors::Defined(ctors) => Ok(ctors.value().len() == 0),
                     DataDefCtors::Primitive(_) => Ok(false),
                 }
             }

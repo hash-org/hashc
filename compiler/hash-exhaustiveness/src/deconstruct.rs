@@ -202,7 +202,7 @@ impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId> {
             ctor_store.map_fast(pat.ctor, |ctor| {
                 match ctor {
                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                        match pat.ty.value() {
+                        match *pat.ty.value() {
                             Ty::Tuple(_) => {}
                             Ty::Data(ty @ DataTy { data_def, .. }) => {
                                 write!(f, "{ty}")?;
@@ -211,7 +211,7 @@ impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId> {
                                 // currently active.
                                 if let DeconstructedCtor::Variant(index) = ctor {
                                     let ctors = data_def.borrow().ctors.assert_defined();
-                                    let ctor_name = CtorDefId(ctors, *index).borrow().name;
+                                    let ctor_name = CtorDefId(*ctors.value(), *index).borrow().name;
                                     write!(f, "::{ctor_name}")?;
                                 }
                             }

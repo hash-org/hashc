@@ -87,7 +87,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) {
         let span = self.span_of_pat(pat);
 
-        match pat.value() {
+        match *pat.value() {
             Pat::Binding(BindingPat { name, is_mutable, .. }) => {
                 // If the symbol has no associated name, then it is not binding
                 // anything...
@@ -106,7 +106,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Pat::Ctor(CtorPat { ctor_pat_args: fields, ctor_pat_args_spread: spread, .. })
             | Pat::Tuple(TuplePat { data: fields, data_spread: spread }) => {
-                fields.borrow().iter().for_each(|field| {
+                fields.borrow().borrow().iter().for_each(|field| {
                     self.visit_primary_pattern_bindings(field.pat.assert_pat(), f);
                 });
 
@@ -193,7 +193,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             this.place_into_pat(block, pat, place_builder)
         };
 
-        match pat.value() {
+        match *pat.value() {
             Pat::Binding(BindingPat { name, .. }) => {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.

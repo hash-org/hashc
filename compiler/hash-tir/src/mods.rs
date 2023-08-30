@@ -5,7 +5,9 @@ use std::{fmt::Display, path::Path};
 use hash_source::{identifier::Identifier, SourceId};
 use hash_storage::{
     static_sequence_store_direct, static_single_store,
-    store::{statics::StoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey},
+    store::{
+        statics::StoreId, SequenceStore, SequenceStoreKey, Store, StoreKey, TrivialSequenceStoreKey,
+    },
 };
 use textwrap::indent;
 use utility_types::omit;
@@ -90,9 +92,7 @@ impl ModMemberValue {
 /// definition's members, as well as the type of the member, and an optional
 /// value of the member.
 #[derive(Debug, Clone, Copy)]
-#[omit(ModMemberData, [id], [Debug, Clone, Copy])]
 pub struct ModMember {
-    pub id: ModMemberId,
     pub name: Symbol,
     pub value: ModMemberValue,
 }
@@ -116,7 +116,23 @@ static_sequence_store_direct!(
     derives = Debug
 );
 
-// left off here
+impl SequenceStoreKey for ModMembersId {
+    type ElementKey = ModMemberId;
+
+    fn to_index_and_len(self) -> (usize, usize) {
+        self.value().to_index_and_len()
+    }
+
+    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+        panic!("Creating ModMembersId is not allowed, create ModMembersSeqId directly")
+    }
+}
+
+impl From<(ModMembersId, usize)> for ModMemberId {
+    fn from(value: (ModMembersId, usize)) -> Self {
+        ModMemberId(*value.0.value(), value.1)
+    }
+}
 
 /// A module definition.
 ///
@@ -135,7 +151,7 @@ pub struct ModDef {
 static_single_store!(
     store = pub ModDefStore,
     id = pub ModDefId,
-    value = ModDef,
+    value = Node<ModDef>,
     store_name = mod_def,
     store_source = tir_stores()
 );
@@ -207,7 +223,7 @@ impl Display for ModDef {
 
 impl Display for ModDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

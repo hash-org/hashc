@@ -6,10 +6,7 @@ use std::fmt::Debug;
 use derive_more::From;
 use hash_storage::{
     static_single_store,
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        Store,
-    },
+    store::statics::{SequenceStoreValue, SingleStoreValue, StoreId},
 };
 
 use super::{holes::Hole, symbols::Symbol};
@@ -18,7 +15,6 @@ use crate::{
     data::{DataDefId, DataTy},
     environment::stores::tir_stores,
     fns::FnTy,
-    node,
     node::{Node, NodeOrigin},
     params::Param,
     refs::RefTy,
@@ -98,27 +94,27 @@ pub struct TypeOfTerm {
 impl Ty {
     /// Create a type of types, i.e. small `Type`.
     pub fn small_universe() -> TyId {
-        Node::create(Node::value(Ty::Universe(UniverseTy { size: Some(0) }), NodeOrigin::Generated))
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(0) }), NodeOrigin::Generated))
     }
 
     /// Create a large type of types, i.e. `Type(n)` for some natural number
     /// `n`.
     pub fn universe(n: usize) -> TyId {
-        Node::create(Node::value(Ty::Universe(UniverseTy { size: Some(n) }), NodeOrigin::Generated))
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(n) }), NodeOrigin::Generated))
     }
 
     /// Create a type of types, with a flexible universe size.
     ///
     /// This is the default when `Type` is used in a type signature.
     pub fn flexible_universe() -> TyId {
-        Node::create(Node::value(Ty::Universe(UniverseTy { size: None }), NodeOrigin::Generated))
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: None }), NodeOrigin::Generated))
     }
 
     /// Create a new empty tuple type.
     pub fn void() -> TyId {
-        Node::create(Node::value(
+        Node::create(Node::at(
             Ty::Tuple(TupleTy {
-                data: Node::create(Node::value(Node::<Param>::empty_seq(), NodeOrigin::Generated)),
+                data: Node::create(Node::at(Node::<Param>::empty_seq(), NodeOrigin::Generated)),
             }),
             NodeOrigin::Generated,
         ))
@@ -126,20 +122,20 @@ impl Ty {
 
     /// Create a new variable type.
     pub fn var(symbol: Symbol) -> TyId {
-        Node::create(Node::value(Ty::Var(symbol), NodeOrigin::Generated))
+        Node::create(Node::at(Ty::Var(symbol), NodeOrigin::Generated))
     }
 
     /// Create a new hole type.
     pub fn hole() -> TyId {
-        Node::create(Node::value(Ty::Hole(Hole::fresh()), NodeOrigin::Generated))
+        Node::create(Node::at(Ty::Hole(Hole::fresh()), NodeOrigin::Generated))
     }
 
     /// Create a new data type with no arguments.
     pub fn data(data_def: DataDefId) -> TyId {
-        Node::create(Node::value(
+        Node::create(Node::at(
             Ty::Data(DataTy {
                 data_def,
-                args: Node::create(Node::value(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+                args: Node::create(Node::at(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
             }),
             NodeOrigin::Generated,
         ))
@@ -155,7 +151,7 @@ impl Ty {
             Ty::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Node::create(Node::value(ty, NodeOrigin::Generated));
+        let created = Node::create(Node::at(ty, NodeOrigin::Generated));
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }
