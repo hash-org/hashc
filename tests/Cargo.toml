@@ -9,6 +9,7 @@ edition = "2018"
 [[bin]]
 name = "hashc-tests"
 path = "./lib.rs"
+doctest = false
 
 [dependencies]
 pretty_assertions = "1.2.1"

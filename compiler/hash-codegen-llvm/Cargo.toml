@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
 llvm-sys = "150.0.3"
 inkwell = { version="0.2.0", features = ["llvm15-0"] }
