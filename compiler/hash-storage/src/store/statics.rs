@@ -71,13 +71,8 @@ pub trait SequenceStoreValue: Sized {
     /// Create a new empty value in the store.
     fn empty_seq() -> Self::Id;
 
-    /// Create a new value in the store from the given iterator of functions.
-    fn seq<F: FnOnce(Self::ElementId) -> Self, I: IntoIterator<Item = F>>(iter: I) -> Self::Id
-    where
-        I::IntoIter: ExactSizeIterator;
-
     /// Create a new value in the store from the given iterator of values.
-    fn seq_data<I: IntoIterator<Item = Self>>(iter: I) -> Self::Id
+    fn seq<I: IntoIterator<Item = Self>>(iter: I) -> Self::Id
     where
         I::IntoIter: ExactSizeIterator;
 }
@@ -186,15 +181,7 @@ macro_rules! static_sequence_store_indirect {
                 $store_source.$store_name().create_from_slice(&[])
             }
 
-            fn seq<F: FnOnce($el_id) -> Self, I: IntoIterator<Item = F>>(values: I) -> Self::Id
-            where
-                I::IntoIter: ExactSizeIterator,
-            {
-                use $crate::store::SequenceStore;
-                $store_source.$store_name().create_from_iter_with(values)
-            }
-
-            fn seq_data<I: IntoIterator<Item = Self>>(values: I) -> Self::Id
+            fn seq<I: IntoIterator<Item = Self>>(values: I) -> Self::Id
             where
                 I::IntoIter: ExactSizeIterator,
             {
@@ -306,15 +293,7 @@ macro_rules! static_sequence_store_direct {
                 $store_source.$store_name().create_from_slice(&[])
             }
 
-            fn seq<F: FnOnce($el_id) -> Self, I: IntoIterator<Item = F>>(values: I) -> Self::Id
-            where
-                I::IntoIter: ExactSizeIterator,
-            {
-                use $crate::store::sequence::SequenceStore;
-                $store_source.$store_name().create_from_iter_with(values)
-            }
-
-            fn seq_data<I: IntoIterator<Item = Self>>(values: I) -> Self::Id
+            fn seq<I: IntoIterator<Item = Self>>(values: I) -> Self::Id
             where
                 I::IntoIter: ExactSizeIterator,
             {

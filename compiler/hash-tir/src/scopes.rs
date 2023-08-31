@@ -5,10 +5,7 @@
 
 use core::fmt;
 
-use hash_storage::store::{
-    statics::{SingleStoreValue, StoreId},
-    TrivialSequenceStoreKey,
-};
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_utils::parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
 use utility_types::omit;

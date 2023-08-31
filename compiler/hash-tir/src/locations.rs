@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use hash_source::location::Span;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::SequenceStoreKey;
 use hash_utils::parking_lot::RwLock;
 
 use super::{

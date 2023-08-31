@@ -4,7 +4,7 @@
 use std::iter::once;
 
 use hash_intrinsics::intrinsics::DefinedIntrinsics;
-use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     self,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
@@ -46,14 +46,12 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
                 name: sym("Intrinsics"),
                 kind: ModKind::ModBlock,
                 members: Node::create_at(
-                    Node::<ModMember>::seq_data(intrinsics.as_mod_members().into_iter().map(
-                        |data| {
-                            Node::at(
-                                ModMember { name: data.name, value: data.value },
-                                NodeOrigin::Generated,
-                            )
-                        },
-                    )),
+                    Node::<ModMember>::seq(intrinsics.as_mod_members().into_iter().map(|data| {
+                        Node::at(
+                            ModMember { name: data.name, value: data.value },
+                            NodeOrigin::Generated,
+                        )
+                    })),
                     NodeOrigin::Generated,
                 ),
             },
@@ -68,7 +66,7 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
                 name: sym("Primitives"),
                 kind: ModKind::Transparent,
                 members: Node::create_at(
-                    Node::<ModMember>::seq_data(
+                    Node::<ModMember>::seq(
                         primitives()
                             .as_mod_members()
                             .into_iter()

@@ -165,7 +165,7 @@ impl CtorDef {
         I::IntoIter: ExactSizeIterator,
     {
         Node::create(Node::at(
-            Node::seq_data(data.into_iter().enumerate().map(|(index, data)| {
+            Node::seq(data.into_iter().enumerate().map(|(index, data)| {
                 Node::at(
                     CtorDef {
                         name: data.name,

@@ -23,7 +23,7 @@ pub mod gen {
 
     /// Create a parameter list with the given parameters.
     pub fn params(data: impl IntoIterator<Item = (SymbolId, TyId, Option<TermId>)>) -> ParamsId {
-        Node::create_gen(Node::<Param>::seq_data(
+        Node::create_gen(Node::<Param>::seq(
             data.into_iter()
                 .map(|(name, ty, default)| Node::gen(Param { name, ty, default }))
                 .collect_vec(),

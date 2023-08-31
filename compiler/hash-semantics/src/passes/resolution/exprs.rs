@@ -89,7 +89,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<Arg>::seq_data(args), NodeOrigin::Generated))
+        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
     }
 
     /// Make TC arguments from the given set of AST constructor call arguments
@@ -115,7 +115,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<Arg>::seq_data(args), NodeOrigin::Generated))
+        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
     }
 
     /// Make a term from the given [`ast::Expr`] and assign it to the node in
@@ -550,8 +550,7 @@ impl<'tc> ResolutionPass<'tc> {
                     .ast_ref_iter()
                     .map(|element| self.make_term_from_ast_expr(element))
                     .collect::<SemanticResult<_>>()?;
-                let elements =
-                    Node::create_at(TermId::seq_data(element_vec), NodeOrigin::Generated);
+                let elements = Node::create_at(TermId::seq(element_vec), NodeOrigin::Generated);
                 Ok(Term::from(Term::Array(ArrayTerm { elements })))
             }
         }
@@ -626,7 +625,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Convert all the cases and their bodies
         let cases = Node::create_at(
-            Node::<MatchCase>::seq_data(
+            Node::<MatchCase>::seq(
                 node.cases
                     .iter()
                     .filter_map(|case| {
@@ -727,7 +726,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ) {
                     (Some(Some(expr)), true) => {
                         let statements =
-                            Node::create_at(TermId::seq_data(statements), NodeOrigin::Generated);
+                            Node::create_at(TermId::seq(statements), NodeOrigin::Generated);
                         Ok(Term::from(Term::Block(BlockTerm {
                             statements,
                             return_value: expr,
@@ -736,7 +735,7 @@ impl<'tc> ResolutionPass<'tc> {
                     }
                     (None, true) => {
                         let statements =
-                            Node::create_at(TermId::seq_data(statements), NodeOrigin::Generated);
+                            Node::create_at(TermId::seq(statements), NodeOrigin::Generated);
                         let return_value = Term::void();
                         Ok(Term::from(Term::Block(BlockTerm {
                             statements,

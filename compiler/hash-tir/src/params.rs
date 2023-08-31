@@ -46,7 +46,7 @@ impl Param {
     /// types.
     pub fn seq_from_names_with_hole_types(param_names: impl Iterator<Item = SymbolId>) -> ParamsId {
         Node::create(Node::at(
-            Node::seq_data(
+            Node::seq(
                 param_names
                     .map(|name| {
                         Node::at(
@@ -69,7 +69,7 @@ impl Param {
 
     pub fn seq_positional(tys: impl IntoIterator<Item = TyId>) -> ParamsId {
         Node::create(Node::at(
-            Node::seq_data(
+            Node::seq(
                 tys.into_iter()
                     .map(|ty| {
                         Node::at(

@@ -11,7 +11,7 @@ use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    ast_info::HasNodeId, environment::stores::tir_stores, node::Node, symbols::SymbolId, tir_get,
+    environment::stores::tir_stores, node::Node, symbols::SymbolId, tir_get,
     tir_node_sequence_store_direct, tir_node_single_store,
 };
 

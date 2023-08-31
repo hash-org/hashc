@@ -60,7 +60,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<Arg>::seq_data(args), NodeOrigin::Generated))
+        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
     }
 
     /// Use the given [`ast::NamedTy`] as a path.

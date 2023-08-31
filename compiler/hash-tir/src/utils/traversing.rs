@@ -168,7 +168,7 @@ impl TraversingUtils {
                 Term::Match(match_term) => {
                     let subject = self.fmap_term(match_term.subject, f)?;
 
-                    let cases = Node::<MatchCase>::seq_data(
+                    let cases = Node::<MatchCase>::seq(
                         match_term
                             .cases
                             .value()
@@ -355,7 +355,7 @@ impl TraversingUtils {
         for term_id in term_list.value().value() {
             new_list.push(self.fmap_term(term_id, f)?);
         }
-        Ok(Node::create_at(TermId::seq_data(new_list), term_list.value().origin))
+        Ok(Node::create_at(TermId::seq(new_list), term_list.value().origin))
     }
 
     pub fn fmap_pat_list<E, F: Mapper<E>>(
@@ -374,7 +374,7 @@ impl TraversingUtils {
                 }
             }
         }
-        Ok(Node::create_at(PatOrCapture::seq_data(new_list), pat_list.value().origin))
+        Ok(Node::create_at(PatOrCapture::seq(new_list), pat_list.value().origin))
     }
 
     pub fn fmap_params<E, F: Mapper<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
@@ -393,7 +393,7 @@ impl TraversingUtils {
                     param.origin,
                 ));
             }
-            Ok(Node::create_at(Node::<Param>::seq_data(new_params), params_id.value().origin))
+            Ok(Node::create_at(Node::<Param>::seq(new_params), params_id.value().origin))
         }?;
 
         tir_stores().location().copy_locations(*params_id.value(), *new_params.value());
@@ -408,7 +408,7 @@ impl TraversingUtils {
                 arg.origin,
             ));
         }
-        let new_args_id = Node::create_at(Node::<Arg>::seq_data(new_args), args_id.value().origin);
+        let new_args_id = Node::create_at(Node::<Arg>::seq(new_args), args_id.value().origin);
         tir_stores().location().copy_locations(*args_id.value(), *new_args_id.value());
         Ok(new_args_id)
     }
@@ -434,7 +434,7 @@ impl TraversingUtils {
                     pat_arg.origin,
                 ));
             }
-            Ok(Node::create_at(Node::<PatArg>::seq_data(new_args), pat_args_id.value().origin))
+            Ok(Node::create_at(Node::<PatArg>::seq(new_args), pat_args_id.value().origin))
         }?;
 
         tir_stores().location().copy_locations(*pat_args_id.value(), *new_pat_args.value());

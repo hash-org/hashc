@@ -221,37 +221,6 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         Key::from_index_and_len_unchecked(starting_index, 0)
     }
 
-    /// Same as [`SequenceStore::create_from_iter()`], but each value takes its
-    /// key and index.
-    ///
-    /// The given iterator must support [`ExactSizeIterator`].
-    fn create_from_iter_with<F: FnOnce(Key::ElementKey) -> Value, I: IntoIterator<Item = F>>(
-        &self,
-        values: I,
-    ) -> Key
-    where
-        I::IntoIter: ExactSizeIterator,
-        Key::ElementKey: From<(Key, usize)>,
-    {
-        let starting_index = self.internal_data().read().len();
-
-        let (key, values_computed) = {
-            let values = values.into_iter();
-            let key = Key::from_index_and_len_unchecked(starting_index, values.len());
-            (
-                key,
-                values
-                    .enumerate()
-                    .map(|(i, f)| f(Key::ElementKey::from((key, i))))
-                    .collect::<Vec<_>>(),
-            )
-        };
-
-        let mut data = self.internal_data().write();
-        data.extend(values_computed);
-        key
-    }
-
     /// Create a sequence of values inside the store from an iterator-like
     /// object, returning its key.
     ///
@@ -275,39 +244,6 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     fn create_from_iter(&self, values: impl IntoIterator<Item = Value>) -> Key {
         let values = values.into_iter().collect::<Vec<_>>();
         self.create_from_slice(&values)
-    }
-
-    /// Try create a sequence of values inside the store from an iterator-like
-    /// object, returning its key, or an error if it occurred.
-    ///
-    /// *Warning*: Do not call mutating store methods (`create_*` etc) in the
-    /// `values` iterator, otherwise there will be a panic. If you want to
-    /// do this, consider using [`Self::create_from_iter()`] instead.
-    fn try_create_from_iter_fast<E>(
-        &self,
-        values: impl IntoIterator<Item = Result<Value, E>>,
-    ) -> Result<Key, E> {
-        let mut data = self.internal_data().write();
-        let starting_index = data.len();
-        let values = values.into_iter();
-
-        // Mirroring the .extend() implementation:
-        data.reserve(starting_index + values.size_hint().0.saturating_add(1));
-
-        for value in values {
-            match value {
-                Ok(value) => {
-                    data.push(value);
-                }
-                Err(err) => {
-                    // Remove all currently added values and return the error:
-                    data.truncate(starting_index);
-                    return Err(err);
-                }
-            }
-        }
-
-        Ok(Key::from_index_and_len_unchecked(starting_index, data.len() - starting_index))
     }
 
     /// Try create a sequence of values inside the store from an iterator-like

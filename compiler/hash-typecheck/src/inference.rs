@@ -15,7 +15,7 @@ use hash_source::{
 };
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    PartialCloneStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
@@ -256,7 +256,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 PatOrCapture::Capture(_) => return None,
             }
         }
-        Some(Node::create_at(Node::<Arg>::seq_data(args), NodeOrigin::Generated))
+        Some(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
     }
 
     pub fn try_use_pat_as_term(&self, pat_id: PatId) -> Option<TermId> {

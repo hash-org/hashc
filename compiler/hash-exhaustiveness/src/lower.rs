@@ -275,7 +275,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     DeconstructedCtor::Str(str) => Pat::Lit(LitPat::Str(StrLit::from(*str))),
                     DeconstructedCtor::Array(Array { kind }) => {
                         let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
-                        let pats = Node::create_at(PatOrCapture::seq_data(children), NodeOrigin::Generated);
+                        let pats = Node::create_at(PatOrCapture::seq(children), NodeOrigin::Generated);
 
                         match kind {
                             ArrayKind::Fixed(_) => {
@@ -322,7 +322,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .collect_vec();
 
         let field_count = fields.len();
-        let args = Node::create_at(Node::<PatArg>::seq_data(fields), NodeOrigin::Generated);
+        let args = Node::create_at(Node::<PatArg>::seq(fields), NodeOrigin::Generated);
 
         if field_count != params.value().len() {
             (args, Some(Spread { name: SymbolId::fresh(), index: field_count }))

@@ -3,10 +3,7 @@
 use std::fmt::Display;
 
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_storage::store::{
-    statics::{SingleStoreValue, StoreId},
-    StoreKey,
-};
+use hash_storage::store::{statics::StoreId, StoreKey};
 
 use crate::{
     environment::stores::tir_stores,

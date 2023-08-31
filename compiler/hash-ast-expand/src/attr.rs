@@ -181,7 +181,7 @@ impl AstExpander<'_> {
                     args.push(Node::at(Arg { target, value }, NodeOrigin::Generated));
                 }
 
-                (Node::create_at(Node::<Arg>::seq_data(args), NodeOrigin::Generated), mac_args.id())
+                (Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated), mac_args.id())
             } else {
                 (Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated), node.name.id())
             };

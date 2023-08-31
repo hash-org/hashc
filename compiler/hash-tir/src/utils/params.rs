@@ -467,7 +467,7 @@ impl ParamUtils {
         // Now, create the new argument list
         // There should be no `None` elements at this point
         let new_args_id = Node::create_at(
-            Node::<Arg>::seq_data(result.into_iter().map(|arg| arg.unwrap())),
+            Node::<Arg>::seq(result.into_iter().map(|arg| arg.unwrap())),
             NodeOrigin::Generated,
         );
 
@@ -602,7 +602,7 @@ impl ParamUtils {
         // Now, create the new argument list
         // There should be no `None` elements at this point
         let new_args_id = Node::create_at(
-            Node::<PatArg>::seq_data(result.into_iter().map(|arg| arg.unwrap())),
+            Node::<PatArg>::seq(result.into_iter().map(|arg| arg.unwrap())),
             NodeOrigin::Generated,
         );
 

@@ -16,7 +16,6 @@ use super::{
     pats::PatId,
 };
 use crate::{
-    ast_info::HasNodeId,
     environment::stores::tir_stores,
     node::{Node, NodeOrigin},
     params::ParamsId,
@@ -57,18 +56,16 @@ impl Arg {
                     .iter()
                     .enumerate()
                     .map(|(i, param)| {
-                        move |_| {
-                            Node::at(
-                                Arg {
-                                    target: ParamIndex::Position(i),
-                                    value: Node::create(Node::at(
-                                        Term::Var(param.borrow().name),
-                                        NodeOrigin::Generated,
-                                    )),
-                                },
-                                NodeOrigin::Generated,
-                            )
-                        }
+                        Node::at(
+                            Arg {
+                                target: ParamIndex::Position(i),
+                                value: Node::create(Node::at(
+                                    Term::Var(param.borrow().name),
+                                    NodeOrigin::Generated,
+                                )),
+                            },
+                            NodeOrigin::Generated,
+                        )
                     })
                     .collect_vec(),
             ),
@@ -87,12 +84,10 @@ impl Arg {
                 args.into_iter()
                     .enumerate()
                     .map(|(i, arg)| {
-                        move |_| {
-                            Node::at(
-                                Arg { target: ParamIndex::Position(i), value: arg },
-                                NodeOrigin::Generated,
-                            )
-                        }
+                        Node::at(
+                            Arg { target: ParamIndex::Position(i), value: arg },
+                            NodeOrigin::Generated,
+                        )
                     })
                     .collect_vec(),
             ),
@@ -109,12 +104,10 @@ impl Arg {
                     .iter()
                     .enumerate()
                     .map(|(i, _)| {
-                        move |_| {
-                            Node::at(
-                                Arg { target: ParamIndex::Position(i), value: Term::hole() },
-                                NodeOrigin::Generated,
-                            )
-                        }
+                        Node::at(
+                            Arg { target: ParamIndex::Position(i), value: Term::hole() },
+                            NodeOrigin::Generated,
+                        )
                     })
                     .collect_vec(),
             ),

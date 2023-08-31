@@ -733,7 +733,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             .collect::<Result<Vec<_>, _>>()?;
 
         evaluation_if(
-            || Node::create_at(Node::<Arg>::seq_data(evaluated_arg_data), NodeOrigin::Generated),
+            || Node::create_at(Node::<Arg>::seq(evaluated_arg_data), NodeOrigin::Generated),
             &st,
         )
     }
@@ -914,7 +914,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 PatOrCapture::Capture(_) => Some(term_list.value().at(i).unwrap()),
             })
             .collect_vec();
-        Node::create_at(TermId::seq_data(spread_term_list), NodeOrigin::Generated)
+        Node::create_at(TermId::seq(spread_term_list), NodeOrigin::Generated)
     }
 
     /// From the given arguments matching with the given parameters, extract the
@@ -938,7 +938,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             })
             .collect_vec();
 
-        Node::create_at(Node::<Arg>::seq_data(spread_term_args), NodeOrigin::Generated)
+        Node::create_at(Node::<Arg>::seq(spread_term_args), NodeOrigin::Generated)
     }
 
     /// Match the given arguments with the given pattern arguments.

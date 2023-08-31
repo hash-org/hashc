@@ -58,7 +58,7 @@ impl ResolutionPass<'_> {
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<PatArg>::seq_data(args), NodeOrigin::Generated))
+        Ok(Node::create_at(Node::<PatArg>::seq(args), NodeOrigin::Generated))
     }
 
     /// Create a [`PatListId`] from the given [`ast::Pat`]s.
@@ -70,7 +70,7 @@ impl ResolutionPass<'_> {
             .iter()
             .map(|pat| Ok(PatOrCapture::Pat(self.make_pat_from_ast_pat(pat.ast_ref())?)))
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(PatOrCapture::seq_data(pats), NodeOrigin::Generated))
+        Ok(Node::create_at(PatOrCapture::seq(pats), NodeOrigin::Generated))
     }
 
     /// Create a [`Spread`] from the given [`ast::SpreadPat`].
@@ -220,7 +220,7 @@ impl ResolutionPass<'_> {
                         Pat::Ctor(CtorPat {
                             ctor: ctor_term.ctor,
                             ctor_pat_args: Node::create_at(
-                                Node::<PatArg>::seq_data(empty()),
+                                Node::<PatArg>::seq(empty()),
                                 NodeOrigin::Generated,
                             ),
                             ctor_pat_args_spread: None,
