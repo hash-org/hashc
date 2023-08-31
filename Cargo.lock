@@ -869,6 +869,7 @@ dependencies = [
  "fixedbitset",
  "fxhash",
  "index_vec",
+ "indexmap 1.9.3",
  "itertools",
  "lazy_static",
  "log",

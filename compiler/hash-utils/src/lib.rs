@@ -29,6 +29,7 @@ pub use crossbeam_channel;
 pub use dashmap;
 pub use fxhash;
 pub use index_vec;
+pub use indexmap;
 pub use itertools;
 pub use lazy_static;
 pub use log;
