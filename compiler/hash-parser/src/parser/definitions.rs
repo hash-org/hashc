@@ -1,36 +1,30 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::AccessToDiagnosticsMut;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
-use hash_utils::{smallvec::smallvec, thin_vec::thin_vec};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
 
 use super::AstGen;
 use crate::{
-    diagnostics::{
-        error::{ParseErrorKind, ParseResult},
-        warning::{ParseWarning, WarningKind},
-    },
-    parser::DefinitionKind,
+    diagnostics::error::{ParseErrorKind, ParseResult},
+    parser::TyParamOrigin,
 };
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+    /// Construct the [Params] from the parsed [`AstNodes<Param>`]. This is
+    /// just a utility function to wrap the nodes in the [Params] struct.
+    pub fn make_params(&self, params: AstNodes<Param>, origin: ParamOrigin) -> AstNode<Params> {
+        let id = params.id();
+        AstNode::with_id(Params { params, origin }, id)
+    }
+
     /// Parse a [StructDef]. The keyword `struct` begins the construct and is
     /// followed by parentheses with inner struct fields defined.
     pub fn parse_struct_def(&mut self) -> ParseResult<StructDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Struct)));
 
-        let def_kind = DefinitionKind::Struct;
+        let def_kind = TyParamOrigin::Struct;
         let ty_params = self.parse_optional_ty_params(def_kind)?;
-
-        let mut gen = self
-            .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
-
-        let fields = gen.parse_nodes(
-            |g| g.parse_def_param(ParamOrigin::Struct),
-            |g| g.parse_token(TokenKind::Comma),
-        );
-        self.consume_gen(gen);
+        let fields = self.parse_params(ParamOrigin::Struct)?;
 
         Ok(StructDef { ty_params, fields })
     }
@@ -40,7 +34,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_enum_def(&mut self) -> ParseResult<EnumDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Enum)));
 
-        let def_kind = DefinitionKind::Enum;
+        let def_kind = TyParamOrigin::Enum;
         let ty_params = self.parse_optional_ty_params(def_kind)?;
 
         let mut gen = self
@@ -57,20 +51,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_enum_def_entry(&mut self) -> ParseResult<AstNode<EnumDefEntry>> {
         let start = self.current_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
-
         let name = self.parse_name()?;
-        let name_span = name.byte_range();
-        let mut fields = self.nodes_with_span(thin_vec![], name_span);
 
-        if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
-            let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-            fields = gen.parse_nodes(
-                |g| g.parse_def_param(ParamOrigin::EnumVariant),
-                |g| g.parse_token(TokenKind::Comma),
-            );
-            fields.set_span(gen.span());
-            self.consume_gen(gen);
-        }
+        let fields = if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
+            Some(self.parse_params(ParamOrigin::EnumVariant)?)
+        } else {
+            None
+        };
 
         // Attempt to parse an optional type for the variant
         // Now try and parse a type if the next token permits it...
@@ -85,33 +72,60 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(EnumDefEntry { name, fields, ty, macros }, start))
     }
 
+    pub(crate) fn parse_params(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Params>> {
+        // We add a little bit more context if the param-origin is a type definition
+        // item.
+        let err_ctx = match origin {
+            ParamOrigin::Struct => Some(ParseErrorKind::TypeDefinition(TyParamOrigin::Struct)),
+            ParamOrigin::EnumVariant => Some(ParseErrorKind::TypeDefinition(TyParamOrigin::Enum)),
+            _ => None,
+        };
+
+        let mut gen = self.parse_delim_tree(Delimiter::Paren, err_ctx)?;
+        let params =
+            gen.parse_nodes(|g| g.parse_param(origin), |g| g.parse_token(TokenKind::Comma));
+        self.consume_gen(gen);
+        Ok(self.make_params(params, origin))
+    }
+
     /// Parses an nominal definition type field, which could either be a named
     /// or un-named field. The un-named field is just a specified type,
     /// whilst a named variant, is a specified name and then an optional
     /// type annotation and a default value.
-    pub(crate) fn parse_def_param(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Param>> {
+    pub(crate) fn parse_param(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Param>> {
         let start = self.next_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
 
-        // Try and parse the name and type
-        let (name, ty) = match self.peek_second() {
-            Some(token) if token.has_kind(TokenKind::Colon) => {
-                let name = Some(self.parse_name()?);
+        // If this is a function parameter, we always parse a name!
+        let (name, ty) = if matches!(origin, ParamOrigin::Fn) {
+            let name = Some(self.parse_name()?);
 
-                // Now try and parse a type if the next token permits it...
-                let ty = match self.parse_token_fast(TokenKind::Colon) {
-                    Some(_) => match self.peek() {
-                        Some(token) if matches!(token.kind, TokenKind::Eq | TokenKind::Comma) => {
-                            None
-                        }
+            // Parse an optional type annotation...
+            let ty = match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Colon) => {
+                    self.skip_token();
+                    Some(self.parse_ty()?)
+                }
+                _ => None,
+            };
+
+            (name, ty)
+        } else {
+            match self.peek_second() {
+                Some(token) if token.has_kind(TokenKind::Colon) => {
+                    let name = Some(self.parse_name()?);
+                    self.skip_token();
+
+                    // Now try and parse a type if the next token permits it...
+                    let ty = match self.peek() {
+                        Some(token) if matches!(token.kind, TokenKind::Eq) => None,
                         _ => Some(self.parse_ty()?),
-                    },
-                    None => None,
-                };
+                    };
 
-                (name, ty)
+                    (name, ty)
+                }
+                _ => (None, Some(self.parse_ty()?)),
             }
-            _ => (None, Some(self.parse_ty()?)),
         };
 
         // If `name` and or `type` is followed by an `=`. we disallow default values
@@ -124,7 +138,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(Param { name, ty, default, origin, macros }, start))
+        Ok(self.node_with_joined_span(Param { name, ty, default, macros }, start))
     }
 
     /// Parse a [TyFnDef]. Type functions specify logic at the type
@@ -133,7 +147,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_ty_fn_def(&mut self) -> ParseResult<TyFnDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Lt));
 
-        let params = self.parse_ty_params(DefinitionKind::TyFn)?;
+        let params = self.parse_ty_params(TyParamOrigin::TyFn)?;
 
         // see if we need to add a return ty...
         let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
@@ -149,51 +163,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(TyFnDef { params, return_ty, ty_fn_body })
     }
 
-    // Parse a [Param] which consists the name of the argument and
-    // then any specified bounds on the argument which are essentially types
-    // that are separated by a `~`
-    fn parse_ty_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
-        let start = self.current_pos();
-        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
-
-        let name = self.parse_name()?;
-
-        // Now it's followed by a colon
-        let ty = match self.parse_token_fast(TokenKind::Colon) {
-            Some(_) => match self.peek() {
-                Some(tok) if tok.has_kind(TokenKind::Eq) => None,
-                _ => Some(self.parse_ty()?),
-            },
-            None => None,
-        };
-
-        // Parse a default type
-        let default = match self.parse_token_fast(TokenKind::Eq) {
-            Some(_) => Some(self.parse_ty()?),
-            None => None,
-        };
-
-        Ok(self.node_with_joined_span(
-            Param {
-                name: Some(name),
-                ty,
-                default: default.map(|node| {
-                    let span = node.byte_range();
-                    self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
-                }),
-                origin: ParamOrigin::TyFn,
-                macros,
-            },
-            start,
-        ))
-    }
-
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with
     /// `trait` that contains definitions or attach expressions to a trait.
     pub fn parse_trait_def(&mut self) -> ParseResult<TraitDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Trait)));
 
-        let ty_params = self.parse_optional_ty_params(DefinitionKind::Trait)?;
+        let ty_params = self.parse_optional_ty_params(TyParamOrigin::Trait)?;
 
         Ok(TraitDef { members: self.parse_exprs_from_braces()?, ty_params })
     }
@@ -202,7 +177,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_mod_def(&mut self) -> ParseResult<ModDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Mod)));
 
-        let ty_params = self.parse_optional_ty_params(DefinitionKind::Mod)?;
+        let ty_params = self.parse_optional_ty_params(TyParamOrigin::Mod)?;
         let block = self.parse_body_block()?;
 
         Ok(ModDef { block, ty_params })
@@ -212,84 +187,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_impl_def(&mut self) -> ParseResult<ImplDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Impl)));
 
-        let ty_params = self.parse_optional_ty_params(DefinitionKind::Impl)?;
+        let ty_params = self.parse_optional_ty_params(TyParamOrigin::Impl)?;
         let block = self.parse_body_block()?;
 
         Ok(ImplDef { block, ty_params })
-    }
-
-    /// Parse optional type [Param]s, if the next token is not a
-    /// `<`, the function will return an empty [AstNodes<Param>].
-    #[inline(always)]
-    pub(crate) fn parse_optional_ty_params(
-        &mut self,
-        def_kind: DefinitionKind,
-    ) -> ParseResult<AstNodes<Param>> {
-        match self.peek() {
-            Some(tok) if tok.has_kind(TokenKind::Lt) => {
-                self.skip_token();
-                self.parse_ty_params(def_kind)
-            }
-            _ => Ok(self.nodes_with_span(thin_vec![], self.current_pos())),
-        }
-    }
-
-    /// Parse a collection of type [Param]s which can appear on nominal
-    /// definitions, and trait definitions.
-    fn parse_ty_params(&mut self, def_kind: DefinitionKind) -> ParseResult<AstNodes<Param>> {
-        let start_span = self.current_pos();
-        let mut params = self.nodes_with_span(thin_vec![], start_span);
-
-        // Flag denoting that we were able to parse the ending `>` within the function
-        // def arg
-        let mut param_ending = false;
-
-        while let Some(param) = self.peek_resultant_fn_mut(|g| g.parse_ty_fn_def_param()) {
-            params.nodes.push(param);
-
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    self.skip_token();
-                }
-                Some(token) if token.has_kind(TokenKind::Gt) => {
-                    self.skip_token();
-                    param_ending = true;
-                    break;
-                }
-                token => self.err_with_location(
-                    ParseErrorKind::UnExpected,
-                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
-                    token.map(|t| t.kind),
-                    token.map_or_else(|| self.next_pos(), |t| t.span),
-                )?,
-            }
-        }
-
-        // So if we failed to parse even a `>` we should report this...
-        if !param_ending {
-            // Here we encountered a trailing comma, so now we have to account for
-            // the `>` being after
-            if matches!(self.peek(), Some(tok) if tok.has_kind(TokenKind::Gt)) {
-                self.skip_token();
-            } else {
-                self.err_with_location(
-                    ParseErrorKind::UnExpected,
-                    Some(TokenKindVector::singleton(TokenKind::Gt)),
-                    self.peek().map(|tok| tok.kind),
-                    self.next_pos(),
-                )?;
-            }
-        }
-
-        // Update the ast_nodes span to contain
-        let span = self.make_span(start_span.join(self.current_pos()));
-        params.set_span(span);
-
-        // Emit a warning here if there were no params
-        if params.is_empty() {
-            self.add_warning(ParseWarning::new(WarningKind::UselessTyParams { def_kind }, span))
-        }
-
-        Ok(params)
     }
 }

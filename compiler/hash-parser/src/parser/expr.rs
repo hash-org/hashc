@@ -222,7 +222,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
 
             // Either tuple, function, or nested expression
-            TokenKind::Tree(Delimiter::Paren, tree_index) => {
+            TokenKind::Tree(Delimiter::Paren, _) => {
                 let mut is_func = false;
 
                 // Now here we have to look ahead after the token_tree to see if there is an
@@ -252,14 +252,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     is_func = true;
                 }
 
-                let tree = self.token_trees.get(tree_index as usize).unwrap();
+                // Backtrack one token so that we can re-parse the 'gen'.
+                self.offset.set(self.offset.get() - 1);
 
                 match is_func {
-                    true => {
-                        let gen = self.from_stream(tree, token.span);
-                        self.parse_fn_def(gen)?
-                    }
-                    false => self.parse_expr_or_tuple(tree, self.current_pos())?,
+                    true => self.parse_fn_def()?,
+                    false => self.parse_expr_or_tuple()?,
                 }
             }
             TokenKind::Keyword(Keyword::Continue) => {
@@ -833,12 +831,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// - Empty tuples: (,)
     /// - Singleton tuple : (A,)
     /// - Many membered tuple: (A, B, C) or (A, B, C,)
-    pub(crate) fn parse_expr_or_tuple(
-        &mut self,
-        tree: &'stream [Token],
-        span: ByteRange,
-    ) -> ParseResult<AstNode<Expr>> {
-        let mut gen = self.from_stream(tree, span);
+    pub(crate) fn parse_expr_or_tuple(&mut self) -> ParseResult<AstNode<Expr>> {
+        let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
         let start = self.current_pos();
 
         // Handle the case if it is an empty stream, this means that if it failed to
@@ -919,46 +913,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Parse a function definition argument, which is made of an identifier and
-    /// a function type.
-    pub(crate) fn parse_fn_def_param(&mut self) -> ParseResult<AstNode<Param>> {
-        let start = self.current_pos();
-        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
-
-        let name = self.parse_name()?;
-
-        let ty = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Colon) => {
-                self.skip_token();
-                Some(self.parse_ty()?)
-            }
-            _ => None,
-        };
-
-        let default = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Eq) => {
-                self.skip_token();
-                Some(self.parse_expr_with_precedence(0)?)
-            }
-            _ => None,
-        };
-
-        Ok(self.node_with_joined_span(
-            Param { name: Some(name), ty, default, origin: ParamOrigin::Fn, macros },
-            start,
-        ))
-    }
-
     /// Parse a [FnDef]. Function literals are essentially definitions
     /// of lambdas that can be assigned to variables or passed as arguments
     /// into other functions.
-    pub(crate) fn parse_fn_def(&mut self, mut gen: Self) -> ParseResult<AstNode<Expr>> {
-        let start = self.current_pos();
-
+    pub(crate) fn parse_fn_def(&mut self) -> ParseResult<AstNode<Expr>> {
         // parse function definition parameters.
-        let params =
-            gen.parse_nodes(|g| g.parse_fn_def_param(), |g| g.parse_token(TokenKind::Comma));
-        self.consume_gen(gen);
+        let params = self.parse_params(ParamOrigin::Fn)?;
+        let start = self.current_pos();
 
         // check if there is a return type
         let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {

@@ -9,7 +9,7 @@ mod state;
 use collection::CollectionPrintingOptions;
 use config::AstPrintingConfig;
 use hash_ast::{
-    ast::{self, walk_mut_self, AstVisitorMutSelf},
+    ast::{self, walk_mut_self, AstVisitorMutSelf, ParamOrigin},
     ast_visitor_mut_self_default_impl,
 };
 use hash_source::constant::{IntConstant, CONSTANT_MAP};
@@ -176,9 +176,8 @@ where
 
         self.visit_name(name.ast_ref())?;
 
-        if fields.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-            self.print_separated_collection(fields, opts, |this, field| this.visit_param(field))?;
+        if let Some(params) = fields {
+            self.visit_params(params.ast_ref())?;
         }
 
         if let Some(ty) = ty {
@@ -319,11 +318,8 @@ where
 
         self.write("enum")?;
 
-        if ty_params.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-            self.print_separated_collection(ty_params, opts, |this, field| {
-                this.visit_param(field)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
         let mut opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
@@ -336,16 +332,15 @@ where
         Ok(())
     }
 
-    type TyFnRet = ();
+    type TyFnTyRet = ();
 
-    fn visit_ty_fn(
+    fn visit_ty_fn_ty(
         &mut self,
-        node: ast::AstNodeRef<ast::TyFn>,
-    ) -> Result<Self::TyFnRet, Self::Error> {
-        let ast::TyFn { params, return_ty } = node.body();
+        node: ast::AstNodeRef<ast::TyFnTy>,
+    ) -> Result<Self::TyFnTyRet, Self::Error> {
+        let ast::TyFnTy { params, return_ty } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-        self.print_separated_collection(params, opts, |this, field| this.visit_param(field))?;
+        self.visit_ty_params(params.ast_ref())?;
         self.write(" -> ")?;
         self.visit_ty(return_ty.ast_ref())
     }
@@ -371,20 +366,11 @@ where
         let ast::StructDef { ty_params, fields } = node.body();
 
         self.write("struct")?;
-
-        if ty_params.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-            self.print_separated_collection(ty_params, opts, |this, param| {
-                this.visit_param(param)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
-        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        opts.indented();
-
-        self.print_separated_collection(fields, opts, |this, field| this.visit_param(field))?;
-
-        Ok(())
+        self.visit_params(fields.ast_ref())
     }
 
     type PropertyKindRet = ();
@@ -406,9 +392,7 @@ where
         node: ast::AstNodeRef<ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         let ast::TupleTy { entries } = node.body();
-
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(entries, opts, |this, arg| this.visit_ty_arg(arg))
+        self.visit_params(entries.ast_ref())
     }
 
     type ContinueStatementRet = ();
@@ -488,6 +472,28 @@ where
         self.write(")")
     }
 
+    type ParamsRet = ();
+    fn visit_params(
+        &mut self,
+        node: ast::AstNodeRef<ast::Params>,
+    ) -> Result<Self::TyParamsRet, Self::Error> {
+        let ast::Params { params, origin } = node.body();
+
+        // Return early if no params are specified.
+        if params.is_empty() {
+            return Ok(());
+        }
+
+        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
+
+        // @@HardCoded: Struct definition fields are indented.
+        if *origin == ParamOrigin::Struct {
+            opts.indented();
+        }
+
+        self.print_separated_collection(params, opts, |this, param| this.visit_param(param))
+    }
+
     type ParamRet = ();
 
     fn visit_param(
@@ -514,6 +520,51 @@ where
         }
 
         Ok(())
+    }
+
+    type TyParamRet = ();
+
+    fn visit_ty_param(
+        &mut self,
+        node: ast::AstNodeRef<ast::TyParam>,
+    ) -> Result<Self::ParamRet, Self::Error> {
+        let ast::TyParam { name, ty, default, .. } = node.body();
+
+        if let Some(name) = name {
+            self.visit_name(name.ast_ref())?;
+        }
+
+        if let Some(ty) = ty {
+            if name.is_some() {
+                self.write(": ")?;
+            }
+
+            self.visit_ty(ty.ast_ref())?;
+        }
+
+        if let Some(default) = default {
+            self.write(" = ")?;
+            self.visit_ty(default.ast_ref())?;
+        }
+
+        Ok(())
+    }
+
+    type TyParamsRet = ();
+    fn visit_ty_params(
+        &mut self,
+        node: ast::AstNodeRef<ast::TyParams>,
+    ) -> Result<Self::TyParamsRet, Self::Error> {
+        let ast::TyParams { params, .. } = node.body();
+
+        // Return early if no params are specified.
+        if params.is_empty() {
+            return Ok(());
+        }
+
+        let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
+
+        self.print_separated_collection(params, opts, |this, param| this.visit_ty_param(param))
     }
 
     type ArrayTyRet = ();
@@ -683,8 +734,7 @@ where
     ) -> Result<Self::TyFnDefRet, Self::Error> {
         let ast::TyFnDef { params, return_ty, ty_fn_body } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-        self.print_separated_collection(params, opts, |this, param| this.visit_param(param))?;
+        self.visit_ty_params(params.ast_ref())?;
 
         if let Some(ty) = return_ty {
             self.write(" -> ")?;
@@ -762,8 +812,7 @@ where
     ) -> Result<Self::FnDefRet, Self::Error> {
         let ast::FnDef { params, return_ty, fn_body } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(params, opts, |this, param| this.visit_param(param))?;
+        self.visit_params(params.ast_ref())?;
 
         if let Some(return_ty) = return_ty {
             self.write(" -> ")?;
@@ -805,9 +854,7 @@ where
     ) -> Result<Self::FnTyRet, Self::Error> {
         let ast::FnTy { params, return_ty } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(params, opts, |this, param| this.visit_ty_arg(param))?;
-
+        self.visit_params(params.ast_ref())?;
         self.write(" -> ")?;
         self.visit_ty(return_ty.ast_ref())
     }
@@ -953,12 +1000,9 @@ where
         let ast::TraitDef { ty_params, members } = node.body();
 
         self.write("trait")?;
-        if ty_params.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
 
-            self.print_separated_collection(ty_params, opts, |this, param| {
-                this.visit_param(param)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
         let mut opts = CollectionPrintingOptions::delimited(Delimiter::Brace, "\n");
@@ -1040,11 +1084,8 @@ where
 
         self.write("mod")?;
 
-        if !ty_params.is_empty() {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-            self.print_separated_collection(ty_params, opts, |this, param| {
-                this.visit_param(param)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
         self.write(" ")?;
@@ -1160,11 +1201,8 @@ where
 
         self.write("impl")?;
 
-        if !ty_params.is_empty() {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-            self.print_separated_collection(ty_params, opts, |this, param| {
-                this.visit_param(param)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
         self.write(" ")?;
