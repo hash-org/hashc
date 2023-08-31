@@ -1,9 +1,9 @@
 //! Compiler warnings that are emitted during AST expansion.
 
-use derive_more::{Constructor, From};
 use hash_ast::ast::AstNodeId;
 use hash_attrs::diagnostics::AttrWarning;
 use hash_reporting::reporter::{Reporter, Reports};
+use hash_utils::derive_more::{Constructor, From};
 
 #[derive(Constructor, Debug)]
 pub struct ExpansionWarning {

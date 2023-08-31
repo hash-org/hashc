@@ -1,8 +1,8 @@
 //! Module-related utilities.
-use derive_more::Constructor;
 use hash_ast::ast::OwnsAstNode;
 use hash_source::{identifier::Identifier, ModuleId};
 use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
+use hash_utils::derive_more::Constructor;
 
 use crate::{
     environment::{

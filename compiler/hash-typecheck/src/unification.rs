@@ -2,7 +2,6 @@
 
 use std::{cell::Cell, collections::HashSet};
 
-use derive_more::Deref;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
@@ -18,6 +17,7 @@ use hash_tir::{
     tys::{Ty, TyId},
     utils::{traversing::Atom, AccessToUtils},
 };
+use hash_utils::derive_more::Deref;
 use once_cell::unsync::OnceCell;
 
 use crate::{

@@ -2,7 +2,6 @@
 
 use std::{cell::Cell, collections::HashSet, ops::ControlFlow};
 
-use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_exhaustiveness::ExhaustivenessChecker;
@@ -51,6 +50,7 @@ use hash_tir::{
         AccessToUtils,
     },
 };
+use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
 
 use crate::{

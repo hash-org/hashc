@@ -4,7 +4,6 @@
 //! For now, non-pure functions are always queued for lowering.
 use std::ops::ControlFlow;
 
-use derive_more::Constructor;
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
@@ -17,7 +16,7 @@ use hash_tir::{
     terms::TermId,
     utils::{traversing::Atom, AccessToUtils},
 };
-use hash_utils::indexmap::IndexSet;
+use hash_utils::{derive_more::Constructor, indexmap::IndexSet};
 
 use crate::ctx::BuilderCtx;
 

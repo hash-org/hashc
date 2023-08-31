@@ -4,7 +4,7 @@ use std::{
     fmt::{self, Display},
 };
 
-use derive_more::Constructor;
+use hash_utils::derive_more::Constructor;
 
 use crate::SourceId;
 

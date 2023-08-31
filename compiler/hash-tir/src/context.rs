@@ -6,9 +6,10 @@ use std::{
     ops::Range,
 };
 
-use derive_more::From;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey};
-use hash_utils::{fxhash::FxBuildHasher, indexmap::IndexMap, itertools::Itertools};
+use hash_utils::{
+    derive_more::From, fxhash::FxBuildHasher, indexmap::IndexMap, itertools::Itertools,
+};
 
 use crate::{
     args::{ArgId, ArgsId},

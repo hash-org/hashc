@@ -3,7 +3,6 @@
 //!
 //! Typing errors are reported during this pass.
 
-use derive_more::Constructor;
 use hash_ast::ast::{self};
 use hash_pipeline::settings::CompilerStageKind;
 use hash_source::ModuleKind;
@@ -16,7 +15,7 @@ use hash_tir::{
     utils::common::dump_tir,
 };
 use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
-use hash_utils::stream_less_writeln;
+use hash_utils::{derive_more::Constructor, stream_less_writeln};
 
 use super::ast_utils::AstPass;
 use crate::{

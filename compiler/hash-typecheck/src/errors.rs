@@ -1,6 +1,5 @@
 use std::fmt;
 
-use derive_more::{Constructor, From};
 use hash_reporting::{
     diagnostic::IntoCompound,
     hash_error_codes::error_codes::HashErrorCode,
@@ -23,6 +22,7 @@ use hash_tir::{
     tys::TyId,
     utils::{common::get_location, params::ParamError, traversing::Atom},
 };
+use hash_utils::derive_more::{Constructor, From};
 
 /// A kind of wrong term usage.
 #[derive(Clone, Debug)]

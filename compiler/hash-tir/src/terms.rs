@@ -3,7 +3,6 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use derive_more::From;
 use hash_ast::ast;
 use hash_storage::{
     static_sequence_store_indirect, static_single_store,
@@ -12,6 +11,7 @@ use hash_storage::{
         SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
+use hash_utils::derive_more::From;
 
 use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
 use crate::{

@@ -3,7 +3,6 @@
 //!
 //! Typing errors are reported during this pass.
 
-use derive_more::Constructor;
 use hash_ast::ast;
 use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_tir::{environment::stores::tir_stores, tys::Ty, utils::traversing::Atom};
@@ -12,6 +11,7 @@ use hash_typecheck::{
     inference::FnInferMode,
     AccessToTypechecking,
 };
+use hash_utils::derive_more::Constructor;
 
 use super::ast_utils::AstPass;
 use crate::{
