@@ -4,9 +4,11 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
 num_cpus = "1.13.0"
-rayon = "1.5.0"
 
 hash-ast = { path = "../hash-ast" }
 hash-codegen = { path = "../hash-codegen" }

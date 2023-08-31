@@ -49,8 +49,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&mut self) -> ParseResult<AstNode<EnumDefEntry>> {
-        let start = self.current_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.next_pos();
         let name = self.parse_name()?;
 
         let fields = if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
@@ -93,8 +93,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// whilst a named variant, is a specified name and then an optional
     /// type annotation and a default value.
     pub(crate) fn parse_param(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Param>> {
-        let start = self.next_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.next_pos();
 
         // If this is a function parameter, we always parse a name!
         let (name, ty) = if matches!(origin, ParamOrigin::Fn) {

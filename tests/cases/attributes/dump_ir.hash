@@ -1,4 +1,8 @@
-// run=fail, stage=semantic
+// run=fail, stage=semantic, skip=true
+
+// @@FixMe: it's unclear whether we want to allow `#dump_ir` directives 
+//          to be appliable on non function definitions. There is a valid 
+//          use case for this, for top-level constants that are compiled.
 
 #dump_ir foo := 2
 

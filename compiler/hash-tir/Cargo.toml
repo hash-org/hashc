@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
 derive_more = "0.99"
 indexmap = "1.9"
@@ -11,7 +14,6 @@ num-bigint = "0.4"
 textwrap = "0.16"
 utility-types = "0.0.2"
 typed-builder = "0.11"
-lazy_static = "1.4"
 
 hash-ast = { path = "../hash-ast" }
 hash-source = { path = "../hash-source" }

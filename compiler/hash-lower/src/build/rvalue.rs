@@ -9,6 +9,7 @@ use hash_ir::{
 };
 use hash_source::constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP};
 use hash_storage::store::statics::StoreId;
+use hash_target::HasTarget;
 use hash_tir::terms::{Term, TermId};
 
 use super::{
@@ -57,7 +58,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // the type, and a negation occurs. This causes the value to overflow. We
                         // check for this case here, and emit an assertion check for this (assuming
                         // checked operations are enabled).
-                        if self.settings.lowering_settings().checked_operations
+                        if self.ctx.settings.lowering_settings().checked_operations
                             && matches!(op, UnaryOp::Neg)
                             && ty.borrow().is_signed()
                         {
@@ -139,7 +140,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let value = ty.map(|ty| match ty {
             IrTy::Int(signed_ty) => {
                 // Create and intern the constant
-                let ptr_size = self.settings.target().ptr_size();
+                let ptr_size = self.target().ptr_size();
                 let int_ty: IntTy = (*signed_ty).into();
                 let const_int =
                     InternedInt::from_u128(int_ty.numeric_min(ptr_size), int_ty, ptr_size);
@@ -216,7 +217,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
-        if self.settings.lowering_settings().checked_operations {
+        if self.ctx.settings.lowering_settings().checked_operations {
             let is_integral = ty.borrow().is_integral();
 
             if op.is_checkable() && is_integral {

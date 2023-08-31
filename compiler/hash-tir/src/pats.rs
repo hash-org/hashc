@@ -4,10 +4,9 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_ast::ast::RangeEnd;
+use hash_ast::ast::{self, RangeEnd};
 use hash_storage::{
-    static_sequence_store_indirect, static_single_store,
-    store::{SequenceStore, Store, TrivialSequenceStoreKey},
+    static_sequence_store_indirect, static_single_store, store::TrivialSequenceStoreKey,
 };
 
 use super::{
@@ -20,7 +19,8 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, environment::stores::tir_stores, tir_debug_value_of_single_store_id, tir_get,
+    arrays::ArrayPat, ast_info::HasNodeId, environment::stores::tir_stores,
+    tir_debug_value_of_single_store_id, tir_get,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -113,6 +113,12 @@ static_single_store!(
     store_name = pat,
     store_source = tir_stores()
 );
+
+impl HasNodeId for PatId {
+    fn node_id(&self) -> Option<ast::AstNodeId> {
+        tir_stores().ast_info().pats().get_node_by_data(*self)
+    }
+}
 
 tir_debug_value_of_single_store_id!(PatId);
 

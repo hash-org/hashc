@@ -99,19 +99,28 @@ pub struct SequenceDisplayOptions {
 
     /// Limit the number of element printed when displaying sequence...
     pub limit: Option<usize>,
+
+    /// Whether items inside should be quoted with backticks.
+    pub quote: bool,
+}
+
+impl Default for SequenceDisplayOptions {
+    fn default() -> Self {
+        SequenceDisplayOptions { mode: SequenceJoinMode::Either, limit: None, quote: true }
+    }
 }
 
 impl SequenceDisplayOptions {
     /// Create a [SequenceDisplayOptions] with no limit and a specified
     /// `joining` mode.
     pub fn new(mode: SequenceJoinMode) -> Self {
-        SequenceDisplayOptions { mode, limit: None }
+        SequenceDisplayOptions { mode, limit: None, quote: true }
     }
 
     /// Create a [SequenceDisplayOptions] with a specified limit and a specified
     /// `joining` mode.
     pub fn with_limit(mode: SequenceJoinMode, limit: usize) -> Self {
-        SequenceDisplayOptions { mode, limit: Some(limit) }
+        SequenceDisplayOptions { mode, limit: Some(limit), quote: true }
     }
 }
 
@@ -140,26 +149,34 @@ impl<'a, T: 'a> SequenceDisplay<'a, T> {
     pub fn either(items: &'a [T]) -> Self {
         Self {
             items,
-            options: SequenceDisplayOptions { mode: SequenceJoinMode::Either, limit: None },
+            options: SequenceDisplayOptions {
+                mode: SequenceJoinMode::Either,
+                ..Default::default()
+            },
         }
     }
 
     /// Create a [SequenceDisplay] with the join mode as
     /// [SequenceJoinMode::All].
     pub fn all(items: &'a [T]) -> Self {
-        Self { items, options: SequenceDisplayOptions { mode: SequenceJoinMode::All, limit: None } }
+        Self {
+            items,
+            options: SequenceDisplayOptions { mode: SequenceJoinMode::All, ..Default::default() },
+        }
     }
 }
 
 impl<'a, T: fmt::Display + 'a> fmt::Display for SequenceDisplay<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let quote = if self.options.quote { "`" } else { "" };
+
         match self.items.len() {
             0 => write!(f, ""),
             1 if self.options.mode == SequenceJoinMode::Either => {
-                write!(f, "a `{}`", self.items.get(0).unwrap())
+                write!(f, "a {quote}{}{quote}", self.items.get(0).unwrap())
             }
             1 => {
-                write!(f, "`{}`", self.items.get(0).unwrap())
+                write!(f, "{quote}{}{quote}", self.items.get(0).unwrap())
             }
             _ => {
                 // We essentially want to limit the number of elements to print
@@ -186,12 +203,16 @@ impl<'a, T: fmt::Display + 'a> fmt::Display for SequenceDisplay<'a, T> {
                 while let Some(item) = items.next() {
                     if items.peek().is_some() {
                         if count == len - 2 && !overflow {
-                            write!(f, "`{item}`, {} ", self.options.mode.as_conjunctive())?;
+                            write!(
+                                f,
+                                "{quote}{item}{quote}, {} ",
+                                self.options.mode.as_conjunctive()
+                            )?;
                         } else {
-                            write!(f, "`{item}`, ")?;
+                            write!(f, "{quote}{item}{quote}, ")?;
                         }
                     } else {
-                        write!(f, "`{item}`")?;
+                        write!(f, "{quote}{item}{quote}")?;
                     };
                     count += 1;
                 }

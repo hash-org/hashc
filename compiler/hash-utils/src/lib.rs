@@ -24,10 +24,15 @@ pub mod tree_writing;
 // Re-export commonly used packages
 pub use arrayvec;
 pub use backtrace;
+pub use bitflags;
+pub use crossbeam_channel;
+pub use dashmap;
 pub use fxhash;
 pub use index_vec;
 pub use itertools;
+pub use lazy_static;
 pub use log;
 pub use parking_lot;
+pub use rayon;
 pub use smallvec;
 pub use thin_vec;

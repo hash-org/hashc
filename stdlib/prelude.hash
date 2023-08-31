@@ -28,7 +28,8 @@ transmute := <T,U> => (item: T) -> U => {
     Intrinsics::transmute(T, U, item)
 }
 
-#repr_c SizedPointer := struct(&raw u8, usize);
+#[repr("c")]
+SizedPointer := struct(&raw u8, usize);
 
 /// The printing function, this allows for printing of strings to the
 /// standard output.

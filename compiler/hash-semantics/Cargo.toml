@@ -4,14 +4,16 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
-dashmap = "5.1"
 derive_more = "0.99"
 num-bigint = "0.4"
 once_cell = "1.17"
-bitflags = "2.0.0-rc.1"
 
 hash-ast = { path = "../hash-ast" }
+hash-attrs = { path = "../hash-attrs" }
 hash-exhaustiveness = { path = "../hash-exhaustiveness" }
 hash-intrinsics = { path = "../hash-intrinsics" }
 hash-pipeline = { path = "../hash-pipeline" }

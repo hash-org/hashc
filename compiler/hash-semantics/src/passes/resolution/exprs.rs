@@ -7,9 +7,9 @@
 use std::collections::HashSet;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
-    primitives::primitives,
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
@@ -29,6 +29,7 @@ use hash_tir::{
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     params::ParamIndex,
+    primitives::primitives,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
     term_as_variant,
@@ -805,14 +806,7 @@ impl<'tc> ResolutionPass<'tc> {
         let fn_def_id = tir_stores().ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // Whether the function has been marked as pure by a directive
-        //
-        // @@ReAddDirectives: check if function is annotated with pure.
-        let is_pure_by_directive = false;
-        // let is_pure_by_directive = tir_stores()
-        //     .directives()
-        //     .get(fn_def_id.into())
-        //     .map(|directives| directives.contains(IDENTS.pure))
-        //     == Some(true);
+        let is_pure_by_directive = attr_store().node_has_attr(node_id, attrs::PURE);
 
         let (params, return_ty, return_value, fn_def_id) =
             self.scoping().enter_scope(ContextKind::Environment, || {

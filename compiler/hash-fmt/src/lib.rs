@@ -80,7 +80,10 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let ast::Module { contents } = node.body();
+        let ast::Module { contents, macros } = node.body();
+
+        // Re-arrange the macros to be at the top.
+        self.visit_macro_invocations(macros.ast_ref())?;
 
         for item in contents.iter() {
             self.visit_expr(item.ast_ref())?;

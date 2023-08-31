@@ -9,7 +9,7 @@ use hash_storage::{
     static_single_store,
     store::{
         statics::{SingleStoreValue, StoreId},
-        Store, TrivialSequenceStoreKey,
+        TrivialSequenceStoreKey,
     },
 };
 use hash_utils::parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};

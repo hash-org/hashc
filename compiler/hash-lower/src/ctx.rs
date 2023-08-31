@@ -6,13 +6,27 @@ use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{ty::IrTyId, IrCtx};
 use hash_layout::{
     compute::{LayoutComputer, LayoutError},
-    LayoutCtx, LayoutId,
+    write::{LayoutWriter, LayoutWriterConfig},
+    LayoutCtx, LayoutId, TyInfo,
 };
-use hash_semantics::SemanticStorage;
+use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
+use hash_storage::store::statics::SequenceStoreValue;
+use hash_target::{
+    data_layout::{HasDataLayout, TargetDataLayout},
+    HasTarget,
+};
 use hash_tir::{
-    environment::env::{AccessToEnv, Env},
+    args::Arg,
+    data::{DataDefId, DataTy},
+    environment::{
+        env::{AccessToEnv, Env},
+        source_info::CurrentSourceInfo,
+    },
     mods::ModDefId,
 };
+use hash_utils::stream_writeln;
+
+use crate::LoweringCtx;
 
 /// The [BuilderCtx] is a collection of all the information and data stores that
 /// are needed to lower the TIR into IR. This is only used during the initial
@@ -29,7 +43,9 @@ pub(crate) struct BuilderCtx<'ir> {
     layouts: &'ir LayoutCtx,
 
     /// The type storage needed for accessing the types of the traversed terms
-    pub env: &'ir Env<'ir>,
+    pub env: Env<'ir>,
+
+    pub settings: &'ir CompilerSettings,
 
     /// The intrinsic definitions that are needed for
     /// dealing with intrinsic functions within the TIR.
@@ -39,9 +55,15 @@ pub(crate) struct BuilderCtx<'ir> {
     pub prelude: ModDefId,
 }
 
+impl HasDataLayout for BuilderCtx<'_> {
+    fn data_layout(&self) -> &TargetDataLayout {
+        &self.layouts.data_layout
+    }
+}
+
 impl<'ir> AccessToEnv for BuilderCtx<'ir> {
     fn env(&self) -> &Env {
-        self.env
+        &self.env
     }
 }
 
@@ -52,25 +74,31 @@ impl<'ir> AccessToIntrinsics for BuilderCtx<'ir> {
 }
 
 impl<'ir> BuilderCtx<'ir> {
-    /// Create a new [Ctx] from the given [Env] and
-    /// [SemanticStorage].
-    pub fn new(
-        lcx: &'ir IrCtx,
-        layouts: &'ir LayoutCtx,
-        env: &'ir Env<'ir>,
-        storage: &'ir SemanticStorage,
-    ) -> Self {
-        let intrinsics = match storage.intrinsics_or_unset.get() {
+    /// Create a new [BuilderCtx] from the given [LoweringCtx].
+    pub fn new(entry: &'ir CurrentSourceInfo, ctx: &'ir LoweringCtx<'ir>) -> Self {
+        let LoweringCtx {
+            semantic_storage, workspace, ir_storage, layout_storage, settings, ..
+        } = ctx;
+
+        let env = Env::new(
+            &semantic_storage.context,
+            &workspace.node_map,
+            &workspace.source_map,
+            settings.target(),
+            entry,
+        );
+
+        let intrinsics = match semantic_storage.intrinsics_or_unset.get() {
             Some(intrinsics) => intrinsics,
             None => panic!("Tried to get intrinsics but they are not set yet"),
         };
 
-        let prelude = match storage.prelude_or_unset.get() {
+        let prelude = match semantic_storage.prelude_or_unset.get() {
             Some(prelude) => *prelude,
             None => panic!("Tried to get prelude but it is not set yet"),
         };
 
-        Self { env, lcx, layouts, intrinsics, prelude }
+        Self { env, lcx: &ir_storage.ctx, settings, layouts: layout_storage, intrinsics, prelude }
     }
 
     /// Get a [LayoutComputer] which can be used to compute layouts and
@@ -87,5 +115,24 @@ impl<'ir> BuilderCtx<'ir> {
     /// Compute the size of a given [IrTyId].
     pub fn size_of(&self, ty: IrTyId) -> Result<usize, LayoutError> {
         Ok(self.layout_of(ty)?.size().bytes().try_into().unwrap())
+    }
+
+    /// Dump the layout of a given type.
+    pub(crate) fn dump_ty_layout(&self, data_def: DataDefId, mut out: CompilerOutputStream) {
+        let ty = self.ty_from_tir_data(DataTy { args: Arg::empty_seq(), data_def });
+        let layout = self.layout_of(ty).unwrap();
+
+        let writer_config = LayoutWriterConfig::from_character_set(self.settings.character_set);
+
+        // Print the layout
+        stream_writeln!(
+            out,
+            "{}",
+            LayoutWriter::new_with_config(
+                TyInfo { ty, layout },
+                self.layout_computer(),
+                writer_config
+            )
+        );
     }
 }

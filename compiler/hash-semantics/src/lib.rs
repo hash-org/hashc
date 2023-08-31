@@ -19,6 +19,7 @@ use hash_pipeline::{
 };
 use hash_reporting::{diagnostic::Diagnostics, reporter::Reports};
 use hash_source::SourceId;
+use hash_target::HasTarget;
 use hash_tir::{
     context::Context,
     environment::{env::Env, source_info::CurrentSourceInfo},

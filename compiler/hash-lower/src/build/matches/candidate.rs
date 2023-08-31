@@ -19,7 +19,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, Mutability},
 };
 use hash_storage::store::statics::StoreId;
-use hash_target::size::Size;
+use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     args::PatArgsId,
     atom_info::ItemInAtomInfo,
@@ -302,7 +302,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 Ok(())
             }
             Pat::Range(RangePat { lo, hi, end }) => {
-                let ptr_width = self.settings.target().ptr_size();
+                let ptr_width = self.target().ptr_size();
 
                 // get the range and bias of this range pattern from
                 // the `lo`

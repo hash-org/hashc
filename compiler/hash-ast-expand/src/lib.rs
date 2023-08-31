@@ -1,16 +1,23 @@
 //! Hash AST expanding passes crate. This crate holds an implementation for the
 //! visitor pattern on the AST in order to expand any directives or macros that
 //! need to run after the parsing stage. Currently this function does not have
+#![feature(let_chains)]
 
+use diagnostics::ExpansionDiagnostic;
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind},
     workspace::{SourceStageInfo, Workspace},
 };
+use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
+use hash_target::data_layout::TargetDataLayout;
+use hash_utils::{crossbeam_channel::unbounded, rayon};
 use visitor::AstExpander;
 
+mod attr;
+mod diagnostics;
 mod visitor;
 
 /// The [AstExpansionPass] represents the stage in the pipeline that will
@@ -23,15 +30,21 @@ pub struct AstExpansionPass;
 
 /// The [AstExpansionCtx] represents all of the required information
 /// that the [AstExpansionPass] stage needs to query from the pipeline.
-pub struct AstExpansionCtx<'ast> {
+pub struct AstExpansionCtx<'ctx> {
     /// Reference to the current compiler workspace.
-    pub workspace: &'ast mut Workspace,
+    pub workspace: &'ctx mut Workspace,
 
     /// Settings to the compiler
-    pub settings: &'ast CompilerSettings,
+    pub settings: &'ctx CompilerSettings,
 
     /// Reference to the output stream
     pub stdout: CompilerOutputStream,
+
+    /// Information about the current target data layout.
+    pub data_layout: &'ctx TargetDataLayout,
+
+    /// The thread pool.
+    pub pool: &'ctx rayon::ThreadPool,
 }
 
 /// A trait that allows the [AstExpansionPass] stage to query the
@@ -42,7 +55,7 @@ pub trait AstExpansionCtxQuery: CompilerInterface {
 
 impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::DeSugar
+        CompilerStageKind::Expand
     }
 
     /// This will perform a pass on the AST by expanding any macros or
@@ -54,39 +67,62 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace, stdout, settings } = ctx.data();
+        let AstExpansionCtx { workspace, pool, data_layout, .. } = ctx.data();
+        let (sender, receiver) = unbounded::<ExpansionDiagnostic>();
 
         let node_map = &mut workspace.node_map;
-        let source_map = &workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
-        let source_info = source_stage_info.get(entry_point);
+        pool.scope(|scope| {
+            let source_info = source_stage_info.get(entry_point);
 
-        // De-sugar the target if it isn't already de-sugared
-        if source_info.is_expanded() && entry_point.is_interactive() {
-            let mut expander = AstExpander::new(source_map, settings, stdout.clone());
-            let source = node_map.get_interactive_block(entry_point.into());
+            // De-sugar the target if it isn't already de-sugared
+            if source_info.is_expanded() && entry_point.is_interactive() {
+                let mut expander = AstExpander::new(entry_point, data_layout);
+                let source = node_map.get_interactive_block(entry_point.into());
 
-            expander.visit_body_block(source.node_ref()).unwrap();
-        }
-
-        for (id, module) in node_map.iter_modules().enumerate() {
-            let source_id = SourceId::new_module(id as u32);
-            let stage_info = source_stage_info.get(source_id);
-
-            // Skip any modules that have already been de-sugared
-            if stage_info.is_expanded() {
-                continue;
+                expander.visit_body_block(source.node_ref()).unwrap();
             }
 
-            let mut expander = AstExpander::new(source_map, settings, stdout.clone());
-            expander.visit_module(module.node_ref()).unwrap();
-        }
+            for (id, module) in node_map.iter_modules().enumerate() {
+                let source_id = SourceId::new_module(id as u32);
+                let stage_info = source_stage_info.get(source_id);
+
+                // Skip any modules that have already been de-sugared
+                if stage_info.is_expanded() {
+                    continue;
+                }
+
+                // Check the module for any module-level invocations.
+                let mut expander = AstExpander::new(source_id, data_layout);
+                expander.visit_module(module.node().ast_ref()).unwrap();
+                expander.emit_diagnostics_to(&sender);
+
+                for expr in module.node().contents.iter() {
+                    let sender = sender.clone();
+                    scope.spawn(move |_| {
+                        let mut expander = AstExpander::new(source_id, data_layout);
+                        expander.visit_expr(expr.ast_ref()).unwrap();
+                        expander.emit_diagnostics_to(&sender);
+                    });
+                }
+            }
+        });
 
         // Update all entries that they have been expanded
         source_stage_info.set_all(SourceStageInfo::EXPANDED);
 
-        Ok(())
+        drop(sender);
+        let mut messages = receiver.into_iter().collect::<Vec<_>>();
+
+        if messages.is_empty() {
+            Ok(())
+        } else {
+            // We need to sort the reports by the source order so that the reports always
+            // come out in a stable order.
+            messages.sort_by_key(|item| item.id());
+            Err(messages.into_iter().flat_map(Reports::from).collect())
+        }
     }
 
     /// Check whether the compiler settings specify that the generated

@@ -12,7 +12,7 @@ use std::{
 use hash_pipeline::{settings::CompilerSettings, workspace::Workspace};
 use hash_target::{
     link::{Cc, LinkerFlavour, Lld, RelocationModel},
-    TargetArch,
+    HasTarget, TargetArch,
 };
 
 use self::{gcc::GccLinker, msvc::MsvcLinker};

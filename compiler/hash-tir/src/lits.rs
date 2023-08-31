@@ -15,11 +15,6 @@ pub struct IntLit {
 }
 
 impl IntLit {
-    /// Create a new [IntLit] from an [InternedInt].
-    pub fn from_value(value: InternedInt) -> Self {
-        Self { underlying: ast::IntLit { value, kind: ast::IntLitKind::Unsuffixed } }
-    }
-
     /// Get the interned value of the literal.
     pub fn interned_value(&self) -> InternedInt {
         self.underlying.value
@@ -28,6 +23,12 @@ impl IntLit {
     /// Return the value of the integer literal.
     pub fn value(&self) -> BigInt {
         (&CONSTANT_MAP.lookup_int(self.underlying.value)).try_into().unwrap()
+    }
+}
+
+impl From<InternedInt> for IntLit {
+    fn from(value: InternedInt) -> Self {
+        Self { underlying: ast::IntLit { value, kind: ast::IntLitKind::Unsuffixed } }
     }
 }
 
@@ -77,6 +78,12 @@ impl FloatLit {
     }
 }
 
+impl From<InternedFloat> for FloatLit {
+    fn from(value: InternedFloat) -> Self {
+        Self { underlying: ast::FloatLit { value, kind: ast::FloatLitKind::Unsuffixed } }
+    }
+}
+
 /// A character literal.
 ///
 /// Uses the `ast` representation.
@@ -86,14 +93,15 @@ pub struct CharLit {
 }
 
 impl CharLit {
-    /// Create a new [CharLit] from a literal character value.
-    pub fn from_literal(data: char) -> Self {
-        Self { underlying: ast::CharLit { data } }
-    }
-
     /// Return the value of the character literal.
     pub fn value(&self) -> char {
         self.underlying.data
+    }
+}
+
+impl From<char> for CharLit {
+    fn from(data: char) -> Self {
+        Self { underlying: ast::CharLit { data } }
     }
 }
 

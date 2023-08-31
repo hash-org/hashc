@@ -427,7 +427,8 @@ impl TraversingUtils {
                         let params = self.fmap_params(fn_def.ty.params, f)?;
                         let return_ty = self.fmap_ty(fn_def.ty.return_ty, f)?;
                         let body = FnBody::Defined(self.fmap_term(defined, f)?);
-                        Ok(FnDef::create_with(|id| FnDef {
+
+                        let def = FnDef::create_with(|id| FnDef {
                             id,
                             name: fn_def.name,
                             ty: FnTy {
@@ -438,7 +439,10 @@ impl TraversingUtils {
                                 pure: fn_def.ty.pure,
                             },
                             body,
-                        }))
+                        });
+
+                        tir_stores().ast_info().fn_defs().copy_node(fn_def_id, def);
+                        Ok(def)
                     }
                     FnBody::Intrinsic(_) | FnBody::Axiom => Ok(fn_def_id),
                 }

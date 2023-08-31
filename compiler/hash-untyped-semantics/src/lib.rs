@@ -8,7 +8,6 @@ pub(crate) mod diagnostics;
 pub mod visitor;
 
 use analysis::SemanticAnalyser;
-use crossbeam_channel::unbounded;
 use diagnostics::AnalysisDiagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMutSelf};
 use hash_pipeline::{
@@ -18,6 +17,7 @@ use hash_pipeline::{
 };
 use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
+use hash_utils::{crossbeam_channel::unbounded, rayon};
 
 pub struct UntypedSemanticAnalysis;
 
@@ -69,7 +69,7 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
                 let mut visitor = SemanticAnalyser::new(source_map);
 
                 visitor.visit_body_block(source.node_ref()).unwrap();
-                visitor.send_generated_messages(&sender);
+                visitor.emit_diagnostics_to(&sender);
             }
 
             // Iterate over all of the modules and add the expressions
@@ -89,7 +89,7 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
                 let errors = visitor.visit_module(module.node_ref()).unwrap();
 
                 // We need to send the errors from the module too
-                visitor.send_generated_messages(&sender);
+                visitor.emit_diagnostics_to(&sender);
 
                 for (index, expr) in module.node().contents.iter().enumerate() {
                     // Skip any statements that we're deemed to be errors.
@@ -103,7 +103,7 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
                         let mut visitor = SemanticAnalyser::new(source_map);
 
                         visitor.visit_expr(expr.ast_ref()).unwrap();
-                        visitor.send_generated_messages(&sender);
+                        visitor.emit_diagnostics_to(&sender);
                     });
                 }
             }
@@ -122,7 +122,6 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
             // We need to sort the reports by the source order so that the reports always
             // come out in a stable order.
             messages.sort_by_key(|item| item.id());
-
             Err(messages.into_iter().flat_map(Reports::from).collect())
         }
     }

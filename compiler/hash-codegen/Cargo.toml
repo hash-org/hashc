@@ -4,12 +4,14 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
-bitflags = "2.0.0-rc.1"
 fixedbitset = "0.4.2"
-rayon = "1.5.0"
 
 hash-abi = {path = "../hash-abi" }
+hash-attrs = { path = "../hash-attrs" }
 hash-ir = {path = "../hash-ir" }
 hash-layout = {path = "../hash-layout" }
 hash-pipeline = { path = "../hash-pipeline" }

@@ -4,17 +4,16 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
+use hash_ast::ast;
 use hash_storage::{
     static_single_store,
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        Store,
-    },
+    store::statics::{SequenceStoreValue, SingleStoreValue, StoreId},
 };
 
 use super::{holes::Hole, symbols::Symbol};
 use crate::{
     args::Arg,
+    ast_info::HasNodeId,
     data::{DataDefId, DataTy},
     environment::stores::tir_stores,
     fns::FnTy,
@@ -85,6 +84,12 @@ static_single_store!(
     store_source = tir_stores()
 );
 
+impl HasNodeId for TyId {
+    fn node_id(&self) -> Option<ast::AstNodeId> {
+        tir_stores().ast_info().tys().get_node_by_data(*self)
+    }
+}
+
 tir_debug_value_of_single_store_id!(TyId);
 
 /// Infer the type of the given term, returning its type.
@@ -136,9 +141,7 @@ impl Ty {
     pub fn from(ty: impl Into<Ty>) -> TyId {
         let ty = ty.into();
         let (ast_info, location) = match ty {
-            Ty::Eval(term) => {
-                (tir_stores().ast_info().terms().get_node_by_data(term), get_location(term))
-            }
+            Ty::Eval(term) => (term.node_id(), get_location(term)),
             Ty::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
@@ -155,7 +158,7 @@ impl Ty {
     /// Create a new expected type for typing the given term.
     pub fn expect_same(ty: TyId, expectation: TyId) -> TyId {
         tir_stores().location().copy_location(ty, expectation);
-        if let Some(ast_info) = tir_stores().ast_info().tys().get_node_by_data(ty) {
+        if let Some(ast_info) = ty.node_id() {
             tir_stores().ast_info().tys().insert(ast_info, expectation);
         }
         expectation
@@ -166,27 +169,18 @@ impl Ty {
         let atom: Atom = atom.into();
         let (ast_info, location) = match atom {
             Atom::Term(origin_term) => match origin_term.value() {
-                Term::Ty(ty) => {
-                    (tir_stores().ast_info().tys().get_node_by_data(ty), get_location(ty))
-                }
-                Term::FnRef(f) => {
-                    (tir_stores().ast_info().fn_defs().get_node_by_data(f), get_location(f))
-                }
+                Term::Ty(ty) => (ty.node_id(), get_location(ty)),
+                Term::FnRef(f) => (f.node_id(), get_location(f)),
                 Term::Var(v) => (None, get_location(v)),
-                _ => (
-                    tir_stores().ast_info().terms().get_node_by_data(origin_term),
-                    tir_stores().location().get_location(origin_term),
-                ),
+                _ => (origin_term.node_id(), tir_stores().location().get_location(origin_term)),
             },
-            Atom::Ty(origin_ty) => (
-                tir_stores().ast_info().tys().get_node_by_data(origin_ty),
-                tir_stores().location().get_location(origin_ty),
-            ),
+            Atom::Ty(origin_ty) => {
+                (origin_ty.node_id(), tir_stores().location().get_location(origin_ty))
+            }
             Atom::FnDef(_) => todo!(),
-            Atom::Pat(origin_pat) => (
-                tir_stores().ast_info().pats().get_node_by_data(origin_pat),
-                tir_stores().location().get_location(origin_pat),
-            ),
+            Atom::Pat(origin_pat) => {
+                (origin_pat.node_id(), tir_stores().location().get_location(origin_pat))
+            }
         };
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(ty, location);

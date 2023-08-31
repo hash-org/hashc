@@ -9,6 +9,7 @@ use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
+use hash_utils::{pluralise, printing::SequenceDisplay};
 
 use super::common::{get_location, get_overall_location};
 use crate::{
@@ -68,20 +69,26 @@ impl ParamError {
             ParamError::TooManyArgs { expected, got } => {
                 let error =
                     reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
-                        "received {} arguments, but expected at most {} arguments",
+                        "received {} argument{}, but expected at most {} argument{}",
                         got.len(),
-                        expected.len()
+                        pluralise!(got.len()),
+                        expected.len(),
+                        pluralise!(expected.len())
                     ));
                 if let Some(location) = get_overall_location(*expected) {
                     error.add_labelled_span(
                         location,
-                        format!("expected at most {} arguments by this definition", expected.len()),
+                        format!(
+                            "this definition expectes at most {} argument{}",
+                            expected.len(),
+                            pluralise!(expected.len())
+                        ),
                     );
                 }
                 if let Some(location) = get_overall_location(*got) {
                     error.add_labelled_span(
                         location,
-                        format!("received {} arguments here", got.len()),
+                        format!("received {} argument{} here", got.len(), pluralise!(got.len())),
                     );
                 }
             }
@@ -151,11 +158,12 @@ impl ParamError {
                         location,
                         format!(
                             "expected one of these parameters: {}",
-                            params
-                                .iter()
-                                .map(|param| format!("`{}`", param.as_param_index()))
-                                .collect::<Vec<_>>()
-                                .join(", ")
+                            SequenceDisplay::either(
+                                &params
+                                    .iter()
+                                    .map(|param| format!("{}", param.as_param_index()))
+                                    .collect::<Vec<_>>()
+                            )
                         ),
                     );
                 }
@@ -172,11 +180,15 @@ impl ParamError {
                     error.add_labelled_span(
                         location,
                         format!(
-                            "received these arguments: {}",
-                            args.iter()
-                                .map(|arg| format!("`{}`", arg.target()))
-                                .collect::<Vec<_>>()
-                                .join(", ")
+                            "received {} argument{}: {}",
+                            pluralise!("this", args.len()),
+                            pluralise!(args.len()),
+                            SequenceDisplay::either(
+                                &args
+                                    .iter()
+                                    .map(|arg| format!("{}", arg.target()))
+                                    .collect::<Vec<_>>()
+                            )
                         ),
                     );
                 }

@@ -5,6 +5,7 @@
 use hash_codegen::{
     backend::CodeGenStorage,
     layout::compute::LayoutComputer,
+    target::{HasTarget, Target},
     traits::{BackendTypes, Codegen, HasCtxMethods},
 };
 use hash_ir::IrCtx;
@@ -54,6 +55,12 @@ impl<'b, 'm> std::ops::Deref for LLVMBuilder<'_, 'b, 'm> {
 
     fn deref(&self) -> &Self::Target {
         self.ctx
+    }
+}
+
+impl HasTarget for LLVMBuilder<'_, '_, '_> {
+    fn target(&self) -> &Target {
+        self.ctx.target()
     }
 }
 

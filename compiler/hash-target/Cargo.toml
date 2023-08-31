@@ -4,5 +4,8 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
 num-bigint = "0.4"

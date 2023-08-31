@@ -1,4 +1,4 @@
-// stage=full, run=pass, skip=true
+// stage=full, run=pass
 
 #entry_point foo := () => {
 

@@ -492,15 +492,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse a constructor call argument in two forms:
+    /// Parse an argument with an expression as the value. An [ExprArg]
+    /// can appear in two forms:
     ///
-    /// - A named argument which appear in the form of `name = valye`
-    ///
+    /// - A named argument which appear in the form of `name = value`
     /// - Just a value for the argument.
-    fn parse_constructor_call_arg(&mut self) -> ParseResult<AstNode<ExprArg>> {
-        let start = self.current_pos();
-
+    fn parse_arg(&mut self) -> ParseResult<AstNode<ExprArg>> {
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.current_pos();
 
         // here we trying to check if this argument is in form of just an expression or
         // if there is a name being assigned here...
@@ -533,8 +532,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
 
-        let args = gen
-            .parse_nodes(|g| g.parse_constructor_call_arg(), |g| g.parse_token(TokenKind::Comma));
+        let args = gen.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
 
         let subject_span = subject.byte_range();

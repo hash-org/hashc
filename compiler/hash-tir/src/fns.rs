@@ -2,17 +2,15 @@
 
 use std::fmt::Display;
 
-use hash_storage::{
-    static_single_store,
-    store::{statics::StoreId, Store},
-};
+use hash_ast::ast;
+use hash_storage::{static_single_store, store::statics::StoreId};
 use typed_builder::TypedBuilder;
 use utility_types::omit;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
-    args::ArgsId, environment::stores::tir_stores, params::ParamsId, symbols::Symbol,
-    terms::TermId, tir_debug_name_of_store_id, tys::TyId,
+    args::ArgsId, ast_info::HasNodeId, environment::stores::tir_stores, params::ParamsId,
+    symbols::Symbol, terms::TermId, tir_debug_name_of_store_id, tys::TyId,
 };
 
 /// A function type.
@@ -115,6 +113,12 @@ static_single_store!(
 );
 
 tir_debug_name_of_store_id!(FnDefId);
+
+impl HasNodeId for FnDefId {
+    fn node_id(&self) -> Option<ast::AstNodeId> {
+        tir_stores().ast_info().fn_defs().get_node_by_data(*self)
+    }
+}
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]

@@ -446,8 +446,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// [Name], a value [Pat], and optional macro invocations on the
     /// argument.
     pub(crate) fn parse_pat_arg(&mut self) -> ParseResult<AstNode<PatArg>> {
-        let start = self.next_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.next_pos();
 
         let (name, pat) = match self.peek() {
             Some(Token { kind: TokenKind::Ident(_), .. }) => {

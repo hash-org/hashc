@@ -1,8 +1,8 @@
 //! Parsing code for various kind of macros.
 
 use hash_ast::ast::{
-    AstNode, MacroInvocation, MacroInvocationArg, MacroInvocationArgs, MacroInvocations, MacroKind,
-    Name,
+    AstNode, AstNodes, MacroInvocation, MacroInvocationArg, MacroInvocationArgs, MacroInvocations,
+    MacroKind, Name,
 };
 use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
@@ -57,8 +57,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     fn parse_macro_invocation(&mut self) -> ParseResult<AstNode<MacroInvocation>> {
-        let start = self.current_pos();
         let name = self.parse_name()?; // Parse a name for the macro invocation.
+        let start = self.current_pos();
 
         let args = match self.peek() {
             Some(token) if token.is_paren_tree() => {
@@ -149,9 +149,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // @@Hack: avoid making another id and allocating another span for
         // just a wrapper for the children. Ideally, this problem could be
         // fixed if we had `OptionalChildren!` in tree-def.
-        let invocations = self.nodes_with_joined_span(invocations, start);
+        Ok(self.make_macro_invocations(self.nodes_with_joined_span(invocations, start)))
+    }
+
+    pub(crate) fn make_macro_invocations(
+        &self,
+        invocations: AstNodes<MacroInvocation>,
+    ) -> AstNode<MacroInvocations> {
         let id = invocations.id();
-        Ok(AstNode::with_id(MacroInvocations { invocations }, id))
+        AstNode::with_id(MacroInvocations { invocations }, id)
     }
 
     /// Parse a macro invocation, either being a name identifier or a bracketed
@@ -170,5 +176,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Slow-path: parse the macro invocations.
         Ok(Some(self.parse_macros(kind)?))
+    }
+
+    /// Parse macro invocations at the top level of a module. These invocations
+    /// are always prefixed with a `#!`, and then followed by a `[...]`
+    /// token tree. The caller is responsible for parsing the initial prefix
+    /// tokens before calling this function.
+    pub(crate) fn parse_module_marco_invocations(
+        &mut self,
+    ) -> ParseResult<AstNodes<MacroInvocation>> {
+        let mut gen = self.parse_delim_tree(Delimiter::Bracket, None)?;
+        let invocations =
+            gen.parse_nodes(|g| g.parse_macro_invocation(), |g| g.parse_token(TokenKind::Comma));
+
+        self.consume_gen(gen);
+        Ok(invocations)
     }
 }

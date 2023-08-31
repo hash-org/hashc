@@ -1,7 +1,9 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
 
-use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
+use hash_ast::ast;
+use hash_attrs::builtin::attrs;
+use hash_intrinsics::utils::PrimitiveUtils;
 use hash_ir::{
     intrinsics::Intrinsic,
     lang_items::LangItem,
@@ -18,12 +20,14 @@ use hash_storage::store::{
 };
 use hash_target::size::Size;
 use hash_tir::{
+    ast_info::HasNodeId,
     data::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
     environment::env::AccessToEnv,
-    fns::{FnDef, FnDefId, FnTy},
+    fns::{FnBody, FnDef, FnDefId, FnTy},
+    primitives::primitives,
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
@@ -163,7 +167,7 @@ impl<'ir> BuilderCtx<'ir> {
         self.with_cache(def, || {
             let instance = self.create_instance_from_fn_def(def);
 
-            let is_lang = instance.attributes.contains("lang".into());
+            let is_lang = instance.has_attr(attrs::LANG);
             let name = instance.name();
 
             // Check if the instance has the `lang` attribute, specifying that it is
@@ -191,11 +195,21 @@ impl<'ir> BuilderCtx<'ir> {
     // / instance including the name, types (monomorphised), and attributes
     /// that are associated with the function definition.
     fn create_instance_from_fn_def(&self, fn_def: FnDefId) -> Instance {
-        let FnDef { name, ty, .. } = fn_def.value();
+        let FnDef { name, ty, body, .. } = fn_def.value();
+
+        // Get the AstNodeId of the function definition, this is used to
+        // link this instance to any attributes that might be applied
+        // to the function definition.
+        let attr_id = if let FnBody::Defined(_) = body {
+            fn_def.node_id_ensured()
+        } else {
+            // We can't get an AstNodeId for intrinsics, so we just return
+            // the default node.
+            ast::AstNodeId::null()
+        };
 
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
-
         let source = get_location(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
@@ -204,19 +218,7 @@ impl<'ir> BuilderCtx<'ir> {
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
         let ident = name.ident();
-        let mut instance = Instance::new(ident, source, params, ret_ty);
-
-        // Lookup any applied directives on the fn_def and add them to the
-        // instance
-
-        // @@ReAddDirectives: we should access the new attributes stuff later...
-        // tir_stores().directives().map_fast(fn_def.into(), |maybe_directives| {
-        //     if let Some(directives) = maybe_directives {
-        //         for directive in directives.iter() {
-        //             instance.attributes.add(Attribute::word(directive));
-        //         }
-        //     }
-        // });
+        let mut instance = Instance::new(ident, source, params, ret_ty, attr_id);
 
         if Intrinsic::from_str_name(ident.into()).is_some() {
             instance.is_intrinsic = true;
@@ -297,15 +299,10 @@ impl<'ir> BuilderCtx<'ir> {
         adt.substitutions = subs;
 
         // Deal with any specific attributes that were set on the type, i.e.
-        // `#repr_c`.
-        //
-        // @@ReAddDirectives: check whether this has `repr(c)` on it.
-        //
-        // if let Some(directives) = tir_stores().directives().get(def.id.into()) {
-        //     if directives.contains(IDENTS.repr_c) {
-        //         adt.metadata.add_flags(RepresentationFlags::C_LIKE);
-        //     }
-        // }
+        // `#repr`.
+        if let Some(origin) = ty.data_def.node_id() {
+            adt.apply_origin(origin, self)
+        }
 
         // Update the type in the slot that was reserved for it.
         reserved_ty.modify(|ty| *ty = IrTy::Adt(Adt::create(adt)));

@@ -9,7 +9,6 @@ mod source;
 
 use std::{env, path::PathBuf};
 
-use crossbeam_channel::{unbounded, Sender};
 use hash_ast::{ast, node_map::ModuleEntry};
 use hash_lexer::Lexer;
 use hash_pipeline::{
@@ -20,6 +19,10 @@ use hash_pipeline::{
 use hash_reporting::{diagnostic::AccessToDiagnosticsMut, report::Report};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
 use hash_target::size::Size;
+use hash_utils::{
+    crossbeam_channel::{unbounded, Sender},
+    rayon,
+};
 use import_resolver::ImportResolver;
 use parser::AstGen;
 use source::ParseSource;

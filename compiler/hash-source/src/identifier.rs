@@ -5,14 +5,12 @@ use std::{
     thread_local,
 };
 
-use dashmap::DashMap;
 use fnv::FnvBuildHasher;
 use hash_storage::{
     arena::{Castle, Wall},
     string::BrickString,
 };
-use hash_utils::counter;
-use lazy_static::lazy_static;
+use hash_utils::{counter, dashmap::DashMap, lazy_static::lazy_static};
 
 counter! {
     name: Identifier,
@@ -257,7 +255,7 @@ core_idents! {
     foreign: "foreign",
 
     // Layout intrinsics
-    repr_c: "repr_c",
+    repr: "repr",
     layout_of: "layout_of",
 
     // Function flags

@@ -3,11 +3,12 @@
 use core::fmt;
 use std::{borrow::Borrow, fmt::Display, iter::once};
 
+use hash_ast::ast;
 use hash_storage::{
     static_sequence_store_direct, static_single_store,
     store::{
         statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -21,6 +22,7 @@ use super::{
 };
 use crate::{
     args::Arg,
+    ast_info::HasNodeId,
     environment::stores::tir_stores,
     params::{Param, ParamsId},
     pats::PatArgsWithSpread,
@@ -229,6 +231,12 @@ static_single_store!(
     store_name = data_def,
     store_source = tir_stores()
 );
+
+impl HasNodeId for DataDefId {
+    fn node_id(&self) -> Option<ast::AstNodeId> {
+        tir_stores().ast_info().data_defs().get_node_by_data(*self)
+    }
+}
 
 tir_debug_name_of_store_id!(DataDefId);
 

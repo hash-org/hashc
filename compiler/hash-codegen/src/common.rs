@@ -1,8 +1,8 @@
 //! Common data structures and parameters that are used by the code generation
 //! backend and trait definitions.
 
-use bitflags::bitflags;
 use hash_ir::ir;
+use hash_utils::bitflags::bitflags;
 
 /// Checked operations that a compiler backend can perform. All of these
 /// operations are checking the correctness of arithmetic operations.
