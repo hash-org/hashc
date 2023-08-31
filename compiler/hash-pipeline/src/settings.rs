@@ -50,8 +50,8 @@ pub struct CompilerSettings {
     pub debug: bool,
 
     /// Print metrics about each stage when the entire pipeline has completed.
-    #[arg(long, default_value_t = false)]
-    pub output_metrics: bool,
+    #[arg(long = "timings", default_value_t = false)]
+    pub show_timings: bool,
 
     /// Whether to output of each stage result.
     #[arg(long, default_value_t = false)]
@@ -261,7 +261,7 @@ impl Default for CompilerSettings {
             entry_point: None,
             output_directory: None,
             output_stage_results: false,
-            output_metrics: false,
+            show_timings: false,
             skip_prelude: false,
             prelude_is_quiet: false,
             emit_errors: true,
