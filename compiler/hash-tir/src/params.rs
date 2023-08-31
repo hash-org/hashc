@@ -4,12 +4,9 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_source::identifier::Identifier;
-use hash_storage::{
-    static_sequence_store_direct, static_single_store,
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
-    },
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    SequenceStore, SequenceStoreIter, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::itertools::Itertools;
 
@@ -26,7 +23,7 @@ use crate::{
     fns::{FnDefId, FnTy},
     node::{Node, NodeOrigin},
     symbols::Symbol,
-    tir_debug_value_of_sequence_store_element_id, tir_debug_value_of_single_store_id,
+    tir_node_sequence_store_direct,
     tuples::TupleTy,
     tys::{Ty, TyId},
 };
@@ -42,6 +39,13 @@ pub struct Param {
     /// The default value of the parameter.
     pub default: Option<TermId>,
 }
+
+tir_node_sequence_store_direct!(
+    store = pub (ParamsStore -> ParamsSeqStore),
+    id = pub (ParamsId -> ParamsSeqId)[ParamId],
+    value = Param,
+    store_name = (params, params_seq)
+);
 
 impl Param {
     /// Create a new parameter list with the given names, and holes for all
@@ -111,44 +115,6 @@ impl ParamsId {
             }),
             ParamIndex::Position(pos) => Some(pos),
         }
-    }
-}
-
-static_single_store!(
-    store = pub ParamsStore,
-    id = pub ParamsId,
-    value = Node<ParamsSeqId>,
-    store_name = params,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_single_store_id!(ParamsId);
-
-static_sequence_store_direct!(
-    store = pub ParamsSeqStore,
-    id = pub ParamsSeqId[ParamId],
-    value = Node<Param>,
-    store_name = params_seq,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_sequence_store_element_id!(ParamId);
-
-impl SequenceStoreKey for ParamsId {
-    type ElementKey = ParamId;
-
-    fn to_index_and_len(self) -> (usize, usize) {
-        self.value().to_index_and_len()
-    }
-
-    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
-        panic!("Creating ParamsId is not allowed, create ParamsSeqId directly")
-    }
-}
-
-impl From<(ParamsId, usize)> for ParamId {
-    fn from(value: (ParamsId, usize)) -> Self {
-        ParamId(*value.0.value(), value.1)
     }
 }
 

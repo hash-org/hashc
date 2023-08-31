@@ -116,3 +116,120 @@ macro_rules! tir_get {
         hash_storage::store::statics::StoreId::map($id, |x| x.$member)
     }};
 }
+
+#[macro_export]
+macro_rules! tir_node_single_store {
+    (
+        store = $store_vis:vis $store:ident,
+        id = $id_vis:vis $id:ident,
+        value = $value:ty,
+        store_name = $store_name:ident
+    ) => {
+        hash_storage::static_single_store!(
+            store = $store_vis $store,
+            id = $id_vis $id,
+            value = $crate::node::Node<$value>,
+            store_name = $store_name,
+            store_source = tir_stores()
+        );
+        $crate::tir_debug_value_of_single_store_id!($id);
+    };
+}
+
+#[macro_export]
+macro_rules! tir_node_sequence_store_direct {
+    (
+        store = $store_vis:vis ($store:ident -> $seq_store:ident),
+        id = $id_vis:vis ($id:ident -> $id_seq:ident)[$el_id:ident],
+        value = $value:ty,
+        store_name = ($store_name:ident, $seq_store_name:ident)
+    ) => {
+        $crate::tir_node_single_store!(
+            store = $store_vis $store,
+            id = $id_vis $id,
+            value = $id_seq,
+            store_name = $store_name
+        );
+
+        hash_storage::static_sequence_store_direct!(
+            store = $store_vis $seq_store,
+            id = $id_vis $id_seq[$el_id],
+            value = $crate::node::Node<$value>,
+            store_name = $seq_store_name,
+            store_source = tir_stores()
+        );
+
+        $crate::tir_debug_value_of_sequence_store_element_id!($el_id);
+
+        impl hash_storage::store::sequence::SequenceStoreKey for $id {
+            type ElementKey = $el_id;
+
+            fn to_index_and_len(self) -> (usize, usize) {
+                use hash_storage::store::statics::StoreId;
+                self.value().to_index_and_len()
+            }
+
+            fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+                panic!(
+                    "{} cannot be used to create a new sequence, use {} instead",
+                    stringify!($id),
+                    stringify!($id_seq)
+                )
+            }
+        }
+
+        impl From<($id, usize)> for $el_id {
+            fn from(value: ($id, usize)) -> Self {
+                use hash_storage::store::statics::StoreId;
+                $el_id(value.0.value().data, value.1)
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! tir_node_sequence_store_indirect {
+    (
+        store = $store_vis:vis ($store:ident -> $seq_store:ident),
+        id = $id_vis:vis ($id:ident -> $id_seq:ident)[$el_id:ident],
+        store_name = ($store_name:ident, $seq_store_name:ident)
+    ) => {
+        $crate::tir_node_single_store!(
+            store = $store_vis $store,
+            id = $id_vis $id,
+            value = $id_seq,
+            store_name = $store_name
+        );
+
+        hash_storage::static_sequence_store_indirect!(
+            store = $store_vis $seq_store,
+            id = $id_vis $id_seq[$el_id],
+            store_name = $seq_store_name,
+            store_source = tir_stores()
+        );
+
+        impl hash_storage::store::sequence::SequenceStoreKey for $id {
+            type ElementKey = $el_id;
+
+            fn to_index_and_len(self) -> (usize, usize) {
+                use hash_storage::store::statics::StoreId;
+                self.value().to_index_and_len()
+            }
+
+            fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+                panic!(
+                    "{} cannot be used to create a new sequence, use {} instead",
+                    stringify!($id),
+                    stringify!($id_seq)
+                )
+            }
+        }
+
+        impl From<($id, usize)> for $el_id {
+            fn from(value: ($id, usize)) -> Self {
+                use hash_storage::store::statics::StoreId;
+                value.0.borrow().at(value.1).unwrap()
+            }
+        }
+    };
+}

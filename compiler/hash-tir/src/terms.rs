@@ -5,7 +5,6 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_storage::{
-    static_sequence_store_indirect, static_single_store,
     store::{
         statics::{SequenceStoreValue, SingleStoreValue},
         SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
@@ -24,8 +23,7 @@ use crate::{
     lits::Lit,
     node::{Node, NodeOrigin},
     refs::{DerefTerm, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
-    tir_debug_value_of_single_store_id,
+    scopes::{AssignTerm, BlockTerm, DeclTerm}, tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::TupleTerm,
     tys::{Ty, TyId},
     utils::common::get_location,
@@ -102,50 +100,18 @@ pub enum Term {
     Hole(Hole),
 }
 
-static_single_store!(
+tir_node_single_store!(
     store = pub TermStore,
     id = pub TermId,
-    value = Node<Term>,
-    store_name = term,
-    store_source = tir_stores()
+    value = Term,
+    store_name = term
 );
 
-tir_debug_value_of_single_store_id!(TermId);
-
-static_single_store!(
-    store = pub TermListStore,
-    id = pub TermListId,
-    value = Node<TermListSeqId>,
-    store_name = term_list,
-    store_source = tir_stores()
+tir_node_sequence_store_indirect!(
+    store = pub (TermListStore -> TermListSeqStore),
+    id = pub (TermListId -> TermListSeqId)[TermId],
+    store_name = (term_list, term_list_seq)
 );
-
-tir_debug_value_of_single_store_id!(TermListId);
-
-static_sequence_store_indirect!(
-    store = pub TermListSeqStore,
-    id = pub TermListSeqId[TermId],
-    store_name = term_list_seq,
-    store_source = tir_stores()
-);
-
-impl SequenceStoreKey for TermListId {
-    type ElementKey = TermId;
-
-    fn to_index_and_len(self) -> (usize, usize) {
-        self.value().to_index_and_len()
-    }
-
-    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
-        panic!("Creating TermListId is not allowed, create TermListSeqId directly")
-    }
-}
-
-impl From<(TermListId, usize)> for TermId {
-    fn from(value: (TermListId, usize)) -> Self {
-        value.0.borrow().at(value.1).unwrap()
-    }
-}
 
 impl Term {
     pub fn is_void(&self) -> bool {

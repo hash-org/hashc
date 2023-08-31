@@ -2,13 +2,13 @@
 
 use std::fmt::Display;
 
-use hash_storage::{static_single_store, store::statics::StoreId};
+use hash_storage::store::statics::StoreId;
 use typed_builder::TypedBuilder;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
-    args::ArgsId, environment::stores::tir_stores, node::Node, params::ParamsId, symbols::Symbol,
-    terms::TermId, tir_debug_name_of_store_id, tys::TyId,
+    args::ArgsId, environment::stores::tir_stores, params::ParamsId, symbols::Symbol,
+    terms::TermId, tir_node_single_store, tys::TyId,
 };
 
 /// A function type.
@@ -98,15 +98,12 @@ impl FnDef {
     }
 }
 
-static_single_store!(
+tir_node_single_store!(
     store = pub FnDefStore,
     id = pub FnDefId,
-    value = Node<FnDef>,
-    store_name = fn_def,
-    store_source = tir_stores()
+    value = FnDef,
+    store_name = fn_def
 );
-
-tir_debug_name_of_store_id!(FnDefId);
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]

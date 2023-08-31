@@ -4,10 +4,8 @@ use std::{fmt::Display, path::Path};
 
 use hash_source::{identifier::Identifier, SourceId};
 use hash_storage::{
-    static_sequence_store_direct, static_single_store,
-    store::{
-        statics::StoreId, SequenceStore, SequenceStoreKey, Store, StoreKey, TrivialSequenceStoreKey,
-    },
+    static_single_store,
+    store::{statics::StoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey},
 };
 use textwrap::indent;
 use utility_types::omit;
@@ -15,7 +13,7 @@ use utility_types::omit;
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
     environment::stores::tir_stores, node::Node, symbols::Symbol, tir_debug_name_of_store_id,
-    tir_debug_value_of_single_store_id, tir_get,
+    tir_get, tir_node_sequence_store_direct,
 };
 
 /// The kind of a module.
@@ -97,42 +95,12 @@ pub struct ModMember {
     pub value: ModMemberValue,
 }
 
-static_single_store!(
-    store = pub ModMembersStore,
-    id = pub ModMembersId,
-    value = Node<ModMembersSeqId>,
-    store_name = mod_members,
-    store_source = tir_stores()
+tir_node_sequence_store_direct!(
+    store = pub (ModMembersStore -> ModMembersSeqStore),
+    id = pub (ModMembersId -> ModMembersSeqId)[ModMemberId],
+    value = ModMember,
+    store_name = (mod_members, mod_members_seq)
 );
-
-tir_debug_value_of_single_store_id!(ModMembersId);
-
-static_sequence_store_direct!(
-    store = pub ModMembersSeqStore,
-    id = pub ModMembersSeqId[ModMemberId],
-    value = Node<ModMember>,
-    store_name = mod_members_seq,
-    store_source = tir_stores(),
-    derives = Debug
-);
-
-impl SequenceStoreKey for ModMembersId {
-    type ElementKey = ModMemberId;
-
-    fn to_index_and_len(self) -> (usize, usize) {
-        self.value().to_index_and_len()
-    }
-
-    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
-        panic!("Creating ModMembersId is not allowed, create ModMembersSeqId directly")
-    }
-}
-
-impl From<(ModMembersId, usize)> for ModMemberId {
-    fn from(value: (ModMembersId, usize)) -> Self {
-        ModMemberId(*value.0.value(), value.1)
-    }
-}
 
 /// A module definition.
 ///

@@ -131,7 +131,12 @@ impl<K: SequenceStoreKey<ElementKey = V>, V: Clone> SequenceStore<K, V>
 /// sequence store ID type.
 #[macro_export]
 macro_rules! static_sequence_store_indirect {
-    (store = $store_vis:vis $store:ident, id = $id_vis:vis $id:ident[$el_id:ident], store_name = $store_name:ident, store_source = $store_source:expr) => {
+    (
+        store = $store_vis:vis $store:ident,
+        id = $id_vis:vis $id:ident[$el_id:ident],
+        store_name = $store_name:ident,
+        store_source = $store_source:expr
+    ) => {
         $store_vis type $store = $crate::store::statics::DefaultIndirectSequenceStore<$id, $el_id>;
         $crate::new_sequence_store_key_indirect!($id_vis $id, $el_id);
 
@@ -142,26 +147,32 @@ macro_rules! static_sequence_store_indirect {
             type ValueBorrowMut = $crate::store::sequence::SequenceStoreBorrowMutHandle<'static, [$el_id]>;
 
             fn borrow(self) -> Self::ValueBorrow {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().borrow(self)
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().borrow_mut(self)
             }
 
             fn value(self) -> Self::Value {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().get_vec(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().set_from_slice_cloned(self, &value);
             }
         }
@@ -171,6 +182,7 @@ macro_rules! static_sequence_store_indirect {
             type ElementId = $el_id;
 
             fn empty_seq() -> Self::Id {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().create_from_slice(&[])
             }
 
@@ -178,6 +190,7 @@ macro_rules! static_sequence_store_indirect {
             where
                 I::IntoIter: ExactSizeIterator,
             {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().create_from_iter_with(values)
             }
 
@@ -185,6 +198,7 @@ macro_rules! static_sequence_store_indirect {
             where
                 I::IntoIter: ExactSizeIterator,
             {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().create_from_iter(values)
             }
         }
@@ -248,22 +262,27 @@ macro_rules! static_sequence_store_direct {
             }
 
             fn borrow_mut(self) -> Self::ValueBorrowMut {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().borrow_mut(self)
             }
 
             fn value(self) -> Self::Value {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().get_vec(self)
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().map_fast(self, f)
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().modify_fast(self, f)
             }
 
             fn set(self, value: Self::Value) {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().set_from_slice_cloned(self, &value);
             }
         }
@@ -283,6 +302,7 @@ macro_rules! static_sequence_store_direct {
             type ElementId = $el_id;
 
             fn empty_seq() -> Self::Id {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().create_from_slice(&[])
             }
 
@@ -290,6 +310,7 @@ macro_rules! static_sequence_store_direct {
             where
                 I::IntoIter: ExactSizeIterator,
             {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().create_from_iter_with(values)
             }
 
@@ -297,6 +318,7 @@ macro_rules! static_sequence_store_direct {
             where
                 I::IntoIter: ExactSizeIterator,
             {
+                use $crate::store::sequence::SequenceStore;
                 $store_source.$store_name().create_from_iter(values)
             }
         }
@@ -323,14 +345,17 @@ macro_rules! static_sequence_store_direct {
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
+                use $crate::store::Store;
                 $store_source.$store_name().map_fast(self.0, |v| f(&v[self.1]))
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
+                use $crate::store::Store;
                 $store_source.$store_name().modify_fast(self.0, |v| f(&mut v[self.1]))
             }
 
             fn set(self, value: Self::Value) {
+                use $crate::store::Store;
                 $store_source.$store_name().set_at_index(self.0, self.1, value);
             }
         }
@@ -375,6 +400,7 @@ macro_rules! static_single_store {
             type ValueBorrowMut = $crate::store::StoreBorrowMutHandle<'static, $value>;
 
             fn borrow(self) -> Self::ValueBorrow {
+                use hash_storage::store::Store;
                 $crate::store::Store::borrow($store_source.$store_name(), self)
             }
 

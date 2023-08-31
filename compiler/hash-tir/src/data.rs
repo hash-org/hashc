@@ -3,12 +3,9 @@
 use core::fmt;
 use std::{borrow::Borrow, fmt::Display, iter::once};
 
-use hash_storage::{
-    static_sequence_store_direct, static_single_store,
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
-    },
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::itertools::Itertools;
 use textwrap::indent;
@@ -27,7 +24,7 @@ use crate::{
     pats::PatArgsWithSpread,
     symbols::Symbol,
     terms::TermId,
-    tir_debug_name_of_store_id, tir_debug_value_of_single_store_id, tir_get,
+    tir_get, tir_node_sequence_store_direct, tir_node_single_store,
 };
 
 /// A constructor of a data-type definition.
@@ -64,43 +61,12 @@ pub struct CtorDef {
     pub result_args: ArgsId,
 }
 
-static_single_store!(
-    store = pub CtorDefsStore,
-    id = pub CtorDefsId,
-    value = Node<CtorDefsSeqId>,
-    store_name = ctor_defs,
-    store_source = tir_stores()
+tir_node_sequence_store_direct!(
+    store = pub (CtorDefsStore -> CtorDefsSeqStore),
+    id = pub (CtorDefsId -> CtorDefsSeqId)[CtorDefId],
+    value = CtorDef,
+    store_name = (ctor_defs, ctor_defs_seq)
 );
-
-tir_debug_value_of_single_store_id!(CtorDefsId);
-
-static_sequence_store_direct!(
-    store = pub CtorDefsSeqStore,
-    id = pub CtorDefsSeqId[CtorDefId],
-    value = Node<CtorDef>,
-    store_name = ctor_defs_seq,
-    store_source = tir_stores()
-);
-
-tir_debug_name_of_store_id!(CtorDefId);
-
-impl SequenceStoreKey for CtorDefsId {
-    type ElementKey = CtorDefId;
-
-    fn to_index_and_len(self) -> (usize, usize) {
-        self.value().to_index_and_len()
-    }
-
-    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
-        panic!("Creating CtorDefsId is not allowed, create CtorDefsSeqId directly")
-    }
-}
-
-impl From<(CtorDefsId, usize)> for CtorDefId {
-    fn from(value: (CtorDefsId, usize)) -> Self {
-        CtorDefId(*value.0.value(), value.1)
-    }
-}
 
 /// A constructor term.
 ///
@@ -252,15 +218,12 @@ pub struct DataDef {
     pub ctors: DataDefCtors,
 }
 
-static_single_store!(
+tir_node_single_store!(
     store = pub DataDefStore,
     id = pub DataDefId,
-    value = Node<DataDef>,
-    store_name = data_def,
-    store_source = tir_stores()
+    value = DataDef,
+    store_name = data_def
 );
-
-tir_debug_name_of_store_id!(DataDefId);
 
 impl DataDef {
     /// Create an empty data definition.

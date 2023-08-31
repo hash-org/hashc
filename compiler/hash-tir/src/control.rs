@@ -4,9 +4,8 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_ast::ast::MatchOrigin;
-use hash_storage::{
-    static_sequence_store_direct, static_single_store,
-    store::{statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
+use hash_storage::store::{
+    statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use textwrap::indent;
 
@@ -17,7 +16,7 @@ use super::{
 };
 use crate::{
     environment::stores::tir_stores, node::Node, scopes::BlockTerm, terms::TermId,
-    tir_debug_value_of_sequence_store_element_id, tir_debug_value_of_single_store_id,
+    tir_node_sequence_store_direct,
 };
 
 /// A loop term.
@@ -57,43 +56,12 @@ pub struct MatchCase {
     pub value: TermId,
 }
 
-static_single_store!(
-    store = pub MatchCasesStore,
-    id = pub MatchCasesId,
-    value = Node<MatchCasesSeqId>,
-    store_name = match_cases,
-    store_source = tir_stores()
+tir_node_sequence_store_direct!(
+    store = pub (MatchCasesStore -> MatchCasesSeqStore),
+    id = pub (MatchCasesId -> MatchCasesSeqId)[MatchCaseId],
+    value = MatchCase,
+    store_name = (match_cases, match_cases_seq)
 );
-
-tir_debug_value_of_single_store_id!(MatchCasesId);
-
-static_sequence_store_direct!(
-    store = pub MatchCasesSeqStore,
-    id = pub MatchCasesSeqId[MatchCaseId],
-    value = Node<MatchCase>,
-    store_name = match_cases_seq,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_sequence_store_element_id!(MatchCaseId);
-
-impl SequenceStoreKey for MatchCasesId {
-    type ElementKey = MatchCaseId;
-
-    fn to_index_and_len(self) -> (usize, usize) {
-        self.value().to_index_and_len()
-    }
-
-    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
-        panic!("Creating MatchCasesId is not allowed, create MatchCasesIdSeq directly")
-    }
-}
-
-impl From<(MatchCasesId, usize)> for MatchCaseId {
-    fn from(value: (MatchCasesId, usize)) -> Self {
-        MatchCaseId(*value.0.value(), value.1)
-    }
-}
 
 /// A return term.
 ///

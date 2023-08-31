@@ -25,6 +25,7 @@ use crate::{
     symbols::Symbol,
     terms::{Term, TermId},
     tir_debug_value_of_sequence_store_element_id, tir_debug_value_of_single_store_id,
+    tir_node_sequence_store_direct,
 };
 
 /// An argument to a parameter.
@@ -202,43 +203,12 @@ pub struct PatArg {
     pub pat: PatOrCapture,
 }
 
-static_single_store!(
-    store = pub PatArgsStore,
-    id = pub PatArgsId,
-    value = Node<PatArgsSeqId>,
-    store_name = pat_args,
-    store_source = tir_stores()
+tir_node_sequence_store_direct!(
+    store = pub (PatArgsStore -> PatArgsSeqStore),
+    id = pub (PatArgsId -> PatArgsSeqId)[PatArgId],
+    value = PatArg,
+    store_name = (pat_args, pat_args_seq)
 );
-
-tir_debug_value_of_single_store_id!(PatArgsId);
-
-static_sequence_store_direct!(
-    store = pub PatArgsSeqStore,
-    id = pub PatArgsSeqId[PatArgId],
-    value = Node<PatArg>,
-    store_name = pat_args_seq,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_sequence_store_element_id!(PatArgId);
-
-impl SequenceStoreKey for PatArgsId {
-    type ElementKey = PatArgId;
-
-    fn to_index_and_len(self) -> (usize, usize) {
-        self.value().to_index_and_len()
-    }
-
-    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
-        panic!("Creating PatArgsId is not allowed, create PatArgsSeqId directly")
-    }
-}
-
-impl From<(PatArgsId, usize)> for PatArgId {
-    fn from(value: (PatArgsId, usize)) -> Self {
-        PatArgId(*value.0.value(), value.1)
-    }
-}
 
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]

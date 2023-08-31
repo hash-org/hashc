@@ -5,10 +5,7 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_ast::ast::RangeEnd;
-use hash_storage::{
-    static_sequence_store_indirect, static_single_store,
-    store::{SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey},
-};
+use hash_storage::store::TrivialSequenceStoreKey;
 
 use super::{
     args::{PatArgsId, PatOrCapture},
@@ -20,8 +17,8 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, environment::stores::tir_stores, node::Node,
-    tir_debug_value_of_single_store_id, tir_get,
+    arrays::ArrayPat, environment::stores::tir_stores, tir_get, tir_node_sequence_store_indirect,
+    tir_node_single_store,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -107,50 +104,18 @@ impl Pat {
     }
 }
 
-static_single_store!(
+tir_node_single_store!(
     store = pub PatStore,
     id = pub PatId,
-    value = Node<Pat>,
-    store_name = pat,
-    store_source = tir_stores()
+    value = Pat,
+    store_name = pat
 );
 
-tir_debug_value_of_single_store_id!(PatId);
-
-static_single_store!(
-    store = pub PatListStore,
-    id = pub PatListId,
-    value = Node<PatListSeqId>,
-    store_name = pat_list,
-    store_source = tir_stores()
+tir_node_sequence_store_indirect!(
+    store = pub (PatListStore -> PatListSeqStore),
+    id = pub (PatListId -> PatListSeqId)[PatOrCapture],
+    store_name = (pat_list, pat_list_seq)
 );
-
-tir_debug_value_of_single_store_id!(PatListId);
-
-static_sequence_store_indirect!(
-    store = pub PatListSeqStore,
-    id = pub PatListSeqId[PatOrCapture],
-    store_name = pat_list_seq,
-    store_source = tir_stores()
-);
-
-impl SequenceStoreKey for PatListId {
-    type ElementKey = PatOrCapture;
-
-    fn to_index_and_len(self) -> (usize, usize) {
-        self.value().to_index_and_len()
-    }
-
-    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
-        panic!("Creating PatListId is not allowed, create PatListSeqId directly")
-    }
-}
-
-impl From<(PatListId, usize)> for PatOrCapture {
-    fn from(value: (PatListId, usize)) -> Self {
-        value.0.borrow().at(value.1).unwrap()
-    }
-}
 
 impl fmt::Display for Spread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

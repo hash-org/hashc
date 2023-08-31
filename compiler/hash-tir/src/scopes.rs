@@ -6,7 +6,6 @@
 use core::fmt;
 
 use hash_storage::{
-    static_single_store,
     store::{
         statics::{SingleStoreValue, StoreId},
         TrivialSequenceStoreKey,
@@ -21,10 +20,11 @@ use crate::{
     context::Decl,
     environment::stores::tir_stores,
     mods::ModDefId,
+    node::{Node, NodeOrigin},
     pats::PatId,
     symbols::Symbol,
     terms::{TermId, TermListId},
-    tir_get,
+    tir_get, tir_node_single_store,
     tys::TyId,
 };
 
@@ -94,7 +94,6 @@ pub struct AssignTerm {
 #[omit(StackMemberData, [id], [Debug, Copy, Clone])]
 #[derive(Debug, Copy, Clone)]
 pub struct StackMember {
-    pub id: StackMemberId,
     pub name: Symbol,
     pub is_mutable: bool,
     pub ty: TyId,
@@ -102,9 +101,7 @@ pub struct StackMember {
 
 /// A stack, which is a list of stack members.
 #[derive(Debug, Clone)]
-#[omit(StackData, [id], [Debug, Clone])]
 pub struct Stack {
-    pub id: StackId,
     pub members: Vec<Decl>,
     /// Local module definition containing members that are defined in this
     /// stack.
@@ -114,17 +111,15 @@ pub struct Stack {
 impl Stack {
     /// Create a new stack with empty members.
     pub fn empty() -> StackId {
-        Stack::create_with(|id| Stack { id, members: vec![], local_mod_def: None })
+        Node::create_at(Stack { members: vec![], local_mod_def: None }, NodeOrigin::Generated)
     }
 }
 
-static_single_store!(
+tir_node_single_store!(
     store = pub StackStore,
     id = pub StackId,
     value = Stack,
-    store_name = stack,
-    store_source = tir_stores(),
-    derives = Debug
+    store_name = stack
 );
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -244,7 +239,7 @@ impl fmt::Display for Stack {
 
 impl fmt::Display for StackId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
