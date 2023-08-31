@@ -1,6 +1,7 @@
 use hash_ast::ast::{self};
 use hash_source::constant::{
-    FloatTy, IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP,
+    FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy, InternedInt,
+    SIntTy, UIntTy,
 };
 use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
 use hash_tir::{
@@ -227,11 +228,11 @@ pub trait PrimitiveUtils: AccessToEnv {
     }
 
     /// Get the given term as a float literal if possible.
-    fn create_term_from_float_lit<L: Into<f64>>(&self, lit: L) -> TermId {
+    fn create_term_from_float_lit<L: Into<FloatConstantValue>>(&self, lit: L) -> TermId {
         Term::create(Term::Lit(Lit::Float(FloatLit {
             underlying: ast::FloatLit {
                 kind: ast::FloatLitKind::Unsuffixed,
-                value: CONSTANT_MAP.create_f64_float(lit.into(), None),
+                value: FloatConstant::new(lit.into(), None).into(),
             },
         })))
     }
@@ -249,7 +250,7 @@ pub trait PrimitiveUtils: AccessToEnv {
         Term::create(Term::Lit(Lit::Int(IntLit {
             underlying: ast::IntLit {
                 kind: ast::IntLitKind::Unsuffixed,
-                value: CONSTANT_MAP.create_int(IntConstant::new(
+                value: InternedInt::create(IntConstant::new(
                     IntConstantValue::Big(Box::new(lit.into())),
                     None,
                 )),

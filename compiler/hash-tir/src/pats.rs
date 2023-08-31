@@ -3,11 +3,11 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use derive_more::From;
 use hash_ast::ast::{self, RangeEnd};
 use hash_storage::{
     static_sequence_store_indirect, static_single_store, store::TrivialSequenceStoreKey,
 };
+use hash_utils::derive_more::From;
 
 use super::{
     args::{PatArgsId, PatOrCapture},

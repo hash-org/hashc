@@ -2,7 +2,7 @@
 //! to represent literals, and convert them into a `ConstantValue` which is
 //! used within the exhaustiveness sub-system to represent these values within
 //! a single data type.
-use hash_source::constant::{InternedInt, CONSTANT_MAP};
+use hash_source::constant::InternedInt;
 use hash_tir::tys::TyId;
 
 #[derive(Debug, Clone, Copy)]
@@ -31,7 +31,7 @@ impl Constant {
     pub fn from_int(constant: InternedInt, ty: TyId) -> Self {
         // Get the associated bytes with the interned-int so we can convert
         // into a constant.
-        let data = CONSTANT_MAP.lookup_int(constant).value.as_u128().unwrap();
+        let data = constant.value().value.as_u128().unwrap();
         Constant { data, ty }
     }
 

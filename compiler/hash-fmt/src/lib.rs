@@ -12,7 +12,7 @@ use hash_ast::{
     ast::{self, walk_mut_self, AstVisitorMutSelf, ParamOrigin},
     ast_visitor_mut_self_default_impl,
 };
-use hash_source::constant::{IntConstant, CONSTANT_MAP};
+use hash_source::constant::IntConstant;
 use hash_token::delimiter::Delimiter;
 use state::AstPrinterState;
 
@@ -701,7 +701,7 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        CONSTANT_MAP.map_int(node.body.value, |value| {
+        node.body.value.map(|value| {
             let IntConstant { value, suffix } = value;
 
             self.write(format!("{}", value))?;

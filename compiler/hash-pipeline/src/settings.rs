@@ -10,7 +10,6 @@ use std::{
 };
 
 use clap::{Args, Parser, ValueEnum};
-use hash_source::constant::CONSTANT_MAP;
 use hash_target::{HasTarget, Target, HOST_TARGET_TRIPLE};
 use hash_utils::tree_writing::CharacterSet;
 
@@ -51,8 +50,8 @@ pub struct CompilerSettings {
     pub debug: bool,
 
     /// Print metrics about each stage when the entire pipeline has completed.
-    #[arg(long, default_value_t = false)]
-    pub output_metrics: bool,
+    #[arg(long = "timings", default_value_t = false)]
+    pub show_timings: bool,
 
     /// Whether to output of each stage result.
     #[arg(long, default_value_t = false)]
@@ -125,8 +124,7 @@ impl CompilerSettings {
     pub fn try_entry_point(&self) -> Option<Result<PathBuf, PipelineError>> {
         self.entry_point.as_ref().map(|path| {
             let current_dir = env::current_dir().unwrap();
-            let path = CONSTANT_MAP.create_string(path.to_str().unwrap());
-            resolve_path(path, current_dir).map_err(PipelineError::ImportPath)
+            resolve_path(path.to_str().unwrap(), current_dir).map_err(PipelineError::ImportPath)
         })
     }
 
@@ -264,7 +262,7 @@ impl Default for CompilerSettings {
             entry_point: None,
             output_directory: None,
             output_stage_results: false,
-            output_metrics: false,
+            show_timings: false,
             skip_prelude: false,
             prelude_is_quiet: false,
             emit_errors: true,

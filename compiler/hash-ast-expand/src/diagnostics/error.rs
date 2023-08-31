@@ -1,6 +1,5 @@
 //! Definitions of the various kinds of errors that can occur during the
 //! expansion phase of the compiler.
-use derive_more::Constructor;
 use hash_ast::ast::AstNodeId;
 use hash_attrs::{
     attr::{AttrArgIdx, AttrValueKind},
@@ -14,6 +13,7 @@ use hash_reporting::{
 };
 use hash_source::identifier::Identifier;
 use hash_tir::{tys::TyId, utils::params::ParamError};
+use hash_utils::derive_more::Constructor;
 
 #[derive(Constructor, Debug)]
 pub struct ExpansionError {

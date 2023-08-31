@@ -8,8 +8,6 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-derive_more = "0.99"
-indexmap = "1.9"
 num-bigint = "0.4"
 textwrap = "0.16"
 utility-types = "0.0.2"

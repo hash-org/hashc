@@ -318,7 +318,7 @@ impl<I: CompilerInterface> Driver<I> {
         }
 
         // Print compiler stage metrics if specified in the settings.
-        if self.compiler.settings().output_metrics && !self.bootstrapping {
+        if self.compiler.settings().show_timings && !self.bootstrapping {
             self.report_metrics();
         }
     }

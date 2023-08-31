@@ -9,6 +9,7 @@ doctest = false
 
 [dependencies]
 strum_macros = "0.21"
+phf = { version = "0.11", features = ["macros"] }
 
 hash-utils = { path = "../hash-utils" }
 hash-source = {path = "../hash-source" }

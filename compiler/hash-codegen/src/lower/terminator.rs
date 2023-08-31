@@ -12,7 +12,6 @@
 use hash_abi::{ArgAbi, FnAbiId, PassMode};
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::COMMON_IR_TYS};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
-use hash_source::constant::CONSTANT_MAP;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
@@ -577,7 +576,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         builder.switch_to_block(failure_block);
 
         // we need to convert the assert into a message.
-        let (bytes, len) = builder.const_str(CONSTANT_MAP.create_string(assert_kind.message()));
+        let (bytes, len) = builder.const_str(assert_kind.message().into());
         let args: [Builder::Value; 2] = (bytes, len).into();
 
         // Get the `panic` lang item.

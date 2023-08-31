@@ -10,7 +10,7 @@ use hash_storage::{
     arena::{Castle, Wall},
     string::BrickString,
 };
-use hash_utils::{counter, dashmap::DashMap, lazy_static::lazy_static};
+use hash_utils::{counter, dashmap::DashMap, fxhash::FxBuildHasher, lazy_static::lazy_static};
 
 counter! {
     name: Identifier,
@@ -87,7 +87,7 @@ lazy_static! {
 #[derive(Debug, Default)]
 pub struct IdentifierMap<'c> {
     reverse_identifiers: DashMap<&'c str, Identifier, FnvBuildHasher>,
-    identifiers: DashMap<Identifier, &'c str, FnvBuildHasher>,
+    identifiers: DashMap<Identifier, &'c str, FxBuildHasher>,
 }
 
 impl<'c> IdentifierMap<'c> {

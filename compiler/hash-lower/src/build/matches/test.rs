@@ -14,7 +14,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::constant::{IntConstant, IntConstantValue, CONSTANT_MAP};
+use hash_source::constant::{IntConstant, IntConstantValue, InternedInt};
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     args::PatArgsId,
@@ -26,7 +26,7 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
-use indexmap::IndexMap;
+use hash_utils::indexmap::IndexMap;
 
 use super::{
     candidate::{Candidate, MatchPair},
@@ -741,11 +741,10 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // Now, we generate a temporary for the expected length, and then
                 // compare the two.
-                let const_len =
-                    Const::Int(CONSTANT_MAP.create_int(IntConstant {
-                        value: IntConstantValue::U64(len),
-                        suffix: None,
-                    }));
+                let const_len = Const::Int(InternedInt::from(IntConstant {
+                    value: IntConstantValue::U64(len),
+                    suffix: None,
+                }));
                 let expected = Operand::Const(const_len.into());
 
                 let [success, fail] = *target_blocks else {

@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use derive_more::From;
+use hash_utils::derive_more::From;
 
 use super::{
     data::DataDefId, fns::FnDefId, locations::LocationTarget, mods::ModDefId, scopes::StackId,

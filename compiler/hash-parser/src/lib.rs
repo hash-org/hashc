@@ -7,32 +7,57 @@ mod import_resolver;
 pub mod parser;
 mod source;
 
-use std::{env, path::PathBuf};
+use std::{env, ops::AddAssign, path::PathBuf, time::Duration};
 
 use hash_ast::{ast, node_map::ModuleEntry};
 use hash_lexer::Lexer;
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerStage},
+    interface::{CompilerInterface, CompilerStage, StageMetrics},
     settings::CompilerStageKind,
     workspace::Workspace,
 };
-use hash_reporting::{diagnostic::AccessToDiagnosticsMut, report::Report};
+use hash_reporting::{
+    diagnostic::{AccessToDiagnosticsMut, Diagnostics},
+    report::Report,
+    reporter::Reports,
+};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
 use hash_target::size::Size;
 use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
+    indexmap::IndexMap,
     rayon,
+    timing::{time_item, AccessToMetrics},
 };
 use import_resolver::ImportResolver;
 use parser::AstGen;
 use source::ParseSource;
+
+use crate::diagnostics::ParserDiagnostics;
 
 /// The [Parser] stage is responsible for parsing the source code into an
 /// abstract syntax tree (AST). The parser will also perform some basic
 /// semantic analysis, such as resolving imports, and some other basic
 /// semantic checks (due to them being syntax bound)
 #[derive(Debug, Default)]
-pub struct Parser;
+pub struct Parser {
+    /// The metrics for the parser stage.
+    metrics: IndexMap<&'static str, Duration>,
+}
+
+impl Parser {
+    /// Merge an incoming set of metrics into the current metrics.
+    pub fn merge_metrics(&mut self, metrics: ParseTimings) {
+        // @@Improvement: we could record more "precise" metrics about how long
+        // it took to lex/parse each module instead of grouping everything together.
+        //
+        // However, this might make the metrics output more difficult to read, so
+        // perhaps there should be a "light" metrics mode, and a more verbose
+        // one.
+        self.metrics.entry("tokenise").or_default().add_assign(metrics.tokenise);
+        self.metrics.entry("gen").or_default().add_assign(metrics.gen);
+    }
+}
 
 /// The [ParserCtx] represents all of the required information that the
 /// [Parser] stage needs to query from the pipeline.
@@ -52,6 +77,12 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
     /// Return the [CompilerStageKind] of the parser.
     fn kind(&self) -> CompilerStageKind {
         CompilerStageKind::Parse
+    }
+
+    fn metrics(&self) -> StageMetrics {
+        StageMetrics {
+            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
+        }
     }
 
     /// Entry point of the parser. Initialises a job from the specified
@@ -80,14 +111,14 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
                 match message {
-                    ParserAction::SetInteractiveNode { id, node, diagnostics } => {
+                    ParserAction::SetInteractiveNode { id, node, diagnostics, timings } => {
                         collected_diagnostics.extend(diagnostics);
-
+                        self.merge_metrics(timings);
                         node_map.get_interactive_block_mut(id).set_node(node);
                     }
-                    ParserAction::SetModuleNode { id, node, diagnostics } => {
+                    ParserAction::SetModuleNode { id, node, diagnostics, timings } => {
                         collected_diagnostics.extend(diagnostics);
-
+                        self.merge_metrics(timings);
                         node_map.get_module_mut(id).set_node(node);
                     }
                     ParserAction::ParseImport { resolved_path, contents, sender } => {
@@ -107,8 +138,9 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
                         let source = ParseSource::from_module(module_id, node_map, source_map);
                         scope.spawn(move |_| parse_source(source, sender));
                     }
-                    ParserAction::Error(err) => {
-                        collected_diagnostics.extend(err);
+                    ParserAction::Error { diagnostics, timings } => {
+                        collected_diagnostics.extend(diagnostics);
+                        self.merge_metrics(timings);
                     }
                 }
             }
@@ -133,6 +165,30 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
     }
 }
 
+/// A collection of timings for the parser stage. The stage records
+/// the amount of time it takes to lex and parse a module, or an
+/// interactive block. This infomation is later recorded, and can
+/// then be grouped together and displayed with other stages.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ParseTimings {
+    /// The amount of time the lexer took to tokenise the source.
+    tokenise: Duration,
+
+    /// The amound of time the parser took to generate AST for the
+    /// source.
+    gen: Duration,
+}
+
+impl AccessToMetrics for ParseTimings {
+    fn add_metric(&mut self, name: &'static str, time: Duration) {
+        match name {
+            "tokenise" => self.tokenise = time,
+            "gen" => self.gen = time,
+            _ => unreachable!(),
+        }
+    }
+}
+
 /// Messages that are passed from parser workers into the general message queue.
 #[derive(Debug)]
 pub enum ParserAction {
@@ -141,18 +197,23 @@ pub enum ParserAction {
     ParseImport { resolved_path: PathBuf, contents: String, sender: Sender<ParserAction> },
 
     /// A unrecoverable error occurred during the parsing or lexing of a module.
-    Error(Vec<Report>),
+    Error { diagnostics: Vec<Report>, timings: ParseTimings },
 
     /// A worker has completed processing an interactive block and now provides
     /// the generated AST.
     SetInteractiveNode {
         /// The corresponding [InteractiveId] of the parsed interactive block.
         id: InteractiveId,
+
         /// The resultant parsed interactive body block.
         node: ast::AstNode<ast::BodyBlock>,
+
         /// The parser may still produce diagnostics for this module, and so we
         /// want to propagate this
         diagnostics: Vec<Report>,
+
+        /// The timings of the parse operation.
+        timings: ParseTimings,
     },
 
     /// A worker has completed processing an module and now provides the
@@ -160,18 +221,23 @@ pub enum ParserAction {
     SetModuleNode {
         /// The corresponding [ModuleId] of the parsed module.
         id: ModuleId,
+
         /// The resultant parsed module.
         node: ast::AstNode<ast::Module>,
+
         /// The parser may still produce diagnostics for this module, and so we
         /// want to propagate this
         diagnostics: Vec<Report>,
+
+        /// The timings of the parse operation.
+        timings: ParseTimings,
     },
 }
 
 /// Parse a specific source specified by [ParseSource].
 fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let source_id = source.id();
-    let contents = source.contents();
+    let mut timings = ParseTimings::default();
 
     // @@Future: we currently don't support cross compilation, which
     // means that we can assume that the target is the same as the host.
@@ -181,13 +247,12 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let ptr_byte_width = Size::from_bytes(std::mem::size_of::<usize>());
 
     // Lex the contents of the module or interactive block
-    let mut lexer = Lexer::new(&contents, source_id, ptr_byte_width);
-    let tokens = lexer.tokenise();
+    let mut lexer = Lexer::new(source.contents(), source_id, ptr_byte_width);
+    let tokens = time_item(&mut timings, "tokenise", |_| lexer.tokenise());
 
     // Check if the lexer has errors...
     if lexer.has_errors() {
-        let diagnostics = lexer.diagnostics();
-        sender.send(ParserAction::Error(diagnostics.into_reports())).unwrap();
+        sender.send(ParserAction::Error { diagnostics: lexer.into_reports(), timings }).unwrap();
         return;
     }
 
@@ -196,23 +261,29 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(source_id, source.path(), sender);
-
-    let mut gen = AstGen::new(&tokens, &trees, &resolver);
+    let diagnostics = ParserDiagnostics::new();
+    let mut gen = AstGen::new(&tokens, &trees, &resolver, &diagnostics);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
     let id = source.id();
     let action = match id.is_interactive() {
         false => {
-            let node = gen.parse_module();
-            ParserAction::SetModuleNode { id: id.into(), node, diagnostics: gen.into_reports() }
+            let node = time_item(&mut timings, "gen", |_| gen.parse_module());
+            ParserAction::SetModuleNode {
+                id: id.into(),
+                node,
+                diagnostics: diagnostics.into_reports(Reports::from, Reports::from),
+                timings,
+            }
         }
         true => {
-            let node = gen.parse_expr_from_interactive();
+            let node = time_item(&mut timings, "gen", |_| gen.parse_expr_from_interactive());
             ParserAction::SetInteractiveNode {
                 id: id.into(),
                 node,
-                diagnostics: gen.into_reports(),
+                diagnostics: diagnostics.into_reports(Reports::from, Reports::from),
+                timings,
             }
         }
     };

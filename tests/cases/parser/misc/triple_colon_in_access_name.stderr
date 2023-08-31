@@ -3,3 +3,4 @@ error: expected a name here
 2 |   
 3 |   a::b:::c<int>();
   |         ^ 
+  = help: expected a `identifier`

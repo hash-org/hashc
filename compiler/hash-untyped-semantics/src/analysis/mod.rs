@@ -70,6 +70,7 @@ impl<'s> SemanticAnalyser<'s> {
     /// Given a [Sender], send all of the generated warnings and messaged into
     /// the sender.
     pub(crate) fn emit_diagnostics_to(self, sender: &Sender<AnalysisDiagnostic>) {
-        self.diagnostics.items.into_iter().for_each(|t| sender.send(t).unwrap())
+        self.diagnostics.store.errors.into_iter().for_each(|t| sender.send(t.into()).unwrap());
+        self.diagnostics.store.warnings.into_iter().for_each(|t| sender.send(t.into()).unwrap());
     }
 }

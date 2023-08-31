@@ -8,7 +8,6 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-derive_more = "0.99"
 num-bigint = "0.4"
 num_enum = "0.5"
 

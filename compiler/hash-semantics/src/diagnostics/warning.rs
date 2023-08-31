@@ -1,5 +1,6 @@
 use hash_exhaustiveness::diagnostics::ExhaustivenessWarning;
 use hash_reporting::reporter::{Reporter, Reports};
+use hash_utils::thin_vec::ThinVec;
 
 use crate::environment::sem_env::{AccessToSemEnv, WithSemEnv};
 
@@ -7,7 +8,7 @@ use crate::environment::sem_env::{AccessToSemEnv, WithSemEnv};
 #[derive(Clone, Debug)]
 pub enum SemanticWarning {
     /// Compounded warnings.
-    Compound { warnings: Vec<SemanticWarning> },
+    Compound { warnings: ThinVec<SemanticWarning> },
 
     /// A warning that comes from exhaustive pattern checking and
     /// analysis.

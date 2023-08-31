@@ -31,7 +31,7 @@ use hash_target::{
 };
 use hash_utils::{
     bitflags::bitflags,
-    index_vec::{define_index_type, index_vec, IndexVec},
+    index_vec::{self, index_vec, IndexVec},
     lazy_static,
 };
 
@@ -820,7 +820,7 @@ impl ToIrTy for ScalarKind {
     }
 }
 
-define_index_type! {
+index_vec::define_index_type! {
     /// Index for [VariantIdx] stores within generated [Body]s.
     pub struct VariantIdx = u32;
 

@@ -8,7 +8,10 @@ use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a macro prefix character, which depending on [MacroKind] is either
@@ -137,7 +140,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 token if invocations.is_empty() => {
                     self.err_with_location(
                         ParseErrorKind::ExpectedMacroInvocation,
-                        None,
+                        ExpectedItem::Ident | ExpectedItem::LeftBracket,
                         Some(token.kind),
                         token.span,
                     )?;

@@ -2,11 +2,11 @@
 use core::fmt;
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
-use derive_more::{From, TryInto};
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
+use hash_utils::derive_more::{From, TryInto};
 
 use crate::{
     access::AccessTerm,

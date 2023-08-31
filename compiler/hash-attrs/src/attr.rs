@@ -2,7 +2,6 @@
 
 use std::{fmt, sync::OnceLock};
 
-use derive_more::From;
 use hash_ast::{ast, ast::AstNodeId};
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
@@ -11,7 +10,7 @@ use hash_source::{
 use hash_storage::store::{DefaultPartialStore, PartialStore};
 use hash_target::{abi::Integer, data_layout::HasDataLayout, primitives::IntTy};
 use hash_tir::params::ParamIndex;
-use hash_utils::{fxhash::FxHashMap, lazy_static::lazy_static};
+use hash_utils::{derive_more::From, fxhash::FxHashMap, lazy_static::lazy_static};
 
 use crate::{
     diagnostics::{AttrError, AttrResult},

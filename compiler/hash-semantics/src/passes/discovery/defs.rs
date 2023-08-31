@@ -1,5 +1,4 @@
 //! Utilities for keeping track of definitions during the discovery pass.
-use derive_more::From;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
@@ -18,6 +17,7 @@ use hash_tir::{
     utils::AccessToUtils,
 };
 use hash_utils::{
+    derive_more::From,
     smallvec::{smallvec, SmallVec},
     state::LightState,
 };

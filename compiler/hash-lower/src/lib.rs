@@ -13,7 +13,7 @@ mod discover;
 mod lower_ty;
 mod optimise;
 
-use std::{collections::BTreeMap, time::Duration};
+use std::time::Duration;
 
 use build::BodyBuilder;
 use ctx::BuilderCtx;
@@ -36,6 +36,7 @@ use hash_source::SourceId;
 use hash_storage::store::statics::StoreId;
 use hash_tir::environment::{source_info::CurrentSourceInfo, stores::tir_stores};
 use hash_utils::{
+    indexmap::IndexMap,
     rayon,
     timing::{time_item, AccessToMetrics},
 };
@@ -45,7 +46,7 @@ use optimise::Optimiser;
 #[derive(Default)]
 pub struct IrGen {
     /// The metrics of the IR builder.
-    metrics: BTreeMap<&'static str, Duration>,
+    metrics: IndexMap<&'static str, Duration>,
 }
 
 impl AccessToMetrics for IrGen {
@@ -178,7 +179,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 #[derive(Default)]
 pub struct IrOptimiser {
     /// The metrics of the IR optimiser.
-    metrics: BTreeMap<&'static str, Duration>,
+    metrics: IndexMap<&'static str, Duration>,
 }
 
 impl AccessToMetrics for IrOptimiser {

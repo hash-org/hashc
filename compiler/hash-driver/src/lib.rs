@@ -60,7 +60,7 @@ impl CompilerBuilder {
         Self::build(
             interface,
             vec![
-                Box::new(Parser),
+                Box::<Parser>::default(),
                 Box::new(AstExpansionPass),
                 Box::new(AstDesugaringPass),
                 Box::new(UntypedSemanticAnalysis),

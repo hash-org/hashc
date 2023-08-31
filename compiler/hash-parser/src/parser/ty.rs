@@ -1,14 +1,15 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::AccessToDiagnosticsMut;
+use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_source::identifier::IDENTS;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-use hash_utils::{smallvec::smallvec, thin_vec::thin_vec};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_utils::thin_vec::thin_vec;
 
 use super::{AstGen, TyParamOrigin};
 use crate::diagnostics::{
     error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
     warning::{ParseWarning, WarningKind},
 };
 
@@ -65,7 +66,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Ty]. This includes only singular forms of a type.
     fn parse_singular_ty(&mut self) -> ParseResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
-            self.make_err(ParseErrorKind::ExpectedType, None, None, Some(self.next_pos()))
+            self.make_err(
+                ParseErrorKind::ExpectedType,
+                ExpectedItem::Type,
+                None,
+                Some(self.next_pos()),
+            )
         })?;
 
         let mut multi_ty_components = true;
@@ -172,9 +178,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Ty::Expr(ExprTy { expr })
             }
 
-            kind => {
-                self.err_with_location(ParseErrorKind::ExpectedType, None, Some(*kind), span)?
-            }
+            kind => self.err_with_location(
+                ParseErrorKind::ExpectedType,
+                ExpectedItem::Type,
+                Some(*kind),
+                span,
+            )?,
         };
 
         // Deal with type function call, or type access
@@ -268,7 +277,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => self.err(
                     ParseErrorKind::UnExpected,
-                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
+                    ExpectedItem::Comma | ExpectedItem::Gt,
                     Some(token.kind),
                 )?,
                 None => self.unexpected_eof()?,
@@ -437,7 +446,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 token => self.err_with_location(
                     ParseErrorKind::UnExpected,
-                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
+                    ExpectedItem::Comma | ExpectedItem::Gt,
                     token.map(|t| t.kind),
                     token.map_or_else(|| self.next_pos(), |t| t.span),
                 )?,
@@ -486,7 +495,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             self.make_err(
                 ParseErrorKind::UnExpected,
-                Some(TokenKindVector::from_vec(smallvec![TokenKind::Gt])),
+                ExpectedItem::Ident | ExpectedItem::Gt,
                 Some(token.kind),
                 Some(token.span),
             )

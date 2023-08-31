@@ -7,6 +7,7 @@ use hash_reporting::{
 use hash_source::location::Span;
 use hash_tir::{symbols::Symbol, terms::TermId, utils::common::get_location};
 use hash_typecheck::errors::{TcError, TcErrorReporter};
+use hash_utils::thin_vec::ThinVec;
 
 use crate::{
     environment::sem_env::{AccessToSemEnv, WithSemEnv},
@@ -17,7 +18,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub enum SemanticError {
     /// A series of errors.
-    Compound { errors: Vec<SemanticError> },
+    Compound { errors: ThinVec<SemanticError> },
 
     /// An error exists, this is just a signal to stop typechecking.
     Signal,

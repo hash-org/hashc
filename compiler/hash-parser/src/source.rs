@@ -1,7 +1,7 @@
 //! Self hosted hash parser, this function contains the implementations for
 //! `hash-ast` which provides a general interface to write a parser.
 
-use std::{borrow::Cow, path::PathBuf};
+use std::path::PathBuf;
 
 use hash_ast::node_map::NodeMap;
 use hash_source::{SourceId, SourceMap};
@@ -52,8 +52,8 @@ impl ParseSource {
     }
 
     /// Get the contents from the [ParseSource]
-    pub fn contents(&self) -> Cow<str> {
-        Cow::Borrowed(self.contents.as_str())
+    pub fn contents(&self) -> &str {
+        self.contents.as_str()
     }
 
     /// Get the associated [SourceId] from the [ParseSource]

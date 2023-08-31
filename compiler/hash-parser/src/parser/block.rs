@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticsMut};
+use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
@@ -15,7 +15,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
 
         let block = gen.parse_body_block_inner();
-        self.diagnostics.merge_diagnostics(gen.diagnostics);
 
         Ok(self.node_with_span(Block::Body(block), self.current_pos()))
     }
@@ -27,7 +26,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
 
         let block = gen.parse_body_block_inner();
-        self.merge_diagnostics(gen.diagnostics);
 
         Ok(self.node_with_span(block, self.current_pos()))
     }

@@ -4,7 +4,10 @@ use hash_ast::ast::*;
 use hash_token::{keyword::Keyword, TokenKind};
 
 use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// This function is used to pickup 'glued' operator tokens to form more
@@ -86,7 +89,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if self.parse_token_fast(TokenKind::Eq).is_none() {
             return self.err_with_location(
                 ParseErrorKind::ExpectedArrow,
-                None,
+                ExpectedItem::Eq,
                 None,
                 self.next_pos(),
             )?;
@@ -95,7 +98,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if self.parse_token_fast(TokenKind::Gt).is_none() {
             return self.err_with_location(
                 ParseErrorKind::ExpectedArrow,
-                None,
+                ExpectedItem::Gt,
                 None,
                 self.next_pos(),
             )?;
@@ -109,11 +112,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_fast(TokenKind::Minus).is_none() {
-            return self.err(ParseErrorKind::ExpectedFnArrow, None, None)?;
+            return self.err(ParseErrorKind::ExpectedFnArrow, ExpectedItem::Minus, None)?;
         }
 
         if self.parse_token_fast(TokenKind::Gt).is_none() {
-            return self.err(ParseErrorKind::ExpectedFnArrow, None, None)?;
+            return self.err(ParseErrorKind::ExpectedFnArrow, ExpectedItem::Gt, None)?;
         }
 
         Ok(())

@@ -15,18 +15,16 @@ mod ty;
 use std::cell::Cell;
 
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticStore};
+use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_source::location::{ByteRange, Span};
-use hash_token::{
-    delimiter::{Delimiter, DelimiterVariant},
-    Token, TokenKind, TokenKindVector,
-};
+use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use crate::{
     diagnostics::{
         error::{ParseError, ParseErrorKind, ParseResult},
-        warning::ParseWarning,
+        expected::ExpectedItem,
+        ParserDiagnostics,
     },
     import_resolver::ImportResolver,
 };
@@ -93,17 +91,12 @@ pub struct AstGen<'stream, 'resolver> {
     /// Token trees that were generated from the stream
     token_trees: &'stream [Vec<Token>],
 
-    /// State set by expression parsers for parents to let them know if the
-    /// parsed expression was made up of multiple expressions with
-    /// precedence operators.
-    is_compound_expr: Cell<bool>,
-
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
     pub(crate) resolver: &'resolver ImportResolver<'resolver>,
 
     /// Collected diagnostics for the current [AstGen]
-    pub(crate) diagnostics: DiagnosticStore<ParseError, ParseWarning>,
+    pub(crate) diagnostics: &'stream ParserDiagnostics,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -114,6 +107,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         stream: &'stream [Token],
         token_trees: &'stream [Vec<Token>],
         resolver: &'resolver ImportResolver,
+        diagnostics: &'stream ParserDiagnostics,
     ) -> Self {
         // We compute the `parent_span` from the given strem.
         // If the stream has no tokens, then we assume that the
@@ -123,15 +117,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => ByteRange::default(),
         };
 
-        Self {
-            stream,
-            token_trees,
-            offset: Cell::new(0),
-            parent_span,
-            is_compound_expr: Cell::new(false),
-            resolver,
-            diagnostics: DiagnosticStore::default(),
-        }
+        Self { stream, token_trees, offset: Cell::new(0), parent_span, resolver, diagnostics }
     }
 
     /// Create new AST generator from a provided token stream with inherited
@@ -142,10 +128,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             stream,
             token_trees: self.token_trees,
             offset: Cell::new(0),
-            is_compound_expr: self.is_compound_expr.clone(),
             parent_span,
             resolver: self.resolver,
-            diagnostics: DiagnosticStore::default(),
+            diagnostics: self.diagnostics,
         }
     }
 
@@ -299,7 +284,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn make_err(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
         span: Option<ByteRange>,
     ) -> ParseError {
@@ -315,7 +300,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn err<T>(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
     ) -> ParseResult<T> {
         Err(self.make_err(kind, expected, received, None))
@@ -325,7 +310,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn err_with_location<T>(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
         span: ByteRange,
     ) -> ParseResult<T> {
@@ -340,7 +325,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
-        self.err(ParseErrorKind::UnExpected, None, Some(self.current_token().kind))
+        self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), Some(self.current_token().kind))
     }
 
     /// This function `consumes` a generator into the patent [AstGen] whilst
@@ -353,15 +338,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if !other.has_errors() && other.has_token() {
             other.maybe_add_error::<()>(other.expected_eof());
         }
-
-        // Now we will merge this `other` generator with ours...
-        self.merge_diagnostics(other.diagnostics);
     }
 
     /// Generate an error representing that the current generator unexpectedly
     /// reached the end of input at this point.
     pub(crate) fn unexpected_eof<T>(&self) -> ParseResult<T> {
-        self.err(ParseErrorKind::UnExpected, None, None)
+        self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), None)
     }
 
     /// Function to peek ahead and match some parsing function that returns a
@@ -543,7 +525,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 ParseErrorKind::UnExpected,
-                Some(TokenKindVector::singleton(atom)),
+                ExpectedItem::from(atom),
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_pos(), |t| t.span),
             ),
@@ -580,10 +562,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 error.unwrap_or(ParseErrorKind::UnExpected),
-                Some(TokenKindVector::singleton(TokenKind::Delimiter(
-                    delimiter,
-                    DelimiterVariant::Left,
-                ))),
+                ExpectedItem::from(delimiter),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_pos(), |tok| tok.span),
             )?,

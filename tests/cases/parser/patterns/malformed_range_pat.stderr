@@ -4,3 +4,4 @@ error: expected an arrow `=>`
 6 |           1..2() => {};
   |               ^^ 
 7 |       }
+  = help: expected a `=`

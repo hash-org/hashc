@@ -2,7 +2,6 @@
 
 use std::{collections::HashSet, ops::ControlFlow};
 
-use derive_more::Deref;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     access::AccessTerm,
@@ -23,7 +22,7 @@ use hash_tir::{
         AccessToUtils,
     },
 };
-use hash_utils::log::warn;
+use hash_utils::{derive_more::Deref, log::warn};
 
 use crate::AccessToTypechecking;
 
