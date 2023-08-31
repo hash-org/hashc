@@ -106,7 +106,7 @@ impl<T: fmt::Debug> HeavyState<T> {
     }
 
     /// Get a mutable reference to the current value of the state.
-    pub fn get_mut(&self) -> impl Deref<Target = T> + DerefMut + '_ {
+    pub fn get_mut(&self) -> impl DerefMut<Target = T> + '_ {
         self.current.borrow_mut()
     }
 
