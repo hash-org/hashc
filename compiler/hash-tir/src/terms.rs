@@ -9,7 +9,7 @@ use hash_storage::{
     static_sequence_store_indirect, static_single_store,
     store::{
         statics::{SequenceStoreValue, SingleStoreValue},
-        SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+        SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
 

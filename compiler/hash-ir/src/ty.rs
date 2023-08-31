@@ -22,7 +22,7 @@ use hash_source::{
 };
 use hash_storage::{
     static_sequence_store_indirect, static_single_store,
-    store::{statics::SingleStoreValue, SequenceStore, Store, StoreKey},
+    store::{statics::SingleStoreValue, SequenceStore, StoreKey},
 };
 use hash_target::{
     abi::{self, Abi, Integer, ScalarKind},

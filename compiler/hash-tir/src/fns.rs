@@ -3,10 +3,7 @@
 use std::fmt::Display;
 
 use hash_ast::ast;
-use hash_storage::{
-    static_single_store,
-    store::{statics::StoreId, Store},
-};
+use hash_storage::{static_single_store, store::statics::StoreId};
 use typed_builder::TypedBuilder;
 use utility_types::omit;
 

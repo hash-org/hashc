@@ -7,10 +7,7 @@ use derive_more::From;
 use hash_ast::ast;
 use hash_storage::{
     static_single_store,
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        Store,
-    },
+    store::statics::{SequenceStoreValue, SingleStoreValue, StoreId},
 };
 
 use super::{holes::Hole, symbols::Symbol};

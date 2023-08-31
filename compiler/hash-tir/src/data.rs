@@ -8,7 +8,7 @@ use hash_storage::{
     static_sequence_store_direct, static_single_store,
     store::{
         statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, Store, TrivialSequenceStoreKey,
+        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
 use hash_utils::itertools::Itertools;
