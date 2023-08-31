@@ -879,7 +879,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
                 self.add_warning(ParseWarning::new(
                     WarningKind::RedundantParenthesis(expr.body().into()),
-                    expr.span(),
+                    gen.span(),
                 ));
             }
 
