@@ -9,7 +9,6 @@ use hash_source::{
     identifier::Identifier,
     location::ByteRange,
 };
-use hash_utils::smallvec::{smallvec, SmallVec};
 use keyword::Keyword;
 
 /// A Lexeme token that represents the smallest code unit of a hash source file.
@@ -76,7 +75,7 @@ impl TokenKind {
                     | TokenKind::Minus
                     | TokenKind::Star
                     | TokenKind::Slash
-                    | TokenKind::Hash // directives
+                    | TokenKind::Pound // directives
                     | TokenKind::Amp
                     | TokenKind::Tilde
                     | TokenKind::Exclamation
@@ -164,7 +163,11 @@ pub enum TokenKind {
     /// ';'
     Semi,
     /// '#'
-    Hash,
+    Pound,
+
+    /// `@`
+    At,
+
     /// '$'
     Dollar,
     /// ','
@@ -221,7 +224,7 @@ impl TokenKind {
             TokenKind::FloatLit(lit) => format!("`{lit}`"),
             TokenKind::CharLit(ch) => format!("`{ch}`"),
             TokenKind::StrLit(str) => format!("the string `{}`", *str),
-            TokenKind::Keyword(kwd) => format!("`{kwd}`"),
+            TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
             TokenKind::Ident(ident) => format!("the identifier `{}`", *ident),
             kind => format!("a `{kind}`"),
         }
@@ -248,7 +251,8 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Dot => write!(f, "."),
             TokenKind::Colon => write!(f, ":"),
             TokenKind::Semi => write!(f, ";"),
-            TokenKind::Hash => write!(f, "#"),
+            TokenKind::Pound => write!(f, "#"),
+            TokenKind::At => write!(f, "@"),
             TokenKind::Dollar => write!(f, "$"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
@@ -274,54 +278,5 @@ impl std::fmt::Display for TokenKind {
             }
             TokenKind::Err => write!(f, "<error>"),
         }
-    }
-}
-
-/// This is a wrapper around a vector of token atoms that can represent the
-/// expected tokens in a given context when transforming the token tree into and
-/// an AST. The wrapper exists because once again you cannot specify
-/// implementations for types that don't originate from the current crate.
-///
-/// @@TODO(alex): Instead of using a [TokenKind], we should use an enum to
-/// custom variants or descriptors such as 'operator'. Instead of token atoms we
-/// can just the display representations of the token atoms. Or even better, we
-/// can use the [`ToString`] trait and just auto cast into a string, whilst
-/// holding a vector of strings.
-#[derive(Debug, Clone)]
-pub struct TokenKindVector(SmallVec<[TokenKind; 2]>);
-
-impl TokenKindVector {
-    /// Create a new empty [TokenKindVector].
-    pub fn empty() -> Self {
-        Self(smallvec![])
-    }
-
-    pub fn inner(&self) -> &SmallVec<[TokenKind; 2]> {
-        &self.0
-    }
-
-    pub fn into_inner(self) -> SmallVec<[TokenKind; 2]> {
-        self.0
-    }
-
-    /// Create a [TokenKindVector] from a provided row of expected atoms.
-    pub fn from_vec(items: SmallVec<[TokenKind; 2]>) -> Self {
-        Self(items)
-    }
-
-    /// Check if the current [TokenKindVector] is empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Create a [TokenKindVector] with a single atom.
-    pub fn singleton(kind: TokenKind) -> Self {
-        Self(smallvec![kind])
-    }
-
-    /// Create a [TokenKindVector] that provides tokens that can modify the
-    /// visibility of a variable.
-    pub fn begin_visibility() -> Self {
-        Self(smallvec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
     }
 }

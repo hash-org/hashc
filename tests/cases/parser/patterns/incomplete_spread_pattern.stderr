@@ -3,3 +3,4 @@ error: malformed spread pattern, expected 1 more `.` to complete the pattern
 2 |   
 3 |   [ ..d ] := k;
   |       ^ 
+  = help: expected a `.`

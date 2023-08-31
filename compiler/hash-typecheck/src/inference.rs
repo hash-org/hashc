@@ -2,13 +2,13 @@
 
 use std::{cell::Cell, collections::HashSet, ops::ControlFlow};
 
-use derive_more::{Constructor, Deref};
 use hash_ast::ast::{FloatLitKind, IntLitKind};
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_exhaustiveness::ExhaustivenessChecker;
-use hash_intrinsics::{primitives::primitives, utils::PrimitiveUtils};
-use hash_reporting::diagnostic::Diagnostics;
+use hash_intrinsics::utils::PrimitiveUtils;
+use hash_reporting::diagnostic::{Diagnostics, ErrorState};
 use hash_source::{
-    constant::{FloatTy, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
+    constant::{FloatTy, IntTy, SIntTy, UIntTy},
     entry_point::EntryPointKind,
     identifier::IDENTS,
     ModuleKind,
@@ -21,13 +21,13 @@ use hash_tir::{
     access::AccessTerm,
     args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
+    ast_info::HasNodeId,
     atom_info::ItemInAtomInfo,
     casting::CastTerm,
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    directives::DirectiveTarget,
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::env::AccessToEnv,
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -35,6 +35,7 @@ use hash_tir::{
     node::{Node, NodeOrigin},
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
+    primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     sub::Sub,
@@ -50,6 +51,7 @@ use hash_tir::{
         AccessToUtils,
     },
 };
+use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
 
 use crate::{
@@ -219,7 +221,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<U> {
         self.register_new_atom(args, annotation_params);
         let reordered_args_id =
-            self.param_ops().validate_and_reorder_args_against_params(args, annotation_params)?;
+            self.param_utils().validate_and_reorder_args_against_params(args, annotation_params)?;
 
         let result = self.infer_some_args(
             reordered_args_id.iter(),
@@ -285,11 +287,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_arg_scope: impl FnOnce(PatArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
         self.register_new_atom(pat_args, annotation_params);
-        let reordered_pat_args_id = self.param_ops().validate_and_reorder_pat_args_against_params(
-            pat_args,
-            spread,
-            annotation_params,
-        )?;
+        let reordered_pat_args_id = self
+            .param_utils()
+            .validate_and_reorder_pat_args_against_params(pat_args, spread, annotation_params)?;
 
         self.infer_some_args(
             reordered_pat_args_id.iter(),
@@ -336,7 +336,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_param_scope: impl FnOnce() -> TcResult<U>,
     ) -> TcResult<U> {
         // Validate the parameters
-        self.param_ops().validate_params(params)?;
+        self.param_utils().validate_params(params)?;
 
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
@@ -431,7 +431,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ///
     /// This might be needed if a literal is unsuffixed in the original source,
     /// and thus represented as something other than its true type in the
-    /// `CONSTANT_MAP`. After `infer_lit`, its true type will be known, and
+    /// `CONSTS`. After `infer_lit`, its true type will be known, and
     /// we can then adjust the underlying constant to match the true type.
     fn adjust_lit_repr(&self, lit: &Lit, inferred_ty: TyId) -> TcResult<()> {
         // @@Future: we could defer parsing these literals until we have inferred their
@@ -441,18 +441,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         match lit {
             Lit::Float(float_lit) => {
                 if let Some(float_ty) = self.try_use_ty_as_float_ty(inferred_ty) {
-                    CONSTANT_MAP.adjust_float(float_lit.underlying.value, float_ty);
+                    float_lit.underlying.value.adjust_to(float_ty)
                 }
                 // @@Incomplete: it is possible that exotic literal
                 // types are defined, what happens then?
             }
             Lit::Int(int_lit) => {
                 if let Some(int_ty) = self.try_use_ty_as_int_ty(inferred_ty) {
-                    CONSTANT_MAP.adjust_int(
-                        int_lit.underlying.value,
-                        int_ty,
-                        self.env().target().ptr_size(),
-                    );
+                    int_lit.underlying.value.adjust_to(int_ty, self.env().target().ptr_size());
                 }
                 // @@Incomplete: as above
             }
@@ -802,11 +798,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// This is only done if the expression has a `#run` annotation.
     pub fn potentially_run_expr(&self, expr: TermId, term_ty: TyId) -> TcResult<()> {
         if self.should_monomorphise() {
-            let has_run_directive = tir_stores()
-                .directives()
-                .get(expr.into())
-                .map(|directives| directives.contains(IDENTS.run))
-                == Some(true);
+            let has_run_directive = if let Some(id) = expr.node_id() {
+                attr_store().node_has_attr(id, attrs::RUN)
+            } else {
+                false
+            };
+
             if has_run_directive {
                 let norm_ops = self.norm_ops();
                 norm_ops.with_mode(NormalisationMode::Full);
@@ -913,13 +910,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let fn_def_symbol = fn_def_id.borrow().name;
         let fn_def_name = fn_def_symbol.borrow().name.unwrap();
 
-        // Find the entry point either by name "main" or by the #entry_point directive.
-        let entry_point = if tir_stores()
-            .directives()
-            .get(fn_def_id.into())
-            .map(|x| x.contains(IDENTS.entry_point))
-            == Some(true)
-        {
+        // check if on item if it has `entry_point`
+        let has_entry_point_attr =
+            attr_store().node_has_attr(fn_def_id.node_id_or_default(), attrs::ENTRY_POINT);
+
+        let entry_point = if has_entry_point_attr {
             Some(EntryPointKind::Named(fn_def_name))
         } else if fn_def_name == IDENTS.main
             && self.source_map().module_kind_by_id(self.current_source_info().source_id())
@@ -1864,7 +1859,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.infer_params(data_def_params, || {
             match data_def_ctors {
                 DataDefCtors::Defined(data_def_ctors_id) => {
-                    let mut error_state = self.new_error_state();
+                    let mut error_state = ErrorState::new();
 
                     // Infer each member
                     for ctor_idx in data_def_ctors_id.value().to_index_range() {
@@ -1873,7 +1868,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         );
                     }
 
-                    self.return_or_register_errors(|| Ok(()), error_state)
+                    error_state.into_error(|| Ok(()))
                 }
                 DataDefCtors::Primitive(primitive) => {
                     match primitive {
@@ -1899,11 +1894,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Dump the TIR for the given target if it has a `#dump_tir` directive
     /// applied on it.
-    pub fn potentially_dump_tir(&self, target: impl Into<DirectiveTarget>) {
-        let target = target.into();
-        let has_dump_dir =
-            tir_stores().directives().get(target).map(|d| d.contains(IDENTS.dump_tir))
-                == Some(true);
+    pub fn potentially_dump_tir(&self, target: impl ToString + HasNodeId) {
+        let has_dump_dir = if let Some(id) = target.node_id() {
+            attr_store().node_has_attr(id, attrs::DUMP_TIR)
+        } else {
+            false
+        };
+
         if has_dump_dir {
             dump_tir(target);
         }
@@ -1939,8 +1936,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_mod_def(&self, mod_def_id: ModDefId, fn_mode: FnInferMode) -> TcResult<()> {
         self.context().enter_scope(mod_def_id.into(), || {
             let members = mod_def_id.borrow().members;
+            let mut error_state = ErrorState::new();
 
-            let mut error_state = self.new_error_state();
             // Infer each member signature
             for member_idx in members.value().to_index_range() {
                 let _ = error_state.try_or_add_error(
@@ -1948,7 +1945,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 );
             }
 
-            self.return_or_register_errors(|| Ok(()), error_state)
+            error_state.into_error(|| Ok(()))
         })
     }
 }

@@ -1,13 +1,13 @@
 //! Error-related data structures for errors that occur during typechecking.
-use hash_error_codes::error_codes::HashErrorCode;
 use hash_exhaustiveness::diagnostics::ExhaustivenessError;
 use hash_reporting::{
-    self,
+    hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
 };
 use hash_source::location::Span;
 use hash_tir::{symbols::SymbolId, terms::TermId, utils::common::get_location};
 use hash_typecheck::errors::{TcError, TcErrorReporter};
+use hash_utils::thin_vec::ThinVec;
 
 use crate::{
     environment::sem_env::{AccessToSemEnv, WithSemEnv},
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub enum SemanticError {
     /// A series of errors.
-    Compound { errors: Vec<SemanticError> },
+    Compound { errors: ThinVec<SemanticError> },
 
     /// An error exists, this is just a signal to stop typechecking.
     Signal,

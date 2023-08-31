@@ -2,7 +2,8 @@
 use std::{iter::once, sync::OnceLock};
 
 use hash_storage::store::statics::StoreId;
-use hash_tir::{
+
+use crate::{
     args::Arg,
     building::gen::params,
     data::{
@@ -41,10 +42,10 @@ macro_rules! defined_primitives {
             /// Create a list of [`ModMemberData`] that corresponds to the defined primitives.
             ///
             /// This can be used to make a module and enter its scope.
-            pub fn as_mod_members(&self) -> Vec<hash_tir::node::Node<ModMember>> {
+            pub fn as_mod_members(&self) -> Vec<$crate::node::Node<ModMember>> {
                 vec![
                     $(
-                        hash_tir::node::Node::gen(ModMember {
+                        $crate::node::Node::gen(ModMember {
                             name: self.$name.borrow().name,
                             value: ModMemberValue::Data(self.$name)
                         }),

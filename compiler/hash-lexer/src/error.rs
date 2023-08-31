@@ -1,9 +1,9 @@
 //! Hash Compiler lexer error data types.
 
-use std::{cell::Cell, convert::Infallible, fmt::Display, mem::take};
+use std::{cell::Cell, fmt::Display};
 
 use hash_reporting::{
-    diagnostic::{AccessToDiagnosticsMut, DiagnosticsMut},
+    diagnostic::{AccessToDiagnosticsMut, DiagnosticStore},
     report::{Report, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
@@ -184,65 +184,23 @@ impl From<LexerError> for Reports {
 #[derive(Default)]
 pub struct LexerDiagnostics {
     /// Inner stored diagnostics from the lexer.
-    errors: Vec<LexerError>,
+    store: DiagnosticStore<LexerError, ()>,
 
     /// Whether the [Lexer] encountered a fatal error and
     /// must abort on the next token advance
     pub(crate) has_fatal_error: Cell<bool>,
 }
 
-impl LexerDiagnostics {
-    pub fn into_reports(&mut self) -> Vec<Report> {
-        self.errors.drain(..).flat_map(Reports::from).collect()
-    }
-}
-
-impl DiagnosticsMut for LexerDiagnostics {
-    type Error = LexerError;
-    type Warning = Infallible;
-
-    /// Add an error into the store
-    fn add_error(&mut self, error: LexerError) {
-        self.errors.push(error);
-    }
-
-    /// The lexer does not currently emit any warnings and so if this
-    /// is called, it should panic.
-    fn add_warning(&mut self, warning: Infallible) {
-        match warning {}
-    }
-
-    fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
-    }
-
-    /// Lexer never emits any warnings so this always false
-    fn has_warnings(&self) -> bool {
-        false
-    }
-
-    fn into_diagnostics(&mut self) -> (Vec<LexerError>, Vec<Infallible>) {
-        (take(&mut self.errors), vec![])
-    }
-
-    fn merge_diagnostics(
-        &mut self,
-        mut other: impl DiagnosticsMut<Error = LexerError, Warning = Infallible>,
-    ) {
-        let (errors, _) = other.into_diagnostics();
-        self.errors.extend(errors)
-    }
-
-    fn clear_diagnostics(&mut self) {
-        self.errors.clear();
-        self.has_fatal_error.set(false);
-    }
-}
-
 impl AccessToDiagnosticsMut for Lexer<'_> {
-    type Diagnostics = LexerDiagnostics;
+    type Diagnostics = DiagnosticStore<LexerError, ()>;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {
-        &mut self.diagnostics
+        &mut self.diagnostics.store
+    }
+}
+
+impl Lexer<'_> {
+    pub fn into_reports(&mut self) -> Vec<Report> {
+        self.diagnostics.store.errors.drain(..).flat_map(Reports::from).collect()
     }
 }

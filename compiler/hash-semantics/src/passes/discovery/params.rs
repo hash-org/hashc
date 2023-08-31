@@ -1,8 +1,9 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     environment::stores::tir_stores,
+    node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamIndex, ParamsId},
 };
 
@@ -39,7 +40,27 @@ impl<'tc> DiscoveryPass<'tc> {
 
     /// Create a parameter list from the given AST parameter list, where the
     /// type of each parameter is a hole.
-    pub(super) fn create_hole_params(&self, params: &ast::AstNodes<ast::Param>) -> ParamsId {
-        self.create_hole_params_from(params, |param| &param.name)
+    pub(super) fn create_hole_params_from_params(
+        &self,
+        node: Option<&ast::AstNode<ast::Params>>,
+    ) -> ParamsId {
+        if let Some(params) = node {
+            self.create_hole_params_from(&params.params, |param| &param.name)
+        } else {
+            Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
+        }
+    }
+
+    /// Create a parameter list from the given AST parameter list, where the
+    /// type of each parameter is a hole.
+    pub(super) fn create_hole_params_from_ty_params(
+        &self,
+        params: Option<&ast::AstNode<ast::TyParams>>,
+    ) -> ParamsId {
+        if let Some(ty_params) = params {
+            self.create_hole_params_from(&ty_params.params, |param| &param.name)
+        } else {
+            Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
+        }
     }
 }

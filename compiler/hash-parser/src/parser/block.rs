@@ -1,8 +1,9 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticsMut};
+use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
+use hash_utils::thin_vec::thin_vec;
 
 use super::{AstGen, ParseResult};
 use crate::diagnostics::error::ParseErrorKind;
@@ -14,7 +15,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
 
         let block = gen.parse_body_block_inner();
-        self.diagnostics.merge_diagnostics(gen.diagnostics);
 
         Ok(self.node_with_span(Block::Body(block), self.current_pos()))
     }
@@ -26,7 +26,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
 
         let block = gen.parse_body_block_inner();
-        self.merge_diagnostics(gen.diagnostics);
 
         Ok(self.node_with_span(block, self.current_pos()))
     }
@@ -109,13 +108,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a match case. A match case involves handling the pattern and the
     /// expression branch.
     pub(crate) fn parse_match_case(&mut self) -> ParseResult<AstNode<MatchCase>> {
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
         let start = self.current_pos();
-        let pattern = self.parse_pat()?;
 
+        let pat = self.parse_pat()?;
         self.parse_arrow()?;
         let expr = self.parse_expr_with_precedence(0)?;
 
-        Ok(self.node_with_joined_span(MatchCase { pat: pattern, expr }, start))
+        Ok(self.node_with_joined_span(MatchCase { pat, expr, macros }, start))
     }
 
     /// Parse a match block statement, which is composed of a subject and an
@@ -127,8 +127,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let subject = self.parse_expr_with_precedence(0)?;
 
         let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
-        let cases =
-            gen.parse_separated_fn(|g| g.parse_match_case(), |g| g.parse_token(TokenKind::Comma));
+        let cases = gen.parse_nodes(|g| g.parse_match_case(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
 
         Ok(self.node_with_joined_span(
@@ -143,7 +142,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let start = self.current_pos();
 
-        let mut clauses = vec![];
+        let mut clauses = thin_vec![];
         let mut otherwise_clause = None;
         let mut if_span = self.current_pos();
 

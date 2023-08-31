@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use hash_source::location::Span;
-use hash_storage::store::SequenceStoreKey;
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_utils::parking_lot::RwLock;
 
 use super::{
@@ -19,6 +19,7 @@ use super::{
 use crate::{
     args::{ArgsSeqId, PatArgsSeqId},
     data::CtorDefsSeqId,
+    environment::stores::tir_stores,
     mods::ModMembersSeqId,
     params::ParamsSeqId,
 };
@@ -177,11 +178,28 @@ impl LocationStore {
     /// Get the overall [Span] covering all the members of a specified
     /// [IndexedLocationTarget].
     pub fn get_overall_location(&self, target: impl Into<IndexedLocationTarget>) -> Option<Span> {
+        let info = tir_stores().ast_info();
         let target = target.into();
-        target
-            .to_index_range()
-            .map(|index| self.get_location(LocationTarget::from((target, index))))
-            .fold(None, |acc, loc| Some(acc?.join(loc?)))
+
+        let maybe_node = match target {
+            IndexedLocationTarget::Params(id) => info.params_seq().get_node_by_data(id),
+            IndexedLocationTarget::Args(id) => info.args_seq().get_node_by_data(id),
+            IndexedLocationTarget::PatArgs(id) => info.pat_args_seq().get_node_by_data(id),
+            IndexedLocationTarget::CtorDefs(id) => info.ctor_defs_seq().get_node_by_data(id),
+            IndexedLocationTarget::ModMembers(id) => info.mod_members_seq().get_node_by_data(id),
+        };
+
+        // If we could find an overall AstNode, then we can just use the span, otherwise
+        // we fallback to scanning the parameters.
+        maybe_node.map_or_else(
+            || {
+                target
+                    .to_index_range()
+                    .map(|index| self.get_location(LocationTarget::from((target, index))))
+                    .fold(None, |acc: Option<Span>, loc| Some(acc?.join(loc?)))
+            },
+            |node| Some(node.span()),
+        )
     }
 
     /// Copy a set of locations from the first [IndexedLocationTarget] to the

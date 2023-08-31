@@ -3,6 +3,8 @@ use hash_ast::ast::AstNodeId;
 use hash_source::{location::Span, SourceId};
 use hash_storage::store::statics::SingleStoreValue;
 
+use crate::ast_info::HasNodeId;
+
 /// Represents a node in the TIR.
 ///
 /// Each node has an origin, and data associated with it.
@@ -56,6 +58,15 @@ impl<Data> Node<Data> {
 impl<D, Data: From<D>> From<(D, NodeOrigin)> for Node<Data> {
     fn from((d, o): (D, NodeOrigin)) -> Self {
         Node::at(d.into(), o)
+    }
+}
+
+impl<T> HasNodeId for Node<T> {
+    fn node_id(&self) -> Option<AstNodeId> {
+        match self.origin {
+            NodeOrigin::Given(id) | NodeOrigin::InferredFrom(id) => Some(id),
+            NodeOrigin::Generated => None,
+        }
     }
 }
 

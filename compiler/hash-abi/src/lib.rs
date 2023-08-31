@@ -10,6 +10,7 @@ use hash_target::{
     size::Size,
     Target,
 };
+use hash_utils::bitflags;
 
 /// Defines the available calling conventions that can be
 /// used when invoking functions with the ABI.

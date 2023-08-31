@@ -8,6 +8,8 @@ use std::{
     mem::take,
 };
 
+use hash_utils::thin_vec::ThinVec;
+
 use crate::reporter::Reports;
 
 /// This macro creates `Diagnostics{,Mut}` trait definitions, which provide
@@ -67,7 +69,7 @@ macro_rules! make_diagnostic_traits {
             /// immediately converting the diagnostics into [Report]s.
             ///
             /// This will modify self.
-            fn into_diagnostics(self: $self_ref) -> (Vec<Self::Error>, Vec<Self::Warning>);
+            fn into_diagnostics(self: $self_ref) -> (ThinVec<Self::Error>, ThinVec<Self::Warning>);
 
             /// Merge another diagnostic store with this one.
             fn merge_diagnostics(self: $self_ref, other: impl $name<Error=Self::Error, Warning=Self::Warning>);
@@ -84,13 +86,13 @@ make_diagnostic_traits!(Diagnostics with &Self, DiagnosticsMut with &mut Self);
 /// A standard implementation of [Diagnostics] that uses a [RefCell] to store
 /// errors and warnings immutably.
 pub struct DiagnosticCellStore<E, W> {
-    pub errors: RefCell<Vec<E>>,
-    pub warnings: RefCell<Vec<W>>,
+    pub errors: RefCell<ThinVec<E>>,
+    pub warnings: RefCell<ThinVec<W>>,
 }
 
 impl<E, W> DiagnosticCellStore<E, W> {
     pub fn new() -> Self {
-        Self { errors: RefCell::new(Vec::new()), warnings: RefCell::new(Vec::new()) }
+        Self { errors: RefCell::new(ThinVec::new()), warnings: RefCell::new(ThinVec::new()) }
     }
 }
 
@@ -144,7 +146,7 @@ impl<E, W> Diagnostics for DiagnosticCellStore<E, W> {
         !self.warnings.borrow().is_empty()
     }
 
-    fn into_diagnostics(&self) -> (Vec<E>, Vec<W>) {
+    fn into_diagnostics(&self) -> (ThinVec<E>, ThinVec<W>) {
         // This drains all the errors and warnings from the diagnostics store.
         let mut errors = self.errors.borrow_mut();
         let mut warnings = self.warnings.borrow_mut();
@@ -161,13 +163,13 @@ impl<E, W> Diagnostics for DiagnosticCellStore<E, W> {
 /// A standard implementation of [DiagnosticsMut] that stores errors and
 /// warnings directly, and thus is mutable.
 pub struct DiagnosticStore<E, W> {
-    pub errors: Vec<E>,
-    pub warnings: Vec<W>,
+    pub errors: ThinVec<E>,
+    pub warnings: ThinVec<W>,
 }
 
 impl<E, W> DiagnosticStore<E, W> {
     pub fn new() -> Self {
-        Self { errors: Vec::new(), warnings: Vec::new() }
+        Self { errors: ThinVec::new(), warnings: ThinVec::new() }
     }
 }
 
@@ -203,7 +205,7 @@ impl<E, W> DiagnosticsMut for DiagnosticStore<E, W> {
         !self.warnings.is_empty()
     }
 
-    fn into_diagnostics(&mut self) -> (Vec<E>, Vec<W>) {
+    fn into_diagnostics(&mut self) -> (ThinVec<E>, ThinVec<W>) {
         (take(&mut self.errors), take(&mut self.warnings))
     }
 
@@ -228,6 +230,10 @@ pub trait AccessToDiagnostics {
 
     fn add_error(&self, error: <Self::Diagnostics as Diagnostics>::Error) {
         self.diagnostics().add_error(error)
+    }
+
+    fn maybe_add_error<T>(&mut self, value: Result<T, <Self::Diagnostics as Diagnostics>::Error>) {
+        self.diagnostics().maybe_add_error(value)
     }
 
     fn add_warning(&self, warning: <Self::Diagnostics as Diagnostics>::Warning) {
@@ -296,5 +302,79 @@ pub trait AccessToDiagnosticsMut {
         >,
     ) {
         self.diagnostics().merge_diagnostics(other)
+    }
+}
+
+/// A convenient trait which specifies that an error type can be converted
+/// into a compound error version.
+pub trait IntoCompound: Sized {
+    fn into_compound(items: Vec<Self>) -> Self;
+}
+
+/// Accumulates errors that occur during typechecking in a local scope.
+///
+/// This is used for error recovery, so that multiple errors can be reported
+/// at once.
+#[derive(Debug)]
+pub struct ErrorState<E> {
+    pub errors: Vec<E>,
+}
+
+impl<E> ErrorState<E> {
+    /// Create a new [ErrorState].
+    pub fn new() -> Self {
+        Self { errors: vec![] }
+    }
+
+    /// Add an error to the error state.
+    pub fn add_error(&mut self, error: impl Into<E>) -> &E {
+        let error = error.into();
+        self.errors.push(error);
+        self.errors.last().unwrap()
+    }
+
+    /// Add an error to the error state if the given result is an error.
+    pub fn try_or_add_error<F>(&mut self, f: Result<F, E>) -> Option<F> {
+        match f {
+            Ok(v) => Some(v),
+            Err(e) => {
+                self.add_error(e);
+                None
+            }
+        }
+    }
+
+    /// Add a set of errors to the error state.
+    pub fn add_errors(&mut self, errors: impl IntoIterator<Item = impl Into<E>>) {
+        self.errors.extend(errors.into_iter().map(|err| err.into()));
+    }
+
+    /// Whether the error state has any errors.
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    /// Take the errors from the error state.
+    pub fn take_errors(&mut self) -> Vec<E> {
+        std::mem::take(&mut self.errors)
+    }
+}
+
+impl<E: IntoCompound> ErrorState<E> {
+    /// Convert the accumulated [ErrorState] into a single error. This is
+    /// possible since [ErrorState] implements [IntoCompound].
+    pub fn into_error<T>(&mut self, t: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+        if self.has_errors() {
+            let errors = self.take_errors();
+            Err(E::into_compound(errors))
+        } else {
+            t()
+        }
+    }
+}
+
+impl<E> Default for ErrorState<E> {
+    fn default() -> Self {
+        Self::new()
     }
 }

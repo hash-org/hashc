@@ -12,6 +12,7 @@ mod temp;
 mod ty;
 mod utils;
 
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{
     ir::{
@@ -20,21 +21,17 @@ use hash_ir::{
     },
     ty::{IrTy, Mutability},
 };
-use hash_pipeline::settings::CompilerSettings;
-use hash_source::identifier::{Identifier, IDENTS};
-use hash_storage::store::{statics::StoreId, FxHashMap, PartialStore, SequenceStoreKey};
+use hash_source::identifier::Identifier;
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, ScopeKind},
-    directives::DirectiveTarget,
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     symbols::SymbolId,
     terms::TermId,
 };
-use hash_utils::index_vec::IndexVec;
+use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
 
 use crate::{cfg::ControlFlowGraph, ctx::BuilderCtx};
 
@@ -142,10 +139,6 @@ pub(crate) struct BodyBuilder<'tcx> {
     /// The type storage needed for accessing the types of the traversed terms
     ctx: BuilderCtx<'tcx>,
 
-    /// The stage settings, sometimes used to determine what the lowering
-    /// behaviour should be.
-    settings: &'tcx CompilerSettings,
-
     /// Info that is derived during the lowering process of the type.
     info: BodyInfo,
 
@@ -190,9 +183,15 @@ pub(crate) struct BodyBuilder<'tcx> {
     tmp_place: Option<Place>,
 }
 
+impl HasTarget for BodyBuilder<'_> {
+    fn target(&self) -> &Target {
+        self.ctx.settings.target()
+    }
+}
+
 impl<'ctx> AccessToEnv for BodyBuilder<'ctx> {
     fn env(&self) -> &Env {
-        self.ctx.env
+        &self.ctx.env
     }
 }
 
@@ -203,12 +202,7 @@ impl<'ctx> AccessToIntrinsics for BodyBuilder<'ctx> {
 }
 
 impl<'ctx> BodyBuilder<'ctx> {
-    pub(crate) fn new(
-        name: Identifier,
-        item: BuildItem,
-        tcx: BuilderCtx<'ctx>,
-        settings: &'ctx CompilerSettings,
-    ) -> Self {
+    pub(crate) fn new(name: Identifier, item: BuildItem, ctx: BuilderCtx<'ctx>) -> Self {
         let (arg_count, source) = match item {
             BuildItem::FnDef(fn_def) => {
                 // Get the type of this function definition, we need to
@@ -220,9 +214,8 @@ impl<'ctx> BodyBuilder<'ctx> {
         };
 
         Self {
-            settings,
             item,
-            ctx: tcx,
+            ctx,
             info: BodyInfo::new(name, source),
             arg_count,
             control_flow_graph: ControlFlowGraph::new(),
@@ -244,19 +237,10 @@ impl<'ctx> BodyBuilder<'ctx> {
             }
         }
 
-        // check if this fn_def has the `#dump_ir` directive applied onto it...
-        let needs_dumping = |item: DirectiveTarget| {
-            if let Some(applied_directives) = tir_stores().directives().borrow(item) {
-                applied_directives.directives.contains(&IDENTS.dump_ir)
-            } else {
-                false
-            }
-        };
-
         // Compute the span of the item that was just lowered.
-        let (span, needs_dumping) = match self.item {
-            BuildItem::FnDef(def) => (self.span_of_def(def), needs_dumping(def.into())),
-            BuildItem::Const(term) => (self.span_of_term(term), needs_dumping(term.into())),
+        let span = match self.item {
+            BuildItem::FnDef(def) => self.span_of_def(def),
+            BuildItem::Const(term) => self.span_of_term(term),
         };
 
         let mut body = Body::new(
@@ -268,7 +252,7 @@ impl<'ctx> BodyBuilder<'ctx> {
         );
 
         // If the body needs to be dumped, then we mark it as such.
-        if needs_dumping {
+        if attr_store().node_has_attr(span, attrs::DUMP_IR) {
             body.mark_to_dump()
         }
 

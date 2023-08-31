@@ -7,8 +7,9 @@ use hash_ir::{
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
     ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
-use hash_source::constant::{IntConstant, IntTy, InternedInt, CONSTANT_MAP};
+use hash_source::constant::{IntConstant, IntTy, InternedInt};
 use hash_storage::store::statics::StoreId;
+use hash_target::HasTarget;
 use hash_tir::terms::{Term, TermId};
 
 use super::{
@@ -57,7 +58,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // the type, and a negation occurs. This causes the value to overflow. We
                         // check for this case here, and emit an assertion check for this (assuming
                         // checked operations are enabled).
-                        if self.settings.lowering_settings().checked_operations
+                        if self.ctx.settings.lowering_settings().checked_operations
                             && matches!(op, UnaryOp::Neg)
                             && ty.borrow().is_signed()
                         {
@@ -139,7 +140,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let value = ty.map(|ty| match ty {
             IrTy::Int(signed_ty) => {
                 // Create and intern the constant
-                let ptr_size = self.settings.target().ptr_size();
+                let ptr_size = self.target().ptr_size();
                 let int_ty: IntTy = (*signed_ty).into();
                 let const_int =
                     InternedInt::from_u128(int_ty.numeric_min(ptr_size), int_ty, ptr_size);
@@ -216,7 +217,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If we need have been instructed to insert overflow checks, and the
         // operator is checkable, then use `CheckedBinaryOp` instead of `BinaryOp`.
-        if self.settings.lowering_settings().checked_operations {
+        if self.ctx.settings.lowering_settings().checked_operations {
             let is_integral = ty.borrow().is_integral();
 
             if op.is_checkable() && is_integral {
@@ -256,8 +257,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Check for division/modulo of zero...
                 let is_zero = self.temp_place(COMMON_IR_TYS.bool);
 
-                let const_val =
-                    Const::Int(CONSTANT_MAP.create_int(IntConstant::from_uint(0, uint_ty)));
+                let const_val = Const::Int(IntConstant::from_uint(0, uint_ty).into());
                 let zero_val = Operand::Const(const_val.into());
 
                 self.control_flow_graph.push_assign(
@@ -275,8 +275,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 if int_ty.is_signed() {
                     let sint_ty = int_ty.to_signed();
 
-                    let const_val =
-                        Const::Int(CONSTANT_MAP.create_int(IntConstant::from_sint(-1, sint_ty)));
+                    let const_val = Const::Int(IntConstant::from_sint(-1, sint_ty).into());
                     let negative_one_val = Operand::Const(const_val.into());
                     let minimum_value = self.min_value_of_ty(ty);
 

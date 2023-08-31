@@ -13,7 +13,7 @@ use hash_ir::{
     ir::{self, Const},
     ty::{IrTy, IrTyId},
 };
-use hash_source::constant::CONSTANT_MAP;
+use hash_source::constant::InternedInt;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::primitives::IntTy;
 use hash_tir::{
@@ -165,10 +165,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         match pat {
             LitPat::Int(lit) => {
                 let value = lit.interned_value();
-
-                CONSTANT_MAP.map_int(value, |constant| {
-                    (Const::Int(value), constant.value.as_u128().unwrap())
-                })
+                value.map(|constant| (Const::Int(value), constant.value.as_u128().unwrap()))
             }
             LitPat::Char(lit) => {
                 let value = lit.value();
@@ -199,17 +196,22 @@ impl<'tcx> BodyBuilder<'tcx> {
             None => ty.map(|ty| match ty {
                 IrTy::Char if at_end => (Const::Char(std::char::MAX), std::char::MAX as u128),
                 IrTy::Char => (Const::Char(0 as char), 0),
-                ty @ (IrTy::Int(_) | IrTy::UInt(_)) => {
-                    let int_ty: IntTy = (*ty).into();
+                IrTy::Int(ty) => {
                     let ptr_size = self.target().ptr_size();
+                    let size = ty.size(ptr_size);
+                    let value = if at_end { size.signed_int_max() } else { size.signed_int_min() };
 
-                    let (signed_value, value) = if at_end {
-                        (int_ty.max(ptr_size), int_ty.numeric_max(ptr_size))
-                    } else {
-                        (int_ty.min(ptr_size), int_ty.numeric_min(ptr_size))
-                    };
+                    (
+                        Const::Int(InternedInt::create(value.into())),
+                        IntTy::Int(*ty).numeric_max(ptr_size),
+                    )
+                }
+                IrTy::UInt(ty) => {
+                    let ptr_size = self.target().ptr_size();
+                    let size = ty.size(ptr_size);
 
-                    (Const::Int(CONSTANT_MAP.create_int(signed_value.into())), value)
+                    let value = if at_end { size.unsigned_int_max() } else { 0 };
+                    (Const::Int(InternedInt::create(value.into())), value)
                 }
                 _ => unreachable!(),
             }),

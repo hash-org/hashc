@@ -1,21 +1,41 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use hash_ast::ast::AstNodeId;
-use hash_storage::store::FxHashMap;
-use hash_utils::parking_lot::RwLock;
+use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
 
 use crate::{
-    args::ArgId,
+    args::{ArgId, ArgsSeqId, PatArgId, PatArgsSeqId},
     context::Decl,
-    data::{CtorDefId, DataDefId},
+    data::{CtorDefId, CtorDefsSeqId, DataDefId},
     fns::FnDefId,
-    mods::{ModDefId, ModMemberId},
-    params::ParamId,
+    mods::{ModDefId, ModMemberId, ModMembersSeqId},
+    params::{ParamId, ParamsSeqId},
     pats::PatId,
     scopes::StackId,
     terms::TermId,
     tys::TyId,
 };
+
+/// A trait used to access AST information about a particular
+/// type. This is useful for when we want to access the [AstNodeId]
+/// of a particular node.
+///
+/// @@Temporary: This will probably only exist until the TIR stores
+/// NodeIds directly in the structure, instead of using the [AstMap].
+pub trait HasNodeId {
+    /// Get the [AstNodeId] of the node.
+    fn node_id(&self) -> Option<AstNodeId>;
+
+    /// Get the [AstNodeId] of the node, or panic if it does not exist.
+    fn node_id_ensured(&self) -> AstNodeId {
+        self.node_id().expect("Expected node id to exist")
+    }
+
+    /// Get the [AstNodeId] or default to a [`AstNodeId::null()`].
+    fn node_id_or_default(&self) -> AstNodeId {
+        self.node_id().unwrap_or_else(AstNodeId::null)
+    }
+}
 
 /// This is used to store the relations between [AstNodeId]s and their
 /// respective [`T`]. There is no assumption that the relation is uniquely
@@ -79,10 +99,12 @@ impl<T: Hash + Eq + Copy> Default for AstMap<T> {
 }
 
 impl<T: Hash + Eq + Copy> AstMap<T> {
+    /// Get the data by the [AstNodeId].
     pub fn get_data_by_node(&self, ast_id: AstNodeId) -> Option<T> {
         self.data.read().get_by_left(ast_id)
     }
 
+    /// Get the [AstNodeId] by the data.
     pub fn get_node_by_data(&self, data: T) -> Option<AstNodeId> {
         self.data.read().get_by_right(&data)
     }
@@ -100,6 +122,19 @@ impl<T: Hash + Eq + Copy> AstMap<T> {
 
         if let Some(ast_id) = old_data {
             self.data.write().insert_right(dest, ast_id);
+        }
+    }
+
+    /// Iterate over all of the entries in the map whilst also calling a
+    /// function on each entry.
+    pub fn iter_with<F>(&self, mut f: F)
+    where
+        F: FnMut(AstNodeId, T),
+    {
+        let data = self.data.read();
+
+        for (ast_id, data) in data.left.iter() {
+            f(*ast_id, *data);
         }
     }
 }
@@ -140,9 +175,11 @@ macro_rules! ast_info {
 ast_info! {
     data_defs: AstMap<DataDefId>,
     ctor_defs: AstMap<CtorDefId>,
+    ctor_defs_seq: AstMap<CtorDefsSeqId>,
 
     mod_defs: AstMap<ModDefId>,
     mod_members: AstMap<ModMemberId>,
+    mod_members_seq: AstMap<ModMembersSeqId>,
 
     fn_defs: AstMap<FnDefId>,
 
@@ -154,5 +191,10 @@ ast_info! {
     pats: AstMap<PatId>,
 
     params: AstMap<ParamId>,
+    params_seq: AstMap<ParamsSeqId>,
     args: AstMap<ArgId>,
+    args_seq: AstMap<ArgsSeqId>,
+
+    pat_args: AstMap<PatArgId>,
+    pat_args_seq: AstMap<PatArgsSeqId>,
 }

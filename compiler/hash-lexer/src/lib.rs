@@ -6,7 +6,10 @@ use std::{cell::Cell, iter, num::ParseIntError};
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
-    constant::{IntConstant, IntConstantValue, IntTy, SIntTy, UIntTy, CONSTANT_MAP},
+    constant::{
+        FloatConstant, FloatConstantValue, IntConstant, IntConstantValue, IntTy, InternedFloat,
+        SIntTy, UIntTy,
+    },
     identifier::{Identifier, IDENTS},
     location::{ByteRange, Span},
     SourceId,
@@ -14,7 +17,7 @@ use hash_source::{
 use hash_target::size::Size;
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
-    keyword::Keyword,
+    keyword::ident_is_keyword,
     Token, TokenKind,
 };
 use num_bigint::BigInt;
@@ -158,7 +161,7 @@ impl<'a> Lexer<'a> {
         let offset = self.offset.get();
 
         // ##Safety: We rely that the byte offset is correctly computed when stepping
-        // over the           characters in the iterator.
+        // over the characters in the iterator.
         std::str::from_utf8_unchecked(self.contents.as_bytes().get_unchecked(offset..))
     }
 
@@ -268,7 +271,7 @@ impl<'a> Lexer<'a> {
             ';' => TokenKind::Semi,
             ',' => TokenKind::Comma,
             '.' => TokenKind::Dot,
-            '#' => TokenKind::Hash,
+            '#' => TokenKind::Pound,
             '$' => TokenKind::Dollar,
             '?' => TokenKind::Question,
 
@@ -369,36 +372,7 @@ impl<'a> Lexer<'a> {
 
         let name = &self.contents[start..self.offset.get()];
 
-        match name {
-            "true" => TokenKind::Keyword(Keyword::True),
-            "false" => TokenKind::Keyword(Keyword::False),
-            "for" => TokenKind::Keyword(Keyword::For),
-            "while" => TokenKind::Keyword(Keyword::While),
-            "loop" => TokenKind::Keyword(Keyword::Loop),
-            "if" => TokenKind::Keyword(Keyword::If),
-            "else" => TokenKind::Keyword(Keyword::Else),
-            "match" => TokenKind::Keyword(Keyword::Match),
-            "as" => TokenKind::Keyword(Keyword::As),
-            "in" => TokenKind::Keyword(Keyword::In),
-            "trait" => TokenKind::Keyword(Keyword::Trait),
-            "enum" => TokenKind::Keyword(Keyword::Enum),
-            "struct" => TokenKind::Keyword(Keyword::Struct),
-            "continue" => TokenKind::Keyword(Keyword::Continue),
-            "break" => TokenKind::Keyword(Keyword::Break),
-            "return" => TokenKind::Keyword(Keyword::Return),
-            "import" => TokenKind::Keyword(Keyword::Import),
-            "raw" => TokenKind::Keyword(Keyword::Raw),
-            "unsafe" => TokenKind::Keyword(Keyword::Unsafe),
-            "priv" => TokenKind::Keyword(Keyword::Priv),
-            "pub" => TokenKind::Keyword(Keyword::Pub),
-            "mut" => TokenKind::Keyword(Keyword::Mut),
-            "mod" => TokenKind::Keyword(Keyword::Mod),
-            "impl" => TokenKind::Keyword(Keyword::Impl),
-            "type" => TokenKind::Keyword(Keyword::Type),
-            "typeof" => TokenKind::Keyword(Keyword::TypeOf),
-            "_" => TokenKind::Ident(IDENTS.underscore),
-            _ => TokenKind::Ident(name.into()),
-        }
+        ident_is_keyword(name).map_or_else(|| TokenKind::Ident(name.into()), TokenKind::Keyword)
     }
 
     fn parse_int_value(
@@ -511,8 +485,7 @@ impl<'a> Lexer<'a> {
             IntConstantValue::I32(0)
         });
 
-        let interned = CONSTANT_MAP.create_int(IntConstant { value, suffix });
-        TokenKind::IntLit(interned)
+        TokenKind::IntLit(IntConstant::new(value, suffix).into())
     }
 
     /// Attempt to eat an identifier if the next token is one, otherwise don't
@@ -629,12 +602,15 @@ impl<'a> Lexer<'a> {
                         Ok(parsed) => {
                             // Create interned float constant
                             let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
-                                CONSTANT_MAP.create_f32_float(parsed as f32, suffix)
+                                FloatConstantValue::F32(parsed as f32)
                             } else {
-                                CONSTANT_MAP.create_f64_float(parsed, suffix)
+                                FloatConstantValue::F64(parsed)
                             };
 
-                            TokenKind::FloatLit(float_const)
+                            TokenKind::FloatLit(InternedFloat::create(FloatConstant {
+                                value: float_const,
+                                suffix,
+                            }))
                         }
                     }
                 } else {
@@ -664,7 +640,7 @@ impl<'a> Lexer<'a> {
 
                         // Create interned float constant
                         let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
-                            CONSTANT_MAP.create_f32_float(value as f32, suffix)
+                            FloatConstantValue::F32(value as f32)
                         } else {
                             // Check that the suffix is correct for the literal
                             if let Some(suffix_ident) = suffix && suffix_ident != IDENTS.f64 {
@@ -675,10 +651,13 @@ impl<'a> Lexer<'a> {
                                 );
                             }
 
-                            CONSTANT_MAP.create_f64_float(value, suffix)
+                            FloatConstantValue::F64(value)
                         };
 
-                        TokenKind::FloatLit(float_const)
+                        TokenKind::FloatLit(InternedFloat::create(FloatConstant {
+                            value: float_const,
+                            suffix,
+                        }))
                     }
                     Err(err) => {
                         self.add_error(err);

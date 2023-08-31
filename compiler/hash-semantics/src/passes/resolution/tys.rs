@@ -7,7 +7,6 @@
 use std::iter::once;
 
 use hash_ast::ast::{self, AstNodeRef};
-use hash_intrinsics::primitives::primitives;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::IDENTS, location::Span};
 use hash_storage::store::statics::SequenceStoreValue;
@@ -18,6 +17,7 @@ use hash_tir::{
     fns::FnCallTerm,
     node::{Node, NodeOrigin},
     params::ParamIndex,
+    primitives::primitives,
     refs::{RefKind, RefTy},
     terms::Term,
     tys::{Ty, TyId, TypeOfTerm},
@@ -223,12 +223,13 @@ impl<'tc> ResolutionPass<'tc> {
 
     /// Make a type from the given [`ast::TupleTy`].
     fn make_ty_from_ast_tuple_ty(&self, node: AstNodeRef<ast::TupleTy>) -> SemanticResult<TyId> {
-        if node.entries.len() == 1 && node.entries[0].name.is_none() {
+        let params = &node.entries.params;
+        if params.len() == 1 && params[0].name.is_none() {
             // We treat this as a single type
-            self.make_ty_from_ast_ty(node.entries[0].ty.ast_ref())
+            self.make_ty_from_ast_ty(params[0].ty.as_ref().unwrap().ast_ref())
         } else {
             self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
-                tuple_ty.data = self.resolve_params_from_ast_ty_args(&node.entries)?;
+                tuple_ty.data = self.resolve_params_from_ast_params(&node.entries, false)?;
                 Ok(Ty::from(tuple_ty))
             })
         }
@@ -277,15 +278,12 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::Ty`].
     pub(super) fn make_ty_from_ast_ty_fn_ty(
         &self,
-        node: AstNodeRef<ast::TyFn>,
+        node: AstNodeRef<ast::TyFnTy>,
     ) -> SemanticResult<TyId> {
         self.scoping().enter_ty_fn_ty(node, |mut ty_fn| {
             // First, make the params
-            let params = self.try_or_add_error(self.resolve_params_from_ast_params(
-                &node.params,
-                true,
-                ty_fn.into(),
-            ));
+            let params =
+                self.try_or_add_error(self.resolve_params_from_ast_ty_params(&node.params));
 
             // Add the params if they exist
             if let Some(params) = params {
@@ -313,7 +311,8 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         self.scoping().enter_fn_ty(node, |mut fn_ty| {
             // First, make the params
-            let params = self.try_or_add_error(self.resolve_params_from_ast_ty_args(&node.params));
+            let params =
+                self.try_or_add_error(self.resolve_params_from_ast_params(&node.params, false));
 
             // Add the params if they exist
             if let Some(params) = params {
@@ -369,6 +368,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Ty::Fn(fn_ty) => self.make_ty_from_ast_fn_ty(node.with_body(fn_ty))?,
             ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?,
             ast::Ty::Merge(merge_ty) => self.make_ty_from_merge_ty(node.with_body(merge_ty))?,
+            ast::Ty::Macro(invocation) => self.make_ty_from_ast_ty(invocation.subject.ast_ref())?,
             ast::Ty::Expr(expr) => {
                 let expr = self.make_term_from_ast_expr(expr.expr.ast_ref())?;
                 Ty::from(expr)

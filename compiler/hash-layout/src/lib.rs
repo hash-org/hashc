@@ -16,10 +16,7 @@ use compute::LayoutComputer;
 use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS};
 use hash_storage::{
     static_single_store,
-    store::{
-        statics::{SingleStoreValue, StoreId},
-        FxHashMap,
-    },
+    store::statics::{SingleStoreValue, StoreId},
     stores,
 };
 use hash_target::{
@@ -29,7 +26,7 @@ use hash_target::{
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
-use hash_utils::index_vec::IndexVec;
+use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
 
 /// The [PointerKind] specifies what kind of pointer this is, whether
 /// it is a shared reference, or a unique reference. In the @@Future, more

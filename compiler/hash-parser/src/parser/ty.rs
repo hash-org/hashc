@@ -1,12 +1,17 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
+use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_source::identifier::IDENTS;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
-use hash_utils::smallvec::smallvec;
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_utils::thin_vec::thin_vec;
 
-use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult};
+use super::{AstGen, TyParamOrigin};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
+    warning::{ParseWarning, WarningKind},
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Ty]. This includes all forms of a [Ty]. This function
@@ -61,7 +66,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Ty]. This includes only singular forms of a type.
     fn parse_singular_ty(&mut self) -> ParseResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
-            self.make_err(ParseErrorKind::ExpectedType, None, None, Some(self.next_pos()))
+            self.make_err(
+                ParseErrorKind::ExpectedType,
+                ExpectedItem::Type,
+                None,
+                Some(self.next_pos()),
+            )
         })?;
 
         let mut multi_ty_components = true;
@@ -143,6 +153,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 })
             }
 
+            // Parse a macro invocation
+            TokenKind::Pound => {
+                let macros = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
+                let subject = self.parse_singular_ty()?;
+
+                Ty::Macro(TyMacroInvocation { macros, subject })
+            }
+
             // Type function, which is a collection of arguments enclosed in `<...>` and then
             // followed by a return type
             TokenKind::Lt => {
@@ -160,9 +178,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Ty::Expr(ExprTy { expr })
             }
 
-            kind => {
-                self.err_with_location(ParseErrorKind::ExpectedType, None, Some(*kind), span)?
-            }
+            kind => self.err_with_location(
+                ParseErrorKind::ExpectedType,
+                ExpectedItem::Type,
+                Some(*kind),
+                span,
+            )?,
         };
 
         // Deal with type function call, or type access
@@ -184,13 +205,19 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.offset.update(|offset| offset + 2);
                     let return_ty = self.parse_ty()?;
 
-                    let ty_arg = self.node_with_span(TyArg {
+                    let param = self.node_with_span(Param {
                         name: None,
-                        ty: self.node_with_joined_span(ty, span)
+                        default: None,
+                        ty: Some(self.node_with_joined_span(ty, span)),
+                        // @@Note: this will always be none since the above function
+                        // will parse the args and then apply it to us as the subject.
+                        // 
+                        // So if `#foo U -> T` is present, we parse as `TyMacroInvocation { subject: U -> T, macros: #foo }`
+                        macros: None,
                     }, span);
 
                     Ty::Fn(FnTy {
-                        params: self.nodes_with_span(vec![ty_arg], span),
+                        params: self.make_params(self.nodes_with_span(thin_vec![param], span), ParamOrigin::Fn),
                         return_ty,
                     })
                 }
@@ -222,39 +249,27 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         let start = self.current_pos();
-        let mut ty_args = vec![];
+        let mut ty_args = thin_vec![];
+
+        // Shortcut, if we get no arguments, then we can avoid looping:
+        // if matches!(self.peek(), Some(Token { kind: TokenKind::Gt, .. })) {
+        //     self.skip_token();
+        //     return Ok(self.nodes_with_span(ty_args, start));
+        // }
 
         loop {
-            // The name part of the `NamedFieldTypeEntry` is an identifier followed by an
-            // `=`, which will then should contain a type setting.
-            let name = match (self.peek(), self.peek_second()) {
-                (
-                    Some(Token { kind: TokenKind::Ident(_), .. }),
-                    Some(Token { kind: TokenKind::Eq, .. }),
-                ) => {
-                    let name = self.parse_name()?;
-                    self.skip_token(); // '='
-
-                    Some(name)
-                }
-                _ => None,
-            };
-
-            // Either way, even if the name is not specified, we still want to parse a name
-            // here and hard-error if we don't encounter a type.
-            let ty = self.parse_ty()?;
-
-            // Here, we want to use either a joined span between the name or just the span
-            // of the parsed type
-            let arg_span =
-                name.as_ref().map_or_else(|| ty.span(), |node| node.span().join(ty.span())).span;
-
-            ty_args.push(self.node_with_span(TyArg { name, ty }, arg_span));
+            ty_args.push(self.parse_ty_arg()?);
 
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => {
                     self.skip_token();
+
+                    // Handle for the trailing comma case.
+                    if matches!(self.peek(), Some(Token { kind: TokenKind::Gt, .. })) {
+                        self.skip_token(); // We reached the end.
+                        break;
+                    }
                 }
                 Some(token) if token.has_kind(TokenKind::Gt) => {
                     self.skip_token();
@@ -262,7 +277,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => self.err(
                     ParseErrorKind::UnExpected,
-                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
+                    ExpectedItem::Comma | ExpectedItem::Gt,
                     Some(token.kind),
                 )?,
                 None => self.unexpected_eof()?,
@@ -271,6 +286,30 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Update the location of the type bound to reflect the '<' and '>' tokens...
         Ok(self.nodes_with_joined_span(ty_args, start))
+    }
+
+    /// Parse a type argument.
+    fn parse_ty_arg(&mut self) -> ParseResult<AstNode<TyArg>> {
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.next_pos();
+
+        // Here we have to essentially try and parse a identifier. If this is the
+        // case and then there is a colon present then we
+        // have a named field.
+        let (name, ty) = match (self.peek(), self.peek_second()) {
+            (
+                Some(Token { kind: TokenKind::Ident(_), .. }),
+                Some(Token { kind: TokenKind::Eq, .. }),
+            ) => {
+                let ident = self.parse_name()?;
+                self.skip_token(); // =
+
+                (Some(ident), self.parse_ty()?)
+            }
+            _ => (None, self.parse_ty()?),
+        };
+
+        Ok(self.node_with_joined_span(TyArg { name, ty, macros }, start))
     }
 
     /// Parses a [Ty::Fn] which involves a parenthesis token tree with some
@@ -288,25 +327,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 gen.skip_token();
             }
             _ => {
-                params = gen.parse_separated_fn(
-                    |g| {
-                        let start = g.next_pos();
-
-                        // Here we have to essentially try and parse a identifier. If this is the
-                        // case and then there is a colon present then we
-                        // have a named field.
-                        let (name, ty) = match g.peek_second() {
-                            Some(token) if token.has_kind(TokenKind::Colon) => {
-                                let ident = g.parse_name()?;
-                                g.skip_token(); // :
-
-                                (Some(ident), g.parse_ty()?)
-                            }
-                            _ => (None, g.parse_ty()?),
-                        };
-
-                        Ok(g.node_with_joined_span(TyArg { name, ty }, start))
-                    },
+                params = gen.parse_nodes(
+                    |g| g.parse_ty_tuple_or_fn_param(),
                     |g| g.parse_token(TokenKind::Comma),
                 );
             }
@@ -321,6 +343,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // If there is an arrow '=>', then this must be a function type
         match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
             Some(_) => {
+                let params = self.make_params(params, ParamOrigin::Tuple);
                 // Parse the return type here, and then give the function name
                 Ok(Ty::Fn(FnTy { params, return_ty: self.parse_ty()? }))
             }
@@ -329,9 +352,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // not a comma then we can just return the inner type
                 if gen_has_comma && params.len() == 1 && params[0].name.is_none() {
                     let field = params.nodes.pop().unwrap().into_body();
-                    return Ok(field.ty.into_body());
+                    return Ok(field.ty.unwrap().into_body());
                 }
 
+                let params = self.make_params(params, ParamOrigin::Fn);
                 Ok(Ty::Tuple(TupleTy { entries: params }))
             }
         }
@@ -343,66 +367,160 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn parse_ty_fn(&mut self) -> ParseResult<Ty> {
         // Since this is only called from `parse_singular_type` we know that this should
         // only be fired when the next token is a an `<`
-        debug_assert!(matches!(self.current_token(), Token { kind: TokenKind::Lt, .. }));
-
-        let mut arg_span = self.current_pos();
-        let mut args = vec![];
-
-        loop {
-            let span = self.current_pos();
-            let name = self.parse_name()?;
-
-            let ty = match self.parse_token_fast(TokenKind::Colon) {
-                Some(_) => match self.peek() {
-                    // Don't try and parse a type if an '=' is followed straight after
-                    Some(tok) if tok.has_kind(TokenKind::Eq) => None,
-                    _ => Some(self.parse_ty()?),
-                },
-                None => None,
-            };
-
-            let default = match self.parse_token_fast(TokenKind::Eq) {
-                Some(_) => Some(self.parse_ty()?),
-                None => None,
-            };
-
-            args.push(self.node_with_span(
-                Param {
-                    name: Some(name),
-                    ty,
-                    default: default.map(|node| {
-                        let span = node.byte_range();
-                        self.node_with_span(Expr::Ty(TyExpr { ty: node }), span)
-                    }),
-                    origin: ParamOrigin::TyFn,
-                },
-                span,
-            ));
-
-            // Now consider if the bound is closing or continuing with a comma...
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    self.skip_token();
-                }
-                Some(token) if token.has_kind(TokenKind::Gt) => {
-                    self.skip_token();
-                    arg_span = arg_span.join(self.current_pos());
-
-                    break;
-                }
-                Some(token) => self.err(
-                    ParseErrorKind::UnExpected,
-                    Some(TokenKindVector::from_vec(smallvec![TokenKind::Comma, TokenKind::Gt])),
-                    Some(token.kind),
-                )?,
-                None => self.unexpected_eof()?,
-            }
-        }
+        let params = self.parse_ty_params(TyParamOrigin::TyFn)?;
 
         // Now pass the return type
         self.parse_thin_arrow()?;
         let return_ty = self.parse_ty()?;
 
-        Ok(Ty::TyFn(TyFn { params: self.nodes_with_span(args, arg_span), return_ty }))
+        Ok(Ty::TyFn(TyFnTy { params, return_ty }))
+    }
+
+    /// Parse optional type [Param]s, if the next token is not a
+    /// `<`, the function will return an empty [AstNodes<Param>].
+    #[inline(always)]
+    pub(crate) fn parse_optional_ty_params(
+        &mut self,
+        def_kind: TyParamOrigin,
+    ) -> ParseResult<Option<AstNode<TyParams>>> {
+        match self.peek() {
+            Some(tok) if tok.has_kind(TokenKind::Lt) => {
+                self.skip_token();
+                Ok(Some(self.parse_ty_params(def_kind)?))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// Construct the [TyParams] from the parsed [`AstNodes<TyParam>`]. This is
+    /// just a utility function to wrap the nodes in the [TyParams] struct.
+    fn make_ty_params(
+        &self,
+        params: AstNodes<TyParam>,
+        origin: TyParamOrigin,
+    ) -> AstNode<TyParams> {
+        let id = params.id();
+        AstNode::with_id(TyParams { params, origin }, id)
+    }
+
+    /// Parse a [TyParams] which consists of a list of [TyParam]s.
+    pub(crate) fn parse_ty_params(
+        &mut self,
+        origin: TyParamOrigin,
+    ) -> ParseResult<AstNode<TyParams>> {
+        debug_assert!(matches!(self.current_token(), Token { kind: TokenKind::Lt, .. }));
+
+        let start_span = self.current_pos();
+        let mut params = thin_vec![];
+
+        // Shortcut, if we get no arguments, then we can avoid looping:
+        if matches!(self.peek(), Some(Token { kind: TokenKind::Gt, .. })) {
+            self.skip_token();
+
+            // Emit a warning here if there were no params
+            let span = start_span.join(self.current_pos());
+            self.add_warning(ParseWarning::new(
+                WarningKind::UselessTyParams { origin },
+                self.make_span(span),
+            ));
+
+            return Ok(self.make_ty_params(self.nodes_with_span(params, span), origin));
+        }
+
+        loop {
+            params.push(self.parse_ty_param()?);
+
+            match self.peek() {
+                Some(Token { kind: TokenKind::Comma, .. }) => {
+                    self.skip_token(); // Progress onto the next param.
+
+                    // Handle for the trailing comma case.
+                    if matches!(self.peek(), Some(Token { kind: TokenKind::Gt, .. })) {
+                        self.skip_token(); // We reached the end.
+                        break;
+                    }
+                }
+                Some(Token { kind: TokenKind::Gt, .. }) => {
+                    self.skip_token(); // We reached the end.
+                    break;
+                }
+                token => self.err_with_location(
+                    ParseErrorKind::UnExpected,
+                    ExpectedItem::Comma | ExpectedItem::Gt,
+                    token.map(|t| t.kind),
+                    token.map_or_else(|| self.next_pos(), |t| t.span),
+                )?,
+            }
+        }
+
+        Ok(self.make_ty_params(self.nodes_with_joined_span(params, start_span), origin))
+    }
+
+    /// Parse a [TyParam] which can consist of an optional name, and a type.
+    /// This is only inteded for parameters that appear in function and tuple
+    /// types. The other more broad function [`Self::parse_ty_param()`]  is for
+    /// parsing type parameters with default values too,
+    fn parse_ty_tuple_or_fn_param(&mut self) -> ParseResult<AstNode<Param>> {
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.current_pos();
+
+        let (name, ty) = match (self.peek(), self.peek_second()) {
+            (
+                Some(Token { kind: TokenKind::Ident(_), .. }),
+                Some(Token { kind: TokenKind::Colon, .. }),
+            ) => {
+                if matches!(self.peek_nth(2), Some(Token { kind: TokenKind::Colon, .. })) {
+                    (None, Some(self.parse_ty()?))
+                } else {
+                    let ident = self.parse_name()?;
+                    self.skip_token(); // :
+                    (Some(ident), Some(self.parse_ty()?))
+                }
+            }
+            _ => (None, Some(self.parse_ty()?)),
+        };
+
+        Ok(self.node_with_joined_span(Param { name, ty, default: None, macros }, start))
+    }
+
+    /// Parse a [TyParam] which consists the name of the parameter, optional
+    /// type annoation and an optional "default" value for the parameter.
+    fn parse_ty_param(&mut self) -> ParseResult<AstNode<TyParam>> {
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.current_pos();
+
+        // We always get a name for this kind of parameter.
+        let name = Some(self.parse_name().map_err(|_| {
+            let token = self.current_token();
+
+            self.make_err(
+                ParseErrorKind::UnExpected,
+                ExpectedItem::Ident | ExpectedItem::Gt,
+                Some(token.kind),
+                Some(token.span),
+            )
+        })?);
+
+        // Try and parse the name and type
+        let ty = match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Colon) => {
+                self.skip_token();
+
+                // Now try and parse a type if the next token permits it...
+                match self.peek() {
+                    Some(token) if matches!(token.kind, TokenKind::Eq) => None,
+                    _ => Some(self.parse_ty()?),
+                }
+            }
+            _ => None,
+        };
+
+        // Parse a default type
+        let default = match self.parse_token_fast(TokenKind::Eq) {
+            Some(_) => Some(self.parse_ty()?),
+            None => None,
+        };
+
+        Ok(self.node_with_joined_span(TyParam { name, ty, default, macros }, start))
     }
 }

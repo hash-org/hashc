@@ -3,15 +3,13 @@
 
 use std::iter::once;
 
-use hash_intrinsics::{
-    intrinsics::DefinedIntrinsics,
-    primitives::{primitives, DefinedPrimitives},
-};
-use hash_storage::store::statics::SequenceStoreValue;
+use hash_intrinsics::intrinsics::DefinedIntrinsics;
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
 use hash_tir::{
     self,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
     node::{Node, NodeOrigin},
+    primitives::{primitives, DefinedPrimitives},
     symbols::sym,
     utils::AccessToUtils,
 };

@@ -2,13 +2,10 @@
 
 use std::fmt::Display;
 
-use derive_more::Constructor;
-use hash_ast::ast::Expr;
+use hash_ast::ast::{Expr, TyParamOrigin};
 use hash_reporting::reporter::{Reporter, Reports};
 use hash_source::location::Span;
-use hash_utils::pluralise;
-
-use crate::parser::DefinitionKind;
+use hash_utils::{derive_more::Constructor, pluralise};
 
 /// Represents a generated warning from within [AstGen][crate::parser::AstGen]
 #[derive(Constructor, Debug)]
@@ -70,7 +67,7 @@ pub enum WarningKind {
 
     /// When type parameters are provided with no specified parameters i.e.
     /// `<>`.
-    UselessTyParams { def_kind: DefinitionKind },
+    UselessTyParams { origin: TyParamOrigin },
 }
 
 impl From<ParseWarning> for Reports {
@@ -93,13 +90,13 @@ impl From<ParseWarning> for Reports {
 
                 format!("unnecessary trailing semicolon{}", pluralise!(length))
             }
-            WarningKind::UselessTyParams { def_kind } => {
+            WarningKind::UselessTyParams { origin } => {
                 span_label = "remove this `<>`".to_string();
 
                 let label =
-                    if matches!(def_kind, DefinitionKind::Mod) { "block" } else { "definition" };
+                    if matches!(origin, TyParamOrigin::Mod) { "block" } else { "definition" };
 
-                format!("useless type parameters on this `{def_kind}` {label}")
+                format!("useless type parameters on this `{}` {label}", origin.name())
             }
         };
 

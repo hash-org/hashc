@@ -10,8 +10,7 @@ use std::{
 };
 
 use clap::{Args, Parser, ValueEnum};
-use hash_source::constant::CONSTANT_MAP;
-use hash_target::{Target, HOST_TARGET_TRIPLE};
+use hash_target::{HasTarget, Target, HOST_TARGET_TRIPLE};
 use hash_utils::tree_writing::CharacterSet;
 
 use crate::{error::PipelineError, fs::resolve_path};
@@ -51,8 +50,8 @@ pub struct CompilerSettings {
     pub debug: bool,
 
     /// Print metrics about each stage when the entire pipeline has completed.
-    #[arg(long, default_value_t = false)]
-    pub output_metrics: bool,
+    #[arg(long = "timings", default_value_t = false)]
+    pub show_timings: bool,
 
     /// Whether to output of each stage result.
     #[arg(long, default_value_t = false)]
@@ -125,8 +124,7 @@ impl CompilerSettings {
     pub fn try_entry_point(&self) -> Option<Result<PathBuf, PipelineError>> {
         self.entry_point.as_ref().map(|path| {
             let current_dir = env::current_dir().unwrap();
-            let path = CONSTANT_MAP.create_string(path.to_str().unwrap());
-            resolve_path(path, current_dir).map_err(PipelineError::ImportPath)
+            resolve_path(path.to_str().unwrap(), current_dir).map_err(PipelineError::ImportPath)
         })
     }
 
@@ -249,9 +247,10 @@ impl CompilerSettings {
     pub fn codegen_settings(&self) -> &CodeGenSettings {
         &self.codegen_settings
     }
+}
 
-    /// Get a reference to the current compiled [Target].
-    pub fn target(&self) -> &Target {
+impl HasTarget for CompilerSettings {
+    fn target(&self) -> &Target {
         &self.codegen_settings.target_info.target
     }
 }
@@ -263,7 +262,7 @@ impl Default for CompilerSettings {
             entry_point: None,
             output_directory: None,
             output_stage_results: false,
-            output_metrics: false,
+            show_timings: false,
             skip_prelude: false,
             prelude_is_quiet: false,
             emit_errors: true,
@@ -577,9 +576,9 @@ pub enum CompilerStageKind {
     /// Parse the source code into an AST.
     Parse,
 
-    /// Transform the AST into a desugared AST, whilst also
-    /// expanding macros, and resolving all imports.
-    DeSugar,
+    /// Run the compilation pipeline until AST expansion
+    /// terminates.
+    Expand,
 
     /// Perform semantic analysis on the AST, this includes
     /// only untyped semantic checks that must occur before
@@ -623,7 +622,7 @@ impl CompilerStageKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             CompilerStageKind::Parse => "parse",
-            CompilerStageKind::DeSugar => "desugar",
+            CompilerStageKind::Expand => "expand",
             CompilerStageKind::UntypedAnalysis => "untyped-analysis",
             CompilerStageKind::Analysis => "analysis",
             CompilerStageKind::Lower => "lower",

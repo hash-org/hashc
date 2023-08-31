@@ -9,10 +9,10 @@ mod state;
 use collection::CollectionPrintingOptions;
 use config::AstPrintingConfig;
 use hash_ast::{
-    ast::{self, walk_mut_self, AstVisitorMutSelf},
+    ast::{self, walk_mut_self, AstVisitorMutSelf, ParamOrigin},
     ast_visitor_mut_self_default_impl,
 };
-use hash_source::constant::{IntConstant, CONSTANT_MAP};
+use hash_source::constant::IntConstant;
 use hash_token::delimiter::Delimiter;
 use state::AstPrinterState;
 
@@ -80,7 +80,10 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let ast::Module { contents } = node.body();
+        let ast::Module { contents, macros } = node.body();
+
+        // Re-arrange the macros to be at the top.
+        self.visit_macro_invocations(macros.ast_ref())?;
 
         for item in contents.iter() {
             self.visit_expr(item.ast_ref())?;
@@ -166,13 +169,18 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let ast::EnumDefEntry { name, fields, ty } = node.body();
+        let ast::EnumDefEntry { name, fields, ty, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+            self.terminate_line("")?;
+        }
 
         self.visit_name(name.ast_ref())?;
 
-        if fields.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-            self.print_separated_collection(fields, opts, |this, field| this.visit_param(field))?;
+        if let Some(params) = fields {
+            self.visit_params(params.ast_ref())?;
         }
 
         if let Some(ty) = ty {
@@ -231,13 +239,18 @@ where
         Ok(())
     }
 
-    type ConstructorCallArgRet = ();
+    type ExprArgRet = ();
 
-    fn visit_constructor_call_arg(
+    fn visit_expr_arg(
         &mut self,
-        node: ast::AstNodeRef<ast::ConstructorCallArg>,
-    ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
-        let ast::ConstructorCallArg { name, value } = node.body();
+        node: ast::AstNodeRef<ast::ExprArg>,
+    ) -> Result<Self::ExprArgRet, Self::Error> {
+        let ast::ExprArg { name, value, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
 
         if let Some(name) = name {
             self.visit_name(name.ast_ref())?;
@@ -308,11 +321,8 @@ where
 
         self.write("enum")?;
 
-        if ty_params.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-            self.print_separated_collection(ty_params, opts, |this, field| {
-                this.visit_param(field)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
         let mut opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
@@ -325,16 +335,15 @@ where
         Ok(())
     }
 
-    type TyFnRet = ();
+    type TyFnTyRet = ();
 
-    fn visit_ty_fn(
+    fn visit_ty_fn_ty(
         &mut self,
-        node: ast::AstNodeRef<ast::TyFn>,
-    ) -> Result<Self::TyFnRet, Self::Error> {
-        let ast::TyFn { params, return_ty } = node.body();
+        node: ast::AstNodeRef<ast::TyFnTy>,
+    ) -> Result<Self::TyFnTyRet, Self::Error> {
+        let ast::TyFnTy { params, return_ty } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-        self.print_separated_collection(params, opts, |this, field| this.visit_param(field))?;
+        self.visit_ty_params(params.ast_ref())?;
         self.write(" -> ")?;
         self.visit_ty(return_ty.ast_ref())
     }
@@ -360,20 +369,11 @@ where
         let ast::StructDef { ty_params, fields } = node.body();
 
         self.write("struct")?;
-
-        if ty_params.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-            self.print_separated_collection(ty_params, opts, |this, param| {
-                this.visit_param(param)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
-        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        opts.indented();
-
-        self.print_separated_collection(fields, opts, |this, field| this.visit_param(field))?;
-
-        Ok(())
+        self.visit_params(fields.ast_ref())
     }
 
     type PropertyKindRet = ();
@@ -395,9 +395,7 @@ where
         node: ast::AstNodeRef<ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         let ast::TupleTy { entries } = node.body();
-
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(entries, opts, |this, arg| this.visit_ty_arg(arg))
+        self.visit_params(entries.ast_ref())
     }
 
     type ContinueStatementRet = ();
@@ -473,10 +471,30 @@ where
         let ast::TuplePat { fields, spread } = node.body();
 
         self.write("(")?;
-        self.print_pattern_collection(fields, spread, |this, field| {
-            this.visit_tuple_pat_entry(field)
-        })?;
+        self.print_pattern_collection(fields, spread, |this, field| this.visit_pat_arg(field))?;
         self.write(")")
+    }
+
+    type ParamsRet = ();
+    fn visit_params(
+        &mut self,
+        node: ast::AstNodeRef<ast::Params>,
+    ) -> Result<Self::TyParamsRet, Self::Error> {
+        let ast::Params { params, origin } = node.body();
+
+        // Return early if no params are specified.
+        if params.is_empty() {
+            return Ok(());
+        }
+
+        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
+
+        // @@HardCoded: Struct definition fields are indented.
+        if *origin == ParamOrigin::Struct {
+            opts.indented();
+        }
+
+        self.print_separated_collection(params, opts, |this, param| this.visit_param(param))
     }
 
     type ParamRet = ();
@@ -505,6 +523,51 @@ where
         }
 
         Ok(())
+    }
+
+    type TyParamRet = ();
+
+    fn visit_ty_param(
+        &mut self,
+        node: ast::AstNodeRef<ast::TyParam>,
+    ) -> Result<Self::ParamRet, Self::Error> {
+        let ast::TyParam { name, ty, default, .. } = node.body();
+
+        if let Some(name) = name {
+            self.visit_name(name.ast_ref())?;
+        }
+
+        if let Some(ty) = ty {
+            if name.is_some() {
+                self.write(": ")?;
+            }
+
+            self.visit_ty(ty.ast_ref())?;
+        }
+
+        if let Some(default) = default {
+            self.write(" = ")?;
+            self.visit_ty(default.ast_ref())?;
+        }
+
+        Ok(())
+    }
+
+    type TyParamsRet = ();
+    fn visit_ty_params(
+        &mut self,
+        node: ast::AstNodeRef<ast::TyParams>,
+    ) -> Result<Self::TyParamsRet, Self::Error> {
+        let ast::TyParams { params, .. } = node.body();
+
+        // Return early if no params are specified.
+        if params.is_empty() {
+            return Ok(());
+        }
+
+        let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
+
+        self.print_separated_collection(params, opts, |this, param| this.visit_ty_param(param))
     }
 
     type ArrayTyRet = ();
@@ -572,7 +635,12 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::TyArg>,
     ) -> Result<Self::TyArgRet, Self::Error> {
-        let ast::TyArg { name, ty } = node.body();
+        let ast::TyArg { name, ty, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
 
         if let Some(name) = name {
             self.visit_name(name.ast_ref())?;
@@ -580,23 +648,6 @@ where
         }
 
         self.visit_ty(ty.ast_ref())
-    }
-
-    type DirectiveExprRet = ();
-
-    fn visit_directive_expr(
-        &mut self,
-        node: ast::AstNodeRef<ast::DirectiveExpr>,
-    ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        let ast::DirectiveExpr { directives, subject } = node.body();
-
-        for directive in directives {
-            self.write("#")?;
-            self.visit_name(directive.ast_ref())?;
-            self.write(" ")?;
-        }
-
-        self.visit_expr(subject.ast_ref())
     }
 
     type AssignExprRet = ();
@@ -650,7 +701,7 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        CONSTANT_MAP.map_int(node.body.value, |value| {
+        node.body.value.map(|value| {
             let IntConstant { value, suffix } = value;
 
             self.write(format!("{}", value))?;
@@ -686,8 +737,7 @@ where
     ) -> Result<Self::TyFnDefRet, Self::Error> {
         let ast::TyFnDef { params, return_ty, ty_fn_body } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-        self.print_separated_collection(params, opts, |this, param| this.visit_param(param))?;
+        self.visit_ty_params(params.ast_ref())?;
 
         if let Some(ty) = return_ty {
             self.write(" -> ")?;
@@ -765,8 +815,7 @@ where
     ) -> Result<Self::FnDefRet, Self::Error> {
         let ast::FnDef { params, return_ty, fn_body } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(params, opts, |this, param| this.visit_param(param))?;
+        self.visit_params(params.ast_ref())?;
 
         if let Some(return_ty) = return_ty {
             self.write(" -> ")?;
@@ -808,9 +857,7 @@ where
     ) -> Result<Self::FnTyRet, Self::Error> {
         let ast::FnTy { params, return_ty } = node.body();
 
-        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(params, opts, |this, param| this.visit_ty_arg(param))?;
-
+        self.visit_params(params.ast_ref())?;
         self.write(" -> ")?;
         self.visit_ty(return_ty.ast_ref())
     }
@@ -854,9 +901,7 @@ where
         self.visit_expr(subject.ast_ref())?;
 
         let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(args, opts, |this, arg| {
-            this.visit_constructor_call_arg(arg)
-        })
+        self.print_separated_collection(args, opts, |this, arg| this.visit_expr_arg(arg))
     }
 
     type ConstructorPatRet = ();
@@ -872,9 +917,7 @@ where
 
         if fields.len() > 0 || spread_pos.is_some() {
             let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-            self.print_separated_collection(fields, opts, |this, field| {
-                this.visit_tuple_pat_entry(field)
-            })?;
+            self.print_separated_collection(fields, opts, |this, field| this.visit_pat_arg(field))?;
         }
 
         Ok(())
@@ -960,12 +1003,9 @@ where
         let ast::TraitDef { ty_params, members } = node.body();
 
         self.write("trait")?;
-        if ty_params.len() > 0 {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
 
-            self.print_separated_collection(ty_params, opts, |this, param| {
-                this.visit_param(param)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
         let mut opts = CollectionPrintingOptions::delimited(Delimiter::Brace, "\n");
@@ -1047,11 +1087,8 @@ where
 
         self.write("mod")?;
 
-        if !ty_params.is_empty() {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-            self.print_separated_collection(ty_params, opts, |this, param| {
-                this.visit_param(param)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
         self.write(" ")?;
@@ -1064,7 +1101,13 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        let ast::MatchCase { pat, expr } = node.body();
+        let ast::MatchCase { pat, expr, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
+
         self.visit_pat(pat.ast_ref())?;
         self.write(" => ")?;
 
@@ -1080,13 +1123,18 @@ where
         self.write(format!("{}", node.body.value))
     }
 
-    type TuplePatEntryRet = ();
+    type PatArgRet = ();
 
-    fn visit_tuple_pat_entry(
+    fn visit_pat_arg(
         &mut self,
-        node: ast::AstNodeRef<ast::TuplePatEntry>,
-    ) -> Result<Self::TuplePatEntryRet, Self::Error> {
-        let ast::TuplePatEntry { name, pat } = node.body();
+        node: ast::AstNodeRef<ast::PatArg>,
+    ) -> Result<Self::PatArgRet, Self::Error> {
+        let ast::PatArg { name, pat, macros } = node.body();
+
+        // We have to visit the macro args first...
+        if let Some(macros) = macros {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
 
         if let Some(name) = name {
             self.visit_name(name.ast_ref())?;
@@ -1156,11 +1204,8 @@ where
 
         self.write("impl")?;
 
-        if !ty_params.is_empty() {
-            let opts = CollectionPrintingOptions::delimited(Delimiter::Angle, ", ");
-            self.print_separated_collection(ty_params, opts, |this, param| {
-                this.visit_param(param)
-            })?;
+        if let Some(ty_params) = ty_params {
+            self.visit_ty_params(ty_params.ast_ref())?;
         }
 
         self.write(" ")?;
@@ -1246,6 +1291,132 @@ where
         }
 
         self.visit_expr(inner_expr.ast_ref())
+    }
+
+    type MacroInvocationArgRet = ();
+
+    fn visit_macro_invocation_arg(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocationArg>,
+    ) -> Result<Self::MacroInvocationArgRet, Self::Error> {
+        let ast::MacroInvocationArg { name, value } = node.body();
+
+        if let Some(name) = name {
+            self.visit_name(name.ast_ref())?;
+            self.write(" = ")?;
+        }
+
+        self.visit_expr(value.ast_ref())
+    }
+
+    type MacroInvocationArgsRet = ();
+
+    fn visit_macro_invocation_args(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocationArgs>,
+    ) -> Result<Self::MacroInvocationArgsRet, Self::Error> {
+        let ast::MacroInvocationArgs { args } = node.body();
+
+        // This shouldn't really happen, but in case it does, we can just return
+        // early.
+        if args.is_empty() {
+            return Ok(());
+        }
+
+        let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
+        self.print_separated_collection(args, opts, |this, arg| {
+            this.visit_macro_invocation_arg(arg)
+        })
+    }
+
+    type MacroInvocationRet = ();
+
+    fn visit_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocation>,
+    ) -> Result<Self::MacroInvocationRet, Self::Error> {
+        let ast::MacroInvocation { name, args } = node.body();
+
+        self.visit_name(name.ast_ref())?;
+
+        if let Some(args) = args {
+            self.visit_macro_invocation_args(args.ast_ref())?;
+        }
+
+        Ok(())
+    }
+
+    type MacroInvocationsRet = ();
+
+    fn visit_macro_invocations(
+        &mut self,
+        node: ast::AstNodeRef<ast::MacroInvocations>,
+    ) -> Result<Self::MacroInvocationsRet, Self::Error> {
+        let ast::MacroInvocations { invocations } = node.body();
+
+        // This shouldn't really happen, but in case it does, we can just return
+        // early.
+        if invocations.is_empty() {
+            return Ok(());
+        }
+
+        // Start of the
+        self.write("#")?;
+
+        if invocations.len() == 1 && invocations[0].args.is_none() {
+            return self.visit_name(invocations[0].name.ast_ref());
+        }
+
+        let opts = CollectionPrintingOptions::delimited(Delimiter::Bracket, ", ");
+        self.print_separated_collection(invocations, opts, |this, arg| {
+            this.visit_macro_invocation(arg)
+        })
+    }
+
+    type TyMacroInvocationRet = ();
+
+    fn visit_ty_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::TyMacroInvocation>,
+    ) -> Result<Self::TyMacroInvocationRet, Self::Error> {
+        let ast::TyMacroInvocation { subject, macros } = node.body();
+
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
+
+        self.visit_ty(subject.ast_ref())
+    }
+
+    type PatMacroInvocationRet = ();
+
+    fn visit_pat_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::PatMacroInvocation>,
+    ) -> Result<Self::PatMacroInvocationRet, Self::Error> {
+        let ast::PatMacroInvocation { subject, macros } = node.body();
+
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
+        }
+
+        self.visit_pat(subject.ast_ref())
+    }
+
+    type ExprMacroInvocationRet = ();
+
+    fn visit_expr_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::ExprMacroInvocation>,
+    ) -> Result<Self::ExprMacroInvocationRet, Self::Error> {
+        let ast::ExprMacroInvocation { subject, macros } = node.body();
+
+        if !macros.is_empty() {
+            self.visit_macro_invocations(macros.ast_ref())?;
+            self.terminate_line("")?;
+        }
+
+        self.visit_expr(subject.ast_ref())
     }
 
     ast_visitor_mut_self_default_impl!(

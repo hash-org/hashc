@@ -4,7 +4,7 @@ error: unexpectedly encountered a `{...}`
 5 |       Foo := struct<{ 1 }> (
   |                     ^^^^^ 
 6 |           x: T,
-  = help: consider adding a `>`
+  = help: expected either `identifier`, or `>`
 
 error: unexpectedly encountered a `{...}`
   --> $DIR/disallowed_exprs.hash:12:17
@@ -12,7 +12,7 @@ error: unexpectedly encountered a `{...}`
 12 |       Bar := enum<{ 1 }> (
    |                   ^^^^^ 
 13 |           L,
-   = help: consider adding a `>`
+   = help: expected either `identifier`, or `>`
 
 error: unexpectedly encountered the string `ch`
   --> $DIR/disallowed_exprs.hash:19:17
@@ -20,4 +20,4 @@ error: unexpectedly encountered the string `ch`
 19 |       Bar := enum<"ch"> (
    |                   ^^^^ 
 20 |           L,
-   = help: consider adding a `>`
+   = help: expected either `identifier`, or `>`

@@ -3,3 +3,4 @@ error: expected a name here
 2 |   
 3 |   k := map!{ 1::2 };
   |                 ^ 
+  = help: expected a `identifier`

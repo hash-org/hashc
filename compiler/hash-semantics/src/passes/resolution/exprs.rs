@@ -7,16 +7,16 @@
 use std::collections::HashSet;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_intrinsics::{
     intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
-    primitives::primitives,
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::IDENTS, location::Span};
+use hash_source::location::Span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    PartialCloneStore, PartialStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
@@ -25,12 +25,12 @@ use hash_tir::{
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
-    directives::AppliedDirectives,
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     node::{Node, NodeOrigin},
     params::ParamIndex,
+    primitives::primitives,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
     term_as_variant,
@@ -55,6 +55,11 @@ use crate::{
     ops::common::CommonOps,
     passes::ast_utils::AstPass,
 };
+
+pub enum AstParams<'ast> {
+    Ty(&'ast ast::AstNode<ast::TyParams>),
+    Param(&'ast ast::AstNode<ast::Params>),
+}
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
 /// to later resolve them into terms.
@@ -90,7 +95,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make TC arguments from the given set of AST constructor call arguments
     pub(super) fn make_args_from_constructor_call_args(
         &self,
-        args: &ast::AstNodes<ast::ConstructorCallArg>,
+        args: &ast::AstNodes<ast::ExprArg>,
     ) -> SemanticResult<ArgsId> {
         // @@Todo: error recovery
         let args = args
@@ -133,8 +138,8 @@ impl<'tc> ResolutionPass<'tc> {
                 self.make_term_from_ast_access_expr(node.with_body(access_expr))?
             }
             ast::Expr::Ty(expr_ty) => self.make_term_from_ast_ty_expr(node.with_body(expr_ty))?,
-            ast::Expr::Directive(directive_expr) => {
-                self.make_term_from_ast_directive_expr(node.with_body(directive_expr))?
+            ast::Expr::Macro(invocation) => {
+                self.make_term_from_ast_macro_invocation_expr(node.with_body(invocation))?
             }
             ast::Expr::Declaration(declaration) => {
                 self.make_term_from_ast_stack_declaration(node.with_body(declaration))?
@@ -436,34 +441,11 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::DirectiveExpr`].
-    fn make_term_from_ast_directive_expr(
+    fn make_term_from_ast_macro_invocation_expr(
         &self,
-        node: AstNodeRef<ast::DirectiveExpr>,
+        node: AstNodeRef<ast::ExprMacroInvocation>,
     ) -> SemanticResult<TermId> {
-        let directives =
-            AppliedDirectives { directives: node.directives.iter().map(|d| d.ident).collect() };
-
-        // If this is an already-resolved function definition, register the directives
-        // on the function before we pass to the inner expression:
-        if let Some(fn_def_id) =
-            tir_stores().ast_info().fn_defs().get_data_by_node(node.subject.id())
-        {
-            // Register directives on the term:
-            tir_stores().directives().insert(fn_def_id.into(), directives.clone());
-        }
-
-        // Pass to the inner expression
-        let inner = self.make_term_from_ast_expr(node.subject.ast_ref())?;
-
-        // Register directives on the term:
-        tir_stores().directives().insert(inner.into(), directives.clone());
-
-        // If this is a type, also register the directives on the type
-        if let Term::Ty(ty_id) = *inner.value() {
-            tir_stores().directives().insert(ty_id.into(), directives);
-        }
-
-        Ok(inner)
+        self.make_term_from_ast_expr(node.subject.ast_ref())
     }
 
     /// Make a term from an [`ast::Declaration`] in non-constant scope.
@@ -830,7 +812,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// [`ast::TyFnDef`] or a [`ast::FnDef`].
     fn make_term_from_some_ast_fn_def(
         &self,
-        params: &ast::AstNodes<ast::Param>,
+        params: AstParams<'_>,
         body: &AstNode<ast::Expr>,
         return_ty: &Option<AstNode<ast::Ty>>,
         node_id: AstNodeId,
@@ -839,20 +821,17 @@ impl<'tc> ResolutionPass<'tc> {
         let fn_def_id = tir_stores().ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // Whether the function has been marked as pure by a directive
-        let is_pure_by_directive = tir_stores()
-            .directives()
-            .get(fn_def_id.into())
-            .map(|directives| directives.contains(IDENTS.pure))
-            == Some(true);
+        let is_pure_by_directive = attr_store().node_has_attr(node_id, attrs::PURE);
 
         let (params, return_ty, return_value, fn_def_id) =
             self.scoping().enter_scope(ContextKind::Environment, || {
                 // First resolve the parameters
-                let params = self.try_or_add_error(self.resolve_params_from_ast_params(
-                    params,
-                    fn_def_id.borrow().ty.implicit,
-                    fn_def_id.into(),
-                ));
+                let params = self.try_or_add_error(match params {
+                    AstParams::Ty(params) => self.resolve_params_from_ast_ty_params(params),
+                    AstParams::Param(params) => {
+                        self.resolve_params_from_ast_params(params, fn_def_id.borrow().ty.implicit)
+                    }
+                });
 
                 // Modify the existing fn def for the params:
                 if let Some(params) = params {
@@ -899,7 +878,7 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::TyFnDef>,
     ) -> SemanticResult<TermId> {
         self.make_term_from_some_ast_fn_def(
-            &node.params,
+            AstParams::Ty(&node.params),
             &node.ty_fn_body,
             &node.return_ty,
             node.id(),
@@ -911,7 +890,12 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::FnDef>,
     ) -> SemanticResult<TermId> {
-        self.make_term_from_some_ast_fn_def(&node.params, &node.fn_body, &node.return_ty, node.id())
+        self.make_term_from_some_ast_fn_def(
+            AstParams::Param(&node.params),
+            &node.fn_body,
+            &node.return_ty,
+            node.id(),
+        )
     }
 
     /// Make a term from an [`ast::AssignOpExpr`].

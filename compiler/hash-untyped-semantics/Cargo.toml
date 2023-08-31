@@ -4,14 +4,12 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
-[dependencies]
-bitflags = "2.0.0-rc.1"
-crossbeam-channel = "0.5.1"
-rayon = "1.5.0"
+[lib]
+doctest = false
 
+[dependencies]
 hash-ast = { path = "../hash-ast" }
 hash-utils = { path = "../hash-utils" }
-hash-error-codes = { path = "../hash-error-codes" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }

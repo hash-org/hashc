@@ -16,6 +16,7 @@ use super::{
     pats::PatId,
 };
 use crate::{
+    ast_info::HasNodeId,
     environment::stores::tir_stores,
     node::{Node, NodeOrigin},
     params::ParamsId,

@@ -4,3 +4,4 @@ error: expected a type annotation
 4 |   foo := (l: u32, k:) -> u32 => { // error here!
   |                     ^ 
 5 |       l * k
+  = help: expected either `identifier`, `!`, `#`, `&`, `<`, `(`, `{`, or `[`

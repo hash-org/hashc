@@ -4,6 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
+use hash_ast::ast;
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -14,6 +15,7 @@ use crate::{
     access::AccessTerm,
     args::Arg,
     arrays::{ArrayTerm, IndexTerm},
+    ast_info::HasNodeId,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
     environment::stores::tir_stores,
@@ -102,6 +104,12 @@ pub enum Term {
 tir_node_single_store!(Term);
 tir_node_sequence_store_indirect!(TermList[TermId]);
 
+impl HasNodeId for TermId {
+    fn node_id(&self) -> Option<ast::AstNodeId> {
+        tir_stores().ast_info().terms().get_node_by_data(*self)
+    }
+}
+
 impl Term {
     pub fn is_void(&self) -> bool {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
@@ -131,10 +139,8 @@ impl Term {
     pub fn from(term: impl Into<Term>) -> TermId {
         let term = term.into();
         let (ast_info, location) = match term {
-            Term::Ty(ty) => (tir_stores().ast_info().tys().get_node_by_data(ty), get_location(ty)),
-            Term::FnRef(f) => {
-                (tir_stores().ast_info().fn_defs().get_node_by_data(f), get_location(f))
-            }
+            Term::Ty(ty) => (ty.node_id(), get_location(ty)),
+            Term::FnRef(f) => (f.node_id(), get_location(f)),
             Term::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
@@ -153,7 +159,7 @@ impl Term {
     pub fn inherited_from(source: TermId, term: impl Into<Term>) -> TermId {
         let created = Self::from(term);
         tir_stores().location().copy_location(source, created);
-        if let Some(ast_info) = tir_stores().ast_info().terms().get_node_by_data(source) {
+        if let Some(ast_info) = source.node_id() {
             tir_stores().ast_info().terms().insert(ast_info, created);
         }
         created

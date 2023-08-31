@@ -6,8 +6,6 @@
 
 use std::fmt;
 
-use num_bigint::BigInt;
-
 use crate::{abi::Integer, alignment::Alignments, data_layout::HasDataLayout, size::Size};
 
 /// A primitive floating-point type, either a `f32` or an `f64`.
@@ -64,13 +62,13 @@ pub enum UIntTy {
 impl UIntTy {
     /// Get the size of [IntTy] in bytes. Returns [None] for
     /// [UIntTy::UBig] variants
-    pub fn size(&self, ptr_width: Size) -> Size {
+    pub fn size(&self, ptr_size: Size) -> Size {
         match self {
             UIntTy::U8 => Size::from_bytes(1),
             UIntTy::U16 => Size::from_bytes(2),
             UIntTy::U32 => Size::from_bytes(4),
             UIntTy::U64 => Size::from_bytes(8),
-            UIntTy::USize => ptr_width,
+            UIntTy::USize => ptr_size,
             UIntTy::U128 => Size::from_bytes(16),
             UIntTy::UBig => panic!("ubig has no defined size"),
         }
@@ -95,25 +93,14 @@ impl UIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self, ptr_width: Size) -> BigInt {
-        match self {
-            UIntTy::U8 => BigInt::from(u8::MAX),
-            UIntTy::U16 => BigInt::from(u16::MAX),
-            UIntTy::U32 => BigInt::from(u32::MAX),
-            UIntTy::U64 => BigInt::from(u64::MAX),
-            UIntTy::U128 => BigInt::from(u128::MAX),
-            UIntTy::USize => {
-                let max = !0u64 >> (64 - (ptr_width.bits()));
-                BigInt::from(max)
-            }
-            UIntTy::UBig => panic!("ubig has no defined max"),
-        }
+    pub fn max(&self, ptr_size: Size) -> u128 {
+        self.size(ptr_size).unsigned_int_max()
     }
 
     /// Function to get the most minimum integer represented within this
     /// type.
-    pub fn min(&self) -> BigInt {
-        0.into()
+    pub fn min(&self) -> u128 {
+        0
     }
 
     /// Convert the [UIntTy] into a primitive type name
@@ -223,38 +210,15 @@ impl SIntTy {
     /// Function to get the largest possible integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined max and so the
     /// function returns [None].
-    pub fn max(&self, ptr_width: Size) -> BigInt {
-        match self {
-            SIntTy::I8 => BigInt::from(i8::MAX),
-            SIntTy::I16 => BigInt::from(i16::MAX),
-            SIntTy::I32 => BigInt::from(i32::MAX),
-            SIntTy::I64 => BigInt::from(i64::MAX),
-            SIntTy::I128 => BigInt::from(i128::MAX),
-            SIntTy::ISize => {
-                // convert the size to a signed integer
-                let max = (1u64 << (ptr_width.bits() - 1)) - 1;
-                BigInt::from(max)
-            }
-            SIntTy::IBig => panic!("Cannot get max of IBig"),
-        }
+    pub fn max(&self, ptr_size: Size) -> i128 {
+        self.size(ptr_size).signed_int_max()
     }
 
     /// Function to get the most minimum integer represented within this
     /// type. For sizes `ibig` and `ubig` there is no defined minimum and so the
     /// function returns [None].
-    pub fn min(&self, ptr_width: Size) -> BigInt {
-        match self {
-            SIntTy::I8 => BigInt::from(i8::MIN),
-            SIntTy::I16 => BigInt::from(i16::MIN),
-            SIntTy::I32 => BigInt::from(i32::MIN),
-            SIntTy::I64 => BigInt::from(i64::MIN),
-            SIntTy::I128 => BigInt::from(i128::MIN),
-            SIntTy::ISize => {
-                let min = (i64::MAX) << (ptr_width.bits() - 1);
-                BigInt::from(min)
-            }
-            SIntTy::IBig => panic!("Cannot get min of IBig"),
-        }
+    pub fn min(&self, ptr_size: Size) -> i128 {
+        self.size(ptr_size).signed_int_min()
     }
 
     /// Convert the [IntTy] into a primitive type name
@@ -328,6 +292,11 @@ pub enum IntTy {
 }
 
 impl IntTy {
+    /// Check if the type is is bounded, i.e. not a `ubig` or `ibig` type.
+    pub fn is_bounded(&self) -> bool {
+        !matches!(self, IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig))
+    }
+
     /// Convert a [Integer] with signed-ness into a [IntTy]
     pub fn from_integer(integer: Integer, signed: bool) -> Self {
         if signed {
@@ -366,28 +335,8 @@ impl IntTy {
     /// must be applied to the value.
     pub fn numeric_max(&self, ptr_size: Size) -> u128 {
         match self {
-            IntTy::Int(_) => self.size(ptr_size).signed_int_max() as u128,
+            IntTy::Int(val) => val.max(ptr_size) as u128,
             IntTy::UInt(_) => self.size(ptr_size).unsigned_int_max(),
-        }
-    }
-
-    /// Function to get the largest possible integer represented within this
-    /// type. For sizes `ibig` and `ubig` there is no defined max and so the
-    /// function returns [None].
-    pub fn max(&self, ptr_width: Size) -> BigInt {
-        match self {
-            IntTy::Int(ty) => ty.max(ptr_width),
-            IntTy::UInt(ty) => ty.max(ptr_width),
-        }
-    }
-
-    /// Function to get the most minimum integer represented within this
-    /// type. For sizes `ibig` there is no defined minimum and so the
-    /// function returns [None].
-    pub fn min(&self, ptr_width: Size) -> BigInt {
-        match self {
-            IntTy::Int(ty) => ty.min(ptr_width),
-            IntTy::UInt(ty) => ty.min(),
         }
     }
 
@@ -443,5 +392,39 @@ impl IntTy {
 impl fmt::Display for IntTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_name())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        primitives::{SIntTy, UIntTy},
+        size::Size,
+    };
+
+    #[test]
+    fn test_max_signed_int_value() {
+        // Pointer width is always described using a number of bytes
+        assert_eq!(SIntTy::ISize.max(Size::from_bytes(8)), isize::MAX as i128);
+        assert_eq!(SIntTy::ISize.min(Size::from_bytes(8)), isize::MIN as i128);
+
+        assert_eq!(SIntTy::ISize.max(Size::from_bytes(4)), i32::MAX as i128);
+        assert_eq!(SIntTy::ISize.min(Size::from_bytes(4)), i32::MIN as i128);
+
+        // Check that computing the size of each type with pointer widths
+        // is consistent.
+        assert_eq!(SIntTy::ISize.size(Size::from_bytes(8)), Size::from_bytes(8));
+        assert_eq!(SIntTy::ISize.size(Size::from_bytes(4)), Size::from_bytes(4));
+    }
+
+    #[test]
+    fn test_max_unsigned_int_value() {
+        // We don't check `min()` for unsigned since this always
+        // returns 0.
+        assert_eq!(UIntTy::USize.max(Size::from_bytes(8)), usize::MAX as u128);
+        assert_eq!(UIntTy::USize.max(Size::from_bytes(4)), u32::MAX as u128);
+
+        assert_eq!(UIntTy::USize.size(Size::from_bytes(4)), Size::from_bytes(4));
+        assert_eq!(UIntTy::USize.size(Size::from_bytes(8)), Size::from_bytes(8));
     }
 }

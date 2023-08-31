@@ -1,0 +1,15 @@
+// stage=full, run=fail, skip=true
+
+// @@FixMe: this should cause a compilation error.
+
+main := () => {
+
+}
+
+main := () => {
+
+}
+
+#entry_point my_main := () => {
+
+}

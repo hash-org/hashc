@@ -14,7 +14,7 @@ use std::fmt;
 use hash_ir::IrCtx;
 use hash_layout::compute::LayoutComputer;
 use hash_pipeline::settings::CompilerSettings;
-use hash_target::{data_layout::HasDataLayout, Target};
+use hash_target::{data_layout::HasDataLayout, HasTarget};
 
 use self::{
     constants::ConstValueBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
@@ -66,15 +66,10 @@ impl<T: Copy + PartialEq + fmt::Debug> CodeGenObject for T {}
 
 /// A trait that provides the backend the necessary context to perform
 /// code generation.
-pub trait HasCtxMethods<'b>: HasDataLayout {
+pub trait HasCtxMethods<'b>: HasDataLayout + HasTarget {
     /// Return a reference to the current [CompilerSettings] for the
     /// workspace.
     fn settings(&self) -> &CompilerSettings;
-
-    /// Return the current compilation target.
-    fn target(&self) -> &Target {
-        self.settings().target()
-    }
 
     /// Returns a reference to the [CodeGenStorage].
     fn cg_ctx(&self) -> &CodeGenStorage;

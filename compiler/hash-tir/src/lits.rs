@@ -2,7 +2,7 @@
 use std::fmt::Display;
 
 use hash_ast::ast;
-use hash_source::constant::{InternedFloat, InternedInt, InternedStr, CONSTANT_MAP};
+use hash_source::constant::{InternedFloat, InternedInt, InternedStr};
 use hash_target::size::Size;
 use num_bigint::BigInt;
 
@@ -15,11 +15,6 @@ pub struct IntLit {
 }
 
 impl IntLit {
-    /// Create a new [IntLit] from an [InternedInt].
-    pub fn from_value(value: InternedInt) -> Self {
-        Self { underlying: ast::IntLit { value, kind: ast::IntLitKind::Unsuffixed } }
-    }
-
     /// Get the interned value of the literal.
     pub fn interned_value(&self) -> InternedInt {
         self.underlying.value
@@ -27,7 +22,13 @@ impl IntLit {
 
     /// Return the value of the integer literal.
     pub fn value(&self) -> BigInt {
-        (&CONSTANT_MAP.lookup_int(self.underlying.value)).try_into().unwrap()
+        (&self.underlying.value.value()).try_into().unwrap()
+    }
+}
+
+impl From<InternedInt> for IntLit {
+    fn from(value: InternedInt) -> Self {
+        Self { underlying: ast::IntLit { value, kind: ast::IntLitKind::Unsuffixed } }
     }
 }
 
@@ -47,7 +48,7 @@ impl StrLit {
 
     /// Return the value of the string literal.
     pub fn value(&self) -> &'static str {
-        CONSTANT_MAP.lookup_string(self.underlying.data)
+        self.underlying.data.value()
     }
 }
 
@@ -73,7 +74,13 @@ impl FloatLit {
 
     /// Return the value of the float literal.
     pub fn value(&self) -> f64 {
-        CONSTANT_MAP.lookup_float(self.underlying.value).as_f64()
+        self.underlying.value.value().as_f64()
+    }
+}
+
+impl From<InternedFloat> for FloatLit {
+    fn from(value: InternedFloat) -> Self {
+        Self { underlying: ast::FloatLit { value, kind: ast::FloatLitKind::Unsuffixed } }
     }
 }
 
@@ -86,14 +93,15 @@ pub struct CharLit {
 }
 
 impl CharLit {
-    /// Create a new [CharLit] from a literal character value.
-    pub fn from_literal(data: char) -> Self {
-        Self { underlying: ast::CharLit { data } }
-    }
-
     /// Return the value of the character literal.
     pub fn value(&self) -> char {
         self.underlying.data
+    }
+}
+
+impl From<char> for CharLit {
+    fn from(data: char) -> Self {
+        Self { underlying: ast::CharLit { data } }
     }
 }
 
@@ -135,7 +143,7 @@ impl Display for IntLit {
 
 impl Display for StrLit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", CONSTANT_MAP.lookup_string(self.underlying.data))
+        write!(f, "{:?}", self.underlying.data)
     }
 }
 
@@ -160,19 +168,19 @@ impl Display for LitPat {
             // and `MAX` for these situations since it is easier for the
             // user to understand the problem.
             LitPat::Int(lit) => {
-                let (kind, value): (_, BigInt) = CONSTANT_MAP
-                    .map_int(lit.interned_value(), |constant| {
-                        (constant.ty(), constant.value.as_big())
-                    });
+                let kind = lit.interned_value().map(|constant| constant.ty());
 
                 // @@Hack: we don't use size since it is never invoked because of
                 // integer constant don't store usize values.
                 let dummy_size = Size::ZERO;
 
                 if !kind.is_bigint() {
-                    if kind.min(dummy_size) == value {
+                    let value =
+                        lit.interned_value().map(|constant| constant.value.as_u128().unwrap());
+
+                    if kind.numeric_min(dummy_size) == value {
                         write!(f, "{kind}::MIN")
-                    } else if kind.max(dummy_size) == value {
+                    } else if kind.numeric_max(dummy_size) == value {
                         write!(f, "{kind}::MAX")
                     } else {
                         write!(f, "{lit}")

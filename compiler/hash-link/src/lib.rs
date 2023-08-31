@@ -25,7 +25,10 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_source::SourceId;
-use hash_target::link::{Cc, LinkerFlavour, Lld};
+use hash_target::{
+    link::{Cc, LinkerFlavour, Lld},
+    HasTarget,
+};
 use hash_utils::timing::{time_item, AccessToMetrics};
 use linker::{build_linker_args, get_linker};
 use platform::flush_linked_file;

@@ -6,25 +6,25 @@ mod block;
 mod definitions;
 mod expr;
 mod lit;
+mod macros;
 mod name;
 mod operator;
 mod pat;
 mod ty;
 
-use std::{cell::Cell, fmt::Display};
+use std::cell::Cell;
 
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticStore};
+use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_source::location::{ByteRange, Span};
-use hash_token::{
-    delimiter::{Delimiter, DelimiterVariant},
-    Token, TokenKind, TokenKindVector,
-};
+use hash_token::{delimiter::Delimiter, Token, TokenKind};
+use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use crate::{
     diagnostics::{
         error::{ParseError, ParseErrorKind, ParseResult},
-        warning::ParseWarning,
+        expected::ExpectedItem,
+        ParserDiagnostics,
     },
     import_resolver::ImportResolver,
 };
@@ -69,38 +69,6 @@ macro_rules! disable_flag {
     };
 }
 
-/// Represents what the origin of a definition is. This is useful
-/// for when emitting warnings that might occur in the same way
-/// as the ret of these constructs.
-#[derive(Debug, Clone, Copy)]
-pub enum DefinitionKind {
-    /// This is a type function definition,
-    TyFn,
-    /// The definition is a `struct`.
-    Struct,
-    /// The definition is a `enum`.
-    Enum,
-    /// The definition is a `trait`.
-    Trait,
-    /// The definition is a `impl` block.
-    Impl,
-    /// The definition is a `mod` block.
-    Mod,
-}
-
-impl Display for DefinitionKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DefinitionKind::TyFn => write!(f, "type function"),
-            DefinitionKind::Struct => write!(f, "struct"),
-            DefinitionKind::Enum => write!(f, "enum"),
-            DefinitionKind::Trait => write!(f, "trait"),
-            DefinitionKind::Impl => write!(f, "impl"),
-            DefinitionKind::Mod => write!(f, "mod"),
-        }
-    }
-}
-
 /// The [AstGen] struct it the primary parser for the Hash compiler. It
 /// will take a token stream and its accompanying token trees and will
 /// convert the stream into an AST.
@@ -123,17 +91,12 @@ pub struct AstGen<'stream, 'resolver> {
     /// Token trees that were generated from the stream
     token_trees: &'stream [Vec<Token>],
 
-    /// State set by expression parsers for parents to let them know if the
-    /// parsed expression was made up of multiple expressions with
-    /// precedence operators.
-    is_compound_expr: Cell<bool>,
-
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
     pub(crate) resolver: &'resolver ImportResolver<'resolver>,
 
     /// Collected diagnostics for the current [AstGen]
-    pub(crate) diagnostics: DiagnosticStore<ParseError, ParseWarning>,
+    pub(crate) diagnostics: &'stream ParserDiagnostics,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -144,6 +107,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         stream: &'stream [Token],
         token_trees: &'stream [Vec<Token>],
         resolver: &'resolver ImportResolver,
+        diagnostics: &'stream ParserDiagnostics,
     ) -> Self {
         // We compute the `parent_span` from the given strem.
         // If the stream has no tokens, then we assume that the
@@ -153,15 +117,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => ByteRange::default(),
         };
 
-        Self {
-            stream,
-            token_trees,
-            offset: Cell::new(0),
-            parent_span,
-            is_compound_expr: Cell::new(false),
-            resolver,
-            diagnostics: DiagnosticStore::default(),
-        }
+        Self { stream, token_trees, offset: Cell::new(0), parent_span, resolver, diagnostics }
     }
 
     /// Create new AST generator from a provided token stream with inherited
@@ -172,10 +128,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             stream,
             token_trees: self.token_trees,
             offset: Cell::new(0),
-            is_compound_expr: self.is_compound_expr.clone(),
             parent_span,
             resolver: self.resolver,
-            diagnostics: DiagnosticStore::default(),
+            diagnostics: self.diagnostics,
         }
     }
 
@@ -308,7 +263,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create [AstNodes] with a span.
     pub(crate) fn nodes_with_span<T>(
         &self,
-        nodes: Vec<AstNode<T>>,
+        nodes: ThinVec<AstNode<T>>,
         location: ByteRange,
     ) -> AstNodes<T> {
         AstNodes::new(nodes, self.make_span(location))
@@ -318,7 +273,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// the current [ByteRange].
     pub(crate) fn nodes_with_joined_span<T>(
         &self,
-        nodes: Vec<AstNode<T>>,
+        nodes: ThinVec<AstNode<T>>,
         start: ByteRange,
     ) -> AstNodes<T> {
         AstNodes::new(nodes, self.make_span(start.join(self.current_pos())))
@@ -329,7 +284,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn make_err(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
         span: Option<ByteRange>,
     ) -> ParseError {
@@ -345,7 +300,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn err<T>(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
     ) -> ParseResult<T> {
         Err(self.make_err(kind, expected, received, None))
@@ -355,7 +310,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn err_with_location<T>(
         &self,
         kind: ParseErrorKind,
-        expected: Option<TokenKindVector>,
+        expected: ExpectedItem,
         received: Option<TokenKind>,
         span: ByteRange,
     ) -> ParseResult<T> {
@@ -370,7 +325,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
-        self.err(ParseErrorKind::UnExpected, None, Some(self.current_token().kind))
+        self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), Some(self.current_token().kind))
     }
 
     /// This function `consumes` a generator into the patent [AstGen] whilst
@@ -383,15 +338,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if !other.has_errors() && other.has_token() {
             other.maybe_add_error::<()>(other.expected_eof());
         }
-
-        // Now we will merge this `other` generator with ours...
-        self.merge_diagnostics(other.diagnostics);
     }
 
     /// Generate an error representing that the current generator unexpectedly
     /// reached the end of input at this point.
     pub(crate) fn unexpected_eof<T>(&self) -> ParseResult<T> {
-        self.err(ParseErrorKind::UnExpected, None, None)
+        self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), None)
     }
 
     /// Function to peek ahead and match some parsing function that returns a
@@ -445,13 +397,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// **Note**: Call `consume_gen()` in the passed generator in order to
     /// merge any generated errors, and to emit a possible `expected_eof` at
     /// the end if applicable.
-    pub(crate) fn parse_separated_fn<T>(
+    pub(crate) fn parse_nodes<T>(
         &mut self,
         mut item: impl FnMut(&mut Self) -> ParseResult<AstNode<T>>,
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> AstNodes<T> {
         let start = self.current_pos();
-        let mut args = vec![];
+        let mut args = thin_vec![];
 
         // flag specifying if the parser has errored but is trying to recover
         // by parsing the next item
@@ -503,13 +455,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// that is generated. Additionally, this provides an index for the the
     /// `item` closure to keep track of how many items have already
     /// been parsed.
-    pub(crate) fn parse_separated_fn_with_skips<T>(
+    pub(crate) fn parse_nodes_with_skips<T>(
         &mut self,
         mut item: impl FnMut(&mut Self, usize) -> ParseResult<Option<AstNode<T>>>,
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> AstNodes<T> {
         let start = self.current_pos();
-        let mut args = vec![];
+        let mut args = thin_vec![];
 
         // flag specifying if the parser has errored but is trying to recover
         // by parsing the next item
@@ -573,7 +525,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 ParseErrorKind::UnExpected,
-                Some(TokenKindVector::singleton(atom)),
+                ExpectedItem::from(atom),
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_pos(), |t| t.span),
             ),
@@ -610,10 +562,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 error.unwrap_or(ParseErrorKind::UnExpected),
-                Some(TokenKindVector::singleton(TokenKind::Delimiter(
-                    delimiter,
-                    DelimiterVariant::Left,
-                ))),
+                ExpectedItem::from(delimiter),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_pos(), |tok| tok.span),
             )?,
@@ -626,22 +575,48 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// should get all the diagnostics for the current session.
     pub(crate) fn parse_module(&mut self) -> AstNode<Module> {
         let start = self.current_pos();
-        let mut contents = vec![];
+        let mut contents = thin_vec![];
+        let mut macros = AstNodes::new(thin_vec![], self.make_span(start));
 
         while self.has_token() {
-            match self.parse_top_level_expr() {
-                Ok(Some((_, expr))) => contents.push(expr),
-                Ok(_) => continue,
-                Err(err) => {
-                    // @@Future: attempt error recovery here...
-                    self.add_error(err);
-                    break;
+            // Check if we have a `#!` which represents a top-level
+            // macro invocation.
+            match (self.peek(), self.peek_second()) {
+                (
+                    Some(Token { kind: TokenKind::Pound, .. }),
+                    Some(Token { kind: TokenKind::Exclamation, .. }),
+                ) => {
+                    self.offset.set(self.offset.get() + 2);
+
+                    match self.parse_module_marco_invocations() {
+                        Ok(items) => macros.merge(items),
+                        Err(err) => {
+                            self.add_error(err);
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    match self.parse_top_level_expr() {
+                        Ok(Some((_, expr))) => contents.push(expr),
+                        Ok(_) => continue,
+                        Err(err) => {
+                            // @@Future: attempt error recovery here...
+                            self.add_error(err);
+                            break;
+                        }
+                    }
                 }
             }
         }
 
-        let span = start.join(self.current_pos());
-        self.node_with_span(Module { contents: self.nodes_with_joined_span(contents, span) }, span)
+        self.node_with_joined_span(
+            Module {
+                contents: self.nodes_with_joined_span(contents, start),
+                macros: self.make_macro_invocations(macros),
+            },
+            start,
+        )
     }
 
     /// This function is used to exclusively parse a interactive block which

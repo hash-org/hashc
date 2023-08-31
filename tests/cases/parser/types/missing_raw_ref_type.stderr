@@ -3,3 +3,4 @@ error: expected a type annotation, however received a `=`
 2 |   
 3 |   k: &raw = &raw [1,2,3,4,5,6];
   |           ^ 
+  = help: expected either `identifier`, `!`, `#`, `&`, `<`, `(`, `{`, or `[`

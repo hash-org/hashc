@@ -1,7 +1,6 @@
 //! Utilities for keeping track of definitions during the discovery pass.
 use std::fmt::Display;
 
-use derive_more::From;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
@@ -22,6 +21,7 @@ use hash_tir::{
     utils::AccessToUtils,
 };
 use hash_utils::{
+    derive_more::From,
     smallvec::{smallvec, SmallVec},
     state::LightState,
 };
@@ -135,6 +135,8 @@ impl<'tc> DiscoveryPass<'tc> {
         f: impl FnOnce() -> T,
     ) -> T {
         let def_id = def_id.into();
+        let ast_info = tir_stores().ast_info();
+        let node_id = originating_node.id();
 
         // Add location information to the definition.
         self.add_node_location_to_def(def_id, originating_node);
@@ -143,14 +145,18 @@ impl<'tc> DiscoveryPass<'tc> {
         match def_id {
             DefId::Mod(id) => {
                 self.def_state().mod_members.insert(id, vec![]);
+                ast_info.mod_defs().insert(node_id, id);
             }
             DefId::Data(id) => {
                 self.def_state().data_ctors.insert(id, vec![]);
+                ast_info.data_defs().insert(node_id, id);
             }
             DefId::Stack(id) => {
                 self.def_state().stack_members.insert(id, vec![]);
             }
-            DefId::Fn(_) => {}
+            DefId::Fn(id) => {
+                ast_info.fn_defs().insert(node_id, id);
+            }
         }
 
         let result = self.enter_item(originating_node, ItemId::Def(def_id), f);
@@ -392,7 +398,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     Some(ModMember { name, value: ModMemberValue::Mod(imported_mod_def_id) })
                 }
                 // Directive, recurse
-                ast::Expr::Directive(inner) => {
+                ast::Expr::Macro(inner) => {
                     self.get_mod_member_data_from_def_node_id(name, inner.subject.id())
                 }
                 // Get the `ModMember` from the `def_node_id` of the declaration.
@@ -510,6 +516,9 @@ impl<'tc> DiscoveryPass<'tc> {
                 for field in fields.ast_ref_iter() {
                     self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
+            }
+            ast::Pat::Macro(ast::PatMacroInvocation { subject, .. }) => {
+                self.add_stack_members_in_pat_to_buf(subject.ast_ref(), buf)
             }
             ast::Pat::Array(ast::ArrayPat { fields, spread }) => {
                 if let Some(spread_node) = &spread {

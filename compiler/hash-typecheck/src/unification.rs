@@ -2,7 +2,6 @@
 
 use std::{cell::Cell, collections::HashSet};
 
-use derive_more::Deref;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
@@ -16,8 +15,9 @@ use hash_tir::{
     symbols::SymbolId,
     terms::{Term, TermId},
     tys::{Ty, TyId},
-    utils::traversing::Atom,
+    utils::{traversing::Atom, AccessToUtils},
 };
+use hash_utils::derive_more::Deref;
 use once_cell::unsync::OnceCell;
 
 use crate::{
@@ -443,8 +443,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         in_param_scope: impl FnOnce() -> TcResult<U>,
     ) -> TcResult<U> {
         // Validate the parameters and ensure they are of the same length
-        self.param_ops().validate_params(src_id)?;
-        self.param_ops().validate_params(target_id)?;
+        self.param_utils().validate_params(src_id)?;
+        self.param_utils().validate_params(target_id)?;
         if src_id.len() != target_id.len() {
             return Err(TcError::WrongParamLength {
                 given_params_id: src_id,

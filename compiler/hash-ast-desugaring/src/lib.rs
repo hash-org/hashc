@@ -10,6 +10,7 @@ use hash_pipeline::{
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_source::SourceId;
+use hash_utils::rayon;
 use visitor::AstDesugaring;
 
 pub mod desugaring;
@@ -36,7 +37,7 @@ pub trait AstDesugaringCtxQuery: CompilerInterface {
 
 impl<Ctx: AstDesugaringCtxQuery> CompilerStage<Ctx> for AstDesugaringPass {
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::DeSugar
+        CompilerStageKind::Expand
     }
 
     /// This function is used to lower all of the AST that is present within

@@ -1,43 +1,249 @@
 use std::collections::HashSet;
 
-use derive_more::{Constructor, Deref};
+use hash_reporting::{
+    diagnostic::{ErrorState, IntoCompound},
+    hash_error_codes::error_codes::HashErrorCode,
+    reporter::Reporter,
+};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
-use hash_tir::{
+use hash_utils::{pluralise, printing::SequenceDisplay};
+
+use super::common::{get_location, get_overall_location};
+use crate::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
+    environment::env::Env,
     node::{Node, NodeOrigin},
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
 };
 
-use crate::{errors::TcResult, AccessToTypechecking};
-
-#[derive(Constructor, Deref)]
-pub struct ParamOps<'a, T: AccessToTypechecking>(&'a T);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// An error that can occur when checking [Param]s against [Args].
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParamError {
+    /// When there are too many arguments.
     TooManyArgs { expected: ParamsId, got: SomeArgsId },
+
+    /// When an argument is specified more than once.
     DuplicateArg { first: SomeArgId, second: SomeArgId },
+
+    /// When a parameter is specified more than once.
     DuplicateParam { first: ParamId, second: ParamId },
+
+    /// When a positional argument is specified after an initial
+    /// named argument, which makes it ambiguous which parameter the
+    /// positional argument is referring to.
     PositionalArgAfterNamedArg { first_named: SomeArgId, next_positional: SomeArgId },
+
+    /// When a default parameter is found before a required parameter.
     RequiredParamAfterDefaultParam { first_default: ParamId, next_required: ParamId },
+
+    /// When an argument is named but no parameter with that name exists.
     ArgNameNotFoundInParams { arg: SomeArgId, params: ParamsId },
+
+    /// Two parameters have differing names at the same index.
     ParamNameMismatch { param_a: ParamId, param_b: ParamId },
+
+    /// When a required parameter is not found in the arguments.
     RequiredParamNotFoundInArgs { param: ParamId, args: SomeArgsId },
+
+    /// When a spread is specified before a positional argument, which makes
+    /// it impossible to determine which positional argument the spread should
+    /// apply to.
     SpreadBeforePositionalArg { next_positional: SomeArgId },
+
+    /// A collection of errors that occurred in a compound argument.
+    Compound { errors: Vec<ParamError> },
 }
 
-impl<T: AccessToTypechecking> ParamOps<'_, T> {
+impl ParamError {
+    /// Adds the given [ParamError] to the [Reporter].
+    pub fn add_to_reporter(&self, reporter: &mut Reporter) {
+        match self {
+            ParamError::Compound { errors } => {
+                for error in errors {
+                    error.add_to_reporter(reporter);
+                }
+            }
+            ParamError::TooManyArgs { expected, got } => {
+                let error =
+                    reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
+                        "received {} argument{}, but expected at most {} argument{}",
+                        got.len(),
+                        pluralise!(got.len()),
+                        expected.len(),
+                        pluralise!(expected.len())
+                    ));
+                if let Some(location) = get_overall_location(*expected.value()) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "this definition expectes at most {} argument{}",
+                            expected.len(),
+                            pluralise!(expected.len())
+                        ),
+                    );
+                }
+                if let Some(location) = get_overall_location(*got) {
+                    error.add_labelled_span(
+                        location,
+                        format!("received {} argument{} here", got.len(), pluralise!(got.len())),
+                    );
+                }
+            }
+            ParamError::DuplicateArg { first, second } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ParameterInUse)
+                    .title("received a duplicate argument");
+                if let Some(location) = get_location(first) {
+                    error.add_labelled_span(location, "first occurrence of this argument");
+                }
+                if let Some(location) = get_location(second) {
+                    error.add_labelled_span(location, "second occurrence of this argument");
+                }
+            }
+            ParamError::DuplicateParam { first, second } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ParameterInUse)
+                    .title("received a duplicate parameter");
+                if let Some(location) = get_location(first) {
+                    error.add_labelled_span(location, "first occurrence of this parameter");
+                }
+                if let Some(location) = get_location(second) {
+                    error.add_labelled_span(location, "second occurrence of this parameter");
+                }
+            }
+            ParamError::PositionalArgAfterNamedArg { first_named, next_positional } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ParameterInUse)
+                    .title("received a positional argument after a named argument");
+                if let Some(location) = get_location(first_named) {
+                    error.add_labelled_span(location, "first named argument");
+                }
+                if let Some(location) = get_location(next_positional) {
+                    error.add_labelled_span(location, "next positional argument");
+                }
+                error.add_info("positional arguments must come before named arguments");
+            }
+            ParamError::RequiredParamAfterDefaultParam {
+                first_default,
+                next_required: next_non_default,
+            } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ParameterInUse)
+                    .title("found a required parameter after a default parameter");
+                if let Some(location) = get_location(first_default) {
+                    error.add_labelled_span(location, "first default parameter");
+                }
+                if let Some(location) = get_location(next_non_default) {
+                    error.add_labelled_span(location, "next required parameter");
+                }
+                error.add_info("parameters with defaults must come after required parameters");
+            }
+            ParamError::ArgNameNotFoundInParams { arg, params } => {
+                let error = reporter.error().code(HashErrorCode::ParameterInUse).title(format!(
+                    "received an argument named `{}` but no parameter with that name exists",
+                    arg.target()
+                ));
+                if let Some(location) = get_location(arg) {
+                    error.add_labelled_span(location, "argument with this name");
+                }
+                if let Some(location) = get_overall_location(*params.value()) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "expected one of these parameters: {}",
+                            SequenceDisplay::either(
+                                &params
+                                    .iter()
+                                    .map(|param| format!("{}", param.as_param_index()))
+                                    .collect::<Vec<_>>()
+                            )
+                        ),
+                    );
+                }
+            }
+            ParamError::RequiredParamNotFoundInArgs { param, args } => {
+                let error = reporter.error().code(HashErrorCode::ParameterInUse).title(format!(
+                    "expected an argument named `{}` but none was found",
+                    param.as_param_index()
+                ));
+                if let Some(location) = get_location(param) {
+                    error.add_labelled_span(location, "parameter with this name");
+                }
+                if let Some(location) = get_overall_location(*args) {
+                    error.add_labelled_span(
+                        location,
+                        format!(
+                            "received {} argument{}: {}",
+                            pluralise!("this", args.len()),
+                            pluralise!(args.len()),
+                            SequenceDisplay::either(
+                                &args
+                                    .iter()
+                                    .map(|arg| format!("{}", arg.target()))
+                                    .collect::<Vec<_>>()
+                            )
+                        ),
+                    );
+                }
+            }
+            ParamError::SpreadBeforePositionalArg { next_positional } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ParameterInUse)
+                    .title("received a positional argument after a spread argument");
+                if let Some(location) = get_location(next_positional) {
+                    error.add_labelled_span(location, "next positional argument");
+                }
+                error.add_info("positional arguments must come before spread arguments");
+            }
+            ParamError::ParamNameMismatch { param_a, param_b } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ParameterInUse)
+                    .title("received two parameters with different names");
+                if let Some(location) = get_location(param_a) {
+                    error.add_labelled_span(location, "first parameter with this name");
+                }
+                if let Some(location) = get_location(param_b) {
+                    error.add_labelled_span(location, "second parameter with this name");
+                }
+            }
+        }
+    }
+}
+
+impl IntoCompound for ParamError {
+    fn into_compound(errors: Vec<ParamError>) -> ParamError {
+        ParamError::Compound { errors }
+    }
+}
+
+pub type ParamResult<T> = Result<T, ParamError>;
+
+/// Operations related to module definitions.
+pub struct ParamUtils;
+
+impl ParamUtils {
+    /// Create a new instance of [ParamUtils].
+    pub fn new(_: &Env) -> Self {
+        Self
+    }
+
     /// Validate the given parameters, returning an error if they are invalid.
     ///
     /// Conditions for valid parameters are:
     /// 1. No duplicate parameter names
     /// 2. All parameters with defaults are at the end
-    pub fn validate_params(&self, params_id: ParamsId) -> TcResult<()> {
-        let mut error_state = self.new_error_state();
+    pub fn validate_params(&self, params_id: ParamsId) -> ParamResult<()> {
+        let mut error_state = ErrorState::new();
 
         let mut seen = HashSet::new();
         let mut found_default = None;
@@ -69,7 +275,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
             }
         }
 
-        self.return_or_register_errors(|| Ok(()), error_state)
+        error_state.into_error(|| Ok(()))
     }
 
     /// Validate the given arguments against the given parameters, returning an
@@ -89,8 +295,8 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         &self,
         args_id: SomeArgsId,
         params_id: ParamsId,
-    ) -> TcResult<()> {
-        let mut error_state = self.new_error_state();
+    ) -> ParamResult<()> {
+        let mut error_state = ErrorState::new();
 
         // Check for too many arguments
         if args_id.len() > params_id.len() {
@@ -143,7 +349,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
             }
         }
 
-        self.return_or_register_errors(|| Ok(()), error_state)
+        error_state.into_error(|| Ok(()))
     }
 
     /// Validate the given arguments against the given parameters and reorder
@@ -158,11 +364,11 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         &self,
         args_id: ArgsId,
         params_id: ParamsId,
-    ) -> TcResult<ArgsId> {
+    ) -> ParamResult<ArgsId> {
         // First validate the arguments
         self.validate_args_against_params(args_id.into(), params_id)?;
 
-        let mut error_state = self.new_error_state();
+        let mut error_state = ErrorState::new();
         let mut result: Vec<Option<Node<Arg>>> = vec![None; params_id.len()];
 
         // Note: We have already validated that the number of arguments is less than
@@ -226,7 +432,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
         // If there were any errors, return them
         if error_state.has_errors() {
-            return self.return_or_register_errors(|| unreachable!(), error_state);
+            return error_state.into_error(|| unreachable!());
         }
 
         // Populate default values and catch missing arguments
@@ -255,7 +461,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
         // If there were any errors, return them
         if error_state.has_errors() {
-            return self.return_or_register_errors(|| unreachable!(), error_state);
+            return error_state.into_error(|| unreachable!());
         }
 
         // Now, create the new argument list
@@ -286,11 +492,11 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
         args_id: PatArgsId,
         spread: Option<Spread>,
         params_id: ParamsId,
-    ) -> TcResult<PatArgsId> {
+    ) -> ParamResult<PatArgsId> {
         // First validate the arguments
         self.validate_args_against_params(args_id.into(), params_id)?;
 
-        let mut error_state = self.new_error_state();
+        let mut error_state = ErrorState::new();
         let mut result: Vec<Option<Node<PatArg>>> = vec![None; params_id.len()];
 
         // Note: We have already validated that the number of arguments is less than
@@ -362,7 +568,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
         // If there were any errors, return them
         if error_state.has_errors() {
-            return self.return_or_register_errors(|| unreachable!(), error_state);
+            return error_state.into_error(|| unreachable!());
         }
 
         // Populate missing arguments with captures
@@ -390,7 +596,7 @@ impl<T: AccessToTypechecking> ParamOps<'_, T> {
 
         // If there were any errors, return them
         if error_state.has_errors() {
-            return self.return_or_register_errors(|| unreachable!(), error_state);
+            return error_state.into_error(|| unreachable!());
         }
 
         // Now, create the new argument list

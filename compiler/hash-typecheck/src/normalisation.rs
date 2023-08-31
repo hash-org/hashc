@@ -1,7 +1,6 @@
 //! Operations for normalising terms and types.
 use std::{cell::Cell, ops::ControlFlow};
 
-use derive_more::{Deref, From};
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{
@@ -34,7 +33,11 @@ use hash_tir::{
         AccessToUtils,
     },
 };
-use hash_utils::{itertools::Itertools, log::info};
+use hash_utils::{
+    derive_more::{Deref, From},
+    itertools::Itertools,
+    log::info,
+};
 
 use crate::{
     errors::{TcError, TcResult},

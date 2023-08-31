@@ -7,10 +7,9 @@ use std::cell::Cell;
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_storage::store::{statics::StoreId, PartialStore, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
-    data::{CtorDefId, DataDefCtors},
-    directives::AppliedDirectives,
+    data::DataDefCtors,
     environment::{env::AccessToEnv, stores::tir_stores},
     mods::{ModDefId, ModMemberValue},
     tys::Ty,
@@ -69,22 +68,11 @@ impl<'tc> ResolutionPass<'tc> {
                 // Resolve the data of the definition depending on its kind:
                 ast::Expr::StructDef(struct_def) => {
                     // Type parameters
-                    attempt(self.resolve_params_from_ast_params(
-                        &struct_def.ty_params,
-                        true,
-                        data_def_id.into(),
-                    ));
-
-                    // Struct variant
-                    let struct_ctor =
-                        match data_def_id.borrow().ctors {
-                            DataDefCtors::Defined(id) => {
-                                // There should only be one variant
-                                assert!(id.len() == 1);
-                                CtorDefId(*id.value(), 0)
-                            },
-                            DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
-                        };
+                    if let Some(ty_params) = &struct_def.ty_params {
+                        attempt(self.resolve_params_from_ast_ty_params(
+                            ty_params
+                        ));
+                    }
 
                     self.scoping().enter_scope(
                         ContextKind::Environment,
@@ -93,18 +81,17 @@ impl<'tc> ResolutionPass<'tc> {
                             attempt(self.resolve_params_from_ast_params(
                                 &struct_def.fields,
                                 false,
-                                struct_ctor.into(),
                             ));
                         },
                     );
                 }
                 ast::Expr::EnumDef(enum_def) => {
                     // Type parameters
-                    attempt(self.resolve_params_from_ast_params(
-                        &enum_def.ty_params,
-                        true,
-                        data_def_id.into(),
-                    ));
+                    if let Some(ty_params) = &enum_def.ty_params {
+                        attempt(self.resolve_params_from_ast_ty_params(
+                            ty_params
+                        ));
+                    }
 
                     // Enum variants
                     let data_def_ctors =
@@ -119,18 +106,12 @@ impl<'tc> ResolutionPass<'tc> {
                             ContextKind::Environment,
                             || {
                                 // Variant fields
-                                attempt(self.resolve_params_from_ast_params(
-                                    &variant.fields,
-                                    false,
-                                    CtorDefId(*data_def_ctors.value(), i).into(),
-                                ));
-
-                                // Variant type
-                                attempt(self.resolve_params_from_ast_params(
-                                    &variant.fields,
-                                    false,
-                                    CtorDefId(*data_def_ctors.value(), i).into(),
-                                ));
+                                if let Some(fields) = &variant.fields {
+                                    attempt(self.resolve_params_from_ast_params(
+                                        fields,
+                                        false,
+                                    ));
+                                }
 
                                 // Variant indices
                                 if let Some(variant_ty) = variant.ty.as_ref() {
@@ -172,26 +153,14 @@ impl<'tc> ResolutionPass<'tc> {
     ///
     /// This registers any directives and returns the RHS of the declaration.
     fn use_expr_as_mod_def_declaration_and_get_rhs(
-        member: ModMemberValue,
         member_expr: ast::AstNodeRef<'_, ast::Expr>,
     ) -> ast::AstNodeRef<'_, ast::Expr> {
         // By this point, all members should be declarations (caught at pre-TC)
         match member_expr.body() {
             ast::Expr::Declaration(decl) => decl.value.as_ref().unwrap().ast_ref(),
-            ast::Expr::Directive(directive) => {
-                // Add all directives to the target
-                tir_stores().directives().insert(
-                    member.into(),
-                    AppliedDirectives {
-                        directives: directive.directives.iter().map(|d| d.ident).collect(),
-                    },
-                );
-
+            ast::Expr::Macro(invocation) => {
                 // Recurse to the inner declaration
-                Self::use_expr_as_mod_def_declaration_and_get_rhs(
-                    member,
-                    directive.subject.ast_ref(),
-                )
+                Self::use_expr_as_mod_def_declaration_and_get_rhs(invocation.subject.ast_ref())
             }
             _ => unreachable!("Found non-declaration in module definition"),
         }
@@ -215,7 +184,7 @@ impl<'tc> ResolutionPass<'tc> {
             for (i, member_expr) in members.to_index_range().zip(member_exprs) {
                 let member_value = members.value().borrow()[i].value;
                 let member_rhs_expr =
-                    Self::use_expr_as_mod_def_declaration_and_get_rhs(member_value, member_expr);
+                    Self::use_expr_as_mod_def_declaration_and_get_rhs(member_expr);
 
                 match member_value {
                     ModMemberValue::Data(_) => {

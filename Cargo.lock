@@ -399,7 +399,6 @@ checksum = "b6c80984affa11d98d1b88b66ac8853f143217b399d3c74116778ff8fdb4ed2e"
 name = "hash-abi"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "hash-ir",
  "hash-layout",
  "hash-source",
@@ -429,7 +428,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-tree-def",
- "rayon",
+ "hash-utils",
 ]
 
 [[package]]
@@ -437,12 +436,31 @@ name = "hash-ast-expand"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-attrs",
  "hash-fmt",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
+ "hash-target",
+ "hash-tir",
  "hash-tree-def",
  "hash-utils",
+]
+
+[[package]]
+name = "hash-attrs"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-error-codes",
+ "hash-reporting",
+ "hash-source",
+ "hash-storage",
+ "hash-target",
+ "hash-tir",
+ "hash-utils",
+ "paste",
 ]
 
 [[package]]
@@ -457,16 +475,15 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
 name = "hash-codegen"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "fixedbitset",
  "hash-abi",
+ "hash-attrs",
  "hash-ir",
  "hash-layout",
  "hash-pipeline",
@@ -475,7 +492,6 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
@@ -486,14 +502,13 @@ dependencies = [
  "hash-ir",
  "hash-source",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
 name = "hash-codegen-llvm"
 version = "0.1.0"
 dependencies = [
- "fxhash",
+ "hash-attrs",
  "hash-codegen",
  "hash-ir",
  "hash-pipeline",
@@ -503,7 +518,6 @@ dependencies = [
  "hash-utils",
  "inkwell",
  "llvm-sys",
- "rayon",
 ]
 
 [[package]]
@@ -529,7 +543,6 @@ dependencies = [
  "hash-untyped-semantics",
  "hash-utils",
  "num_cpus",
- "rayon",
 ]
 
 [[package]]
@@ -541,7 +554,6 @@ name = "hash-exhaustiveness"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
- "hash-error-codes",
  "hash-intrinsics",
  "hash-reporting",
  "hash-source",
@@ -565,8 +577,8 @@ dependencies = [
 name = "hash-intrinsics"
 version = "0.1.0"
 dependencies = [
- "derive_more",
  "hash-ast",
+ "hash-attrs",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -580,9 +592,9 @@ dependencies = [
 name = "hash-ir"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "fixedbitset",
  "hash-ast",
+ "hash-attrs",
  "hash-intrinsics",
  "hash-source",
  "hash-storage",
@@ -590,7 +602,6 @@ dependencies = [
  "hash-tir",
  "hash-utils",
  "html-escape",
- "lazy_static",
 ]
 
 [[package]]
@@ -633,10 +644,9 @@ dependencies = [
 name = "hash-lower"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
- "derive_more",
  "fixedbitset",
  "hash-ast",
+ "hash-attrs",
  "hash-intrinsics",
  "hash-ir",
  "hash-layout",
@@ -649,17 +659,13 @@ dependencies = [
  "hash-tir",
  "hash-tree-def",
  "hash-utils",
- "indexmap 1.9.3",
  "num-traits",
- "rayon",
 ]
 
 [[package]]
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
- "crossbeam-channel",
- "derive_more",
  "hash-ast",
  "hash-lexer",
  "hash-pipeline",
@@ -670,14 +676,12 @@ dependencies = [
  "hash-utils",
  "num-bigint",
  "profiling",
- "rayon",
 ]
 
 [[package]]
 name = "hash-pipeline"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "clap",
  "const_format",
  "hash-ast",
@@ -703,11 +707,8 @@ dependencies = [
 name = "hash-semantics"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
- "dashmap",
- "derive_more",
  "hash-ast",
- "hash-error-codes",
+ "hash-attrs",
  "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-pipeline",
@@ -729,13 +730,10 @@ version = "0.1.0"
 dependencies = [
  "bimap",
  "bytecount",
- "dashmap",
- "derive_more",
  "fnv",
  "hash-storage",
  "hash-target",
  "hash-utils",
- "lazy_static",
  "num-bigint",
  "once_cell",
 ]
@@ -815,12 +813,11 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "hash-ast",
+ "hash-reporting",
  "hash-source",
  "hash-storage",
  "hash-target",
  "hash-utils",
- "indexmap 1.9.3",
- "lazy_static",
  "num-bigint",
  "paste",
  "textwrap",
@@ -834,6 +831,7 @@ version = "0.1.0"
 dependencies = [
  "hash-source",
  "hash-utils",
+ "phf",
  "strum_macros",
 ]
 
@@ -851,10 +849,8 @@ dependencies = [
 name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
- "dashmap",
- "derive_more",
  "hash-ast",
- "hash-error-codes",
+ "hash-attrs",
  "hash-exhaustiveness",
  "hash-intrinsics",
  "hash-reporting",
@@ -872,16 +868,12 @@ dependencies = [
 name = "hash-untyped-semantics"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
- "crossbeam-channel",
  "hash-ast",
- "hash-error-codes",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
  "hash-tree-def",
  "hash-utils",
- "rayon",
 ]
 
 [[package]]
@@ -890,14 +882,20 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "backtrace",
+ "bitflags 2.4.0",
+ "crossbeam-channel",
  "dashmap",
+ "derive_more",
  "fixedbitset",
  "fxhash",
  "index_vec",
+ "indexmap 1.9.3",
  "itertools",
+ "lazy_static",
  "log",
  "num-traits",
  "parking_lot",
+ "rayon",
  "smallvec",
  "stacker",
  "thin-vec",
@@ -1257,6 +1255,48 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
+name = "phf"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ade2d8b8f33c7333b51bcf0428d37e217e9f32192ae4772156f65063b8ce03dc"
+dependencies = [
+ "phf_macros",
+ "phf_shared",
+]
+
+[[package]]
+name = "phf_generator"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48e4cc64c2ad9ebe670cb8fd69dd50ae301650392e81c05f9bfcb2d5bdbc24b0"
+dependencies = [
+ "phf_shared",
+ "rand",
+]
+
+[[package]]
+name = "phf_macros"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3444646e286606587e49f3bcf1679b8cef1dc2c5ecc29ddacaffc305180d464b"
+dependencies = [
+ "phf_generator",
+ "phf_shared",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.29",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90fcb95eef784c2ac79119d1dd819e162b5da872ce6f3c3abe1e8ca1c082f72b"
+dependencies = [
+ "siphasher",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1358,6 +1398,21 @@ checksum = "5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "rand"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+dependencies = [
+ "rand_core",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
 name = "rayon"
@@ -1512,6 +1567,12 @@ checksum = "900fba806f70c630b0a382d0d825e17a0f19fcd059a2ade1ff237bcddf446b31"
 dependencies = [
  "lazy_static",
 ]
+
+[[package]]
+name = "siphasher"
+version = "0.3.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38b58827f4464d87d377d175e90bf58eb00fd8716ff0a62f80356b5e61555d0d"
 
 [[package]]
 name = "smallvec"

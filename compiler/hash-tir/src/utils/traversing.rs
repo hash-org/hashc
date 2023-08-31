@@ -2,11 +2,11 @@
 use core::fmt;
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
-use derive_more::{From, TryInto};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
+use hash_utils::derive_more::{From, TryInto};
 
 use crate::{
     access::AccessTerm,
@@ -461,7 +461,8 @@ impl TraversingUtils {
                         let params = self.fmap_params(fn_def.ty.params, f)?;
                         let return_ty = self.fmap_ty(fn_def.ty.return_ty, f)?;
                         let body = FnBody::Defined(self.fmap_term(defined, f)?);
-                        Ok(Node::create_at(
+
+                        let def = Node::create_at(
                             FnDef {
                                 name: fn_def.name,
                                 ty: FnTy {
@@ -474,7 +475,10 @@ impl TraversingUtils {
                                 body,
                             },
                             fn_def.origin,
-                        ))
+                        );
+
+                        tir_stores().ast_info().fn_defs().copy_node(fn_def_id, def);
+                        Ok(def)
                     }
                     FnBody::Intrinsic(_) | FnBody::Axiom => Ok(fn_def_id),
                 }

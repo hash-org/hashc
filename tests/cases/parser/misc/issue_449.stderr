@@ -3,4 +3,4 @@ error: unexpectedly encountered a `=`
 2 |   
 3 |   <=>a // Should report that it unexpectedly encountered `=`
   |    ^ 
-  = help: consider adding a `>`
+  = help: expected either `identifier`, or `>`

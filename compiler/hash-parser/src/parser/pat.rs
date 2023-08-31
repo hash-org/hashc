@@ -1,12 +1,16 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, origin::PatOrigin};
-use hash_reporting::diagnostic::AccessToDiagnosticsMut;
+use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_source::{identifier::IDENTS, location::ByteRange};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
-use crate::diagnostics::error::{ParseErrorKind, ParseResult};
+use crate::diagnostics::{
+    error::{ParseErrorKind, ParseResult},
+    expected::ExpectedItem,
+};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a compound [Pat]. A compound [Pat] means that this could
@@ -22,7 +26,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Parse the first pattern, but throw away the location information since that
         // will be computed at the end anyway...
-        let mut variants = self.nodes_with_span(vec![], start);
+        let mut variants = self.nodes_with_span(thin_vec![], start);
 
         while self.has_token() {
             let pat = self.parse_pat_with_if()?;
@@ -88,7 +92,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // constructor pattern.
                     let mut spread = None;
 
-                    let fields = gen.parse_separated_fn_with_skips(
+                    let fields = gen.parse_nodes_with_skips(
                         |g, pos| {
                             // If the next token is a dot, then we try to parse a spread pattern
                             // since this is the only case where a dot can appear in a tuple pattern.
@@ -96,7 +100,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 g.parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)?;
                                 Ok(None)
                             } else {
-                                Ok(Some(g.parse_tuple_pat_entry()?))
+                                Ok(Some(g.parse_pat_arg()?))
                             }
                         },
                         |g| g.parse_token(TokenKind::Comma),
@@ -138,9 +142,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
         let start = self.next_pos();
         let mut has_range_pat = false;
-        let token = *self
-            .peek()
-            .ok_or_else(|| self.make_err(ParseErrorKind::UnExpected, None, None, None))?;
+
+        let token = *self.peek().ok_or_else(|| {
+            self.make_err(ParseErrorKind::UnExpected, ExpectedItem::Pat, None, None)
+        })?;
 
         let pat = match token {
             Token { kind: TokenKind::Ident(ident), .. } if ident == IDENTS.underscore => {
@@ -176,7 +181,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 None => self.err_with_location(
                     ParseErrorKind::ExpectedPat,
-                    None,
+                    ExpectedItem::Pat,
                     Some(token.kind),
                     token.span,
                 )?,
@@ -206,7 +211,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 ParseErrorKind::ExpectedPat,
-                None,
+                ExpectedItem::Pat,
                 Some(token.kind),
                 token.span,
             )?,
@@ -309,7 +314,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         span: ByteRange,
     ) -> ParseResult<ModulePat> {
         let mut gen = self.from_stream(tree, span);
-        let mut fields = vec![];
+        let mut fields = thin_vec![];
 
         while gen.has_token() {
             let start = gen.offset();
@@ -345,7 +350,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // fields, so we must check for it separately.
         let mut spread = None;
 
-        let fields = gen.parse_separated_fn_with_skips(
+        let fields = gen.parse_nodes_with_skips(
             |g, pos| {
                 // Check if we encounter a dot, if so then we try to parse a
                 // spread pattern, if not then we parse a normal pattern.
@@ -381,7 +386,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             if token.has_kind(TokenKind::Comma) {
                 return Ok(self.node_with_span(
                     Pat::Tuple(TuplePat {
-                        fields: self.nodes_with_span(vec![], parent_span),
+                        fields: self.nodes_with_span(thin_vec![], parent_span),
                         spread: None,
                     }),
                     parent_span,
@@ -399,7 +404,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // tuple pattern fields.
         let mut spread = None;
 
-        let mut fields = gen.parse_separated_fn_with_skips(
+        let mut fields = gen.parse_nodes_with_skips(
             |g, pos| {
                 // If the next token is a dot, then we try to parse a spread pattern
                 // since this is the only case where a dot can appear in a tuple pattern.
@@ -407,7 +412,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     g.parse_spread_pat(&mut spread, pos, PatOrigin::Tuple)?;
                     Ok(None)
                 } else {
-                    Ok(Some(g.parse_tuple_pat_entry()?))
+                    Ok(Some(g.parse_pat_arg()?))
                 }
             },
             |g| g.parse_token(TokenKind::Comma),
@@ -425,17 +430,27 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // for this particular pattern
             self.consume_gen(gen);
 
-            let element = fields.nodes.pop().unwrap().into_body();
-            Ok(element.pat)
+            let PatArg { pat, macros, .. } = fields.nodes.pop().unwrap().into_body();
+
+            if let Some(macros) = macros {
+                Ok(AstNode::with_id(
+                    Pat::Macro(PatMacroInvocation { macros, subject: pat }),
+                    fields.id(),
+                ))
+            } else {
+                Ok(pat)
+            }
         } else {
             self.consume_gen(gen);
             Ok(self.node_with_span(Pat::Tuple(TuplePat { fields, spread }), parent_span))
         }
     }
 
-    /// Parse an entry within a tuple pattern which might contain an optional
-    /// [Name] node.
-    pub(crate) fn parse_tuple_pat_entry(&mut self) -> ParseResult<AstNode<TuplePatEntry>> {
+    /// Parse an pattern argument which might consists of an optional
+    /// [Name], a value [Pat], and optional macro invocations on the
+    /// argument.
+    pub(crate) fn parse_pat_arg(&mut self) -> ParseResult<AstNode<PatArg>> {
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
         let start = self.next_pos();
 
         let (name, pat) = match self.peek() {
@@ -455,7 +470,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => (None, self.parse_pat()?),
         };
 
-        Ok(self.node_with_joined_span(TuplePatEntry { name, pat }, start))
+        Ok(self.node_with_joined_span(PatArg { name, pat, macros }, start))
     }
 
     /// Parse a spread operator from the current token tree. A spread operator
@@ -478,7 +493,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
                 self.make_err(
                     ParseErrorKind::MalformedSpreadPattern(3 - k),
-                    None,
+                    ExpectedItem::Dot,
                     None,
                     Some(self.next_pos()),
                 )
@@ -496,7 +511,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if spread.is_some() {
             self.add_error(self.make_err(
                 ParseErrorKind::MultipleSpreadPats { origin },
-                None,
+                ExpectedItem::empty(),
                 None,
                 Some(span),
             ));
@@ -535,7 +550,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.err_with_location(
                 ParseErrorKind::UnExpected,
-                None,
+                ExpectedItem::Visibility,
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_pos(), |t| t.span),
             ),

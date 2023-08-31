@@ -3,7 +3,8 @@
 
 use std::fmt::Display;
 
-use hash_ast::ast::{AstNodeRef, Param};
+use hash_ast::{ast, origin::BlockOrigin};
+use hash_source::identifier::IDENTS;
 
 use super::SemanticAnalyser;
 use crate::diagnostics::error::AnalysisErrorKind;
@@ -33,7 +34,8 @@ impl SemanticAnalyser<'_> {
     /// are named or if they are all un-named.
     pub(crate) fn check_field_naming<'s>(
         &mut self,
-        mut members: impl Iterator<Item = AstNodeRef<'s, Param>>,
+        origin: ast::ParamOrigin,
+        mut members: impl Iterator<Item = ast::AstNodeRef<'s, ast::Param>>,
     ) {
         let naming_expectation =
             if members.next().map(|param| param.body().name.is_some()).unwrap_or(false) {
@@ -46,14 +48,45 @@ impl SemanticAnalyser<'_> {
             match (member.body().name.as_ref(), naming_expectation) {
                 (Some(_), FieldNamingExpectation::Nameless)
                 | (None, FieldNamingExpectation::Named) => self.append_error(
-                    AnalysisErrorKind::InconsistentFieldNaming {
-                        origin: member.origin,
-                        naming_expectation,
-                    },
+                    AnalysisErrorKind::InconsistentFieldNaming { origin, naming_expectation },
                     member,
                 ),
                 _ => {}
             }
         }
+    }
+
+    pub(crate) fn check_fn_param_type_annotations(
+        &mut self,
+        origin: ast::ParamOrigin,
+        param: ast::AstNodeRef<ast::Param>,
+    ) {
+        if !matches!(origin, ast::ParamOrigin::Fn) {
+            return;
+        }
+
+        match self.current_block {
+                // Check that `self` cannot be within a free standing functions
+                BlockOrigin::Root => {
+                    if let Some(name) = param.name.as_ref() && name.is(IDENTS.self_i) {
+                        self.append_error(AnalysisErrorKind::SelfInFreeStandingFn, param);
+                    }
+                }
+                BlockOrigin::Impl | BlockOrigin::Trait | BlockOrigin::Mod  => {
+                    // If both the type definition is missing and the default expression assignment
+                    // to the struct-def field, then a type cannot be inferred and is thus
+                    // ambiguous.
+                    if let Some(name) = param.name.as_ref() && !name.is(IDENTS.self_i)
+                        && param.ty.is_none()
+                        && param.default.is_none()
+                    {
+                        self.append_error(
+                            AnalysisErrorKind::InsufficientTypeAnnotations { origin },
+                            param,
+                        );
+                    }
+                }
+                _ => {}
+            }
     }
 }

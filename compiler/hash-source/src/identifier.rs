@@ -5,14 +5,12 @@ use std::{
     thread_local,
 };
 
-use dashmap::DashMap;
 use fnv::FnvBuildHasher;
 use hash_storage::{
     arena::{Castle, Wall},
     string::BrickString,
 };
-use hash_utils::counter;
-use lazy_static::lazy_static;
+use hash_utils::{counter, dashmap::DashMap, fxhash::FxBuildHasher, lazy_static::lazy_static};
 
 counter! {
     name: Identifier,
@@ -89,7 +87,7 @@ lazy_static! {
 #[derive(Debug, Default)]
 pub struct IdentifierMap<'c> {
     reverse_identifiers: DashMap<&'c str, Identifier, FnvBuildHasher>,
-    identifiers: DashMap<Identifier, &'c str, FnvBuildHasher>,
+    identifiers: DashMap<Identifier, &'c str, FxBuildHasher>,
 }
 
 impl<'c> IdentifierMap<'c> {
@@ -257,7 +255,7 @@ core_idents! {
     foreign: "foreign",
 
     // Layout intrinsics
-    repr_c: "repr_c",
+    repr: "repr",
     layout_of: "layout_of",
 
     // Function flags

@@ -9,7 +9,7 @@ error: unexpectedly encountered a `(...)`
   | |______- 
 7 |    }
 8 |    
-  = help: consider adding a `>`
+  = help: expected either `identifier`, or `>`
 
 error: expected struct definition entries here which begin with a `<` or `(`, however received the identifier `U`
   --> $DIR/incomplete_ty_params.hash:10:17
@@ -17,7 +17,7 @@ error: expected struct definition entries here which begin with a `<` or `(`, ho
 10 |       T := struct U,> (
    |                   ^ 
 11 |           beep: T,
-   = help: consider adding a `(`
+   = help: expected a `(`
 
 error: unexpectedly encountered a `,`
   --> $DIR/incomplete_ty_params.hash:16:16
@@ -25,7 +25,7 @@ error: unexpectedly encountered a `,`
 16 |       T := enum <,> (
    |                  ^ 
 17 |           beep: T,
-   = help: consider adding a `>`
+   = help: expected either `identifier`, or `>`
 
 error: unexpectedly encountered a `{...}`
   --> $DIR/incomplete_ty_params.hash:28:18
@@ -37,7 +37,7 @@ error: unexpectedly encountered a `{...}`
 30 | |      }
    | |______- 
 31 |    }
-   = help: consider adding a `>`
+   = help: expected either `identifier`, or `>`
 
 warn: useless type parameters on this `trait` definition
   --> $DIR/incomplete_ty_params.hash:22:16

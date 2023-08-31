@@ -1,0 +1,7 @@
+error: attribute `entry_point` cannot be applied to an a literal
+ --> $DIR/entry_point.hash:6:6
+5 |   foo := {
+6 |       #entry_point 1;
+  |        ^^^^^^^^^^^ `entry_point` cannot be applied to a literal
+7 |   
+  = help: `entry_point` can only be applied to a `function` definition

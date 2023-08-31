@@ -1,32 +1,22 @@
-// @@Docs
 use std::sync::OnceLock;
 
 use hash_storage::stores;
 
-use super::super::{
-    args::{ArgsStore, PatArgsStore},
-    data::{CtorDefsStore, DataDefStore},
-    fns::FnDefStore,
-    locations::LocationStore,
-    mods::{ModDefStore, ModMembersStore},
-    params::ParamsStore,
-    pats::{PatListStore, PatStore},
-    scopes::StackStore,
-    symbols::SymbolStore,
-    terms::{TermListStore, TermStore},
-    tys::TyStore,
-};
 use crate::{
-    args::{ArgsSeqStore, PatArgsSeqStore},
+    args::{ArgsSeqStore, ArgsStore, PatArgsSeqStore, PatArgsStore},
     ast_info::AstInfo,
     atom_info::AtomInfoStore,
     control::{MatchCasesSeqStore, MatchCasesStore},
-    data::CtorDefsSeqStore,
-    directives::AppliedDirectivesStore,
-    mods::ModMembersSeqStore,
-    params::ParamsSeqStore,
-    pats::PatListSeqStore,
-    terms::TermListSeqStore,
+    data::{CtorDefsSeqStore, CtorDefsStore, DataDefStore},
+    fns::FnDefStore,
+    locations::LocationStore,
+    mods::{ModDefStore, ModMembersSeqStore, ModMembersStore},
+    params::{ParamsSeqStore, ParamsStore},
+    pats::{PatListSeqStore, PatListStore, PatStore},
+    scopes::StackStore,
+    symbols::SymbolStore,
+    terms::{TermListSeqStore, TermListStore, TermStore},
+    tys::TyStore,
 };
 
 // All the stores that contain definitions for the typechecker.
@@ -59,7 +49,6 @@ stores! {
     match_cases_seq: MatchCasesSeqStore,
     atom_info: AtomInfoStore,
     ast_info: AstInfo,
-    directives: AppliedDirectivesStore,
 }
 
 /// The global [`Stores`] instance.
@@ -143,6 +132,13 @@ macro_rules! tir_node_single_store {
             store_source = tir_stores()
         );
         $crate::tir_debug_value_of_single_store_id!($id);
+
+        // @@Todo: enable once locations are properly set up
+        // impl $crate::ast_info::HasNodeId for $id {
+        //     fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
+        //         self.value().node_id()
+        //     }
+        // }
     };
 }
 

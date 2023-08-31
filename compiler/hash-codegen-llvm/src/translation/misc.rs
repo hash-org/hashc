@@ -1,12 +1,13 @@
 //! Implements various miscellaneous methods for the LLVM backend.
 
+use hash_attrs::builtin::attrs;
 use hash_codegen::{
     abi::{CallingConvention, FnAbi},
     symbols::mangle::compute_symbol_name,
+    target::HasTarget,
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::InstanceId;
-use hash_source::identifier::IDENTS;
 use hash_storage::store::{statics::StoreId, Store};
 use inkwell::{
     module::Linkage,
@@ -103,7 +104,7 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
 
         // If the instance has the "foreign" attribute, then we need to
         // specify that the linkage is external.
-        if instance.borrow().attributes.contains(IDENTS.foreign) {
+        if instance.borrow().has_attr(attrs::FOREIGN) {
             decl.set_linkage(Linkage::External);
         }
 
