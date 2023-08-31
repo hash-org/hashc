@@ -4,12 +4,9 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_storage::{
-    static_sequence_store_direct, static_single_store,
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
-    },
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::itertools::Itertools;
 
@@ -22,9 +19,8 @@ use crate::{
     environment::stores::tir_stores,
     node::{Node, NodeOrigin},
     params::ParamsId,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{Term, TermId},
-    tir_debug_value_of_sequence_store_element_id, tir_debug_value_of_single_store_id,
     tir_node_sequence_store_direct,
 };
 
@@ -40,25 +36,7 @@ pub struct Arg {
     pub value: TermId,
 }
 
-static_single_store!(
-    store = pub ArgsStore,
-    id = pub ArgsId,
-    value = Node<ArgsSeqId>,
-    store_name = args,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_single_store_id!(ArgsId);
-
-static_sequence_store_direct!(
-    store = pub ArgsSeqStore,
-    id = pub ArgsSeqId[ArgId],
-    value = Node<Arg>,
-    store_name = args_seq,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_sequence_store_element_id!(ArgId);
+tir_node_sequence_store_direct!(Arg);
 
 impl Arg {
     /// From the given parameters, create arguments that directly refer to the
@@ -144,25 +122,6 @@ impl Arg {
     }
 }
 
-/// @@Todo: turn into macro
-impl SequenceStoreKey for ArgsId {
-    type ElementKey = ArgId;
-
-    fn to_index_and_len(self) -> (usize, usize) {
-        self.value().to_index_and_len()
-    }
-
-    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
-        panic!("Creating ArgsId is not allowed, create ArgsSeqId directly")
-    }
-}
-
-impl From<(ArgsId, usize)> for ArgId {
-    fn from(value: (ArgsId, usize)) -> Self {
-        ArgId(*value.0.value(), value.1)
-    }
-}
-
 /// A pattern or a capture.
 ///
 /// A capture exists in pattern lists and pattern arguments, and is used to
@@ -203,12 +162,7 @@ pub struct PatArg {
     pub pat: PatOrCapture,
 }
 
-tir_node_sequence_store_direct!(
-    store = pub PatArgsStore -> PatArgsSeqStore,
-    id = pub PatArgsId -> PatArgsSeqId[PatArgId],
-    value = PatArg,
-    store_name = (pat_args, pat_args_seq)
-);
+tir_node_sequence_store_direct!(PatArg);
 
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
@@ -225,7 +179,7 @@ pub enum SomeArgId {
 }
 
 impl SomeArgId {
-    pub fn into_name(&self) -> Symbol {
+    pub fn into_name(&self) -> SymbolId {
         self.target().into_symbol()
     }
 

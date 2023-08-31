@@ -17,7 +17,7 @@ use hash_tir::{
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
     node::{Node, NodeOrigin},
     scopes::StackId,
-    symbols::{sym, Symbol},
+    symbols::{sym, SymbolId},
     tys::TyId,
     utils::AccessToUtils,
 };
@@ -337,7 +337,7 @@ impl<'tc> DiscoveryPass<'tc> {
     /// exists
     pub fn get_mod_member_data_from_def_node_id(
         &self,
-        name: Symbol,
+        name: SymbolId,
         def_node_id: AstNodeId,
     ) -> Option<ModMember> {
         let ast_info = tir_stores().ast_info();
@@ -365,7 +365,7 @@ impl<'tc> DiscoveryPass<'tc> {
     /// Create `ModMember` from a declaration node.
     pub(super) fn make_mod_member_data_from_declaration_node(
         &self,
-        name: Symbol,
+        name: SymbolId,
         node: AstNodeRef<ast::Declaration>,
     ) -> Option<ModMember> {
         // The `def_node_id` is the `AstNodeId` of the actual definition value that
@@ -413,7 +413,7 @@ impl<'tc> DiscoveryPass<'tc> {
     /// it is not a valid module member.
     pub(super) fn add_declaration_node_to_mod_def(
         &self,
-        name: Symbol,
+        name: SymbolId,
         node: AstNodeRef<ast::Declaration>,
         mod_def_id: ModDefId,
     ) {
@@ -530,7 +530,7 @@ impl<'tc> DiscoveryPass<'tc> {
             ast::Pat::Wild(_) => buf.push((
                 node.id(),
                 Decl {
-                    name: Symbol::fresh(),
+                    name: SymbolId::fresh(),
                     // is_mutable: false,
                     ty: None,
                     value: None,
@@ -550,7 +550,7 @@ impl<'tc> DiscoveryPass<'tc> {
         &self,
         node: AstNodeRef<ast::Pat>,
         stack_id: StackId,
-        declaration_name: Option<Symbol>,
+        declaration_name: Option<SymbolId>,
         _rhs: Option<&ast::AstNode<ast::Expr>>,
     ) {
         self.def_state().stack_members.modify_fast(stack_id, |members| {

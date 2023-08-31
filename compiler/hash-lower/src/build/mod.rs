@@ -31,7 +31,7 @@ use hash_tir::{
         stores::tir_stores,
     },
     fns::{FnBody, FnDef, FnDefId, FnTy},
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
 };
 use hash_utils::index_vec::IndexVec;
@@ -170,7 +170,7 @@ pub(crate) struct BodyBuilder<'tcx> {
 
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
-    declaration_map: FxHashMap<Symbol, Local>,
+    declaration_map: FxHashMap<SymbolId, Local>,
 
     /// Information about the currently traversed [ast::Block] in the AST. This
     /// value is used to determine when the block should be terminated by

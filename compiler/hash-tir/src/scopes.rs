@@ -17,7 +17,7 @@ use crate::{
     mods::ModDefId,
     node::{Node, NodeOrigin},
     pats::PatId,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{TermId, TermListId},
     tir_get, tir_node_single_store,
     tys::TyId,
@@ -29,7 +29,7 @@ pub struct BindingPat {
     /// The name of the bind.
     /// If `name` does not map to a specific `Identifier` name, it means
     /// that the pattern is actually a wildcard `_`.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// Whether the binding is declared as mutable.
     pub is_mutable: bool,
 }
@@ -89,7 +89,7 @@ pub struct AssignTerm {
 #[omit(StackMemberData, [id], [Debug, Copy, Clone])]
 #[derive(Debug, Copy, Clone)]
 pub struct StackMember {
-    pub name: Symbol,
+    pub name: SymbolId,
     pub is_mutable: bool,
     pub ty: TyId,
 }
@@ -110,12 +110,7 @@ impl Stack {
     }
 }
 
-tir_node_single_store!(
-    store = pub StackStore,
-    id = pub StackId,
-    value = Stack,
-    store_name = stack
-);
+tir_node_single_store!(Stack);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct StackMemberId(pub StackId, pub usize);

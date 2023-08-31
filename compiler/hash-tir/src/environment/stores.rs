@@ -119,6 +119,16 @@ macro_rules! tir_get {
 
 #[macro_export]
 macro_rules! tir_node_single_store {
+    ($name:ident) => {
+        paste::paste! {
+            tir_node_single_store!(
+                store = pub [<$name:camel Store>],
+                id = pub [<$name:camel Id>],
+                value = $name,
+                store_name = [<$name:snake>]
+            );
+        }
+    };
     (
         store = $store_vis:vis $store:ident,
         id = $id_vis:vis $id:ident,
@@ -138,6 +148,16 @@ macro_rules! tir_node_single_store {
 
 #[macro_export]
 macro_rules! tir_node_sequence_store_direct {
+    ($name:ident) => {
+        paste::paste! {
+            tir_node_sequence_store_direct!(
+                store = pub [<$name:camel sStore>] -> [<$name:camel sSeqStore>],
+                id = pub [<$name:camel sId>] -> [<$name:camel sSeqId>][[<$name:camel Id>]],
+                value = $name,
+                store_name = ([<$name:snake s>], [<$name:snake s_seq>])
+            );
+        }
+    };
     (
         store = $store_vis:vis $store:ident -> $seq_store:ident,
         id = $id_vis:vis $id:ident -> $id_seq:ident[$el_id:ident],
@@ -189,6 +209,15 @@ macro_rules! tir_node_sequence_store_direct {
 
 #[macro_export]
 macro_rules! tir_node_sequence_store_indirect {
+    ($name_s:ident[$element:ty]) => {
+        paste::paste! {
+            tir_node_sequence_store_indirect!(
+                store = pub [<$name_s:camel Store>] -> [<$name_s:camel SeqStore>],
+                id = pub [<$name_s:camel Id>] -> [<$name_s:camel SeqId>][[<$element>]],
+                store_name = ([<$name_s:snake>], [<$name_s:snake _seq>])
+            );
+        }
+    };
     (
         store = $store_vis:vis $store:ident -> $seq_store:ident,
         id = $id_vis:vis $id:ident -> $id_seq:ident[$el_id:ident],

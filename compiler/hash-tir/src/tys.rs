@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use derive_more::From;
 use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
 
-use super::{holes::Hole, symbols::Symbol};
+use super::{holes::Hole, symbols::SymbolId};
 use crate::{
     args::Arg,
     data::{DataDefId, DataTy},
@@ -54,7 +54,7 @@ pub enum Ty {
     Hole(Hole),
 
     /// Type variable
-    Var(Symbol),
+    Var(SymbolId),
 
     /// Tuple type
     Tuple(TupleTy),
@@ -72,12 +72,7 @@ pub enum Ty {
     Universe(UniverseTy),
 }
 
-tir_node_single_store!(
-    store = pub TyStore,
-    id = pub TyId,
-    value = Ty,
-    store_name = ty
-);
+tir_node_single_store!(Ty);
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]
@@ -115,7 +110,7 @@ impl Ty {
     }
 
     /// Create a new variable type.
-    pub fn var(symbol: Symbol) -> TyId {
+    pub fn var(symbol: SymbolId) -> TyId {
         Node::create(Node::at(Ty::Var(symbol), NodeOrigin::Generated))
     }
 

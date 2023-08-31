@@ -22,7 +22,7 @@ use crate::{
     node::{Node, NodeOrigin},
     params::{Param, ParamsId},
     pats::PatArgsWithSpread,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
     tir_get, tir_node_sequence_store_direct, tir_node_single_store,
 };
@@ -36,11 +36,12 @@ use crate::{
 /// Each constructor must result in the original data-type, with some given
 /// arguments.
 #[derive(Debug, Copy, Clone)]
-#[omit(CtorDefData, [id, data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
+#[omit(CtorDefData, [data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
+
 pub struct CtorDef {
     /// The name of the constructor, for example `symbol("Red")` in `Red: Color`
     /// if given as a constructor to a `Colour := datatype...`.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The `DataDefId` of the data-type that this constructor is a part of.
     pub data_def_id: DataDefId,
     /// The index of this constructor in the original data-type's ordered
@@ -61,12 +62,7 @@ pub struct CtorDef {
     pub result_args: ArgsId,
 }
 
-tir_node_sequence_store_direct!(
-    store = pub CtorDefsStore -> CtorDefsSeqStore,
-    id = pub CtorDefsId -> CtorDefsSeqId[CtorDefId],
-    value = CtorDef,
-    store_name = (ctor_defs, ctor_defs_seq)
-);
+tir_node_sequence_store_direct!(CtorDef);
 
 /// A constructor term.
 ///
@@ -205,7 +201,7 @@ pub struct DataDef {
     /// The name of the data-type.
     ///
     /// For example `symbol("Colour")` in `Colour := datatype...`.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The parameters of the data-type.
     ///
     /// For example `<A: Type>` in `Bingo := datatype <A: Type> (x:
@@ -218,16 +214,11 @@ pub struct DataDef {
     pub ctors: DataDefCtors,
 }
 
-tir_node_single_store!(
-    store = pub DataDefStore,
-    id = pub DataDefId,
-    value = DataDef,
-    store_name = data_def
-);
+tir_node_single_store!(DataDef);
 
 impl DataDef {
     /// Create an empty data definition.
-    pub fn empty(name: Symbol, params: ParamsId) -> DataDefId {
+    pub fn empty(name: SymbolId, params: ParamsId) -> DataDefId {
         Node::create_at(
             DataDef {
                 name,
@@ -242,7 +233,7 @@ impl DataDef {
     }
 
     /// Create a primitive data definition.
-    pub fn primitive(name: Symbol, info: PrimitiveCtorInfo) -> DataDefId {
+    pub fn primitive(name: SymbolId, info: PrimitiveCtorInfo) -> DataDefId {
         Node::create_at(
             DataDef {
                 name,
@@ -257,7 +248,7 @@ impl DataDef {
     ///
     /// These may be referenced in `info`.
     pub fn primitive_with_params(
-        name: Symbol,
+        name: SymbolId,
         params: ParamsId,
         info: impl FnOnce(DataDefId) -> PrimitiveCtorInfo,
     ) -> DataDefId {
@@ -288,7 +279,7 @@ impl DataDef {
     ///
     /// This will create a data definition with a single constructor, which
     /// takes the fields as parameters and returns the data type.
-    pub fn struct_def(name: Symbol, params: ParamsId, fields_params: ParamsId) -> DataDefId {
+    pub fn struct_def(name: SymbolId, params: ParamsId, fields_params: ParamsId) -> DataDefId {
         // Create the arguments for the constructor, which are the type
         // parameters given.
         let result_args = Arg::seq_from_param_names_as_vars(params);
@@ -322,9 +313,9 @@ impl DataDef {
     /// Create an enum definition, with some parameters, where each variant has
     /// specific result arguments.
     pub fn indexed_enum_def(
-        name: Symbol,
+        name: SymbolId,
         params: ParamsId,
-        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId, Option<ArgsId>)>,
+        variants: impl Fn(DataDefId) -> Vec<(SymbolId, ParamsId, Option<ArgsId>)>,
     ) -> DataDefId {
         // Create the data definition for the enum
         Node::create_with(|id| {
@@ -366,9 +357,9 @@ impl DataDef {
     /// which takes the variant fields as parameters and returns the data
     /// type.
     pub fn enum_def(
-        name: Symbol,
+        name: SymbolId,
         params: ParamsId,
-        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId)>,
+        variants: impl Fn(DataDefId) -> Vec<(SymbolId, ParamsId)>,
     ) -> DataDefId {
         Self::indexed_enum_def(name, params, |def_id| {
             variants(def_id)

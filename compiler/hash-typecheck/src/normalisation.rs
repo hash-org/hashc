@@ -25,7 +25,7 @@ use hash_tir::{
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::DerefTerm,
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{Term, TermId, TermListId, UnsafeTerm},
     tuples::TupleTerm,
     tys::{Ty, TyId, TypeOfTerm},
@@ -454,7 +454,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a variable.
-    fn eval_var(&self, var: Symbol) -> AtomEvaluation {
+    fn eval_var(&self, var: SymbolId) -> AtomEvaluation {
         match self.context().try_get_decl_value(var) {
             Some(result) => {
                 if matches!(*result.value(), Term::Var(v) if v == var) {
@@ -951,7 +951,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         extract_spread_list: impl Fn(Spread) -> TermId,
         get_ith_pat: impl Fn(usize) -> PatOrCapture,
         get_ith_term: impl Fn(usize) -> TermId,
-        f: &mut impl FnMut(Symbol, TermId),
+        f: &mut impl FnMut(SymbolId, TermId),
     ) -> Result<MatchResult, Signal> {
         // We assume that the term list is well-typed with respect to the pattern list.
 
@@ -1004,7 +1004,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         term_args: ArgsId,
         pat_args: PatArgsId,
         spread: Option<Spread>,
-        f: &mut impl FnMut(Symbol, TermId),
+        f: &mut impl FnMut(SymbolId, TermId),
     ) -> Result<MatchResult, Signal> {
         self.match_some_list_and_get_binds(
             term_args.len(),
@@ -1076,7 +1076,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         &self,
         term_id: TermId,
         pat_id: PatId,
-        f: &mut impl FnMut(Symbol, TermId),
+        f: &mut impl FnMut(SymbolId, TermId),
     ) -> Result<MatchResult, Signal> {
         let evaluated_id = self.to_term(self.eval(term_id.into())?);
         let evaluated = *evaluated_id.value();

@@ -22,7 +22,7 @@ use crate::{
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
     node::{Node, NodeOrigin},
-    symbols::Symbol,
+    symbols::SymbolId,
     tir_node_sequence_store_direct,
     tuples::TupleTy,
     tys::{Ty, TyId},
@@ -33,24 +33,19 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct Param {
     /// The name of the parameter.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The type of the parameter.
     pub ty: TyId,
     /// The default value of the parameter.
     pub default: Option<TermId>,
 }
 
-tir_node_sequence_store_direct!(
-    store = pub ParamsStore -> ParamsSeqStore,
-    id = pub ParamsId -> ParamsSeqId[ParamId],
-    value = Param,
-    store_name = (params, params_seq)
-);
+tir_node_sequence_store_direct!(Param);
 
 impl Param {
     /// Create a new parameter list with the given names, and holes for all
     /// types.
-    pub fn seq_from_names_with_hole_types(param_names: impl Iterator<Item = Symbol>) -> ParamsId {
+    pub fn seq_from_names_with_hole_types(param_names: impl Iterator<Item = SymbolId>) -> ParamsId {
         Node::create(Node::at(
             Node::seq_data(
                 param_names
@@ -79,7 +74,7 @@ impl Param {
                 tys.into_iter()
                     .map(|ty| {
                         Node::at(
-                            Param { name: Symbol::fresh(), ty, default: None },
+                            Param { name: SymbolId::fresh(), ty, default: None },
                             NodeOrigin::Generated,
                         )
                     })
@@ -138,10 +133,10 @@ impl From<ParamId> for ParamIndex {
 impl ParamIndex {
     /// Get the name of the parameter, if it is named, or a fresh symbol
     /// otherwise.
-    pub fn into_symbol(&self) -> Symbol {
+    pub fn into_symbol(&self) -> SymbolId {
         match self {
-            ParamIndex::Name(name) => Symbol::from_name(*name),
-            ParamIndex::Position(_) => Symbol::fresh(),
+            ParamIndex::Name(name) => SymbolId::from_name(*name),
+            ParamIndex::Position(_) => SymbolId::fresh(),
         }
     }
 }

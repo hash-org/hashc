@@ -6,7 +6,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::location::Span;
-use hash_tir::{symbols::Symbol, terms::TermId, utils::common::get_location};
+use hash_tir::{symbols::SymbolId, terms::TermId, utils::common::get_location};
 use hash_typecheck::errors::{TcError, TcErrorReporter};
 
 use crate::{
@@ -36,7 +36,7 @@ pub enum SemanticError {
     ModulePatternsNotSupported { location: Span },
 
     /// Some specified symbol was not found.
-    SymbolNotFound { symbol: Symbol, location: Span, looking_in: ContextKind },
+    SymbolNotFound { symbol: SymbolId, location: Span, looking_in: ContextKind },
 
     /// Cannot use a module in a value position.
     CannotUseModuleInValuePosition { location: Span },

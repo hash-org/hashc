@@ -13,7 +13,7 @@ use hash_tir::{
     lits::Lit,
     params::ParamsId,
     sub::Sub,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::traversing::Atom,
@@ -31,7 +31,7 @@ pub struct UnificationOps<'a, T: AccessToTypechecking> {
     env: &'a T,
     add_to_ctx: Cell<bool>,
     modify_terms: Cell<bool>,
-    pat_binds: OnceCell<HashSet<Symbol>>,
+    pat_binds: OnceCell<HashSet<SymbolId>>,
 }
 
 impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
@@ -51,7 +51,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     }
 
     /// Disable adding unifications to the context.
-    pub fn with_binds(&self, binds: HashSet<Symbol>) -> &Self {
+    pub fn with_binds(&self, binds: HashSet<SymbolId>) -> &Self {
         self.pat_binds.set(binds).unwrap();
         self
     }
@@ -90,7 +90,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
 
     /// Add the given unification to the context, and create a substitution
     /// from it.
-    pub fn add_unification(&self, src: Symbol, target: impl Into<Atom>) -> Sub {
+    pub fn add_unification(&self, src: SymbolId, target: impl Into<Atom>) -> Sub {
         let sub = Sub::from_pairs([(src, self.norm_ops().to_term(target.into()))]);
         self.add_unification_from_sub(&sub);
         sub
@@ -244,7 +244,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         Ok((subbed_initial, sub))
     }
 
-    pub fn unify_vars(&self, a: Symbol, b: Symbol, a_id: TermId, b_id: TermId) -> TcResult<()> {
+    pub fn unify_vars(&self, a: SymbolId, b: SymbolId, a_id: TermId, b_id: TermId) -> TcResult<()> {
         if let Some(binds) = self.pat_binds.get() {
             if binds.contains(&a) {
                 self.add_unification(b, a_id);

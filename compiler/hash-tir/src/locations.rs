@@ -12,7 +12,7 @@ use super::{
     params::ParamId,
     pats::PatId,
     scopes::{StackId, StackMemberId},
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
     tys::TyId,
 };
@@ -112,7 +112,7 @@ location_targets! {
     Term: TermId,
     Ty: TyId,
     Pat: PatId,
-    Symbol: Symbol,
+    Symbol: SymbolId,
 
     DataDef: DataDefId,
     CtorDef: CtorDefId = sequence CtorDefs: CtorDefsSeqId,

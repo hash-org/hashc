@@ -5,7 +5,7 @@ use hash_ast::{
     ast::{self},
     visitor::AstVisitor,
 };
-use hash_tir::{environment::env::AccessToEnv, symbols::Symbol};
+use hash_tir::{environment::env::AccessToEnv, symbols::SymbolId};
 use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
@@ -26,7 +26,7 @@ pub mod visitor;
 pub struct DiscoveryPass<'tc> {
     sem_env: &'tc SemEnv<'tc>,
     /// The name hint for the current definition.
-    name_hint: LightState<Option<Symbol>>,
+    name_hint: LightState<Option<SymbolId>>,
     /// Keeps track of which definitions have been seen, added, and we are
     /// currently inside.
     def_state: DefDiscoveryState,
@@ -74,7 +74,7 @@ impl<'tc> DiscoveryPass<'tc> {
     }
 
     /// Take the currently set name hint, or create a new internal name.
-    fn take_name_hint_or_create_internal_name(&self) -> Symbol {
-        self.name_hint.take().unwrap_or_else(Symbol::fresh)
+    fn take_name_hint_or_create_internal_name(&self) -> SymbolId {
+        self.name_hint.take().unwrap_or_else(SymbolId::fresh)
     }
 }

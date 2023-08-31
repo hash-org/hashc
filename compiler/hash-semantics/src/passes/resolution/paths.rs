@@ -30,7 +30,7 @@ use hash_tir::{
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
     node::{Node, NodeOrigin},
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::Term,
 };
 
@@ -118,7 +118,7 @@ pub enum TerminalResolvedPathComponent {
     /// A function call term.
     FnCall(FnCallTerm),
     /// A variable bound in the current context.
-    Var(Symbol),
+    Var(SymbolId),
 }
 
 /// The result of resolving a path component.
@@ -142,7 +142,7 @@ impl<'tc> ResolutionPass<'tc> {
         name: Identifier,
         name_span: Span,
         starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
-    ) -> SemanticResult<(Symbol, BindingKind)> {
+    ) -> SemanticResult<(SymbolId, BindingKind)> {
         match starting_from {
             Some((member_value, _span)) => match member_value {
                 // If we are starting from a module or data type, we need to enter their scopes.

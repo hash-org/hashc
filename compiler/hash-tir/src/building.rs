@@ -8,7 +8,7 @@ pub mod gen {
     use crate::{
         node::Node,
         params::{Param, ParamsId},
-        symbols::Symbol,
+        symbols::SymbolId,
         terms::TermId,
         tys::TyId,
     };
@@ -17,12 +17,12 @@ pub mod gen {
     /// "generated".
 
     /// Create a symbol with the given name.
-    pub fn sym(name: impl Into<Identifier>) -> Symbol {
-        Symbol::from_name(name)
+    pub fn sym(name: impl Into<Identifier>) -> SymbolId {
+        SymbolId::from_name(name)
     }
 
     /// Create a parameter list with the given parameters.
-    pub fn params(data: impl IntoIterator<Item = (Symbol, TyId, Option<TermId>)>) -> ParamsId {
+    pub fn params(data: impl IntoIterator<Item = (SymbolId, TyId, Option<TermId>)>) -> ParamsId {
         Node::create_gen(Node::<Param>::seq_data(
             data.into_iter()
                 .map(|(name, ty, default)| Node::gen(Param { name, ty, default }))

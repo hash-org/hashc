@@ -56,12 +56,7 @@ pub struct MatchCase {
     pub value: TermId,
 }
 
-tir_node_sequence_store_direct!(
-    store = pub MatchCasesStore -> MatchCasesSeqStore,
-    id = pub MatchCasesId -> MatchCasesSeqId[MatchCaseId],
-    value = MatchCase,
-    store_name = (match_cases, match_cases_seq)
-);
+tir_node_sequence_store_direct!(MatchCase);
 
 /// A return term.
 ///

@@ -9,7 +9,7 @@ use hash_storage::store::{
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 
-use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
+use super::{casting::CastTerm, holes::Hole, symbols::SymbolId, tys::TypeOfTerm};
 use crate::{
     access::AccessTerm,
     args::Arg,
@@ -60,7 +60,7 @@ pub enum Term {
     Block(BlockTerm),
 
     // Variables
-    Var(Symbol),
+    Var(SymbolId),
 
     // Loops
     Loop(LoopTerm),
@@ -99,18 +99,8 @@ pub enum Term {
     Hole(Hole),
 }
 
-tir_node_single_store!(
-    store = pub TermStore,
-    id = pub TermId,
-    value = Term,
-    store_name = term
-);
-
-tir_node_sequence_store_indirect!(
-    store = pub TermListStore -> TermListSeqStore,
-    id = pub TermListId -> TermListSeqId[TermId],
-    store_name = (term_list, term_list_seq)
-);
+tir_node_single_store!(Term);
+tir_node_sequence_store_indirect!(TermList[TermId]);
 
 impl Term {
     pub fn is_void(&self) -> bool {
@@ -130,7 +120,7 @@ impl Term {
         Node::create(Node::at(Term::Hole(Hole::fresh()), NodeOrigin::Generated))
     }
 
-    pub fn var(symbol: Symbol) -> TermId {
+    pub fn var(symbol: SymbolId) -> TermId {
         Node::create(Node::at(Term::Var(symbol), NodeOrigin::Generated))
     }
 

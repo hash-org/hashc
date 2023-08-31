@@ -20,7 +20,7 @@ use crate::{
     params::{ParamId, ParamsId},
     scopes::StackId,
     sub::Sub,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
     tir_get,
     tuples::TupleTy,
@@ -30,7 +30,7 @@ use crate::{
 /// A binding that contains a type and optional value.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Decl {
-    pub name: Symbol,
+    pub name: SymbolId,
     pub ty: Option<TyId>,
     pub value: Option<TermId>,
 }
@@ -69,7 +69,7 @@ pub struct Scope {
     /// The kind of the scope.
     pub kind: ScopeKind,
     /// The bindings of the scope
-    pub decls: RefCell<IndexMap<Symbol, Decl, FxBuildHasher>>,
+    pub decls: RefCell<IndexMap<SymbolId, Decl, FxBuildHasher>>,
 }
 
 impl Scope {
@@ -84,14 +84,14 @@ impl Scope {
     }
 
     /// Get the decl corresponding to the given symbol.
-    pub fn get_decl(&self, symbol: Symbol) -> Option<Decl> {
+    pub fn get_decl(&self, symbol: SymbolId) -> Option<Decl> {
         self.decls.borrow().get(&symbol).copied()
     }
 
     /// Set an existing decl kind of the given symbol.
     ///
     /// Returns `true` if the decl was found and updated, `false` otherwise.
-    pub fn set_existing_decl(&self, symbol: Symbol, f: &impl Fn(Decl) -> Decl) -> bool {
+    pub fn set_existing_decl(&self, symbol: SymbolId, f: &impl Fn(Decl) -> Decl) -> bool {
         if let Some(old) = self.get_decl(symbol) {
             self.decls.borrow_mut().insert(symbol, f(old));
             true
@@ -162,26 +162,26 @@ impl Context {
     }
 
     /// Add a new decl to the current scope context.
-    pub fn add_decl(&self, name: Symbol, ty: Option<TyId>, value: Option<TermId>) {
+    pub fn add_decl(&self, name: SymbolId, ty: Option<TyId>, value: Option<TermId>) {
         self.get_current_scope_ref().add_decl(Decl { name, ty, value })
     }
 
     /// Get a decl from the context, reading all accessible scopes.
-    pub fn try_get_decl(&self, name: Symbol) -> Option<Decl> {
+    pub fn try_get_decl(&self, name: SymbolId) -> Option<Decl> {
         self.scopes.borrow().iter().rev().find_map(|scope| scope.get_decl(name))
     }
 
     /// Get a decl from the context, reading all accessible scopes.
     ///
     /// Panics if the decl doesn't exist.
-    pub fn get_decl(&self, name: Symbol) -> Decl {
+    pub fn get_decl(&self, name: SymbolId) -> Decl {
         self.try_get_decl(name)
             .unwrap_or_else(|| panic!("cannot find a declaration with name {}", name))
     }
 
     /// Modify a decl in the context, with a function that takes the current
     /// decl kind and returns the new decl kind.
-    pub fn modify_decl_with(&self, name: Symbol, f: impl Fn(Decl) -> Decl) {
+    pub fn modify_decl_with(&self, name: SymbolId, f: impl Fn(Decl) -> Decl) {
         let _ = self
             .scopes
             .borrow()
@@ -298,7 +298,7 @@ impl Context {
     }
 
     /// Get all the decls in the context for the given scope.
-    pub fn get_owned_decls_of_scope(&self, scope_index: usize) -> Vec<Symbol> {
+    pub fn get_owned_decls_of_scope(&self, scope_index: usize) -> Vec<SymbolId> {
         self.scopes.borrow()[scope_index].decls.borrow().keys().copied().collect_vec()
     }
 
@@ -328,43 +328,43 @@ impl Context {
     }
 
     /// Add an assignment without a type.
-    pub fn add_unknown_var(&self, name: Symbol) {
+    pub fn add_unknown_var(&self, name: SymbolId) {
         self.add_decl(name, None, None);
     }
 
     /// Add an assignment without a type.
-    pub fn add_untyped_assignment(&self, name: Symbol, term: TermId) {
+    pub fn add_untyped_assignment(&self, name: SymbolId, term: TermId) {
         self.add_decl(name, None, Some(term));
     }
 
     /// Add a typing binding to the closest stack scope.
-    pub fn add_assignment_to_closest_stack(&self, name: Symbol, ty: TyId, value: TermId) {
+    pub fn add_assignment_to_closest_stack(&self, name: SymbolId, ty: TyId, value: TermId) {
         self.get_closest_stack_scope_ref().add_decl(Decl { name, ty: Some(ty), value: Some(value) })
     }
 
     /// Add a typing binding to the closest stack scope.
-    pub fn add_typing_to_closest_stack(&self, name: Symbol, ty: TyId) {
+    pub fn add_typing_to_closest_stack(&self, name: SymbolId, ty: TyId) {
         self.get_closest_stack_scope_ref().add_decl(Decl { name, ty: Some(ty), value: None })
     }
 
     /// Add a typing binding.
-    pub fn add_typing(&self, name: Symbol, ty: TyId) {
+    pub fn add_typing(&self, name: SymbolId, ty: TyId) {
         self.add_decl(name, Some(ty), None);
     }
 
     /// Add an assignment binding with a value.
-    pub fn add_assignment(&self, name: Symbol, ty: TyId, value: TermId) {
+    pub fn add_assignment(&self, name: SymbolId, ty: TyId, value: TermId) {
         self.add_decl(name, Some(ty), Some(value));
     }
 
     /// Modify the type of an assignment binding.
-    pub fn modify_typing(&self, name: Symbol, new_ty: TyId) {
+    pub fn modify_typing(&self, name: SymbolId, new_ty: TyId) {
         let current_value = self.try_get_decl_value(name);
         self.modify_decl(Decl { name, ty: Some(new_ty), value: current_value })
     }
 
     /// Modify the value of an assignment binding.
-    pub fn modify_assignment(&self, name: Symbol, new_value: TermId) {
+    pub fn modify_assignment(&self, name: SymbolId, new_value: TermId) {
         let current_ty = self.try_get_decl_ty(name);
         self.modify_decl(Decl { name, ty: current_ty, value: Some(new_value) })
     }
@@ -390,23 +390,23 @@ impl Context {
     }
 
     /// Get the value of a binding, if possible.
-    pub fn try_get_decl_value(&self, name: Symbol) -> Option<TermId> {
+    pub fn try_get_decl_value(&self, name: SymbolId) -> Option<TermId> {
         self.try_get_decl(name)?.value
     }
 
     /// Get the type of a binding, if possible.
-    pub fn try_get_decl_ty(&self, name: Symbol) -> Option<TyId> {
+    pub fn try_get_decl_ty(&self, name: SymbolId) -> Option<TyId> {
         self.try_get_decl(name)?.ty
     }
 
     /// Get the value of a binding.
-    pub fn get_binding_value(&self, name: Symbol) -> TermId {
+    pub fn get_binding_value(&self, name: SymbolId) -> TermId {
         self.try_get_decl_value(name)
             .unwrap_or_else(|| panic!("cannot get value of uninitialised binding {}", name))
     }
 
     /// Get the type of a binding.
-    pub fn get_binding_ty(&self, name: Symbol) -> TyId {
+    pub fn get_binding_ty(&self, name: SymbolId) -> TyId {
         self.try_get_decl_ty(name)
             .unwrap_or_else(|| panic!("cannot get type of untyped binding {}", name))
     }

@@ -15,7 +15,7 @@ use hash_tir::{
     params::{ParamId, ParamIndex, ParamsId},
     pats::Pat,
     sub::Sub,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::{
@@ -42,9 +42,9 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     fn params_contain_vars(
         &self,
         params: ParamsId,
-        var_matches: &HashSet<Symbol>,
+        var_matches: &HashSet<SymbolId>,
         can_apply: &mut bool,
-    ) -> HashSet<Symbol> {
+    ) -> HashSet<SymbolId> {
         let mut seen = var_matches.clone();
         for param in params.iter() {
             let param = param.value();
@@ -153,7 +153,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn atom_contains_vars_once(
         &self,
         atom: Atom,
-        var_matches: &HashSet<Symbol>,
+        var_matches: &HashSet<SymbolId>,
         can_apply: &mut bool,
     ) -> ControlFlow<()> {
         let var_matches = &var_matches;
@@ -217,12 +217,12 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         sub: &Sub,
         can_apply: &mut bool,
     ) -> ControlFlow<()> {
-        let domain: HashSet<Symbol> = sub.domain().collect();
+        let domain: HashSet<SymbolId> = sub.domain().collect();
         self.atom_contains_vars_once(atom, &domain, can_apply)
     }
 
     /// Below are convenience methods for specific atoms:
-    pub fn atom_contains_vars(&self, atom: Atom, filter: &HashSet<Symbol>) -> bool {
+    pub fn atom_contains_vars(&self, atom: Atom, filter: &HashSet<SymbolId>) -> bool {
         let mut can_apply = false;
         self.traversing_utils
             .visit_atom::<!, _>(atom, &mut |atom| {
@@ -396,7 +396,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     }
 
     /// Create a substitution from the current scope members.
-    pub fn get_unassigned_vars_in_current_scope(&self) -> HashSet<Symbol> {
+    pub fn get_unassigned_vars_in_current_scope(&self) -> HashSet<SymbolId> {
         let mut sub = HashSet::new();
         let current_scope_index = self.context().get_current_scope_index();
         self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
@@ -408,7 +408,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     }
 
     /// Create a substitution from the current scope members.
-    pub fn is_unassigned_var_in_current_scope(&self, var: Symbol) -> bool {
+    pub fn is_unassigned_var_in_current_scope(&self, var: SymbolId) -> bool {
         let _current_scope_index = self.context().get_current_scope_index();
         match self.context().get_current_scope_ref().get_decl(var) {
             Some(var) => {
@@ -476,7 +476,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
 
     /// Insert the given variable and value into the given substitution if
     /// the value is not a variable with the same name.
-    pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: Symbol, value: TermId) {
+    pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: SymbolId, value: TermId) {
         let subbed_value = self.apply_sub_to_term(value, sub);
         if !matches!(*subbed_value.value(), Term::Var(v) if v == name) {
             sub.insert(name, subbed_value);

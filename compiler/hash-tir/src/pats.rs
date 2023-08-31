@@ -13,7 +13,7 @@ use super::{
     data::CtorPat,
     lits::LitPat,
     scopes::BindingPat,
-    symbols::Symbol,
+    symbols::SymbolId,
     tuples::TuplePat,
 };
 use crate::{
@@ -28,7 +28,7 @@ pub struct Spread {
     /// The name of the spread bind.
     /// If `name` does not map to a specific `Identifier` name, it means
     /// that the bind is actually nameless.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The index in the sequence of target patterns, of this spread pattern.
     pub index: usize,
 }
@@ -79,6 +79,9 @@ pub enum Pat {
     If(IfPat),
 }
 
+tir_node_single_store!(Pat);
+tir_node_sequence_store_indirect!(PatList[PatOrCapture]);
+
 impl Pat {
     /// Check if the pattern is a [`Pat::Or`].
     pub fn is_or(&self) -> bool {
@@ -103,19 +106,6 @@ impl Pat {
         }
     }
 }
-
-tir_node_single_store!(
-    store = pub PatStore,
-    id = pub PatId,
-    value = Pat,
-    store_name = pat
-);
-
-tir_node_sequence_store_indirect!(
-    store = pub PatListStore -> PatListSeqStore,
-    id = pub PatListId -> PatListSeqId[PatOrCapture],
-    store_name = (pat_list, pat_list_seq)
-);
 
 impl fmt::Display for Spread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

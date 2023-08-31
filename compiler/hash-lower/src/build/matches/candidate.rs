@@ -28,7 +28,7 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, RangePat},
     scopes::BindingPat,
-    symbols::Symbol,
+    symbols::SymbolId,
     tuples::TuplePat,
 };
 use hash_utils::{
@@ -156,7 +156,7 @@ pub(super) struct Binding {
     pub source: Place,
 
     /// The identifier that is used as the binding.
-    pub name: Symbol,
+    pub name: SymbolId,
 
     /// The mutability of the binding
     pub mutability: Mutability,

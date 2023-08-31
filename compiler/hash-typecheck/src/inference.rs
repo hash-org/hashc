@@ -38,7 +38,7 @@ use hash_tir::{
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     sub::Sub,
-    symbols::Symbol,
+    symbols::SymbolId,
     term_as_variant,
     terms::{Term, TermId, TermListId, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
@@ -260,7 +260,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn try_use_pat_as_term(&self, pat_id: PatId) -> Option<TermId> {
         match *pat_id.value() {
             Pat::Binding(var) => Some(Term::from(var.name)),
-            Pat::Range(_) => Some(Term::from(Symbol::fresh())),
+            Pat::Range(_) => Some(Term::from(SymbolId::fresh())),
             Pat::Lit(lit) => Some(Term::from(Term::Lit(lit.into()))),
             Pat::Ctor(ctor_pat) => Some(Term::from(CtorTerm {
                 ctor: ctor_pat.ctor,
@@ -646,7 +646,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn get_binds_in_pat_atom_once(
         &self,
         atom: Atom,
-        set: &mut HashSet<Symbol>,
+        set: &mut HashSet<SymbolId>,
     ) -> ControlFlow<()> {
         if let Atom::Pat(pat_id) = atom {
             match *pat_id.value() {
@@ -661,7 +661,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         }
     }
 
-    pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<Symbol> {
+    pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
         self.traversing_utils()
             .visit_pat::<!, _>(pat, &mut |atom| {
@@ -671,7 +671,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         binds
     }
 
-    pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<Symbol> {
+    pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
         self.traversing_utils()
             .visit_pat_args::<!, _>(pat_args, &mut |atom| {
@@ -1038,7 +1038,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a variable, and return it.
-    pub fn infer_var(&self, term: Symbol, annotation_ty: TyId) -> TcResult<()> {
+    pub fn infer_var(&self, term: SymbolId, annotation_ty: TyId) -> TcResult<()> {
         match self.context().try_get_decl(term) {
             Some(decl) => {
                 if let Some(ty) = decl.ty {

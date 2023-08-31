@@ -3,17 +3,16 @@
 use std::{fmt::Display, path::Path};
 
 use hash_source::{identifier::Identifier, SourceId};
-use hash_storage::{
-    static_single_store,
-    store::{statics::StoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey},
+use hash_storage::store::{
+    statics::StoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey,
 };
 use textwrap::indent;
 use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::tir_stores, node::Node, symbols::Symbol, tir_debug_name_of_store_id,
-    tir_get, tir_node_sequence_store_direct,
+    environment::stores::tir_stores, node::Node, symbols::SymbolId, tir_get,
+    tir_node_sequence_store_direct, tir_node_single_store,
 };
 
 /// The kind of a module.
@@ -67,7 +66,7 @@ impl Display for ModMemberValue {
 
 impl ModMemberValue {
     /// Get the name of the module member.
-    pub fn name(&self) -> Symbol {
+    pub fn name(&self) -> SymbolId {
         match self {
             ModMemberValue::Data(data_def_id) => {
                 tir_get!(*data_def_id, name)
@@ -91,16 +90,11 @@ impl ModMemberValue {
 /// value of the member.
 #[derive(Debug, Clone, Copy)]
 pub struct ModMember {
-    pub name: Symbol,
+    pub name: SymbolId,
     pub value: ModMemberValue,
 }
 
-tir_node_sequence_store_direct!(
-    store = pub ModMembersStore -> ModMembersSeqStore,
-    id = pub ModMembersId -> ModMembersSeqId[ModMemberId],
-    value = ModMember,
-    store_name = (mod_members, mod_members_seq)
-);
+tir_node_sequence_store_direct!(ModMember);
 
 /// A module definition.
 ///
@@ -109,22 +103,14 @@ tir_node_sequence_store_direct!(
 #[omit(ModDefData, [id], [Debug, Clone, Copy])]
 pub struct ModDef {
     /// The name of the module.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The kind is parametrised over `params`.
     pub kind: ModKind,
     /// The members of the module.
     pub members: ModMembersId,
 }
 
-static_single_store!(
-    store = pub ModDefStore,
-    id = pub ModDefId,
-    value = Node<ModDef>,
-    store_name = mod_def,
-    store_source = tir_stores()
-);
-
-tir_debug_name_of_store_id!(ModDefId);
+tir_node_single_store!(ModDef);
 
 impl ModDef {
     /// Get a module function member by name.

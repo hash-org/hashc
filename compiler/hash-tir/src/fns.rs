@@ -7,7 +7,7 @@ use typed_builder::TypedBuilder;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
-    args::ArgsId, environment::stores::tir_stores, params::ParamsId, symbols::Symbol,
+    args::ArgsId, environment::stores::tir_stores, params::ParamsId, symbols::SymbolId,
     terms::TermId, tir_node_single_store, tys::TyId,
 };
 
@@ -78,7 +78,7 @@ pub enum FnBody {
 pub struct FnDef {
     /// The symbolic name of the function, which resolves to its definition name
     /// if given by the user, by querying the data of the symbol.
-    pub name: Symbol,
+    pub name: SymbolId,
 
     /// The underlying function type, which is partially or fully annotated on
     /// the function literal (if some aspects of the type are not given, then
@@ -98,12 +98,7 @@ impl FnDef {
     }
 }
 
-tir_node_single_store!(
-    store = pub FnDefStore,
-    id = pub FnDefId,
-    value = FnDef,
-    store_name = fn_def
-);
+tir_node_single_store!(FnDef);
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]

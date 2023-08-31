@@ -15,7 +15,7 @@ use hash_tir::{
     mods::{ModDefId, ModMemberId},
     params::ParamId,
     scopes::StackId,
-    symbols::{sym, Symbol},
+    symbols::{sym, SymbolId},
     tuples::TupleTy,
     ty_as_variant,
 };
@@ -68,10 +68,10 @@ pub enum BindingKind {
     ///
     /// This includes parameters, stack variables, and anything else that
     /// remains as `Var` in the TIR.
-    Sym(Symbol),
+    Sym(SymbolId),
 }
 
-pub type Binding = (Symbol, BindingKind);
+pub type Binding = (SymbolId, BindingKind);
 
 /// Contains helper functions for traversing scopes and adding bindings.
 ///
@@ -119,7 +119,10 @@ impl<'tc> Scoping<'tc> {
     ///
     /// This will search the current scope and all parent scopes.
     /// If the binding is not found, it will return `None`.
-    fn lookup_symbol_by_name(&self, name: impl Into<Identifier>) -> Option<(Symbol, BindingKind)> {
+    fn lookup_symbol_by_name(
+        &self,
+        name: impl Into<Identifier>,
+    ) -> Option<(SymbolId, BindingKind)> {
         let name = name.into();
         let binding = match self.get_current_context_kind() {
             ContextKind::Access(_, _) => {
@@ -145,7 +148,7 @@ impl<'tc> Scoping<'tc> {
         name: impl Into<Identifier>,
         span: Span,
         looking_in: ContextKind,
-    ) -> SemanticResult<(Symbol, BindingKind)> {
+    ) -> SemanticResult<(SymbolId, BindingKind)> {
         let name = name.into();
         let symbol = self.lookup_symbol_by_name(name).ok_or_else(|| {
             SemanticError::SymbolNotFound { symbol: sym(name), location: span, looking_in }
@@ -199,7 +202,7 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a stack member to the current scope, also adding it to the
     /// `bindings_by_name` map.
-    pub(super) fn add_stack_binding(&self, name: Symbol) {
+    pub(super) fn add_stack_binding(&self, name: SymbolId) {
         // Add the binding to the current scope.
         self.add_named_binding(name, BindingKind::Sym(name));
     }
@@ -240,7 +243,7 @@ impl<'tc> Scoping<'tc> {
 
     /// Add a named binding to the current scope, by recording its identifier
     /// name.
-    fn add_named_binding(&self, name: Symbol, kind: BindingKind) {
+    fn add_named_binding(&self, name: SymbolId, kind: BindingKind) {
         let name_data = name.value();
 
         // Add the binding to the `bindings_by_name` map.
@@ -262,7 +265,7 @@ impl<'tc> Scoping<'tc> {
     /// `ScopeDiscoveryPass`.
     pub(super) fn for_each_stack_member_of_pat(
         node: ast::AstNodeRef<ast::Pat>,
-        f: &mut impl FnMut(Symbol),
+        f: &mut impl FnMut(SymbolId),
     ) {
         macro_rules! for_spread_pat {
             ($spread:expr) => {

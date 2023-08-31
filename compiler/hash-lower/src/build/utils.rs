@@ -22,7 +22,7 @@ use hash_tir::{
     mods::{ModMember, ModMemberValue},
     node::{Node, NodeOrigin},
     pats::PatId,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
 };
 use hash_utils::log;
@@ -60,7 +60,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     }
 
     /// Lookup a [Local] by a specified [Symbol].
-    pub(crate) fn lookup_local(&self, symbol: Symbol) -> Option<Local> {
+    pub(crate) fn lookup_local(&self, symbol: SymbolId) -> Option<Local> {
         self.declaration_map.get(&symbol).copied()
     }
 

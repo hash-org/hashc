@@ -22,7 +22,7 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
-    symbols::Symbol,
+    symbols::SymbolId,
     tuples::TuplePat,
 };
 
@@ -93,7 +93,7 @@ impl ResolutionPass<'_> {
                         .unwrap()
                         .0
                 }
-                None => Symbol::fresh(),
+                None => SymbolId::fresh(),
             };
             Spread { name: symbol, index: node.position }
         }))
@@ -351,7 +351,7 @@ impl ResolutionPass<'_> {
                 NodeOrigin::Generated,
             ),
             ast::Pat::Wild(_) => Node::create_at(
-                Pat::Binding(BindingPat { name: Symbol::fresh(), is_mutable: false }),
+                Pat::Binding(BindingPat { name: SymbolId::fresh(), is_mutable: false }),
                 NodeOrigin::Generated,
             ),
             ast::Pat::Range(ast::RangePat { lo, hi, end }) => {

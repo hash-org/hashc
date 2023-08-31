@@ -15,7 +15,7 @@ use hash_tir::{
     environment::env::AccessToEnv,
     pats::{Pat, PatId},
     scopes::{BindingPat, DeclTerm},
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
     tuples::TuplePat,
 };
@@ -28,7 +28,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// [Symbol]. This will put the [LocalDecl] into the declarations, and
     /// create an entry in the lookup map so that the [Local] can be looked up
     /// via the name of the local and the scope that it is in.
-    pub(crate) fn push_local(&mut self, key: Symbol, decl: LocalDecl) -> Local {
+    pub(crate) fn push_local(&mut self, key: SymbolId, decl: LocalDecl) -> Local {
         let is_named = decl.name.is_some();
         let index = self.declarations.push(decl);
 
@@ -83,7 +83,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn visit_primary_pattern_bindings(
         &mut self,
         pat: PatId,
-        f: &mut impl FnMut(&mut Self, Mutability, Symbol, AstNodeId, IrTyId),
+        f: &mut impl FnMut(&mut Self, Mutability, SymbolId, AstNodeId, IrTyId),
     ) {
         let span = self.span_of_pat(pat);
 

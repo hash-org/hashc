@@ -20,7 +20,7 @@ use hash_tir::{
     params::{ParamId, ParamsId},
     pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,
-    symbols::Symbol,
+    symbols::SymbolId,
     tuples::{TuplePat, TupleTy},
     ty_as_variant,
     tys::{Ty, TyId},
@@ -282,11 +282,11 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                                 Pat::Array(ArrayPat { pats, spread: None })
                             }
                             ArrayKind::Var(prefix, _) => {
-                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: Symbol::fresh_underscore(), index: *prefix }) })
+                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: SymbolId::fresh_underscore(), index: *prefix }) })
                             }
                         }
                     }
-                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: Symbol::fresh_underscore(), is_mutable: false }),
+                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: SymbolId::fresh_underscore(), is_mutable: false }),
                     DeconstructedCtor::Or => {
                         panic!("cannot convert an `or` deconstructed pat back into pat")
                     }
@@ -325,7 +325,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let args = Node::create_at(Node::<PatArg>::seq_data(fields), NodeOrigin::Generated);
 
         if field_count != params.value().len() {
-            (args, Some(Spread { name: Symbol::fresh(), index: field_count }))
+            (args, Some(Spread { name: SymbolId::fresh(), index: field_count }))
         } else {
             (args, None)
         }
