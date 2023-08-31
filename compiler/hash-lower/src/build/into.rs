@@ -607,7 +607,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         args: &[(Identifier, TermId)],
         origin: AstNodeId,
     ) -> BlockAnd<()> {
-        let ptr_width = self.settings.target().ptr_size();
+        let ptr_width = self.target().ptr_size();
         let element_ty = ty.borrow().element_ty().unwrap();
         let size = self.ctx.size_of(element_ty).unwrap() * args.len();
         let const_size = InternedInt::create_usize(size, ptr_width);

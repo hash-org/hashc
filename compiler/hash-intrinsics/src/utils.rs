@@ -10,13 +10,12 @@ use hash_tir::{
     environment::env::AccessToEnv,
     lits::{CharLit, FloatLit, IntLit, Lit},
     pats::{Pat, PatId},
+    primitives::primitives,
     refs::{RefKind, RefTy},
     terms::{Term, TermId},
     tys::{Ty, TyId},
 };
 use num_bigint::BigInt;
-
-use crate::primitives::primitives;
 
 /// Primitive literal types.
 ///
@@ -259,7 +258,7 @@ pub trait PrimitiveUtils: AccessToEnv {
         })))
     }
 
-    /// Get the given term as a float literal if possible.
+    /// Get the given term as a character literal if possible.
     fn try_use_term_as_char_lit(&self, term: TermId) -> Option<char> {
         match term.value() {
             Term::Lit(Lit::Char(c)) => Some(c.underlying.data),

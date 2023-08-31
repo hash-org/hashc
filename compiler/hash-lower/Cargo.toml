@@ -4,12 +4,16 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
 fixedbitset = "0.4.2"
 num-traits = "0.2.15"
 derive_more = "0.99"
 
 hash-ast = { path = "../hash-ast" }
+hash-attrs = { path = "../hash-attrs" }
 hash-intrinsics = { path = "../hash-intrinsics" }
 hash-ir = { path = "../hash-ir" }
 hash-layout = { path = "../hash-layout" }

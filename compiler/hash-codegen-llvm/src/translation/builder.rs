@@ -16,6 +16,7 @@ use hash_codegen::{
         abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
         alignment::Alignment,
         size::Size,
+        HasTarget,
     },
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,

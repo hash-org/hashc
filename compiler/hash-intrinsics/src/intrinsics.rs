@@ -1,6 +1,7 @@
 //! Definition and lookup of intrinsics.
 use std::{fmt::Debug, process};
 
+use hash_attrs::attr::attr_store;
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
@@ -8,12 +9,14 @@ use hash_storage::store::{
 };
 use hash_tir::{
     self,
+    ast_info::HasNodeId,
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
     lits::Lit,
     mods::{ModMemberData, ModMemberValue},
     params::Param,
+    primitives::primitives,
     refs::RefKind,
     symbols::Symbol,
     terms::{Term, TermId},
@@ -23,10 +26,7 @@ use hash_utils::stream_less_writeln;
 use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::{
-    primitives::primitives,
-    utils::{LitTy, PrimitiveUtils},
-};
+use crate::utils::{LitTy, PrimitiveUtils};
 
 /// Information about an intrinsic.
 ///
@@ -746,14 +746,10 @@ impl DefinedIntrinsics {
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
                 |_, args| {
-                    if let Term::FnRef(_fn_def_id) = args[1].value() {
-                        // @@ReAddDirectives: add attribute lookup when they are
-                        // re-added.
-                        //
-                        // let directives =
-                        //     tir_stores().directives().get(fn_def_id.into()).
-                        // unwrap_or_default();
-                        // stream_less_writeln!("{:?}", directives.directives);
+                    if let Term::FnRef(fn_def) = args[1].value() {
+                        attr_store().map_with_default(fn_def.node_id_or_default(), |attrs| {
+                            stream_less_writeln!("{:?}", attrs);
+                        });
                     }
                     Ok(Term::void())
                 },

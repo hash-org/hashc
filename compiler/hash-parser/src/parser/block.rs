@@ -108,11 +108,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a match case. A match case involves handling the pattern and the
     /// expression branch.
     pub(crate) fn parse_match_case(&mut self) -> ParseResult<AstNode<MatchCase>> {
-        let start = self.current_pos();
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.current_pos();
 
         let pat = self.parse_pat()?;
-
         self.parse_arrow()?;
         let expr = self.parse_expr_with_precedence(0)?;
 

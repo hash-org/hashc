@@ -16,7 +16,10 @@ use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
 use hash_backend::{BackendCtxQuery, CodeGenPass};
-use hash_codegen::backend::{BackendCtx, CodeGenStorage};
+use hash_codegen::{
+    backend::{BackendCtx, CodeGenStorage},
+    target::HasTarget,
+};
 use hash_ir::IrStorage;
 use hash_layout::LayoutCtx;
 use hash_link::{CompilerLinker, LinkerCtx, LinkerCtxQuery};
@@ -58,8 +61,8 @@ impl CompilerBuilder {
             interface,
             vec![
                 Box::<Parser>::default(),
-                Box::new(AstDesugaringPass),
                 Box::new(AstExpansionPass),
+                Box::new(AstDesugaringPass),
                 Box::new(UntypedSemanticAnalysis),
                 Box::new(SemanticAnalysis),
                 Box::<IrGen>::default(),
@@ -311,6 +314,8 @@ impl AstExpansionCtxQuery for Compiler {
             workspace: &mut self.workspace,
             settings: &self.settings,
             stdout: output_stream,
+            data_layout: &self.layout_storage.data_layout,
+            pool: &self.pool,
         }
     }
 }

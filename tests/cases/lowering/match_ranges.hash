@@ -1,7 +1,5 @@
 // stage=ir, args=--ir-dump --ir-dump-mode pretty
 
-// @@Temporary: disabled before new tc becomes default
-
 foo := (i: i32) -> i32 => {
   match i {
     1..29 => 3,

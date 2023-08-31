@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
 arrayvec = "0.7.2"
 backtrace = "0.3"

@@ -1,7 +1,6 @@
 //! Hash Compiler source location definitions.
 #![feature(path_file_prefix, let_chains, lazy_cell, const_trait_impl, box_patterns)]
 
-pub mod attributes;
 pub mod constant;
 pub mod entry_point;
 pub mod identifier;

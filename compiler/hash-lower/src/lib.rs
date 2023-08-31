@@ -18,6 +18,7 @@ use std::time::Duration;
 use build::BodyBuilder;
 use ctx::BuilderCtx;
 use discover::FnDiscoverer;
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_ir::{
     write::{graphviz, pretty},
     IrStorage,
@@ -33,7 +34,7 @@ use hash_pipeline::{
 use hash_semantics::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::statics::StoreId;
-use hash_tir::environment::{env::Env, source_info::CurrentSourceInfo};
+use hash_tir::environment::{source_info::CurrentSourceInfo, stores::tir_stores};
 use hash_utils::{
     indexmap::IndexMap,
     rayon,
@@ -110,27 +111,15 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     /// Additionally, this module is responsible for performing
     /// optimisations on the IR (if specified via the [CompilerSettings]).
     fn run(&mut self, entry: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let LoweringCtx {
-            semantic_storage, workspace, ir_storage, layout_storage, settings, ..
-        } = ctx.data();
-        let source_stage_info = &mut workspace.source_stage_info;
+        let data = ctx.data();
 
+        let entry_point = &data.semantic_storage.entry_point;
         let source_info = CurrentSourceInfo::new(entry);
-        let env = Env::new(
-            &semantic_storage.context,
-            &workspace.node_map,
-            &workspace.source_map,
-            settings.target(),
-            &source_info,
-        );
-
-        let entry_point = &semantic_storage.entry_point;
-
-        let ctx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env, semantic_storage);
+        let ctx = BuilderCtx::new(&source_info, &data);
 
         // Discover all of the bodies that need to be lowered
         let items = time_item(self, "discover", |_| {
-            let discoverer = FnDiscoverer::new(&ctx, source_stage_info);
+            let discoverer = FnDiscoverer::new(&ctx, &data.workspace.source_stage_info);
             discoverer.discover_fns()
         });
 
@@ -141,7 +130,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             for func in items.into_iter() {
                 let name = func.borrow().name.ident();
 
-                let mut builder = BodyBuilder::new(name, func.into(), ctx, settings);
+                let mut builder = BodyBuilder::new(name, func.into(), ctx);
                 builder.build();
 
                 let body = builder.finish();
@@ -150,7 +139,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
                 // is the entry point.
                 if let Some(def) = entry_point.def() && def == func {
                     let instance = body.info.ty().borrow().as_instance();
-                    ir_storage.entry_point.set(instance, entry_point.kind().unwrap());
+                    data.ir_storage.entry_point.set(instance, entry_point.kind().unwrap());
                 }
 
                 // add the body to the lowered bodies
@@ -160,61 +149,26 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         // Mark all modules now as lowered, and all generated
         // bodies to the store.
-        source_stage_info.set_all(SourceStageInfo::LOWERED);
-        ir_storage.add_bodies(lowered_bodies);
+        data.workspace.source_stage_info.set_all(SourceStageInfo::LOWERED);
+        data.ir_storage.add_bodies(lowered_bodies);
 
         Ok(())
     }
 
-    fn cleanup(&mut self, _entry: SourceId, _stage_data: &mut Ctx) {
-        // let LoweringCtx {
-        //     semantic_storage,
-        //     ir_storage,
-        //     layout_storage,
-        //     workspace,
-        //     stdout,
-        //     settings,
-        //     ..
-        // } = stage_data.data();
-        // let source_info = CurrentSourceInfo::new(entry);
-        // let env = Env::new(
-        //     &semantic_storage.context,
-        //     &workspace.node_map,
-        //     &workspace.source_map,
-        //     settings.target(),
-        //     &source_info,
-        // );
+    fn cleanup(&mut self, entry: SourceId, ctx: &mut Ctx) {
+        let data = ctx.data();
+        let info = CurrentSourceInfo::new(entry);
+        let builder = BuilderCtx::new(&info, &data);
 
-        // let ctx = BuilderCtx::new(&ir_storage.ctx, layout_storage, &env,
-        // semantic_storage);
-
-        // @@Future: support generic substitutions here.
-        // let empty_args = Arg::empty_seq();
-
-        // @@ReAddDirectives: we need to check for any type that might have a
-        // `#layout_of` invocation.
-        //
-        // tir_stores().directives().internal_data().iter().for_each(|entry| {
-        //     let (id, directives) = entry.pair();
-        //     if directives.contains(IDENTS.layout_of) && let
-        // DirectiveTarget::DataDefId(data_def) = *id {         let ty =
-        // ctx.ty_from_tir_data(DataTy { args: empty_args, data_def });
-
-        //         // @@ErrorHandling: propagate this error if it occurs.
-        //         if let Ok(layout) = ctx.layout_of(ty) {
-        //             let writer_config =
-        // LayoutWriterConfig::from_character_set(settings.character_set);
-
-        //             // Print the layout and add spacing between all of the
-        // specified layouts             // that were requested.
-        //             stream_writeln!(
-        //                 stdout,
-        //                 "{}",
-        //                 LayoutWriter::new_with_config(TyInfo { ty, layout },
-        // ctx.layout_computer(), writer_config)             );
-        //         }
-        //     }
-        // });
+        // Iterate over all of the ADTs that have a registered `AstNodeId`
+        // in the `AstInfo`. If the ADT contains a `#layout_of` attribute,
+        // then we try to lower the type, and then print the layout of
+        // the type.
+        tir_stores().ast_info().data_defs().iter_with(|id, def| {
+            if attr_store().node_has_attr(id, attrs::LAYOUT_OF) {
+                builder.dump_ty_layout(def, data.stdout.clone())
+            }
+        })
     }
 }
 

@@ -1,4 +1,4 @@
-// run=pass, stage=semantic
+// run=fail, stage=semantic
 
 Bar := #erase trait<T> {
     into_bar: (T) -> Self

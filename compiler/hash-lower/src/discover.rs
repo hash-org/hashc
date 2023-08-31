@@ -5,9 +5,11 @@
 use std::ops::ControlFlow;
 
 use derive_more::Constructor;
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
+    ast_info::HasNodeId,
     atom_info::ItemInAtomInfo,
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDefId},
@@ -91,20 +93,15 @@ impl FnDiscoverer<'_> {
 
         match def_body {
             FnBody::Defined(body) => {
-                Some(body)
+                let is_foreign = attr_store().node_has_attr(def.node_id_ensured(), attrs::FOREIGN);
 
-                // @@ReAddDirectives: check for `foreign` directive on item.
-                //
                 // Check that the body is marked as "foreign" since
                 // we don't want to lower it.
-                // tir_stores().directives().map_fast(def.into(),
-                // |maybe_directives| {     if let
-                // Some(directives) = maybe_directives &&
-                // directives.contains(IDENTS.foreign) {
-                //         None
-                //     } else {
-                //     }
-                // })
+                if is_foreign {
+                    None
+                } else {
+                    Some(body)
+                }
             }
 
             // Intrinsics and axioms have no effect on the IR lowering

@@ -9,5 +9,4 @@
 //! maps, sets, integers, etc.
 
 pub mod intrinsics;
-pub mod primitives;
 pub mod utils;

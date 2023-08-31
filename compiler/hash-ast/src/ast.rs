@@ -32,6 +32,11 @@ define_index_type! {
 }
 
 impl AstNodeId {
+    /// Create a null node id.
+    pub fn null() -> Self {
+        AstNodeId::new(0)
+    }
+
     /// Get the [Span] of this [AstNodeId].
     pub fn span(&self) -> Span {
         SpanMap::span_of(*self)
@@ -49,8 +54,15 @@ impl AstNodeId {
 /// to query the [Span] of a node simply by using the [AstNodeId] of the
 /// node.
 
-static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, Span>>> =
-    Lazy::new(|| RwLock::new(IndexVec::new()));
+static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, Span>>> = Lazy::new(|| {
+    let mut map = IndexVec::new();
+
+    // We push a NULL node-id so we can use it as the default
+    // for items that need a node, but don't have one.
+    map.push(Span::new(ByteRange::new(0, 0), SourceId::default()));
+
+    RwLock::new(map)
+});
 
 /// Utilities for working with the [`SPAN_MAP`].
 pub struct SpanMap;
@@ -337,6 +349,17 @@ impl<T> AstNodes<T> {
         SpanMap::span_of(self.id)
     }
 
+    /// Merge two [AstNodes] together, this will append the nodes of the
+    /// other [AstNodes] to this one, and then return the new [AstNodes].
+    ///
+    /// **Note** this will automatically update the [Span] of this node
+    /// by extending it with the span of the other node.
+    pub fn merge(&mut self, other: Self) {
+        self.set_span(self.span().join(other.span()));
+        self.nodes.extend(other.nodes);
+    }
+
+    /// Iterate over each child whilst wrapping it in a [AstNodeRef].
     pub fn ast_ref_iter(&self) -> impl Iterator<Item = AstNodeRef<T>> {
         self.nodes.iter().map(|x| x.ast_ref())
     }
@@ -2217,23 +2240,6 @@ define_tree! {
         UnaryExpr(UnaryExpr),
     }
 
-    impl Expr {
-        pub fn is_def(&self) -> bool {
-            matches!(self,
-                Expr::Ty(_) |
-                Expr::Import(_) |
-                Expr::StructDef(_) |
-                Expr::EnumDef(_) |
-                Expr::TyFnDef(_) |
-                Expr::TraitDef(_) |
-                Expr::TraitImpl(_) |
-                Expr::ImplDef(_) |
-                Expr::ModDef(_) |
-                Expr::MergeDeclaration(_) |
-                Expr::FnDef(_))
-        }
-    }
-
     /// A module.
     ///
     /// Represents a parsed `.hash` file.
@@ -2243,6 +2249,13 @@ define_tree! {
         /// The contents of the module, as a list of expressions terminated with a
         /// semi-colon.
         pub contents: Children!(Expr),
+
+        /// Any kind of top level invocations of macros and applications of attributes, i.e.
+        ///
+        /// ```ignore
+        /// #![feature(some_cool_feat)]
+        /// ```
+        pub macros: Child!(MacroInvocations),
     }
 }
 

@@ -363,13 +363,13 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                     let ptr_size = self.target().ptr_size();
                     let val = InternedInt::from_u128(lo, ty.into(), ptr_size);
-                    Pat::Lit(LitPat::Int(IntLit::from_value(val)))
+                    Pat::Lit(LitPat::Int(IntLit::from(val)))
                 }
                 LitTy::Char => {
                     let (lo, _) = range.boundaries();
                     let literal = unsafe { char::from_u32_unchecked(lo as u32) };
 
-                    Pat::Lit(LitPat::Char(CharLit::from_literal(literal)))
+                    Pat::Lit(LitPat::Char(CharLit::from(literal)))
                 }
                 _ => unreachable!(),
             }
@@ -407,8 +407,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                 let lo_val = InternedInt::from_u128(lo, kind, ptr_width);
                 let hi_val = InternedInt::from_u128(hi, kind, ptr_width);
-                let lo = LitPat::Int(IntLit::from_value(lo_val));
-                let hi = LitPat::Int(IntLit::from_value(hi_val));
+                let lo = LitPat::Int(IntLit::from(lo_val));
+                let hi = LitPat::Int(IntLit::from(hi_val));
 
                 (lo, hi)
             }
@@ -427,8 +427,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     (lo_val, hi_val)
                 };
 
-                let lo = LitPat::Char(CharLit::from_literal(lo_val));
-                let hi = LitPat::Char(CharLit::from_literal(hi_val));
+                let lo = LitPat::Char(CharLit::from(lo_val));
+                let hi = LitPat::Char(CharLit::from(hi_val));
 
                 (lo, hi)
             }

@@ -37,7 +37,7 @@ pub trait AstDesugaringCtxQuery: CompilerInterface {
 
 impl<Ctx: AstDesugaringCtxQuery> CompilerStage<Ctx> for AstDesugaringPass {
     fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::DeSugar
+        CompilerStageKind::Expand
     }
 
     /// This function is used to lower all of the AST that is present within

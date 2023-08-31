@@ -290,9 +290,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a type argument.
     fn parse_ty_arg(&mut self) -> ParseResult<AstNode<TyArg>> {
-        let start = self.next_pos();
-
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+        let start = self.next_pos();
 
         // Here we have to essentially try and parse a identifier. If this is the
         // case and then there is a colon present then we

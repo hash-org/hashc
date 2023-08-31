@@ -7,6 +7,7 @@ use hash_codegen::{
     backend::CodeGenStorage,
     layout::{compute::LayoutComputer, LayoutCtx},
     symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
+    target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
 };
 use hash_ir::{
@@ -142,6 +143,12 @@ impl<'b, 'm> BackendTypes for CodeGenCtx<'b, 'm> {
     type DebugInfoLocation = llvm::debug_info::DILocation<'m>;
 
     type DebugInfoVariable = llvm::debug_info::DILocalVariable<'m>;
+}
+
+impl HasTarget for CodeGenCtx<'_, '_> {
+    fn target(&self) -> &Target {
+        self.settings.target()
+    }
 }
 
 impl<'b> HasCtxMethods<'b> for CodeGenCtx<'b, '_> {

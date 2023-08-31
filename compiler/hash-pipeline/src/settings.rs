@@ -10,7 +10,7 @@ use std::{
 };
 
 use clap::{Args, Parser, ValueEnum};
-use hash_target::{Target, HOST_TARGET_TRIPLE};
+use hash_target::{HasTarget, Target, HOST_TARGET_TRIPLE};
 use hash_utils::tree_writing::CharacterSet;
 
 use crate::{error::PipelineError, fs::resolve_path};
@@ -247,9 +247,10 @@ impl CompilerSettings {
     pub fn codegen_settings(&self) -> &CodeGenSettings {
         &self.codegen_settings
     }
+}
 
-    /// Get a reference to the current compiled [Target].
-    pub fn target(&self) -> &Target {
+impl HasTarget for CompilerSettings {
+    fn target(&self) -> &Target {
         &self.codegen_settings.target_info.target
     }
 }
@@ -575,9 +576,9 @@ pub enum CompilerStageKind {
     /// Parse the source code into an AST.
     Parse,
 
-    /// Transform the AST into a desugared AST, whilst also
-    /// expanding macros, and resolving all imports.
-    DeSugar,
+    /// Run the compilation pipeline until AST expansion
+    /// terminates.
+    Expand,
 
     /// Perform semantic analysis on the AST, this includes
     /// only untyped semantic checks that must occur before
@@ -621,7 +622,7 @@ impl CompilerStageKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             CompilerStageKind::Parse => "parse",
-            CompilerStageKind::DeSugar => "desugar",
+            CompilerStageKind::Expand => "expand",
             CompilerStageKind::UntypedAnalysis => "untyped-analysis",
             CompilerStageKind::Analysis => "analysis",
             CompilerStageKind::Lower => "lower",

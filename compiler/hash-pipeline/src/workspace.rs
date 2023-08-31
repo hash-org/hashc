@@ -17,6 +17,7 @@ use hash_ast::{
 };
 use hash_fmt::AstPrinter;
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
+use hash_target::HasTarget;
 use hash_utils::{
     bitflags::bitflags,
     fxhash::{FxHashMap, FxHashSet},

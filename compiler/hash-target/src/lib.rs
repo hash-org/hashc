@@ -51,6 +51,63 @@ impl Platform {
     }
 }
 
+/// Represents the available target architectures that the compiler can compiler
+/// for.
+#[derive(Debug, Clone, Copy)]
+pub enum TargetArch {
+    /// x86 32-bit target architecture.
+    X86,
+
+    /// x86 64-bit target architecture.
+    X86_64,
+
+    /// ARM 64-bit target architecture.
+    Aarch64,
+
+    /// ARM 32-bit target architecture.
+    Arm,
+
+    /// Used for when the target name is not known, but can
+    /// still be compiled for.
+    Unknown,
+}
+
+impl TargetArch {
+    /// Get the [TargetArch] from the host system.
+    pub fn from_host() -> Self {
+        match ARCH {
+            "x86" => Self::X86,
+            "x86_64" | "x86-64" | "x64" => Self::X86_64,
+            "aarch64" => Self::Aarch64,
+            "arm" => Self::Arm,
+            _ => Self::Unknown,
+        }
+    }
+
+    /// Convert the [TargetName] to a static string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TargetArch::X86 => "x86",
+            TargetArch::X86_64 => "x86-64",
+            TargetArch::Aarch64 => "aarch64",
+            TargetArch::Arm => "arm",
+            TargetArch::Unknown => "unknown",
+        }
+    }
+}
+
+impl Display for TargetArch {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TargetArch::X86 => write!(f, "x86"),
+            TargetArch::X86_64 => write!(f, "x86_64"),
+            TargetArch::Aarch64 => write!(f, "aarch64"),
+            TargetArch::Arm => write!(f, "arm"),
+            TargetArch::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
 /// The target that the compiler should compile for.
 #[derive(Debug, Clone)]
 pub struct Target {
@@ -317,59 +374,15 @@ impl fmt::Display for Target {
     }
 }
 
-/// Represents the available target architectures that the compiler can compiler
-/// for.
-#[derive(Debug, Clone, Copy)]
-pub enum TargetArch {
-    /// x86 32-bit target architecture.
-    X86,
-
-    /// x86 64-bit target architecture.
-    X86_64,
-
-    /// ARM 64-bit target architecture.
-    Aarch64,
-
-    /// ARM 32-bit target architecture.
-    Arm,
-
-    /// Used for when the target name is not known, but can
-    /// still be compiled for.
-    Unknown,
+/// Utility trait for types that want to query the current compilation
+/// target.
+pub trait HasTarget {
+    fn target(&self) -> &Target;
 }
 
-impl TargetArch {
-    /// Get the [TargetArch] from the host system.
-    pub fn from_host() -> Self {
-        match ARCH {
-            "x86" => Self::X86,
-            "x86_64" | "x86-64" | "x64" => Self::X86_64,
-            "aarch64" => Self::Aarch64,
-            "arm" => Self::Arm,
-            _ => Self::Unknown,
-        }
-    }
-
-    /// Convert the [TargetName] to a static string.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TargetArch::X86 => "x86",
-            TargetArch::X86_64 => "x86-64",
-            TargetArch::Aarch64 => "aarch64",
-            TargetArch::Arm => "arm",
-            TargetArch::Unknown => "unknown",
-        }
-    }
-}
-
-impl Display for TargetArch {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TargetArch::X86 => write!(f, "x86"),
-            TargetArch::X86_64 => write!(f, "x86_64"),
-            TargetArch::Aarch64 => write!(f, "aarch64"),
-            TargetArch::Arm => write!(f, "arm"),
-            TargetArch::Unknown => write!(f, "unknown"),
-        }
+impl HasTarget for Target {
+    #[inline]
+    fn target(&self) -> &Target {
+        self
     }
 }
