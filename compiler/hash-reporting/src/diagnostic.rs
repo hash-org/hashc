@@ -230,6 +230,10 @@ pub trait AccessToDiagnostics {
         self.diagnostics().add_error(error)
     }
 
+    fn maybe_add_error<T>(&mut self, value: Result<T, <Self::Diagnostics as Diagnostics>::Error>) {
+        self.diagnostics().maybe_add_error(value)
+    }
+
     fn add_warning(&self, warning: <Self::Diagnostics as Diagnostics>::Warning) {
         self.diagnostics().add_warning(warning)
     }

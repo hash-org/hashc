@@ -1,0 +1,25 @@
+warn: unnecessary parentheses around block
+  --> $DIR/parenthesised_match_statement.hash:3:8
+2  |    
+3  |    b := ((match some_struct {
+   |  _________-
+4  | |      Dog(name, age = 6) => match name {
+5  | |          "Viktor" => print("Viktor is 6"),
+...  |
+10 | |      Dog(name, age) => do_something_with_name(),
+11 | |      _ => unreachable()
+12 | |  }));
+   | |__- 
+
+warn: unnecessary parentheses around block
+  --> $DIR/parenthesised_match_statement.hash:3:8
+2  |    
+3  |    b := ((match some_struct {
+   |  _________-
+4  | |      Dog(name, age = 6) => match name {
+5  | |          "Viktor" => print("Viktor is 6"),
+...  |
+10 | |      Dog(name, age) => do_something_with_name(),
+11 | |      _ => unreachable()
+12 | |  }));
+   | |__- 

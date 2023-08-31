@@ -16,7 +16,11 @@ use hash_pipeline::{
     settings::CompilerStageKind,
     workspace::Workspace,
 };
-use hash_reporting::{diagnostic::AccessToDiagnosticsMut, report::Report};
+use hash_reporting::{
+    diagnostic::{AccessToDiagnosticsMut, Diagnostics},
+    report::Report,
+    reporter::Reports,
+};
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
 use hash_target::size::Size;
 use hash_utils::{
@@ -28,6 +32,8 @@ use hash_utils::{
 use import_resolver::ImportResolver;
 use parser::AstGen;
 use source::ParseSource;
+
+use crate::diagnostics::ParserDiagnostics;
 
 /// The [Parser] stage is responsible for parsing the source code into an
 /// abstract syntax tree (AST). The parser will also perform some basic
@@ -231,8 +237,6 @@ pub enum ParserAction {
 /// Parse a specific source specified by [ParseSource].
 fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let source_id = source.id();
-    let contents = source.contents();
-
     let mut timings = ParseTimings::default();
 
     // @@Future: we currently don't support cross compilation, which
@@ -243,7 +247,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let ptr_byte_width = Size::from_bytes(std::mem::size_of::<usize>());
 
     // Lex the contents of the module or interactive block
-    let mut lexer = Lexer::new(&contents, source_id, ptr_byte_width);
+    let mut lexer = Lexer::new(source.contents(), source_id, ptr_byte_width);
     let tokens = time_item(&mut timings, "tokenise", |_| lexer.tokenise());
 
     // Check if the lexer has errors...
@@ -257,8 +261,8 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(source_id, source.path(), sender);
-
-    let mut gen = AstGen::new(&tokens, &trees, &resolver);
+    let diagnostics = ParserDiagnostics::new();
+    let mut gen = AstGen::new(&tokens, &trees, &resolver, &diagnostics);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
@@ -269,7 +273,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
             ParserAction::SetModuleNode {
                 id: id.into(),
                 node,
-                diagnostics: gen.into_reports(),
+                diagnostics: diagnostics.into_reports(Reports::from, Reports::from),
                 timings,
             }
         }
@@ -278,7 +282,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
             ParserAction::SetInteractiveNode {
                 id: id.into(),
                 node,
-                diagnostics: gen.into_reports(),
+                diagnostics: diagnostics.into_reports(Reports::from, Reports::from),
                 timings,
             }
         }

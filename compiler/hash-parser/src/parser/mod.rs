@@ -15,7 +15,7 @@ mod ty;
 use std::cell::Cell;
 
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::{AccessToDiagnosticsMut, DiagnosticStore};
+use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_source::location::{ByteRange, Span};
 use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::{thin_vec, ThinVec};
@@ -24,7 +24,7 @@ use crate::{
     diagnostics::{
         error::{ParseError, ParseErrorKind, ParseResult},
         expected::ExpectedItem,
-        warning::ParseWarning,
+        ParserDiagnostics,
     },
     import_resolver::ImportResolver,
 };
@@ -96,7 +96,7 @@ pub struct AstGen<'stream, 'resolver> {
     pub(crate) resolver: &'resolver ImportResolver<'resolver>,
 
     /// Collected diagnostics for the current [AstGen]
-    pub(crate) diagnostics: DiagnosticStore<ParseError, ParseWarning>,
+    pub(crate) diagnostics: &'stream ParserDiagnostics,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -107,6 +107,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         stream: &'stream [Token],
         token_trees: &'stream [Vec<Token>],
         resolver: &'resolver ImportResolver,
+        diagnostics: &'stream ParserDiagnostics,
     ) -> Self {
         // We compute the `parent_span` from the given strem.
         // If the stream has no tokens, then we assume that the
@@ -116,14 +117,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => ByteRange::default(),
         };
 
-        Self {
-            stream,
-            token_trees,
-            offset: Cell::new(0),
-            parent_span,
-            resolver,
-            diagnostics: DiagnosticStore::default(),
-        }
+        Self { stream, token_trees, offset: Cell::new(0), parent_span, resolver, diagnostics }
     }
 
     /// Create new AST generator from a provided token stream with inherited
@@ -136,7 +130,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             offset: Cell::new(0),
             parent_span,
             resolver: self.resolver,
-            diagnostics: DiagnosticStore::default(),
+            diagnostics: self.diagnostics,
         }
     }
 
@@ -344,9 +338,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if !other.has_errors() && other.has_token() {
             other.maybe_add_error::<()>(other.expected_eof());
         }
-
-        // Now we will merge this `other` generator with ours...
-        self.merge_diagnostics(other.diagnostics);
     }
 
     /// Generate an error representing that the current generator unexpectedly
