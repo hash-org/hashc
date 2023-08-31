@@ -96,8 +96,8 @@ pub struct ModMember {
 }
 
 tir_node_sequence_store_direct!(
-    store = pub (ModMembersStore -> ModMembersSeqStore),
-    id = pub (ModMembersId -> ModMembersSeqId)[ModMemberId],
+    store = pub ModMembersStore -> ModMembersSeqStore,
+    id = pub ModMembersId -> ModMembersSeqId[ModMemberId],
     value = ModMember,
     store_name = (mod_members, mod_members_seq)
 );

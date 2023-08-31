@@ -4,11 +4,9 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_storage::{
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue},
-        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
-    },
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue},
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 
 use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
@@ -23,7 +21,8 @@ use crate::{
     lits::Lit,
     node::{Node, NodeOrigin},
     refs::{DerefTerm, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclTerm}, tir_node_sequence_store_indirect, tir_node_single_store,
+    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::TupleTerm,
     tys::{Ty, TyId},
     utils::common::get_location,
@@ -108,8 +107,8 @@ tir_node_single_store!(
 );
 
 tir_node_sequence_store_indirect!(
-    store = pub (TermListStore -> TermListSeqStore),
-    id = pub (TermListId -> TermListSeqId)[TermId],
+    store = pub TermListStore -> TermListSeqStore,
+    id = pub TermListId -> TermListSeqId[TermId],
     store_name = (term_list, term_list_seq)
 );
 

@@ -139,8 +139,8 @@ macro_rules! tir_node_single_store {
 #[macro_export]
 macro_rules! tir_node_sequence_store_direct {
     (
-        store = $store_vis:vis ($store:ident -> $seq_store:ident),
-        id = $id_vis:vis ($id:ident -> $id_seq:ident)[$el_id:ident],
+        store = $store_vis:vis $store:ident -> $seq_store:ident,
+        id = $id_vis:vis $id:ident -> $id_seq:ident[$el_id:ident],
         value = $value:ty,
         store_name = ($store_name:ident, $seq_store_name:ident)
     ) => {
@@ -190,8 +190,8 @@ macro_rules! tir_node_sequence_store_direct {
 #[macro_export]
 macro_rules! tir_node_sequence_store_indirect {
     (
-        store = $store_vis:vis ($store:ident -> $seq_store:ident),
-        id = $id_vis:vis ($id:ident -> $id_seq:ident)[$el_id:ident],
+        store = $store_vis:vis $store:ident -> $seq_store:ident,
+        id = $id_vis:vis $id:ident -> $id_seq:ident[$el_id:ident],
         store_name = ($store_name:ident, $seq_store_name:ident)
     ) => {
         $crate::tir_node_single_store!(

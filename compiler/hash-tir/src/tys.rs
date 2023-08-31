@@ -4,10 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use derive_more::From;
-use hash_storage::{
-    static_single_store,
-    store::statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-};
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
 
 use super::{holes::Hole, symbols::Symbol};
 use crate::{
@@ -19,7 +16,7 @@ use crate::{
     params::Param,
     refs::RefTy,
     terms::{Term, TermId},
-    tir_debug_value_of_single_store_id,
+    tir_node_single_store,
     tuples::TupleTy,
     utils::{common::get_location, traversing::Atom},
 };
@@ -75,15 +72,12 @@ pub enum Ty {
     Universe(UniverseTy),
 }
 
-static_single_store!(
+tir_node_single_store!(
     store = pub TyStore,
     id = pub TyId,
-    value = Node<Ty>,
-    store_name = ty,
-    store_source = tir_stores()
+    value = Ty,
+    store_name = ty
 );
-
-tir_debug_value_of_single_store_id!(TyId);
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]

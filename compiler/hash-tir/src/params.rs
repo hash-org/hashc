@@ -6,7 +6,7 @@ use derive_more::From;
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    SequenceStore, SequenceStoreIter, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::itertools::Itertools;
 
@@ -41,8 +41,8 @@ pub struct Param {
 }
 
 tir_node_sequence_store_direct!(
-    store = pub (ParamsStore -> ParamsSeqStore),
-    id = pub (ParamsId -> ParamsSeqId)[ParamId],
+    store = pub ParamsStore -> ParamsSeqStore,
+    id = pub ParamsId -> ParamsSeqId[ParamId],
     value = Param,
     store_name = (params, params_seq)
 );

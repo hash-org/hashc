@@ -204,8 +204,8 @@ pub struct PatArg {
 }
 
 tir_node_sequence_store_direct!(
-    store = pub (PatArgsStore -> PatArgsSeqStore),
-    id = pub (PatArgsId -> PatArgsSeqId)[PatArgId],
+    store = pub PatArgsStore -> PatArgsSeqStore,
+    id = pub PatArgsId -> PatArgsSeqId[PatArgId],
     value = PatArg,
     store_name = (pat_args, pat_args_seq)
 );

@@ -112,8 +112,8 @@ tir_node_single_store!(
 );
 
 tir_node_sequence_store_indirect!(
-    store = pub (PatListStore -> PatListSeqStore),
-    id = pub (PatListId -> PatListSeqId)[PatOrCapture],
+    store = pub PatListStore -> PatListSeqStore,
+    id = pub PatListId -> PatListSeqId[PatOrCapture],
     store_name = (pat_list, pat_list_seq)
 );
 

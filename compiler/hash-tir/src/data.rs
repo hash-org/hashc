@@ -62,8 +62,8 @@ pub struct CtorDef {
 }
 
 tir_node_sequence_store_direct!(
-    store = pub (CtorDefsStore -> CtorDefsSeqStore),
-    id = pub (CtorDefsId -> CtorDefsSeqId)[CtorDefId],
+    store = pub CtorDefsStore -> CtorDefsSeqStore,
+    id = pub CtorDefsId -> CtorDefsSeqId[CtorDefId],
     value = CtorDef,
     store_name = (ctor_defs, ctor_defs_seq)
 );
