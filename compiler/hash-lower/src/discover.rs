@@ -15,7 +15,7 @@ use hash_tir::{
     terms::TermId,
     utils::{traversing::Atom, AccessToUtils},
 };
-use indexmap::IndexSet;
+use hash_utils::indexmap::IndexSet;
 
 use crate::ctx::BuilderCtx;
 

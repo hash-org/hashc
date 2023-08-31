@@ -26,7 +26,7 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
-use indexmap::IndexMap;
+use hash_utils::indexmap::IndexMap;
 
 use super::{
     candidate::{Candidate, MatchPair},
