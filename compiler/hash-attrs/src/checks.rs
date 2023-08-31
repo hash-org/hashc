@@ -142,18 +142,16 @@ impl<'env> AttrChecker<'env> {
     ) -> AttrResult {
         self.check_duplicate_attr(attrs, attr)?;
 
-        let emit_err = |generics, item| {
-            Err(AttrError::LayoutOfGenericItem { origin: node.id(), generics, item })
+        let (maybe_params, item) = match &node {
+            AttrNode::Struct(def) => (def.ty_params.as_ref(), AttrTarget::StructDef),
+            AttrNode::Enum(def) => (def.ty_params.as_ref(), AttrTarget::EnumDef),
+            _ => unreachable!("`#layout_of` attribute applied to non-struct/enum item"),
         };
 
-        match node {
-            AttrNode::Struct(def) if !def.ty_params.is_empty() => {
-                emit_err(def.ty_params.id(), AttrTarget::StructDef)
-            }
-            AttrNode::Enum(def) if !def.ty_params.is_empty() => {
-                emit_err(def.ty_params.id(), AttrTarget::EnumDef)
-            }
-            _ => Ok(()),
+        if let Some(params) = maybe_params && !params.body().params.is_empty() {
+            Err(AttrError::LayoutOfGenericItem { origin: node.id(), generics: params.id(), item })
+        } else {
+            Ok(())
         }
     }
 }

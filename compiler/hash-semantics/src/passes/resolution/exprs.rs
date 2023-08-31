@@ -55,6 +55,11 @@ use crate::{
     passes::ast_utils::AstPass,
 };
 
+pub enum AstParams<'ast> {
+    Ty(&'ast ast::AstNode<ast::TyParams>),
+    Param(&'ast ast::AstNode<ast::Params>),
+}
+
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
 /// to later resolve them into terms.
 impl<'tc> ResolutionPass<'tc> {
@@ -792,7 +797,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// [`ast::TyFnDef`] or a [`ast::FnDef`].
     fn make_term_from_some_ast_fn_def(
         &self,
-        params: &ast::AstNodes<ast::Param>,
+        params: AstParams<'_>,
         body: &AstNode<ast::Expr>,
         return_ty: &Option<AstNode<ast::Ty>>,
         node_id: AstNodeId,
@@ -806,11 +811,12 @@ impl<'tc> ResolutionPass<'tc> {
         let (params, return_ty, return_value, fn_def_id) =
             self.scoping().enter_scope(ContextKind::Environment, || {
                 // First resolve the parameters
-                let params = self.try_or_add_error(self.resolve_params_from_ast_params(
-                    params,
-                    fn_def_id.borrow().ty.implicit,
-                    fn_def_id.into(),
-                ));
+                let params = self.try_or_add_error(match params {
+                    AstParams::Ty(params) => self.resolve_params_from_ast_ty_params(params),
+                    AstParams::Param(params) => {
+                        self.resolve_params_from_ast_params(params, fn_def_id.borrow().ty.implicit)
+                    }
+                });
 
                 // Modify the existing fn def for the params:
                 if let Some(params) = params {
@@ -857,7 +863,7 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::TyFnDef>,
     ) -> SemanticResult<TermId> {
         self.make_term_from_some_ast_fn_def(
-            &node.params,
+            AstParams::Ty(&node.params),
             &node.ty_fn_body,
             &node.return_ty,
             node.id(),
@@ -869,7 +875,12 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::FnDef>,
     ) -> SemanticResult<TermId> {
-        self.make_term_from_some_ast_fn_def(&node.params, &node.fn_body, &node.return_ty, node.id())
+        self.make_term_from_some_ast_fn_def(
+            AstParams::Param(&node.params),
+            &node.fn_body,
+            &node.return_ty,
+            node.id(),
+        )
     }
 
     /// Make a term from an [`ast::AssignOpExpr`].

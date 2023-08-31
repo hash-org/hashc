@@ -53,7 +53,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         hiding: FloatLit,
         DirectiveExpr,
         FnDef,
-        Param,
+        Params,
         LoopBlock,
         ForLoopBlock,
         WhileLoopBlock,
@@ -66,14 +66,12 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         BreakStatement,
         ContinueStatement,
         MergeDeclaration,
-        EnumDefEntry,
         TraitDef,
         TraitImpl,
         LitPat,
         BindingPat,
         RangePat,
-        Module,
-        StructDef
+        Module
     );
 
     type FloatLitRet = ();
@@ -104,38 +102,21 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type ParamRet = ();
-
-    fn visit_param(
+    type ParamsRet = ();
+    fn visit_params(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Param>,
-    ) -> Result<Self::ParamRet, Self::Error> {
-        let _ = walk_mut_self::walk_param(self, node);
+        node: AstNodeRef<ast::Params>,
+    ) -> Result<Self::ParamsRet, Self::Error> {
+        let _ = walk_mut_self::walk_params(self, node);
 
-        if matches!(node.origin, ParamOrigin::Fn) {
-            match self.current_block {
-                // Check that `self` cannot be within a free standing functions
-                BlockOrigin::Root => {
-                    if let Some(name) = node.name.as_ref() && name.is(IDENTS.self_i) {
-                        self.append_error(AnalysisErrorKind::SelfInFreeStandingFn, node);
-                    }
-                }
-                BlockOrigin::Impl | BlockOrigin::Trait | BlockOrigin::Mod  => {
-                    // If both the type definition is missing and the default expression assignment
-                    // to the struct-def field, then a type cannot be inferred and is thus
-                    // ambiguous.
-                    if let Some(name) = node.name.as_ref() && !name.is(IDENTS.self_i)
-                        && node.ty.is_none()
-                        && node.default.is_none()
-                    {
-                        self.append_error(
-                            AnalysisErrorKind::InsufficientTypeAnnotations { origin: node.origin },
-                            node,
-                        );
-                    }
-                }
-                _ => {}
-            }
+        // Check that the parameters are all named or all un-named.
+        self.check_field_naming(node.origin, node.params.ast_ref_iter());
+
+        // We also want to check that the parameters adhere to the rules
+        // of `self` and if any parameters don't specify any type annotations
+        // which could make them ambigious.
+        for param in node.params.ast_ref_iter() {
+            self.check_fn_param_type_annotations(node.origin, param);
         }
 
         Ok(())
@@ -308,32 +289,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
         // @@Note: We probably don't have to walk this??
         let _ = walk_mut_self::walk_merge_declaration(self, node);
-        Ok(())
-    }
-
-    type StructDefRet = ();
-
-    fn visit_struct_def(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
-    ) -> Result<Self::StructDefRet, Self::Error> {
-        let _ = walk_mut_self::walk_struct_def(self, node);
-
-        // Verify that all of the specified fields are either named, or all un-named!
-        self.check_field_naming(node.fields.ast_ref_iter());
-
-        Ok(())
-    }
-
-    type EnumDefEntryRet = ();
-
-    fn visit_enum_def_entry(
-        &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
-    ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        // Verify that all of the specified fields are either named, or all un-named!
-        self.check_field_naming(node.fields.ast_ref_iter());
-
         Ok(())
     }
 

@@ -10,7 +10,7 @@ use hash_tir::{
     args::{ArgsId, PatArgsId},
     environment::stores::tir_stores,
     fns::FnCallTerm,
-    params::{Param, ParamId, ParamOrigin, ParamsId, SomeParamsOrArgsId},
+    params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
     terms::{Term, TermId},
     tys::Ty,
@@ -91,12 +91,19 @@ impl From<ResolvedArgs> for SomeParamsOrArgsId {
 impl<'tc> ResolutionPass<'tc> {
     /// Resolve the given AST ty-arg parameter into [`ParamId`].
     /// Same assumptions as [`Self::resolve_param_from_ast_param`].
-    fn resolve_param_from_ast_ty_arg(
+    fn resolve_param_from_ast_ty_param(
         &self,
-        ast_param: AstNodeRef<ast::TyArg>,
+        ast_param: AstNodeRef<ast::TyParam>,
     ) -> SemanticResult<ParamId> {
         // Resolve the default value and type annotation:
-        let resolved_ty = self.try_or_add_error(self.make_ty_from_ast_ty(ast_param.ty.ast_ref()));
+        let resolved_ty = self.try_or_add_error(
+            ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).unwrap_or_else(
+                || {
+                    // Default as "Type"
+                    Ok(Ty::flexible_universe())
+                },
+            ),
+        );
 
         // Get the existing param id from the AST info store:
         let param_id = tir_stores().ast_info().params().get_data_by_node(ast_param.id()).unwrap();
@@ -168,15 +175,15 @@ impl<'tc> ResolutionPass<'tc> {
     ///
     /// This assumes that the parameters were initially traversed during
     /// discovery, and are set in the AST info store.
-    pub(super) fn resolve_params_from_ast_ty_args(
+    pub(super) fn resolve_params_from_ast_ty_params(
         &self,
-        params: &ast::AstNodes<ast::TyArg>,
+        node: &ast::AstNode<ast::TyParams>,
     ) -> SemanticResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
 
-        for ast_param in params.ast_ref_iter() {
-            let param_id = self.try_or_add_error(self.resolve_param_from_ast_ty_arg(ast_param));
+        for ast_param in node.params.ast_ref_iter() {
+            let param_id = self.try_or_add_error(self.resolve_param_from_ast_ty_param(ast_param));
             match param_id {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
@@ -204,14 +211,13 @@ impl<'tc> ResolutionPass<'tc> {
     /// discovery, and are set in the AST info store.
     pub(super) fn resolve_params_from_ast_params(
         &self,
-        params: &ast::AstNodes<ast::Param>,
+        node: &ast::AstNode<ast::Params>,
         implicit: bool,
-        _origin: ParamOrigin,
     ) -> SemanticResult<ParamsId> {
         let mut found_error = false;
         let mut params_id: Option<ParamsId> = None;
 
-        for ast_param in params.ast_ref_iter() {
+        for ast_param in node.params.ast_ref_iter() {
             let param_id =
                 self.try_or_add_error(self.resolve_param_from_ast_param(ast_param, implicit));
             match param_id {

@@ -9,7 +9,7 @@ use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
-    data::{CtorDefId, DataDefCtors},
+    data::DataDefCtors,
     environment::{env::AccessToEnv, stores::tir_stores},
     mods::{ModDefId, ModMemberValue},
     tys::Ty,
@@ -68,22 +68,11 @@ impl<'tc> ResolutionPass<'tc> {
                 // Resolve the data of the definition depending on its kind:
                 ast::Expr::StructDef(struct_def) => {
                     // Type parameters
-                    attempt(self.resolve_params_from_ast_params(
-                        &struct_def.ty_params,
-                        true,
-                        data_def_id.into(),
-                    ));
-
-                    // Struct variant
-                    let struct_ctor =
-                        match data_def_id.borrow().ctors {
-                            DataDefCtors::Defined(id) => {
-                                // There should only be one variant
-                                assert!(id.len() == 1);
-                                CtorDefId(id, 0)
-                            },
-                            DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined structs
-                        };
+                    if let Some(ty_params) = &struct_def.ty_params {
+                        attempt(self.resolve_params_from_ast_ty_params(
+                            ty_params
+                        ));
+                    }
 
                     self.scoping().enter_scope(
                         ContextKind::Environment,
@@ -92,18 +81,17 @@ impl<'tc> ResolutionPass<'tc> {
                             attempt(self.resolve_params_from_ast_params(
                                 &struct_def.fields,
                                 false,
-                                struct_ctor.into(),
                             ));
                         },
                     );
                 }
                 ast::Expr::EnumDef(enum_def) => {
                     // Type parameters
-                    attempt(self.resolve_params_from_ast_params(
-                        &enum_def.ty_params,
-                        true,
-                        data_def_id.into(),
-                    ));
+                    if let Some(ty_params) = &enum_def.ty_params {
+                        attempt(self.resolve_params_from_ast_ty_params(
+                            ty_params
+                        ));
+                    }
 
                     // Enum variants
                     let data_def_ctors =
@@ -118,18 +106,12 @@ impl<'tc> ResolutionPass<'tc> {
                             ContextKind::Environment,
                             || {
                                 // Variant fields
-                                attempt(self.resolve_params_from_ast_params(
-                                    &variant.fields,
-                                    false,
-                                    CtorDefId(data_def_ctors, i).into(),
-                                ));
-
-                                // Variant type
-                                attempt(self.resolve_params_from_ast_params(
-                                    &variant.fields,
-                                    false,
-                                    CtorDefId(data_def_ctors, i).into(),
-                                ));
+                                if let Some(fields) = &variant.fields {
+                                    attempt(self.resolve_params_from_ast_params(
+                                        fields,
+                                        false,
+                                    ));
+                                }
 
                                 // Variant indices
                                 if let Some(variant_ty) = variant.ty.as_ref() {

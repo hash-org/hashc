@@ -33,10 +33,13 @@ Alternatively, you can download the pre-built binaries from the [LLVM website](h
 
 ### Linux
 
-To install on Linux, the simplest way to install it is using a package manager, such as `apt`, `yum`, `dnf`, etc. With `apt` it 
-can be installed using the following command:
+To install on Linux, the simplest way to install it is using a package manager, such as `apt`, `yum`, `dnf`, etc. 
+
+With `apt` on Ubuntu it can be installed using the following command:
 ```bash
-apt install llvm-15 llvm-15-* liblld-15* libclang-common-13-dev
+add-apt-repository -y "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main" # Add the LLVM repository
+apt update
+apt install llvm-15 llvm-15-* liblld-15* libpolly-15-dev libz-dev
 ```
 
 ### After installation
