@@ -4,7 +4,7 @@ use hash_abi::FnAbi;
 use hash_ir::ty::{IrTy, IrTyId};
 use hash_layout::TyInfo;
 use hash_source::constant::FloatTy;
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_target::abi::{AddressSpace, Integer};
 
 use super::{layout::LayoutMethods, BackendTypes};

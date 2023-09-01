@@ -3,7 +3,9 @@ use std::{fmt::Debug, process};
 
 use hash_attrs::attr::attr_store;
 use hash_source::identifier::Identifier;
-use hash_storage::store::{statics::StoreId, DefaultPartialStore, PartialStore, SequenceStoreKey};
+use hash_storage::store::{
+    statics::CoreStoreId, DefaultPartialStore, PartialStore, SequenceStoreKey,
+};
 use hash_tir::{
     self,
     ast_info::HasNodeId,

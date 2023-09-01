@@ -278,7 +278,7 @@ pub trait IrVisitorMut<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_mut {
-    use hash_storage::store::statics::StoreId;
+    use hash_storage::store::statics::CoreStoreId;
 
     use super::{IrVisitorMut, *};
     use crate::ir::{StatementKind, TerminatorKind};
@@ -747,7 +747,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_modifying {
-    use hash_storage::store::statics::StoreId;
+    use hash_storage::store::statics::CoreStoreId;
 
     use super::{ModifyingIrVisitor, *};
     use crate::ir::{StatementKind, TerminatorKind};

@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use derive_more::From;
 use hash_ast::ast;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue},
+    statics::{CoreStoreId, SequenceStoreValue, SingleStoreValue},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 

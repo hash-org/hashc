@@ -2,7 +2,7 @@
 
 use std::{collections::HashSet, ops::ControlFlow};
 
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::CoreStoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     access::AccessTerm,
     args::{ArgsId, PatArgsId},

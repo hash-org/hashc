@@ -12,7 +12,7 @@
 use hash_abi::{ArgAbi, FnAbiId, PassMode};
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::COMMON_IR_TYS};
 use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::{statics::CoreStoreId, Store};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{

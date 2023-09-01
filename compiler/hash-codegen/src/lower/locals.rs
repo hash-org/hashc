@@ -12,7 +12,7 @@ use hash_ir::{
     visitor::{ImmutablePlaceContext, IrVisitorMut, MutablePlaceContext, PlaceContext},
 };
 use hash_layout::TyInfo;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{statics::CoreStoreId, SequenceStoreKey};
 use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};

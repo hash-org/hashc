@@ -9,7 +9,7 @@ use hash_codegen::{
     traits::layout::LayoutMethods,
 };
 use hash_ir::ty::IrTyId;
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 
 use super::{ty::TyMemoryRemap, LLVMBuilder};
 use crate::ctx::CodeGenCtx;

@@ -6,7 +6,7 @@ use hash_ir::{
     ty::{IrTyId, PlaceTy, VariantIdx},
 };
 use hash_layout::{LayoutShape, Variants};
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
     alignment::Alignment,

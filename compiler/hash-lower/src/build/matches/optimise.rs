@@ -9,7 +9,7 @@ use hash_ir::{
     ir::PlaceProjection,
     ty::{IrTy, IrTyId},
 };
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_tir::pats::{PatId, Spread};
 use hash_utils::smallvec::SmallVec;
 

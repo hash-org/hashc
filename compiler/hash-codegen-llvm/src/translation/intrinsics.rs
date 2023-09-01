@@ -10,7 +10,7 @@ use hash_codegen::{
 };
 use hash_ir::ty::IrTyId;
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use inkwell::values::{AnyValueEnum, UnnamedAddress};
 
 use super::LLVMBuilder;

@@ -4,7 +4,7 @@ use std::fmt::Display;
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
+    statics::{CoreStoreId, SequenceStoreValue},
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
 };
 use hash_tir::{

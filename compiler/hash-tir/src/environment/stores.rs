@@ -20,6 +20,9 @@ use crate::{
 };
 
 // All the stores that contain definitions for the typechecker.
+//
+// Each store created by the `tir_node_store_*` macros below must be registered
+// here.
 stores! {
     Stores;
     args: ArgsStore,
@@ -59,12 +62,16 @@ pub fn tir_stores() -> &'static Stores {
     STORES.get_or_init(Stores::new)
 }
 
+// Below are some helper macros for defining TIR nodes:
+
+/// Debug a sequence store element by printing its index and length, as well as
+/// its value.
 #[macro_export]
 macro_rules! tir_debug_value_of_sequence_store_element_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_storage::store::statics::StoreId;
+                use hash_storage::store::statics::CoreStoreId;
                 f.debug_tuple(stringify!($id))
                     .field(&(&self.0.index, &self.0.len))
                     .field(&self.1)
@@ -75,39 +82,53 @@ macro_rules! tir_debug_value_of_sequence_store_element_id {
     };
 }
 
+/// Debug a store ID by printing its index and value.
 #[macro_export]
 macro_rules! tir_debug_value_of_single_store_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_storage::store::statics::StoreId;
+                use hash_storage::store::statics::CoreStoreId;
                 f.debug_tuple(stringify!($id)).field(&self.index).field(&self.value()).finish()
             }
         }
     };
 }
 
+/// Debug any store element by only printing its name (element values must have
+/// a field `.main`).
 #[macro_export]
 macro_rules! tir_debug_name_of_store_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_storage::store::statics::StoreId;
+                use hash_storage::store::statics::CoreStoreId;
                 f.debug_tuple(stringify!($id)).field(&self.value().name).finish()
             }
         }
     };
 }
 
-#[macro_export]
-macro_rules! tir_get {
-    ($id:expr, $member:ident) => {{
-        hash_storage::store::statics::StoreId::map($id, |x| x.$member)
-    }};
-}
-
+/// Define a TIR node that is stored in a single store.
+///
+/// This internally uses `hash_storage::static_single_store!` to define the
+/// store and its ID type; it creates a single store with values
+/// `Node<$value>`.
+///
+/// This can be used to define TIR nodes like:
+///
+/// ```ignore
+/// tir_node_single_store!(Term);
+///
+/// /// These now exist:
+/// pub type TermStore: Store<TermId, Node<Term>>;
+/// pub type TermId: CoreStoreId<Value=Term>;
+/// pub fn term_store() -> &'static TermStore;
+/// ```
 #[macro_export]
 macro_rules! tir_node_single_store {
+    // Using the given name, define a TIR node that is stored in a single store, generating the
+    // other names.
     ($name:ident) => {
         paste::paste! {
             tir_node_single_store!(
@@ -118,6 +139,8 @@ macro_rules! tir_node_single_store {
             );
         }
     };
+    // Using the given names, define a TIR node that is stored in a single
+    // store.
     (
         store = $store_vis:vis $store:ident,
         id = $id_vis:vis $id:ident,
@@ -142,6 +165,27 @@ macro_rules! tir_node_single_store {
     };
 }
 
+/// Define a TIR node that is stored in a direct sequence store.
+///
+/// This internally uses `hash_storage::static_single_store!` and
+/// `hash_storage::static_sequence_store_direct!` to define the store and its ID
+/// type; it creates a single store from key `$id` to value `Node<$id_seq>`, and
+/// a direct sequence store from key `$id_seq` to values in `$value`.
+///
+/// This can be used to define TIR nodes like:
+///
+/// ```ignore
+/// tir_node_sequence_store_direct!(Param);
+///
+/// /// These now exist:
+/// pub type ParamsStore: Store<ParamsId, Node<ParamsSeqId>>;
+/// pub type ParamsSeqStore: SequenceStore<ParamsSeqId, Node<Param>>;
+/// pub type ParamsSeqId: SequenceStoreId<Value=Vec<Node<Param>>>;
+/// pub type ParamsId: StoreId<Value=Node<ParamsSeqId>>;
+/// pub type ParamId: StoreId<Value=Node<Param>>;
+/// pub fn params_store() -> &'static ParamsStore;
+/// pub fn params_seq_store() -> &'static ParamsSeqStore;
+/// ```
 #[macro_export]
 macro_rules! tir_node_sequence_store_direct {
     ($name:ident) => {
@@ -160,6 +204,7 @@ macro_rules! tir_node_sequence_store_direct {
         value = $value:ty,
         store_name = ($store_name:ident, $seq_store_name:ident)
     ) => {
+        // Create the sequence wrapper store (needed to wrap each sequence in a Node<..>):
         $crate::tir_node_single_store!(
             store = $store_vis $store,
             id = $id_vis $id,
@@ -167,6 +212,7 @@ macro_rules! tir_node_sequence_store_direct {
             store_name = $store_name
         );
 
+        // Create the sequence store itself:
         hash_storage::static_sequence_store_direct!(
             store = $store_vis $seq_store,
             id = $id_vis $id_seq[$el_id],
@@ -177,11 +223,12 @@ macro_rules! tir_node_sequence_store_direct {
 
         $crate::tir_debug_value_of_sequence_store_element_id!($el_id);
 
+        /// The sequence wrapper key can act as a read-only key for the sequence store.
         impl hash_storage::store::sequence::SequenceStoreKey for $id {
             type ElementKey = $el_id;
 
             fn to_index_and_len(self) -> (usize, usize) {
-                use hash_storage::store::statics::StoreId;
+                use hash_storage::store::statics::CoreStoreId;
                 self.value().to_index_and_len()
             }
 
@@ -194,15 +241,43 @@ macro_rules! tir_node_sequence_store_direct {
             }
         }
 
+        /// Needed for the `SequenceStoreKey` impl.
         impl From<($id, usize)> for $el_id {
             fn from(value: ($id, usize)) -> Self {
-                use hash_storage::store::statics::StoreId;
+                use hash_storage::store::statics::CoreStoreId;
                 $el_id(value.0.value().data, value.1)
+            }
+        }
+
+        impl $id {
+            /// Access the elements of this sequence wrapper.
+            pub fn elements(self) -> $id_seq {
+                *self.value()
             }
         }
     };
 }
 
+/// Define a TIR node that is stored in an indirect sequence store.
+///
+/// This internally uses `hash_storage::static_single_store!` and
+/// `hash_storage::static_sequence_store_indirect!` to define the store and its
+/// ID type; it creates a single store from key `$id` to value `Node<$id_seq>`,
+/// and an indirect sequence store containing `$el_id`.
+///
+/// This can be used to define TIR nodes like:
+///
+/// ```ignore
+/// tir_node_sequence_store_indirect!(TermList[TermId]);
+///
+/// /// These now exist:
+/// pub type TermListStore: Store<TermListId, Node<TermListSeqId>>;
+/// pub type TermListSeqStore: SequenceStore<TermListSeqId, TermId>;
+/// pub type TermListId: StoreId<Value=Node<TermListSeqId>>;
+/// pub type TermListSeqId: SequenceStoreId<Value=Vec<TermId>>;
+/// pub fn term_list_store() -> &'static TermListStore;
+/// pub fn term_list_seq_store() -> &'static TermListSeqStore;
+/// ```
 #[macro_export]
 macro_rules! tir_node_sequence_store_indirect {
     ($name_s:ident[$element:ty]) => {
@@ -237,7 +312,7 @@ macro_rules! tir_node_sequence_store_indirect {
             type ElementKey = $el_id;
 
             fn to_index_and_len(self) -> (usize, usize) {
-                use hash_storage::store::statics::StoreId;
+                use hash_storage::store::statics::CoreStoreId;
                 self.value().to_index_and_len()
             }
 
@@ -252,7 +327,7 @@ macro_rules! tir_node_sequence_store_indirect {
 
         impl From<($id, usize)> for $el_id {
             fn from(value: ($id, usize)) -> Self {
-                use hash_storage::store::statics::StoreId;
+                use hash_storage::store::statics::CoreStoreId;
                 value.0.borrow().at(value.1).unwrap()
             }
         }

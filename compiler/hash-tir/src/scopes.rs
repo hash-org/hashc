@@ -5,7 +5,13 @@
 
 use core::fmt;
 
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::{
+    get,
+    store::{
+        statics::{CoreStoreId, StoreId},
+        TrivialSequenceStoreKey,
+    },
+};
 use hash_utils::parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
 use utility_types::omit;
@@ -19,7 +25,7 @@ use crate::{
     pats::PatId,
     symbols::SymbolId,
     terms::{TermId, TermListId},
-    tir_get, tir_node_single_store,
+    tir_node_single_store,
     tys::TyId,
 };
 
@@ -115,7 +121,8 @@ tir_node_single_store!(Stack);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct StackMemberId(pub StackId, pub usize);
 
-impl StoreId for StackMemberId {
+impl StoreId for StackMemberId {}
+impl CoreStoreId for StackMemberId {
     type Value = Decl;
     type ValueRef = Decl;
     type ValueBorrow = MappedRwLockReadGuard<'static, Decl>;
@@ -212,7 +219,7 @@ impl fmt::Display for Stack {
         writeln!(f, "{{")?;
 
         if let Some(mod_def_members) =
-            self.local_mod_def.map(|mod_def_id| tir_get!(mod_def_id, members))
+            self.local_mod_def.map(|mod_def_id| get!(mod_def_id, members))
         {
             let members = (mod_def_members).to_string();
             write!(f, "{}", indent(&members, "  "))?;
@@ -237,9 +244,9 @@ impl fmt::Display for BlockTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{{")?;
 
-        let stack_local_mod_def = tir_get!(self.stack_id, local_mod_def);
+        let stack_local_mod_def = get!(self.stack_id, local_mod_def);
         if let Some(mod_def_members) =
-            stack_local_mod_def.map(|mod_def_id| tir_get!(mod_def_id, members))
+            stack_local_mod_def.map(|mod_def_id| get!(mod_def_id, members))
         {
             let members = mod_def_members.to_string();
             write!(f, "{}", indent(&members, "  "))?;

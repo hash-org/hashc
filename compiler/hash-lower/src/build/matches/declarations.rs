@@ -7,7 +7,7 @@ use hash_ir::{
     ty::{IrTyId, Mutability},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::CoreStoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},

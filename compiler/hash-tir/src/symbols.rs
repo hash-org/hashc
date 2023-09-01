@@ -3,12 +3,15 @@
 use std::fmt::Display;
 
 use hash_source::identifier::{Identifier, IDENTS};
-use hash_storage::store::{statics::StoreId, StoreKey};
+use hash_storage::{
+    get,
+    store::{statics::CoreStoreId, StoreKey},
+};
 
 use crate::{
     environment::stores::tir_stores,
     node::{Node, NodeOrigin},
-    tir_get, tir_node_single_store,
+    tir_node_single_store,
 };
 
 /// The data carried by a symbol.
@@ -81,7 +84,7 @@ impl SymbolId {
 
 impl Display for SymbolId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match tir_get!(*self, name) {
+        match get!(*self, name) {
             Some(name) => write!(f, "{name}"),
             None => write!(f, "s{}", self.to_index()),
         }

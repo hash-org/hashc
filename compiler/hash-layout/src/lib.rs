@@ -16,7 +16,7 @@ use compute::LayoutComputer;
 use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS};
 use hash_storage::{
     static_single_store,
-    store::statics::{SingleStoreValue, StoreId},
+    store::statics::{CoreStoreId, SingleStoreValue},
     stores,
 };
 use hash_target::{

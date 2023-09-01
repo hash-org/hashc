@@ -1,7 +1,7 @@
 //! Definition and lookup of primitive types.
 use std::{iter::once, sync::OnceLock};
 
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 
 use crate::{
     args::Arg,

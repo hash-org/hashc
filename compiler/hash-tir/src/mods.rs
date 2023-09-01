@@ -3,16 +3,17 @@
 use std::{fmt::Display, path::Path};
 
 use hash_source::{identifier::Identifier, SourceId};
-use hash_storage::store::{
-    statics::StoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey,
+use hash_storage::{
+    get,
+    store::{statics::CoreStoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey},
 };
 use textwrap::indent;
 use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::tir_stores, node::Node, symbols::SymbolId, tir_get,
-    tir_node_sequence_store_direct, tir_node_single_store,
+    environment::stores::tir_stores, node::Node, symbols::SymbolId, tir_node_sequence_store_direct,
+    tir_node_single_store,
 };
 
 /// The kind of a module.
@@ -69,13 +70,13 @@ impl ModMemberValue {
     pub fn name(&self) -> SymbolId {
         match self {
             ModMemberValue::Data(data_def_id) => {
-                tir_get!(*data_def_id, name)
+                get!(*data_def_id, name)
             }
             ModMemberValue::Mod(mod_def_id) => {
-                tir_get!(*mod_def_id, name)
+                get!(*mod_def_id, name)
             }
             ModMemberValue::Fn(fn_def_id) => {
-                tir_get!(*fn_def_id, name)
+                get!(*fn_def_id, name)
             }
         }
     }

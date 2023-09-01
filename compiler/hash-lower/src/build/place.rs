@@ -4,7 +4,7 @@ use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection, ProjectionId},
     ty::{IrTyId, Mutability, VariantIdx},
 };
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_tir::{
     access::AccessTerm,
     arrays::IndexTerm,

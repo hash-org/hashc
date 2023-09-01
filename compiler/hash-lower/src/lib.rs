@@ -33,7 +33,7 @@ use hash_pipeline::{
 };
 use hash_semantics::SemanticStorage;
 use hash_source::SourceId;
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_tir::environment::{source_info::CurrentSourceInfo, stores::tir_stores};
 use hash_utils::{
     indexmap::IndexMap,

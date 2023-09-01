@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::CoreStoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataDefId},
     environment::{

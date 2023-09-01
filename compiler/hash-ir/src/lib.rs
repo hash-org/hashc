@@ -25,7 +25,7 @@ use std::{
 
 use hash_source::entry_point::EntryPointState;
 use hash_storage::{
-    store::{statics::StoreId, SequenceStoreKey},
+    store::{statics::CoreStoreId, SequenceStoreKey},
     stores,
 };
 use hash_tir::{

@@ -8,7 +8,7 @@ use hash_codegen::{
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::InstanceId;
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::{statics::CoreStoreId, Store};
 use inkwell::{
     module::Linkage,
     values::{AnyValue, FunctionValue, UnnamedAddress},

@@ -5,7 +5,7 @@
 
 use hash_abi::FnAbiId;
 use hash_ir::ty::IrTyId;
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ValidScalarRange},
     alignment::Alignment,

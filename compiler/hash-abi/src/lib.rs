@@ -4,7 +4,7 @@
 //! information to code generation backends about how values are represented.
 
 use hash_layout::{LayoutId, TyInfo};
-use hash_storage::{new_store_key, store::statics::StoreId};
+use hash_storage::{new_store_key, store::statics::CoreStoreId};
 use hash_target::{
     abi::{Abi, AbiRepresentation, Scalar},
     size::Size,

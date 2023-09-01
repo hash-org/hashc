@@ -6,7 +6,10 @@ use std::{
     ops::Range,
 };
 
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey};
+use hash_storage::{
+    get,
+    store::{statics::CoreStoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey},
+};
 use hash_utils::{
     derive_more::From, fxhash::FxBuildHasher, indexmap::IndexMap, itertools::Itertools,
 };
@@ -22,7 +25,6 @@ use crate::{
     sub::Sub,
     symbols::SymbolId,
     terms::TermId,
-    tir_get,
     tuples::TupleTy,
     tys::TyId,
 };
@@ -551,11 +553,11 @@ impl fmt::Display for Decl {
 impl fmt::Display for ScopeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ScopeKind::Mod(mod_def_id) => write!(f, "mod {}", tir_get!(*mod_def_id, name)),
-            ScopeKind::Fn(fn_def_id) => write!(f, "fn {}", tir_get!(*fn_def_id, name)),
-            ScopeKind::Data(data_def_id) => write!(f, "data {}", tir_get!(*data_def_id, name)),
+            ScopeKind::Mod(mod_def_id) => write!(f, "mod {}", get!(*mod_def_id, name)),
+            ScopeKind::Fn(fn_def_id) => write!(f, "fn {}", get!(*fn_def_id, name)),
+            ScopeKind::Data(data_def_id) => write!(f, "data {}", get!(*data_def_id, name)),
             ScopeKind::Ctor(ctor_def) => write!(f, "ctor {}", ctor_def),
-            ScopeKind::Stack(stack_def_id) => write!(f, "stack {}", stack_def_id.to_index(),),
+            ScopeKind::Stack(stack_def_id) => write!(f, "stack {}", stack_def_id.to_index()),
             ScopeKind::FnTy(fn_ty) => write!(f, "fn ty {}", fn_ty),
             ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", tuple_ty),
             ScopeKind::Sub => {

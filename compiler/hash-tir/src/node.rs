@@ -1,3 +1,11 @@
+//! Defines the type wrapper for TIR nodes, which contains some
+//! metadata about the node, and the data itself.
+//!
+//! The metadata includes the node origin, which points to the
+//! AST node that the TIR node was generated from, if any.
+//!
+//! Nodes normally live in stores, which can be created through the
+//! `crate::environment::stores::tir_node_*` macros.
 use derive_more::{Deref, DerefMut};
 use hash_ast::ast::AstNodeId;
 use hash_source::{location::Span, SourceId};
@@ -16,45 +24,58 @@ pub struct Node<Data> {
     pub data: Data,
 }
 
+/// Helper implementation for `Node`s which are also `SingleStoreValue`s,
+/// so that a node and its entry in the store can be created in one go.
 impl<Data> Node<Data>
 where
     Self: SingleStoreValue,
 {
+    /// Create a new node with the given data and origin, and insert it into the
+    /// store.
     pub fn create_at(data: Data, origin: NodeOrigin) -> <Self as SingleStoreValue>::Id {
         Self::create(Self::at(data, origin))
     }
 
+    /// Create a new node with the given data and a generated origin, and insert
+    /// it into the store.
     pub fn create_gen(data: Data) -> <Self as SingleStoreValue>::Id {
         Self::create(Self::gen(data))
     }
 }
 
 impl<Data> Node<Data> {
+    /// Create a new node with the given data and origin.
     pub fn at(data: Data, origin: NodeOrigin) -> Self {
         Self { data, origin }
     }
 
+    /// Create a new node with the given data and a generated origin.
     pub fn gen(data: Data) -> Self {
         Self { data, origin: NodeOrigin::Generated }
     }
 
+    /// Get the node ID of this node.
     pub fn node(&self) -> Option<AstNodeId> {
         self.origin.node()
     }
 
+    /// Get the span of this node.
     pub fn span(&self) -> Option<Span> {
         self.node().map(|n| n.span())
     }
 
+    /// Get the source ID of this node.
     pub fn source(&self) -> Option<SourceId> {
         self.node().map(|n| n.source())
     }
 
+    /// Create a new node with the same origin, but different data.
     pub fn with_data<E>(&self, new_data: E) -> Node<E> {
         Node { data: new_data, origin: self.origin }
     }
 }
 
+/// A tuple of data and origin can be converted into a node.
 impl<D, Data: From<D>> From<(D, NodeOrigin)> for Node<Data> {
     fn from((d, o): (D, NodeOrigin)) -> Self {
         Node::at(d.into(), o)

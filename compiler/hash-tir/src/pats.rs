@@ -5,7 +5,10 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_ast::ast::{self, RangeEnd};
-use hash_storage::store::TrivialSequenceStoreKey;
+use hash_storage::{
+    get,
+    store::{statics::CoreStoreId, TrivialSequenceStoreKey},
+};
 
 use super::{
     args::{PatArgsId, PatOrCapture},
@@ -17,7 +20,7 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, ast_info::HasNodeId, environment::stores::tir_stores, tir_get,
+    arrays::ArrayPat, ast_info::HasNodeId, environment::stores::tir_stores,
     tir_node_sequence_store_indirect, tir_node_single_store,
 };
 
@@ -115,7 +118,7 @@ impl Pat {
 
 impl fmt::Display for Spread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(name) = tir_get!(self.name, name) {
+        if let Some(name) = get!(self.name, name) {
             write!(f, "...{name}")
         } else {
             write!(f, "...")

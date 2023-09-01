@@ -14,7 +14,7 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{constant::InternedInt, identifier::Identifier};
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{statics::CoreStoreId, SequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
     arrays::ArrayTerm,

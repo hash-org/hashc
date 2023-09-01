@@ -3,7 +3,7 @@ use hash_source::constant::{
     FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy, InternedInt,
     SIntTy, UIntTy,
 };
-use hash_storage::store::statics::{SequenceStoreValue, StoreId};
+use hash_storage::store::statics::{CoreStoreId, SequenceStoreValue};
 use hash_tir::{
     args::{Arg, PatArg},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},

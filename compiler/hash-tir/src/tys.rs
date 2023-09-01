@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 use derive_more::From;
 use hash_ast::ast;
-use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
+use hash_storage::store::statics::{CoreStoreId, SequenceStoreValue, SingleStoreValue};
 
 use super::{holes::Hole, symbols::SymbolId};
 use crate::{

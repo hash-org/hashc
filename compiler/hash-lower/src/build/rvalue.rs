@@ -8,7 +8,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
 use hash_source::constant::{IntConstant, IntTy, InternedInt};
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_target::HasTarget;
 use hash_tir::terms::{Term, TermId};
 

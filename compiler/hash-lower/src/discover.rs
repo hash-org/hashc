@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::CoreStoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     ast_info::HasNodeId,
     atom_info::ItemInAtomInfo,

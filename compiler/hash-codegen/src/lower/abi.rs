@@ -6,7 +6,7 @@ use hash_abi::{
 };
 use hash_ir::ty::{Instance, InstanceId, IrTy, IrTyId, Mutability, RefKind};
 use hash_layout::compute::LayoutError;
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_target::abi::{Scalar, ScalarKind};
 
 use crate::traits::{layout::LayoutMethods, HasCtxMethods};

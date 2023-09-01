@@ -15,7 +15,7 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
-    statics::{SingleStoreValue, StoreId},
+    statics::{CoreStoreId, SingleStoreValue},
     SequenceStoreKey,
 };
 use hash_target::size::Size;

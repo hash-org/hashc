@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 use hash_ast::ast::MatchOrigin;
 use hash_storage::store::{
-    statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::CoreStoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use textwrap::indent;
 

@@ -15,7 +15,7 @@ use hash_ir::{
     ir::{self, BasicBlock, LogicalBinOp, Place, RValue, TerminatorKind},
     ty::{Mutability, RefKind},
 };
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{IfPat, MatchCasesId},

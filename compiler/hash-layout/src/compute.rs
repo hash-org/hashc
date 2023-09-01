@@ -7,7 +7,7 @@ use std::{cmp, iter, num::NonZeroUsize};
 
 use hash_ir::ty::{Adt, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx};
 use hash_storage::store::{
-    statics::{SingleStoreValue, StoreId},
+    statics::{CoreStoreId, SingleStoreValue},
     Store,
 };
 use hash_target::{

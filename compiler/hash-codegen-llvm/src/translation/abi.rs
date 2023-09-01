@@ -10,7 +10,7 @@ use hash_codegen::{
         abi::AbiBuilderMethods, builder::BlockBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
     },
 };
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::statics::CoreStoreId;
 use hash_utils::smallvec::SmallVec;
 use inkwell::{
     attributes::{Attribute, AttributeLoc},

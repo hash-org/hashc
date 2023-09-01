@@ -3,7 +3,7 @@ use core::fmt;
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
+    statics::{CoreStoreId, SequenceStoreValue},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::derive_more::{From, TryInto};

@@ -4,9 +4,12 @@ use core::fmt;
 use std::{borrow::Borrow, fmt::Display, iter::once};
 
 use hash_ast::ast;
-use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+use hash_storage::{
+    get,
+    store::{
+        statics::{CoreStoreId, SequenceStoreValue, SingleStoreValue},
+        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    },
 };
 use hash_utils::itertools::Itertools;
 use textwrap::indent;
@@ -26,7 +29,7 @@ use crate::{
     pats::PatArgsWithSpread,
     symbols::SymbolId,
     terms::TermId,
-    tir_get, tir_node_sequence_store_direct, tir_node_single_store,
+    tir_node_sequence_store_direct, tir_node_single_store,
 };
 
 /// A constructor of a data-type definition.
@@ -218,6 +221,7 @@ pub struct DataDef {
 
 tir_node_single_store!(DataDef);
 
+// @@Temporary while Nodes still have generated origins
 impl HasNodeId for DataDefId {
     fn node_id(&self) -> Option<ast::AstNodeId> {
         tir_stores().ast_info().data_defs().get_node_by_data(*self)
@@ -422,8 +426,7 @@ impl fmt::Display for CtorDefsId {
 
 impl Display for CtorTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (ctor_name, data_def_id) =
-            (tir_get!(self.ctor, name), tir_get!(self.ctor, data_def_id));
+        let (ctor_name, data_def_id) = (get!(self.ctor, name), get!(self.ctor, data_def_id));
 
         let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
         write!(f, "{}::", &data_ty)?;
@@ -439,13 +442,13 @@ impl Display for CtorTerm {
 
 impl Display for CtorPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let data_def_id = tir_get!(self.ctor, data_def_id);
-        let data_def_name = tir_get!(data_def_id, name);
+        let data_def_id = get!(self.ctor, data_def_id);
+        let data_def_name = get!(data_def_id, name);
 
         if data_def_id.borrow().ctors.assert_defined().value().len() == 1 {
             write!(f, "{data_def_name}")?;
         } else {
-            let ctor_name = tir_get!(self.ctor, name);
+            let ctor_name = get!(self.ctor, name);
             write!(f, "{data_def_name}::{}", ctor_name)?;
         }
 
@@ -530,7 +533,7 @@ impl Display for DataDefId {
 
 impl Display for DataTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let data_def_name = tir_get!(self.data_def, name);
+        let data_def_name = get!(self.data_def, name);
         write!(f, "{}", data_def_name)?;
         if self.args.value().len() > 0 {
             write!(f, "<{}>", self.args)?;

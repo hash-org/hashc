@@ -17,7 +17,10 @@ use hash_source::{
 };
 use hash_storage::{
     static_sequence_store_indirect,
-    store::{statics::SingleStoreValue, SequenceStore, SequenceStoreKey},
+    store::{
+        statics::{CoreStoreId, SingleStoreValue},
+        SequenceStore, SequenceStoreKey,
+    },
 };
 use hash_utils::{
     graph::dominators::Dominators,
