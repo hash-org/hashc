@@ -28,6 +28,7 @@ use hash_tir::{
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
+    node::{Node, NodeOrigin},
     params::ParamIndex,
     primitives::primitives,
     refs::{DerefTerm, RefKind, RefTerm},
@@ -75,17 +76,20 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(Arg {
-                    target: arg
-                        .name
-                        .as_ref()
-                        .map(|name| ParamIndex::Name(name.ident))
-                        .unwrap_or_else(|| ParamIndex::Position(i)),
-                    value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
-                })
+                Ok(Node::at(
+                    Arg {
+                        target: arg
+                            .name
+                            .as_ref()
+                            .map(|name| ParamIndex::Name(name.ident))
+                            .unwrap_or_else(|| ParamIndex::Position(i)),
+                        value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
+                    },
+                    NodeOrigin::Generated,
+                ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Arg::seq_data(args))
+        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
     }
 
     /// Make TC arguments from the given set of AST constructor call arguments
@@ -98,17 +102,20 @@ impl<'tc> ResolutionPass<'tc> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
-                Ok(Arg {
-                    target: arg
-                        .name
-                        .as_ref()
-                        .map(|name| ParamIndex::Name(name.ident))
-                        .unwrap_or_else(|| ParamIndex::Position(i)),
-                    value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
-                })
+                Ok(Node::at(
+                    Arg {
+                        target: arg
+                            .name
+                            .as_ref()
+                            .map(|name| ParamIndex::Name(name.ident))
+                            .unwrap_or_else(|| ParamIndex::Position(i)),
+                        value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
+                    },
+                    NodeOrigin::Generated,
+                ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Arg::seq_data(args))
+        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
     }
 
     /// Make a term from the given [`ast::Expr`] and assign it to the node in
@@ -543,7 +550,7 @@ impl<'tc> ResolutionPass<'tc> {
                     .ast_ref_iter()
                     .map(|element| self.make_term_from_ast_expr(element))
                     .collect::<SemanticResult<_>>()?;
-                let elements = TermId::seq_data(element_vec);
+                let elements = Node::create_at(TermId::seq(element_vec), NodeOrigin::Generated);
                 Ok(Term::from(Term::Array(ArrayTerm { elements })))
             }
         }
@@ -617,24 +624,29 @@ impl<'tc> ResolutionPass<'tc> {
         let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.subject.ast_ref()));
 
         // Convert all the cases and their bodies
-        let cases = MatchCase::seq_data(
-            node.cases
-                .iter()
-                .filter_map(|case| {
-                    self.scoping().enter_match_case(case.ast_ref(), |stack_id| {
-                        let bind_pat =
-                            self.try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
-                        let value = self
-                            .try_or_add_error(self.make_term_from_ast_expr(case.expr.ast_ref()));
-                        match (bind_pat, value) {
-                            (Some(bind_pat), Some(value)) => {
-                                Some(MatchCase { bind_pat, value, stack_id })
+        let cases = Node::create_at(
+            Node::<MatchCase>::seq(
+                node.cases
+                    .iter()
+                    .filter_map(|case| {
+                        self.scoping().enter_match_case(case.ast_ref(), |stack_id| {
+                            let bind_pat = self
+                                .try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
+                            let value = self.try_or_add_error(
+                                self.make_term_from_ast_expr(case.expr.ast_ref()),
+                            );
+                            match (bind_pat, value) {
+                                (Some(bind_pat), Some(value)) => Some(Node::at(
+                                    MatchCase { bind_pat, value, stack_id },
+                                    NodeOrigin::Generated,
+                                )),
+                                _ => None,
                             }
-                            _ => None,
-                        }
+                        })
                     })
-                })
-                .collect_vec(),
+                    .collect_vec(),
+            ),
+            NodeOrigin::Generated,
         );
 
         // Create a term if all ok
@@ -713,7 +725,8 @@ impl<'tc> ResolutionPass<'tc> {
                         == (node.statements.len().saturating_sub(mod_member_ids.len())),
                 ) {
                     (Some(Some(expr)), true) => {
-                        let statements = TermId::seq_data(statements);
+                        let statements =
+                            Node::create_at(TermId::seq(statements), NodeOrigin::Generated);
                         Ok(Term::from(Term::Block(BlockTerm {
                             statements,
                             return_value: expr,
@@ -721,7 +734,8 @@ impl<'tc> ResolutionPass<'tc> {
                         })))
                     }
                     (None, true) => {
-                        let statements = TermId::seq_data(statements);
+                        let statements =
+                            Node::create_at(TermId::seq(statements), NodeOrigin::Generated);
                         let return_value = Term::void();
                         Ok(Term::from(Term::Block(BlockTerm {
                             statements,
@@ -752,13 +766,13 @@ impl<'tc> ResolutionPass<'tc> {
             }
             inner => Term::from(BlockTerm {
                 return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
-                statements: TermId::empty_seq(),
+                statements: Node::create_at(TermId::empty_seq(), NodeOrigin::Generated),
                 stack_id: Stack::empty(),
             }),
         };
 
         let block = term_as_variant!(self, inner.value(), Block);
-        Ok(Term::from(Term::Loop(LoopTerm { block })))
+        Ok(Term::from(Term::Loop(LoopTerm { block: inner.value().with_data(block) })))
     }
 
     /// Make a term from an [`ast::Block`].

@@ -3,12 +3,9 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_source::identifier::Identifier;
-use hash_storage::{
-    static_sequence_store_direct,
-    store::{
-        statics::{SequenceStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
-    },
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 
@@ -23,8 +20,9 @@ use crate::{
     data::{CtorDefId, DataDefId},
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
-    symbols::Symbol,
-    tir_debug_value_of_sequence_store_element_id,
+    node::{Node, NodeOrigin},
+    symbols::SymbolId,
+    tir_node_sequence_store_direct,
     tuples::TupleTy,
     tys::{Ty, TyId},
 };
@@ -34,22 +32,32 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct Param {
     /// The name of the parameter.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The type of the parameter.
     pub ty: TyId,
     /// The default value of the parameter.
     pub default: Option<TermId>,
 }
 
+tir_node_sequence_store_direct!(Param);
+
 impl Param {
     /// Create a new parameter list with the given names, and holes for all
     /// types.
-    pub fn seq_from_names_with_hole_types(param_names: impl Iterator<Item = Symbol>) -> ParamsId {
-        Param::seq(
-            param_names
-                .map(|name| move |_id| Param { name, ty: Ty::hole(), default: None })
-                .collect_vec(),
-        )
+    pub fn seq_from_names_with_hole_types(param_names: impl Iterator<Item = SymbolId>) -> ParamsId {
+        Node::create(Node::at(
+            Node::seq(
+                param_names
+                    .map(|name| {
+                        Node::at(
+                            Param { name, ty: Ty::hole(), default: None },
+                            NodeOrigin::Generated,
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            NodeOrigin::Generated,
+        ))
     }
 
     /// Create a new parameter list with the given argument names, and holes for
@@ -60,11 +68,19 @@ impl Param {
     }
 
     pub fn seq_positional(tys: impl IntoIterator<Item = TyId>) -> ParamsId {
-        Param::seq_data(
-            tys.into_iter()
-                .map(|ty| Param { name: Symbol::fresh(), ty, default: None })
-                .collect_vec(),
-        )
+        Node::create(Node::at(
+            Node::seq(
+                tys.into_iter()
+                    .map(|ty| {
+                        Node::at(
+                            Param { name: SymbolId::fresh(), ty, default: None },
+                            NodeOrigin::Generated,
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            NodeOrigin::Generated,
+        ))
     }
 
     pub fn name_ident(&self) -> Option<Identifier> {
@@ -96,16 +112,6 @@ impl ParamsId {
     }
 }
 
-static_sequence_store_direct!(
-    store = pub ParamsStore,
-    id = pub ParamsId[ParamId],
-    value = Param,
-    store_name = params,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_sequence_store_element_id!(ParamId);
-
 /// An index of a parameter of a parameter list.
 ///
 /// Either a named parameter or a positional one.
@@ -126,10 +132,10 @@ impl From<ParamId> for ParamIndex {
 impl ParamIndex {
     /// Get the name of the parameter, if it is named, or a fresh symbol
     /// otherwise.
-    pub fn into_symbol(&self) -> Symbol {
+    pub fn into_symbol(&self) -> SymbolId {
         match self {
-            ParamIndex::Name(name) => Symbol::from_name(*name),
-            ParamIndex::Position(_) => Symbol::fresh(),
+            ParamIndex::Name(name) => SymbolId::from_name(*name),
+            ParamIndex::Position(_) => SymbolId::fresh(),
         }
     }
 }
@@ -147,9 +153,9 @@ impl SomeParamsOrArgsId {
     /// Get the length of the inner stored parameters.
     pub fn len(&self) -> usize {
         match self {
-            SomeParamsOrArgsId::Params(id) => id.len(),
-            SomeParamsOrArgsId::PatArgs(id) => id.len(),
-            SomeParamsOrArgsId::Args(id) => id.len(),
+            SomeParamsOrArgsId::Params(id) => id.value().len(),
+            SomeParamsOrArgsId::PatArgs(id) => id.value().len(),
+            SomeParamsOrArgsId::Args(id) => id.value().len(),
         }
     }
 
@@ -171,9 +177,9 @@ impl SomeParamsOrArgsId {
 impl From<SomeParamsOrArgsId> for IndexedLocationTarget {
     fn from(target: SomeParamsOrArgsId) -> Self {
         match target {
-            SomeParamsOrArgsId::Params(id) => IndexedLocationTarget::Params(id),
-            SomeParamsOrArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id),
-            SomeParamsOrArgsId::Args(id) => IndexedLocationTarget::Args(id),
+            SomeParamsOrArgsId::Params(id) => IndexedLocationTarget::Params(*id.value()),
+            SomeParamsOrArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(*id.value()),
+            SomeParamsOrArgsId::Args(id) => IndexedLocationTarget::Args(*id.value()),
         }
     }
 }
@@ -219,9 +225,10 @@ impl ParamsId {
     pub fn at_index(self, index: ParamIndex) -> Option<ParamId> {
         match index {
             ParamIndex::Name(name) => self
+                .value()
                 .iter()
                 .find(|param| matches!(param.borrow().name.borrow().name, Some(n) if n == name)),
-            ParamIndex::Position(pos) => self.at(pos),
+            ParamIndex::Position(pos) => self.elements().at(pos),
         }
     }
 
@@ -250,7 +257,7 @@ impl fmt::Display for Param {
 
 impl fmt::Display for ParamId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

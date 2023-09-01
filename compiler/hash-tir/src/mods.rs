@@ -2,10 +2,9 @@
 
 use std::{fmt::Display, path::Path};
 
-use hash_ast::ast;
 use hash_source::{identifier::Identifier, SourceId};
 use hash_storage::{
-    static_sequence_store_direct, static_single_store,
+    get,
     store::{statics::StoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey},
 };
 use textwrap::indent;
@@ -13,8 +12,8 @@ use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    ast_info::HasNodeId, environment::stores::tir_stores, symbols::Symbol,
-    tir_debug_name_of_store_id, tir_get,
+    environment::stores::tir_stores, node::Node, symbols::SymbolId, tir_node_sequence_store_direct,
+    tir_node_single_store,
 };
 
 /// The kind of a module.
@@ -68,16 +67,16 @@ impl Display for ModMemberValue {
 
 impl ModMemberValue {
     /// Get the name of the module member.
-    pub fn name(&self) -> Symbol {
+    pub fn name(&self) -> SymbolId {
         match self {
             ModMemberValue::Data(data_def_id) => {
-                tir_get!(*data_def_id, name)
+                get!(*data_def_id, name)
             }
             ModMemberValue::Mod(mod_def_id) => {
-                tir_get!(*mod_def_id, name)
+                get!(*mod_def_id, name)
             }
             ModMemberValue::Fn(fn_def_id) => {
-                tir_get!(*fn_def_id, name)
+                get!(*fn_def_id, name)
             }
         }
     }
@@ -91,21 +90,12 @@ impl ModMemberValue {
 /// definition's members, as well as the type of the member, and an optional
 /// value of the member.
 #[derive(Debug, Clone, Copy)]
-#[omit(ModMemberData, [id], [Debug, Clone, Copy])]
 pub struct ModMember {
-    pub id: ModMemberId,
-    pub name: Symbol,
+    pub name: SymbolId,
     pub value: ModMemberValue,
 }
 
-static_sequence_store_direct!(
-    store = pub ModMembersStore,
-    id = pub ModMembersId[ModMemberId],
-    value = ModMember,
-    store_name = mod_members,
-    store_source = tir_stores(),
-    derives = Debug
-);
+tir_node_sequence_store_direct!(ModMember);
 
 /// A module definition.
 ///
@@ -113,32 +103,15 @@ static_sequence_store_direct!(
 #[derive(Debug, Clone, Copy)]
 #[omit(ModDefData, [id], [Debug, Clone, Copy])]
 pub struct ModDef {
-    /// The ID of the module definition.
-    pub id: ModDefId,
-
     /// The name of the module.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The kind is parametrised over `params`.
     pub kind: ModKind,
     /// The members of the module.
     pub members: ModMembersId,
 }
 
-static_single_store!(
-    store = pub ModDefStore,
-    id = pub ModDefId,
-    value = ModDef,
-    store_name = mod_def,
-    store_source = tir_stores()
-);
-
-impl HasNodeId for ModDefId {
-    fn node_id(&self) -> Option<ast::AstNodeId> {
-        tir_stores().ast_info().mod_defs().get_node_by_data(*self)
-    }
-}
-
-tir_debug_name_of_store_id!(ModDefId);
+tir_node_single_store!(ModDef);
 
 impl ModDef {
     /// Get a module function member by name.
@@ -155,7 +128,7 @@ impl ModDef {
     }
 
     /// Get a module member by name.
-    pub fn get_mod_member_by_ident(&self, name: impl Into<Identifier>) -> Option<ModMember> {
+    pub fn get_mod_member_by_ident(&self, name: impl Into<Identifier>) -> Option<Node<ModMember>> {
         let name = name.into();
         self.members.iter().find_map(|member| {
             if member.borrow().name.borrow().name.is_some_and(|sym| sym == name) {
@@ -205,7 +178,7 @@ impl Display for ModDef {
 
 impl Display for ModDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
@@ -217,7 +190,7 @@ impl Display for ModMember {
 
 impl Display for ModMemberId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

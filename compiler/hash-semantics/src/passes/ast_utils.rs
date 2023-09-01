@@ -2,7 +2,7 @@ use hash_ast::{
     ast::{self, AstNodeRef, BodyBlock, Module, OwnsAstNode},
     node_map::SourceRef,
 };
-use hash_tir::symbols::{sym, Symbol};
+use hash_tir::symbols::{sym, SymbolId};
 
 use crate::{diagnostics::error::SemanticResult, environment::sem_env::AccessToSemEnv};
 
@@ -41,10 +41,10 @@ pub trait AstPass: AccessToSemEnv {
 pub trait AstUtils: AccessToSemEnv {
     /// Create a [`Symbol`] for the given [`ast::Name`], or a fresh symbol if no
     /// name is provided.
-    fn new_symbol_from_ast_name(&self, name: Option<&ast::AstNode<ast::Name>>) -> Symbol {
+    fn new_symbol_from_ast_name(&self, name: Option<&ast::AstNode<ast::Name>>) -> SymbolId {
         match name {
             Some(name) => sym(name.ident),
-            None => Symbol::fresh(),
+            None => SymbolId::fresh(),
         }
     }
 }

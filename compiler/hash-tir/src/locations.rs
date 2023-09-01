@@ -5,18 +5,24 @@ use hash_storage::store::SequenceStoreKey;
 use hash_utils::parking_lot::RwLock;
 
 use super::{
-    args::{ArgId, ArgsId, PatArgId, PatArgsId},
-    data::{CtorDefId, CtorDefsId, DataDefId},
+    args::{ArgId, PatArgId},
+    data::{CtorDefId, DataDefId},
     fns::FnDefId,
-    mods::{ModDefId, ModMemberId, ModMembersId},
-    params::{ParamId, ParamsId},
+    mods::{ModDefId, ModMemberId},
+    params::ParamId,
     pats::PatId,
     scopes::{StackId, StackMemberId},
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
     tys::TyId,
 };
-use crate::environment::stores::tir_stores;
+use crate::{
+    args::{ArgsSeqId, PatArgsSeqId},
+    data::CtorDefsSeqId,
+    environment::stores::tir_stores,
+    mods::ModMembersSeqId,
+    params::ParamsSeqId,
+};
 
 macro_rules! location_targets {
     ($($name:ident: $ty:ty $(= sequence $indexed_name:ident: $indexed_type:ident)?),* $(,)?) => {
@@ -107,22 +113,22 @@ location_targets! {
     Term: TermId,
     Ty: TyId,
     Pat: PatId,
-    Symbol: Symbol,
+    Symbol: SymbolId,
 
     DataDef: DataDefId,
-    CtorDef: CtorDefId = sequence CtorDefs: CtorDefsId,
+    CtorDef: CtorDefId = sequence CtorDefs: CtorDefsSeqId,
 
     ModDef: ModDefId,
-    ModMember: ModMemberId = sequence ModMembers: ModMembersId,
+    ModMember: ModMemberId = sequence ModMembers: ModMembersSeqId,
 
     Stack: StackId,
     StackMember: StackMemberId,
 
     FnDef: FnDefId,
 
-    Arg: ArgId = sequence Args: ArgsId,
-    Param: ParamId = sequence Params: ParamsId,
-    PatArg: PatArgId = sequence PatArgs: PatArgsId,
+    Arg: ArgId = sequence Args: ArgsSeqId,
+    Param: ParamId = sequence Params: ParamsSeqId,
+    PatArg: PatArgId = sequence PatArgs: PatArgsSeqId,
 }
 
 /// Stores the source location of various targets in the term tree.

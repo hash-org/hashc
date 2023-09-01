@@ -3,13 +3,9 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use hash_ast::ast;
-use hash_storage::{
-    static_sequence_store_direct,
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
-    },
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 
@@ -19,12 +15,12 @@ use super::{
     pats::PatId,
 };
 use crate::{
-    ast_info::HasNodeId,
     environment::stores::tir_stores,
+    node::{Node, NodeOrigin},
     params::ParamsId,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{Term, TermId},
-    tir_debug_value_of_sequence_store_element_id,
+    tir_node_sequence_store_direct,
 };
 
 /// An argument to a parameter.
@@ -39,21 +35,7 @@ pub struct Arg {
     pub value: TermId,
 }
 
-static_sequence_store_direct!(
-    store = pub ArgsStore,
-    id = pub ArgsId[ArgId],
-    value = Arg,
-    store_name = args,
-    store_source = tir_stores()
-);
-
-impl HasNodeId for ArgsId {
-    fn node_id(&self) -> Option<ast::AstNodeId> {
-        tir_stores().ast_info().args_seq().get_node_by_data(*self)
-    }
-}
-
-tir_debug_value_of_sequence_store_element_id!(ArgId);
+tir_node_sequence_store_direct!(Arg);
 
 impl Arg {
     /// From the given parameters, create arguments that directly refer to the
@@ -65,18 +47,28 @@ impl Arg {
     ///                                                         ^^^^^^^^^ this is what this function creates
     /// ```
     pub fn seq_from_param_names_as_vars(params_id: ParamsId) -> ArgsId {
-        Arg::seq(
+        Node::create_at(
             // For each parameter, create an argument referring to it
-            params_id
-                .iter()
-                .enumerate()
-                .map(|(i, param)| {
-                    move |_| Arg {
-                        target: ParamIndex::Position(i),
-                        value: Term::create(Term::Var(param.borrow().name)),
-                    }
-                })
-                .collect_vec(),
+            Node::seq(
+                params_id
+                    .value()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, param)| {
+                        Node::at(
+                            Arg {
+                                target: ParamIndex::Position(i),
+                                value: Node::create(Node::at(
+                                    Term::Var(param.borrow().name),
+                                    NodeOrigin::Generated,
+                                )),
+                            },
+                            NodeOrigin::Generated,
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            NodeOrigin::Generated,
         )
     }
 
@@ -86,22 +78,39 @@ impl Arg {
     /// iterator is for the argument groups, and the inner iterator is for
     /// the arguments in each group.
     pub fn seq_positional(args: impl IntoIterator<Item = TermId>) -> ArgsId {
-        Arg::seq(
-            args.into_iter()
-                .enumerate()
-                .map(|(i, arg)| move |_| Arg { target: ParamIndex::Position(i), value: arg })
-                .collect_vec(),
+        Node::create_at(
+            Node::seq(
+                args.into_iter()
+                    .enumerate()
+                    .map(|(i, arg)| {
+                        Node::at(
+                            Arg { target: ParamIndex::Position(i), value: arg },
+                            NodeOrigin::Generated,
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            NodeOrigin::Generated,
         )
     }
 
     /// Instantiate the given parameters with holes for each argument.
     pub fn seq_from_params_as_holes(params_id: ParamsId) -> ArgsId {
-        Arg::seq(
-            params_id
-                .iter()
-                .enumerate()
-                .map(|(i, _)| move |_| Arg { target: ParamIndex::Position(i), value: Term::hole() })
-                .collect_vec(),
+        Node::create_at(
+            Node::seq(
+                params_id
+                    .value()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| {
+                        Node::at(
+                            Arg { target: ParamIndex::Position(i), value: Term::hole() },
+                            NodeOrigin::Generated,
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            NodeOrigin::Generated,
         )
     }
 }
@@ -122,7 +131,7 @@ pub enum PatOrCapture {
     /// A pattern.
     Pat(PatId),
     /// A capture.
-    Capture,
+    Capture(Node<()>),
 }
 
 impl PatOrCapture {
@@ -130,7 +139,7 @@ impl PatOrCapture {
     pub fn assert_pat(self) -> PatId {
         match self {
             PatOrCapture::Pat(pat) => pat,
-            PatOrCapture::Capture => panic!("Expected a pattern, got a capture"),
+            PatOrCapture::Capture(_) => panic!("Expected a pattern, got a capture"),
         }
     }
 }
@@ -146,15 +155,7 @@ pub struct PatArg {
     pub pat: PatOrCapture,
 }
 
-static_sequence_store_direct!(
-    store = pub PatArgsStore,
-    id = pub PatArgsId[PatArgId],
-    value = PatArg,
-    store_name = pat_args,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_sequence_store_element_id!(PatArgId);
+tir_node_sequence_store_direct!(PatArg);
 
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
@@ -165,19 +166,22 @@ pub enum SomeArgsId {
 
 /// An index into a `SomeArgsId`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
-pub struct SomeArgId(pub SomeArgsId, pub usize);
+pub enum SomeArgId {
+    PatArg(PatArgId),
+    Arg(ArgId),
+}
 
 impl SomeArgId {
-    pub fn into_name(&self) -> Symbol {
+    pub fn into_name(&self) -> SymbolId {
         self.target().into_symbol()
     }
 
     // Get the actual numerical parameter index from a given [ParamsId] and
     // [ParamIndex].
     pub fn target(&self) -> ParamIndex {
-        match self.0 {
-            SomeArgsId::PatArgs(id) => PatArgId(id, self.1).borrow().target,
-            SomeArgsId::Args(id) => ArgId(id, self.1).borrow().target,
+        match self {
+            SomeArgId::PatArg(id) => id.value().target,
+            SomeArgId::Arg(id) => id.value().target,
         }
     }
 }
@@ -187,33 +191,30 @@ impl SequenceStoreKey for SomeArgsId {
 
     fn to_index_and_len(self) -> (usize, usize) {
         match self {
-            SomeArgsId::PatArgs(id) => id.to_index_and_len(),
-            SomeArgsId::Args(id) => id.to_index_and_len(),
+            SomeArgsId::PatArgs(id) => id.elements().to_index_and_len(),
+            SomeArgsId::Args(id) => id.elements().to_index_and_len(),
         }
     }
 
-    fn from_index_and_len_unchecked(index: usize, len: usize) -> Self {
-        SomeArgsId::Args(ArgsId::from_index_and_len_unchecked(index, len))
+    fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+        panic!("Creating SomeArgsId is not allowed")
     }
 }
 
-impl From<ArgId> for SomeArgId {
-    fn from(val: ArgId) -> Self {
-        SomeArgId(SomeArgsId::Args(val.0), val.1)
-    }
-}
-
-impl From<PatArgId> for SomeArgId {
-    fn from(val: PatArgId) -> Self {
-        SomeArgId(SomeArgsId::PatArgs(val.0), val.1)
+impl From<(SomeArgsId, usize)> for SomeArgId {
+    fn from(value: (SomeArgsId, usize)) -> Self {
+        match value.0 {
+            SomeArgsId::PatArgs(id) => SomeArgId::PatArg(PatArgId(id.elements(), value.1)),
+            SomeArgsId::Args(id) => SomeArgId::Arg(ArgId(id.elements(), value.1)),
+        }
     }
 }
 
 impl From<SomeArgsId> for IndexedLocationTarget {
     fn from(val: SomeArgsId) -> Self {
         match val {
-            SomeArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id),
-            SomeArgsId::Args(id) => IndexedLocationTarget::Args(id),
+            SomeArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id.elements()),
+            SomeArgsId::Args(id) => IndexedLocationTarget::Args(id.elements()),
         }
     }
 }
@@ -221,10 +222,8 @@ impl From<SomeArgsId> for IndexedLocationTarget {
 impl From<SomeArgId> for LocationTarget {
     fn from(val: SomeArgId) -> Self {
         match val {
-            SomeArgId(SomeArgsId::PatArgs(id), index) => {
-                LocationTarget::PatArg(PatArgId(id, index))
-            }
-            SomeArgId(SomeArgsId::Args(id), index) => LocationTarget::Arg(ArgId(id, index)),
+            SomeArgId::PatArg(id) => LocationTarget::PatArg(id),
+            SomeArgId::Arg(id) => LocationTarget::Arg(id),
         }
     }
 }
@@ -251,7 +250,7 @@ impl fmt::Display for Arg {
 
 impl fmt::Display for ArgId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
@@ -273,7 +272,7 @@ impl fmt::Display for PatOrCapture {
             PatOrCapture::Pat(pat) => {
                 write!(f, "{}", pat)
             }
-            PatOrCapture::Capture => {
+            PatOrCapture::Capture(_) => {
                 write!(f, "_")
             }
         }
@@ -293,7 +292,7 @@ impl fmt::Display for PatArg {
 
 impl fmt::Display for PatArgId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

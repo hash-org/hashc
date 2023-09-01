@@ -265,7 +265,13 @@ impl<I: CompilerInterface> Driver<I> {
             // The prelude shouldn't generate any errors, otherwise we just failed to
             // bootstrap
             if self.compiler.diagnostics().iter().any(|r| r.is_error()) {
-                panic!("failed to bootstrap compiler");
+                panic!(
+                    "failed to bootstrap compiler: {}",
+                    ReportWriter::new(
+                        self.compiler.diagnostics().to_owned(),
+                        self.compiler.source_map(),
+                    )
+                );
             }
 
             self.bootstrapping = false;

@@ -61,7 +61,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         // we need make sure to omit constructors that are statically impossible. E.g.,
         // for `Option<!>`, we do not include `Some(_)` in the returned list of
         // constructors.
-        let all_ctors = match ctx.ty.value() {
+        let all_ctors = match *ctx.ty.value() {
             Ty::Data(DataTy { data_def, .. }) => {
                 let def = data_def.value();
 
@@ -73,9 +73,10 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                             // The exception is if the pattern is at the top level, because
                             // we want empty matches to
                             // be considered exhaustive.
-                            let is_secretly_empty = ctors.is_empty() && !ctx.is_top_level;
+                            let is_secretly_empty = ctors.value().is_empty() && !ctx.is_top_level;
 
                             let mut ctors: SmallVec<[_; 1]> = ctors
+                                .value()
                                 .iter()
                                 .enumerate()
                                 .map(|(index, _)| DeconstructedCtor::Variant(index))

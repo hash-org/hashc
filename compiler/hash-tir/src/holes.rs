@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use super::symbols::Symbol;
+use super::symbols::SymbolId;
 
 /// A hole, or in other words a variable which will be resolved as a term later.
 ///
@@ -10,12 +10,12 @@ use super::symbols::Symbol;
 /// create holes when it does not know something (such as the type of a term),
 /// and then it will fill those holes once it has enough information to do so.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Hole(pub Symbol);
+pub struct Hole(pub SymbolId);
 
 impl Hole {
     /// Create a new hole.
     pub fn fresh() -> Self {
-        Self(Symbol::fresh())
+        Self(SymbolId::fresh())
     }
 }
 

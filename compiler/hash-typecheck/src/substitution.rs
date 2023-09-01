@@ -14,7 +14,7 @@ use hash_tir::{
     params::{ParamId, ParamIndex, ParamsId},
     pats::Pat,
     sub::Sub,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::{
@@ -41,9 +41,9 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     fn params_contain_vars(
         &self,
         params: ParamsId,
-        var_matches: &HashSet<Symbol>,
+        var_matches: &HashSet<SymbolId>,
         can_apply: &mut bool,
-    ) -> HashSet<Symbol> {
+    ) -> HashSet<SymbolId> {
         let mut seen = var_matches.clone();
         for param in params.iter() {
             let param = param.value();
@@ -95,7 +95,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             Atom::Ty(_) | Atom::FnDef(_) => {}
         }
         match atom {
-            Atom::Ty(ty) => match ty.value() {
+            Atom::Ty(ty) => match *ty.value() {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
                     match sub.get_sub_for_var_or_hole(symbol) {
                         Some(subbed_term) => {
@@ -117,7 +117,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match term.value() {
+            Atom::Term(term) => match *term.value() {
                 Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
                     Some(subbed_term) => {
                         let subbed_term_val = subbed_term.value();
@@ -152,12 +152,12 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn atom_contains_vars_once(
         &self,
         atom: Atom,
-        var_matches: &HashSet<Symbol>,
+        var_matches: &HashSet<SymbolId>,
         can_apply: &mut bool,
     ) -> ControlFlow<()> {
         let var_matches = &var_matches;
         match atom {
-            Atom::Ty(ty) => match ty.value() {
+            Atom::Ty(ty) => match *ty.value() {
                 Ty::Hole(Hole(symbol)) | Ty::Var(symbol) if var_matches.contains(&symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
@@ -176,7 +176,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match term.value() {
+            Atom::Term(term) => match *term.value() {
                 Term::Hole(Hole(symbol)) | Term::Var(symbol) if var_matches.contains(&symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
@@ -216,12 +216,12 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         sub: &Sub,
         can_apply: &mut bool,
     ) -> ControlFlow<()> {
-        let domain: HashSet<Symbol> = sub.domain().collect();
+        let domain: HashSet<SymbolId> = sub.domain().collect();
         self.atom_contains_vars_once(atom, &domain, can_apply)
     }
 
     /// Below are convenience methods for specific atoms:
-    pub fn atom_contains_vars(&self, atom: Atom, filter: &HashSet<Symbol>) -> bool {
+    pub fn atom_contains_vars(&self, atom: Atom, filter: &HashSet<SymbolId>) -> bool {
         let mut can_apply = false;
         self.traversing_utils
             .visit_atom::<!, _>(atom, &mut |atom| {
@@ -304,14 +304,14 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// accordingly.
     pub fn has_holes_once(&self, atom: Atom, has_holes: &mut Option<Atom>) -> ControlFlow<()> {
         match atom {
-            Atom::Ty(ty) => match ty.value() {
+            Atom::Ty(ty) => match *ty.value() {
                 Ty::Hole(_) => {
                     *has_holes = Some(atom);
                     ControlFlow::Break(())
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Term(term) => match term.value() {
+            Atom::Term(term) => match *term.value() {
                 Term::Hole(_) => {
                     *has_holes = Some(atom);
                     ControlFlow::Break(())
@@ -324,7 +324,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 }
                 _ => ControlFlow::Continue(()),
             },
-            Atom::Pat(pat) => match pat.value() {
+            Atom::Pat(pat) => match *pat.value() {
                 Pat::Ctor(ctor_pat) => {
                     if let Some(atom) = self.pat_args_have_holes(ctor_pat.ctor_pat_args) {
                         *has_holes = Some(atom);
@@ -395,7 +395,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     }
 
     /// Create a substitution from the current scope members.
-    pub fn get_unassigned_vars_in_current_scope(&self) -> HashSet<Symbol> {
+    pub fn get_unassigned_vars_in_current_scope(&self) -> HashSet<SymbolId> {
         let mut sub = HashSet::new();
         let current_scope_index = self.context().get_current_scope_index();
         self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
@@ -407,7 +407,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     }
 
     /// Create a substitution from the current scope members.
-    pub fn is_unassigned_var_in_current_scope(&self, var: Symbol) -> bool {
+    pub fn is_unassigned_var_in_current_scope(&self, var: SymbolId) -> bool {
         let _current_scope_index = self.context().get_current_scope_index();
         match self.context().get_current_scope_ref().get_decl(var) {
             Some(var) => {
@@ -475,9 +475,9 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
 
     /// Insert the given variable and value into the given substitution if
     /// the value is not a variable with the same name.
-    pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: Symbol, value: TermId) {
+    pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: SymbolId, value: TermId) {
         let subbed_value = self.apply_sub_to_term(value, sub);
-        if !matches!(subbed_value.value(), Term::Var(v) if v == name) {
+        if !matches!(*subbed_value.value(), Term::Var(v) if v == name) {
             sub.insert(name, subbed_value);
         }
     }
@@ -562,7 +562,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn reverse_sub(&self, sub: &Sub) -> Sub {
         let mut reversed_sub = Sub::identity();
         for (name, value) in sub.iter() {
-            match value.value() {
+            match *value.value() {
                 Term::Var(v) => {
                     reversed_sub.insert(v, Term::from(name));
                 }

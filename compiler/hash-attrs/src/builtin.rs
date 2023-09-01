@@ -3,8 +3,7 @@
 use std::sync::LazyLock;
 
 use hash_source::identifier::Identifier;
-use hash_storage::store::statics::SequenceStoreValue;
-use hash_tir::{params::Param, primitives::primitives, symbols::sym, tys::Ty};
+use hash_tir::{building::gen::params, primitives::primitives, symbols::sym, tys::Ty};
 use paste::paste;
 
 use crate::{
@@ -29,11 +28,11 @@ macro_rules! define_attr {
         let name: Identifier = stringify!($name).into();
 
         let params = if ${count(arg)} == 0 {
-            Param::empty_seq()
+            params([])
         } else {
-            Param::seq_data([
+            params([
                 $(
-                    Param { name: sym(stringify!(arg)), ty: make_ty!($ty), default: None }
+                    (sym(stringify!(arg)), make_ty!($ty), None)
                 ),*
             ])
         };

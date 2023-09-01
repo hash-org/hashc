@@ -118,10 +118,10 @@ impl<'tc> ResolutionPass<'tc> {
                                     if let Some(result) = self.try_or_add_error(
                                         self.make_ty_from_ast_ty(variant_ty.ast_ref()),
                                     ) {
-                                        match result.value() {
+                                        match *result.value() {
                                             Ty::Data(d) if d.data_def == data_def_id => {
                                                 // Variant type is the same as the enum type
-                                                data_def_ctors.borrow_mut()[i].result_args = d.args;
+                                                data_def_ctors.value().borrow_mut()[i].result_args = d.args;
                                             }
                                             _ => {
                                                 self.diagnostics().add_error(
@@ -182,7 +182,7 @@ impl<'tc> ResolutionPass<'tc> {
             let members = mod_def_id.borrow().members;
 
             for (i, member_expr) in members.to_index_range().zip(member_exprs) {
-                let member_value = members.borrow()[i].value;
+                let member_value = members.elements().borrow()[i].value;
                 let member_rhs_expr =
                     Self::use_expr_as_mod_def_declaration_and_get_rhs(member_expr);
 

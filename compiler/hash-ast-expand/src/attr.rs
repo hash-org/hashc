@@ -16,6 +16,7 @@ use hash_tir::{
     args::Arg,
     environment::stores::tir_stores,
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
+    node::{Node, NodeOrigin},
     params::ParamIndex,
     primitives::primitives,
     terms::Term,
@@ -94,7 +95,7 @@ impl AstExpander<'_> {
             matches
         };
 
-        match param_ty.value() {
+        match *param_ty.value() {
             Ty::Data(data) => match data.data_def {
                 d if d == primitives().i32() => {
                     maybe_emit_err(matches!(value, AttrValueKind::Int(_)))
@@ -193,16 +194,16 @@ impl AstExpander<'_> {
                         AttrArgIdx::from(target),
                         AttrValue { origin: arg.id(), value: attr_value },
                     );
-                    args.push(Arg { target, value });
+                    args.push(Node::at(Arg { target, value }, NodeOrigin::Generated));
                 }
 
-                (Arg::seq_data(args), mac_args.id())
+                (Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated), mac_args.id())
             } else {
-                (Arg::empty_seq(), node.name.id())
+                (Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated), node.name.id())
             };
 
             // Register the location of the args as the `mac_args` node.
-            tir_stores().ast_info().args_seq().insert(args_node_id, mac_args);
+            tir_stores().ast_info().args_seq().insert(args_node_id, *mac_args.value());
 
             if is_valid && let Err(param_err) =
                 self.param_utils().validate_and_reorder_args_against_params(mac_args, attr_ty.params)

@@ -4,10 +4,11 @@
 use std::iter::once;
 
 use hash_intrinsics::intrinsics::DefinedIntrinsics;
-use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue};
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     self,
-    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberData, ModMemberValue},
+    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
+    node::{Node, NodeOrigin},
     primitives::{primitives, DefinedPrimitives},
     symbols::sym,
     utils::AccessToUtils,
@@ -40,37 +41,49 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
 
     /// Make a module containing all the intrinsics.
     fn make_intrinsic_mod(&self, intrinsics: &DefinedIntrinsics) -> ModDefId {
-        ModDef::create_with(|id| ModDef {
-            id,
-            name: sym("Intrinsics"),
-            kind: ModKind::ModBlock,
-            members: ModMember::seq(
-                intrinsics
-                    .as_mod_members()
-                    .into_iter()
-                    .map(|data| move |id| ModMember { id, name: data.name, value: data.value }),
-            ),
-        })
+        Node::create_at(
+            ModDef {
+                name: sym("Intrinsics"),
+                kind: ModKind::ModBlock,
+                members: Node::create_at(
+                    Node::<ModMember>::seq(intrinsics.as_mod_members().into_iter().map(|data| {
+                        Node::at(
+                            ModMember { name: data.name, value: data.value },
+                            NodeOrigin::Generated,
+                        )
+                    })),
+                    NodeOrigin::Generated,
+                ),
+            },
+            NodeOrigin::Generated,
+        )
     }
 
     /// Make a module containing all the primitives and intrinsics.
     fn make_root_mod(&self, intrinsics_mod: ModDefId) -> ModDefId {
-        ModDef::create_with(|id| ModDef {
-            id,
-            name: sym("Primitives"),
-            kind: ModKind::Transparent,
-            members: ModMember::seq(
-                primitives()
-                    .as_mod_members()
-                    .into_iter()
-                    .chain(once(ModMemberData {
-                        name: sym("Intrinsics"),
-                        value: ModMemberValue::Mod(intrinsics_mod),
-                    }))
-                    .map(|data| move |id| ModMember { id, name: data.name, value: data.value })
-                    .collect_vec(),
-            ),
-        })
+        Node::create_at(
+            ModDef {
+                name: sym("Primitives"),
+                kind: ModKind::Transparent,
+                members: Node::create_at(
+                    Node::<ModMember>::seq(
+                        primitives()
+                            .as_mod_members()
+                            .into_iter()
+                            .chain(once(Node::at(
+                                ModMember {
+                                    name: sym("Intrinsics"),
+                                    value: ModMemberValue::Mod(intrinsics_mod),
+                                },
+                                NodeOrigin::Generated,
+                            )))
+                            .collect_vec(),
+                    ),
+                    NodeOrigin::Generated,
+                ),
+            },
+            NodeOrigin::Generated,
+        )
     }
 }
 

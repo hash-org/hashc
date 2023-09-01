@@ -6,9 +6,9 @@
 use core::fmt;
 
 use hash_storage::{
-    static_single_store,
+    get,
     store::{
-        statics::{SingleStoreValue, StoreId},
+        statics::{SingleStoreId, StoreId},
         TrivialSequenceStoreKey,
     },
 };
@@ -21,10 +21,11 @@ use crate::{
     context::Decl,
     environment::stores::tir_stores,
     mods::ModDefId,
+    node::{Node, NodeOrigin},
     pats::PatId,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{TermId, TermListId},
-    tir_get,
+    tir_node_single_store,
     tys::TyId,
 };
 
@@ -34,7 +35,7 @@ pub struct BindingPat {
     /// The name of the bind.
     /// If `name` does not map to a specific `Identifier` name, it means
     /// that the pattern is actually a wildcard `_`.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// Whether the binding is declared as mutable.
     pub is_mutable: bool,
 }
@@ -94,17 +95,14 @@ pub struct AssignTerm {
 #[omit(StackMemberData, [id], [Debug, Copy, Clone])]
 #[derive(Debug, Copy, Clone)]
 pub struct StackMember {
-    pub id: StackMemberId,
-    pub name: Symbol,
+    pub name: SymbolId,
     pub is_mutable: bool,
     pub ty: TyId,
 }
 
 /// A stack, which is a list of stack members.
 #[derive(Debug, Clone)]
-#[omit(StackData, [id], [Debug, Clone])]
 pub struct Stack {
-    pub id: StackId,
     pub members: Vec<Decl>,
     /// Local module definition containing members that are defined in this
     /// stack.
@@ -114,22 +112,16 @@ pub struct Stack {
 impl Stack {
     /// Create a new stack with empty members.
     pub fn empty() -> StackId {
-        Stack::create_with(|id| Stack { id, members: vec![], local_mod_def: None })
+        Node::create_at(Stack { members: vec![], local_mod_def: None }, NodeOrigin::Generated)
     }
 }
 
-static_single_store!(
-    store = pub StackStore,
-    id = pub StackId,
-    value = Stack,
-    store_name = stack,
-    store_source = tir_stores(),
-    derives = Debug
-);
+tir_node_single_store!(Stack);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct StackMemberId(pub StackId, pub usize);
 
+impl SingleStoreId for StackMemberId {}
 impl StoreId for StackMemberId {
     type Value = Decl;
     type ValueRef = Decl;
@@ -181,9 +173,9 @@ impl fmt::Display for DeclTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self.value {
             Some(term_id) => {
-                match self.bind_pat.value() {
+                match *self.bind_pat.value() {
                     Pat::Binding(binding_pat) => {
-                        match term_id.value() {
+                        match *term_id.value() {
                             // If a function is being declared, print the body, otherwise just
                             // its name.
                             Term::FnRef(fn_def_id)
@@ -227,7 +219,7 @@ impl fmt::Display for Stack {
         writeln!(f, "{{")?;
 
         if let Some(mod_def_members) =
-            self.local_mod_def.map(|mod_def_id| tir_get!(mod_def_id, members))
+            self.local_mod_def.map(|mod_def_id| get!(mod_def_id, members))
         {
             let members = (mod_def_members).to_string();
             write!(f, "{}", indent(&members, "  "))?;
@@ -244,7 +236,7 @@ impl fmt::Display for Stack {
 
 impl fmt::Display for StackId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
@@ -252,9 +244,9 @@ impl fmt::Display for BlockTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{{")?;
 
-        let stack_local_mod_def = tir_get!(self.stack_id, local_mod_def);
+        let stack_local_mod_def = get!(self.stack_id, local_mod_def);
         if let Some(mod_def_members) =
-            stack_local_mod_def.map(|mod_def_id| tir_get!(mod_def_id, members))
+            stack_local_mod_def.map(|mod_def_id| get!(mod_def_id, members))
         {
             let members = mod_def_members.to_string();
             write!(f, "{}", indent(&members, "  "))?;

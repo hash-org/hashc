@@ -5,7 +5,7 @@ use std::{borrow::Borrow, fmt::Display, iter::once};
 
 use hash_ast::ast;
 use hash_storage::{
-    static_sequence_store_direct, static_single_store,
+    get,
     store::{
         statics::{SequenceStoreValue, SingleStoreValue, StoreId},
         SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
@@ -24,11 +24,12 @@ use crate::{
     args::Arg,
     ast_info::HasNodeId,
     environment::stores::tir_stores,
+    node::{Node, NodeOrigin},
     params::{Param, ParamsId},
     pats::PatArgsWithSpread,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
-    tir_debug_name_of_store_id, tir_get,
+    tir_node_sequence_store_direct, tir_node_single_store,
 };
 
 /// A constructor of a data-type definition.
@@ -40,13 +41,12 @@ use crate::{
 /// Each constructor must result in the original data-type, with some given
 /// arguments.
 #[derive(Debug, Copy, Clone)]
-#[omit(CtorDefData, [id, data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
+#[omit(CtorDefData, [data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
+
 pub struct CtorDef {
-    /// The ID of the constructor.
-    pub id: CtorDefId,
     /// The name of the constructor, for example `symbol("Red")` in `Red: Color`
     /// if given as a constructor to a `Colour := datatype...`.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The `DataDefId` of the data-type that this constructor is a part of.
     pub data_def_id: DataDefId,
     /// The index of this constructor in the original data-type's ordered
@@ -67,15 +67,7 @@ pub struct CtorDef {
     pub result_args: ArgsId,
 }
 
-static_sequence_store_direct!(
-    store = pub CtorDefsStore,
-    id = pub CtorDefsId[CtorDefId],
-    value = CtorDef,
-    store_name = ctor_defs,
-    store_source = tir_stores()
-);
-
-tir_debug_name_of_store_id!(CtorDefId);
+tir_node_sequence_store_direct!(CtorDef);
 
 /// A constructor term.
 ///
@@ -175,16 +167,21 @@ impl CtorDef {
     where
         I::IntoIter: ExactSizeIterator,
     {
-        CtorDef::seq(data.into_iter().enumerate().map(|(index, data)| {
-            move |id| CtorDef {
-                id,
-                name: data.name,
-                data_def_id,
-                data_def_ctor_index: index,
-                params: data.params,
-                result_args: data.result_args,
-            }
-        }))
+        Node::create(Node::at(
+            Node::seq(data.into_iter().enumerate().map(|(index, data)| {
+                Node::at(
+                    CtorDef {
+                        name: data.name,
+                        data_def_id,
+                        data_def_ctor_index: index,
+                        params: data.params,
+                        result_args: data.result_args,
+                    },
+                    NodeOrigin::Generated,
+                )
+            })),
+            NodeOrigin::Generated,
+        ))
     }
 }
 
@@ -206,12 +203,10 @@ impl DataDefCtors {
 #[omit(DataDefData, [id], [Debug, Clone, Copy])]
 #[derive(Debug, Clone, Copy)]
 pub struct DataDef {
-    /// The ID of the data-type definition.
-    pub id: DataDefId,
     /// The name of the data-type.
     ///
     /// For example `symbol("Colour")` in `Colour := datatype...`.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The parameters of the data-type.
     ///
     /// For example `<A: Type>` in `Bingo := datatype <A: Type> (x:
@@ -224,70 +219,67 @@ pub struct DataDef {
     pub ctors: DataDefCtors,
 }
 
-static_single_store!(
-    store = pub DataDefStore,
-    id = pub DataDefId,
-    value = DataDef,
-    store_name = data_def,
-    store_source = tir_stores()
-);
+tir_node_single_store!(DataDef);
 
+// @@Temporary while Nodes still have generated origins
 impl HasNodeId for DataDefId {
     fn node_id(&self) -> Option<ast::AstNodeId> {
         tir_stores().ast_info().data_defs().get_node_by_data(*self)
     }
 }
 
-tir_debug_name_of_store_id!(DataDefId);
-
 impl DataDef {
     /// Create an empty data definition.
-    pub fn empty(name: Symbol, params: ParamsId) -> DataDefId {
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Defined(CtorDef::empty_seq()),
-        })
+    pub fn empty(name: SymbolId, params: ParamsId) -> DataDefId {
+        Node::create_at(
+            DataDef {
+                name,
+                params,
+                ctors: DataDefCtors::Defined(Node::create(Node::at(
+                    Node::<CtorDef>::empty_seq(),
+                    NodeOrigin::Generated,
+                ))),
+            },
+            NodeOrigin::Generated,
+        )
     }
 
     /// Create a primitive data definition.
-    pub fn primitive(name: Symbol, info: PrimitiveCtorInfo) -> DataDefId {
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params: Param::empty_seq(),
-            ctors: DataDefCtors::Primitive(info),
-        })
+    pub fn primitive(name: SymbolId, info: PrimitiveCtorInfo) -> DataDefId {
+        Node::create_at(
+            DataDef {
+                name,
+                params: Node::create(Node::at(Node::<Param>::empty_seq(), NodeOrigin::Generated)),
+                ctors: DataDefCtors::Primitive(info),
+            },
+            NodeOrigin::Generated,
+        )
     }
 
     /// Create a primitive data definition with parameters.
     ///
     /// These may be referenced in `info`.
     pub fn primitive_with_params(
-        name: Symbol,
+        name: SymbolId,
         params: ParamsId,
         info: impl FnOnce(DataDefId) -> PrimitiveCtorInfo,
     ) -> DataDefId {
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Primitive(info(id)),
+        Node::create_with(|id| {
+            Node::at(
+                DataDef { name, params, ctors: DataDefCtors::Primitive(info(id)) },
+                NodeOrigin::Generated,
+            )
         })
     }
 
     /// Get the single constructor of the given data definition, if it is indeed
     /// a single constructor.
-    pub fn get_single_ctor(&self) -> Option<CtorDef> {
+    pub fn get_single_ctor(&self) -> Option<CtorDefId> {
         match self.borrow().ctors {
-            DataDefCtors::Defined(ctors) => {
-                if ctors.len() == 1 {
-                    Some(ctors.borrow()[0])
-                } else {
-                    None
-                }
-            }
+            DataDefCtors::Defined(ctors) => match ctors.elements().at(0) {
+                Some(x) if ctors.len() == 1 => Some(x),
+                _ => None,
+            },
             DataDefCtors::Primitive(_) => None,
         }
     }
@@ -299,62 +291,72 @@ impl DataDef {
     ///
     /// This will create a data definition with a single constructor, which
     /// takes the fields as parameters and returns the data type.
-    pub fn struct_def(name: Symbol, params: ParamsId, fields_params: ParamsId) -> DataDefId {
+    pub fn struct_def(name: SymbolId, params: ParamsId, fields_params: ParamsId) -> DataDefId {
         // Create the arguments for the constructor, which are the type
         // parameters given.
         let result_args = Arg::seq_from_param_names_as_vars(params);
 
         // Create the data definition
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
-                id,
-                once({
-                    CtorDefData {
-                        // Name of the constructor is the same as the data definition, though we
-                        // need to create a new symbol for it
-                        name: name.duplicate(),
-                        // The constructor is the only one
-                        params: fields_params,
-                        result_args,
-                    }
-                }),
-            )),
+        Node::create_with(|id| {
+            Node::at(
+                DataDef {
+                    name,
+                    params,
+                    ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
+                        id,
+                        once({
+                            CtorDefData {
+                                // Name of the constructor is the same as the data definition,
+                                // though we need to create a new
+                                // symbol for it
+                                name: name.duplicate(),
+                                // The constructor is the only one
+                                params: fields_params,
+                                result_args,
+                            }
+                        }),
+                    )),
+                },
+                NodeOrigin::Generated,
+            )
         })
     }
 
     /// Create an enum definition, with some parameters, where each variant has
     /// specific result arguments.
     pub fn indexed_enum_def(
-        name: Symbol,
+        name: SymbolId,
         params: ParamsId,
-        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId, Option<ArgsId>)>,
+        variants: impl Fn(DataDefId) -> Vec<(SymbolId, ParamsId, Option<ArgsId>)>,
     ) -> DataDefId {
         // Create the data definition for the enum
-        DataDef::create_with(|id| DataDef {
-            id,
-            name,
-            params,
-            ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
-                id,
-                variants(id)
-                    .into_iter()
-                    .map(|(variant_name, fields_params, result_args)| {
-                        // Create a constructor for each variant
-                        CtorDefData {
-                            name: variant_name,
-                            params: fields_params,
-                            result_args: result_args.unwrap_or_else(|| {
-                                // Create the arguments for the constructor, which are the type
-                                // parameters given.
-                                Arg::seq_from_param_names_as_vars(params)
-                            }),
-                        }
-                    })
-                    .collect_vec(),
-            )),
+        Node::create_with(|id| {
+            Node::at(
+                DataDef {
+                    name,
+                    params,
+                    ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
+                        id,
+                        variants(id)
+                            .into_iter()
+                            .map(|(variant_name, fields_params, result_args)| {
+                                // Create a constructor for each variant
+                                CtorDefData {
+                                    name: variant_name,
+                                    params: fields_params,
+                                    result_args: result_args.unwrap_or_else(|| {
+                                        // Create the arguments for the constructor, which are the
+                                        // type parameters
+                                        // given.
+                                        Arg::seq_from_param_names_as_vars(params)
+                                    }),
+                                }
+                            })
+                            .collect_vec(),
+                    )),
+                },
+                NodeOrigin::Generated,
+            )
         })
     }
 
@@ -367,9 +369,9 @@ impl DataDef {
     /// which takes the variant fields as parameters and returns the data
     /// type.
     pub fn enum_def(
-        name: Symbol,
+        name: SymbolId,
         params: ParamsId,
-        variants: impl Fn(DataDefId) -> Vec<(Symbol, ParamsId)>,
+        variants: impl Fn(DataDefId) -> Vec<(SymbolId, ParamsId)>,
     ) -> DataDefId {
         Self::indexed_enum_def(name, params, |def_id| {
             variants(def_id)
@@ -409,7 +411,7 @@ impl fmt::Display for CtorDef {
 
 impl fmt::Display for CtorDefId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
@@ -424,8 +426,7 @@ impl fmt::Display for CtorDefsId {
 
 impl Display for CtorTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (ctor_name, data_def_id) =
-            (tir_get!(self.ctor, name), tir_get!(self.ctor, data_def_id));
+        let (ctor_name, data_def_id) = (get!(self.ctor, name), get!(self.ctor, data_def_id));
 
         let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
         write!(f, "{}::", &data_ty)?;
@@ -441,13 +442,13 @@ impl Display for CtorTerm {
 
 impl Display for CtorPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let data_def_id = tir_get!(self.ctor, data_def_id);
-        let data_def_name = tir_get!(data_def_id, name);
+        let data_def_id = get!(self.ctor, data_def_id);
+        let data_def_name = get!(data_def_id, name);
 
         if data_def_id.borrow().ctors.assert_defined().len() == 1 {
             write!(f, "{data_def_name}")?;
         } else {
-            let ctor_name = tir_get!(self.ctor, name);
+            let ctor_name = get!(self.ctor, name);
             write!(f, "{data_def_name}::{}", ctor_name)?;
         }
 
@@ -522,13 +523,13 @@ impl Display for DataDef {
 
 impl Display for DataDefId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 
 impl Display for DataTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let data_def_name = tir_get!(self.data_def, name);
+        let data_def_name = get!(self.data_def, name);
         write!(f, "{}", data_def_name)?;
         if self.args.len() > 0 {
             write!(f, "<{}>", self.args)?;

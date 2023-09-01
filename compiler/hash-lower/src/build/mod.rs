@@ -28,7 +28,7 @@ use hash_tir::{
     context::{Context, ScopeKind},
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
 };
 use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
@@ -163,7 +163,7 @@ pub(crate) struct BodyBuilder<'tcx> {
 
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
-    declaration_map: FxHashMap<Symbol, Local>,
+    declaration_map: FxHashMap<SymbolId, Local>,
 
     /// Information about the currently traversed [ast::Block] in the AST. This
     /// value is used to determine when the block should be terminated by
@@ -293,9 +293,9 @@ impl<'ctx> BodyBuilder<'ctx> {
 
         Context::enter_resolved_scope_mut(self, ScopeKind::Fn(fn_def), |this| {
             // The type must be a function type...
-            let FnDef { ty: FnTy { params, .. }, body, .. } = fn_def.value();
+            let FnDef { ty: FnTy { params, .. }, body, .. } = *fn_def.value();
 
-            params.borrow().iter().for_each(|param| {
+            params.elements().borrow().iter().for_each(|param| {
                 let ir_ty = this.ty_id_from_tir_ty(param.ty);
 
                 // @@Future: deal with parameter attributes that are mutable?
