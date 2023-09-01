@@ -15,7 +15,7 @@ use hash_intrinsics::{
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
 use hash_storage::store::{
-    statics::{CoreStoreId, SequenceStoreValue},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{

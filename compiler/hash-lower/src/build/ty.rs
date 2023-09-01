@@ -14,7 +14,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId},
 };
 use hash_source::constant::InternedInt;
-use hash_storage::store::{statics::CoreStoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::primitives::IntTy;
 use hash_tir::{
     atom_info::ItemInAtomInfo,

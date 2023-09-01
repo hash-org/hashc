@@ -7,7 +7,7 @@ use std::cell::Cell;
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_storage::store::{statics::CoreStoreId, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     data::DataDefCtors,
     environment::{env::AccessToEnv, stores::tir_stores},

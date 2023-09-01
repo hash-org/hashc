@@ -8,7 +8,7 @@ use std::{
 
 use hash_storage::{
     get,
-    store::{statics::CoreStoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey},
+    store::{statics::StoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey},
 };
 use hash_utils::{
     derive_more::From, fxhash::FxBuildHasher, indexmap::IndexMap, itertools::Itertools,

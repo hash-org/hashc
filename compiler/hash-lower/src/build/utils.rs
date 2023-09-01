@@ -13,7 +13,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_source::constant::InternedInt;
-use hash_storage::store::statics::{CoreStoreId, SequenceStoreValue};
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_target::HasTarget;
 use hash_tir::{
     args::Arg,

@@ -5,7 +5,7 @@ use std::{fmt::Display, path::Path};
 use hash_source::{identifier::Identifier, SourceId};
 use hash_storage::{
     get,
-    store::{statics::CoreStoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey},
+    store::{statics::StoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey},
 };
 use textwrap::indent;
 use utility_types::omit;

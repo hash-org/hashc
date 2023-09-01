@@ -3,7 +3,7 @@
 use hash_ast::ast::{self, AstNodeRef};
 use hash_source::location::Span;
 use hash_storage::store::{
-    statics::{CoreStoreId, SequenceStoreValue},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey,
 };
 use hash_tir::{

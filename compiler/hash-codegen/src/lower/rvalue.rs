@@ -8,7 +8,7 @@ use hash_ir::{
     ir::{self, BinOp, RValue},
     ty::{self, IrTyId, RefKind, VariantIdx, COMMON_IR_TYS},
 };
-use hash_storage::store::statics::CoreStoreId;
+use hash_storage::store::statics::StoreId;
 
 use super::{
     locals::LocalRef,

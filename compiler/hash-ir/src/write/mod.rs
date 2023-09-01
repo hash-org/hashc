@@ -10,7 +10,7 @@ pub mod pretty;
 
 use std::fmt;
 
-use hash_storage::store::statics::CoreStoreId;
+use hash_storage::store::statics::StoreId;
 
 use super::ir::*;
 use crate::ty::Mutability;

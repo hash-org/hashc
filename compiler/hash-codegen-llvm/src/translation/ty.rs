@@ -15,7 +15,7 @@ use hash_codegen::{
     traits::{layout::LayoutMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::IrTy;
-use hash_storage::store::statics::CoreStoreId;
+use hash_storage::store::statics::StoreId;
 use hash_utils::smallvec::{smallvec, SmallVec};
 use inkwell as llvm;
 use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};

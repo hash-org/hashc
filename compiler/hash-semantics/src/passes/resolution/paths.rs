@@ -23,7 +23,7 @@ use std::fmt;
 
 use hash_ast::ast;
 use hash_source::{identifier::Identifier, location::Span};
-use hash_storage::store::statics::{CoreStoreId, SequenceStoreValue};
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     args::{Arg, ArgsId},
     data::{CtorPat, CtorTerm, DataDefId},

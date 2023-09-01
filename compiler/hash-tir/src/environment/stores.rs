@@ -74,7 +74,7 @@ macro_rules! tir_debug_value_of_sequence_store_element_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_storage::store::statics::CoreStoreId;
+                use hash_storage::store::statics::StoreId;
                 f.debug_tuple(stringify!($id))
                     .field(&(&self.0.index, &self.0.len))
                     .field(&self.1)
@@ -91,7 +91,7 @@ macro_rules! tir_debug_value_of_single_store_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_storage::store::statics::CoreStoreId;
+                use hash_storage::store::statics::StoreId;
                 f.debug_tuple(stringify!($id)).field(&self.index).field(&self.value()).finish()
             }
         }
@@ -105,7 +105,7 @@ macro_rules! tir_debug_name_of_store_id {
     ($id:ident) => {
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use hash_storage::store::statics::CoreStoreId;
+                use hash_storage::store::statics::StoreId;
                 f.debug_tuple(stringify!($id)).field(&self.value().name).finish()
             }
         }
@@ -125,7 +125,7 @@ macro_rules! tir_debug_name_of_store_id {
 ///
 /// /// These now exist:
 /// pub type TermStore: Store<TermId, Node<Term>>;
-/// pub type TermId: CoreStoreId<Value=Term>;
+/// pub type TermId: StoreId<Value=Term>;
 /// pub fn term_store() -> &'static TermStore;
 /// ```
 #[macro_export]
@@ -182,8 +182,8 @@ macro_rules! tir_node_single_store {
 /// pub type ParamsStore: Store<ParamsId, Node<ParamsSeqId>>;
 /// pub type ParamsSeqStore: SequenceStore<ParamsSeqId, Node<Param>>;
 /// pub type ParamsSeqId: SequenceStoreId<Value=Vec<Node<Param>>>;
-/// pub type ParamsId: StoreId<Value=Node<ParamsSeqId>>;
-/// pub type ParamId: StoreId<Value=Node<Param>>;
+/// pub type ParamsId: SingleStoreId<Value=Node<ParamsSeqId>>;
+/// pub type ParamId: SingleStoreId<Value=Node<Param>>;
 /// pub fn params_store() -> &'static ParamsStore;
 /// pub fn params_seq_store() -> &'static ParamsSeqStore;
 /// ```
@@ -245,7 +245,7 @@ macro_rules! tir_node_sequence_store_direct {
         /// Needed for the `SequenceStoreKey` impl.
         impl From<($id, usize)> for $el_id {
             fn from(value: ($id, usize)) -> Self {
-                use hash_storage::store::statics::CoreStoreId;
+                use hash_storage::store::statics::StoreId;
                 $el_id(value.0.value().data, value.1)
             }
         }
@@ -253,7 +253,7 @@ macro_rules! tir_node_sequence_store_direct {
         impl $id {
             /// Access the elements of this sequence wrapper.
             pub fn elements(self) -> $id_seq {
-                use hash_storage::store::statics::CoreStoreId;
+                use hash_storage::store::statics::StoreId;
                 *self.value()
             }
         }
@@ -275,7 +275,7 @@ macro_rules! tir_node_sequence_store_direct {
 /// /// These now exist:
 /// pub type TermListStore: Store<TermListId, Node<TermListSeqId>>;
 /// pub type TermListSeqStore: SequenceStore<TermListSeqId, TermId>;
-/// pub type TermListId: StoreId<Value=Node<TermListSeqId>>;
+/// pub type TermListId: SingleStoreId<Value=Node<TermListSeqId>>;
 /// pub type TermListSeqId: SequenceStoreId<Value=Vec<TermId>>;
 /// pub fn term_list_store() -> &'static TermListStore;
 /// pub fn term_list_seq_store() -> &'static TermListSeqStore;
@@ -333,7 +333,7 @@ macro_rules! tir_node_sequence_store_indirect {
 
         impl From<($id, usize)> for $el_id {
             fn from(value: ($id, usize)) -> Self {
-                use hash_storage::store::statics::CoreStoreId;
+                use hash_storage::store::statics::StoreId;
                 value.0.borrow().at(value.1).unwrap()
             }
         }
@@ -341,7 +341,7 @@ macro_rules! tir_node_sequence_store_indirect {
         impl $id {
             /// Access the elements of this sequence wrapper.
             pub fn elements(self) -> $id_seq {
-                use hash_storage::store::statics::CoreStoreId;
+                use hash_storage::store::statics::StoreId;
                 *self.value()
             }
         }

@@ -33,7 +33,7 @@ pub trait PartialStoreId {
 }
 
 /// A trait for a non-partial store ID indexing into a static store.
-pub trait CoreStoreId: Sized + Copy {
+pub trait StoreId: Sized + Copy {
     type Value;
     type ValueRef: ?Sized;
     type ValueBorrow;
@@ -58,11 +58,11 @@ pub trait CoreStoreId: Sized + Copy {
     fn set(self, value: Self::Value);
 }
 
-/// A marker specialisation of `CoreStoreId` for a sequence store.
-pub trait SequenceStoreId: CoreStoreId {}
+/// A marker specialisation of `StoreId` for a sequence store.
+pub trait SequenceStoreId: StoreId {}
 
-/// A marker specialisation of `CoreStoreId` for a single store.
-pub trait StoreId: CoreStoreId {}
+/// A marker specialisation of `StoreId` for a single store.
+pub trait SingleStoreId: StoreId {}
 
 /// A trait for a sequence store ID which can be used to access a store in
 /// `STORES`.
@@ -82,7 +82,7 @@ pub trait SequenceStoreValue: Sized {
 /// A trait for a store ID containing single items which can be used to access a
 /// store in `STORES`.
 pub trait SingleStoreValue: Sized {
-    type Id: StoreId;
+    type Id: SingleStoreId;
 
     /// Create a new value in the store from the given function.
     fn create_from(x: impl Into<Self>) -> Self::Id {
@@ -106,7 +106,7 @@ pub type DefaultIndirectSequenceStore<K, V> = DefaultSequenceStore<K, V>;
 #[macro_export]
 macro_rules! get {
     ($id:expr, $member:ident) => {{
-        $crate::store::statics::CoreStoreId::map($id, |x| x.$member)
+        $crate::store::statics::StoreId::map($id, |x| x.$member)
     }};
 }
 
@@ -171,11 +171,11 @@ macro_rules! impl_partial_store_id_for {
     };
 }
 
-/// Implement the trait `StoreId` for the given types.
+/// Implement the trait `SingleStoreId` for the given types.
 ///
 /// The `self_lam` parameter is used to map `self` to the actual store key.
 #[macro_export]
-macro_rules! impl_store_id_for {
+macro_rules! impl_single_store_id_for {
     (
         id = $id:ty,
         value = $value:ty,
@@ -183,8 +183,8 @@ macro_rules! impl_store_id_for {
         store_source = $store_source:expr,
         self_lam = $self:expr,
     ) => {
-        impl $crate::store::statics::StoreId for $id {}
-        impl $crate::store::statics::CoreStoreId for $id {
+        impl $crate::store::statics::SingleStoreId for $id {}
+        impl $crate::store::statics::StoreId for $id {
             type Value = $value;
             type ValueRef = $value;
             type ValueBorrow = $crate::store::StoreBorrowHandle<'static, $value>;
@@ -236,7 +236,7 @@ macro_rules! impl_sequence_store_id_for {
         self_lam = $self:expr,
     ) => {
         impl $crate::store::statics::SequenceStoreId for $id {}
-        impl $crate::store::statics::CoreStoreId for $id {
+        impl $crate::store::statics::StoreId for $id {
             type Value = Vec<$value>;
             type ValueRef = [$value];
             type ValueBorrow =
@@ -279,7 +279,7 @@ macro_rules! impl_sequence_store_id_for {
 /// Define a static single store with the given specifications.
 ///
 /// This will create a `$store: Store<$id, $value>`, where `$id` is
-/// a generated type. Furthermore, it will implement `StoreId` for `$id`
+/// a generated type. Furthermore, it will implement `SingleStoreId` for `$id`
 /// by accessing the global `$store_source.$store_name()`, and will implement
 /// `SingleStoreValue` for `$value`.
 #[macro_export]
@@ -313,8 +313,8 @@ macro_rules! static_single_store {
         $store_vis type $store = $crate::store::DefaultStore<$id, $value>;
         // Create the store key
         $crate::new_store_key!($id_vis $id $(, derives = $($extra_derives),*)?);
-        // Implement `StoreId` for `$id`
-        $crate::impl_store_id_for!(
+        // Implement `SingleStoreId` for `$id`
+        $crate::impl_single_store_id_for!(
             id = $id,
             value = $value,
             store_name = $store_name,
@@ -426,16 +426,16 @@ macro_rules! static_sequence_store_indirect {
 
         impl std::fmt::Debug for $id {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                use $crate::store::statics::CoreStoreId;
+                use $crate::store::statics::StoreId;
                 f.debug_list().entries(self.value().iter()).finish()
             }
         }
 
-        use $crate::store::statics::StoreId;
+        use $crate::store::statics::SingleStoreId;
 
         impl From<($id, usize)> for $el_id {
             fn from((id, index): ($id, usize)) -> Self {
-                use $crate::store::statics::CoreStoreId;
+                use $crate::store::statics::StoreId;
                 $id::from(id).map(|value| value[index].clone())
             }
         }
@@ -447,7 +447,7 @@ macro_rules! static_sequence_store_indirect {
 /// This will create a `$store: SequenceStore<$id, $value>`, where `$id` and
 /// `$el_id` is a generated type. Furthermore, it will implement
 /// `SequenceStoreId` for `$id` by accessing the global
-/// `$store_source.$store_name()`, as well as `StoreId` for `$el_id` that
+/// `$store_source.$store_name()`, as well as `SingleStoreId` for `$el_id` that
 /// accesses elements of the sequence.  Finally, it will implement
 /// `SequenceStoreValue` for `$value`.
 #[macro_export]
@@ -519,8 +519,8 @@ macro_rules! static_sequence_store_direct {
         }
 
         // Use `$el_id` as a single store ID, by indexing into the sequence:
-        impl $crate::store::statics::StoreId for $el_id { }
-        impl $crate::store::statics::CoreStoreId for $el_id {
+        impl $crate::store::statics::SingleStoreId for $el_id { }
+        impl $crate::store::statics::StoreId for $el_id {
             type Value = $value;
             type ValueRef = $value;
             type ValueBorrow = $crate::store::sequence::SequenceStoreBorrowHandle<'static, $value>;

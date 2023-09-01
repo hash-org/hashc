@@ -23,7 +23,7 @@ use hash_source::{
 use hash_storage::{
     static_sequence_store_indirect, static_single_store,
     store::{
-        statics::{CoreStoreId, SingleStoreValue},
+        statics::{SingleStoreValue, StoreId},
         SequenceStore, StoreKey,
     },
 };

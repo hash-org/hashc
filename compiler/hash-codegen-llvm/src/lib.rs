@@ -39,7 +39,7 @@ use hash_pipeline::{
 };
 use hash_reporting::writer::ReportWriter;
 use hash_source::ModuleId;
-use hash_storage::store::{statics::CoreStoreId, Store};
+use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::{
     stream_writeln,
     timing::{time_item, AccessToMetrics},

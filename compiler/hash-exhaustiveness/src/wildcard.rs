@@ -5,7 +5,7 @@
 //! to the constructor.
 use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::PrimitiveUtils;
-use hash_storage::store::{statics::CoreStoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use hash_target::size::Size;
 use hash_tir::{
     data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},

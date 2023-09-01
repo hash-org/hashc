@@ -1,6 +1,6 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
-use hash_storage::store::statics::{CoreStoreId, SequenceStoreValue};
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     environment::stores::tir_stores,
     node::{Node, NodeOrigin},

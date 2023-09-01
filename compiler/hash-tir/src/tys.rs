@@ -4,7 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_ast::ast;
-use hash_storage::store::statics::{CoreStoreId, SequenceStoreValue, SingleStoreValue};
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
 use hash_utils::derive_more::From;
 
 use super::{holes::Hole, symbols::SymbolId};

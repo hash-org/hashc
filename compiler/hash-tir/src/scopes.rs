@@ -8,7 +8,7 @@ use core::fmt;
 use hash_storage::{
     get,
     store::{
-        statics::{CoreStoreId, StoreId},
+        statics::{SingleStoreId, StoreId},
         TrivialSequenceStoreKey,
     },
 };
@@ -121,8 +121,8 @@ tir_node_single_store!(Stack);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct StackMemberId(pub StackId, pub usize);
 
-impl StoreId for StackMemberId {}
-impl CoreStoreId for StackMemberId {
+impl SingleStoreId for StackMemberId {}
+impl StoreId for StackMemberId {
     type Value = Decl;
     type ValueRef = Decl;
     type ValueBorrow = MappedRwLockReadGuard<'static, Decl>;

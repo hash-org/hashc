@@ -18,7 +18,7 @@ use hash_source::{
 use hash_storage::{
     static_sequence_store_indirect,
     store::{
-        statics::{CoreStoreId, SingleStoreValue},
+        statics::{SingleStoreValue, StoreId},
         SequenceStore, SequenceStoreKey,
     },
 };

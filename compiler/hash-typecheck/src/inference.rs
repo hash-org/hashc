@@ -14,7 +14,7 @@ use hash_source::{
     ModuleKind,
 };
 use hash_storage::store::{
-    statics::{CoreStoreId, SequenceStoreValue},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{

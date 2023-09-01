@@ -2,7 +2,7 @@
 //! the target backend IR.
 
 use hash_ir::ir::{Statement, StatementKind};
-use hash_storage::store::statics::CoreStoreId;
+use hash_storage::store::statics::StoreId;
 
 use super::{locals::LocalRef, FnBuilder};
 use crate::traits::builder::BlockBuilderMethods;

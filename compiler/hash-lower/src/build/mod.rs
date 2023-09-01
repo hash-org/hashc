@@ -22,7 +22,7 @@ use hash_ir::{
     ty::{IrTy, Mutability},
 };
 use hash_source::identifier::Identifier;
-use hash_storage::store::{statics::CoreStoreId, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, ScopeKind},

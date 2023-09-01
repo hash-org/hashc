@@ -8,7 +8,7 @@
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
 
 use hash_intrinsics::utils::PrimitiveUtils;
-use hash_storage::store::{statics::CoreStoreId, Store};
+use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataTy},
     tuples::TupleTy,

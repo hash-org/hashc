@@ -6,7 +6,7 @@ use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
 use hash_source::constant::InternedInt;
 use hash_storage::store::{
-    statics::{CoreStoreId, SequenceStoreValue},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, Store, TrivialSequenceStoreKey,
 };
 use hash_tir::{

@@ -27,7 +27,7 @@
 use hash_attrs::builtin::attrs;
 use hash_ir::ty::InstanceId;
 use hash_source::{identifier::IDENTS, InteractiveId, ModuleId};
-use hash_storage::store::{statics::CoreStoreId, StoreKey};
+use hash_storage::store::{statics::StoreId, StoreKey};
 
 use super::{push_string_encoded_count, ALPHANUMERIC_BASE};
 

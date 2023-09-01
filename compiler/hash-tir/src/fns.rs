@@ -3,7 +3,7 @@
 use std::fmt::Display;
 
 use hash_ast::ast;
-use hash_storage::store::statics::CoreStoreId;
+use hash_storage::store::statics::StoreId;
 use typed_builder::TypedBuilder;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};

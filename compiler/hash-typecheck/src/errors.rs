@@ -7,7 +7,7 @@ use hash_reporting::{
     writer::ReportWriter,
 };
 use hash_source::location::Span;
-use hash_storage::store::{statics::CoreStoreId, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     environment::{
         env::{AccessToEnv, Env},

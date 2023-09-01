@@ -7,7 +7,7 @@ use hash_ast::ast;
 use hash_storage::{
     get,
     store::{
-        statics::{CoreStoreId, SequenceStoreValue, SingleStoreValue},
+        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
         SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };

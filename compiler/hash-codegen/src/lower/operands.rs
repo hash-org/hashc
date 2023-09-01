@@ -3,7 +3,7 @@
 
 use hash_ir::ir;
 use hash_layout::TyInfo;
-use hash_storage::store::statics::CoreStoreId;
+use hash_storage::store::statics::StoreId;
 use hash_target::{abi::AbiRepresentation, alignment::Alignment};
 
 use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};

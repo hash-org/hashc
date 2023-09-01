@@ -1,7 +1,7 @@
 use core::fmt;
 use std::fmt::Display;
 
-use hash_storage::store::{statics::CoreStoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 
 use crate::{
     pats::{PatId, PatListId, Spread},

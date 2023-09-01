@@ -17,7 +17,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
-use hash_storage::store::statics::CoreStoreId;
+use hash_storage::store::statics::StoreId;
 use hash_utils::index_vec::{index_vec, IndexVec};
 
 use super::IrOptimisationPass;

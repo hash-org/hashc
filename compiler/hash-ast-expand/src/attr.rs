@@ -8,7 +8,7 @@ use hash_attrs::{
 };
 use hash_reporting::diagnostic::DiagnosticsMut;
 use hash_storage::store::{
-    statics::{CoreStoreId, SequenceStoreValue},
+    statics::{SequenceStoreValue, StoreId},
     TrivialSequenceStoreKey,
 };
 use hash_tir::{

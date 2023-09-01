@@ -2,7 +2,7 @@
 
 use std::{cell::Cell, collections::HashSet};
 
-use hash_storage::store::{statics::CoreStoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
     context::ScopeKind,

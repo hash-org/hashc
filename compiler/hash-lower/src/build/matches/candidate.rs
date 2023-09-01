@@ -18,7 +18,7 @@ use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
 };
-use hash_storage::store::{statics::CoreStoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     args::PatArgsId,

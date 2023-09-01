@@ -15,7 +15,7 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::constant::{IntConstant, IntConstantValue, InternedInt};
-use hash_storage::store::statics::CoreStoreId;
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     args::PatArgsId,
     atom_info::ItemInAtomInfo,
