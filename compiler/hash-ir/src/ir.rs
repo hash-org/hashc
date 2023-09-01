@@ -1524,13 +1524,13 @@ mod tests {
     }
 }
 
-#[cfg(target_pointer_width = "64")]
+#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
 mod size_asserts {
     use hash_utils::assert::static_assert_size;
 
     use super::*;
 
     static_assert_size!(Statement, 64);
-    static_assert_size!(Terminator, 128);
+    static_assert_size!(Terminator, 96);
     static_assert_size!(RValue, 40);
 }
