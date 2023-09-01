@@ -17,7 +17,10 @@ use hash_source::{
 };
 use hash_storage::{
     static_sequence_store_indirect,
-    store::{statics::SingleStoreValue, SequenceStore, SequenceStoreKey},
+    store::{
+        statics::{SingleStoreValue, StoreId},
+        SequenceStore, SequenceStoreKey,
+    },
 };
 use hash_utils::{
     graph::dominators::Dominators,
@@ -1521,7 +1524,7 @@ mod tests {
     }
 }
 
-#[cfg(target_pointer_width = "64")]
+#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
 mod size_asserts {
     use hash_utils::assert::static_assert_size;
 

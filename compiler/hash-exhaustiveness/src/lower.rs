@@ -6,7 +6,7 @@ use hash_ast::ast::RangeEnd;
 use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
 use hash_source::constant::InternedInt;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, Store, TrivialSequenceStoreKey,
 };
 use hash_tir::{
@@ -16,10 +16,11 @@ use hash_tir::{
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
     environment::env::AccessToEnv,
     lits::{CharLit, IntLit, LitPat, StrLit},
+    node::{Node, NodeOrigin},
     params::{ParamId, ParamsId},
     pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,
-    symbols::Symbol,
+    symbols::SymbolId,
     tuples::{TuplePat, TupleTy},
     ty_as_variant,
     tys::{Ty, TyId},
@@ -39,7 +40,7 @@ use crate::{storage::DeconstructedPatId, usefulness::MatchArm, ExhaustivenessChe
 /// Expand an `or` pattern into a passed [Vec], whilst also
 /// applying the same operation on children patterns.
 fn expand_or_pat(id: PatId, vec: &mut Vec<PatId>) {
-    if let Pat::Or(OrPat { alternatives }) = id.value() {
+    if let Pat::Or(OrPat { alternatives }) = *id.value() {
         for alternative in alternatives.iter() {
             expand_or_pat(alternative.assert_pat(), vec);
         }
@@ -80,7 +81,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                 MatchArm {
                     deconstructed_pat: pat,
-                    has_guard: matches!(id.value(), Pat::If(_)),
+                    has_guard: matches!(*id.value(), Pat::If(_)),
                     id: *id,
                 }
             })
@@ -89,7 +90,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
     /// Convert a [Pat] into a [DeconstructedPat].
     pub(crate) fn deconstruct_pat(&self, ty_id: TyId, pat_id: PatId) -> DeconstructedPat {
-        let (ctor, fields) = match pat_id.value() {
+        let (ctor, fields) = match *pat_id.value() {
             Pat::Binding(_) => (DeconstructedCtor::Wildcard, vec![]),
             Pat::Range(range) => {
                 let range = self.lower_pat_range(ty_id, range);
@@ -111,12 +112,13 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             Pat::Tuple(TuplePat { data, .. }) => {
                 // We need to read the tuple type from the ctx type and then create
                 // wildcard fields for all of the inner types
-                let tuple_ty = ty_as_variant!(ty, ty_id.value(), Tuple);
+                let tuple_ty = ty_as_variant!(ty, *ty_id.value(), Tuple);
                 let fields = self.deconstruct_pat_fields(data, tuple_ty.data);
 
                 // Create wild-cards for all of the tuple inner members
                 let mut wilds: SmallVec<[_; 2]> = tuple_ty
                     .data
+                    .elements()
                     .borrow()
                     .iter()
                     .map(|param| self.wildcard_from_ty(param.ty))
@@ -138,8 +140,12 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 let fields = self.deconstruct_pat_fields(args, params);
 
                 // Create wild-cards for all of the tuple inner members
-                let mut wilds: SmallVec<[_; 2]> =
-                    params.borrow().iter().map(|param| self.wildcard_from_ty(param.ty)).collect();
+                let mut wilds: SmallVec<[_; 2]> = params
+                    .elements()
+                    .borrow()
+                    .iter()
+                    .map(|param| self.wildcard_from_ty(param.ty))
+                    .collect();
 
                 // For each provided field, we want to recurse and lower
                 // the pattern further
@@ -243,7 +249,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             ctor_store.map_fast(deconstructed.ctor, |ctor| {
                 let pat = match ctor {
                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                        match ty.value() {
+                        match *ty.value() {
                             Ty::Data(DataTy { data_def, args }) => {
                                 let ctor_def_id = data_def.borrow().ctors.assert_defined();
 
@@ -253,7 +259,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                                     DeconstructedCtor::Variant(idx) => *idx,
                                     _ => unreachable!()
                                 };
-                                let ctor = CtorDefId(ctor_def_id, variant_idx);
+                                let ctor = CtorDefId(ctor_def_id.elements(), variant_idx);
                                 let (pats, spread) = self.construct_pat_args(fields, ctor.borrow().params);
 
                                 Pat::Ctor(CtorPat { ctor, ctor_pat_args: pats, ctor_pat_args_spread: spread, data_args: args })
@@ -269,18 +275,18 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     DeconstructedCtor::Str(str) => Pat::Lit(LitPat::Str(StrLit::from(*str))),
                     DeconstructedCtor::Array(Array { kind }) => {
                         let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
-                        let pats = PatOrCapture::seq_data(children);
+                        let pats = Node::create_at(PatOrCapture::seq(children), NodeOrigin::Generated);
 
                         match kind {
                             ArrayKind::Fixed(_) => {
                                 Pat::Array(ArrayPat { pats, spread: None })
                             }
                             ArrayKind::Var(prefix, _) => {
-                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: Symbol::fresh_underscore(), index: *prefix }) })
+                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: SymbolId::fresh_underscore(), index: *prefix }) })
                             }
                         }
                     }
-                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: Symbol::fresh_underscore(), is_mutable: false }),
+                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: SymbolId::fresh_underscore(), is_mutable: false }),
                     DeconstructedCtor::Or => {
                         panic!("cannot convert an `or` deconstructed pat back into pat")
                     }
@@ -290,7 +296,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 };
 
                 // Now put the pat on the store and return it
-                Pat::create(pat)
+                Node::create_at(pat, NodeOrigin::Generated)
             })
         })
     }
@@ -304,17 +310,22 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .iter_patterns()
             .enumerate()
             .filter(|(_, p)| !self.get_deconstructed_pat_ctor(*p).is_wildcard())
-            .map(|(index, p)| PatArg {
-                target: ParamId(params, index).as_param_index(),
-                pat: self.construct_pat(p).into(),
+            .map(|(index, p)| {
+                Node::at(
+                    PatArg {
+                        target: ParamId(params.elements(), index).as_param_index(),
+                        pat: self.construct_pat(p).into(),
+                    },
+                    NodeOrigin::Generated,
+                )
             })
             .collect_vec();
 
         let field_count = fields.len();
-        let args = PatArg::seq_data(fields);
+        let args = Node::create_at(Node::<PatArg>::seq(fields), NodeOrigin::Generated);
 
         if field_count != params.len() {
-            (args, Some(Spread { name: Symbol::fresh(), index: field_count }))
+            (args, Some(Spread { name: SymbolId::fresh(), index: field_count }))
         } else {
             (args, None)
         }
@@ -445,6 +456,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// named argument.
     fn deconstruct_pat_fields(&self, fields: PatArgsId, params_id: ParamsId) -> Vec<FieldPat> {
         fields
+            .elements()
             .borrow()
             .iter()
             .enumerate()

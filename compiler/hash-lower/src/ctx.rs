@@ -23,6 +23,7 @@ use hash_tir::{
         source_info::CurrentSourceInfo,
     },
     mods::ModDefId,
+    node::{Node, NodeOrigin},
 };
 use hash_utils::stream_writeln;
 
@@ -119,7 +120,10 @@ impl<'ir> BuilderCtx<'ir> {
 
     /// Dump the layout of a given type.
     pub(crate) fn dump_ty_layout(&self, data_def: DataDefId, mut out: CompilerOutputStream) {
-        let ty = self.ty_from_tir_data(DataTy { args: Arg::empty_seq(), data_def });
+        let ty = self.ty_from_tir_data(DataTy {
+            args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+            data_def,
+        });
         let layout = self.layout_of(ty).unwrap();
 
         let writer_config = LayoutWriterConfig::from_character_set(self.settings.character_set);

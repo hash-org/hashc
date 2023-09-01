@@ -4,23 +4,21 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_ast::ast;
-use hash_storage::{
-    static_single_store,
-    store::statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-};
+use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
 use hash_utils::derive_more::From;
 
-use super::{holes::Hole, symbols::Symbol};
+use super::{holes::Hole, symbols::SymbolId};
 use crate::{
     args::Arg,
     ast_info::HasNodeId,
     data::{DataDefId, DataTy},
     environment::stores::tir_stores,
     fns::FnTy,
+    node::{Node, NodeOrigin},
     params::Param,
     refs::RefTy,
     terms::{Term, TermId},
-    tir_debug_value_of_single_store_id,
+    tir_node_single_store,
     tuples::TupleTy,
     utils::{common::get_location, traversing::Atom},
 };
@@ -58,7 +56,7 @@ pub enum Ty {
     Hole(Hole),
 
     /// Type variable
-    Var(Symbol),
+    Var(SymbolId),
 
     /// Tuple type
     Tuple(TupleTy),
@@ -76,21 +74,13 @@ pub enum Ty {
     Universe(UniverseTy),
 }
 
-static_single_store!(
-    store = pub TyStore,
-    id = pub TyId,
-    value = Ty,
-    store_name = ty,
-    store_source = tir_stores()
-);
+tir_node_single_store!(Ty);
 
 impl HasNodeId for TyId {
     fn node_id(&self) -> Option<ast::AstNodeId> {
         tir_stores().ast_info().tys().get_node_by_data(*self)
     }
 }
-
-tir_debug_value_of_single_store_id!(TyId);
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]
@@ -101,40 +91,51 @@ pub struct TypeOfTerm {
 impl Ty {
     /// Create a type of types, i.e. small `Type`.
     pub fn small_universe() -> TyId {
-        Ty::create(Ty::Universe(UniverseTy { size: Some(0) }))
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(0) }), NodeOrigin::Generated))
     }
 
     /// Create a large type of types, i.e. `Type(n)` for some natural number
     /// `n`.
     pub fn universe(n: usize) -> TyId {
-        Ty::create(Ty::Universe(UniverseTy { size: Some(n) }))
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(n) }), NodeOrigin::Generated))
     }
 
     /// Create a type of types, with a flexible universe size.
     ///
     /// This is the default when `Type` is used in a type signature.
     pub fn flexible_universe() -> TyId {
-        Ty::create(Ty::Universe(UniverseTy { size: None }))
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: None }), NodeOrigin::Generated))
     }
 
     /// Create a new empty tuple type.
     pub fn void() -> TyId {
-        Ty::create(Ty::Tuple(TupleTy { data: Param::empty_seq() }))
+        Node::create(Node::at(
+            Ty::Tuple(TupleTy {
+                data: Node::create(Node::at(Node::<Param>::empty_seq(), NodeOrigin::Generated)),
+            }),
+            NodeOrigin::Generated,
+        ))
     }
 
     /// Create a new variable type.
-    pub fn var(symbol: Symbol) -> TyId {
-        Ty::create(Ty::Var(symbol))
+    pub fn var(symbol: SymbolId) -> TyId {
+        Node::create(Node::at(Ty::Var(symbol), NodeOrigin::Generated))
     }
 
     /// Create a new hole type.
     pub fn hole() -> TyId {
-        Ty::create(Ty::Hole(Hole::fresh()))
+        Node::create(Node::at(Ty::Hole(Hole::fresh()), NodeOrigin::Generated))
     }
 
     /// Create a new data type with no arguments.
     pub fn data(data_def: DataDefId) -> TyId {
-        Ty::create(Ty::Data(DataTy { data_def, args: Arg::empty_seq() }))
+        Node::create(Node::at(
+            Ty::Data(DataTy {
+                data_def,
+                args: Node::create(Node::at(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+            }),
+            NodeOrigin::Generated,
+        ))
     }
 
     /// Create a new type.
@@ -145,7 +146,7 @@ impl Ty {
             Ty::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Ty::create(ty);
+        let created = Node::create(Node::at(ty, NodeOrigin::Generated));
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }
@@ -168,7 +169,7 @@ impl Ty {
     pub fn expect_is(atom: impl Into<Atom>, ty: TyId) -> TyId {
         let atom: Atom = atom.into();
         let (ast_info, location) = match atom {
-            Atom::Term(origin_term) => match origin_term.value() {
+            Atom::Term(origin_term) => match *origin_term.value() {
                 Term::Ty(ty) => (ty.node_id(), get_location(ty)),
                 Term::FnRef(f) => (f.node_id(), get_location(f)),
                 Term::Var(v) => (None, get_location(v)),
@@ -201,7 +202,7 @@ impl Ty {
 impl TyId {
     /// Try to use the given type as a term.
     pub fn as_term(&self) -> TermId {
-        match self.value() {
+        match *self.value() {
             Ty::Var(var) => Term::from(var),
             Ty::Hole(hole) => Term::from(hole),
             Ty::Eval(term) => match term.try_as_ty() {
@@ -225,7 +226,7 @@ impl fmt::Display for UniverseTy {
 
 impl fmt::Display for TyId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

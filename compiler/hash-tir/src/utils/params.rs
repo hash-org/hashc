@@ -15,6 +15,7 @@ use super::common::{get_location, get_overall_location};
 use crate::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     environment::env::Env,
+    node::{Node, NodeOrigin},
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
 };
@@ -75,7 +76,7 @@ impl ParamError {
                         expected.len(),
                         pluralise!(expected.len())
                     ));
-                if let Some(location) = get_overall_location(*expected) {
+                if let Some(location) = get_overall_location(*expected.value()) {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -153,7 +154,7 @@ impl ParamError {
                 if let Some(location) = get_location(arg) {
                     error.add_labelled_span(location, "argument with this name");
                 }
-                if let Some(location) = get_overall_location(*params) {
+                if let Some(location) = get_overall_location(*params.value()) {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -368,7 +369,7 @@ impl ParamUtils {
         self.validate_args_against_params(args_id.into(), params_id)?;
 
         let mut error_state = ErrorState::new();
-        let mut result: Vec<Option<Arg>> = vec![None; params_id.len()];
+        let mut result: Vec<Option<Node<Arg>>> = vec![None; params_id.len()];
 
         // Note: We have already validated that the number of arguments is less than
         // or equal to the number of parameters
@@ -381,11 +382,14 @@ impl ParamUtils {
                 ParamIndex::Position(j_received) => {
                     assert!(j_received == j);
 
-                    result[j] = Some(Arg {
-                        // Add the name if present
-                        target: (ParamId(params_id, j).as_param_index()),
-                        value: arg.value,
-                    });
+                    result[j] = Some(Node::at(
+                        Arg {
+                            // Add the name if present
+                            target: (ParamId(params_id.elements(), j).as_param_index()),
+                            value: arg.value,
+                        },
+                        NodeOrigin::Generated,
+                    ));
                 }
                 ParamIndex::Name(arg_name) => {
                     // Find the position in the parameter list of the parameter with the
@@ -403,12 +407,15 @@ impl ParamUtils {
                                 // Duplicate argument name, must be from positional
                                 assert!(j != i);
                                 error_state.add_error(ParamError::DuplicateArg {
-                                    first: ArgId(args_id, i).into(),
-                                    second: ArgId(args_id, j).into(),
+                                    first: ArgId(args_id.elements(), i).into(),
+                                    second: ArgId(args_id.elements(), j).into(),
                                 });
                             } else {
                                 // Found an uncrossed parameter, add it to the result
-                                result[i] = Some(Arg { target: arg.target, value: arg.value });
+                                result[i] = Some(Node::at(
+                                    Arg { target: arg.target, value: arg.value },
+                                    NodeOrigin::Generated,
+                                ));
                             }
                         }
                         None => {
@@ -431,13 +438,16 @@ impl ParamUtils {
         // Populate default values and catch missing arguments
         for i in params_id.to_index_range() {
             if result[i].is_none() {
-                let param_id = ParamId(params_id, i);
+                let param_id = ParamId(params_id.elements(), i);
                 let param = param_id.borrow();
                 let default = param.default;
 
                 if let Some(default) = default {
                     // If there is a default value, add it to the result
-                    result[i] = Some(Arg { target: param_id.as_param_index(), value: default });
+                    result[i] = Some(Node::at(
+                        Arg { target: param_id.as_param_index(), value: default },
+                        NodeOrigin::Generated,
+                    ));
                 } else {
                     // No default value, and not present in the arguments, so
                     // this is an error
@@ -456,7 +466,10 @@ impl ParamUtils {
 
         // Now, create the new argument list
         // There should be no `None` elements at this point
-        let new_args_id = Arg::seq_data(result.into_iter().map(|arg| arg.unwrap()));
+        let new_args_id = Node::create_at(
+            Node::<Arg>::seq(result.into_iter().map(|arg| arg.unwrap())),
+            NodeOrigin::Generated,
+        );
 
         Ok(new_args_id)
     }
@@ -484,7 +497,7 @@ impl ParamUtils {
         self.validate_args_against_params(args_id.into(), params_id)?;
 
         let mut error_state = ErrorState::new();
-        let mut result: Vec<Option<PatArg>> = vec![None; params_id.len()];
+        let mut result: Vec<Option<Node<PatArg>>> = vec![None; params_id.len()];
 
         // Note: We have already validated that the number of arguments is less than
         // or equal to the number of parameters
@@ -504,11 +517,14 @@ impl ParamUtils {
                         });
                     }
 
-                    result[j] = Some(PatArg {
-                        // Add the name if present
-                        target: (ParamId(params_id, j)).as_param_index(),
-                        pat: arg.pat,
-                    });
+                    result[j] = Some(Node::at(
+                        PatArg {
+                            // Add the name if present
+                            target: (ParamId(params_id.elements(), j)).as_param_index(),
+                            pat: arg.pat,
+                        },
+                        NodeOrigin::Generated,
+                    ));
                 }
                 ParamIndex::Name(arg_name) => {
                     // Find the position in the parameter list of the parameter with the
@@ -527,12 +543,15 @@ impl ParamUtils {
                                 // Duplicate argument name, must be from positional
                                 assert!(j != i);
                                 error_state.add_error(ParamError::DuplicateArg {
-                                    first: PatArgId(args_id, i).into(),
-                                    second: PatArgId(args_id, j).into(),
+                                    first: PatArgId(args_id.elements(), i).into(),
+                                    second: PatArgId(args_id.elements(), j).into(),
                                 });
                             } else {
                                 // Found an uncrossed parameter, add it to the result
-                                result[i] = Some(PatArg { target: arg.target, pat: arg.pat });
+                                result[i] = Some(Node::at(
+                                    PatArg { target: arg.target, pat: arg.pat },
+                                    NodeOrigin::Generated,
+                                ));
                             }
                         }
                         None => {
@@ -555,12 +574,15 @@ impl ParamUtils {
         // Populate missing arguments with captures
         for i in params_id.to_index_range() {
             if result[i].is_none() {
-                let param_id = ParamId(params_id, i);
+                let param_id = ParamId(params_id.elements(), i);
                 if spread.is_some() {
-                    result[i] = Some(PatArg {
-                        target: param_id.as_param_index(),
-                        pat: PatOrCapture::Capture,
-                    });
+                    result[i] = Some(Node::at(
+                        PatArg {
+                            target: param_id.as_param_index(),
+                            pat: PatOrCapture::Capture(Node::at((), NodeOrigin::Generated)),
+                        },
+                        NodeOrigin::Generated,
+                    ));
                 } else {
                     // No spread, and not present in the arguments, so
                     // this is an error
@@ -579,7 +601,10 @@ impl ParamUtils {
 
         // Now, create the new argument list
         // There should be no `None` elements at this point
-        let new_args_id = PatArg::seq_data(result.into_iter().map(|arg| arg.unwrap()));
+        let new_args_id = Node::create_at(
+            Node::<PatArg>::seq(result.into_iter().map(|arg| arg.unwrap())),
+            NodeOrigin::Generated,
+        );
 
         Ok(new_args_id)
     }

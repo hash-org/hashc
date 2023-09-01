@@ -5,7 +5,8 @@ use std::fmt::Debug;
 
 use hash_ast::ast::{self, RangeEnd};
 use hash_storage::{
-    static_sequence_store_indirect, static_single_store, store::TrivialSequenceStoreKey,
+    get,
+    store::{statics::StoreId, TrivialSequenceStoreKey},
 };
 use hash_utils::derive_more::From;
 
@@ -15,12 +16,12 @@ use super::{
     data::CtorPat,
     lits::LitPat,
     scopes::BindingPat,
-    symbols::Symbol,
+    symbols::SymbolId,
     tuples::TuplePat,
 };
 use crate::{
     arrays::ArrayPat, ast_info::HasNodeId, environment::stores::tir_stores,
-    tir_debug_value_of_single_store_id, tir_get,
+    tir_node_sequence_store_indirect, tir_node_single_store,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -30,7 +31,7 @@ pub struct Spread {
     /// The name of the spread bind.
     /// If `name` does not map to a specific `Identifier` name, it means
     /// that the bind is actually nameless.
-    pub name: Symbol,
+    pub name: SymbolId,
     /// The index in the sequence of target patterns, of this spread pattern.
     pub index: usize,
 }
@@ -81,6 +82,15 @@ pub enum Pat {
     If(IfPat),
 }
 
+tir_node_single_store!(Pat);
+tir_node_sequence_store_indirect!(PatList[PatOrCapture]);
+
+impl HasNodeId for PatId {
+    fn node_id(&self) -> Option<ast::AstNodeId> {
+        tir_stores().ast_info().pats().get_node_by_data(*self)
+    }
+}
+
 impl Pat {
     /// Check if the pattern is a [`Pat::Or`].
     pub fn is_or(&self) -> bool {
@@ -106,32 +116,9 @@ impl Pat {
     }
 }
 
-static_single_store!(
-    store = pub PatStore,
-    id = pub PatId,
-    value = Pat,
-    store_name = pat,
-    store_source = tir_stores()
-);
-
-impl HasNodeId for PatId {
-    fn node_id(&self) -> Option<ast::AstNodeId> {
-        tir_stores().ast_info().pats().get_node_by_data(*self)
-    }
-}
-
-tir_debug_value_of_single_store_id!(PatId);
-
-static_sequence_store_indirect!(
-    store = pub PatListStore,
-    id = pub PatListId[PatOrCapture],
-    store_name = pat_list,
-    store_source = tir_stores()
-);
-
 impl fmt::Display for Spread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(name) = tir_get!(self.name, name) {
+        if let Some(name) = get!(self.name, name) {
             write!(f, "...{name}")
         } else {
             write!(f, "...")
@@ -169,7 +156,7 @@ impl fmt::Display for Pat {
 
 impl fmt::Display for PatId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

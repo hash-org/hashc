@@ -14,7 +14,7 @@ use hash_source::{
     ModuleKind,
 };
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
@@ -32,13 +32,14 @@ use hash_tir::{
     lits::Lit,
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
+    node::{Node, NodeOrigin},
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     sub::Sub,
-    symbols::Symbol,
+    symbols::SymbolId,
     term_as_variant,
     terms::{Term, TermId, TermListId, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
@@ -185,7 +186,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         element_annotation_ty: TyId,
     ) -> TcResult<()> {
         let terms = term_list_id.value();
-        self.infer_unified_list(&terms, element_annotation_ty, |term, ty| {
+        self.infer_unified_list(&terms.value(), element_annotation_ty, |term, ty| {
             self.infer_term(term, ty)?;
             Ok(())
         })?;
@@ -200,13 +201,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         pat_list_id: PatListId,
         element_annotation_ty: TyId,
     ) -> TcResult<()> {
-        let pats = pat_list_id.value();
+        let pats = pat_list_id.elements().value();
         self.infer_unified_list(&pats, element_annotation_ty, |pat, ty| match pat {
             PatOrCapture::Pat(pat) => {
                 self.infer_pat(pat, ty, None)?;
                 Ok(())
             }
-            PatOrCapture::Capture => Ok(()),
+            PatOrCapture::Capture(_) => Ok(()),
         })?;
         Ok(())
     }
@@ -247,18 +248,21 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             match pat_arg.pat {
                 PatOrCapture::Pat(pat) => {
                     let term = self.try_use_pat_as_term(pat)?;
-                    args.push(Arg { target: pat_arg.target, value: term });
+                    args.push(Node::at(
+                        Arg { target: pat_arg.target, value: term },
+                        NodeOrigin::Generated,
+                    ));
                 }
-                PatOrCapture::Capture => return None,
+                PatOrCapture::Capture(_) => return None,
             }
         }
-        Some(Arg::seq_data(args))
+        Some(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
     }
 
     pub fn try_use_pat_as_term(&self, pat_id: PatId) -> Option<TermId> {
-        match pat_id.value() {
+        match *pat_id.value() {
             Pat::Binding(var) => Some(Term::from(var.name)),
-            Pat::Range(_) => Some(Term::from(Symbol::fresh())),
+            Pat::Range(_) => Some(Term::from(SymbolId::fresh())),
             Pat::Lit(lit) => Some(Term::from(Term::Lit(lit.into()))),
             Pat::Ctor(ctor_pat) => Some(Term::from(CtorTerm {
                 ctor: ctor_pat.ctor,
@@ -297,14 +301,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         self.infer_pat(pat, param_ty, None)?;
                         Ok(())
                     }
-                    PatOrCapture::Capture => Ok(()),
+                    PatOrCapture::Capture(_) => Ok(()),
                 }
             },
             |arg| {
                 let arg = arg.value();
                 match arg.pat {
                     PatOrCapture::Pat(pat) => self.try_use_pat_as_term(pat),
-                    PatOrCapture::Capture => None,
+                    PatOrCapture::Capture(_) => None,
                 }
             },
             || in_arg_scope(reordered_pat_args_id),
@@ -365,7 +369,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Check that the given type is well-formed, and normalise it.
     pub fn check_ty(&self, ty: TyId) -> TcResult<()> {
-        match ty.value() {
+        match *ty.value() {
             Ty::Hole(_) => Ok(()),
             _ => self.infer_ty(ty, Ty::flexible_universe()),
         }
@@ -373,7 +377,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Check that the given type is well-formed, and normalise it.
     pub fn normalise_and_check_ty(&self, ty: TyId) -> TcResult<()> {
-        match ty.value() {
+        match *ty.value() {
             Ty::Hole(_) => Ok(()),
             _ => {
                 self.infer_ty(ty, Ty::flexible_universe())?;
@@ -393,7 +397,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || {
             self.normalise_and_check_ty(annotation_ty)?;
-            let params = match annotation_ty.value() {
+            let params = match *annotation_ty.value() {
                 Ty::Tuple(tuple_ty) => self.sub_ops().copy_params(tuple_ty.data),
                 Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_term.data),
                 _ => {
@@ -409,7 +413,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let mut tuple_term = *tuple_term;
             self.infer_args(tuple_term.data, params, |new_args| {
                 tuple_term.data = new_args;
-                original_term_id.set(tuple_term.into());
+                original_term_id.set(original_term_id.value().with_data(tuple_term.into()));
                 Ok(())
             })?;
 
@@ -480,7 +484,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         },
                     },
                     _ => {
-                        (match annotation_ty.value() {
+                        (match *annotation_ty.value() {
                             Ty::Data(data_ty) => match data_ty.data_def.value().ctors {
                                 DataDefCtors::Primitive(primitive_ctors) => match primitive_ctors {
                                     PrimitiveCtorInfo::Numeric(numeric) => {
@@ -514,7 +518,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     FloatTy::F64 => primitives().f64(),
                 },
                 FloatLitKind::Unsuffixed => {
-                    (match annotation_ty.value() {
+                    (match *annotation_ty.value() {
                         Ty::Data(data_ty) => match data_ty.data_def.value().ctors {
                             DataDefCtors::Primitive(primitive_ctors) => match primitive_ctors {
                                 PrimitiveCtorInfo::Numeric(numeric) => {
@@ -564,7 +568,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             })
         };
 
-        match annotation_ty.value() {
+        match *annotation_ty.value() {
             Ty::Data(data) => {
                 let data_def = data.data_def.value();
 
@@ -621,7 +625,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Either create a default list type or apply the substitution to the annotation
         // type
-        if let Ty::Hole(_) = annotation_ty.value() {
+        if let Ty::Hole(_) = *annotation_ty.value() {
             self.check_by_unify(
                 Ty::from(DataTy {
                     data_def: primitives().list(),
@@ -637,10 +641,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn get_binds_in_pat_atom_once(
         &self,
         atom: Atom,
-        set: &mut HashSet<Symbol>,
+        set: &mut HashSet<SymbolId>,
     ) -> ControlFlow<()> {
         if let Atom::Pat(pat_id) = atom {
-            match pat_id.value() {
+            match *pat_id.value() {
                 Pat::Binding(var) => {
                     set.insert(var.name);
                     ControlFlow::Break(())
@@ -652,7 +656,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         }
     }
 
-    pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<Symbol> {
+    pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
         self.traversing_utils()
             .visit_pat::<!, _>(pat, &mut |atom| {
@@ -662,7 +666,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         binds
     }
 
-    pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<Symbol> {
+    pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
         self.traversing_utils()
             .visit_pat_args::<!, _>(pat_args, &mut |atom| {
@@ -690,9 +694,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.normalise_and_check_ty(annotation_ty)?;
 
         // Get the annotation as a DataTy, or create a hole one if not given
-        let mut annotation_data_ty = match annotation_ty.value() {
+        let mut annotation_data_ty = match *annotation_ty.value() {
             Ty::Data(data) if data.data_def == ctor.data_def_id => DataTy {
-                data_def: data_def.id,
+                data_def: ctor.data_def_id,
                 args: if data.args.len() == 0 {
                     Arg::seq_from_params_as_holes(data_def.params)
                 } else {
@@ -700,7 +704,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 },
             },
             Ty::Hole(_) => DataTy {
-                data_def: data_def.id,
+                data_def: ctor.data_def_id,
                 args: Arg::seq_from_params_as_holes(data_def.params),
             },
             _ => {
@@ -748,7 +752,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // These arguments might have been updated so we need to set them
                 term.data_args = inferred_ctor_data_args;
                 term.ctor_args = inferred_term_ctor_args;
-                original_term_id.set(term.into());
+                original_term_id.set(original_term_id.value().with_data(term.into()));
 
                 // We are exiting the constructor scope, so we need to hide the binds
                 let hidden_ctor_sub =
@@ -773,14 +777,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_data_args, &final_sub);
         // Set data args because they might have been updated again
         term.data_args = inferred_ctor_data_args;
-        original_term_id.set(term.into());
+        original_term_id.set(original_term_id.value().with_data(term.into()));
         self.sub_ops().apply_sub_to_ty_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in term.data_args.iter().zip(subbed_ctor_result_args.iter())
         {
             let data_arg = data_arg.value();
             let result_data_arg = result_data_arg.value();
-            if let Some(ty) = data_arg.value.try_as_ty() && let Ty::Hole(_) = ty.value() {
+            if let Some(ty) = data_arg.value.try_as_ty() && let Ty::Hole(_) = *ty.value() {
                 data_arg.value.set(result_data_arg.value.value());
             }
         }
@@ -839,18 +843,18 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let inferred_subject_ty = Ty::hole_for(fn_call_term.subject);
             self.infer_term(fn_call_term.subject, inferred_subject_ty)?;
 
-            match inferred_subject_ty.value() {
+            match *inferred_subject_ty.value() {
                 Ty::Fn(fn_ty) => {
                     // Potentially fill-in implicit args
-                    if let Ty::Fn(_) = fn_ty.return_ty.value() && fn_ty.implicit && !fn_call_term.implicit {
+                    if let Ty::Fn(_) = *fn_ty.return_ty.value() && fn_ty.implicit && !fn_call_term.implicit {
                         let applied_args = Arg::seq_from_params_as_holes(fn_ty.params);
-                        let copied_subject = Term::inherited_from(fn_call_term.subject, fn_call_term.subject.value());
+                        let copied_subject = Term::inherited_from(fn_call_term.subject, *fn_call_term.subject.value());
                         let new_subject = FnCallTerm {
                             args: applied_args,
                             subject: copied_subject,
                             implicit: fn_ty.implicit,
                         };
-                        fn_call_term.subject.set(new_subject.into());
+                        fn_call_term.subject.set(fn_call_term.subject.value().with_data(new_subject.into()));
                         return self.infer_fn_call_term(fn_call_term, annotation_ty, original_term_id);
                     }
 
@@ -869,7 +873,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let mut fn_call_term = *fn_call_term;
                     self.infer_args(fn_call_term.args, copied_params, |inferred_fn_call_args| {
                         fn_call_term.args = inferred_fn_call_args;
-                        original_term_id.set(fn_call_term.into());
+                        original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
 
                         self.sub_ops().apply_sub_to_atom_from_context(copied_return_ty);
                         self.check_by_unify(copied_return_ty, annotation_ty)?;
@@ -922,11 +926,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         if let Some(entry_point) = entry_point {
             // Ensure it is well-typed
-            let call_term = Term::create_from(FnCallTerm {
-                subject: Term::create_from(fn_def_id),
-                implicit: false,
-                args: Arg::empty_seq(),
-            });
+            let call_term = Node::create_at(
+                Term::FnCall(FnCallTerm {
+                    subject: Node::create_at(Term::FnRef(fn_def_id), NodeOrigin::Generated),
+                    implicit: false,
+                    args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+                }),
+                NodeOrigin::Generated,
+            );
 
             self.infer_term(call_term, Ty::hole())?;
 
@@ -949,7 +956,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.infer_ty(fn_ty, Ty::flexible_universe())?;
         self.uni_ops().unify_tys(fn_ty, annotation_ty)?;
 
-        let fn_ty_value = ty_as_variant!(self, fn_ty.value(), Fn);
+        let fn_ty_value = ty_as_variant!(self, *fn_ty.value(), Fn);
         fn_def_id.borrow_mut().ty = fn_ty_value;
 
         Ok(fn_ty_value)
@@ -982,7 +989,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.infer_params(fn_def.ty.params, || {
                 self.infer_ty(fn_def.ty.return_ty, Ty::flexible_universe())?;
                 if let FnBody::Defined(fn_body) = fn_def.body {
-                    if let Term::FnRef(immediate_body_fn) = fn_body.value() {
+                    if let Term::FnRef(immediate_body_fn) = *fn_body.value() {
                         self.infer_fn_def(
                             immediate_body_fn,
                             Ty::hole_for(fn_body),
@@ -1025,7 +1032,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a variable, and return it.
-    pub fn infer_var(&self, term: Symbol, annotation_ty: TyId) -> TcResult<()> {
+    pub fn infer_var(&self, term: SymbolId, annotation_ty: TyId) -> TcResult<()> {
         match self.context().try_get_decl(term) {
             Some(decl) => {
                 if let Some(ty) = decl.ty {
@@ -1074,7 +1081,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let deref_inner_inferred = Ty::hole_for(deref_term.subject);
         self.infer_term(deref_term.subject, deref_inner_inferred)?;
 
-        let dereferenced_ty = match deref_inner_inferred.value() {
+        let dereferenced_ty = match *deref_inner_inferred.value() {
             Ty::Ref(ref_ty) => ref_ty.ty,
             _ => {
                 return Err(TcError::CannotDeref {
@@ -1095,7 +1102,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let inner_is_ty = |ty: TyId| Ty::expect_same(ty, Ty::flexible_universe());
         let expects_ty = |ty: TyId| self.check_by_unify(ty, inner_is_ty(ty));
 
-        match ty_id.value() {
+        match *ty_id.value() {
             Ty::Eval(eval) => {
                 self.infer_term(eval, annotation_ty)?;
             }
@@ -1113,7 +1120,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let copied_params = self.sub_ops().copy_params(data_def.params);
                 self.infer_args(data_ty.args, copied_params, |inferred_data_ty_args| {
                     data_ty.args = inferred_data_ty_args;
-                    ty_id.set(data_ty.into());
+                    ty_id.set(ty_id.value().with_data(data_ty.into()));
                     Ok(())
                 })?
             }
@@ -1192,7 +1199,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
 
             if diverges {
-                match annotation_ty.value() {
+                match *annotation_ty.value() {
                     Ty::Hole(_) => {
                         // If it diverges, we can just infer the return type as `never`.
                         let block_term_ty = Ty::expect_is(original_term_id, self.new_never_ty());
@@ -1244,7 +1251,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         original_term_id: TermId,
     ) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
-        let annotation_ref_ty = match annotation_ty.value() {
+        let annotation_ref_ty = match *annotation_ty.value() {
             Ty::Ref(ref_ty) => ref_ty,
             Ty::Hole(_) => RefTy { kind: ref_term.kind, mutable: ref_term.mutable, ty: Ty::hole() },
             _ => {
@@ -1301,11 +1308,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let subject_ty = Ty::hole_for(access_term.subject);
         self.infer_term(access_term.subject, subject_ty)?;
 
-        let params = match subject_ty.value() {
+        let params = match *subject_ty.value() {
             Ty::Tuple(tuple_ty) => tuple_ty.data,
             Ty::Data(data_ty) => {
                 match data_ty.data_def.borrow().get_single_ctor() {
                     Some(ctor) => {
+                        let ctor = ctor.value();
                         let data_def = data_ty.data_def.value();
                         let sub = self
                             .sub_ops()
@@ -1380,7 +1388,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         };
 
         // Ensure that the subject is array-like
-        let inferred_ty = match subject_ty.value() {
+        let inferred_ty = match *subject_ty.value() {
             Ty::Data(data_ty) => {
                 let data_def = data_ty.data_def.value();
                 if let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array_primitive)) =
@@ -1428,12 +1436,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let match_subject_ty = Ty::hole_for(match_term.subject);
         self.infer_term(match_term.subject, match_subject_ty)?;
 
-        let match_subject_var = match match_term.subject.value() {
+        let match_subject_var = match *match_term.subject.value() {
             Term::Var(v) => Some(v),
             _ => None,
         };
 
-        let match_annotation_ty = match annotation_ty.value() {
+        let match_annotation_ty = match *annotation_ty.value() {
             Ty::Hole(_) => None,
             t => Some(t),
         };
@@ -1481,7 +1489,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             })?
         }
 
-        if matches!(unified_ty.value(), Ty::Hole(_)) {
+        if matches!(*unified_ty.value(), Ty::Hole(_)) {
             if !inhabited.get() {
                 unified_ty = Ty::expect_same(unified_ty, self.new_never_ty());
             } else {
@@ -1494,7 +1502,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // @@Caching: Check if the MatchTerm has already been queued for exhaustiveness,
         // if it hasn't, we can use/make a new ExhaustivenessChecker and then
         // add the job.
-        let pats = match_term.cases.borrow().iter().map(|case| case.bind_pat).collect_vec();
+        let pats =
+            match_term.cases.elements().borrow().iter().map(|case| case.bind_pat).collect_vec();
         let eck = self.exhaustiveness_checker(match_term.subject);
         eck.is_match_exhaustive(&pats, match_subject_ty);
         self.append_exhaustiveness_diagnostics(eck);
@@ -1510,7 +1519,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
         self.register_new_atom(term_id, annotation_ty);
 
-        match term_id.value() {
+        match *term_id.value() {
             Term::Tuple(tuple_term) => {
                 self.infer_tuple_term(&tuple_term, annotation_ty, term_id)?
             }
@@ -1584,7 +1593,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         original_pat_id: PatId,
     ) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
-        let params = match annotation_ty.value() {
+        let params = match *annotation_ty.value() {
             Ty::Tuple(tuple_ty) => tuple_ty.data,
             Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_pat.data),
             _ => {
@@ -1599,7 +1608,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let mut tuple_pat = *tuple_pat;
         self.infer_pat_args(tuple_pat.data, tuple_pat.data_spread, params, |new_args| {
             tuple_pat.data = new_args;
-            original_pat_id.set(tuple_pat.into());
+            original_pat_id.set(original_pat_id.value().with_data(tuple_pat.into()));
             Ok(())
         })?;
 
@@ -1616,11 +1625,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         original_pat_id: PatId,
     ) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
-        let list_annotation_inner_ty = match annotation_ty.value() {
+        let list_annotation_inner_ty = match *annotation_ty.value() {
             Ty::Data(data) if data.data_def == primitives().list() => {
                 // Type is already checked
                 assert!(data.args.len() == 1);
-                let inner_term = ArgId(data.args, 0).borrow().value;
+                let inner_term = ArgId(data.args.elements(), 0).borrow().value;
                 term_as_variant!(self, inner_term.value(), Ty)
             }
             Ty::Hole(_) => Ty::hole(),
@@ -1665,9 +1674,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.normalise_and_check_ty(annotation_ty)?;
 
         // Get the annotation as a DataTy, or create a hole one if not given
-        let mut annotation_data_ty = match annotation_ty.value() {
+        let mut annotation_data_ty = match *annotation_ty.value() {
             Ty::Data(data) if data.data_def == ctor.data_def_id => DataTy {
-                data_def: data_def.id,
+                data_def: ctor.data_def_id,
                 args: if data.args.len() == 0 {
                     Arg::seq_from_params_as_holes(data_def.params)
                 } else {
@@ -1675,7 +1684,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 },
             },
             Ty::Hole(_) => DataTy {
-                data_def: data_def.id,
+                data_def: ctor.data_def_id,
                 args: Arg::seq_from_params_as_holes(data_def.params),
             },
             _ => {
@@ -1726,7 +1735,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 // These arguments might have been updated so we need to set them
                 pat.data_args = inferred_ctor_data_args;
                 pat.ctor_pat_args = inferred_pat_ctor_args;
-                original_pat_id.set(pat.into());
+                original_pat_id.set(original_pat_id.value().with_data(pat.into()));
 
                 // We are exiting the constructor scope, so we need to hide the binds
                 let hidden_ctor_sub =
@@ -1757,7 +1766,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.sub_ops().apply_sub_to_pat_args_in_place(pat.ctor_pat_args, &final_sub);
         // Set data args because they might have been updated again
         pat.data_args = inferred_ctor_data_args;
-        original_pat_id.set(pat.into());
+        original_pat_id.set(original_pat_id.value().with_data(pat.into()));
         self.sub_ops().apply_sub_to_ty_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in pat.data_args.iter().zip(subbed_ctor_result_args.iter())
@@ -1765,7 +1774,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let data_arg = data_arg.value();
             let result_data_arg = result_data_arg.value();
             if let Some(ty) = data_arg.value.try_as_ty()
-                && let Ty::Hole(_) = ty.value()
+                && let Ty::Hole(_) = *ty.value()
             {
                 data_arg.value.set(result_data_arg.value.value());
             }
@@ -1785,7 +1794,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.infer_pat(pat.pat, annotation_ty, None)?;
         let expected_condition_ty = Ty::expect_is(pat.condition, Ty::data(primitives().bool()));
         self.infer_term(pat.condition, expected_condition_ty)?;
-        if let Term::Var(v) = pat.condition.value() {
+        if let Term::Var(v) = *pat.condition.value() {
             self.context().add_assignment(v, expected_condition_ty, self.new_bool_term(true));
         }
         Ok(())
@@ -1800,7 +1809,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         self.register_new_atom(pat_id, annotation_ty);
 
-        match pat_id.value() {
+        match *pat_id.value() {
             Pat::Binding(var) => {
                 self.check_ty(annotation_ty)?;
                 match binds_to {
@@ -1853,9 +1862,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let mut error_state = ErrorState::new();
 
                     // Infer each member
-                    for ctor_idx in data_def_ctors_id.to_index_range() {
+                    for ctor_idx in data_def_ctors_id.value().to_index_range() {
                         let _ = error_state.try_or_add_error(
-                            self.infer_ctor_def(CtorDefId(data_def_ctors_id, ctor_idx)),
+                            self.infer_ctor_def(CtorDefId(data_def_ctors_id.elements(), ctor_idx)),
                         );
                     }
 
@@ -1930,9 +1939,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let mut error_state = ErrorState::new();
 
             // Infer each member signature
-            for member_idx in members.to_index_range() {
+            for member_idx in members.value().to_index_range() {
                 let _ = error_state.try_or_add_error(
-                    self.infer_mod_member(ModMemberId(members, member_idx), fn_mode),
+                    self.infer_mod_member(ModMemberId(members.elements(), member_idx), fn_mode),
                 );
             }
 

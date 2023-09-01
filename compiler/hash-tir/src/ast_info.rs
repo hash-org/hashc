@@ -4,12 +4,12 @@ use hash_ast::ast::AstNodeId;
 use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
 
 use crate::{
-    args::{ArgId, ArgsId, PatArgId, PatArgsId},
+    args::{ArgId, ArgsSeqId, PatArgId, PatArgsSeqId},
     context::Decl,
-    data::{CtorDefId, CtorDefsId, DataDefId},
+    data::{CtorDefId, CtorDefsSeqId, DataDefId},
     fns::FnDefId,
-    mods::{ModDefId, ModMemberId, ModMembersId},
-    params::{ParamId, ParamsId},
+    mods::{ModDefId, ModMemberId, ModMembersSeqId},
+    params::{ParamId, ParamsSeqId},
     pats::PatId,
     scopes::StackId,
     terms::TermId,
@@ -175,11 +175,11 @@ macro_rules! ast_info {
 ast_info! {
     data_defs: AstMap<DataDefId>,
     ctor_defs: AstMap<CtorDefId>,
-    ctor_defs_seq: AstMap<CtorDefsId>,
+    ctor_defs_seq: AstMap<CtorDefsSeqId>,
 
     mod_defs: AstMap<ModDefId>,
     mod_members: AstMap<ModMemberId>,
-    mod_members_seq: AstMap<ModMembersId>,
+    mod_members_seq: AstMap<ModMembersSeqId>,
 
     fn_defs: AstMap<FnDefId>,
 
@@ -191,10 +191,10 @@ ast_info! {
     pats: AstMap<PatId>,
 
     params: AstMap<ParamId>,
-    params_seq: AstMap<ParamsId>,
+    params_seq: AstMap<ParamsSeqId>,
     args: AstMap<ArgId>,
-    args_seq: AstMap<ArgsId>,
+    args_seq: AstMap<ArgsSeqId>,
 
     pat_args: AstMap<PatArgId>,
-    pat_args_seq: AstMap<PatArgsId>,
+    pat_args_seq: AstMap<PatArgsSeqId>,
 }

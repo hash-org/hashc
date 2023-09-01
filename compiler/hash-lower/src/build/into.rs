@@ -46,7 +46,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) -> BlockAnd<()> {
         let span = self.span_of_term(term);
 
-        let block_and = match term.value() {
+        let block_and = match *term.value() {
             // // This includes `loop { ... } `, `{ ... }`, `match { ... }`
             Term::Block(_) | Term::Match(_) | Term::Loop(_) => {
                 self.block_into_dest(destination, block, term)
@@ -59,6 +59,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let aggregate_kind = AggregateKind::Tuple(adt);
 
                 let args = data
+                    .elements()
                     .borrow()
                     .iter()
                     .map(|element| {
@@ -87,6 +88,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let aggregate_kind = AggregateKind::Array(ty);
                 let args = elements
                     .borrow()
+                    .value()
                     .iter()
                     .copied()
                     .enumerate()
@@ -132,7 +134,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // Get the type of the function into or to to get the
                         // fn-type so that we can enter the scope.
                         let ty = self.get_inferred_ty(subject);
-                        let fn_ty = ty_as_variant!(self, ty.value(), Fn);
+                        let fn_ty = ty_as_variant!(self, *ty.value(), Fn);
 
                         // Try and create the ir_type from a function definition, otherwise
                         // if it is just a function, then we make the the type from the function.
@@ -379,6 +381,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // }
 
         let args = args
+            .elements()
             .borrow()
             .iter()
             .map(|arg| unpack!(block = self.as_operand(block, arg.value, Mutability::Immutable)))
@@ -454,6 +457,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
 
         let args = (*ctor_args)
+            .elements()
             .borrow()
             .iter()
             .map(|arg| {

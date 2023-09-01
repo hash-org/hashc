@@ -818,6 +818,7 @@ dependencies = [
  "hash-target",
  "hash-utils",
  "num-bigint",
+ "paste",
  "textwrap",
  "typed-builder",
  "utility-types",

@@ -15,7 +15,7 @@ use hash_tir::{
     environment::env::AccessToEnv,
     pats::{Pat, PatId},
     scopes::{BindingPat, DeclTerm},
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::TermId,
     tuples::TuplePat,
 };
@@ -28,7 +28,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// [Symbol]. This will put the [LocalDecl] into the declarations, and
     /// create an entry in the lookup map so that the [Local] can be looked up
     /// via the name of the local and the scope that it is in.
-    pub(crate) fn push_local(&mut self, key: Symbol, decl: LocalDecl) -> Local {
+    pub(crate) fn push_local(&mut self, key: SymbolId, decl: LocalDecl) -> Local {
         let is_named = decl.name.is_some();
         let index = self.declarations.push(decl);
 
@@ -83,11 +83,11 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn visit_primary_pattern_bindings(
         &mut self,
         pat: PatId,
-        f: &mut impl FnMut(&mut Self, Mutability, Symbol, AstNodeId, IrTyId),
+        f: &mut impl FnMut(&mut Self, Mutability, SymbolId, AstNodeId, IrTyId),
     ) {
         let span = self.span_of_pat(pat);
 
-        match pat.value() {
+        match *pat.value() {
             Pat::Binding(BindingPat { name, is_mutable, .. }) => {
                 // If the symbol has no associated name, then it is not binding
                 // anything...
@@ -106,7 +106,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Pat::Ctor(CtorPat { ctor_pat_args: fields, ctor_pat_args_spread: spread, .. })
             | Pat::Tuple(TuplePat { data: fields, data_spread: spread }) => {
-                fields.borrow().iter().for_each(|field| {
+                fields.elements().borrow().iter().for_each(|field| {
                     self.visit_primary_pattern_bindings(field.pat.assert_pat(), f);
                 });
 
@@ -193,7 +193,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             this.place_into_pat(block, pat, place_builder)
         };
 
-        match pat.value() {
+        match *pat.value() {
             Pat::Binding(BindingPat { name, .. }) => {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.

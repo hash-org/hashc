@@ -12,7 +12,7 @@ use hash_tir::{
     lits::Lit,
     params::ParamsId,
     sub::Sub,
-    symbols::Symbol,
+    symbols::SymbolId,
     terms::{Term, TermId},
     tys::{Ty, TyId},
     utils::{traversing::Atom, AccessToUtils},
@@ -31,7 +31,7 @@ pub struct UnificationOps<'a, T: AccessToTypechecking> {
     env: &'a T,
     add_to_ctx: Cell<bool>,
     modify_terms: Cell<bool>,
-    pat_binds: OnceCell<HashSet<Symbol>>,
+    pat_binds: OnceCell<HashSet<SymbolId>>,
 }
 
 impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
@@ -51,7 +51,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     }
 
     /// Disable adding unifications to the context.
-    pub fn with_binds(&self, binds: HashSet<Symbol>) -> &Self {
+    pub fn with_binds(&self, binds: HashSet<SymbolId>) -> &Self {
         self.pat_binds.set(binds).unwrap();
         self
     }
@@ -90,7 +90,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
 
     /// Add the given unification to the context, and create a substitution
     /// from it.
-    pub fn add_unification(&self, src: Symbol, target: impl Into<Atom>) -> Sub {
+    pub fn add_unification(&self, src: SymbolId, target: impl Into<Atom>) -> Sub {
         let sub = Sub::from_pairs([(src, self.norm_ops().to_term(target.into()))]);
         self.add_unification_from_sub(&sub);
         sub
@@ -164,8 +164,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
             f1.return_ty = self.sub_ops().apply_sub_to_ty(f1.return_ty, &backward_sub);
 
-            src_id.set(f1.into());
-            target_id.set(f2.into());
+            src_id.set(src_id.value().with_data(f1.into()));
+            target_id.set(target_id.value().with_data(f2.into()));
 
             Ok(())
         }
@@ -187,7 +187,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         let hole_symbol = match hole_atom {
             Atom::Term(term_id) => {
                 let dest_term = (norm_ops.to_term(sub_dest_atom)).value();
-                match term_id.value() {
+                match *term_id.value() {
                     Term::Hole(Hole(h)) => {
                         if self.modify_terms.get() {
                             term_id.set(dest_term);
@@ -199,7 +199,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             }
             Atom::Ty(ty_id) => {
                 let dest_ty = norm_ops.to_ty(sub_dest_atom).value();
-                match ty_id.value() {
+                match *ty_id.value() {
                     Ty::Hole(Hole(h)) => {
                         if self.modify_terms.get() {
                             ty_id.set(dest_ty);
@@ -244,7 +244,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         Ok((subbed_initial, sub))
     }
 
-    pub fn unify_vars(&self, a: Symbol, b: Symbol, a_id: TermId, b_id: TermId) -> TcResult<()> {
+    pub fn unify_vars(&self, a: SymbolId, b: SymbolId, a_id: TermId, b_id: TermId) -> TcResult<()> {
         if let Some(binds) = self.pat_binds.get() {
             if binds.contains(&a) {
                 self.add_unification(b, a_id);
@@ -276,7 +276,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         let src = src_id.value();
         let target = target_id.value();
 
-        match (src, target) {
+        match (*src, *target) {
             (Ty::Hole(h1), Ty::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
             (Ty::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
             (_, Ty::Hole(_b)) => self.unify_hole_with(target_id, src_id),
@@ -362,7 +362,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
 
         match (src_id.try_as_ty(), target_id.try_as_ty()) {
             (Some(src_ty), Some(target_ty)) => self.unify_tys(src_ty, target_ty),
-            _ => match (src, target) {
+            _ => match (*src, *target) {
                 (Term::Hole(h1), Term::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
                 (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
                 (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
@@ -525,7 +525,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     /// for types that are actually uninhabitable.
     pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
         let ty = self.norm_ops().to_ty(self.norm_ops().normalise(ty.into())?);
-        match ty.value() {
+        match *ty.value() {
             Ty::Data(data_ty) => {
                 let data_def = data_ty.data_def.borrow();
                 match data_def.ctors {

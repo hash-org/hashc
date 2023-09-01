@@ -33,7 +33,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             block.and(RValue::Use(operand))
         };
 
-        match term.value() {
+        match *term.value() {
             Term::Lit(lit) => {
                 let value = self.as_constant(&lit).into();
                 block.and(value)
@@ -168,7 +168,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If the item is a reference to a function, i.e. the subject of a call, then
         // we emit a constant that refers to the function.
-        if let Term::FnRef(def_id) = term {
+        if let Term::FnRef(def_id) = *term {
             let ty_id = self.ty_id_from_tir_fn_def(def_id);
 
             // If this is a function type, we emit a ZST to represent the operand

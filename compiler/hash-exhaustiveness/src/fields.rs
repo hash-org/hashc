@@ -75,9 +75,10 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
         match ctor {
             ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
-                match ctx.ty.value() {
+                match *ctx.ty.value() {
                     Ty::Tuple(TupleTy { data }) => {
-                        let tys = data.borrow().iter().map(|member| member.ty).collect_vec();
+                        let tys =
+                            data.elements().borrow().iter().map(|member| member.ty).collect_vec();
                         self.wildcards_from_tys(tys)
                     }
                     Ty::Data(DataTy { data_def, .. }) => {
@@ -91,8 +92,14 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                             panic!("expected a non-primitive data type")
                         };
 
-                        let ctor = CtorDefId(variants_id, variant_idx).borrow();
-                        let tys = ctor.params.borrow().iter().map(|member| member.ty).collect_vec();
+                        let ctor = CtorDefId(variants_id.elements(), variant_idx).borrow();
+                        let tys = ctor
+                            .params
+                            .elements()
+                            .borrow()
+                            .iter()
+                            .map(|member| member.ty)
+                            .collect_vec();
 
                         self.wildcards_from_tys(tys)
                     }

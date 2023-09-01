@@ -3,12 +3,13 @@ use hash_source::constant::{
     FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy, InternedInt,
     SIntTy, UIntTy,
 };
-use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     args::{Arg, PatArg},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
     environment::env::AccessToEnv,
     lits::{CharLit, FloatLit, IntLit, Lit},
+    node::{Node, NodeOrigin},
     pats::{Pat, PatId},
     primitives::primitives,
     refs::{RefKind, RefTy},
@@ -103,7 +104,7 @@ pub trait PrimitiveUtils: AccessToEnv {
             hash_tir::data::DataDefCtors::Defined(ctors) => {
                 // Index 0 is true, 1 is false, see BootstrapOps
                 let idx = if value { 0 } else { 1 };
-                CtorDefId(ctors, idx)
+                CtorDefId(ctors.elements(), idx)
             }
             hash_tir::data::DataDefCtors::Primitive(_) => {
                 panic!("Found primitive data definition for bool")
@@ -113,26 +114,35 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Create a boolean term of the given value.
     fn new_bool_term(&self, value: bool) -> TermId {
-        Term::create(Term::Ctor(CtorTerm {
-            ctor: self.get_bool_ctor(value),
-            ctor_args: Arg::empty_seq(),
-            data_args: Arg::empty_seq(),
-        }))
+        Node::create_at(
+            Term::Ctor(CtorTerm {
+                ctor: self.get_bool_ctor(value),
+                ctor_args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+                data_args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+            }),
+            NodeOrigin::Generated,
+        )
     }
 
     /// Create a boolean pattern of the given value.
     fn new_bool_pat(&self, value: bool) -> PatId {
-        Pat::create(Pat::Ctor(CtorPat {
-            ctor: self.get_bool_ctor(value),
-            ctor_pat_args: PatArg::empty_seq(),
-            data_args: Arg::empty_seq(),
-            ctor_pat_args_spread: None,
-        }))
+        Node::create_at(
+            Pat::Ctor(CtorPat {
+                ctor: self.get_bool_ctor(value),
+                ctor_pat_args: Node::create_at(Node::<PatArg>::empty_seq(), NodeOrigin::Generated),
+                data_args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+                ctor_pat_args_spread: None,
+            }),
+            NodeOrigin::Generated,
+        )
     }
 
     /// Create a new `never` type.
     fn new_never_ty(&self) -> TyId {
-        Ty::from(DataTy { args: Arg::empty_seq(), data_def: primitives().never() })
+        Ty::from(DataTy {
+            args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+            data_def: primitives().never(),
+        })
     }
 
     /// Create a new reference type.
@@ -142,7 +152,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given type as a primitive integer type if possible.
     fn try_use_ty_as_int_ty(&self, ty: TyId) -> Option<IntTy> {
-        match ty.value() {
+        match *ty.value() {
             Ty::Data(data) => match data.data_def {
                 d if d == primitives().i8() => Some(IntTy::Int(SIntTy::I8)),
                 d if d == primitives().u8() => Some(IntTy::UInt(UIntTy::U8)),
@@ -166,7 +176,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given type as a primitive float type if possible.
     fn try_use_ty_as_float_ty(&self, ty: TyId) -> Option<FloatTy> {
-        match ty.value() {
+        match *ty.value() {
             Ty::Data(data) => match data.data_def {
                 d if d == primitives().f32() => Some(FloatTy::F32),
                 d if d == primitives().f64() => Some(FloatTy::F64),
@@ -178,7 +188,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given type as a primitive array type if possible.
     fn try_use_ty_as_array_ty(&self, ty: TyId) -> Option<ArrayCtorInfo> {
-        match ty.value() {
+        match *ty.value() {
             Ty::Data(data) => match data.data_def.borrow().ctors {
                 DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array)) => Some(array),
                 _ => None,
@@ -189,7 +199,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given type as a literal type if possible.
     fn try_use_ty_as_lit_ty(&self, ty: TyId) -> Option<LitTy> {
-        match ty.value() {
+        match *ty.value() {
             Ty::Data(data) => match data.data_def {
                 d if d == primitives().i8() => Some(LitTy::I8),
                 d if d == primitives().u8() => Some(LitTy::U8),
@@ -229,17 +239,20 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn create_term_from_float_lit<L: Into<FloatConstantValue>>(&self, lit: L) -> TermId {
-        Term::create(Term::Lit(Lit::Float(FloatLit {
-            underlying: ast::FloatLit {
-                kind: ast::FloatLitKind::Unsuffixed,
-                value: FloatConstant::new(lit.into(), None).into(),
-            },
-        })))
+        Node::create_at(
+            Term::Lit(Lit::Float(FloatLit {
+                underlying: ast::FloatLit {
+                    kind: ast::FloatLitKind::Unsuffixed,
+                    value: FloatConstant::new(lit.into(), None).into(),
+                },
+            })),
+            NodeOrigin::Generated,
+        )
     }
 
     /// Get the given term as a float literal if possible.
     fn try_use_term_as_float_lit<L: From<f64>>(&self, term: TermId) -> Option<L> {
-        match term.value() {
+        match *term.value() {
             Term::Lit(Lit::Float(i)) => i.value().try_into().ok(),
             _ => None,
         }
@@ -247,20 +260,23 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn create_term_from_integer_lit<L: Into<BigInt>>(&self, lit: L) -> TermId {
-        Term::create(Term::Lit(Lit::Int(IntLit {
-            underlying: ast::IntLit {
-                kind: ast::IntLitKind::Unsuffixed,
-                value: InternedInt::create(IntConstant::new(
-                    IntConstantValue::Big(Box::new(lit.into())),
-                    None,
-                )),
-            },
-        })))
+        Node::create_at(
+            Term::Lit(Lit::Int(IntLit {
+                underlying: ast::IntLit {
+                    kind: ast::IntLitKind::Unsuffixed,
+                    value: InternedInt::create(IntConstant::new(
+                        IntConstantValue::Big(Box::new(lit.into())),
+                        None,
+                    )),
+                },
+            })),
+            NodeOrigin::Generated,
+        )
     }
 
     /// Get the given term as a character literal if possible.
     fn try_use_term_as_char_lit(&self, term: TermId) -> Option<char> {
-        match term.value() {
+        match *term.value() {
             Term::Lit(Lit::Char(c)) => Some(c.underlying.data),
             _ => None,
         }
@@ -268,12 +284,15 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a character literal if possible.
     fn create_term_from_char_lit(&self, lit: char) -> TermId {
-        Term::create(Term::Lit(Lit::Char(CharLit { underlying: ast::CharLit { data: lit } })))
+        Node::create_at(
+            Term::Lit(Lit::Char(CharLit { underlying: ast::CharLit { data: lit } })),
+            NodeOrigin::Generated,
+        )
     }
 
     /// Get the given term as an integer literal if possible.
     fn try_use_term_as_integer_lit<L: TryFrom<BigInt>>(&self, term: TermId) -> Option<L> {
-        match term.value() {
+        match *term.value() {
             Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),
             Term::Var(sym) => self
                 .context()
@@ -286,7 +305,7 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn try_use_term_as_bool(&self, term: TermId) -> Option<bool> {
-        match term.value() {
+        match *term.value() {
             Term::Ctor(CtorTerm { ctor, .. }) if ctor == self.get_bool_ctor(true) => Some(true),
             Term::Ctor(CtorTerm { ctor, .. }) if ctor == self.get_bool_ctor(false) => Some(false),
             _ => None,

@@ -74,10 +74,10 @@ pub trait Store<Key: StoreKey, Value> {
 
     /// Create a value inside the store, given its key, returning its key.
     fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
-        let next_index = self.internal_data().read().len();
+        let mut data = self.internal_data().write();
+        let next_index = data.len();
         let key = Key::from_index_unchecked(next_index);
         let value = value_fn(key);
-        let mut data = self.internal_data().write();
         data.push(value);
         key
     }

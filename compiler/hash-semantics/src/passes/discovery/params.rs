@@ -1,8 +1,9 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self};
-use hash_storage::store::statics::SequenceStoreValue;
+use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     environment::stores::tir_stores,
+    node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamIndex, ParamsId},
 };
 
@@ -26,10 +27,12 @@ impl<'tc> DiscoveryPass<'tc> {
                 })
                 .map(|index| index.into_symbol()),
         );
-        tir_stores().location().add_locations_to_targets(params_id, |i| Some(params[i].span()));
+        tir_stores()
+            .location()
+            .add_locations_to_targets(*params_id.value(), |i| Some(params[i].span()));
 
         for (i, param) in params.iter().enumerate() {
-            tir_stores().ast_info().params().insert(param.id(), ParamId(params_id, i));
+            tir_stores().ast_info().params().insert(param.id(), ParamId(params_id.elements(), i));
         }
 
         params_id
@@ -44,7 +47,7 @@ impl<'tc> DiscoveryPass<'tc> {
         if let Some(params) = node {
             self.create_hole_params_from(&params.params, |param| &param.name)
         } else {
-            Param::empty_seq()
+            Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
         }
     }
 
@@ -57,7 +60,7 @@ impl<'tc> DiscoveryPass<'tc> {
         if let Some(ty_params) = params {
             self.create_hole_params_from(&ty_params.params, |param| &param.name)
         } else {
-            Param::empty_seq()
+            Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
         }
     }
 }

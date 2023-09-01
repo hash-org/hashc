@@ -3,14 +3,14 @@ use std::fmt::{self, Display, Formatter};
 
 use hash_utils::smallvec::SmallVec;
 
-use crate::{environment::env::WithEnv, symbols::Symbol, terms::TermId};
+use crate::{environment::env::WithEnv, symbols::SymbolId, terms::TermId};
 
 /// An entry in a substitution.
 ///
 /// This is a pair of a subject and a term to replace the subject with.
 #[derive(Debug, Clone, Copy)]
 pub struct SubEntry {
-    pub from: Symbol,
+    pub from: SymbolId,
     pub to: TermId,
 }
 
@@ -27,24 +27,24 @@ impl Sub {
     }
 
     /// Create a substitution from pairs of ([`SubSubject`], [`TermId`]).
-    pub fn from_pairs(pairs: impl IntoIterator<Item = (Symbol, TermId)>) -> Self {
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (SymbolId, TermId)>) -> Self {
         Self { data: pairs.into_iter().map(|(from, to)| SubEntry { from, to }).collect() }
     }
 
     /// Get the substitution for the given [`SubSubject`], if any.
-    pub fn get_sub_for(&self, subject: Symbol) -> Option<TermId> {
+    pub fn get_sub_for(&self, subject: SymbolId) -> Option<TermId> {
         self.data.iter().find(|entry| entry.from == subject).map(|entry| entry.to)
     }
 
     /// Get the substitution for the given [`Symbol`] corresponding to a
     /// variable or a hole, if any.
-    pub fn get_sub_for_var_or_hole(&self, subject: Symbol) -> Option<TermId> {
+    pub fn get_sub_for_var_or_hole(&self, subject: SymbolId) -> Option<TermId> {
         self.data.iter().find(|entry| entry.from == subject).map(|entry| entry.to)
     }
 
     /// Get all the subjects (i.e. the domain) of the substitution as an
     /// iterator.
-    pub fn domain(&self) -> impl Iterator<Item = Symbol> + '_ {
+    pub fn domain(&self) -> impl Iterator<Item = SymbolId> + '_ {
         self.data.iter().map(|entry| entry.from)
     }
 
@@ -54,7 +54,7 @@ impl Sub {
     }
 
     /// Get the pairs of the substitution as an iterator.
-    pub fn iter(&self) -> impl Iterator<Item = (Symbol, TermId)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (SymbolId, TermId)> + '_ {
         self.data.iter().map(|entry| (entry.from, entry.to))
     }
 
@@ -69,7 +69,7 @@ impl Sub {
     }
 
     /// Add a variable substitution.
-    pub fn insert(&mut self, from: Symbol, to: TermId) {
+    pub fn insert(&mut self, from: SymbolId, to: TermId) {
         self.data.push(SubEntry { from, to })
     }
 
@@ -87,12 +87,12 @@ impl Sub {
     }
 
     /// Add variable substitutions from the iterator of pairs.
-    pub fn extend_from_pairs(&mut self, pairs: impl IntoIterator<Item = (Symbol, TermId)>) {
+    pub fn extend_from_pairs(&mut self, pairs: impl IntoIterator<Item = (SymbolId, TermId)>) {
         self.data.extend(pairs.into_iter().map(|(from, to)| SubEntry { from, to }))
     }
 
     /// Remove the substitution for the given variable.
-    pub fn remove(&mut self, from: Symbol) -> Option<TermId> {
+    pub fn remove(&mut self, from: SymbolId) -> Option<TermId> {
         self.data.iter().position(|entry| entry.from == from).map(|i| self.data.swap_remove(i).to)
     }
 

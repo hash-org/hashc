@@ -192,7 +192,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
         };
 
-        match pair.pat.value() {
+        match *pair.pat.value() {
             Pat::Ctor(pat) => {
                 let ty_id = self.ty_id_from_tir_pat(pair.pat);
 
@@ -300,7 +300,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         let pat_ty = self.get_inferred_ty(pair.pat);
 
-        match (&test.kind, pair.pat.value()) {
+        match (&test.kind, *pair.pat.value()) {
             (TestKind::Switch { adt, .. }, Pat::Ctor(CtorPat { ctor, ctor_pat_args, .. })) => {
                 // If we are performing a variant switch, then this informs
                 // variant patterns, bu nothing else.
@@ -532,6 +532,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let variant = &adt.variants[variant_index];
 
                 sub_pats
+                    .elements()
                     .borrow()
                     .iter()
                     .map(|arg| {
@@ -807,7 +808,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // See if the underlying pattern is a variant, and if so add it to
         // the variants...
-        match match_pair.pat.value() {
+        match *match_pair.pat.value() {
             Pat::Ctor(CtorPat { ctor, .. }) => {
                 variants.insert(ctor.1);
                 true
@@ -830,7 +831,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             return false;
         };
 
-        match match_pair.pat.value() {
+        match *match_pair.pat.value() {
             Pat::Lit(term) => {
                 let (constant, value) = self.evaluate_lit_pat(term);
                 options.entry(constant).or_insert(value);

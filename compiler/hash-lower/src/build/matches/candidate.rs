@@ -18,7 +18,7 @@ use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, IrTy, Mutability},
 };
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     args::PatArgsId,
@@ -28,7 +28,7 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, RangePat},
     scopes::BindingPat,
-    symbols::Symbol,
+    symbols::SymbolId,
     tuples::TuplePat,
 };
 use hash_utils::{
@@ -156,7 +156,7 @@ pub(super) struct Binding {
     pub source: Place,
 
     /// The identifier that is used as the binding.
-    pub name: Symbol,
+    pub name: SymbolId,
 
     /// The mutability of the binding
     pub mutability: Mutability,
@@ -207,7 +207,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                     // Now we need to create sub-candidates for each of the or-patterns
-                    let Pat::Or(sub_pats) = pair.pat.value() else { unreachable!() };
+                    let Pat::Or(sub_pats) = *pair.pat.value() else { unreachable!() };
 
                     // @@Temporary: We need to load in the alternatives for the or pat...
                     let sub_pats = sub_pats
@@ -270,7 +270,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) -> Result<(), MatchPair> {
         let span = self.span_of_pat(pair.pat); // Get the span of this particular pattern...
 
-        match pair.pat.value() {
+        match *pair.pat.value() {
             Pat::Binding(BindingPat { is_mutable, name, .. }) => {
                 // @@Ugly: it would be nice to just have a "wildcard" variant, for
                 // wildcards we have nothing else left to do.
@@ -438,6 +438,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             pat_args
                 .borrow()
+                .value()
                 .iter()
                 .map(|arg| {
                     // Compute the index we should use to access the field. If

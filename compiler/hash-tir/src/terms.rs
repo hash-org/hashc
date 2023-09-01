@@ -4,16 +4,13 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_ast::ast;
-use hash_storage::{
-    static_sequence_store_indirect, static_single_store,
-    store::{
-        statics::{SequenceStoreValue, SingleStoreValue},
-        SequenceStoreKey, TrivialSequenceStoreKey,
-    },
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::derive_more::From;
 
-use super::{casting::CastTerm, holes::Hole, symbols::Symbol, tys::TypeOfTerm};
+use super::{casting::CastTerm, holes::Hole, symbols::SymbolId, tys::TypeOfTerm};
 use crate::{
     access::AccessTerm,
     args::Arg,
@@ -24,9 +21,10 @@ use crate::{
     environment::stores::tir_stores,
     fns::{FnCallTerm, FnDefId},
     lits::Lit,
+    node::{Node, NodeOrigin},
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    tir_debug_value_of_single_store_id,
+    tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::TupleTerm,
     tys::{Ty, TyId},
     utils::common::get_location,
@@ -64,7 +62,7 @@ pub enum Term {
     Block(BlockTerm),
 
     // Variables
-    Var(Symbol),
+    Var(SymbolId),
 
     // Loops
     Loop(LoopTerm),
@@ -103,15 +101,8 @@ pub enum Term {
     Hole(Hole),
 }
 
-static_single_store!(
-    store = pub TermStore,
-    id = pub TermId,
-    value = Term,
-    store_name = term,
-    store_source = tir_stores()
-);
-
-tir_debug_value_of_single_store_id!(TermId);
+tir_node_single_store!(Term);
+tir_node_sequence_store_indirect!(TermList[TermId]);
 
 impl HasNodeId for TermId {
     fn node_id(&self) -> Option<ast::AstNodeId> {
@@ -119,28 +110,26 @@ impl HasNodeId for TermId {
     }
 }
 
-static_sequence_store_indirect!(
-    store = pub TermListStore,
-    id = pub TermListId[TermId],
-    store_name = term_list,
-    store_source = tir_stores()
-);
-
 impl Term {
     pub fn is_void(&self) -> bool {
-        matches!(self, Term::Tuple(tuple_term) if tuple_term.data.is_empty())
+        matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
     }
 
     pub fn void() -> TermId {
-        Term::create(Term::Tuple(TupleTerm { data: Arg::empty_seq() }))
+        Node::create(Node::at(
+            Term::Tuple(TupleTerm {
+                data: Node::create(Node::at(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+            }),
+            NodeOrigin::Generated,
+        ))
     }
 
     pub fn hole() -> TermId {
-        Term::create(Term::Hole(Hole::fresh()))
+        Node::create(Node::at(Term::Hole(Hole::fresh()), NodeOrigin::Generated))
     }
 
-    pub fn var(symbol: Symbol) -> TermId {
-        Term::create(Term::Var(symbol))
+    pub fn var(symbol: SymbolId) -> TermId {
+        Node::create(Node::at(Term::Var(symbol), NodeOrigin::Generated))
     }
 
     /// Create a new term.
@@ -155,7 +144,7 @@ impl Term {
             Term::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Term::create(term);
+        let created = Node::create(Node::at(term, NodeOrigin::Generated));
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }
@@ -188,7 +177,7 @@ impl TermId {
 
     /// Try to use the given term as a type if easily possible.
     pub fn try_as_ty(&self) -> Option<TyId> {
-        match self.value() {
+        match *self.value() {
             Term::Var(var) => Some(Ty::from(var)),
             Term::Ty(ty) => Some(ty),
             Term::Hole(hole) => Some(Ty::from(hole)),
@@ -251,7 +240,7 @@ impl fmt::Display for Term {
 
 impl fmt::Display for TermId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
+        write!(f, "{}", *self.value())
     }
 }
 

@@ -7,7 +7,7 @@ use hash_reporting::{
     writer::ReportWriter,
 };
 use hash_source::location::Span;
-use hash_storage::store::SequenceStoreKey;
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     environment::{
         env::{AccessToEnv, Env},
@@ -180,7 +180,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     "mismatch in parameter length: expected {param_length} but got {arg_length}"
                 ));
 
-                if let Some(location) = locations.get_overall_location(*params_id) {
+                if let Some(location) = locations.get_overall_location(*params_id.value()) {
                     error
                         .add_span(location)
                         .add_info(format!("expected {param_length} parameters here"));
@@ -308,13 +308,15 @@ impl<'tc> TcErrorReporter<'tc> {
                         annotation_params_id.len(),
                         given_params_id.len()
                     ));
-                if let Some(location) = locations.get_overall_location(*given_params_id) {
+                if let Some(location) = locations.get_overall_location(*given_params_id.value()) {
                     error.add_labelled_span(
                         location,
                         format!("got {} parameters here", given_params_id.len(),),
                     );
                 }
-                if let Some(location) = locations.get_overall_location(*annotation_params_id) {
+                if let Some(location) =
+                    locations.get_overall_location(*annotation_params_id.value())
+                {
                     error.add_labelled_span(
                         location,
                         format!("expected {} parameters from here", annotation_params_id.len(),),
