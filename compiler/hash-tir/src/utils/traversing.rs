@@ -715,7 +715,7 @@ impl TraversingUtils {
             DataDefCtors::Defined(data_def_ctors_id) => {
                 // Traverse the constructors
                 for ctor_idx in data_def_ctors_id.value().to_index_range() {
-                    self.visit_ctor_def(CtorDefId(*data_def_ctors_id.value(), ctor_idx), f)?;
+                    self.visit_ctor_def(CtorDefId(data_def_ctors_id.elements(), ctor_idx), f)?;
                 }
                 Ok(())
             }

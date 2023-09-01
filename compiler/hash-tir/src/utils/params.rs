@@ -385,7 +385,7 @@ impl ParamUtils {
                     result[j] = Some(Node::at(
                         Arg {
                             // Add the name if present
-                            target: (ParamId(*params_id.value(), j).as_param_index()),
+                            target: (ParamId(params_id.elements(), j).as_param_index()),
                             value: arg.value,
                         },
                         NodeOrigin::Generated,
@@ -438,7 +438,7 @@ impl ParamUtils {
         // Populate default values and catch missing arguments
         for i in params_id.to_index_range() {
             if result[i].is_none() {
-                let param_id = ParamId(*params_id.value(), i);
+                let param_id = ParamId(params_id.elements(), i);
                 let param = param_id.borrow();
                 let default = param.default;
 
@@ -520,7 +520,7 @@ impl ParamUtils {
                     result[j] = Some(Node::at(
                         PatArg {
                             // Add the name if present
-                            target: (ParamId(*params_id.value(), j)).as_param_index(),
+                            target: (ParamId(params_id.elements(), j)).as_param_index(),
                             pat: arg.pat,
                         },
                         NodeOrigin::Generated,
@@ -574,7 +574,7 @@ impl ParamUtils {
         // Populate missing arguments with captures
         for i in params_id.to_index_range() {
             if result[i].is_none() {
-                let param_id = ParamId(*params_id.value(), i);
+                let param_id = ParamId(params_id.elements(), i);
                 if spread.is_some() {
                     result[i] = Some(Node::at(
                         PatArg {

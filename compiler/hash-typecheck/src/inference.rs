@@ -1864,7 +1864,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     // Infer each member
                     for ctor_idx in data_def_ctors_id.value().to_index_range() {
                         let _ = error_state.try_or_add_error(
-                            self.infer_ctor_def(CtorDefId(*data_def_ctors_id.value(), ctor_idx)),
+                            self.infer_ctor_def(CtorDefId(data_def_ctors_id.elements(), ctor_idx)),
                         );
                     }
 
@@ -1941,7 +1941,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // Infer each member signature
             for member_idx in members.value().to_index_range() {
                 let _ = error_state.try_or_add_error(
-                    self.infer_mod_member(ModMemberId(*members.value(), member_idx), fn_mode),
+                    self.infer_mod_member(ModMemberId(members.elements(), member_idx), fn_mode),
                 );
             }
 

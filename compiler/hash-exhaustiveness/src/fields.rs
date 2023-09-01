@@ -92,7 +92,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                             panic!("expected a non-primitive data type")
                         };
 
-                        let ctor = CtorDefId(*variants_id.value(), variant_idx).borrow();
+                        let ctor = CtorDefId(variants_id.elements(), variant_idx).borrow();
                         let tys = ctor
                             .params
                             .value()

@@ -32,7 +32,7 @@ impl<'tc> DiscoveryPass<'tc> {
             .add_locations_to_targets(*params_id.value(), |i| Some(params[i].span()));
 
         for (i, param) in params.iter().enumerate() {
-            tir_stores().ast_info().params().insert(param.id(), ParamId(*params_id.value(), i));
+            tir_stores().ast_info().params().insert(param.id(), ParamId(params_id.elements(), i));
         }
 
         params_id

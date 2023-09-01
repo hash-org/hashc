@@ -104,7 +104,7 @@ pub trait PrimitiveUtils: AccessToEnv {
             hash_tir::data::DataDefCtors::Defined(ctors) => {
                 // Index 0 is true, 1 is false, see BootstrapOps
                 let idx = if value { 0 } else { 1 };
-                CtorDefId(*ctors.value(), idx)
+                CtorDefId(ctors.elements(), idx)
             }
             hash_tir::data::DataDefCtors::Primitive(_) => {
                 panic!("Found primitive data definition for bool")

@@ -219,7 +219,7 @@ impl<'tc> DiscoveryPass<'tc> {
                         {
                             ast_info.mod_members().insert(
                                 *node_id,
-                                ModMemberId(*mod_members.value(), mod_member_index),
+                                ModMemberId(mod_members.elements(), mod_member_index),
                             );
                         }
                     }
@@ -243,7 +243,7 @@ impl<'tc> DiscoveryPass<'tc> {
                         {
                             ast_info
                                 .ctor_defs()
-                                .insert(*node_id, CtorDefId(*ctors.value(), data_ctor_index));
+                                .insert(*node_id, CtorDefId(ctors.elements(), data_ctor_index));
                         }
                     }
                 })

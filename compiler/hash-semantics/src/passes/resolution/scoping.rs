@@ -212,7 +212,7 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn add_data_params_and_ctors(&self, data_def_id: DataDefId) {
         let params = data_def_id.borrow().params;
         for i in params.to_index_range() {
-            self.add_param_binding(ParamId(*params.value(), i));
+            self.add_param_binding(ParamId(params.elements(), i));
         }
         // Add all the constructors
         match data_def_id.borrow().ctors {
