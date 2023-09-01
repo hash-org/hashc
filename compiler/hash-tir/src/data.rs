@@ -276,8 +276,8 @@ impl DataDef {
     /// a single constructor.
     pub fn get_single_ctor(&self) -> Option<CtorDefId> {
         match self.borrow().ctors {
-            DataDefCtors::Defined(ctors) => match ctors.value().at(0) {
-                Some(x) if ctors.value().len() == 1 => Some(x),
+            DataDefCtors::Defined(ctors) => match ctors.elements().at(0) {
+                Some(x) if ctors.len() == 1 => Some(x),
                 _ => None,
             },
             DataDefCtors::Primitive(_) => None,
@@ -398,7 +398,7 @@ pub struct DataTy {
 impl fmt::Display for CtorDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: ", self.name)?;
-        if self.params.value().len() > 0 {
+        if self.params.len() > 0 {
             write!(f, "({}) -> ", self.params)?;
         }
 
@@ -417,7 +417,7 @@ impl fmt::Display for CtorDefId {
 
 impl fmt::Display for CtorDefsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for ctor_def in self.value().iter() {
+        for ctor_def in self.iter() {
             writeln!(f, "{}", ctor_def)?;
         }
         Ok(())
@@ -432,7 +432,7 @@ impl Display for CtorTerm {
         write!(f, "{}::", &data_ty)?;
 
         write!(f, "{}", ctor_name)?;
-        if self.ctor_args.value().len() > 0 {
+        if self.ctor_args.len() > 0 {
             write!(f, "({})", self.ctor_args)?;
         }
 
@@ -445,14 +445,14 @@ impl Display for CtorPat {
         let data_def_id = get!(self.ctor, data_def_id);
         let data_def_name = get!(data_def_id, name);
 
-        if data_def_id.borrow().ctors.assert_defined().value().len() == 1 {
+        if data_def_id.borrow().ctors.assert_defined().len() == 1 {
             write!(f, "{data_def_name}")?;
         } else {
             let ctor_name = get!(self.ctor, name);
             write!(f, "{data_def_name}::{}", ctor_name)?;
         }
 
-        if self.ctor_pat_args.value().len() > 0 || self.ctor_pat_args_spread.is_some() {
+        if self.ctor_pat_args.len() > 0 || self.ctor_pat_args_spread.is_some() {
             write!(
                 f,
                 "({})",
@@ -515,11 +515,7 @@ impl Display for DataDef {
             f,
             "datatype [name={}] {} {{\n{}}}",
             self.name,
-            if self.params.value().len() > 0 {
-                format!("<{}>", self.params)
-            } else {
-                "".to_string()
-            },
+            if self.params.len() > 0 { format!("<{}>", self.params) } else { "".to_string() },
             indent(&ctors, "  ")
         )
     }
@@ -535,7 +531,7 @@ impl Display for DataTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data_def_name = get!(self.data_def, name);
         write!(f, "{}", data_def_name)?;
-        if self.args.value().len() > 0 {
+        if self.args.len() > 0 {
             write!(f, "<{}>", self.args)?;
         }
         Ok(())

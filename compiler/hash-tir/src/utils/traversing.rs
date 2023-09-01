@@ -351,7 +351,7 @@ impl TraversingUtils {
         term_list: TermListId,
         f: F,
     ) -> Result<TermListId, E> {
-        let mut new_list = Vec::with_capacity(term_list.value().len());
+        let mut new_list = Vec::with_capacity(term_list.len());
         for term_id in term_list.value().value() {
             new_list.push(self.fmap_term(term_id, f)?);
         }
@@ -363,7 +363,7 @@ impl TraversingUtils {
         pat_list: PatListId,
         f: F,
     ) -> Result<PatListId, E> {
-        let mut new_list = Vec::with_capacity(pat_list.value().len());
+        let mut new_list = Vec::with_capacity(pat_list.len());
         for pat_id in pat_list.value().value() {
             match pat_id {
                 PatOrCapture::Pat(pat_id) => {
@@ -379,7 +379,7 @@ impl TraversingUtils {
 
     pub fn fmap_params<E, F: Mapper<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
         let new_params = {
-            let mut new_params = Vec::with_capacity(params_id.value().len());
+            let mut new_params = Vec::with_capacity(params_id.len());
             for param in params_id.value().value() {
                 new_params.push(Node::at(
                     Param {
@@ -401,7 +401,7 @@ impl TraversingUtils {
     }
 
     pub fn fmap_args<E, F: Mapper<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
-        let mut new_args = Vec::with_capacity(args_id.value().len());
+        let mut new_args = Vec::with_capacity(args_id.len());
         for arg in args_id.value().value() {
             new_args.push(Node::at(
                 Arg { target: arg.target, value: self.fmap_term(arg.value, f)? },
@@ -419,7 +419,7 @@ impl TraversingUtils {
         f: F,
     ) -> Result<PatArgsId, E> {
         let new_pat_args = {
-            let mut new_args = Vec::with_capacity(pat_args_id.value().len());
+            let mut new_args = Vec::with_capacity(pat_args_id.len());
             for pat_arg in pat_args_id.value().value() {
                 new_args.push(Node::at(
                     PatArg {
@@ -762,7 +762,7 @@ impl TraversingUtils {
         mod_def_id: ModDefId,
         f: &mut F,
     ) -> Result<(), E> {
-        for member in mod_def_id.borrow().members.value().iter() {
+        for member in mod_def_id.borrow().members.iter() {
             self.visit_mod_member(member, f)?;
         }
         Ok(())

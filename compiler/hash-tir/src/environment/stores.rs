@@ -228,8 +228,7 @@ macro_rules! tir_node_sequence_store_direct {
             type ElementKey = $el_id;
 
             fn to_index_and_len(self) -> (usize, usize) {
-                use hash_storage::store::statics::CoreStoreId;
-                self.value().to_index_and_len()
+                self.elements().to_index_and_len()
             }
 
             fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
@@ -252,6 +251,7 @@ macro_rules! tir_node_sequence_store_direct {
         impl $id {
             /// Access the elements of this sequence wrapper.
             pub fn elements(self) -> $id_seq {
+                use hash_storage::store::statics::CoreStoreId;
                 *self.value()
             }
         }
@@ -312,8 +312,7 @@ macro_rules! tir_node_sequence_store_indirect {
             type ElementKey = $el_id;
 
             fn to_index_and_len(self) -> (usize, usize) {
-                use hash_storage::store::statics::CoreStoreId;
-                self.value().to_index_and_len()
+                self.elements().to_index_and_len()
             }
 
             fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
@@ -329,6 +328,14 @@ macro_rules! tir_node_sequence_store_indirect {
             fn from(value: ($id, usize)) -> Self {
                 use hash_storage::store::statics::CoreStoreId;
                 value.0.borrow().at(value.1).unwrap()
+            }
+        }
+
+        impl $id {
+            /// Access the elements of this sequence wrapper.
+            pub fn elements(self) -> $id_seq {
+                use hash_storage::store::statics::CoreStoreId;
+                *self.value()
             }
         }
     };

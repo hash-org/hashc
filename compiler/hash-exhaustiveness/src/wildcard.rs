@@ -67,7 +67,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                 match def.ctors {
                     DataDefCtors::Defined(ctors) => {
-                        if ctors.value().len() == 1 {
+                        if ctors.len() == 1 {
                             smallvec![DeconstructedCtor::Single]
                         } else {
                             // The exception is if the pattern is at the top level, because

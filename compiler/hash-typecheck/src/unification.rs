@@ -529,7 +529,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             Ty::Data(data_ty) => {
                 let data_def = data_ty.data_def.borrow();
                 match data_def.ctors {
-                    DataDefCtors::Defined(ctors) => Ok(ctors.value().len() == 0),
+                    DataDefCtors::Defined(ctors) => Ok(ctors.len() == 0),
                     DataDefCtors::Primitive(_) => Ok(false),
                 }
             }

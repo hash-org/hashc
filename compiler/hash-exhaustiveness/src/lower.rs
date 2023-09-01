@@ -41,7 +41,7 @@ use crate::{storage::DeconstructedPatId, usefulness::MatchArm, ExhaustivenessChe
 /// applying the same operation on children patterns.
 fn expand_or_pat(id: PatId, vec: &mut Vec<PatId>) {
     if let Pat::Or(OrPat { alternatives }) = *id.value() {
-        for alternative in alternatives.value().iter() {
+        for alternative in alternatives.iter() {
             expand_or_pat(alternative.assert_pat(), vec);
         }
     } else {
@@ -324,7 +324,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let field_count = fields.len();
         let args = Node::create_at(Node::<PatArg>::seq(fields), NodeOrigin::Generated);
 
-        if field_count != params.value().len() {
+        if field_count != params.len() {
             (args, Some(Spread { name: SymbolId::fresh(), index: field_count }))
         } else {
             (args, None)

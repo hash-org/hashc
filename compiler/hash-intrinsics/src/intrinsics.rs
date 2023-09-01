@@ -668,7 +668,7 @@ impl DefinedIntrinsics {
                     if let (Ty::Data(lhs_data), Ty::Data(rhs_data)) =
                         (*lhs_ty.value(), *rhs_ty.value())
                     {
-                        if lhs_data.args.value().len() == 0 && rhs_data.args.value().len() == 0 {
+                        if lhs_data.args.len() == 0 && rhs_data.args.len() == 0 {
                             return Ok(prim.new_bool_term(lhs_data.data_def == rhs_data.data_def));
                         }
                     }

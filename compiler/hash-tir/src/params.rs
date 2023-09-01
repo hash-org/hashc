@@ -100,7 +100,7 @@ impl ParamsId {
     // [ParamIndex].
     pub fn at_param_index(&self, index: ParamIndex) -> Option<usize> {
         match index {
-            ParamIndex::Name(name) => self.value().iter().enumerate().find_map(|(i, param)| {
+            ParamIndex::Name(name) => self.iter().enumerate().find_map(|(i, param)| {
                 if param.borrow().name.borrow().name? == name {
                     Some(i)
                 } else {
@@ -228,7 +228,7 @@ impl ParamsId {
                 .value()
                 .iter()
                 .find(|param| matches!(param.borrow().name.borrow().name, Some(n) if n == name)),
-            ParamIndex::Position(pos) => self.value().at(pos),
+            ParamIndex::Position(pos) => self.elements().at(pos),
         }
     }
 
@@ -263,7 +263,7 @@ impl fmt::Display for ParamId {
 
 impl fmt::Display for ParamsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, param) in self.value().iter().enumerate() {
+        for (i, param) in self.iter().enumerate() {
             if i > 0 {
                 write!(f, ", ")?;
             }

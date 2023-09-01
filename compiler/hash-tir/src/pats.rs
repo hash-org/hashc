@@ -169,7 +169,7 @@ pub struct PatArgsWithSpread {
 impl fmt::Display for PatArgsWithSpread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut pat_args_formatted =
-            self.pat_args.value().iter().map(|arg| (arg).to_string()).collect::<Vec<_>>();
+            self.pat_args.iter().map(|arg| (arg).to_string()).collect::<Vec<_>>();
 
         if let Some(spread) = self.spread {
             pat_args_formatted.insert(spread.index, spread.to_string());

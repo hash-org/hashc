@@ -246,7 +246,7 @@ impl fmt::Display for TermId {
 
 impl fmt::Display for TermListId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, term) in self.value().iter().enumerate() {
+        for (i, term) in self.iter().enumerate() {
             if i > 0 {
                 write!(f, ", ")?;
             }

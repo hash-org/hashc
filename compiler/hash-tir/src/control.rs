@@ -121,7 +121,7 @@ impl fmt::Display for MatchTerm {
 
 impl fmt::Display for MatchCasesId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for case in self.value().iter() {
+        for case in self.iter() {
             write!(f, "{}", case)?;
         }
         Ok(())
@@ -172,7 +172,7 @@ impl fmt::Display for IfPat {
 impl fmt::Display for OrPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut first = true;
-        for pat in self.alternatives.value().iter() {
+        for pat in self.alternatives.iter() {
             if !first {
                 write!(f, " | ")?;
             }

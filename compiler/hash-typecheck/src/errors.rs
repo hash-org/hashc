@@ -172,7 +172,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 }
             }
             TcError::WrongArgLength { params_id, args_id } => {
-                let param_length = params_id.value().len();
+                let param_length = params_id.len();
                 let arg_length = args_id.len();
 
                 let error =

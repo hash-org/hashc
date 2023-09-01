@@ -376,7 +376,7 @@ impl Context {
     /// This should be used when entering an already resolved scope that has
     /// parameters.
     pub fn add_param_bindings(&self, params_id: ParamsId) {
-        for i in params_id.value().iter() {
+        for i in params_id.iter() {
             self.add_param_binding(i);
         }
     }
@@ -418,8 +418,8 @@ impl Context {
     ///
     /// *Invariant*: the lengths of the arguments and parameters must match.
     pub fn add_arg_bindings(&self, params_id: ParamsId, args_id: ArgsId) {
-        assert_eq!(params_id.value().len(), args_id.value().len());
-        for (param, arg) in params_id.value().iter().zip(args_id.value().iter()) {
+        assert_eq!(params_id.len(), args_id.len());
+        for (param, arg) in params_id.iter().zip(args_id.iter()) {
             self.add_arg_binding(arg, param);
         }
     }

@@ -217,7 +217,7 @@ impl<'tc> Scoping<'tc> {
         // Add all the constructors
         match data_def_id.borrow().ctors {
             DataDefCtors::Defined(ctors) => {
-                for ctor in ctors.value().iter() {
+                for ctor in ctors.iter() {
                     self.add_named_binding(
                         ctor.borrow().name,
                         BindingKind::Ctor(data_def_id, ctor),
@@ -233,7 +233,7 @@ impl<'tc> Scoping<'tc> {
     /// Add the module members of the definition to the current scope,
     /// also adding them to the `bindings_by_name` map.
     pub(super) fn add_mod_members(&self, mod_def_id: ModDefId) {
-        for member_id in mod_def_id.borrow().members.value().iter() {
+        for member_id in mod_def_id.borrow().members.iter() {
             self.add_named_binding(
                 member_id.borrow().name,
                 BindingKind::ModMember(mod_def_id, member_id),

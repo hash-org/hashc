@@ -78,7 +78,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 match *ctx.ty.value() {
                     Ty::Tuple(TupleTy { data }) => {
                         let tys =
-                            data.value().borrow().iter().map(|member| member.ty).collect_vec();
+                            data.elements().borrow().iter().map(|member| member.ty).collect_vec();
                         self.wildcards_from_tys(tys)
                     }
                     Ty::Data(DataTy { data_def, .. }) => {

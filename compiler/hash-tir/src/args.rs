@@ -192,8 +192,8 @@ impl SequenceStoreKey for SomeArgsId {
 
     fn to_index_and_len(self) -> (usize, usize) {
         match self {
-            SomeArgsId::PatArgs(id) => id.value().data.to_index_and_len(),
-            SomeArgsId::Args(id) => id.value().data.to_index_and_len(),
+            SomeArgsId::PatArgs(id) => id.elements().to_index_and_len(),
+            SomeArgsId::Args(id) => id.elements().to_index_and_len(),
         }
     }
 
@@ -205,8 +205,8 @@ impl SequenceStoreKey for SomeArgsId {
 impl From<(SomeArgsId, usize)> for SomeArgId {
     fn from(value: (SomeArgsId, usize)) -> Self {
         match value.0 {
-            SomeArgsId::PatArgs(id) => SomeArgId::PatArg(PatArgId(*id.value(), value.1)),
-            SomeArgsId::Args(id) => SomeArgId::Arg(ArgId(*id.value(), value.1)),
+            SomeArgsId::PatArgs(id) => SomeArgId::PatArg(PatArgId(id.elements(), value.1)),
+            SomeArgsId::Args(id) => SomeArgId::Arg(ArgId(id.elements(), value.1)),
         }
     }
 }
@@ -214,8 +214,8 @@ impl From<(SomeArgsId, usize)> for SomeArgId {
 impl From<SomeArgsId> for IndexedLocationTarget {
     fn from(val: SomeArgsId) -> Self {
         match val {
-            SomeArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(*id.value()),
-            SomeArgsId::Args(id) => IndexedLocationTarget::Args(*id.value()),
+            SomeArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id.elements()),
+            SomeArgsId::Args(id) => IndexedLocationTarget::Args(id.elements()),
         }
     }
 }
@@ -257,7 +257,7 @@ impl fmt::Display for ArgId {
 
 impl fmt::Display for ArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, arg) in self.value().iter().enumerate() {
+        for (i, arg) in self.iter().enumerate() {
             if i > 0 {
                 write!(f, ", ")?;
             }
@@ -299,7 +299,7 @@ impl fmt::Display for PatArgId {
 
 impl fmt::Display for PatArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, pat_arg) in self.value().iter().enumerate() {
+        for (i, pat_arg) in self.iter().enumerate() {
             if i > 0 {
                 write!(f, ", ")?;
             }

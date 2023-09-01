@@ -407,8 +407,8 @@ impl ParamUtils {
                                 // Duplicate argument name, must be from positional
                                 assert!(j != i);
                                 error_state.add_error(ParamError::DuplicateArg {
-                                    first: ArgId(*args_id.value(), i).into(),
-                                    second: ArgId(*args_id.value(), j).into(),
+                                    first: ArgId(args_id.elements(), i).into(),
+                                    second: ArgId(args_id.elements(), j).into(),
                                 });
                             } else {
                                 // Found an uncrossed parameter, add it to the result
@@ -543,8 +543,8 @@ impl ParamUtils {
                                 // Duplicate argument name, must be from positional
                                 assert!(j != i);
                                 error_state.add_error(ParamError::DuplicateArg {
-                                    first: PatArgId(*args_id.value(), i).into(),
-                                    second: PatArgId(*args_id.value(), j).into(),
+                                    first: PatArgId(args_id.elements(), i).into(),
+                                    second: PatArgId(args_id.elements(), j).into(),
                                 });
                             } else {
                                 // Found an uncrossed parameter, add it to the result

@@ -614,8 +614,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
-            let inferred_len_term =
-                self.create_term_from_integer_lit(array_term.elements.value().len());
+            let inferred_len_term = self.create_term_from_integer_lit(array_term.elements.len());
             if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
                 return Err(TcError::MismatchingArrayLengths {
                     expected_len: len,
@@ -1189,7 +1188,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // type.
             let mut diverges = false;
 
-            for statement in block_term.statements.value().iter() {
+            for statement in block_term.statements.iter() {
                 let statement_ty = Ty::hole_for(statement);
                 self.infer_term(statement, statement_ty)?;
 
@@ -1503,7 +1502,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // @@Caching: Check if the MatchTerm has already been queued for exhaustiveness,
         // if it hasn't, we can use/make a new ExhaustivenessChecker and then
         // add the job.
-        let pats = match_term.cases.value().borrow().iter().map(|case| case.bind_pat).collect_vec();
+        let pats =
+            match_term.cases.elements().borrow().iter().map(|case| case.bind_pat).collect_vec();
         let eck = self.exhaustiveness_checker(match_term.subject);
         eck.is_match_exhaustive(&pats, match_subject_ty);
         self.append_exhaustiveness_diagnostics(eck);
@@ -1629,7 +1629,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::Data(data) if data.data_def == primitives().list() => {
                 // Type is already checked
                 assert!(data.args.len() == 1);
-                let inner_term = ArgId(*data.args.value(), 0).borrow().value;
+                let inner_term = ArgId(data.args.elements(), 0).borrow().value;
                 term_as_variant!(self, inner_term.value(), Ty)
             }
             Ty::Hole(_) => Ty::hole(),

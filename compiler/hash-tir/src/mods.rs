@@ -117,7 +117,7 @@ impl ModDef {
     /// Get a module function member by name.
     pub fn get_mod_fn_member_by_ident(&self, name: impl Into<Identifier>) -> Option<FnDefId> {
         let name = name.into();
-        self.members.value().iter().find_map(|member| {
+        self.members.iter().find_map(|member| {
             if let ModMemberValue::Fn(fn_def_id) = member.borrow().value {
                 if member.borrow().name.borrow().name.is_some_and(|sym| sym == name) {
                     return Some(fn_def_id);
@@ -130,7 +130,7 @@ impl ModDef {
     /// Get a module member by name.
     pub fn get_mod_member_by_ident(&self, name: impl Into<Identifier>) -> Option<Node<ModMember>> {
         let name = name.into();
-        self.members.value().iter().find_map(|member| {
+        self.members.iter().find_map(|member| {
             if member.borrow().name.borrow().name.is_some_and(|sym| sym == name) {
                 Some(member.value())
             } else {
@@ -196,7 +196,7 @@ impl Display for ModMemberId {
 
 impl Display for ModMembersId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for member in self.value().iter() {
+        for member in self.iter() {
             writeln!(f, "{}", member)?;
         }
         Ok(())

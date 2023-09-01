@@ -66,7 +66,7 @@ impl fmt::Display for ArrayPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
         let mut pat_args_formatted =
-            self.pats.value().iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
+            self.pats.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
 
         if let Some(spread) = self.spread {
             pat_args_formatted.insert(spread.index, spread.to_string());
