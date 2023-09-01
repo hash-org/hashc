@@ -290,7 +290,7 @@ pub trait PrimitiveUtils: AccessToEnv {
         )
     }
 
-    /// Get the given terman integer literal if possible.
+    /// Get the given term as an integer literal if possible.
     fn try_use_term_as_integer_lit<L: TryFrom<BigInt>>(&self, term: TermId) -> Option<L> {
         match *term.value() {
             Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),

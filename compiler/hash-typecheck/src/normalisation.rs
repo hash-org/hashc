@@ -774,7 +774,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                         return self.context().enter_scope(fn_def_id.into(), || {
                             let args_as_terms = fn_call
                                 .args
-                                .value()
+                                .elements()
                                 .borrow()
                                 .iter()
                                 .map(|arg| arg.value)
@@ -922,7 +922,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn extract_spread_args(&self, term_args: ArgsId, pat_args: PatArgsId) -> ArgsId {
         // Create a new tuple term with the spread elements
         let spread_term_args = pat_args
-            .value()
+            .elements()
             .borrow()
             .iter()
             .enumerate()

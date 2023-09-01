@@ -101,7 +101,7 @@ impl<'ir> BuilderCtx<'ir> {
 
                 // Convert the single variant into the tuple variant.
                 let fields = data
-                    .borrow()
+                    .elements()
                     .borrow()
                     .iter()
                     .map(|field| self.ty_id_from_tir_ty(field.ty))
@@ -115,7 +115,7 @@ impl<'ir> BuilderCtx<'ir> {
             }
             Ty::Fn(FnTy { params, return_ty, .. }) => {
                 let params = IrTyListId::seq(
-                    params.borrow().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
+                    params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
                 );
                 let return_ty = self.ty_id_from_tir_ty(return_ty);
                 IrTy::Fn { params, return_ty }
@@ -215,7 +215,7 @@ impl<'ir> BuilderCtx<'ir> {
         let FnTy { params, return_ty, .. } = ty;
 
         let params = IrTyListId::seq(
-            params.borrow().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
+            params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
         );
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
@@ -267,7 +267,7 @@ impl<'ir> BuilderCtx<'ir> {
         let subs = if ty.args.len() > 0 {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
-            Some(IrTyListId::seq(ty.args.borrow().borrow().iter().map(|arg| {
+            Some(IrTyListId::seq(ty.args.elements().borrow().iter().map(|arg| {
                 let ty = arg.value.as_ty();
                 self.ty_id_from_tir_ty(ty)
             })))
@@ -277,13 +277,13 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Lower each variant as a constructor.
         let variants = ctor_defs
-            .borrow()
+            .elements()
             .borrow()
             .iter()
             .map(|ctor| {
                 let fields = ctor
                     .params
-                    .borrow()
+                    .elements()
                     .borrow()
                     .iter()
                     .enumerate()

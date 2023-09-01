@@ -352,7 +352,7 @@ impl TraversingUtils {
         f: F,
     ) -> Result<TermListId, E> {
         let mut new_list = Vec::with_capacity(term_list.len());
-        for term_id in term_list.value().value() {
+        for term_id in term_list.elements().value() {
             new_list.push(self.fmap_term(term_id, f)?);
         }
         Ok(Node::create_at(TermId::seq(new_list), term_list.value().origin))
@@ -364,7 +364,7 @@ impl TraversingUtils {
         f: F,
     ) -> Result<PatListId, E> {
         let mut new_list = Vec::with_capacity(pat_list.len());
-        for pat_id in pat_list.value().value() {
+        for pat_id in pat_list.elements().value() {
             match pat_id {
                 PatOrCapture::Pat(pat_id) => {
                     new_list.push(PatOrCapture::Pat(self.fmap_pat(pat_id, f)?));
@@ -380,7 +380,7 @@ impl TraversingUtils {
     pub fn fmap_params<E, F: Mapper<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
         let new_params = {
             let mut new_params = Vec::with_capacity(params_id.len());
-            for param in params_id.value().value() {
+            for param in params_id.elements().value() {
                 new_params.push(Node::at(
                     Param {
                         name: param.name,
@@ -402,7 +402,7 @@ impl TraversingUtils {
 
     pub fn fmap_args<E, F: Mapper<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
         let mut new_args = Vec::with_capacity(args_id.len());
-        for arg in args_id.value().value() {
+        for arg in args_id.elements().value() {
             new_args.push(Node::at(
                 Arg { target: arg.target, value: self.fmap_term(arg.value, f)? },
                 arg.origin,
@@ -420,7 +420,7 @@ impl TraversingUtils {
     ) -> Result<PatArgsId, E> {
         let new_pat_args = {
             let mut new_args = Vec::with_capacity(pat_args_id.len());
-            for pat_arg in pat_args_id.value().value() {
+            for pat_arg in pat_args_id.elements().value() {
                 new_args.push(Node::at(
                     PatArg {
                         target: pat_arg.target,
@@ -519,7 +519,7 @@ impl TraversingUtils {
                 Term::LoopControl(_) => Ok(()),
                 Term::Match(match_term) => {
                     self.visit_term(match_term.subject, f)?;
-                    for case in match_term.cases.value().value() {
+                    for case in match_term.cases.elements().value() {
                         self.visit_pat(case.bind_pat, f)?;
                         self.visit_term(case.value, f)?;
                     }
@@ -633,7 +633,7 @@ impl TraversingUtils {
         term_list_id: TermListId,
         f: &mut F,
     ) -> Result<(), E> {
-        for term in term_list_id.value().value() {
+        for term in term_list_id.elements().value() {
             self.visit_term(term, f)?;
         }
         Ok(())
@@ -644,7 +644,7 @@ impl TraversingUtils {
         pat_list_id: PatListId,
         f: &mut F,
     ) -> Result<(), E> {
-        for pat in pat_list_id.value().value() {
+        for pat in pat_list_id.elements().value() {
             if let PatOrCapture::Pat(pat) = pat {
                 self.visit_pat(pat, f)?;
             }
@@ -653,7 +653,7 @@ impl TraversingUtils {
     }
 
     pub fn visit_params<E, F: Visitor<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
-        for param in params_id.value().value() {
+        for param in params_id.elements().value() {
             self.visit_ty(param.ty, f)?;
             if let Some(default) = param.default {
                 self.visit_term(default, f)?;
@@ -667,7 +667,7 @@ impl TraversingUtils {
         pat_args_id: PatArgsId,
         f: &mut F,
     ) -> Result<(), E> {
-        for arg in pat_args_id.value().value() {
+        for arg in pat_args_id.elements().value() {
             if let PatOrCapture::Pat(pat) = arg.pat {
                 self.visit_pat(pat, f)?;
             }
@@ -676,7 +676,7 @@ impl TraversingUtils {
     }
 
     pub fn visit_args<E, F: Visitor<E>>(&self, args_id: ArgsId, f: &mut F) -> Result<(), E> {
-        for arg in args_id.value().value() {
+        for arg in args_id.elements().value() {
             self.visit_term(arg.value, f)?;
         }
         Ok(())

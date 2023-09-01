@@ -106,7 +106,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Pat::Ctor(CtorPat { ctor_pat_args: fields, ctor_pat_args_spread: spread, .. })
             | Pat::Tuple(TuplePat { data: fields, data_spread: spread }) => {
-                fields.borrow().borrow().iter().for_each(|field| {
+                fields.elements().borrow().iter().for_each(|field| {
                     self.visit_primary_pattern_bindings(field.pat.assert_pat(), f);
                 });
 

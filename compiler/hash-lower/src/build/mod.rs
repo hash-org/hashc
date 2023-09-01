@@ -295,7 +295,7 @@ impl<'ctx> BodyBuilder<'ctx> {
             // The type must be a function type...
             let FnDef { ty: FnTy { params, .. }, body, .. } = *fn_def.value();
 
-            params.borrow().borrow().iter().for_each(|param| {
+            params.elements().borrow().iter().for_each(|param| {
                 let ir_ty = this.ty_id_from_tir_ty(param.ty);
 
                 // @@Future: deal with parameter attributes that are mutable?

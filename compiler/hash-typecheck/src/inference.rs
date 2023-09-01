@@ -201,7 +201,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         pat_list_id: PatListId,
         element_annotation_ty: TyId,
     ) -> TcResult<()> {
-        let pats = pat_list_id.value().value();
+        let pats = pat_list_id.elements().value();
         self.infer_unified_list(&pats, element_annotation_ty, |pat, ty| match pat {
             PatOrCapture::Pat(pat) => {
                 self.infer_pat(pat, ty, None)?;

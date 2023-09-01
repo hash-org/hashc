@@ -182,7 +182,7 @@ impl<'tc> ResolutionPass<'tc> {
             let members = mod_def_id.borrow().members;
 
             for (i, member_expr) in members.to_index_range().zip(member_exprs) {
-                let member_value = members.value().borrow()[i].value;
+                let member_value = members.elements().borrow()[i].value;
                 let member_rhs_expr =
                     Self::use_expr_as_mod_def_declaration_and_get_rhs(member_expr);
 

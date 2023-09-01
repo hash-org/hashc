@@ -532,7 +532,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let variant = &adt.variants[variant_index];
 
                 sub_pats
-                    .borrow()
+                    .elements()
                     .borrow()
                     .iter()
                     .map(|arg| {

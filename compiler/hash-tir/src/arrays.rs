@@ -44,7 +44,7 @@ impl ArrayPat {
         let mut prefix = vec![];
         let mut suffix = vec![];
 
-        let args = self.pats.value().borrow();
+        let args = self.pats.elements().borrow();
         if let Some(pos) = self.spread.map(|s| s.index) {
             prefix.extend(args[..pos].iter().copied().map(|p| p.assert_pat()));
             suffix.extend(args[pos..].iter().copied().map(|p| p.assert_pat()));

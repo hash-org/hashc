@@ -78,7 +78,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         subject_place: &PlaceBuilder,
         arms: MatchCasesId,
     ) -> Vec<Candidates<'tcx>> {
-        arms.borrow()
+        arms.elements()
             .borrow()
             .iter()
             .copied()
@@ -398,7 +398,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             let pats = pats
                 .alternatives
-                .borrow()
+                .elements()
                 .borrow()
                 .iter()
                 .map(|pat| pat.assert_pat())

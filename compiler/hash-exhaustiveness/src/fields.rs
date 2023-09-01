@@ -95,7 +95,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                         let ctor = CtorDefId(variants_id.elements(), variant_idx).borrow();
                         let tys = ctor
                             .params
-                            .value()
+                            .elements()
                             .borrow()
                             .iter()
                             .map(|member| member.ty)

@@ -59,7 +59,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let aggregate_kind = AggregateKind::Tuple(adt);
 
                 let args = data
-                    .borrow()
+                    .elements()
                     .borrow()
                     .iter()
                     .map(|element| {
@@ -381,7 +381,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // }
 
         let args = args
-            .borrow()
+            .elements()
             .borrow()
             .iter()
             .map(|arg| unpack!(block = self.as_operand(block, arg.value, Mutability::Immutable)))
@@ -457,7 +457,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
 
         let args = (*ctor_args)
-            .borrow()
+            .elements()
             .borrow()
             .iter()
             .map(|arg| {

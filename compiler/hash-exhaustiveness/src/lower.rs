@@ -118,7 +118,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 // Create wild-cards for all of the tuple inner members
                 let mut wilds: SmallVec<[_; 2]> = tuple_ty
                     .data
-                    .value()
+                    .elements()
                     .borrow()
                     .iter()
                     .map(|param| self.wildcard_from_ty(param.ty))
@@ -141,7 +141,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                 // Create wild-cards for all of the tuple inner members
                 let mut wilds: SmallVec<[_; 2]> = params
-                    .value()
+                    .elements()
                     .borrow()
                     .iter()
                     .map(|param| self.wildcard_from_ty(param.ty))
@@ -456,7 +456,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// named argument.
     fn deconstruct_pat_fields(&self, fields: PatArgsId, params_id: ParamsId) -> Vec<FieldPat> {
         fields
-            .value()
+            .elements()
             .borrow()
             .iter()
             .enumerate()
