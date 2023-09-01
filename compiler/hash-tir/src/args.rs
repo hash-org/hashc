@@ -3,12 +3,11 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use derive_more::From;
 use hash_storage::store::{
     statics::{CoreStoreId, SequenceStoreValue, SingleStoreValue},
     SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
-use hash_utils::itertools::Itertools;
+use hash_utils::{derive_more::From, itertools::Itertools};
 
 use super::{
     locations::{IndexedLocationTarget, LocationTarget},

@@ -3,12 +3,12 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use derive_more::From;
 use hash_ast::ast::{self, RangeEnd};
 use hash_storage::{
     get,
     store::{statics::CoreStoreId, TrivialSequenceStoreKey},
 };
+use hash_utils::derive_more::From;
 
 use super::{
     args::{PatArgsId, PatOrCapture},

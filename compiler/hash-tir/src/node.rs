@@ -6,10 +6,10 @@
 //!
 //! Nodes normally live in stores, which can be created through the
 //! `crate::environment::stores::tir_node_*` macros.
-use derive_more::{Deref, DerefMut};
 use hash_ast::ast::AstNodeId;
 use hash_source::{location::Span, SourceId};
 use hash_storage::store::statics::SingleStoreValue;
+use hash_utils::derive_more::{Deref, DerefMut};
 
 use crate::ast_info::HasNodeId;
 

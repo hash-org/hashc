@@ -3,12 +3,12 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use derive_more::From;
 use hash_ast::ast;
 use hash_storage::store::{
     statics::{CoreStoreId, SequenceStoreValue, SingleStoreValue},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
+use hash_utils::derive_more::From;
 
 use super::{casting::CastTerm, holes::Hole, symbols::SymbolId, tys::TypeOfTerm};
 use crate::{
