@@ -69,14 +69,14 @@ impl ReportCodeBlock {
         match self.info.get() {
             Some(info) => info,
             None => {
-                let Span { span, id } = self.source_location;
+                let Span { range: span, id } = self.source_location;
                 let source = sources.line_ranges(id);
 
                 // Compute offset rows and columns from the provided span
                 let start @ RowCol { row: start_row, .. } = source.get_row_col(span.start());
                 let end @ RowCol { row: end_row, .. } = source.get_row_col(span.end());
                 let RowCol { row: last_row, .. } =
-                    source.get_row_col(sources.contents_by_id(id).len() - 1);
+                    source.get_row_col(sources.contents(id).len() - 1);
 
                 // Compute the selected span outside of the diagnostic span
                 let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
@@ -105,7 +105,7 @@ impl ReportCodeBlock {
     ) -> impl Iterator<Item = (usize, &'a str)> {
         // Get the actual contents of the erroneous span
         let source_id = self.source_location.id;
-        let source = modules.contents_by_id(source_id);
+        let source = modules.contents(source_id);
 
         let ReportCodeBlockInfo { span, .. } = self.info(modules);
         let (start_row, end_row) = span.rows();

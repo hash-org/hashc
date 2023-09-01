@@ -67,18 +67,21 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace, pool, data_layout, .. } = ctx.data();
+        let AstExpansionCtx { workspace, pool, data_layout, settings, .. } = ctx.data();
         let (sender, receiver) = unbounded::<ExpansionDiagnostic>();
 
         let node_map = &mut workspace.node_map;
+        let sources = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
+
+        let make_expander = |source| AstExpander::new(source, sources, settings, data_layout);
 
         pool.scope(|scope| {
             let source_info = source_stage_info.get(entry_point);
 
             // De-sugar the target if it isn't already de-sugared
             if source_info.is_expanded() && entry_point.is_interactive() {
-                let mut expander = AstExpander::new(entry_point, data_layout);
+                let mut expander = make_expander(entry_point);
                 let source = node_map.get_interactive_block(entry_point.into());
 
                 expander.visit_body_block(source.node_ref()).unwrap();
@@ -94,14 +97,14 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
                 }
 
                 // Check the module for any module-level invocations.
-                let mut expander = AstExpander::new(source_id, data_layout);
+                let mut expander = make_expander(source_id);
                 expander.visit_module(module.node().ast_ref()).unwrap();
                 expander.emit_diagnostics_to(&sender);
 
                 for expr in module.node().contents.iter() {
                     let sender = sender.clone();
                     scope.spawn(move |_| {
-                        let mut expander = AstExpander::new(source_id, data_layout);
+                        let mut expander = make_expander(source_id);
                         expander.visit_expr(expr.ast_ref()).unwrap();
                         expander.emit_diagnostics_to(&sender);
                     });

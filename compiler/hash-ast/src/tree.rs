@@ -5,7 +5,7 @@ use std::{convert::Infallible, iter};
 use hash_utils::{itertools::Itertools, tree_writing::TreeNode};
 
 use crate::{
-    ast::{self, FloatLit, IntLit},
+    ast,
     visitor::{walk, AstVisitor},
 };
 
@@ -88,10 +88,9 @@ impl AstVisitor for AstTreeGenerator {
     type FloatLitRet = TreeNode;
     fn visit_float_lit(
         &self,
-        node: ast::AstNodeRef<ast::FloatLit>,
+        _: ast::AstNodeRef<ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
-        let FloatLit { value, .. } = node.body();
-        Ok(TreeNode::leaf(labelled("float", format!("{value}"), "")))
+        Ok(TreeNode::leaf("float"))
     }
 
     type BoolLitRet = TreeNode;
@@ -105,11 +104,9 @@ impl AstVisitor for AstTreeGenerator {
     type IntLitRet = TreeNode;
     fn visit_int_lit(
         &self,
-        node: ast::AstNodeRef<ast::IntLit>,
+        _: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        let IntLit { value, .. } = node.body();
-
-        Ok(TreeNode::leaf(labelled("int", format!("{value}"), "")))
+        Ok(TreeNode::leaf("integer"))
     }
 
     type BinOpRet = TreeNode;

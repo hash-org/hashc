@@ -97,7 +97,8 @@ impl fmt::Display for ByteRange {
 #[derive(Debug, Clone, Copy, Constructor, PartialEq, Eq, Hash)]
 pub struct Span {
     /// The associated [ByteRange] with the [Span].
-    pub span: ByteRange,
+    pub range: ByteRange,
+
     /// The id of the source that the span is referencing.
     pub id: SourceId,
 }
@@ -109,17 +110,17 @@ impl Span {
     pub fn join(self, other: Self) -> Self {
         debug_assert!(self.id == other.id);
 
-        Self { id: self.id, span: self.span.join(other.span) }
+        Self { id: self.id, range: self.range.join(other.range) }
     }
 
     /// Get the length of the [Span].
     pub fn len(&self) -> usize {
-        self.span.len()
+        self.range.len()
     }
 
     /// Check if the [Span] is empty.
     pub fn is_empty(&self) -> bool {
-        self.span.is_empty()
+        self.range.is_empty()
     }
 }
 

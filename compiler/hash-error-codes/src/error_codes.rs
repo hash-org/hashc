@@ -58,4 +58,7 @@ error_codes! {
     RefutablePat = 82,
     NonExhaustiveMatch = 83,
     InvalidRangePatBoundaries = 84,
+
+    // Lexing/Parsing erorrs
+    InvalidLiteral = 100,
 }

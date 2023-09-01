@@ -24,7 +24,8 @@ use hash_ast::{
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
 use hash_attrs::{checks::AttrChecker, target::AttrNode};
-use hash_source::SourceId;
+use hash_pipeline::settings::CompilerSettings;
+use hash_source::{SourceId, SourceMap};
 use hash_target::data_layout::TargetDataLayout;
 use hash_utils::crossbeam_channel::Sender;
 
@@ -36,6 +37,12 @@ pub struct AstExpander<'ctx> {
     /// of the attribute, and not just the attribute itself.
     pub checker: AttrChecker<'ctx>,
 
+    /// Session settings.
+    pub settings: &'ctx CompilerSettings,
+
+    /// The sources.
+    pub sources: &'ctx SourceMap,
+
     /// Any diagnostics that have been emitted during the expansion stage.
     pub diagnostics: ExpansionDiagnostics,
 }
@@ -43,10 +50,17 @@ pub struct AstExpander<'ctx> {
 impl<'ctx> AstExpander<'ctx> {
     /// Create a new [AstExpander]. Contains the [SourceMap] and the
     /// current id of the source in reference.
-    pub fn new(id: SourceId, data_layout: &'ctx TargetDataLayout) -> Self {
+    pub fn new(
+        id: SourceId,
+        sources: &'ctx SourceMap,
+        settings: &'ctx CompilerSettings,
+        data_layout: &'ctx TargetDataLayout,
+    ) -> Self {
         Self {
             diagnostics: ExpansionDiagnostics::new(),
             checker: AttrChecker::new(id, data_layout),
+            settings,
+            sources,
         }
     }
 

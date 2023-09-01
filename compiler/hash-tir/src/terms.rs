@@ -47,7 +47,7 @@ pub struct UnsafeTerm {
 /// constructors, etc. This is because they might have extra data attached to
 /// them; for example, function definitions might have AST node IDs attached to
 /// them through some secondary map.
-#[derive(Debug, Clone, Copy, From)]
+#[derive(Debug, Clone, From)]
 pub enum Term {
     // Primitives
     Tuple(TupleTerm),

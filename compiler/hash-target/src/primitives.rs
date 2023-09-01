@@ -15,6 +15,12 @@ pub enum FloatTy {
     F64,
 }
 
+impl Default for FloatTy {
+    fn default() -> Self {
+        FloatTy::F64
+    }
+}
+
 impl FloatTy {
     /// Compute the [Size] of the [FloatTy].
     #[inline]
@@ -291,6 +297,12 @@ pub enum IntTy {
     UInt(UIntTy),
 }
 
+impl Default for IntTy {
+    fn default() -> Self {
+        IntTy::Int(SIntTy::I32)
+    }
+}
+
 impl IntTy {
     /// Check if the type is is bounded, i.e. not a `ubig` or `ibig` type.
     pub fn is_bounded(&self) -> bool {
@@ -392,6 +404,26 @@ impl IntTy {
 impl fmt::Display for IntTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_name())
+    }
+}
+
+/// A utility wrapper around an [IntTy] that stores the
+/// "un-normalised" version of type (i.e. it maybe a `usize` or `isize`),
+/// and the original type.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct NormalisedIntTy {
+    /// The original type.
+    pub original: IntTy,
+
+    /// The normalised type.
+    pub normalised: IntTy,
+}
+
+impl NormalisedIntTy {
+    /// Create a new [NormalisedIntTy] from the given [IntTy] and
+    /// [Size].
+    pub fn new(original: IntTy, ptr_width: Size) -> Self {
+        Self { original, normalised: original.normalise(ptr_width) }
     }
 }
 

@@ -137,13 +137,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Get the [Span] of the current generator, this asserts that a parent
     /// [Span] is present.
     pub(crate) fn span(&self) -> Span {
-        Span { span: self.parent_span, id: self.resolver.source() }
+        Span { range: self.parent_span, id: self.resolver.source() }
     }
 
     /// Function to create a [Span] from a [ByteRange] by using the
     /// provided resolver
     pub(crate) fn make_span(&self, span: ByteRange) -> Span {
-        Span { span, id: self.resolver.source() }
+        Span { range: span, id: self.resolver.source() }
     }
 
     /// Get the current offset of where the stream is at.

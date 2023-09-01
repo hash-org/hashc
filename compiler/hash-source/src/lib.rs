@@ -389,12 +389,18 @@ impl SourceMap {
 
     /// Get the raw contents of a module or interactive block by the
     /// specified [SourceId]
-    pub fn contents_by_id(&self, source_id: SourceId) -> &str {
+    pub fn contents(&self, source_id: SourceId) -> &str {
         if source_id.is_interactive() {
             self.interactive_blocks.get(source_id.value() as usize).unwrap().contents()
         } else {
             self.modules.get(source_id.value() as usize).unwrap().contents()
         }
+    }
+
+    /// Get a hunk of the source by the specified [SourceId] and [Span].
+    pub fn hunk(&self, span: Span) -> &str {
+        let contents = self.contents(span.id);
+        &contents[span.range.start()..span.range.end()]
     }
 
     /// Get the [LineRanges] for a specific [SourceId].
@@ -454,7 +460,7 @@ impl SourceMap {
     /// Function to get a friendly representation of the [Span] in
     /// terms of row and column positions.
     pub fn get_row_col_for(&self, location: Span) -> RowColRange {
-        self.line_ranges(location.id).row_cols(location.span)
+        self.line_ranges(location.id).row_cols(location.range)
     }
 
     /// Convert a [Span] in terms of the filename, row and column.

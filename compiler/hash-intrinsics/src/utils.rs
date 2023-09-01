@@ -1,14 +1,14 @@
 use hash_ast::ast::{self};
 use hash_source::constant::{
-    FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy, InternedInt,
-    SIntTy, UIntTy,
+    FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy,
+    InternedFloat, InternedInt, SIntTy, UIntTy,
 };
 use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
 use hash_tir::{
     args::{Arg, PatArg},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
     environment::env::AccessToEnv,
-    lits::{CharLit, FloatLit, IntLit, Lit},
+    lits::{CharLit, Lit},
     pats::{Pat, PatId},
     primitives::primitives,
     refs::{RefKind, RefTy},
@@ -229,12 +229,9 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn create_term_from_float_lit<L: Into<FloatConstantValue>>(&self, lit: L) -> TermId {
-        Term::create(Term::Lit(Lit::Float(FloatLit {
-            underlying: ast::FloatLit {
-                kind: ast::FloatLitKind::Unsuffixed,
-                value: FloatConstant::new(lit.into(), None).into(),
-            },
-        })))
+        Term::create(Term::Lit(Lit::Float(
+            InternedFloat::create(FloatConstant::new(lit.into(), None)).into(),
+        )))
     }
 
     /// Get the given term as a float literal if possible.
@@ -246,16 +243,10 @@ pub trait PrimitiveUtils: AccessToEnv {
     }
 
     /// Get the given term as a float literal if possible.
-    fn create_term_from_integer_lit<L: Into<BigInt>>(&self, lit: L) -> TermId {
-        Term::create(Term::Lit(Lit::Int(IntLit {
-            underlying: ast::IntLit {
-                kind: ast::IntLitKind::Unsuffixed,
-                value: InternedInt::create(IntConstant::new(
-                    IntConstantValue::Big(Box::new(lit.into())),
-                    None,
-                )),
-            },
-        })))
+    fn create_term_from_integer_lit<L: Into<IntConstantValue>>(&self, lit: L) -> TermId {
+        Term::create(Term::Lit(Lit::Int(
+            InternedInt::create(IntConstant::new(lit.into(), None)).into(),
+        )))
     }
 
     /// Get the given term as a character literal if possible.

@@ -2,7 +2,6 @@
 
 use std::{cell::Cell, collections::HashSet, ops::ControlFlow};
 
-use hash_ast::ast::{FloatLitKind, IntLitKind};
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_intrinsics::utils::PrimitiveUtils;
@@ -27,7 +26,6 @@ use hash_tir::{
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::env::AccessToEnv,
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::Lit,
     locations::LocationTarget,
@@ -429,22 +427,28 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// and thus represented as something other than its true type in the
     /// `CONSTS`. After `infer_lit`, its true type will be known, and
     /// we can then adjust the underlying constant to match the true type.
-    fn adjust_lit_repr(&self, lit: &Lit, inferred_ty: TyId) -> TcResult<()> {
-        // @@Future: we could defer parsing these literals until we have inferred their
-        // type, and here we can then check that the literal is compatible with
-        // the inferred type, and then we create the constant, avoiding much of
-        // the complexity here.
+    fn bake_lit_repr(&self, lit: &Lit, inferred_ty: TyId) -> TcResult<()> {
         match lit {
             Lit::Float(float_lit) => {
+                // If the float is already baked, then we don't do anything.
+                if float_lit.has_value() {
+                    return Ok(());
+                }
+
                 if let Some(float_ty) = self.try_use_ty_as_float_ty(inferred_ty) {
-                    float_lit.underlying.value.adjust_to(float_ty)
+                    float_lit.bake(self.env(), float_ty)?;
                 }
                 // @@Incomplete: it is possible that exotic literal
                 // types are defined, what happens then?
             }
             Lit::Int(int_lit) => {
+                // If the float is already baked, then we don't do anything.
+                if int_lit.has_value() {
+                    return Ok(());
+                }
+
                 if let Some(int_ty) = self.try_use_ty_as_int_ty(inferred_ty) {
-                    int_lit.underlying.value.adjust_to(int_ty, self.env().target().ptr_size());
+                    int_lit.bake(self.env(), int_ty)?;
                 }
                 // @@Incomplete: as above
             }
@@ -458,8 +462,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.normalise_and_check_ty(annotation_ty)?;
         let inferred_ty = Ty::data(match lit {
             Lit::Int(int_lit) => {
-                match int_lit.underlying.kind {
-                    IntLitKind::Suffixed(suffix) => match suffix {
+                match int_lit.kind() {
+                    Some(ty) => match ty {
                         IntTy::Int(s_int_ty) => match s_int_ty {
                             SIntTy::I8 => primitives().i8(),
                             SIntTy::I16 => primitives().i16(),
@@ -479,7 +483,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             UIntTy::UBig => primitives().ubig(),
                         },
                     },
-                    _ => {
+                    None => {
                         (match annotation_ty.value() {
                             Ty::Data(data_ty) => match data_ty.data_def.value().ctors {
                                 DataDefCtors::Primitive(primitive_ctors) => match primitive_ctors {
@@ -508,12 +512,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Lit::Str(_) => primitives().str(),
             Lit::Char(_) => primitives().char(),
-            Lit::Float(float_lit) => match float_lit.underlying.kind {
-                FloatLitKind::Suffixed(float_suffix) => match float_suffix {
+            Lit::Float(float_lit) => match float_lit.kind() {
+                Some(ty) => match ty {
                     FloatTy::F32 => primitives().f32(),
                     FloatTy::F64 => primitives().f64(),
                 },
-                FloatLitKind::Unsuffixed => {
+                None => {
                     (match annotation_ty.value() {
                         Ty::Data(data_ty) => match data_ty.data_def.value().ctors {
                             DataDefCtors::Primitive(primitive_ctors) => match primitive_ctors {
@@ -539,7 +543,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         });
 
         self.check_by_unify(inferred_ty, annotation_ty)?;
-        self.adjust_lit_repr(lit, inferred_ty)?;
+        self.bake_lit_repr(lit, inferred_ty)?;
         Ok(())
     }
 
@@ -610,7 +614,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
-            let inferred_len_term = self.create_term_from_integer_lit(array_term.elements.len());
+            let inferred_len_term =
+                self.create_term_from_integer_lit(array_term.elements.len() as u64);
             if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
                 return Err(TcError::MismatchingArrayLengths {
                     expected_len: len,

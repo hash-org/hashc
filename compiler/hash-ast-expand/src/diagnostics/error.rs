@@ -1,6 +1,6 @@
 //! Definitions of the various kinds of errors that can occur during the
 //! expansion phase of the compiler.
-use hash_ast::ast::AstNodeId;
+use hash_ast::{ast::AstNodeId, lit::LitParseError};
 use hash_attrs::{
     attr::{AttrArgIdx, AttrValueKind},
     builtin::ATTR_MAP,
@@ -13,7 +13,7 @@ use hash_reporting::{
 };
 use hash_source::identifier::Identifier;
 use hash_tir::{tys::TyId, utils::params::ParamError};
-use hash_utils::derive_more::Constructor;
+use hash_utils::derive_more::{Constructor, From};
 
 #[derive(Constructor, Debug)]
 pub struct ExpansionError {
@@ -24,7 +24,7 @@ pub struct ExpansionError {
     pub id: AstNodeId,
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum ExpansionErrorKind {
     /// The applied attribute does not exist.
     UnknownAttribute { name: Identifier },
@@ -35,6 +35,7 @@ pub enum ExpansionErrorKind {
 
     /// When a directive is expecting a particular expression, but received an
     /// unexpected kind...
+    #[from]
     InvalidAttributeParams(ParamError),
 
     /// When an attribute is applied onto an invalid subject.
@@ -65,12 +66,18 @@ pub enum ExpansionErrorKind {
 
     /// A more general error that can occur from specific restrictions on
     /// attributes being applied, this is generated specific attribute checks.
+    #[from]
     InvalidAttributeApplication(AttrError),
 
     /// When an argument to an attribute is a non-literal, non string, integer,
     /// character or float value. This is only a temporary restriction until
     /// macros are fully implemented, and the specification is determined.
     InvalidAttributeArg(AttrTarget),
+
+    /// Literal parsing error, occurs when provided literals which are of type
+    /// integer, and float could not be parsed into their respective types.
+    #[from]
+    LitParseError(LitParseError),
 }
 
 impl From<ExpansionError> for Reports {
@@ -101,6 +108,10 @@ impl From<ExpansionError> for Reports {
             ExpansionErrorKind::InvalidAttributeParams(error) => {
                 error.add_to_reporter(&mut reporter);
             }
+            ExpansionErrorKind::InvalidAttributeApplication(error) => {
+                error.add_to_reporter(&mut reporter);
+            }
+            ExpansionErrorKind::LitParseError(error) => error.add_to_reporter(&mut reporter),
             ExpansionErrorKind::InvalidAttributeSubject { name, target } => {
                 // Get the attribute so we know the valid subject kind
                 let attr = ATTR_MAP.get_by_name(name).unwrap();
@@ -110,9 +121,6 @@ impl From<ExpansionError> for Reports {
                     .title(format!("attribute `{name}` cannot be applied to an {target}"))
                     .add_labelled_span(subject, format!("`{name}` cannot be applied to {target}"))
                     .add_help(format!("`{name}` can only be applied to {}", attr.subject));
-            }
-            ExpansionErrorKind::InvalidAttributeApplication(error) => {
-                error.add_to_reporter(&mut reporter);
             }
             ExpansionErrorKind::InvalidAttributeArg(target) => {
                 reporter

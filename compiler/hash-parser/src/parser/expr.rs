@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::AccessToDiagnostics;
 use hash_source::location::ByteRange;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, IntLitKind, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -770,18 +770,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // If the next token kind is a integer with no sign, then we can assume
             // that this is a numeric field access, otherwise we can say that
             // `-` was an unexpected token here...
-            if let TokenKind::IntLit(int) = token.kind {
+            if let TokenKind::Int(_, kind) = token.kind {
                 // Now read the value and verify that it has no numeric prefix
-                let interned_lit = int.value();
-
-                if let Some(suffix) = interned_lit.suffix {
-                    return self.err_with_location(ParseErrorKind::DisallowedSuffix(suffix), ExpectedItem::empty(), None, token.span)?;
+                if let IntLitKind::Suffixed(ty) = kind {
+                    return self.err_with_location(ParseErrorKind::DisallowedSuffix(ty.into()), ExpectedItem::empty(), None, token.span)?;
                 }
 
                 self.skip_token();
-                let value = usize::try_from(&interned_lit).map_err(|_| {
-                    self.make_err(ParseErrorKind::InvalidPropertyAccess, ExpectedItem::empty(), None, Some(token.span))
-                })?;
+                // let value = usize::try_from(&interned_lit).map_err(|_| {
+                //     self.make_err(ParseErrorKind::InvalidPropertyAccess, ExpectedItem::empty(), None, Some(token.span))
+                // })?;
+                // @@FixMe: we need to parse here from source?
+                let value = 0;
 
                 let property = self.node_with_span(PropertyKind::NumericField(value), token.span);
 

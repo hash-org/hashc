@@ -12,8 +12,7 @@ use hash_ast::{
     ast::{self, walk_mut_self, AstVisitorMutSelf, ParamOrigin},
     ast_visitor_mut_self_default_impl,
 };
-use hash_source::constant::IntConstant;
-use hash_token::delimiter::Delimiter;
+use hash_token::{delimiter::Delimiter, FloatLitKind, IntLitKind};
 use state::AstPrinterState;
 
 /// The AST printer, this is just a container to store the [AstPrintingConfig]
@@ -701,17 +700,14 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        node.body.value.map(|value| {
-            let IntConstant { value, suffix } = value;
+        // We have to write the hunk, but without any spaces.
+        // @@AddHunks
 
-            self.write(format!("{}", value))?;
+        if matches!(node.body.kind, IntLitKind::Suffixed(_)) {
+            self.write(format!("_{}", node.body.kind))?;
+        }
 
-            if let Some(suffix) = suffix {
-                self.write(format!("_{}", suffix))?;
-            }
-
-            Ok(())
-        })
+        Ok(())
     }
 
     type ArrayPatRet = ();
@@ -1120,7 +1116,14 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
-        self.write(format!("{}", node.body.value))
+        // We have to write the hunk, but without any spaces.
+        // @@AddHunks
+
+        if matches!(node.body.kind, FloatLitKind::Suffixed(_)) {
+            self.write(format!("_{}", node.body.kind))?;
+        }
+
+        Ok(())
     }
 
     type PatArgRet = ();
