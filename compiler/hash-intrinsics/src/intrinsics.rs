@@ -712,9 +712,16 @@ impl DefinedIntrinsics {
                 .params(Param::seq_positional([Ty::data(primitives().str())]))
                 .return_ty(env.new_never_ty())
                 .build(),
-            |_, args| match *args[0].value() {
-                Term::Lit(Lit::Str(str_lit)) => Err(str_lit.value().to_string()),
-                _ => Err("`user_error` expects a string literal as argument".to_string())?,
+            |_, args| {
+                let err = || Err("`user_error` expects a string literal as argument".to_string());
+
+                match *args[0].value() {
+                    Term::Lit(lit) => match *lit.value() {
+                        Lit::Str(str_lit) => Err(str_lit.value().to_string()),
+                        _ => err(),
+                    },
+                    _ => err(),
+                }
             },
         );
 

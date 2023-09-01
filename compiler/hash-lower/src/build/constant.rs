@@ -8,26 +8,37 @@ use hash_ast::ast::AstNodeId;
 use hash_ir::ir::{self, BinOp, Const, ConstKind};
 use hash_reporting::macros::panic_on_span;
 use hash_source::constant::{FloatConstant, FloatConstantValue, IntConstant, InternedFloat};
-use hash_tir::{environment::env::AccessToEnv, lits::Lit, terms::Term};
+use hash_storage::store::statics::StoreId;
+use hash_tir::{
+    environment::env::AccessToEnv,
+    lits::{Lit, LitId},
+    terms::Term,
+};
 
 use super::BodyBuilder;
+
+/// Convert a [LitId] into an [ir::Const].
+#[inline]
+pub fn lit_to_const(lit: LitId) -> ir::Const {
+    match *lit.value() {
+        Lit::Int(lit) => ir::Const::Int(lit.interned_value()),
+        Lit::Str(lit) => ir::Const::Str(lit.interned_value()),
+        Lit::Char(lit) => ir::Const::Char(lit.value()),
+        Lit::Float(lit) => ir::Const::Float(lit.interned_value()),
+    }
+}
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Lower a simple literal into an [ir::Const], this does not deal
     /// with literals that are arrays or other compound data structures.
-    pub(crate) fn as_constant(&mut self, lit: &Lit) -> ConstKind {
-        ConstKind::Value(match lit {
-            Lit::Int(lit) => ir::Const::Int(lit.interned_value()),
-            Lit::Str(lit) => ir::Const::Str(lit.interned_value()),
-            Lit::Char(lit) => ir::Const::Char(lit.value()),
-            Lit::Float(lit) => ir::Const::Float(lit.interned_value()),
-        })
+    pub(crate) fn as_constant(&mut self, lit: LitId) -> ConstKind {
+        ConstKind::Value(lit_to_const(lit))
     }
 
     /// Lower a constant expression, i.e. a literal value.
     pub(crate) fn lower_constant_expr(&mut self, term: &Term, origin: AstNodeId) -> ConstKind {
         match term {
-            Term::Lit(lit) => self.as_constant(lit),
+            Term::Lit(lit) => self.as_constant(*lit),
             _ => panic_on_span!(
                 origin.span(),
                 self.source_map(),

@@ -1168,31 +1168,34 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     debug_assert!(hi.is_some())
                 }
 
-                Ok(match (lit_term, lo, hi) {
-                    (Lit::Int(value), Some(LitPat::Int(lo)), Some(LitPat::Int(hi))) => self
+                let lo = lo.map(|LitPat(lit)| *lit.value());
+                let hi = hi.map(|LitPat(lit)| *lit.value());
+
+                Ok(match (*lit_term.value(), lo, hi) {
+                    (Lit::Int(value), Some(Lit::Int(lo)), Some(Lit::Int(hi))) => self
                         .match_literal_to_range(
                             value.value(),
                             Some(lo.value()),
                             Some(hi.value()),
                             end,
                         ),
-                    (Lit::Char(value), Some(LitPat::Char(lo)), Some(LitPat::Char(hi))) => self
+                    (Lit::Char(value), Some(Lit::Char(lo)), Some(Lit::Char(hi))) => self
                         .match_literal_to_range(
                             value.value(),
                             Some(lo.value()),
                             Some(hi.value()),
                             end,
                         ),
-                    (Lit::Int(value), Some(LitPat::Int(lo)), None) => {
+                    (Lit::Int(value), Some(Lit::Int(lo)), None) => {
                         self.match_literal_to_range(value.value(), Some(lo.value()), None, end)
                     }
-                    (Lit::Int(value), None, Some(LitPat::Int(hi))) => {
+                    (Lit::Int(value), None, Some(Lit::Int(hi))) => {
                         self.match_literal_to_range(value.value(), None, Some(hi.value()), end)
                     }
-                    (Lit::Char(value), Some(LitPat::Char(lo)), None) => {
+                    (Lit::Char(value), Some(Lit::Char(lo)), None) => {
                         self.match_literal_to_range(value.value(), Some(lo.value()), None, end)
                     }
-                    (Lit::Char(value), None, Some(LitPat::Char(hi))) => {
+                    (Lit::Char(value), None, Some(Lit::Char(hi))) => {
                         self.match_literal_to_range(value.value(), None, Some(hi.value()), end)
                     }
                     _ => MatchResult::Stuck,
@@ -1201,18 +1204,20 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             (_, Pat::Range(_)) => Ok(MatchResult::Stuck),
 
             // Literals
-            (Term::Lit(lit_term), Pat::Lit(lit_pat)) => match (lit_term, lit_pat) {
-                (Lit::Int(a), LitPat::Int(b)) => {
-                    Ok(self.match_literal_to_literal(a.value(), b.value()))
+            (Term::Lit(lit_term), Pat::Lit(lit_pat)) => {
+                match (*lit_term.value(), *(*lit_pat).value()) {
+                    (Lit::Int(a), Lit::Int(b)) => {
+                        Ok(self.match_literal_to_literal(a.value(), b.value()))
+                    }
+                    (Lit::Str(a), Lit::Str(b)) => {
+                        Ok(self.match_literal_to_literal(a.value(), b.value()))
+                    }
+                    (Lit::Char(a), Lit::Char(b)) => {
+                        Ok(self.match_literal_to_literal(a.value(), b.value()))
+                    }
+                    _ => Ok(MatchResult::Stuck),
                 }
-                (Lit::Str(a), LitPat::Str(b)) => {
-                    Ok(self.match_literal_to_literal(a.value(), b.value()))
-                }
-                (Lit::Char(a), LitPat::Char(b)) => {
-                    Ok(self.match_literal_to_literal(a.value(), b.value()))
-                }
-                _ => Ok(MatchResult::Stuck),
-            },
+            }
             // Lists
             (Term::Array(array_term), Pat::Array(list_pat)) => self.match_some_list_and_get_binds(
                 array_term.elements.len(),

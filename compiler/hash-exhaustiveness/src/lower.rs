@@ -15,7 +15,7 @@ use hash_tir::{
     control::{IfPat, OrPat},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
     environment::env::AccessToEnv,
-    lits::{CharLit, IntLit, LitPat, StrLit},
+    lits::{CharLit, IntLit, Lit, LitPat, StrLit},
     node::{Node, NodeOrigin},
     params::{ParamId, ParamsId},
     pats::{Pat, PatId, RangePat, Spread},
@@ -96,18 +96,19 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 let range = self.lower_pat_range(ty_id, range);
                 (DeconstructedCtor::IntRange(range), vec![])
             }
-            Pat::Lit(lit_pat) => match lit_pat {
-                LitPat::Str(lit) => (DeconstructedCtor::Str(lit.interned_value()), vec![]),
-                LitPat::Int(lit) => {
+            Pat::Lit(LitPat(lit)) => match *lit.value() {
+                Lit::Str(lit) => (DeconstructedCtor::Str(lit.interned_value()), vec![]),
+                Lit::Int(lit) => {
                     let value = Constant::from_int(lit.interned_value(), ty_id);
                     let range = self.make_range_from_constant(value);
                     (DeconstructedCtor::IntRange(range), vec![])
                 }
-                LitPat::Char(lit) => {
+                Lit::Char(lit) => {
                     let value = Constant::from_char(lit.value(), ty_id);
                     let range = self.make_range_from_constant(value);
                     (DeconstructedCtor::IntRange(range), vec![])
                 }
+                _ => unreachable!(),
             },
             Pat::Tuple(TuplePat { data, .. }) => {
                 // We need to read the tuple type from the ctx type and then create
@@ -272,7 +273,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                         }
                     }
                     DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
-                    DeconstructedCtor::Str(str) => Pat::Lit(LitPat::Str(StrLit::from(*str))),
+                    DeconstructedCtor::Str(str) => Pat::Lit(LitPat(Node::create_gen(Lit::Str(StrLit::from(*str))))),
                     DeconstructedCtor::Array(Array { kind }) => {
                         let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
                         let pats = Node::create_at(PatOrCapture::seq(children), NodeOrigin::Generated);
@@ -342,9 +343,9 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             // The only types we support we support within ranges is currently a
             // `char` and `int` types
             match lit {
-                Some(pat) => match pat {
-                    LitPat::Char(char) => char.value() as u128,
-                    LitPat::Int(int) => Constant::from_int(int.interned_value(), ty).data(),
+                Some(LitPat(pat)) => match *pat.value() {
+                    Lit::Char(char) => char.value() as u128,
+                    Lit::Int(int) => Constant::from_int(int.interned_value(), ty).data(),
                     _ => unreachable!(),
                 },
                 None if at_end => self.numeric_max_val_of_lit(ty).unwrap(),
@@ -374,13 +375,12 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                     let ptr_size = self.target().ptr_size();
                     let val = InternedInt::from_u128(lo, ty.into(), ptr_size);
-                    Pat::Lit(LitPat::Int(IntLit::from(val)))
+                    Pat::Lit(LitPat(Node::create_gen(Lit::Int(IntLit::from(val)))))
                 }
                 LitTy::Char => {
                     let (lo, _) = range.boundaries();
-                    let literal = unsafe { char::from_u32_unchecked(lo as u32) };
-
-                    Pat::Lit(LitPat::Char(CharLit::from(literal)))
+                    let val = unsafe { char::from_u32_unchecked(lo as u32) };
+                    Pat::Lit(LitPat(Node::create_gen(Lit::Char(CharLit::from(val)))))
                 }
                 _ => unreachable!(),
             }
@@ -418,8 +418,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                 let lo_val = InternedInt::from_u128(lo, kind, ptr_width);
                 let hi_val = InternedInt::from_u128(hi, kind, ptr_width);
-                let lo = LitPat::Int(IntLit::from(lo_val));
-                let hi = LitPat::Int(IntLit::from(hi_val));
+                let lo = LitPat(Node::create_gen(Lit::Int(IntLit::from(lo_val))));
+                let hi = LitPat(Node::create_gen(Lit::Int(IntLit::from(hi_val))));
 
                 (lo, hi)
             }
@@ -438,8 +438,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     (lo_val, hi_val)
                 };
 
-                let lo = LitPat::Char(CharLit::from(lo_val));
-                let hi = LitPat::Char(CharLit::from(hi_val));
+                let lo = LitPat(Node::create_gen(Lit::Char(lo_val.into())));
+                let hi = LitPat(Node::create_gen(Lit::Char(hi_val.into())));
 
                 (lo, hi)
             }

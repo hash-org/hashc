@@ -27,7 +27,7 @@ use hash_tir::{
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
-    lits::Lit,
+    lits::{Lit, LitId},
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{Node, NodeOrigin},
@@ -261,7 +261,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         match *pat_id.value() {
             Pat::Binding(var) => Some(Term::from(var.name)),
             Pat::Range(_) => Some(Term::from(SymbolId::fresh())),
-            Pat::Lit(lit) => Some(Term::from(Term::Lit(lit.into()))),
+            Pat::Lit(lit) => Some(Term::from(Term::Lit(*lit))),
             Pat::Ctor(ctor_pat) => Some(Term::from(CtorTerm {
                 ctor: ctor_pat.ctor,
                 data_args: ctor_pat.data_args,
@@ -431,8 +431,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// and thus represented as something other than its true type in the
     /// `CONSTS`. After `infer_lit`, its true type will be known, and
     /// we can then adjust the underlying constant to match the true type.
-    fn bake_lit_repr(&self, lit: &Lit, inferred_ty: TyId) -> TcResult<()> {
-        match lit {
+    fn bake_lit_repr(&self, lit: LitId, inferred_ty: TyId) -> TcResult<()> {
+        match *lit.value() {
             Lit::Float(float_lit) => {
                 // If the float is already baked, then we don't do anything.
                 if float_lit.has_value() {
@@ -440,7 +440,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 }
 
                 if let Some(float_ty) = self.try_use_ty_as_float_ty(inferred_ty) {
-                    float_lit.bake(self.env(), float_ty)?;
+                    lit.modify(|float| match &mut float.data {
+                        Lit::Float(fl) => fl.bake(self.env(), float_ty),
+                        _ => unreachable!(),
+                    })?;
                 }
                 // @@Incomplete: it is possible that exotic literal
                 // types are defined, what happens then?
@@ -452,7 +455,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 }
 
                 if let Some(int_ty) = self.try_use_ty_as_int_ty(inferred_ty) {
-                    int_lit.bake(self.env(), int_ty)?;
+                    lit.modify(|int| match &mut int.data {
+                        Lit::Int(fl) => fl.bake(self.env(), int_ty),
+                        _ => unreachable!(),
+                    })?;
                 }
                 // @@Incomplete: as above
             }
@@ -462,9 +468,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a literal.
-    pub fn infer_lit(&self, lit: &Lit, annotation_ty: TyId) -> TcResult<()> {
+    pub fn infer_lit(&self, lit: LitId, annotation_ty: TyId) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
-        let inferred_ty = Ty::data(match lit {
+        let inferred_ty = Ty::data(match *lit.value() {
             Lit::Int(int_lit) => {
                 match int_lit.kind() {
                     Some(ty) => match ty {
@@ -1528,7 +1534,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Tuple(tuple_term) => {
                 self.infer_tuple_term(&tuple_term, annotation_ty, term_id)?
             }
-            Term::Lit(lit_term) => self.infer_lit(&lit_term, annotation_ty)?,
+            Term::Lit(lit_term) => self.infer_lit(lit_term, annotation_ty)?,
             Term::Array(prim_term) => self.infer_array_term(&prim_term, annotation_ty, term_id)?,
             Term::Ctor(ctor_term) => self.infer_ctor_term(&ctor_term, annotation_ty, term_id)?,
             Term::FnCall(fn_call_term) => {
@@ -1584,8 +1590,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_range_pat(&self, range_pat: RangePat, annotation_ty: TyId) -> TcResult<()> {
         let RangePat { lo, hi, .. } = range_pat;
 
-        lo.map(|lo| self.infer_lit(&lo.into(), annotation_ty)).transpose()?;
-        hi.map(|hi| self.infer_lit(&hi.into(), annotation_ty)).transpose()?;
+        lo.map(|lo| self.infer_lit(*lo, annotation_ty)).transpose()?;
+        hi.map(|hi| self.infer_lit(*hi, annotation_ty)).transpose()?;
 
         Ok(())
     }
@@ -1833,7 +1839,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 }
             }
             Pat::Range(range_pat) => self.infer_range_pat(range_pat, annotation_ty)?,
-            Pat::Lit(lit) => self.infer_lit(&lit.into(), annotation_ty)?,
+            Pat::Lit(lit) => self.infer_lit(*lit, annotation_ty)?,
             Pat::Tuple(tuple_pat) => self.infer_tuple_pat(&tuple_pat, annotation_ty, pat_id)?,
             Pat::Array(list_term) => self.infer_array_pat(&list_term, annotation_ty, pat_id)?,
             Pat::Ctor(ctor_pat) => self.infer_ctor_pat(&ctor_pat, annotation_ty, pat_id)?,

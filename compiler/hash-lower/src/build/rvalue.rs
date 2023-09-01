@@ -35,7 +35,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         match *term.value() {
             Term::Lit(lit) => {
-                let value = self.as_constant(&lit).into();
+                let value = self.as_constant(lit).into();
                 block.and(value)
             }
             ref fn_call_term @ Term::FnCall(fn_call) => {

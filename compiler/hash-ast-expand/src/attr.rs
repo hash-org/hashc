@@ -179,7 +179,9 @@ impl AstExpander<'_> {
 
                     macro_rules! lit_prim {
                         ($name:ident,$lit_name:ident, $contents:expr) => {
-                            Term::from(Term::Lit(Lit::$name($lit_name::from($contents))))
+                            Term::from(Term::Lit(Node::create_gen(Lit::$name($lit_name::from(
+                                $contents,
+                            )))))
                         };
                     }
 

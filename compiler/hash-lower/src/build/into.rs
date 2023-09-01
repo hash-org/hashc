@@ -74,7 +74,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 self.aggregate_into_dest(destination, block, aggregate_kind, &args, span)
             }
-            Term::Lit(ref lit) => {
+            Term::Lit(lit) => {
                 // We lower primitive (integrals, strings, etc) literals as constants
                 let constant = self.as_constant(lit);
                 self.control_flow_graph.push_assign(block, destination, constant.into(), span);
