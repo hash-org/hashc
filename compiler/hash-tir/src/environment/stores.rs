@@ -187,6 +187,15 @@ macro_rules! tir_node_single_store {
 /// pub fn params_store() -> &'static ParamsStore;
 /// pub fn params_seq_store() -> &'static ParamsSeqStore;
 /// ```
+///
+/// What is the point of having `ParamsStore` as well as `ParamsSeqStore`?
+/// `ParamsStore` maps `ParamsId` to the actual ID of the sequence,
+/// `ParamsSeqId`, wrapped in a `Node`. This is so that the whole sequence has
+/// an `origin` independently of whether or not it is empty (all empty sequences
+/// in a sequence store share the same representation). `ParamsSeqStore` is the
+/// actual sequence store, mapping a `ParamsSeqId` to a list of `Node<Param>`
+/// values. This way, each element, as well as the sequence as a whole, has an
+/// `origin`.
 #[macro_export]
 macro_rules! tir_node_sequence_store_direct {
     // Generate the other names from the given `$name`:
@@ -280,6 +289,12 @@ macro_rules! tir_node_sequence_store_direct {
 /// pub fn term_list_store() -> &'static TermListStore;
 /// pub fn term_list_seq_store() -> &'static TermListSeqStore;
 /// ```
+///
+/// See `tir_node_sequence_store_direct!` for an explanation of the difference
+/// between the sequence wrapper store and the sequence store itself. The
+/// difference in this case is that the true sequence store does not wrap its
+/// elements in a `Node` because it is expected that the elements themselves are
+/// a TIR node ID which is already mapped to a `Node` in another store.
 #[macro_export]
 macro_rules! tir_node_sequence_store_indirect {
     // Generate the other names from the given `$name_s` for the sequence and `$element` for the
