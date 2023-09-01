@@ -1,3 +1,6 @@
+//! Defines the storage structures that contain TIR nodes,
+//! as well as helper utilities to create these structures for different types
+//! of nodes.
 use std::sync::OnceLock;
 
 use hash_storage::stores;
@@ -127,8 +130,7 @@ macro_rules! tir_debug_name_of_store_id {
 /// ```
 #[macro_export]
 macro_rules! tir_node_single_store {
-    // Using the given name, define a TIR node that is stored in a single store, generating the
-    // other names.
+    // Generate the other names from the given `$name`:
     ($name:ident) => {
         paste::paste! {
             tir_node_single_store!(
@@ -139,8 +141,6 @@ macro_rules! tir_node_single_store {
             );
         }
     };
-    // Using the given names, define a TIR node that is stored in a single
-    // store.
     (
         store = $store_vis:vis $store:ident,
         id = $id_vis:vis $id:ident,
@@ -154,6 +154,7 @@ macro_rules! tir_node_single_store {
             store_name = $store_name,
             store_source = tir_stores()
         );
+
         $crate::tir_debug_value_of_single_store_id!($id);
 
         // @@Todo: enable once locations are properly set up
@@ -188,6 +189,7 @@ macro_rules! tir_node_single_store {
 /// ```
 #[macro_export]
 macro_rules! tir_node_sequence_store_direct {
+    // Generate the other names from the given `$name`:
     ($name:ident) => {
         paste::paste! {
             tir_node_sequence_store_direct!(
@@ -280,6 +282,8 @@ macro_rules! tir_node_sequence_store_direct {
 /// ```
 #[macro_export]
 macro_rules! tir_node_sequence_store_indirect {
+    // Generate the other names from the given `$name_s` for the sequence and `$element` for the
+    // element:
     ($name_s:ident[$element:ty]) => {
         paste::paste! {
             tir_node_sequence_store_indirect!(
@@ -294,6 +298,7 @@ macro_rules! tir_node_sequence_store_indirect {
         id = $id_vis:vis $id:ident -> $id_seq:ident[$el_id:ident],
         store_name = ($store_name:ident, $seq_store_name:ident)
     ) => {
+        // Create the sequence wrapper store (needed to wrap each sequence in a Node<..>):
         $crate::tir_node_single_store!(
             store = $store_vis $store,
             id = $id_vis $id,
@@ -301,6 +306,7 @@ macro_rules! tir_node_sequence_store_indirect {
             store_name = $store_name
         );
 
+        // Create the sequence store itself:
         hash_storage::static_sequence_store_indirect!(
             store = $store_vis $seq_store,
             id = $id_vis $id_seq[$el_id],
@@ -308,6 +314,7 @@ macro_rules! tir_node_sequence_store_indirect {
             store_source = tir_stores()
         );
 
+        /// The sequence wrapper key can act as a read-only key for the sequence store.
         impl hash_storage::store::sequence::SequenceStoreKey for $id {
             type ElementKey = $el_id;
 
