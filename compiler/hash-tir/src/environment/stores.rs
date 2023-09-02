@@ -159,6 +159,14 @@ macro_rules! tir_node_single_store {
 
         $crate::tir_debug_value_of_single_store_id!($id);
 
+        impl $id {
+            /// Get the origin of the value.
+            pub fn origin(self) -> $crate::node::NodeOrigin {
+                use hash_storage::store::statics::StoreId;
+                self.value().origin
+            }
+        }
+
         // @@Todo: enable once locations are properly set up
         // impl $crate::ast_info::HasNodeId for $id {
         //     fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
@@ -266,6 +274,14 @@ macro_rules! tir_node_sequence_store_direct {
             pub fn elements(self) -> $id_seq {
                 use hash_storage::store::statics::StoreId;
                 *self.value()
+            }
+        }
+
+        impl $el_id {
+            /// Access the origin of this sequence element.
+            pub fn origin(self) -> $crate::node::NodeOrigin {
+                use hash_storage::store::statics::StoreId;
+                self.value().origin
             }
         }
     };

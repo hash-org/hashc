@@ -95,7 +95,7 @@ pub mod gen {
         Node::create_gen(DataDef { name, params, ctors: DataDefCtors::Primitive(info) })
     }
 
-    pub fn universe() -> TyId {
+    pub fn universe_ty() -> TyId {
         Ty::flexible_universe(NodeOrigin::Generated)
     }
 

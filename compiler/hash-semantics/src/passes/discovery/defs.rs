@@ -203,10 +203,10 @@ impl<'tc> DiscoveryPass<'tc> {
 
                         // Set module members.
                         let mod_members = Node::create_at(
-                            Node::<ModMember>::seq(members.iter().map(|(_, data)| {
+                            Node::<ModMember>::seq(members.iter().map(|(node, data)| {
                                 Node::at(
                                     ModMember { name: data.name, value: data.value },
-                                    NodeOrigin::Generated,
+                                    NodeOrigin::Given(*node),
                                 )
                             })),
                             NodeOrigin::Generated,

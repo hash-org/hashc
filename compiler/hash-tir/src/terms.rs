@@ -129,7 +129,7 @@ impl Term {
     }
 
     pub fn var(symbol: SymbolId) -> TermId {
-        Node::create(Node::at(Term::Var(symbol), symbol.value().origin))
+        Node::create(Node::at(Term::Var(symbol), symbol.origin()))
     }
 
     /// Create a new term.

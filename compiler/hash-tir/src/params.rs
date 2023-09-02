@@ -77,8 +77,8 @@ impl Param {
                 tys.into_iter()
                     .map(|ty| {
                         Node::at(
-                            Param { name: SymbolId::fresh(ty.value().origin), ty, default: None },
-                            ty.value().origin,
+                            Param { name: SymbolId::fresh(ty.origin()), ty, default: None },
+                            ty.origin(),
                         )
                     })
                     .collect_vec(),

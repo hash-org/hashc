@@ -7,7 +7,7 @@ use hash_storage::store::{statics::StoreId, DefaultPartialStore, PartialStore, S
 use hash_tir::{
     self,
     ast_info::HasNodeId,
-    building::gen::{params, sym},
+    building::gen::{data_ty, params, sym, universe_ty},
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
@@ -213,8 +213,8 @@ impl DefinedIntrinsics {
         let op_sym = sym("op");
         let a_sym = sym("a");
         let params = params([
-            (t_sym, Ty::flexible_universe(), None),
-            (op_sym, Ty::data(primitives().u8()), None),
+            (t_sym, universe_ty(), None),
+            (op_sym, data_ty(primitives().u8()), None),
             (a_sym, Ty::from(t_sym), None),
         ]);
         let ret = Ty::from(t_sym);
@@ -318,11 +318,11 @@ impl DefinedIntrinsics {
         let op_sym = sym("op");
         let a_sym = sym("a");
         let b_sym = sym("b");
-        let ty = Ty::data(primitives().bool());
+        let ty = data_ty(primitives().bool());
 
         let params = params([
-            (t_sym, Ty::flexible_universe(), None),
-            (op_sym, Ty::data(primitives().u8()), None),
+            (t_sym, universe_ty(), None),
+            (op_sym, data_ty(primitives().u8()), None),
             (a_sym, ty, None),
             (b_sym, ty, None),
         ]);
@@ -377,12 +377,12 @@ impl DefinedIntrinsics {
         let a_sym = sym("a");
         let b_sym = sym("b");
         let params = params([
-            (t_sym, Ty::flexible_universe(), None),
-            (op_sym, Ty::data(primitives().u8()), None),
+            (t_sym, universe_ty(), None),
+            (op_sym, data_ty(primitives().u8()), None),
             (a_sym, Ty::from(t_sym), None),
             (b_sym, Ty::from(t_sym), None),
         ]);
-        let ret = Ty::data(primitives().bool());
+        let ret = data_ty(primitives().bool());
 
         Self::add_intrinsic(
             implementations,

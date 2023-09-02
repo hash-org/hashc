@@ -293,15 +293,15 @@ impl DataDef {
                                     // Name of the constructor is the same as the data definition,
                                     // though we need to create a new
                                     // symbol for it
-                                    name: name.duplicate(name.value().origin),
+                                    name: name.duplicate(name.origin()),
                                     // The constructor is the only one
                                     params: fields_params,
                                     result_args,
                                 },
-                                fields_params.value().origin,
+                                fields_params.origin(),
                             )
                         }),
-                        fields_params.value().origin,
+                        fields_params.origin(),
                     )),
                 },
                 struct_origin,

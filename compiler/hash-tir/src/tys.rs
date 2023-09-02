@@ -100,6 +100,15 @@ impl Ty {
         Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(n) }), origin))
     }
 
+    /// Create a type of types, with a flexible universe size, for the given
+    /// type node.
+    ///
+    /// This is the default when `Type` is used in a type signature.
+    pub fn universe_of(node: impl Into<Atom>) -> TyId {
+        let node = node.into();
+        Ty::flexible_universe(node.origin().inferred())
+    }
+
     /// Create a type of types, with a flexible universe size.
     ///
     /// This is the default when `Type` is used in a type signature.
@@ -117,7 +126,7 @@ impl Ty {
 
     /// Create a new variable type.
     pub fn var(symbol: SymbolId) -> TyId {
-        Node::create(Node::at(Ty::Var(symbol), symbol.value().origin))
+        Node::create(Node::at(Ty::Var(symbol), symbol.origin()))
     }
 
     /// Create a new hole type.

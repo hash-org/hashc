@@ -62,15 +62,15 @@ impl Arg {
                                 target: ParamIndex::Position(i),
                                 value: Node::create(Node::at(
                                     Term::Var(param.value().name),
-                                    param.value().name.value().origin,
+                                    param.value().name.origin(),
                                 )),
                             },
-                            param.value().origin,
+                            param.origin(),
                         )
                     })
                     .collect_vec(),
             ),
-            params_id.value().origin,
+            params_id.origin(),
         )
     }
 
@@ -85,10 +85,7 @@ impl Arg {
                 args.into_iter()
                     .enumerate()
                     .map(|(i, arg)| {
-                        Node::at(
-                            Arg { target: ParamIndex::Position(i), value: arg },
-                            arg.value().origin,
-                        )
+                        Node::at(Arg { target: ParamIndex::Position(i), value: arg }, arg.origin())
                     })
                     .collect_vec(),
             ),
@@ -111,14 +108,14 @@ impl Arg {
                         Node::at(
                             Arg {
                                 target: ParamIndex::Position(i),
-                                value: Term::hole(param.value().origin.inferred()),
+                                value: Term::hole(param.origin().inferred()),
                             },
-                            param.value().origin.inferred(),
+                            param.origin().inferred(),
                         )
                     })
                     .collect_vec(),
             ),
-            params_id.value().origin.inferred(),
+            params_id.origin().inferred(),
         )
     }
 }
@@ -175,8 +172,8 @@ pub enum SomeArgsId {
 impl SomeArgsId {
     pub fn origin(self) -> NodeOrigin {
         match self {
-            SomeArgsId::PatArgs(id) => id.value().origin,
-            SomeArgsId::Args(id) => id.value().origin,
+            SomeArgsId::PatArgs(id) => id.origin(),
+            SomeArgsId::Args(id) => id.origin(),
         }
     }
 }
@@ -191,8 +188,8 @@ pub enum SomeArgId {
 impl SomeArgId {
     pub fn origin(self) -> NodeOrigin {
         match self {
-            SomeArgId::PatArg(id) => id.value().origin,
-            SomeArgId::Arg(id) => id.value().origin,
+            SomeArgId::PatArg(id) => id.origin(),
+            SomeArgId::Arg(id) => id.origin(),
         }
     }
 

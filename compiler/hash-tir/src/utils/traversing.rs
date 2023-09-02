@@ -47,10 +47,10 @@ pub enum Atom {
 impl Atom {
     pub fn origin(self) -> NodeOrigin {
         match self {
-            Atom::Term(t) => t.value().origin,
-            Atom::Ty(t) => t.value().origin,
-            Atom::FnDef(f) => f.value().origin,
-            Atom::Pat(p) => p.value().origin,
+            Atom::Term(t) => t.origin(),
+            Atom::Ty(t) => t.origin(),
+            Atom::FnDef(f) => f.origin(),
+            Atom::Pat(p) => p.origin(),
         }
     }
 }
@@ -196,7 +196,7 @@ impl TraversingUtils {
                             .collect::<Result<Vec<_>, _>>()?,
                     );
                     Ok(Term::from(MatchTerm {
-                        cases: Node::create_at(cases, match_term.cases.value().origin),
+                        cases: Node::create_at(cases, match_term.cases.origin()),
                         subject,
                         origin: match_term.origin,
                     }))
@@ -308,7 +308,7 @@ impl TraversingUtils {
     }
 
     pub fn fmap_pat<E, F: Mapper<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
-        let origin = pat_id.value().origin;
+        let origin = pat_id.origin();
         let result = match f(pat_id.into())? {
             ControlFlow::Break(pat) => Ok(PatId::try_from(pat).unwrap()),
             ControlFlow::Continue(()) => match *pat_id.value() {
@@ -366,7 +366,7 @@ impl TraversingUtils {
         for term_id in term_list.elements().value() {
             new_list.push(self.fmap_term(term_id, f)?);
         }
-        Ok(Node::create_at(TermId::seq(new_list), term_list.value().origin))
+        Ok(Node::create_at(TermId::seq(new_list), term_list.origin()))
     }
 
     pub fn fmap_pat_list<E, F: Mapper<E>>(
@@ -385,7 +385,7 @@ impl TraversingUtils {
                 }
             }
         }
-        Ok(Node::create_at(PatOrCapture::seq(new_list), pat_list.value().origin))
+        Ok(Node::create_at(PatOrCapture::seq(new_list), pat_list.origin()))
     }
 
     pub fn fmap_params<E, F: Mapper<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
@@ -404,7 +404,7 @@ impl TraversingUtils {
                     param.origin,
                 ));
             }
-            Ok(Node::create_at(Node::<Param>::seq(new_params), params_id.value().origin))
+            Ok(Node::create_at(Node::<Param>::seq(new_params), params_id.origin()))
         }?;
 
         tir_stores().location().copy_locations(*params_id.value(), *new_params.value());
@@ -419,7 +419,7 @@ impl TraversingUtils {
                 arg.origin,
             ));
         }
-        let new_args_id = Node::create_at(Node::<Arg>::seq(new_args), args_id.value().origin);
+        let new_args_id = Node::create_at(Node::<Arg>::seq(new_args), args_id.origin());
         tir_stores().location().copy_locations(*args_id.value(), *new_args_id.value());
         Ok(new_args_id)
     }
@@ -445,7 +445,7 @@ impl TraversingUtils {
                     pat_arg.origin,
                 ));
             }
-            Ok(Node::create_at(Node::<PatArg>::seq(new_args), pat_args_id.value().origin))
+            Ok(Node::create_at(Node::<PatArg>::seq(new_args), pat_args_id.origin()))
         }?;
 
         tir_stores().location().copy_locations(*pat_args_id.value(), *new_pat_args.value());
