@@ -242,7 +242,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
             PlaceContext::Immutable(ImmutablePlaceContext::Projection)
         };
 
-        // @@Hack: in order to preserve the order of the traversal, we
+        // ##Hack: in order to preserve the order of the traversal, we
         // save any locals that come from `Index` projections and then
         // traverse them after we have traversed the base local.
         let mut index_locals = vec![];

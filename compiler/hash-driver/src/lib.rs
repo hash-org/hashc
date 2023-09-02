@@ -109,7 +109,7 @@ pub mod utils {
     /// be used in contexts where the error type is known to implementing the
     /// [Into<Report>] trait.
     pub fn emit_on_fatal_error<T, E: Into<Report>>(f: impl FnOnce() -> Result<T, E>) -> T {
-        // @@Hack: we have to create a dummy source map here so that we can use it
+        // ##Hack: we have to create a dummy source map here so that we can use it
         // to report errors in the case that the compiler fails to start up. After the
         // workspace is initiated, it is replaced with the real source map.
         let source_map = SourceMap::new();

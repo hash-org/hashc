@@ -209,7 +209,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         name: None,
                         default: None,
                         ty: Some(self.node_with_joined_span(ty, span)),
-                        // @@Note: this will always be none since the above function
+                        // ##Note: this will always be none since the above function
                         // will parse the args and then apply it to us as the subject.
                         // 
                         // So if `#foo U -> T` is present, we parse as `TyMacroInvocation { subject: U -> T, macros: #foo }`

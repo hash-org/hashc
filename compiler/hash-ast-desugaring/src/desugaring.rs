@@ -355,7 +355,7 @@ impl<'s> AstDesugaring<'s> {
     /// when an if block returns something from a previous branch, then this
     /// will fail compilation and it will be reported.
     ///
-    /// @@Note: We could just add some flag on the match-case to say that when
+    /// ##Note: We could just add some flag on the match-case to say that when
     /// it was lowered from a if-block, it was missing an else case, and
     /// this would mean we don't always have to add it. However, this might
     /// complicate things with pattern exhaustiveness because then there
@@ -403,7 +403,7 @@ impl<'s> AstDesugaring<'s> {
                 else_block_span,
             )
         } else {
-            // @@Hack: We don't have a span for the branch, so we rely on using the span of
+            // ##Hack: We don't have a span for the branch, so we rely on using the span of
             // the entire if-clause. This might not be the exactly right approach because
             // some later checks (within typechecking) might report errors that are related
             // to a missing else-branch because the return type of the block doesn't become

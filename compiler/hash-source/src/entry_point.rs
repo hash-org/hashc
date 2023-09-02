@@ -24,8 +24,6 @@ pub enum EntryPointKind {
 pub struct EntryPointState<T: fmt::Debug + Copy> {
     /// This refers to the entry point of the program, the term points
     /// to the function definition within the entry point module.
-    ///
-    /// @@NewTc: this could just be switched out to an `FnDefId`
     item: Cell<Option<(T, EntryPointKind)>>,
 }
 

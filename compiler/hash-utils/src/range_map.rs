@@ -272,14 +272,14 @@ mod test_super {
 
         // Insert a 10-14 range with 'b'
         //
-        // @@Note: this should panic since the map disallows overlapping ranges.
+        // ##Note: this should panic since the map disallows overlapping ranges.
         map.insert(10..=14, 'd');
     }
 
     #[test]
     #[should_panic]
     fn test_invalid_range_map() {
-        // @@Note: this should panic since the provided ranges overlap.
+        // ##Note: this should panic since the provided ranges overlap.
         RangeMap::populated(vec![(0..=10, 'a'), (10..=14, 'd'), (15..=20, 'c'), (21..=30, 'd')]);
     }
 }

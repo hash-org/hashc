@@ -470,7 +470,7 @@ define_tree! {
     /// This is a collection of macro invocations that can occur on a single
     /// item which are collected into a single node.
     ///
-    /// @@Note: the `AstNodeId` of the `MacroInvocations` will be the same as
+    /// ##Note: the `AstNodeId` of the `MacroInvocations` will be the same as
     /// the id of the children `invocations` node. The [`MacroInvocations`]
     /// struct is only to effectively collect logic for handling clumps of such
     /// invocations under one node.
@@ -1098,8 +1098,7 @@ define_tree! {
 
         /// A literal pattern e.g. `c`
         ///
-        /// @@Note: `tuple`, `map`, and `set` literal cannot appear within this
-        /// branch
+        /// ##Note: `tuple` literal cannot appear within this branch.
         Lit(LitPat),
 
         /// An `or` pattern which groups multiple patterns and matches one of the

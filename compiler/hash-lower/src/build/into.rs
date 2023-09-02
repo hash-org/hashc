@@ -114,7 +114,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let ty = self.ty_id_from_tir_term(term);
 
                 if ty == COMMON_IR_TYS.bool {
-                    // @@Hack: check which constructor is being called to determine whether
+                    // ##Hack: check which constructor is being called to determine whether
                     // it is a `true` or `false` value.
                     let constant =
                         if ctor.ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };

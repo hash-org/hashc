@@ -169,7 +169,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
                 return None;
             }
 
-            // @@Hack: this doesn't properly handle the full range of i128 values, however]
+            // ##Hack: this doesn't properly handle the full range of i128 values, however]
             // Inkwell doesn't support arbitrary precision integers, so we can't do much better...
             // unless we @@PatchInkwell
             if sign_extend {
