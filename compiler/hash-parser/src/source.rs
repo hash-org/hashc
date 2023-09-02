@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use hash_ast::node_map::NodeMap;
-use hash_source::{SourceId, SourceMap};
+use hash_source::{Source, SourceId, SourceMap};
 
 /// A [ParseSource] represents the pre-processed information before a module
 /// or an interactive block gets lexed and parsed. Logic related to
@@ -26,13 +26,13 @@ impl ParseSource {
     /// Create a new [ParseSource] from a [SourceId].
     pub(crate) fn from_module(id: SourceId, node_map: &NodeMap, source_map: &SourceMap) -> Self {
         let module = node_map.get_module(id.into());
-        let contents = source_map.contents_by_id(id).to_owned();
+        let contents = source_map.contents(id).0.to_owned();
 
         Self { id, contents, path: module.path().parent().unwrap().to_owned() }
     }
     /// Create a new [ParseSource] from a [InteractiveId].
     fn from_interactive(id: SourceId, source_map: &SourceMap, current_dir: PathBuf) -> Self {
-        let contents = source_map.contents_by_id(id).to_owned();
+        let contents = source_map.contents(id).0.to_owned();
 
         Self { id, contents, path: current_dir }
     }
@@ -52,8 +52,8 @@ impl ParseSource {
     }
 
     /// Get the contents from the [ParseSource]
-    pub fn contents(&self) -> &str {
-        self.contents.as_str()
+    pub fn contents(&self) -> Source<'_> {
+        Source(self.contents.as_str())
     }
 
     /// Get the associated [SourceId] from the [ParseSource]

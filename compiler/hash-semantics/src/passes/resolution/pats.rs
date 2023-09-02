@@ -17,7 +17,7 @@ use hash_tir::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::{env::AccessToEnv, stores::tir_stores},
-    lits::{CharLit, IntLit, LitPat, StrLit},
+    lits::{CharLit, Lit, LitPat, StrLit},
     node::{Node, NodeOrigin},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
@@ -253,15 +253,15 @@ impl ResolutionPass<'_> {
     fn make_pat_from_ast_lit(&self, lit_pat: AstNodeRef<ast::Lit>) -> PatId {
         match lit_pat.body() {
             ast::Lit::Str(str_lit) => Node::create_at(
-                Pat::Lit(LitPat::Str(StrLit { underlying: *str_lit })),
+                Pat::Lit(LitPat(Node::create_gen(Lit::Str(StrLit { underlying: *str_lit })))),
                 NodeOrigin::Generated,
             ),
             ast::Lit::Char(char_lit) => Node::create_at(
-                Pat::Lit(LitPat::Char(CharLit { underlying: *char_lit })),
+                Pat::Lit(LitPat(Node::create_gen(Lit::Char(CharLit { underlying: *char_lit })))),
                 NodeOrigin::Generated,
             ),
             ast::Lit::Int(int_lit) => Node::create_at(
-                Pat::Lit(LitPat::Int(IntLit { underlying: *int_lit })),
+                Pat::Lit(LitPat(Node::create_gen(Lit::Int((*int_lit).into())))),
                 NodeOrigin::Generated,
             ),
             ast::Lit::Bool(bool_lit) => self.new_bool_pat(bool_lit.data),
@@ -277,9 +277,13 @@ impl ResolutionPass<'_> {
     /// is a boolean.
     fn make_lit_pat_from_non_bool_ast_lit(&self, lit_pat: AstNodeRef<ast::Lit>) -> LitPat {
         match lit_pat.body() {
-            ast::Lit::Str(str_lit) => LitPat::Str(StrLit { underlying: *str_lit }),
-            ast::Lit::Char(char_lit) => LitPat::Char(CharLit { underlying: *char_lit }),
-            ast::Lit::Int(int_lit) => LitPat::Int(IntLit { underlying: *int_lit }),
+            ast::Lit::Str(str_lit) => {
+                LitPat(Node::create_gen(Lit::Str(StrLit { underlying: *str_lit })))
+            }
+            ast::Lit::Char(char_lit) => {
+                LitPat(Node::create_gen(Lit::Char(CharLit { underlying: *char_lit })))
+            }
+            ast::Lit::Int(int_lit) => LitPat(Node::create_gen(Lit::Int((*int_lit).into()))),
             ast::Lit::Bool(_) | ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
                 panic!("Found invalid literal in pattern")
             }

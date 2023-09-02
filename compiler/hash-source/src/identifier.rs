@@ -1,6 +1,6 @@
 //! Hash AST identifier storage utilities and wrappers.
 use std::{
-    borrow::{Borrow, Cow},
+    borrow::Cow,
     fmt::{Debug, Display},
     thread_local,
 };
@@ -18,6 +18,20 @@ counter! {
     visibility: pub,
     method_visibility:,
     derives: (Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd),
+}
+
+impl Identifier {
+    /// Get the length of the identifier.
+    pub fn len(&self) -> usize {
+        IDENTIFIER_MAP.get_ident(*self).len()
+    }
+
+    /// Check whether the identifier is empty.
+    ///
+    /// Just to get Clippy to shut up!
+    pub fn is_empty(&self) -> bool {
+        IDENTIFIER_MAP.get_ident(*self).is_empty()
+    }
 }
 
 impl Display for Identifier {
@@ -118,10 +132,6 @@ impl<'c> IdentifierMap<'c> {
     /// identifier map.
     pub fn get_ident(&self, ident: Identifier) -> &'c str {
         self.identifiers.get(&ident).unwrap().value()
-    }
-
-    pub fn get_path(&self, path: impl Iterator<Item = impl Borrow<Identifier>>) -> String {
-        path.map(|ident| self.get_ident(*ident.borrow())).collect::<Vec<&'_ str>>().join("::")
     }
 }
 

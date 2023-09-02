@@ -20,7 +20,7 @@ use crate::{
     data::CtorTerm,
     environment::stores::tir_stores,
     fns::{FnCallTerm, FnDefId},
-    lits::Lit,
+    lits::LitId,
     node::{Node, NodeOrigin},
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
@@ -45,11 +45,11 @@ pub struct UnsafeTerm {
 /// constructors, etc. This is because they might have extra data attached to
 /// them; for example, function definitions might have AST node IDs attached to
 /// them through some secondary map.
-#[derive(Debug, Clone, Copy, From)]
+#[derive(Debug, Clone, From, Copy)]
 pub enum Term {
     // Primitives
     Tuple(TupleTerm),
-    Lit(Lit),
+    Lit(LitId),
 
     // Constructors
     Ctor(CtorTerm),
@@ -196,7 +196,7 @@ impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Term::Tuple(tuple_term) => write!(f, "{}", tuple_term),
-            Term::Lit(lit) => write!(f, "{}", *lit),
+            Term::Lit(lit) => write!(f, "{}", *lit.value()),
             Term::Ctor(ctor_term) => write!(f, "{}", ctor_term),
             Term::FnCall(fn_call_term) => write!(f, "{}", fn_call_term),
             Term::FnRef(fn_def_id) => write!(

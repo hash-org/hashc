@@ -1,14 +1,14 @@
 use hash_ast::ast::{self};
 use hash_source::constant::{
-    FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy, InternedInt,
-    SIntTy, UIntTy,
+    FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy,
+    InternedFloat, InternedInt, SIntTy, UIntTy,
 };
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     args::{Arg, PatArg},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
     environment::env::AccessToEnv,
-    lits::{CharLit, FloatLit, IntLit, Lit},
+    lits::{CharLit, Lit},
     node::{Node, NodeOrigin},
     pats::{Pat, PatId},
     primitives::primitives,
@@ -239,61 +239,51 @@ pub trait PrimitiveUtils: AccessToEnv {
 
     /// Get the given term as a float literal if possible.
     fn create_term_from_float_lit<L: Into<FloatConstantValue>>(&self, lit: L) -> TermId {
-        Node::create_at(
-            Term::Lit(Lit::Float(FloatLit {
-                underlying: ast::FloatLit {
-                    kind: ast::FloatLitKind::Unsuffixed,
-                    value: FloatConstant::new(lit.into(), None).into(),
-                },
-            })),
-            NodeOrigin::Generated,
-        )
+        let lit = Lit::Float(InternedFloat::create(FloatConstant::new(lit.into(), None)).into());
+        Node::create_at(Term::Lit(Node::create_gen(lit)), NodeOrigin::Generated)
     }
 
     /// Get the given term as a float literal if possible.
     fn try_use_term_as_float_lit<L: From<f64>>(&self, term: TermId) -> Option<L> {
         match *term.value() {
-            Term::Lit(Lit::Float(i)) => i.value().try_into().ok(),
+            Term::Lit(lit) => match *lit.value() {
+                Lit::Float(i) => i.value().try_into().ok(),
+                _ => None,
+            },
             _ => None,
         }
     }
 
     /// Get the given term as a float literal if possible.
-    fn create_term_from_integer_lit<L: Into<BigInt>>(&self, lit: L) -> TermId {
-        Node::create_at(
-            Term::Lit(Lit::Int(IntLit {
-                underlying: ast::IntLit {
-                    kind: ast::IntLitKind::Unsuffixed,
-                    value: InternedInt::create(IntConstant::new(
-                        IntConstantValue::Big(Box::new(lit.into())),
-                        None,
-                    )),
-                },
-            })),
-            NodeOrigin::Generated,
-        )
+    fn create_term_from_integer_lit<L: Into<IntConstantValue>>(&self, lit: L) -> TermId {
+        let lit = Lit::Int(InternedInt::create(IntConstant::new(lit.into(), None)).into());
+        Node::create_gen(Term::Lit(Node::create_gen(lit)))
     }
 
     /// Get the given term as a character literal if possible.
     fn try_use_term_as_char_lit(&self, term: TermId) -> Option<char> {
         match *term.value() {
-            Term::Lit(Lit::Char(c)) => Some(c.underlying.data),
+            Term::Lit(lit) => match *lit.value() {
+                Lit::Char(c) => Some(c.underlying.data),
+                _ => None,
+            },
             _ => None,
         }
     }
 
     /// Get the given term as a character literal if possible.
     fn create_term_from_char_lit(&self, lit: char) -> TermId {
-        Node::create_at(
-            Term::Lit(Lit::Char(CharLit { underlying: ast::CharLit { data: lit } })),
-            NodeOrigin::Generated,
-        )
+        let val = Lit::Char(CharLit { underlying: ast::CharLit { data: lit } });
+        Node::create_at(Term::Lit(Node::create_gen(val)), NodeOrigin::Generated)
     }
 
     /// Get the given term as an integer literal if possible.
     fn try_use_term_as_integer_lit<L: TryFrom<BigInt>>(&self, term: TermId) -> Option<L> {
         match *term.value() {
-            Term::Lit(Lit::Int(i)) => i.value().try_into().ok(),
+            Term::Lit(lit) => match *lit.value() {
+                Lit::Int(i) => i.value().try_into().ok(),
+                _ => None,
+            },
             Term::Var(sym) => self
                 .context()
                 .try_get_decl_value(sym)

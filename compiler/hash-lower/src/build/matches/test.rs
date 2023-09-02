@@ -22,7 +22,6 @@ use hash_tir::{
     control::IfPat,
     data::CtorPat,
     environment::env::AccessToEnv,
-    lits::LitPat,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
@@ -32,16 +31,7 @@ use super::{
     candidate::{Candidate, MatchPair},
     const_range::ConstRange,
 };
-use crate::build::{place::PlaceBuilder, BodyBuilder};
-
-/// Convert a [LitPat] into a [Const] value.
-fn constify_lit_pat(term: &LitPat) -> Const {
-    match term {
-        LitPat::Int(lit) => Const::Int(lit.interned_value()),
-        LitPat::Str(lit) => Const::Str(lit.interned_value()),
-        LitPat::Char(lit) => Const::Char(lit.value()),
-    }
-}
+use crate::build::{constant::lit_to_const, place::PlaceBuilder, BodyBuilder};
 
 #[derive(PartialEq, Eq, Debug)]
 pub(super) enum TestKind {
@@ -229,8 +219,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     _ => unreachable!("non-bool, non-adt type in test_match_pair"),
                 })
             }
-            Pat::Lit(ref lit) => {
-                let value = constify_lit_pat(lit);
+            Pat::Lit(lit) => {
+                let value = lit_to_const(*lit);
                 let ty = self.ty_id_from_tir_pat(pair.pat);
 
                 // If it is not an integral constant, we use an `Eq` test. This will

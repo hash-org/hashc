@@ -252,3 +252,10 @@ impl Default for Report {
         }
     }
 }
+
+/// Create a help note with the given message.
+pub macro help {
+    ($($arg:tt)*) => {
+        ReportElement::Note(ReportNote::new(ReportNoteKind::Help, format!($($arg)*)))
+    }
+}

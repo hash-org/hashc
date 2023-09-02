@@ -395,9 +395,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                 (Term::Ty(t1), _) => self.unify_terms(t1.as_term(), target_id),
                 (_, Term::Ty(t2)) => self.unify_terms(src_id, t2.as_term()),
 
-                (Term::Lit(l1), Term::Lit(l2)) => {
-                    self.ok_or_mismatching_atoms(self.lits_are_equal(l1, l2), src_id, target_id)
-                }
+                (Term::Lit(l1), Term::Lit(l2)) => self.ok_or_mismatching_atoms(
+                    self.lits_are_equal(*l1.value(), *l2.value()),
+                    src_id,
+                    target_id,
+                ),
                 (Term::Lit(_), _) | (_, Term::Lit(_)) => self.mismatching_atoms(src_id, target_id),
 
                 (Term::Access(a1), Term::Access(a2)) if a1.field == a2.field => {

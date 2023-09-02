@@ -1,0 +1,7 @@
+error[0100]: literal out of range for type `i32`
+ --> $DIR/out_of_range.hash:6:10
+5 |       k := 2 + 2;
+6 |       l := 92312981239128391283;
+  |            ^^^^^^^^^^^^^^^^^^^^ here
+7 |   
+  = note: the literal `92312981239128391283` does not fit into the type `i32` whose range is `-2147483648..2147483647`, use a `i128` instead

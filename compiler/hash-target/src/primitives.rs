@@ -9,9 +9,13 @@ use std::fmt;
 use crate::{abi::Integer, alignment::Alignments, data_layout::HasDataLayout, size::Size};
 
 /// A primitive floating-point type, either a `f32` or an `f64`.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FloatTy {
+    /// An `f32` type.
     F32,
+
+    /// An `f64` type.
+    #[default]
     F64,
 }
 
@@ -291,6 +295,12 @@ pub enum IntTy {
     UInt(UIntTy),
 }
 
+impl Default for IntTy {
+    fn default() -> Self {
+        IntTy::Int(SIntTy::I32)
+    }
+}
+
 impl IntTy {
     /// Check if the type is is bounded, i.e. not a `ubig` or `ibig` type.
     pub fn is_bounded(&self) -> bool {
@@ -328,6 +338,19 @@ impl IntTy {
         }
     }
 
+    /// Compute the minimum value of a given [IntTy] which is the smallest
+    /// integer that can be written for the int. This function is the same
+    /// as [`Self::numeric_min`] except that it returns a signed integer.
+    /// This is intended for printing out the value.
+    pub fn signed_min(&self, ptr_size: Size) -> i128 {
+        let size = self.size(ptr_size);
+
+        match self {
+            IntTy::Int(_) => size.signed_int_min(),
+            IntTy::UInt(_) => 0,
+        }
+    }
+
     /// Compute the `numeric` max of a given [IntTy] which is the largest
     /// integer that can be written for the int. The [u128] is used as an
     /// encoding to represent both signed and unsigned integers. In order
@@ -355,6 +378,11 @@ impl IntTy {
 
     /// Check if the type is a pointer integral type, i.e. `isize` or `usize`.
     pub fn is_ptr_sized_integral(self) -> bool {
+        matches!(self, IntTy::Int(SIntTy::ISize) | IntTy::UInt(UIntTy::USize))
+    }
+
+    /// Check if the type is platform dependent.
+    pub fn is_platform_dependent(self) -> bool {
         matches!(self, IntTy::Int(SIntTy::ISize) | IntTy::UInt(UIntTy::USize))
     }
 
@@ -392,6 +420,26 @@ impl IntTy {
 impl fmt::Display for IntTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_name())
+    }
+}
+
+/// A utility wrapper around an [IntTy] that stores the
+/// "un-normalised" version of type (i.e. it maybe a `usize` or `isize`),
+/// and the original type.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct NormalisedIntTy {
+    /// The original type.
+    pub original: IntTy,
+
+    /// The normalised type.
+    pub normalised: IntTy,
+}
+
+impl NormalisedIntTy {
+    /// Create a new [NormalisedIntTy] from the given [IntTy] and
+    /// [Size].
+    pub fn new(original: IntTy, ptr_width: Size) -> Self {
+        Self { original, normalised: original.normalise(ptr_width) }
     }
 }
 

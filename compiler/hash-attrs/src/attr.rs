@@ -2,13 +2,18 @@
 
 use std::{fmt, sync::OnceLock};
 
-use hash_ast::{ast, ast::AstNodeId};
+use hash_ast::{
+    ast,
+    ast::AstNodeId,
+    lit::{parse_float_const_from_lit, parse_int_const_from_lit, LitParseResult},
+};
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
+    SourceMap,
 };
 use hash_storage::store::{DefaultPartialStore, PartialStore};
-use hash_target::{abi::Integer, data_layout::HasDataLayout, primitives::IntTy};
+use hash_target::{abi::Integer, data_layout::HasDataLayout, primitives::IntTy, size::Size};
 use hash_tir::params::ParamIndex;
 use hash_utils::{derive_more::From, fxhash::FxHashMap, lazy_static::lazy_static};
 
@@ -166,16 +171,26 @@ pub enum AttrValueKind {
 
 impl AttrValueKind {
     /// Try to convert an [ast::Expr] into an [AttrValue].
-    pub fn try_from_expr(expr: &ast::Expr) -> Option<Self> {
+    pub fn try_from_expr(
+        expr: &ast::Expr,
+        sources: &SourceMap,
+        ptr_size: Size,
+    ) -> LitParseResult<Option<Self>> {
         match expr {
             ast::Expr::Lit(ast::LitExpr { data }) => match data.body() {
-                ast::Lit::Str(ast::StrLit { data }) => Some(Self::Str(*data)),
-                ast::Lit::Char(ast::CharLit { data }) => Some(Self::Char(*data)),
-                ast::Lit::Int(ast::IntLit { value, .. }) => Some(Self::Int(*value)),
-                ast::Lit::Float(ast::FloatLit { value, .. }) => Some(Self::Float(*value)),
-                _ => None,
+                ast::Lit::Str(ast::StrLit { data }) => Ok(Some(Self::Str(*data))),
+                ast::Lit::Char(ast::CharLit { data }) => Ok(Some(Self::Char(*data))),
+                ast::Lit::Int(int_lit) => {
+                    let value = parse_int_const_from_lit(int_lit, None, sources, ptr_size)?;
+                    Ok(Some(Self::Int(value)))
+                }
+                ast::Lit::Float(float_lit) => {
+                    let value = parse_float_const_from_lit(float_lit, None, sources)?;
+                    Ok(Some(Self::Float(value)))
+                }
+                _ => Ok(None),
             },
-            _ => None,
+            _ => Ok(None),
         }
     }
 

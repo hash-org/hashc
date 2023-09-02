@@ -21,7 +21,7 @@ use hash_tir::{
     data::DataTy,
     environment::env::AccessToEnv,
     fns::{FnCallTerm, FnDefId},
-    lits::LitPat,
+    lits::{Lit, LitPat},
     pats::PatId,
     terms::{Term, TermId},
     tys::TyId,
@@ -162,12 +162,12 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// Convert the [LitPat] into a [Const] and return the value of the constant
     /// as a [u128]. This literal term must be an integral type.
     pub(crate) fn evaluate_lit_pat(&self, pat: LitPat) -> (Const, u128) {
-        match pat {
-            LitPat::Int(lit) => {
+        match *(*pat).value() {
+            Lit::Int(lit) => {
                 let value = lit.interned_value();
                 value.map(|constant| (Const::Int(value), constant.value.as_u128().unwrap()))
             }
-            LitPat::Char(lit) => {
+            Lit::Char(lit) => {
                 let value = lit.value();
                 (Const::Char(value), u128::from(value))
             }

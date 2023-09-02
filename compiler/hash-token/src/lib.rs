@@ -3,9 +3,11 @@
 pub mod delimiter;
 pub mod keyword;
 
+use std::fmt;
+
 use delimiter::{Delimiter, DelimiterVariant};
 use hash_source::{
-    constant::{InternedFloat, InternedInt, InternedStr},
+    constant::{FloatTy, IntTy, InternedStr},
     identifier::Identifier,
     location::ByteRange,
 };
@@ -110,8 +112,8 @@ impl TokenKind {
             self,
             TokenKind::Keyword(Keyword::False)
                 | TokenKind::Keyword(Keyword::True)
-                | TokenKind::IntLit(_)
-                | TokenKind::FloatLit(_)
+                | TokenKind::Int(_, _)
+                | TokenKind::Float(_)
                 | TokenKind::CharLit(_)
                 | TokenKind::StrLit(_)
         )
@@ -119,7 +121,105 @@ impl TokenKind {
 
     /// Check if the [TokenKind] is a numeric literal
     pub fn is_numeric(&self) -> bool {
-        matches!(self, TokenKind::IntLit(_) | TokenKind::FloatLit(_))
+        matches!(self, TokenKind::Int(_, _) | TokenKind::Float(_))
+    }
+}
+
+/// The kind of ascription that is applied to the [FloatLit].
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum FloatLitKind {
+    /// Has a provided user suffix type
+    Suffixed(FloatTy),
+    /// No provided suffix type, so defaults to `f32`
+    Unsuffixed,
+}
+
+impl fmt::Display for FloatLitKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FloatLitKind::Suffixed(ty) => write!(f, "{ty}"),
+            FloatLitKind::Unsuffixed => write!(f, ""),
+        }
+    }
+}
+
+/// The type of the float the [IntLit] is storing.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum IntLitKind {
+    /// integer kind `i128`, `u32` ,`i8`...
+    Suffixed(IntTy),
+    /// No provided suffix type, so defaults to `i32`
+    Unsuffixed,
+}
+
+impl IntLitKind {
+    /// Get the type of the integer literal
+    pub fn ty(&self) -> IntTy {
+        match self {
+            IntLitKind::Suffixed(ty) => *ty,
+            IntLitKind::Unsuffixed => IntTy::default(),
+        }
+    }
+}
+
+impl fmt::Display for IntLitKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntLitKind::Suffixed(ty) => write!(f, "{ty}"),
+            IntLitKind::Unsuffixed => write!(f, ""),
+        }
+    }
+}
+
+/// Represents the featured base for numeric literals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Base {
+    /// Binary base, denoted in literals as `0b101010`
+    Binary,
+    /// Octal base, denoted in literals as `0o26317261`
+    Octal,
+    /// Decimal base, written as `102391`
+    Decimal,
+    /// Hexadecimal base, written as `0xdeadbeef`
+    Hex,
+    /// Unsupported base, the language doesn't support the
+    /// provided radix as a base.
+    Unsupported,
+}
+
+impl fmt::Display for Base {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Base::Binary => write!(f, "binary"),
+            Base::Octal => write!(f, "octal"),
+            Base::Decimal => write!(f, "decimal"),
+            Base::Hex => write!(f, "hexadecimal"),
+            Base::Unsupported => write!(f, "unsupported base"),
+        }
+    }
+}
+
+impl From<Base> for u32 {
+    fn from(base: Base) -> Self {
+        match base {
+            Base::Binary => 2,
+            Base::Octal => 8,
+            Base::Decimal => 10,
+            Base::Hex => 16,
+            Base::Unsupported => unreachable!("unsupported base"),
+        }
+    }
+}
+
+impl From<u32> for Base {
+    fn from(radix: u32) -> Self {
+        match radix {
+            2 => Base::Binary,
+            8 => Base::Octal,
+            10 => Base::Decimal,
+            16 => Base::Hex,
+            _ => Base::Unsupported,
+        }
     }
 }
 
@@ -177,9 +277,9 @@ pub enum TokenKind {
     /// "'"
     SingleQuote,
     /// Integer Literal
-    IntLit(InternedInt),
+    Int(Base, IntLitKind),
     /// Float literal
-    FloatLit(InternedFloat),
+    Float(FloatLitKind),
     /// Character literal
     CharLit(char),
     /// StrLiteral,
@@ -220,8 +320,6 @@ impl TokenKind {
     pub fn as_error_string(&self) -> String {
         match self {
             TokenKind::Unexpected(atom) => format!("an unknown character `{atom}`"),
-            TokenKind::IntLit(lit) => format!("`{lit}`"),
-            TokenKind::FloatLit(lit) => format!("`{lit}`"),
             TokenKind::CharLit(ch) => format!("`{ch}`"),
             TokenKind::StrLit(str) => format!("the string `{}`", *str),
             TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
@@ -258,8 +356,8 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Quote => write!(f, "\""),
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::Unexpected(atom) => write!(f, "{atom}"),
-            TokenKind::IntLit(lit) => write!(f, "{lit}"),
-            TokenKind::FloatLit(lit) => write!(f, "{lit}"),
+            TokenKind::Int(_, _) => write!(f, "float"),
+            TokenKind::Float(_) => write!(f, "integer"),
             TokenKind::CharLit(ch) => write!(f, "'{ch}'"),
             TokenKind::Delimiter(delim, variant) => {
                 if *variant == DelimiterVariant::Left {

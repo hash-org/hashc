@@ -1,34 +1,123 @@
 //! Contains structures related to literals, like numbers, strings, etc.
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
-use hash_ast::ast;
+use hash_ast::{
+    ast,
+    lit::{
+        parse_float_const_from_lit, parse_int_const_from_lit, FloatLitKind, IntLitKind,
+        LitParseResult,
+    },
+};
 use hash_source::constant::{InternedFloat, InternedInt, InternedStr};
-use hash_target::size::Size;
+use hash_storage::store::statics::StoreId;
+use hash_target::{
+    primitives::{FloatTy, IntTy},
+    size::Size,
+};
 use num_bigint::BigInt;
+
+use crate::{
+    environment::{
+        env::{AccessToEnv, Env},
+        stores::tir_stores,
+    },
+    tir_node_single_store,
+};
+
+#[derive(Copy, Clone, Debug)]
+pub enum LitValue<R, V> {
+    Raw(R),
+    Value(V),
+}
+
+impl<R, V: Copy> LitValue<R, V> {
+    pub fn value(&self) -> V {
+        match self {
+            LitValue::Raw(_) => panic!("raw literal has not been baked"),
+            LitValue::Value(value) => *value,
+        }
+    }
+}
 
 /// An integer literal.
 ///
 /// Uses the `ast` representation.
 #[derive(Copy, Clone, Debug)]
 pub struct IntLit {
-    pub underlying: ast::IntLit,
+    pub value: LitValue<ast::IntLit, InternedInt>,
 }
 
 impl IntLit {
     /// Get the interned value of the literal.
     pub fn interned_value(&self) -> InternedInt {
-        self.underlying.value
+        self.value.value()
     }
 
     /// Return the value of the integer literal.
     pub fn value(&self) -> BigInt {
-        (&self.underlying.value.value()).try_into().unwrap()
+        self.value.value().as_big()
+    }
+
+    /// Check whether that value is negative.
+    ///
+    /// **Note**: For raw values, we just check if the value starts with a `-`.
+    pub fn is_negative(&self, env: &Env<'_>) -> bool {
+        match self.value {
+            LitValue::Raw(lit) => env.source_map().hunk(lit.hunk.span()).starts_with('-'),
+            LitValue::Value(value) => value.as_big() < 0.into(),
+        }
+    }
+
+    /// Compute the [FloatTy] from the given float literal. The rules of
+    /// computation are as follows:
+    ///
+    /// - If the literal is unbaked, then we try to read the suffix on the type.
+    ///
+    /// - If the literal has a value, then we read the type of the value.
+    pub fn kind(&self) -> Option<IntTy> {
+        match self.value {
+            LitValue::Raw(lit) => match lit.kind {
+                IntLitKind::Unsuffixed => None,
+                IntLitKind::Suffixed(ty) => Some(ty),
+            },
+            LitValue::Value(value) => Some(value.ty()),
+        }
+    }
+
+    /// Check if the literal has been interned.
+    pub fn has_value(&self) -> bool {
+        matches!(self.value, LitValue::Value(_))
+    }
+
+    /// Bakes the integer literal into a known representation.
+    ///
+    /// This function does not do anyttihng if the literal has already been
+    /// baked.
+    pub fn bake(&mut self, env: &Env<'_>, int_ty: IntTy) -> LitParseResult<()> {
+        if let LitValue::Raw(lit) = self.value {
+            let value = parse_int_const_from_lit(
+                &lit,
+                Some(int_ty),
+                env.source_map(),
+                env.target().ptr_size(),
+            )?;
+
+            self.value = LitValue::Value(value);
+        }
+
+        Ok(())
     }
 }
 
 impl From<InternedInt> for IntLit {
     fn from(value: InternedInt) -> Self {
-        Self { underlying: ast::IntLit { value, kind: ast::IntLitKind::Unsuffixed } }
+        Self { value: LitValue::Value(value) }
+    }
+}
+
+impl From<ast::IntLit> for IntLit {
+    fn from(value: ast::IntLit) -> Self {
+        Self { value: LitValue::Raw(value) }
     }
 }
 
@@ -58,29 +147,76 @@ impl From<InternedStr> for StrLit {
     }
 }
 
+impl From<ast::StrLit> for StrLit {
+    fn from(value: ast::StrLit) -> Self {
+        Self { underlying: value }
+    }
+}
+
 /// A float literal.
 ///
 /// Uses the `ast` representation.
 #[derive(Copy, Clone, Debug)]
 pub struct FloatLit {
-    pub underlying: ast::FloatLit,
+    pub value: LitValue<ast::FloatLit, InternedFloat>,
 }
 
 impl FloatLit {
     /// Get the interned value of the literal.
     pub fn interned_value(&self) -> InternedFloat {
-        self.underlying.value
+        self.value.value()
     }
 
     /// Return the value of the float literal.
     pub fn value(&self) -> f64 {
-        self.underlying.value.value().as_f64()
+        self.value.value().value().as_f64()
+    }
+
+    /// Compute the [FloatTy] from the given float literal. The rules of
+    /// computation are as follows:
+    ///
+    /// - If the literal is unbaked, then we try to read the suffix on the type.
+    ///
+    /// - If the literal has a value, then we read the type of the value.
+    pub fn kind(&self) -> Option<FloatTy> {
+        match self.value {
+            LitValue::Raw(lit) => match lit.kind {
+                FloatLitKind::Unsuffixed => None,
+                FloatLitKind::Suffixed(ty) => Some(ty),
+            },
+            LitValue::Value(value) => Some(value.ty()),
+        }
+    }
+
+    /// Check if the literal has been interned.
+    pub fn has_value(&self) -> bool {
+        matches!(self.value, LitValue::Value(_))
+    }
+
+    /// Bakes the float literal into a known representation.
+    ///
+    /// This function does not do anyttihng if the literal has already been
+    /// baked.
+    pub fn bake(&mut self, env: &Env<'_>, float_ty: FloatTy) -> LitParseResult<()> {
+        if let LitValue::Raw(lit) = self.value {
+            let value = parse_float_const_from_lit(&lit, Some(float_ty), env.source_map())?;
+
+            self.value = LitValue::Value(value);
+        }
+
+        Ok(())
     }
 }
 
 impl From<InternedFloat> for FloatLit {
     fn from(value: InternedFloat) -> Self {
-        Self { underlying: ast::FloatLit { value, kind: ast::FloatLitKind::Unsuffixed } }
+        Self { value: LitValue::Value(value) }
+    }
+}
+
+impl From<ast::FloatLit> for FloatLit {
+    fn from(value: ast::FloatLit) -> Self {
+        Self { value: LitValue::Raw(value) }
     }
 }
 
@@ -105,6 +241,12 @@ impl From<char> for CharLit {
     }
 }
 
+impl From<ast::CharLit> for CharLit {
+    fn from(value: ast::CharLit) -> Self {
+        Self { underlying: value }
+    }
+}
+
 /// A literal
 #[derive(Copy, Clone, Debug)]
 pub enum Lit {
@@ -114,30 +256,38 @@ pub enum Lit {
     Float(FloatLit),
 }
 
+tir_node_single_store!(Lit);
+
 /// A literal pattern
 ///
 /// This is a literal that can appear in a pattern, which does not include
 /// floats.
 #[derive(Copy, Clone, Debug)]
-pub enum LitPat {
-    Int(IntLit),
-    Str(StrLit),
-    Char(CharLit),
-}
+pub struct LitPat(pub LitId);
 
-impl From<LitPat> for Lit {
-    fn from(val: LitPat) -> Self {
-        match val {
-            LitPat::Int(l) => Lit::Int(l),
-            LitPat::Str(l) => Lit::Str(l),
-            LitPat::Char(l) => Lit::Char(l),
-        }
+impl Deref for LitPat {
+    type Target = LitId;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
 impl Display for IntLit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.underlying.value)
+        match self.value {
+            LitValue::Raw(_) => write!(f, "<raw>"),
+            LitValue::Value(value) => write!(f, "{value}"),
+        }
+    }
+}
+
+impl Display for FloatLit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.value {
+            LitValue::Raw(_) => write!(f, "<raw>"),
+            LitValue::Value(value) => write!(f, "{value}"),
+        }
     }
 }
 
@@ -153,30 +303,23 @@ impl Display for CharLit {
     }
 }
 
-impl Display for FloatLit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.underlying.value)
-    }
-}
-
 impl Display for LitPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        match *self.0.value() {
             // It's often the case that users don't include the range of the entire
             // integer and so we will write `-2147483648..x` and
             // same for max, what we want to do is write `MIN`
             // and `MAX` for these situations since it is easier for the
             // user to understand the problem.
-            LitPat::Int(lit) => {
-                let kind = lit.interned_value().map(|constant| constant.ty());
-
-                // @@Hack: we don't use size since it is never invoked because of
-                // integer constant don't store usize values.
-                let dummy_size = Size::ZERO;
+            Lit::Int(lit) => {
+                let value = lit.value.value();
+                let kind = value.map(|constant| constant.ty());
 
                 if !kind.is_bigint() {
-                    let value =
-                        lit.interned_value().map(|constant| constant.value.as_u128().unwrap());
+                    // @@Hack: we don't use size since it is never invoked because of
+                    // integer constant don't store usize values.
+                    let dummy_size = Size::ZERO;
+                    let value = value.map(|constant| constant.value.as_u128().unwrap());
 
                     if kind.numeric_min(dummy_size) == value {
                         write!(f, "{kind}::MIN")
@@ -189,8 +332,9 @@ impl Display for LitPat {
                     write!(f, "{lit}")
                 }
             }
-            LitPat::Str(lit) => write!(f, "{lit}"),
-            LitPat::Char(lit) => write!(f, "{lit}"),
+            Lit::Str(lit) => write!(f, "{lit}"),
+            Lit::Char(lit) => write!(f, "{lit}"),
+            _ => unreachable!(),
         }
     }
 }

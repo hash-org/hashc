@@ -76,7 +76,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// pattern.
     pub(crate) fn parse_singular_pat(&mut self) -> ParseResult<AstNode<Pat>> {
         let (mut subject, can_continue) = self.parse_pat_component()?;
-        let span = subject.span().span;
+        let span = subject.span().range;
 
         while let Some(token) = self.peek() && can_continue {
             subject = match token.kind {
@@ -165,8 +165,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 if token.has_kind(TokenKind::Minus)
                     && matches!(self.peek_second(), Some(token) if token.kind.is_numeric()) =>
             {
-                self.offset.update(|x| x + 2); // skip the minus and set current token to the numeric literal
-                Pat::Lit(LitPat { data: self.parse_numeric_lit(true)? })
+                // Just to get the error reporting to highlight the entire literal.
+                self.skip_token();
+
+                // We emit an error saying that we don't support expressions in patterns
+                // since the AST doesn't support it. Negative literals must be written with
+                // no spaces between the `-` and the literal itself.
+                return self.err_with_location(
+                    ParseErrorKind::UnsupportedExprInPat {
+                        value: self.source.hunk(self.next_pos()).to_string(),
+                    },
+                    ExpectedItem::empty(),
+                    None,
+                    token.span.join(self.next_pos()),
+                );
             }
 
             token if token.kind.is_lit() => {

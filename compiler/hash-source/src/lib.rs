@@ -233,6 +233,24 @@ impl fmt::Display for LineRanges {
     }
 }
 
+/// A [Source] is a wrapper around the contents of a source file that
+/// is stored in [SourceMap]. It features useful methods for extracting
+/// and reading sections of the source by using [Span] or [ByteRange]s.
+#[derive(Clone, Copy)]
+pub struct Source<'s>(pub &'s str);
+
+impl<'s> Source<'s> {
+    /// Create a [Source] from a [String].
+    pub fn from_string(s: &'s str) -> Self {
+        Self(s)
+    }
+
+    /// Get a hunk of the source by the specified [ByteRange].
+    pub fn hunk(&self, range: ByteRange) -> &'s str {
+        &self.0[range.start()..range.end()]
+    }
+}
+
 /// Stores all of the relevant source information about a particular module.
 #[derive(Debug)]
 pub struct Module {
@@ -253,8 +271,8 @@ impl Module {
     }
 
     /// Get the source of the module.
-    pub fn contents(&self) -> &str {
-        &self.contents
+    pub fn contents(&self) -> Source<'_> {
+        Source(&self.contents)
     }
 
     /// Get the kind of the module.
@@ -288,8 +306,8 @@ impl InteractiveBlock {
     }
 
     /// Get the contents of the interactive block.
-    pub fn contents(&self) -> &str {
-        &self.contents
+    pub fn contents(&self) -> Source<'_> {
+        Source(&self.contents)
     }
 
     /// Get the line ranges for this particular interactive block.
@@ -389,12 +407,17 @@ impl SourceMap {
 
     /// Get the raw contents of a module or interactive block by the
     /// specified [SourceId]
-    pub fn contents_by_id(&self, source_id: SourceId) -> &str {
+    pub fn contents(&self, source_id: SourceId) -> Source<'_> {
         if source_id.is_interactive() {
             self.interactive_blocks.get(source_id.value() as usize).unwrap().contents()
         } else {
             self.modules.get(source_id.value() as usize).unwrap().contents()
         }
+    }
+
+    /// Get a hunk of the source by the specified [SourceId] and [Span].
+    pub fn hunk(&self, span: Span) -> &str {
+        self.contents(span.id).hunk(span.range)
     }
 
     /// Get the [LineRanges] for a specific [SourceId].
@@ -454,7 +477,7 @@ impl SourceMap {
     /// Function to get a friendly representation of the [Span] in
     /// terms of row and column positions.
     pub fn get_row_col_for(&self, location: Span) -> RowColRange {
-        self.line_ranges(location.id).row_cols(location.span)
+        self.line_ranges(location.id).row_cols(location.range)
     }
 
     /// Convert a [Span] in terms of the filename, row and column.

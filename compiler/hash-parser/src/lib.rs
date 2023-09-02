@@ -22,7 +22,6 @@ use hash_reporting::{
     reporter::Reports,
 };
 use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
-use hash_target::size::Size;
 use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
     indexmap::IndexMap,
@@ -239,15 +238,8 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let source_id = source.id();
     let mut timings = ParseTimings::default();
 
-    // @@Future: we currently don't support cross compilation, which
-    // means that we can assume that the target is the same as the host.
-    // This means we don't have to care about the target pointer width. If
-    // we were to cross compile, this would need to have access to the
-    // target pointer width.
-    let ptr_byte_width = Size::from_bytes(std::mem::size_of::<usize>());
-
     // Lex the contents of the module or interactive block
-    let mut lexer = Lexer::new(source.contents(), source_id, ptr_byte_width);
+    let mut lexer = Lexer::new(source.contents(), source_id);
     let tokens = time_item(&mut timings, "tokenise", |_| lexer.tokenise());
 
     // Check if the lexer has errors...
@@ -262,7 +254,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(source_id, source.path(), sender);
     let diagnostics = ParserDiagnostics::new();
-    let mut gen = AstGen::new(&tokens, &trees, &resolver, &diagnostics);
+    let mut gen = AstGen::new(source.contents(), &tokens, &trees, &resolver, &diagnostics);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.

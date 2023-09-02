@@ -1,5 +1,6 @@
 use std::fmt;
 
+use hash_ast::lit::LitParseError;
 use hash_reporting::{
     diagnostic::IntoCompound,
     hash_error_codes::error_codes::HashErrorCode,
@@ -107,6 +108,11 @@ pub enum TcError {
     /// An error related to argument/parameter matching.
     #[from]
     ParamMatch(ParamError),
+
+    /// Literal parsing error, occurs when provided literals which are of type
+    /// integer, and float could not be parsed into their respective types.
+    #[from]
+    LitParseError(LitParseError),
 
     /// An error that occurred in an intrinsic.
     Intrinsic(String),
@@ -255,6 +261,9 @@ impl<'tc> TcErrorReporter<'tc> {
             }
             TcError::ParamMatch(err) => {
                 ParamError::add_to_reporter(err, reporter);
+            }
+            TcError::LitParseError(err) => {
+                err.add_to_reporter(reporter);
             }
             TcError::WrongTy { term, inferred_term_ty, kind } => {
                 let kind_name = match kind {

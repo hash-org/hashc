@@ -1,0 +1,5 @@
+// run=fail, stage=typecheck
+
+main := () => {
+    l := 92312981239128391283;
+}

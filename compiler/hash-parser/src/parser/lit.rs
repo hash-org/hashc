@@ -1,8 +1,8 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_source::location::ByteRange;
-use hash_token::{keyword::Keyword, Token, TokenKind};
+use hash_source::{identifier::Identifier, location::ByteRange};
+use hash_token::{keyword::Keyword, FloatLitKind, IntLitKind, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -19,9 +19,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         Ok(self.node_with_span(
             match token.kind {
-                TokenKind::IntLit(_) | TokenKind::FloatLit(_) => {
-                    return self.parse_numeric_lit(false)
-                }
+                TokenKind::Int(_, _) | TokenKind::Float(_) => return self.parse_numeric_lit(),
                 TokenKind::CharLit(value) => Lit::Char(CharLit { data: value }),
                 TokenKind::StrLit(value) => Lit::Str(StrLit { data: value }),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit { data: false }),
@@ -39,45 +37,37 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Function to parse a primitive numeric lit with the option of negating
     /// the value immediately.
-    pub(crate) fn parse_numeric_lit(&self, negate: bool) -> ParseResult<AstNode<Lit>> {
+    pub(crate) fn parse_numeric_lit(&self) -> ParseResult<AstNode<Lit>> {
         let token = self.current_token();
 
         Ok(self.node_with_span(
             match token.kind {
-                TokenKind::IntLit(value) => {
-                    // If it is specified that we should negate this constant, then we modify the
-                    // literal that is stored within the constant map with the modified value.
-                    if negate {
-                        value.negate();
-                    }
-
-                    let (ty, suffix) = value.map(|val| (val.ty(), val.suffix));
-
-                    // Despite the fact that we always know the type, we still want to preserve
-                    // information about whether this constant had a specified
-                    // suffix, this is used to accurately reflect the parsed AST
-                    // for purposes like pretty printing the suffix, or disallowing suffixes
-                    // in particular situations.
-                    if suffix.is_some() {
-                        Lit::Int(IntLit { value, kind: IntLitKind::Suffixed(ty) })
+                TokenKind::Int(base, kind) => {
+                    // don't include the length of the prefix in the span
+                    let span = if let IntLitKind::Suffixed(suffix) = kind {
+                        ByteRange::new(
+                            token.span.start(),
+                            token.span.end() - Identifier::from(suffix).len(),
+                        )
                     } else {
-                        Lit::Int(IntLit { value, kind: IntLitKind::Unsuffixed })
-                    }
+                        token.span
+                    };
+
+                    let hunk = Hunk::create(self.make_span(span));
+                    Lit::Int(IntLit { hunk, base, kind })
                 }
-                TokenKind::FloatLit(value) => {
-                    // If it is specified that we should negate this constant, then we modify the
-                    // literal that is stored within the constant map with the modified value.
-                    if negate {
-                        value.negate();
-                    }
-
-                    let (ty, suffix) = value.map(|val| (val.ty(), val.suffix));
-
-                    if suffix.is_some() {
-                        Lit::Float(FloatLit { value, kind: FloatLitKind::Suffixed(ty) })
+                TokenKind::Float(kind) => {
+                    let span = if let FloatLitKind::Suffixed(suffix) = kind {
+                        ByteRange::new(
+                            token.span.start(),
+                            token.span.end() - Identifier::from(suffix).len(),
+                        )
                     } else {
-                        Lit::Float(FloatLit { value, kind: FloatLitKind::Unsuffixed })
-                    }
+                        token.span
+                    };
+
+                    let hunk = Hunk::create(self.make_span(span));
+                    Lit::Float(FloatLit { hunk, kind })
                 }
                 _ => panic!("expected numeric token in parse_numeric_lit()"),
             },

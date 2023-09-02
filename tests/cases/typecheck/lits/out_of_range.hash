@@ -1,0 +1,14 @@
+// run=fail, stage=typecheck
+
+main := () => {
+    println("hello world!");
+    k := 2 + 2;
+    l := 92312981239128391283;
+
+    match k {
+        -2 => { println("negative two") },
+        0 => { println("zero") },
+        4 => { println("four") },
+        _ => { println("something else") },
+    }
+}

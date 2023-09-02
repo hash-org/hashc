@@ -1,0 +1,7 @@
+error: negative numerical literals must be written as a single numerical value
+ --> $DIR/awkward_pat_lit.hash:7:9
+6 |           // ~ERROR: should write literal as `-2`
+7 |           - 2 => { 1 },
+  |           ^^^ 
+8 |           _ => {  0 }
+  = help: consider writting the literal as `-2`

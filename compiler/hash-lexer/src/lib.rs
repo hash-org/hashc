@@ -1,27 +1,22 @@
 //! Hash Compiler Lexer crate.
 #![feature(cell_update, let_chains)]
 
-use std::{cell::Cell, iter, num::ParseIntError};
+use std::cell::Cell;
 
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
-    constant::{
-        FloatConstant, FloatConstantValue, IntConstant, IntConstantValue, IntTy, InternedFloat,
-        SIntTy, UIntTy,
-    },
+    self,
     identifier::{Identifier, IDENTS},
     location::{ByteRange, Span},
-    SourceId,
+    Source, SourceId,
 };
-use hash_target::size::Size;
+use hash_target::primitives::{FloatTy, IntTy};
 use hash_token::{
     delimiter::{Delimiter, DelimiterVariant},
     keyword::ident_is_keyword,
-    Token, TokenKind,
+    Base, FloatLitKind, IntLitKind, Token, TokenKind,
 };
-use num_bigint::BigInt;
-use num_traits::ToPrimitive;
 use utils::is_id_start;
 
 use crate::utils::is_id_continue;
@@ -42,19 +37,10 @@ pub struct Lexer<'a> {
     offset: Cell<usize>,
 
     /// The contents that are to be lexed.
-    contents: &'a str,
+    contents: Source<'a>,
 
     /// Representative module index of the current source.
     source_id: SourceId,
-
-    // We store the size of the machine word in order to determine
-    // how to tokenise `usize` and `isize` literals.
-    ///
-    /// The size of the machine word in bytes.
-    ///
-    /// @@Future: remove literal parsing until later when we can properly
-    /// normalise everything, the lexer should just normalise this value.
-    word_size: Size,
 
     /// Representing the last character the lexer encountered. This is only set
     /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a
@@ -74,13 +60,12 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Create a new [Lexer] from the given string input.
-    pub fn new(contents: &'a str, source_id: SourceId, word_size: Size) -> Self {
+    pub fn new(contents: Source<'a>, source_id: SourceId) -> Self {
         Lexer {
             offset: Cell::new(0),
             source_id,
             within_token_tree: Cell::new(false),
             previous_delimiter: Cell::new(None),
-            word_size,
             contents,
             token_trees: vec![],
             diagnostics: LexerDiagnostics::default(),
@@ -110,7 +95,11 @@ impl<'a> Lexer<'a> {
         kind: LexerErrorKind,
         span: ByteRange,
     ) -> TokenKind {
-        self.add_error(LexerError { message, kind, location: Span { span, id: self.source_id } });
+        self.add_error(LexerError {
+            message,
+            kind,
+            location: Span { range: span, id: self.source_id },
+        });
 
         TokenKind::Err
     }
@@ -124,7 +113,7 @@ impl<'a> Lexer<'a> {
         kind: LexerErrorKind,
         span: ByteRange,
     ) -> Result<T, LexerError> {
-        Err(LexerError { message, kind, location: Span { span, id: self.source_id } })
+        Err(LexerError { message, kind, location: Span { range: span, id: self.source_id } })
     }
 
     /// Returns a reference to the stored token trees for the current job
@@ -162,7 +151,7 @@ impl<'a> Lexer<'a> {
 
         // ##Safety: We rely that the byte offset is correctly computed when stepping
         // over the characters in the iterator.
-        std::str::from_utf8_unchecked(self.contents.as_bytes().get_unchecked(offset..))
+        std::str::from_utf8_unchecked(self.contents.0.as_bytes().get_unchecked(offset..))
     }
 
     /// Returns nth character relative to the current position.
@@ -195,7 +184,7 @@ impl<'a> Lexer<'a> {
 
     /// Checks if there is nothing more to consume.
     fn is_eof(&self) -> bool {
-        self.contents.len() == self.len_consumed()
+        self.contents.0.len() == self.len_consumed()
     }
 
     /// Strip the shebang, e.g. "#!/usr/bin/hashc", from a source assuming that
@@ -233,9 +222,6 @@ impl<'a> Lexer<'a> {
         }
 
         let offset = self.offset.get();
-        let next_token = self.next();
-
-        next_token?;
 
         // We avoid checking if the tokens are compound here because we don't really
         // want to deal with comments and spaces in an awkward way... Once the
@@ -254,7 +240,7 @@ impl<'a> Lexer<'a> {
         // between the colons, this might be problematic. Essentially, we pass
         // the responsibility of forming more compound tokens to AST gen rather than
         // here.
-        let token_kind = match next_token.unwrap() {
+        let token_kind = match self.next()? {
             // One-symbol tokens
             '~' => TokenKind::Tilde,
             '=' => TokenKind::Eq,
@@ -282,10 +268,17 @@ impl<'a> Lexer<'a> {
             // Identifier (this should be checked after other variant that can
             // start as identifier).
             ch if is_id_start(ch) => self.ident(ch),
+
+            // Negated numeric literal, immediately negate it rather than
+            // deferring the transformation...
+            '-' if self.peek().is_ascii_digit() => self.number(self.peek(), true),
+
             // If the next character is not a digit, then we just stop.
             '-' => TokenKind::Minus,
+
             // Numeric literal.
-            ch @ '0'..='9' => self.number(ch),
+            ch @ '0'..='9' => self.number(ch, false),
+
             // character literal.
             '\'' => self.char(),
             // String literal.
@@ -370,122 +363,32 @@ impl<'a> Lexer<'a> {
         // then take a slice at the end
         self.eat_while_and_discard(is_id_continue);
 
-        let name = &self.contents[start..self.offset.get()];
+        let name = &self.contents.0[start..self.offset.get()];
 
         ident_is_keyword(name).map_or_else(|| TokenKind::Ident(name.into()), TokenKind::Keyword)
     }
 
-    fn parse_int_value(
-        &mut self,
-        chars: &str,
-        radix: u32,
-        annotation_ty: Option<IntTy>,
-    ) -> Result<IntConstantValue, ParseIntError> {
-        // If the type is provided on the integer literal, then we
-        // can directly just use the provided type as the parsing...
-        if let Some(ty) = annotation_ty {
-            match ty.normalise(self.word_size) {
-                IntTy::Int(SIntTy::I8) => {
-                    let value = i8::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::I8(value))
-                }
-                IntTy::Int(SIntTy::I16) => {
-                    let value = i16::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::I16(value))
-                }
-                IntTy::Int(SIntTy::I32) => {
-                    let value = i32::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::I32(value))
-                }
-                IntTy::Int(SIntTy::I64) => {
-                    let value = i64::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::I64(value))
-                }
-                IntTy::Int(SIntTy::I128) => {
-                    let value = i128::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::I128(value))
-                }
-                IntTy::UInt(UIntTy::U8) => {
-                    let value = u8::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::U8(value))
-                }
-                IntTy::UInt(UIntTy::U16) => {
-                    let value = u16::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::U16(value))
-                }
-                IntTy::UInt(UIntTy::U32) => {
-                    let value = u32::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::U32(value))
-                }
-                IntTy::UInt(UIntTy::U64) => {
-                    let value = u64::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::U64(value))
-                }
-                IntTy::UInt(UIntTy::U128) => {
-                    let value = u128::from_str_radix(chars, radix)?;
-                    Ok(IntConstantValue::U128(value))
-                }
-
-                IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig) => {
-                    let value = BigInt::parse_bytes(chars.as_bytes(), radix).unwrap();
-                    Ok(IntConstantValue::Big(Box::new(value)))
-                }
-
-                // We don't directly deal with usizes/isizes since we just normalised them.
-                _ => unreachable!(),
-            }
-        } else {
-            // If the type is not provided, then we try parse the type as a big-int and then
-            // we try and shrink it into an `i32` since this is the default type. If this is
-            // not successful, then the integer remains as a big-int which will likely be
-            // converted to a `usize` or `isize` later on.
-            let value = BigInt::parse_bytes(chars.as_bytes(), radix).unwrap();
-
-            if let Some(value) = value.to_i32() {
-                Ok(IntConstantValue::I32(value))
-            } else {
-                Ok(IntConstantValue::Big(Box::new(value)))
-            }
-        }
-    }
-
     /// Function to create an integer constant from characters and
     /// a specific radix.
-    fn create_int_const(
-        &mut self,
-        chars: &str,
-        radix: u32,
-        suffix: Option<Identifier>,
-        start_pos: usize,
-    ) -> TokenKind {
+    fn create_int_const(&mut self, base: Base, maybe_suffix: Option<Identifier>) -> TokenKind {
         // If we have a suffix, then we immediately try and parse it as a type.
-        let ty = suffix.map(|suffix| match suffix.try_into() {
-            Ok(ty) => ty,
-            Err(_) => {
-                self.emit_error(
-                    None,
-                    LexerErrorKind::InvalidLitSuffix(NumericLitKind::Integer, suffix),
-                    ByteRange::new(self.offset.get(), self.offset.get()),
-                );
 
-                IntTy::Int(SIntTy::I32)
+        let kind = if let Some(suffix) = maybe_suffix {
+            match IntTy::try_from(suffix) {
+                Ok(suffix) => IntLitKind::Suffixed(suffix),
+                Err(_) => {
+                    return self.emit_error(
+                        None,
+                        LexerErrorKind::InvalidLitSuffix(NumericLitKind::Integer, suffix),
+                        ByteRange::new(self.offset.get(), self.offset.get()),
+                    )
+                }
             }
-        });
+        } else {
+            IntLitKind::Unsuffixed
+        };
 
-        // Based on the type, we then parse the contents as a specific type.
-        let value = self.parse_int_value(chars, radix, ty).unwrap_or_else(|_| {
-            self.emit_error(
-                None,
-                LexerErrorKind::MalformedNumericalLit,
-                ByteRange::new(start_pos, self.offset.get()),
-            );
-
-            // It doesn't matter what we return here since we will terminate on the
-            // next lex anyway.
-            IntConstantValue::I32(0)
-        });
-
-        TokenKind::IntLit(IntConstant::new(value, suffix).into())
+        TokenKind::Int(base, kind)
     }
 
     /// Attempt to eat an identifier if the next token is one, otherwise don't
@@ -497,7 +400,7 @@ impl<'a> Lexer<'a> {
                 let start = self.offset.get() - ch.len_utf8();
 
                 self.eat_while_and_discard(is_id_continue);
-                let name = &self.contents[start..self.offset.get()];
+                let name = &self.contents.0[start..self.offset.get()];
 
                 Some(name.into())
             }
@@ -508,9 +411,9 @@ impl<'a> Lexer<'a> {
     /// Consume a number literal, either float or integer. The function expects
     /// that the first character of the numeric literal is consumed when the
     /// function is called.
-    fn number(&mut self, prev: char) -> TokenKind {
+    fn number(&mut self, prev: char, skip: bool) -> TokenKind {
         // record the start location of the literal
-        let start = self.offset.get() - 1;
+        let start = self.offset.get() - (1 + skip as usize);
 
         // firstly, figure out if this literal has a base, if so then we need to perform
         // some magic at the end to cast it into the correct base...
@@ -553,16 +456,12 @@ impl<'a> Lexer<'a> {
                         ByteRange::new(start, self.offset.get()),
                     );
                 } else {
-                    return self.create_int_const(chars.as_str(), radix, suffix, start);
+                    return self.create_int_const(radix.into(), suffix);
                 }
             }
         }
 
-        // @@Performance: could avoid allocating the string here?
-        let pre_digits = iter::once(prev)
-            .chain(self.eat_decimal_digits(10).chars())
-            .filter(|c| *c != '_')
-            .collect::<String>();
+        self.eat_decimal_digits(10);
 
         // peek next to check if this is an actual float literal...
         match self.peek() {
@@ -574,116 +473,71 @@ impl<'a> Lexer<'a> {
             // there isn't currently a clear way to resolve this ambiguity.
             '.' if !is_id_start(self.peek_second()) && self.peek_second() != '.' => {
                 self.skip();
-
-                let after_digits = self.eat_decimal_digits(10);
-
-                let num = pre_digits
-                    .chars()
-                    .chain(std::iter::once('.'))
-                    .chain(after_digits.chars().filter(|c| *c != '_'))
-                    .collect::<String>();
-
-                self.eat_float_lit(num.chars(), start)
+                self.eat_decimal_digits(10);
+                self.eat_float_lit(start)
             }
             // Immediate exponent
-            'e' | 'E' => self.eat_float_lit(pre_digits.chars(), start),
+            'e' | 'E' => self.eat_float_lit(start),
             _ => {
-                let suffix = self.maybe_eat_identifier();
+                let maybe_suffix = self.maybe_eat_identifier();
 
                 // If the suffix is equal to a float-like one, convert this token into
                 // a `float`...
-                if matches!(suffix, Some(s) if s == IDENTS.f32 || s == IDENTS.f64) {
-                    match pre_digits.parse::<f64>() {
-                        Err(err) => self.emit_error(
-                            Some(format!("{err}.")),
-                            LexerErrorKind::MalformedNumericalLit,
-                            ByteRange::new(start, self.offset.get()),
-                        ),
-                        Ok(parsed) => {
-                            // Create interned float constant
-                            let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
-                                FloatConstantValue::F32(parsed as f32)
-                            } else {
-                                FloatConstantValue::F64(parsed)
-                            };
-
-                            TokenKind::FloatLit(InternedFloat::create(FloatConstant {
-                                value: float_const,
-                                suffix,
-                            }))
-                        }
+                if let Some(suffix) = maybe_suffix {
+                    match FloatTy::try_from(suffix) {
+                        Ok(suffix) => TokenKind::Float(FloatLitKind::Suffixed(suffix)),
+                        _ => self.create_int_const(Base::Decimal, maybe_suffix),
                     }
                 } else {
-                    self.create_int_const(pre_digits.as_str(), 10, suffix, start)
+                    self.create_int_const(Base::Decimal, maybe_suffix)
                 }
             }
         }
     }
 
     /// Function to apply an exponent to a floating point literal.
-    fn eat_float_lit(&mut self, num: impl Iterator<Item = char>, start: usize) -> TokenKind {
-        match num.collect::<String>().parse::<f64>() {
-            Err(err) => self.emit_error(
-                Some(format!("{err}.")),
-                LexerErrorKind::MalformedNumericalLit,
-                ByteRange::new(start, self.offset.get()),
-            ),
-            Ok(value) => {
-                match self.eat_exponent(start) {
-                    Ok(exp) => {
-                        // if an exponent was specified, as in it is non-zero, we need to apply the
-                        // exponent to the float literal.
-                        let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
+    fn eat_float_lit(&mut self, start: usize) -> TokenKind {
+        match self.eat_exponent(start) {
+            Ok(_) => {
+                // Get the type ascription if any...
+                let maybe_suffix = self.maybe_eat_identifier();
 
-                        // Get the type ascription if any...
-                        let suffix = self.maybe_eat_identifier();
-
-                        // Create interned float constant
-                        let float_const = if let Some(suffix_ident) = suffix && suffix_ident == IDENTS.f32 {
-                            FloatConstantValue::F32(value as f32)
-                        } else {
-                            // Check that the suffix is correct for the literal
-                            if let Some(suffix_ident) = suffix && suffix_ident != IDENTS.f64 {
-                                self.emit_error(
-                                    None,
-                                    LexerErrorKind::InvalidLitSuffix(NumericLitKind::Float, suffix_ident),
-                                    ByteRange::new(start, self.offset.get()),
-                                );
-                            }
-
-                            FloatConstantValue::F64(value)
-                        };
-
-                        TokenKind::FloatLit(InternedFloat::create(FloatConstant {
-                            value: float_const,
-                            suffix,
-                        }))
+                // Check that the suffix is correct for the literal
+                let kind = if let Some(suffix) = maybe_suffix {
+                    match FloatTy::try_from(suffix) {
+                        Ok(_) => todo!(),
+                        Err(_) => {
+                            return self.emit_error(
+                                None,
+                                LexerErrorKind::InvalidLitSuffix(NumericLitKind::Float, suffix),
+                                ByteRange::new(start, self.offset.get()),
+                            )
+                        }
                     }
-                    Err(err) => {
-                        self.add_error(err);
-                        TokenKind::Err
-                    }
-                }
+                } else {
+                    FloatLitKind::Unsuffixed
+                };
+
+                TokenKind::Float(kind)
+            }
+            Err(err) => {
+                self.add_error(err);
+                TokenKind::Err
             }
         }
     }
 
     /// Consume an exponent for a float literal.
-    fn eat_exponent(&mut self, start: usize) -> LexerResult<i32> {
+    fn eat_exponent(&mut self, start: usize) -> LexerResult<()> {
         if !matches!(self.peek(), 'e' | 'E') {
-            // @@Hack: we return a zero to signal that there was no exponent and therefore
-            // avoid applying it later
-            return Ok(0);
+            return Ok(());
         }
 
         self.skip(); // consume the exponent
 
         // Check if there is a sign before the digits start in the exponent...
-        let negated = if self.peek() == '-' {
+        if self.peek() == '-' {
             self.skip();
-            true
-        } else {
-            false
         };
 
         // Check that there is at least on digit in the exponent
@@ -695,14 +549,14 @@ impl<'a> Lexer<'a> {
             );
         }
 
-        match self.eat_decimal_digits(10).parse::<i32>() {
-            Err(_) => self.error(
+        if self.eat_decimal_digits(10).parse::<i32>().is_err() {
+            self.error(
                 Some("Invalid float exponent.".to_string()),
                 LexerErrorKind::MalformedNumericalLit,
                 ByteRange::new(start, self.offset.get() + 1),
-            ),
-            Ok(num) if negated => Ok(-num),
-            Ok(num) => Ok(num),
+            )
+        } else {
+            Ok(())
         }
     }
 
@@ -741,7 +595,7 @@ impl<'a> Lexer<'a> {
                 self.skip(); // Eat the '{' beginning part of the scape sequence
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
-                let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit()).to_string();
+                let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
 
                 if self.peek() != '}' {
                     return self.error(
@@ -760,7 +614,7 @@ impl<'a> Lexer<'a> {
                     );
                 }
 
-                let value = u32::from_str_radix(chars.as_str(), 16);
+                let value = u32::from_str_radix(chars, 16);
 
                 if value.is_err() {
                     return self.error(
@@ -1025,6 +879,6 @@ impl<'a> Lexer<'a> {
         self.eat_while_and_discard(condition);
         let end = self.offset.get();
 
-        &self.contents[start..end]
+        self.contents.hunk(ByteRange::new(start, end))
     }
 }

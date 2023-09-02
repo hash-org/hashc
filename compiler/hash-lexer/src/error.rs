@@ -8,49 +8,9 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::{identifier::Identifier, location::Span};
-use hash_token::{delimiter::Delimiter, TokenKind};
+use hash_token::{delimiter::Delimiter, Base, TokenKind};
 
 use crate::Lexer;
-
-/// Represents the featured base for numeric literals.
-#[derive(Debug)]
-pub enum Base {
-    /// Binary base, denoted in literals as `0b101010`
-    Binary,
-    /// Octal base, denoted in literals as `0o26317261`
-    Octal,
-    /// Decimal base, written as `102391`
-    Decimal,
-    /// Hexadecimal base, written as `0xdeadbeef`
-    Hex,
-    /// Unsupported base, the language doesn't support the
-    /// provided radix as a base.
-    Unsupported,
-}
-
-impl Display for Base {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Base::Binary => write!(f, "binary"),
-            Base::Octal => write!(f, "octal"),
-            Base::Decimal => write!(f, "decimal"),
-            Base::Hex => write!(f, "hexadecimal"),
-            Base::Unsupported => write!(f, "unsupported base"),
-        }
-    }
-}
-
-impl From<u32> for Base {
-    fn from(radix: u32) -> Self {
-        match radix {
-            2 => Base::Binary,
-            8 => Base::Octal,
-            10 => Base::Decimal,
-            16 => Base::Hex,
-            _ => Base::Unsupported,
-        }
-    }
-}
 
 /// Auxiliary data type to provide more information about the
 /// numerical literal kind that was encountered. This is used
@@ -113,8 +73,7 @@ pub enum LexerErrorKind {
     /// When an integer is specified, but no valid digits follow.
     MissingDigits,
 
-    /// Occurs when a numerical literal doesn't follow the language
-    /// specification, or is too large.
+    /// Occurs when a string literal is unclosed.
     UnclosedStringLit,
 
     /// Occurs when a character literal is comprised of more than one character

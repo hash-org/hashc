@@ -8,11 +8,12 @@ use std::{
 };
 
 use hash_source::{
-    constant::{FloatTy, IntTy, InternedFloat, InternedInt, InternedStr, SIntTy},
+    constant::InternedStr,
     identifier::Identifier,
     location::{ByteRange, Span},
     SourceId,
 };
+use hash_token::{Base, FloatLitKind, IntLitKind};
 use hash_tree_def::define_tree;
 use hash_utils::{
     index_vec::{define_index_type, IndexVec},
@@ -45,6 +46,19 @@ impl AstNodeId {
     /// Get the [SourceId] of this [AstNodeId].
     pub fn source(&self) -> SourceId {
         SpanMap::source_of(*self)
+    }
+}
+
+/// Name for some reference within the AST to a source
+/// hunk. This is essentially an interned [Span] that
+/// can be used to reference a particular part of the
+/// source.
+pub type Hunk = AstNodeId;
+
+impl Hunk {
+    /// Create a new [Hunk] from a [Span].
+    pub fn create(span: Span) -> Self {
+        SpanMap::add_span(span)
     }
 }
 
@@ -142,7 +156,7 @@ impl<T> AstNode<T> {
 
     /// Get the [ByteRange] of this [AstNode].
     pub fn byte_range(&self) -> ByteRange {
-        self.span().span
+        self.span().range
     }
 
     /// Set the [Span] of this [AstNode].
@@ -777,68 +791,31 @@ define_tree! {
         pub data: char
     }
 
-    /// The type of the float the [IntLit] is storing.
-    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-    pub enum IntLitKind {
-        /// integer kind `i128`, `u32` ,`i8`...
-        Suffixed(IntTy),
-        /// No provided suffix type, so defaults to `i32`
-        Unsuffixed,
-    }
-
-    impl IntLitKind {
-        /// Get the type of the integer literal
-        pub fn ty(&self) -> IntTy {
-            match self {
-                IntLitKind::Suffixed(ty) => *ty,
-                IntLitKind::Unsuffixed => IntTy::Int(SIntTy::I32),
-            }
-        }
-    }
-
-    impl Display for IntLitKind {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                IntLitKind::Suffixed(ty) => write!(f, "{ty}"),
-                IntLitKind::Unsuffixed => write!(f, ""),
-            }
-        }
-    }
-
     /// An integer literal.
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
     pub struct IntLit {
-        /// The raw value of the literal
-        pub value: InternedInt,
+        /// The raw hunk of text that represents the literal.
+        ///
+        /// **Note** This span does not include the suffix of the literal, e.g. `i32`.
+        pub hunk: Hunk,
+
+        /// The base that specified the integer literal, e.g. `0x` for hexadecimal.
+        pub base: Base,
+
         /// Whether the literal has an ascription
         pub kind: IntLitKind,
-    }
-
-    /// The kind of ascription that is applied to the [FloatLit].
-    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-    pub enum FloatLitKind {
-        /// Has a provided user suffix type
-        Suffixed(FloatTy),
-        /// No provided suffix type, so defaults to `f32`
-        Unsuffixed,
-    }
-
-    impl Display for FloatLitKind {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                FloatLitKind::Suffixed(ty) => write!(f, "{ty}"),
-                FloatLitKind::Unsuffixed => write!(f, ""),
-            }
-        }
     }
 
     /// A float literal.
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
     pub struct FloatLit {
-        /// Raw value of the literal
-        pub value: InternedFloat,
+        /// Raw value hunk of the float literal.
+        ///
+        /// **Note** This span does not include the suffix of the literal, e.g. `f32`.
+        pub hunk: Hunk,
+
         /// Whether the literal has an ascription
         pub kind: FloatLitKind,
     }

@@ -11,6 +11,7 @@ use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     TrivialSequenceStoreKey,
 };
+use hash_target::HasTarget;
 use hash_tir::{
     args::Arg,
     environment::stores::tir_stores,
@@ -145,25 +146,42 @@ impl AstExpander<'_> {
                         ParamIndex::Position(index)
                     };
 
+                    let ptr_size = self.settings.target().ptr_size();
+
                     // If we can't convert this into an attribute value, then we
                     // can't properly check the invocation.
-                    //
-                    // @@Future: remove this restriction and allow more general
-                    // expressions to be used as arguments to attributes.
-                    let Some(attr_value) = AttrValueKind::try_from_expr(arg.value.body()) else {
-                        let expr_kind = AttrTarget::classify_expr(arg.value.body());
-                        self.diagnostics.add_error(ExpansionError::new(
-                            ExpansionErrorKind::InvalidAttributeArg(expr_kind),
-                            arg.id(),
-                        ));
+                    let attr_value = match AttrValueKind::try_from_expr(
+                        arg.value.body(),
+                        self.sources,
+                        ptr_size,
+                    ) {
+                        Ok(Some(value)) => value,
+                        Ok(None) => {
+                            let expr_kind = AttrTarget::classify_expr(arg.value.body());
+                            self.diagnostics.add_error(ExpansionError::new(
+                                ExpansionErrorKind::InvalidAttributeArg(expr_kind),
+                                arg.id(),
+                            ));
 
-                        is_valid = false;
-                        break;
+                            is_valid = false;
+                            break;
+                        }
+
+                        // Literal parsing failed, we just push the error into the
+                        // expansion diagnostics and let it be handled later.
+                        Err(err) => {
+                            self.diagnostics.add_error(ExpansionError::new(err.into(), node.id));
+
+                            is_valid = false;
+                            break;
+                        }
                     };
 
                     macro_rules! lit_prim {
                         ($name:ident,$lit_name:ident, $contents:expr) => {
-                            Term::from(Term::Lit(Lit::$name($lit_name::from($contents))))
+                            Term::from(Term::Lit(Node::create_gen(Lit::$name($lit_name::from(
+                                $contents,
+                            )))))
                         };
                     }
 
@@ -193,7 +211,7 @@ impl AstExpander<'_> {
                 self.param_utils().validate_and_reorder_args_against_params(mac_args, attr_ty.params)
             {
                 self.diagnostics.add_error(ExpansionError::new(
-                    ExpansionErrorKind::InvalidAttributeParams(param_err),
+                    param_err.into(),
                     node.id,
                 ));
 

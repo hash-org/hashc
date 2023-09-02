@@ -411,7 +411,9 @@ dependencies = [
 name = "hash-ast"
 version = "0.1.0"
 dependencies = [
+ "hash-reporting",
  "hash-source",
+ "hash-token",
  "hash-tree-def",
  "hash-utils",
  "num-bigint",

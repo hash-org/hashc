@@ -13,8 +13,8 @@ use std::{
 use fnv::FnvBuildHasher;
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
-pub use hash_target::primitives::{FloatTy, IntTy, SIntTy, UIntTy};
-use hash_target::size::Size;
+pub use hash_target::primitives::*;
+pub use hash_target::size::Size;
 use hash_utils::{
     counter,
     dashmap::DashMap,
@@ -23,7 +23,7 @@ use hash_utils::{
     lazy_static::lazy_static,
     parking_lot::RwLock,
 };
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt, BigUint, Sign};
 use FloatConstantValue::*;
 use IntConstantValue::*;
 
@@ -90,6 +90,27 @@ impl TryFrom<Identifier> for IntTy {
     }
 }
 
+impl TryFrom<Identifier> for FloatTy {
+    type Error = ();
+
+    fn try_from(value: Identifier) -> Result<Self, Self::Error> {
+        match value {
+            i if i == IDENTS.f32 => Ok(FloatTy::F32),
+            i if i == IDENTS.f64 => Ok(FloatTy::F64),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<FloatTy> for Identifier {
+    fn from(value: FloatTy) -> Self {
+        match value {
+            FloatTy::F32 => IDENTS.f32,
+            FloatTy::F64 => IDENTS.f64,
+        }
+    }
+}
+
 // -------------------- Floats --------------------
 
 /// The inner stored value of a [FloatConstant].
@@ -140,19 +161,6 @@ impl FloatConstant {
         match self.value {
             F64(_) => FloatTy::F64,
             F32(_) => FloatTy::F32,
-        }
-    }
-
-    /// Perform a conversion from the [FloatConstant] into a specified
-    /// [FloatTy].
-    fn convert_into(self, ty: FloatTy) -> Self {
-        if self.ty() == ty {
-            return self;
-        }
-
-        match ty {
-            FloatTy::F64 => Self::new(F64(self.as_f64()), Some(IDENTS.f64)),
-            FloatTy::F32 => Self::new(F32(self.as_f64() as f32), Some(IDENTS.f32)),
         }
     }
 }
@@ -256,6 +264,11 @@ impl InternedFloat {
         store.push(constant)
     }
 
+    /// Get the underlying type of the interned float.
+    pub fn ty(self) -> FloatTy {
+        self.map(|constant| constant.ty())
+    }
+
     /// Get the value of the interned float.
     pub fn value(self) -> FloatConstant {
         *CONSTS.floats.read().get(self).unwrap()
@@ -266,14 +279,6 @@ impl InternedFloat {
         let mut store = CONSTS.floats.write();
         let value = store.get_mut(self).unwrap();
         *value = -*value;
-    }
-
-    /// Adjust the underlying [FloatConstant] into a specified
-    /// [FloatTy].
-    pub fn adjust_to(self, ty: FloatTy) {
-        let mut store = CONSTS.floats.write();
-        let value = store.get_mut(self).unwrap();
-        *value = value.convert_into(ty);
     }
 
     /// Map the interned float.
@@ -362,23 +367,6 @@ impl IntConstantValue {
             Self::U64(inner) => Some(*inner as u128),
             Self::U128(inner) => Some(*inner),
             Self::Big(_) => None,
-        }
-    }
-
-    /// Get the [BigInt] representation of the value.
-    pub fn as_big(&self) -> BigInt {
-        match self {
-            Self::I8(inner) => BigInt::from(*inner),
-            Self::I16(inner) => BigInt::from(*inner),
-            Self::I32(inner) => BigInt::from(*inner),
-            Self::I64(inner) => BigInt::from(*inner),
-            Self::I128(inner) => BigInt::from(*inner),
-            Self::U8(inner) => BigInt::from(*inner),
-            Self::U16(inner) => BigInt::from(*inner),
-            Self::U32(inner) => BigInt::from(*inner),
-            Self::U64(inner) => BigInt::from(*inner),
-            Self::U128(inner) => BigInt::from(*inner),
-            Self::Big(inner) => *(*inner).clone(),
         }
     }
 
@@ -628,39 +616,6 @@ impl IntConstant {
             _ => false,
         }
     }
-    /// Convert the [IntConstant] into the [IntConstant] with
-    /// the specified `ty`.
-    fn convert_into(&mut self, ty: IntTy, ptr_width: Size) {
-        if self.ty() == ty {
-            return;
-        }
-
-        let suffix: Identifier = ty.into();
-
-        // Re-make the value based on the new type.
-        let value = match ty.normalise(ptr_width) {
-            IntTy::Int(SIntTy::I8) => IntConstantValue::I8((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::I16) => IntConstantValue::I16((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::I32) => IntConstantValue::I32((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::I64) => IntConstantValue::I64((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::I128) => IntConstantValue::I128((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::IBig) => {
-                IntConstantValue::Big(Box::new((&*self).try_into().unwrap()))
-            }
-            IntTy::UInt(UIntTy::U8) => IntConstantValue::U8((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::U16) => IntConstantValue::U16((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::U32) => IntConstantValue::U32((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::U64) => IntConstantValue::U64((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::U128) => IntConstantValue::U128((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::UBig) => {
-                IntConstantValue::Big(Box::new((&*self).try_into().unwrap()))
-            }
-            _ => unreachable!(),
-        };
-
-        self.value = value;
-        self.suffix = Some(suffix);
-    }
 }
 
 impl Neg for IntConstant {
@@ -755,6 +710,18 @@ macro_rules! int_const_impl_from {
                 }
             }
         )*
+
+        impl From<BigInt> for IntConstantValue {
+            fn from(value: BigInt) -> Self {
+                Self::Big(Box::new(value))
+            }
+        }
+
+        impl From<BigUint> for IntConstantValue {
+            fn from(value: BigUint) -> Self {
+                Self::Big(Box::new(BigInt::from(value)))
+            }
+        }
     };
 }
 
@@ -821,6 +788,11 @@ impl InternedInt {
         store.push(constant)
     }
 
+    /// Get the underlying type of the interned float.
+    pub fn ty(self) -> IntTy {
+        self.map(|constant| constant.ty())
+    }
+
     /// Create a new usize value with the specified `value` and the
     /// current target pointer size.
     pub fn create_usize(value: usize, ptr_width: Size) -> Self {
@@ -839,19 +811,30 @@ impl InternedInt {
         f(&store[self])
     }
 
+    /// Get the [BigInt] representation of the value.
+    pub fn as_big(&self) -> BigInt {
+        use IntConstantValue::*;
+
+        match self.value().value {
+            I8(inner) => BigInt::from(inner),
+            I16(inner) => BigInt::from(inner),
+            I32(inner) => BigInt::from(inner),
+            I64(inner) => BigInt::from(inner),
+            I128(inner) => BigInt::from(inner),
+            U8(inner) => BigInt::from(inner),
+            U16(inner) => BigInt::from(inner),
+            U32(inner) => BigInt::from(inner),
+            U64(inner) => BigInt::from(inner),
+            U128(inner) => BigInt::from(inner),
+            Big(inner) => *inner,
+        }
+    }
+
     /// Flip the sign of the underlying constant.
     pub fn negate(self) {
         let mut store = CONSTS.ints.write();
         let value = store.index_mut(self);
         *value = value.clone().neg();
-    }
-
-    /// Adjust the type of the underlying constant to the newly
-    /// specified type.
-    pub fn adjust_to(self, ty: IntTy, ptr_width: Size) {
-        let mut store = CONSTS.ints.write();
-        let value = store.index_mut(self);
-        value.convert_into(ty, ptr_width);
     }
 
     /// Convert a bias encoded `u128` value with an associated [IntTy] and
