@@ -16,7 +16,10 @@ use std::cell::Cell;
 
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::AccessToDiagnostics;
-use hash_source::location::{ByteRange, Span};
+use hash_source::{
+    location::{ByteRange, Span},
+    Source,
+};
 use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::{thin_vec, ThinVec};
 
@@ -85,6 +88,8 @@ pub struct AstGen<'stream, 'resolver> {
     /// report it as an expected expression.
     parent_span: ByteRange,
 
+    source: Source<'stream>,
+
     /// The token stream
     stream: &'stream [Token],
 
@@ -104,6 +109,7 @@ pub struct AstGen<'stream, 'resolver> {
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create new AST generator from a token stream.
     pub fn new(
+        source: Source<'stream>,
         stream: &'stream [Token],
         token_trees: &'stream [Vec<Token>],
         resolver: &'resolver ImportResolver,
@@ -117,7 +123,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => ByteRange::default(),
         };
 
-        Self { stream, token_trees, offset: Cell::new(0), parent_span, resolver, diagnostics }
+        Self {
+            source,
+            stream,
+            token_trees,
+            offset: Cell::new(0),
+            parent_span,
+            resolver,
+            diagnostics,
+        }
     }
 
     /// Create new AST generator from a provided token stream with inherited
@@ -125,6 +139,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     #[must_use]
     pub fn from_stream(&self, stream: &'stream [Token], parent_span: ByteRange) -> Self {
         Self {
+            source: self.source,
             stream,
             token_trees: self.token_trees,
             offset: Cell::new(0),

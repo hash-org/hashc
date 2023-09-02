@@ -76,7 +76,7 @@ impl ReportCodeBlock {
                 let start @ RowCol { row: start_row, .. } = source.get_row_col(span.start());
                 let end @ RowCol { row: end_row, .. } = source.get_row_col(span.end());
                 let RowCol { row: last_row, .. } =
-                    source.get_row_col(sources.contents(id).len() - 1);
+                    source.get_row_col(sources.contents(id).0.len() - 1);
 
                 // Compute the selected span outside of the diagnostic span
                 let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
@@ -113,6 +113,7 @@ impl ReportCodeBlock {
         let (top_buffer, bottom_buffer) = compute_buffers(start_row, end_row);
 
         source
+            .0
             .lines()
             .enumerate()
             .skip(start_row.saturating_sub(top_buffer))

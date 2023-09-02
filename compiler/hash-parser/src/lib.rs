@@ -254,7 +254,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(source_id, source.path(), sender);
     let diagnostics = ParserDiagnostics::new();
-    let mut gen = AstGen::new(&tokens, &trees, &resolver, &diagnostics);
+    let mut gen = AstGen::new(source.contents(), &tokens, &trees, &resolver, &diagnostics);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.

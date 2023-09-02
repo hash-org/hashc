@@ -9,7 +9,7 @@ use hash_source::{
     self,
     identifier::{Identifier, IDENTS},
     location::{ByteRange, Span},
-    SourceId,
+    Source, SourceId,
 };
 use hash_target::primitives::{FloatTy, IntTy};
 use hash_token::{
@@ -37,7 +37,7 @@ pub struct Lexer<'a> {
     offset: Cell<usize>,
 
     /// The contents that are to be lexed.
-    contents: &'a str,
+    contents: Source<'a>,
 
     /// Representative module index of the current source.
     source_id: SourceId,
@@ -60,7 +60,7 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Create a new [Lexer] from the given string input.
-    pub fn new(contents: &'a str, source_id: SourceId) -> Self {
+    pub fn new(contents: Source<'a>, source_id: SourceId) -> Self {
         Lexer {
             offset: Cell::new(0),
             source_id,
@@ -151,7 +151,7 @@ impl<'a> Lexer<'a> {
 
         // ##Safety: We rely that the byte offset is correctly computed when stepping
         // over the characters in the iterator.
-        std::str::from_utf8_unchecked(self.contents.as_bytes().get_unchecked(offset..))
+        std::str::from_utf8_unchecked(self.contents.0.as_bytes().get_unchecked(offset..))
     }
 
     /// Returns nth character relative to the current position.
@@ -184,7 +184,7 @@ impl<'a> Lexer<'a> {
 
     /// Checks if there is nothing more to consume.
     fn is_eof(&self) -> bool {
-        self.contents.len() == self.len_consumed()
+        self.contents.0.len() == self.len_consumed()
     }
 
     /// Strip the shebang, e.g. "#!/usr/bin/hashc", from a source assuming that
@@ -363,7 +363,7 @@ impl<'a> Lexer<'a> {
         // then take a slice at the end
         self.eat_while_and_discard(is_id_continue);
 
-        let name = &self.contents[start..self.offset.get()];
+        let name = &self.contents.0[start..self.offset.get()];
 
         ident_is_keyword(name).map_or_else(|| TokenKind::Ident(name.into()), TokenKind::Keyword)
     }
@@ -400,7 +400,7 @@ impl<'a> Lexer<'a> {
                 let start = self.offset.get() - ch.len_utf8();
 
                 self.eat_while_and_discard(is_id_continue);
-                let name = &self.contents[start..self.offset.get()];
+                let name = &self.contents.0[start..self.offset.get()];
 
                 Some(name.into())
             }
@@ -879,6 +879,6 @@ impl<'a> Lexer<'a> {
         self.eat_while_and_discard(condition);
         let end = self.offset.get();
 
-        &self.contents[start..end]
+        self.contents.hunk(ByteRange::new(start, end))
     }
 }
