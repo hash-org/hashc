@@ -169,11 +169,6 @@ impl<'l> LayoutComputer<'l> {
                 SIntTy::I64 => Ok(self.common_layouts().i64),
                 SIntTy::I128 => Ok(self.common_layouts().i128),
                 SIntTy::ISize => Ok(self.common_layouts().isize),
-
-                // @@Layout: for bigints, we will probably use a ScalarPair
-                // to represent a pointer to the digit array, and then a
-                // length of the digits.
-                SIntTy::IBig => Err(LayoutError::Unknown(ty_id)),
             },
             IrTy::UInt(ty) => match ty {
                 UIntTy::U8 => Ok(self.common_layouts().u8),
@@ -182,7 +177,6 @@ impl<'l> LayoutComputer<'l> {
                 UIntTy::U64 => Ok(self.common_layouts().u64),
                 UIntTy::U128 => Ok(self.common_layouts().u128),
                 UIntTy::USize => Ok(self.common_layouts().usize),
-                UIntTy::UBig => Err(LayoutError::Unknown(ty_id)),
             },
             IrTy::Float(ty) => Ok(match ty {
                 FloatTy::F32 => self.common_layouts().f32,

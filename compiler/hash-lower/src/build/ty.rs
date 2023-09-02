@@ -165,7 +165,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         match *(*pat).value() {
             Lit::Int(lit) => {
                 let value = lit.interned_value();
-                value.map(|constant| (Const::Int(value), constant.value.as_u128().unwrap()))
+                value.map(|constant| (Const::Int(value), constant.value.as_u128()))
             }
             Lit::Char(lit) => {
                 let value = lit.value();

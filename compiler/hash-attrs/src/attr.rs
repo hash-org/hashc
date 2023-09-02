@@ -53,7 +53,7 @@ impl ReprAttr {
                 };
 
                 // We reject the type if it is non-sized...
-                if !ty.is_bounded() {
+                if !ty.is_big() {
                     return Err(AttrError::InvalidReprIntKind { arg: *arg });
                 }
 
@@ -181,7 +181,8 @@ impl AttrValueKind {
                 ast::Lit::Str(ast::StrLit { data }) => Ok(Some(Self::Str(*data))),
                 ast::Lit::Char(ast::CharLit { data }) => Ok(Some(Self::Char(*data))),
                 ast::Lit::Int(int_lit) => {
-                    let value = parse_int_const_from_lit(int_lit, None, sources, ptr_size)?;
+                    let value =
+                        parse_int_const_from_lit(int_lit, None, sources, ptr_size, false)?.small();
                     Ok(Some(Self::Int(value)))
                 }
                 ast::Lit::Float(float_lit) => {

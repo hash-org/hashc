@@ -7,7 +7,7 @@ use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::diagnostic::{Diagnostics, ErrorState};
 use hash_source::{
-    constant::{FloatTy, IntTy, SIntTy, UIntTy},
+    constant::{BigIntTy, FloatTy, IntTy, SIntTy, UIntTy},
     entry_point::EntryPointKind,
     identifier::IDENTS,
     ModuleKind,
@@ -494,7 +494,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                                 SIntTy::I64 => primitives().i64(),
                                 SIntTy::I128 => primitives().i128(),
                                 SIntTy::ISize => primitives().isize(),
-                                SIntTy::IBig => primitives().ibig(),
                             },
                             IntTy::UInt(u_int_ty) => match u_int_ty {
                                 UIntTy::U8 => primitives().u8(),
@@ -503,7 +502,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                                 UIntTy::U64 => primitives().u64(),
                                 UIntTy::U128 => primitives().u128(),
                                 UIntTy::USize => primitives().usize(),
-                                UIntTy::UBig => primitives().ubig(),
+                            },
+                            IntTy::Big(big_int_ty) => match big_int_ty {
+                                BigIntTy::IBig => primitives().ibig(),
+                                BigIntTy::UBig => primitives().ubig(),
                             },
                         },
                         None => {
@@ -651,8 +653,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
-            let inferred_len_term =
-                self.create_term_from_integer_lit(array_term.elements.len() as u64);
+            let inferred_len_term = self.create_term_from_usize_lit(array_term.elements.len());
+
             if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
                 return Err(TcError::MismatchingArrayLengths {
                     expected_len: len,

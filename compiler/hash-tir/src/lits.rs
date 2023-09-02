@@ -4,17 +4,16 @@ use std::{fmt::Display, ops::Deref};
 use hash_ast::{
     ast,
     lit::{
-        parse_float_const_from_lit, parse_int_const_from_lit, FloatLitKind, IntLitKind,
+        parse_float_const_from_lit, parse_int_const_from_lit, FloatLitKind, IntLitKind, IntValue,
         LitParseResult,
     },
 };
-use hash_source::constant::{InternedFloat, InternedInt, InternedStr};
+use hash_source::constant::{IntConstant, InternedFloat, InternedInt, InternedStr};
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     primitives::{FloatTy, IntTy},
     size::Size,
 };
-use num_bigint::BigInt;
 
 use crate::{
     environment::{
@@ -54,8 +53,8 @@ impl IntLit {
     }
 
     /// Return the value of the integer literal.
-    pub fn value(&self) -> BigInt {
-        self.value.value().as_big()
+    pub fn value(&self) -> IntConstant {
+        self.value.value().value()
     }
 
     /// Check whether that value is negative.
@@ -64,7 +63,7 @@ impl IntLit {
     pub fn is_negative(&self, env: &Env<'_>) -> bool {
         match self.value {
             LitValue::Raw(lit) => env.source_map().hunk(lit.hunk.span()).starts_with('-'),
-            LitValue::Value(value) => value.as_big() < 0.into(),
+            LitValue::Value(value) => value.is_negative(),
         }
     }
 
@@ -93,6 +92,10 @@ impl IntLit {
     ///
     /// This function does not do anyttihng if the literal has already been
     /// baked.
+    ///
+    /// @@Future: we shouldn't change the literal inplace, we should return a
+    /// new // literal value, or we should return a new term which is the
+    /// bigint term.
     pub fn bake(&mut self, env: &Env<'_>, int_ty: IntTy) -> LitParseResult<()> {
         if let LitValue::Raw(lit) = self.value {
             let value = parse_int_const_from_lit(
@@ -100,9 +103,18 @@ impl IntLit {
                 Some(int_ty),
                 env.source_map(),
                 env.target().ptr_size(),
+                true,
             )?;
 
-            self.value = LitValue::Value(value);
+            match value {
+                IntValue::Small(value) => {
+                    self.value = LitValue::Value(value);
+                }
+                IntValue::Big(_) => {
+                    // @@AddBigIntsToPrelude
+                    unimplemented!()
+                }
+            }
         }
 
         Ok(())
@@ -315,19 +327,15 @@ impl Display for LitPat {
                 let value = lit.value.value();
                 let kind = value.map(|constant| constant.ty());
 
-                if !kind.is_bigint() {
-                    // @@Hack: we don't use size since it is never invoked because of
-                    // integer constant don't store usize values.
-                    let dummy_size = Size::ZERO;
-                    let value = value.map(|constant| constant.value.as_u128().unwrap());
+                // ##Hack: we don't use size since it is never invoked because of
+                // integer constant don't store usize values.
+                let dummy_size = Size::ZERO;
+                let value = value.map(|constant| constant.value.as_u128());
 
-                    if kind.numeric_min(dummy_size) == value {
-                        write!(f, "{kind}::MIN")
-                    } else if kind.numeric_max(dummy_size) == value {
-                        write!(f, "{kind}::MAX")
-                    } else {
-                        write!(f, "{lit}")
-                    }
+                if kind.numeric_min(dummy_size) == value {
+                    write!(f, "{kind}::MIN")
+                } else if kind.numeric_max(dummy_size) == value {
+                    write!(f, "{kind}::MAX")
                 } else {
                     write!(f, "{lit}")
                 }

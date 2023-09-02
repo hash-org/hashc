@@ -31,7 +31,7 @@ impl Constant {
     pub fn from_int(constant: InternedInt, ty: TyId) -> Self {
         // Get the associated bytes with the interned-int so we can convert
         // into a constant.
-        let data = constant.value().value.as_u128().unwrap();
+        let data = constant.value().value.as_u128();
         Constant { data, ty }
     }
 

@@ -117,7 +117,6 @@ impl Integer {
             UIntTy::U64 => Integer::I64,
             UIntTy::U128 => Integer::I128,
             UIntTy::USize => ctx.data_layout().ptr_sized_integer(),
-            UIntTy::UBig => unreachable!("`ubig` cannot be converted into a scalar"),
         }
     }
 
@@ -130,7 +129,6 @@ impl Integer {
             SIntTy::I64 => Integer::I64,
             SIntTy::I128 => Integer::I128,
             SIntTy::ISize => ctx.data_layout().ptr_sized_integer(),
-            SIntTy::IBig => unreachable!("`ibig` cannot be converted into a scalar"),
         }
     }
 
@@ -139,6 +137,7 @@ impl Integer {
         match ty {
             IntTy::UInt(ty) => Self::from_unsigned_int_ty(ty, ctx),
             IntTy::Int(ty) => Self::from_signed_int_ty(ty, ctx),
+            _ => unreachable!(),
         }
     }
 }

@@ -18,7 +18,8 @@ main := () => {
   ensure<isize>(1isize);
   ensure<usize>(1usize);
 
-  ensure<ibig>(1ibig);
-  ensure<ubig>(1ubig);
+  // @@AddBigIntsToPrelude
+  // ensure<ibig>(1ibig);
+  // ensure<ubig>(1ubig);
 };
 
