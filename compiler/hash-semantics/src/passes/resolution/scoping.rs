@@ -1,8 +1,8 @@
 //! General helper functions for traversing scopes and adding bindings.
 use std::{collections::HashMap, fmt};
 
-use hash_ast::ast;
-use hash_source::{identifier::Identifier, location::Span};
+use hash_ast::ast::{self, AstNodeId};
+use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataDefId},
@@ -13,9 +13,10 @@ use hash_tir::{
     fns::FnTy,
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId},
+    node::NodeOrigin,
     params::ParamId,
     scopes::StackId,
-    symbols::{sym, SymbolId},
+    symbols::SymbolId,
     tuples::TupleTy,
     ty_as_variant,
 };
@@ -146,13 +147,16 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn lookup_symbol_by_name_or_error(
         &self,
         name: impl Into<Identifier>,
-        span: Span,
+        origin_node_id: AstNodeId,
         looking_in: ContextKind,
     ) -> SemanticResult<(SymbolId, BindingKind)> {
         let name = name.into();
-        let symbol = self.lookup_symbol_by_name(name).ok_or_else(|| {
-            SemanticError::SymbolNotFound { symbol: sym(name), location: span, looking_in }
-        })?;
+        let symbol =
+            self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
+                symbol: SymbolId::from_name(name, NodeOrigin::Given(origin_node_id)),
+                location: origin_node_id.span(),
+                looking_in,
+            })?;
 
         // @@Todo: Ensure that we are in the correct context for the binding.
         // if self.context().get_current_scope_kind().is_constant() {

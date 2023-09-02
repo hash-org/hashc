@@ -72,7 +72,7 @@ impl<'tc> ResolutionPass<'tc> {
         // @@Todo: create type for the tuple as some annotations
         // might be given.
         // @@Todo: error recovery
-        let args = args
+        let created_args = args
             .iter()
             .enumerate()
             .map(|(i, arg)| {
@@ -85,11 +85,11 @@ impl<'tc> ResolutionPass<'tc> {
                             .unwrap_or_else(|| ParamIndex::Position(i)),
                         value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
                     },
-                    NodeOrigin::Generated,
+                    NodeOrigin::Given(arg.id()),
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
+        Ok(Node::create_at(Node::<Arg>::seq(created_args), NodeOrigin::Given(args.id())))
     }
 
     /// Make TC arguments from the given set of AST constructor call arguments
@@ -98,7 +98,7 @@ impl<'tc> ResolutionPass<'tc> {
         args: &ast::AstNodes<ast::ExprArg>,
     ) -> SemanticResult<ArgsId> {
         // @@Todo: error recovery
-        let args = args
+        let created_args = args
             .iter()
             .enumerate()
             .map(|(i, arg)| {
@@ -111,11 +111,11 @@ impl<'tc> ResolutionPass<'tc> {
                             .unwrap_or_else(|| ParamIndex::Position(i)),
                         value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
                     },
-                    NodeOrigin::Generated,
+                    NodeOrigin::Given(arg.id()),
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
+        Ok(Node::create_at(Node::<Arg>::seq(created_args), NodeOrigin::Given(args.id())))
     }
 
     /// Make a term from the given [`ast::Expr`] and assign it to the node in
@@ -197,26 +197,26 @@ impl<'tc> ResolutionPass<'tc> {
                 self.current_source_info().with_source_id(source_id, || {
                     ResolutionPass::new(self.sem_env()).pass_source()
                 })?;
-                Term::void()
+                Term::void(NodeOrigin::Given(node.id()))
             }
 
             // No-ops (not supported or handled earlier):
             ast::Expr::TraitDef(_)
             | ast::Expr::MergeDeclaration(_)
             | ast::Expr::ImplDef(_)
-            | ast::Expr::TraitImpl(_) => Term::void(),
+            | ast::Expr::TraitImpl(_) => Term::void(NodeOrigin::Given(node.id())),
 
             ast::Expr::StructDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
-                Term::void()
+                Term::void(NodeOrigin::Given(node.id()))
             }
             ast::Expr::EnumDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
-                Term::void()
+                Term::void(NodeOrigin::Given(node.id()))
             }
             ast::Expr::ModDef(mod_def) => {
                 self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?;
-                Term::void()
+                Term::void(NodeOrigin::Given(node.id()))
             }
         };
 
@@ -231,9 +231,9 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<'a, ast::VariableExpr>,
     ) -> SemanticResult<AstPath<'a>> {
         Ok(vec![AstPathComponent {
-            name: node.body.name.ident,
-            name_span: node.span(),
-            args: vec![],
+            name: node.name.ident,
+            name_node_id: node.name.id(),
+            args: Node::at(vec![], NodeOrigin::Given(node.id())),
             node_id: node.id(),
         }])
     }
@@ -255,8 +255,8 @@ impl<'tc> ResolutionPass<'tc> {
                         })?;
                     root.push(AstPathComponent {
                         name: *name,
-                        name_span: node.property.span(),
-                        args: vec![],
+                        name_node_id: node.property.id(),
+                        args: Node::at(vec![], NodeOrigin::Given(node.id())),
                         node_id: node.id(),
                     });
                     Ok(Some(root))
@@ -358,11 +358,11 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
                     // Constructor
-                    Ok(Term::from(Term::Ctor(*ctor_term)))
+                    Ok(Term::from(Term::Ctor(**ctor_term)))
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
                     // Function call
-                    Ok(Term::from(Term::FnCall(*fn_call_term)))
+                    Ok(Term::from(Term::FnCall(**fn_call_term)))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Bound variable
@@ -469,7 +469,9 @@ impl<'tc> ResolutionPass<'tc> {
         // Type annotation:
         let ty = match node.ty.as_ref() {
             Some(ty) => self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())),
-            None => Some(Ty::hole()),
+            None => Some(Ty::hole(NodeOrigin::InferredFrom(
+                node.value.as_ref().map(|v| v.id()).unwrap_or_else(|| node.pat.id()),
+            ))),
         };
 
         match (pat, ty, value) {
@@ -550,7 +552,8 @@ impl<'tc> ResolutionPass<'tc> {
                     .ast_ref_iter()
                     .map(|element| self.make_term_from_ast_expr(element))
                     .collect::<SemanticResult<_>>()?;
-                let elements = Node::create_at(TermId::seq(element_vec), NodeOrigin::Generated);
+                let elements =
+                    Node::create_at(TermId::seq(element_vec), NodeOrigin::Given(node.id()));
                 Ok(Term::from(Term::Array(ArrayTerm { elements })))
             }
         }
@@ -578,7 +581,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let expression = match node.expr.as_ref() {
             Some(expr) => self.make_term_from_ast_expr(expr.ast_ref())?,
-            None => Term::void(),
+            None => Term::void(NodeOrigin::Given(node.id())),
         };
         Ok(Term::from(Term::Return(ReturnTerm { expression })))
     }
@@ -638,7 +641,7 @@ impl<'tc> ResolutionPass<'tc> {
                             match (bind_pat, value) {
                                 (Some(bind_pat), Some(value)) => Some(Node::at(
                                     MatchCase { bind_pat, value, stack_id },
-                                    NodeOrigin::Generated,
+                                    NodeOrigin::Given(case.id()),
                                 )),
                                 _ => None,
                             }
@@ -646,7 +649,7 @@ impl<'tc> ResolutionPass<'tc> {
                     })
                     .collect_vec(),
             ),
-            NodeOrigin::Generated,
+            NodeOrigin::Given(node.cases.id()),
         );
 
         // Create a term if all ok
@@ -726,7 +729,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ) {
                     (Some(Some(expr)), true) => {
                         let statements =
-                            Node::create_at(TermId::seq(statements), NodeOrigin::Generated);
+                            Node::create_at(TermId::seq(statements), NodeOrigin::Given(node.id()));
                         Ok(Term::from(Term::Block(BlockTerm {
                             statements,
                             return_value: expr,
@@ -735,8 +738,8 @@ impl<'tc> ResolutionPass<'tc> {
                     }
                     (None, true) => {
                         let statements =
-                            Node::create_at(TermId::seq(statements), NodeOrigin::Generated);
-                        let return_value = Term::void();
+                            Node::create_at(TermId::seq(statements), NodeOrigin::Given(node.id()));
+                        let return_value = Term::void(NodeOrigin::Given(node.id()));
                         Ok(Term::from(Term::Block(BlockTerm {
                             statements,
                             return_value,
@@ -766,7 +769,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
             inner => Term::from(BlockTerm {
                 return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
-                statements: Node::create_at(TermId::empty_seq(), NodeOrigin::Generated),
+                statements: Node::create_at(TermId::empty_seq(), NodeOrigin::Given(node.id())),
                 stack_id: Stack::empty(),
             }),
         };
@@ -910,6 +913,7 @@ impl<'tc> ResolutionPass<'tc> {
             *node.operator.body(),
             node.lhs.ast_ref(),
             node.rhs.ast_ref(),
+            NodeOrigin::Given(node.id()),
         )?;
         Ok(Term::from(AssignTerm { subject, value }))
     }
@@ -923,6 +927,7 @@ impl<'tc> ResolutionPass<'tc> {
             *node.operator.body(),
             node.lhs.ast_ref(),
             node.rhs.ast_ref(),
+            NodeOrigin::Given(node.id()),
         )
     }
 
@@ -942,6 +947,7 @@ impl<'tc> ResolutionPass<'tc> {
         op: ast::BinOp,
         lhs: AstNodeRef<ast::Expr>,
         rhs: AstNodeRef<ast::Expr>,
+        origin: NodeOrigin,
     ) -> SemanticResult<TermId> {
         let lhs = self.make_term_from_ast_expr(lhs)?;
         let rhs = self.make_term_from_ast_expr(rhs)?;
@@ -978,7 +984,7 @@ impl<'tc> ResolutionPass<'tc> {
                 return Ok(Term::from(CastTerm { subject_term: lhs, target_ty: rhs.as_ty() }));
             }
             ast::BinOp::Merge => {
-                let args = Arg::seq_positional([typeof_lhs, lhs, rhs]);
+                let args = Arg::seq_positional([typeof_lhs, lhs, rhs], origin);
                 return Ok(Ty::from(DataTy { data_def: primitives().equal(), args }).as_term());
             }
         };
@@ -986,12 +992,10 @@ impl<'tc> ResolutionPass<'tc> {
         // Invoke the intrinsic function
         Ok(Term::from(FnCallTerm {
             subject: Term::from(intrinsic_fn_def),
-            args: Arg::seq_positional([
-                typeof_lhs,
-                self.create_term_from_integer_lit(bin_op_num),
-                lhs,
-                rhs,
-            ]),
+            args: Arg::seq_positional(
+                [typeof_lhs, self.create_term_from_integer_lit(bin_op_num), lhs, rhs],
+                origin,
+            ),
             implicit: false,
         }))
     }
@@ -1017,7 +1021,10 @@ impl<'tc> ResolutionPass<'tc> {
         // Invoke the intrinsic function
         Ok(Term::from(FnCallTerm {
             subject: Term::from(intrinsic_fn_def),
-            args: Arg::seq_positional([typeof_a, self.create_term_from_integer_lit(op_num), a]),
+            args: Arg::seq_positional(
+                [typeof_a, self.create_term_from_integer_lit(op_num), a],
+                NodeOrigin::Given(node.id()),
+            ),
             implicit: false,
         }))
     }

@@ -283,11 +283,11 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                                 Pat::Array(ArrayPat { pats, spread: None })
                             }
                             ArrayKind::Var(prefix, _) => {
-                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: SymbolId::fresh_underscore(), index: *prefix }) })
+                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: SymbolId::fresh_underscore(NodeOrigin::Generated), index: *prefix }) })
                             }
                         }
                     }
-                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: SymbolId::fresh_underscore(), is_mutable: false }),
+                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: SymbolId::fresh_underscore(NodeOrigin::Generated), is_mutable: false }),
                     DeconstructedCtor::Or => {
                         panic!("cannot convert an `or` deconstructed pat back into pat")
                     }
@@ -326,7 +326,10 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let args = Node::create_at(Node::<PatArg>::seq(fields), NodeOrigin::Generated);
 
         if field_count != params.len() {
-            (args, Some(Spread { name: SymbolId::fresh(), index: field_count }))
+            (
+                args,
+                Some(Spread { name: SymbolId::fresh(NodeOrigin::Generated), index: field_count }),
+            )
         } else {
             (args, None)
         }

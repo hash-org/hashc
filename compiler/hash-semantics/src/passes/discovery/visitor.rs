@@ -14,7 +14,7 @@ use hash_tir::{
     mods::{ModDef, ModKind, ModMember},
     node::{Node, NodeOrigin},
     scopes::Stack,
-    symbols::sym,
+    symbols::SymbolId,
     terms::Term,
     tuples::TupleTy,
     tys::Ty,
@@ -58,7 +58,10 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     ) -> Result<Self::DeclarationRet, Self::Error> {
         let walk_with_name_hint = || -> Result<_, Self::Error> {
             let name = match node.pat.body() {
-                ast::Pat::Binding(binding) => Some(sym(binding.name.ident)),
+                ast::Pat::Binding(binding) => Some(SymbolId::from_name(
+                    binding.name.ident,
+                    NodeOrigin::Given(binding.name.id()),
+                )),
                 // If the pattern is not a binding, we don't know the name of the declaration
                 _ => None,
             };
@@ -176,9 +179,12 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             ModDef {
                 name: mod_block_name,
                 kind: ModKind::ModBlock,
-                members: Node::create_at(Node::<ModMember>::empty_seq(), NodeOrigin::Generated),
+                members: Node::create_at(
+                    Node::<ModMember>::empty_seq(),
+                    NodeOrigin::Given(node.block.id()),
+                ),
             },
-            NodeOrigin::Generated,
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the mod block
@@ -199,6 +205,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             struct_name,
             self.create_hole_params_from_ty_params(node.ty_params.as_ref()),
             self.create_hole_params_from_params(Some(&node.fields)),
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the struct; note that the fields have already been created, they
@@ -218,22 +225,31 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let enum_name = self.take_name_hint_or_create_internal_name();
 
         // Create a data definition for the enum
-
         let enum_def_id = DataDef::indexed_enum_def(
             enum_name,
             self.create_hole_params_from_ty_params(node.ty_params.as_ref()),
             |_| {
-                node.entries
-                    .iter()
-                    .map(|variant| {
-                        (
-                            sym(variant.name.ident),
-                            self.create_hole_params_from_params(variant.fields.as_ref()),
-                            None,
-                        )
-                    })
-                    .collect_vec()
+                Node::at(
+                    node.entries
+                        .iter()
+                        .map(|variant| {
+                            Node::at(
+                                (
+                                    SymbolId::from_name(
+                                        variant.name.ident,
+                                        NodeOrigin::Given(variant.name.id()),
+                                    ),
+                                    self.create_hole_params_from_params(variant.fields.as_ref()),
+                                    None,
+                                ),
+                                NodeOrigin::Given(variant.id()),
+                            )
+                        })
+                        .collect_vec(),
+                    NodeOrigin::Given(node.entries.id()),
+                )
             },
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the enum; the variants have already been created.
@@ -251,16 +267,20 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: FnBody::Defined(Term::hole()),
+                body: FnBody::Defined(Term::hole(NodeOrigin::Given(node.fn_body.id()))),
                 ty: FnTy {
                     implicit: false,
                     is_unsafe: false,
                     params: self.create_hole_params_from_params(Some(&node.params)),
                     pure: false,
-                    return_ty: Ty::hole(),
+                    return_ty: node
+                        .return_ty
+                        .as_ref()
+                        .map(|ty| Ty::hole(NodeOrigin::Given(ty.id())))
+                        .unwrap_or_else(|| Ty::hole(NodeOrigin::Generated)),
                 },
             },
-            NodeOrigin::Generated,
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the function body
@@ -283,16 +303,20 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: FnBody::Defined(Term::hole()),
+                body: FnBody::Defined(Term::hole(NodeOrigin::Given(node.ty_fn_body.id()))),
                 ty: FnTy {
                     implicit: true,
                     is_unsafe: false,
                     params: self.create_hole_params_from_ty_params(Some(&node.params)),
                     pure: true,
-                    return_ty: Ty::hole(),
+                    return_ty: node
+                        .return_ty
+                        .as_ref()
+                        .map(|ty| Ty::hole(NodeOrigin::Given(ty.id())))
+                        .unwrap_or_else(|| Ty::hole(NodeOrigin::Generated)),
                 },
             },
-            NodeOrigin::Generated,
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the function body
@@ -349,7 +373,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             is_unsafe: false,
             params: self.create_hole_params_from_ty_params(Some(&node.params)),
             pure: true,
-            return_ty: Ty::hole(),
+            return_ty: Ty::hole(NodeOrigin::Given(node.return_ty.id())),
         });
 
         // Traverse the type function body
@@ -366,7 +390,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             is_unsafe: false,
             params: self.create_hole_params_from_params(Some(&node.params)),
             pure: false,
-            return_ty: Ty::hole(),
+            return_ty: Ty::hole(NodeOrigin::Given(node.return_ty.id())),
         });
 
         // Traverse the function body

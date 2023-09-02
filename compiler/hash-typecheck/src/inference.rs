@@ -627,7 +627,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.normalise_and_check_ty(annotation_ty)?;
         let (list_annotation_inner_ty, list_len) = self
             .use_ty_as_array(annotation_ty, Some(original_term_id.into()))?
-            .unwrap_or_else(|| (Ty::hole_for(array_term.elements.origin()), None));
+            .unwrap_or_else(|| (Ty::hole(array_term.elements.origin().inferred()), None));
 
         self.infer_unified_term_list(array_term.elements, list_annotation_inner_ty)?;
 
@@ -1191,10 +1191,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::hole(loop_term.block.origin),
             original_term_id,
         )?;
-        let loop_term = Ty::expect_is(
-            original_term_id,
-            Ty::void(NodeOrigin::InferredFrom(original_term_id.origin())),
-        );
+        let loop_term =
+            Ty::expect_is(original_term_id, Ty::void(original_term_id.origin().inferred()));
         self.check_by_unify(loop_term, annotation_ty)?;
         Ok(())
     }
@@ -1295,7 +1293,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     actual: Ty::from(RefTy {
                         kind: ref_term.kind,
                         mutable: ref_term.mutable,
-                        ty: Ty::hole(ref_term.subject),
+                        ty: Ty::hole(ref_term.subject.origin().inferred()),
                     }),
                     inferred_from: Some(original_term_id.into()),
                 })
@@ -1328,10 +1326,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.infer_term(value, decl_term.ty)?;
         };
         self.infer_pat(decl_term.bind_pat, decl_term.ty, decl_term.value)?;
-        self.check_by_unify(
-            Ty::void(NodeOrigin::InferredFrom(original_term_id.origin())),
-            annotation_ty,
-        )?;
+        self.check_by_unify(Ty::void(original_term_id.origin().inferred()), annotation_ty)?;
 
         // Check that the binding pattern of the declaration is irrefutable.
         let eck = self.exhaustiveness_checker(decl_term.bind_pat);
@@ -1421,7 +1416,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Ensure the index is a usize
         let index_ty = Ty::expect_is(
             index_term.index,
-            Ty::data(primitives().usize(), NodeOrigin::InferredFrom(index_term.index)),
+            Ty::data(primitives().usize(), index_term.index.origin().inferred()),
         );
         self.infer_term(index_term.index, index_ty)?;
 
@@ -1471,10 +1466,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         self.check_by_unify(value_ty, subject_ty)?;
 
-        let inferred_ty = Ty::expect_is(
-            original_term_id,
-            Ty::void(NodeOrigin::InferredFrom(original_term_id.origin())),
-        );
+        let inferred_ty =
+            Ty::expect_is(original_term_id, Ty::void(original_term_id.origin().inferred()));
         self.check_by_unify(inferred_ty, annotation_ty)?;
         Ok(())
     }

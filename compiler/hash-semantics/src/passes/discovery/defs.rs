@@ -8,6 +8,7 @@ use hash_storage::store::{
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
 };
 use hash_tir::{
+    building::gen::sym,
     context::Decl,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
     environment::{env::AccessToEnv, stores::tir_stores},
@@ -16,7 +17,7 @@ use hash_tir::{
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
     node::{Node, NodeOrigin},
     scopes::StackId,
-    symbols::{sym, SymbolId},
+    symbols::SymbolId,
     tys::TyId,
     utils::AccessToUtils,
 };
@@ -233,7 +234,8 @@ impl<'tc> DiscoveryPass<'tc> {
                         // Set data constructors.
                         let ctors = CtorDef::seq_from_data(
                             data_def_id,
-                            members.iter().map(|(_, data)| data).copied(),
+                            members.iter().map(|(_, data)| Node::at(*data, NodeOrigin::Generated)),
+                            NodeOrigin::Generated,
                         );
                         data_def_id.borrow_mut().ctors = DataDefCtors::Defined(ctors);
 
@@ -539,7 +541,7 @@ impl<'tc> DiscoveryPass<'tc> {
             ast::Pat::Wild(_) => buf.push((
                 node.id(),
                 Decl {
-                    name: SymbolId::fresh(),
+                    name: SymbolId::fresh(NodeOrigin::Given(node.id())),
                     // is_mutable: false,
                     ty: None,
                     value: None,

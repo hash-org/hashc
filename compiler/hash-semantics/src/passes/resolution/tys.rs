@@ -43,7 +43,7 @@ impl<'tc> ResolutionPass<'tc> {
         args: &ast::AstNodes<ast::TyArg>,
     ) -> SemanticResult<ArgsId> {
         // @@Todo: error recovery
-        let args = args
+        let created_args = args
             .iter()
             .enumerate()
             .map(|(i, arg)| {
@@ -56,11 +56,11 @@ impl<'tc> ResolutionPass<'tc> {
                             .unwrap_or_else(|| ParamIndex::Position(i)),
                         value: self.make_ty_from_ast_ty(arg.ty.ast_ref())?.as_term(),
                     },
-                    NodeOrigin::Generated,
+                    NodeOrigin::Given(arg.id()),
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Generated))
+        Ok(Node::create_at(Node::<Arg>::seq(created_args), NodeOrigin::Given(args.id())))
     }
 
     /// Use the given [`ast::NamedTy`] as a path.
@@ -69,9 +69,9 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<'a, ast::NamedTy>,
     ) -> SemanticResult<AstPath<'a>> {
         Ok(vec![AstPathComponent {
-            name: node.body.name.ident,
-            name_span: node.span(),
-            args: vec![],
+            name: node.name.ident,
+            name_node_id: node.name.id(),
+            args: Node::at(vec![], NodeOrigin::Given(node.id())),
             node_id: node.id(),
         }])
     }
@@ -86,9 +86,9 @@ impl<'tc> ResolutionPass<'tc> {
             .ok_or_else(|| SemanticError::InvalidNamespaceSubject { location: node.span() })?;
 
         root.push(AstPathComponent {
-            name: node.body.property.ident,
-            name_span: node.body.property.span(),
-            args: vec![],
+            name: node.property.ident,
+            name_node_id: node.property.id(),
+            args: Node::at(vec![], NodeOrigin::Given(node.id())),
             node_id: node.id(),
         });
         Ok(root)
@@ -142,10 +142,10 @@ impl<'tc> ResolutionPass<'tc> {
                     )
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
-                    Ok(Term::from(Term::Ctor(*ctor_term)).as_ty())
+                    Ok(Term::from(Term::Ctor(**ctor_term)).as_ty())
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                    Ok(Term::from(Term::FnCall(*fn_call_term)).as_ty())
+                    Ok(Term::from(Term::FnCall(**fn_call_term)).as_ty())
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => Ok(Ty::from(Ty::Var(*bound_var))),
             },
@@ -187,9 +187,9 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::NamedTy`].
     fn make_ty_from_ast_named_ty(&self, node: AstNodeRef<ast::NamedTy>) -> SemanticResult<TyId> {
         if node.name.is(IDENTS.Type) {
-            Ok(Ty::flexible_universe())
+            Ok(Ty::flexible_universe(NodeOrigin::Given(node.id())))
         } else if node.name.is(IDENTS.underscore) {
-            Ok(Ty::hole())
+            Ok(Ty::hole(NodeOrigin::Given(node.id())))
         } else {
             let path = self.named_ty_as_ast_path(node)?;
             let resolved_path = self.resolve_ast_path(&path)?;
@@ -243,12 +243,15 @@ impl<'tc> ResolutionPass<'tc> {
                 let length_term = self.make_term_from_ast_expr(len.ast_ref())?;
                 Ok(Ty::from(Ty::Data(DataTy {
                     data_def: primitives().array(),
-                    args: Arg::seq_positional([inner_ty.as_term(), length_term]),
+                    args: Arg::seq_positional(
+                        [inner_ty.as_term(), length_term],
+                        NodeOrigin::Given(node.id()),
+                    ),
                 })))
             }
             None => Ok(Ty::from(Ty::Data(DataTy {
                 data_def: primitives().list(),
-                args: Arg::seq_positional(once(inner_ty.as_term())),
+                args: Arg::seq_positional(once(inner_ty.as_term()), NodeOrigin::Given(node.id())),
             }))),
         }
     }
@@ -344,7 +347,10 @@ impl<'tc> ResolutionPass<'tc> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
         let typeof_lhs = Term::from(TypeOfTerm { term: lhs.as_term() });
-        let args = Arg::seq_positional(vec![typeof_lhs, lhs.as_term(), rhs.as_term()]);
+        let args = Arg::seq_positional(
+            vec![typeof_lhs, lhs.as_term(), rhs.as_term()],
+            NodeOrigin::Given(node.id()),
+        );
         Ok(Ty::from(DataTy { data_def: primitives().equal(), args }))
     }
 

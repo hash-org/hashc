@@ -42,6 +42,16 @@ pub struct Param {
 tir_node_sequence_store_direct!(Param);
 
 impl Param {
+    /// Whether the parameter is positional, i.e. it has no name.
+    pub fn is_positional(&self) -> bool {
+        self.name.value().name.is_none()
+    }
+
+    /// Get the name of the parameter, if it has one.
+    pub fn name(&self) -> Option<Identifier> {
+        self.name.value().name
+    }
+
     /// Create a new parameter list with the given names, and holes for all
     /// types (the second slot of the iterator value is the origin of the
     /// inferred type).
@@ -93,6 +103,8 @@ impl Param {
 }
 
 impl ParamId {
+    /// Convert the parameter into a [ParamIndex], by using the name of the
+    /// parameter if it has one, or the position otherwise.
     pub fn as_param_index(&self) -> ParamIndex {
         let name_sym = self.borrow().name.borrow();
         name_sym.name.map(ParamIndex::Name).unwrap_or(ParamIndex::Position(self.1))

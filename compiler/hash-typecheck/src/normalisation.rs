@@ -12,6 +12,7 @@ use hash_tir::{
     args::{Arg, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
+    building::gen::void_term,
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
@@ -607,7 +608,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             _ => panic!("Invalid assign {}", &assign_term),
         }
 
-        full_evaluation_to(Term::void())
+        full_evaluation_to(void_term())
     }
 
     /// Evaluate a match term.
@@ -665,7 +666,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             )? {
                 MatchResult::Successful => {
                     // All good
-                    evaluation_to(Term::void())
+                    evaluation_to(void_term())
                 }
                 MatchResult::Failed => {
                     panic!("Non-exhaustive let-binding: {}", &decl_term)
@@ -696,7 +697,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Err(e) => return Err(e),
             }
         }
-        full_evaluation_to(Term::void())
+        full_evaluation_to(void_term())
     }
 
     /// Evaluate a term and use it as a type.

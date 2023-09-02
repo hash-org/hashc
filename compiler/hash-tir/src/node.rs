@@ -93,6 +93,7 @@ impl<T> HasNodeId for Node<T> {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum NodeOrigin {
+    // @@Todo: add Computed, Empty, Expected variants for even better errors.
     /// The node was given by the user.
     Given(AstNodeId),
     /// The node was created through type inference of the given origin.

@@ -18,14 +18,18 @@ impl<'tc> DiscoveryPass<'tc> {
         name: impl Fn(&T) -> &Option<ast::AstNode<ast::Name>>,
     ) -> ParamsId {
         let params_id = Param::seq_from_names_with_hole_types(
-            params
-                .iter()
-                .enumerate()
-                .map(|(i, param)| match name(param) {
-                    Some(name) => ParamIndex::Name(name.ident),
-                    None => ParamIndex::Position(i),
-                })
-                .map(|index| index.into_symbol()),
+            params.iter().enumerate().map(|(i, param)| {
+                (
+                    (match name(param) {
+                        Some(name) => {
+                            ParamIndex::Name(name.ident).into_symbol(NodeOrigin::Given(name.id()))
+                        }
+                        None => ParamIndex::Position(i).into_symbol(NodeOrigin::Generated),
+                    }),
+                    NodeOrigin::Given(param.id()),
+                )
+            }),
+            NodeOrigin::Given(params.id()),
         );
         tir_stores()
             .location()
@@ -47,7 +51,7 @@ impl<'tc> DiscoveryPass<'tc> {
         if let Some(params) = node {
             self.create_hole_params_from(&params.params, |param| &param.name)
         } else {
-            Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
+            Node::create_gen(Node::<Param>::empty_seq())
         }
     }
 
@@ -60,7 +64,7 @@ impl<'tc> DiscoveryPass<'tc> {
         if let Some(ty_params) = params {
             self.create_hole_params_from(&ty_params.params, |param| &param.name)
         } else {
-            Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
+            Node::create_gen(Node::<Param>::empty_seq())
         }
     }
 }

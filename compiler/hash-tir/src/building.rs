@@ -11,7 +11,7 @@ pub mod gen {
         node::{Node, NodeOrigin},
         params::{Param, ParamsId},
         symbols::SymbolId,
-        terms::TermId,
+        terms::{Term, TermId},
         tys::{Ty, TyId},
     };
 
@@ -21,6 +21,11 @@ pub mod gen {
     /// Create a symbol with the given name.
     pub fn sym(name: impl Into<Identifier>) -> SymbolId {
         SymbolId::from_name(name, NodeOrigin::Generated)
+    }
+
+    /// Create a parameter list with the given parameters.
+    pub fn params_pos(tys: impl IntoIterator<Item = TyId>) -> ParamsId {
+        Param::seq_positional(tys, NodeOrigin::Generated)
     }
 
     /// Create a parameter list with the given parameters.
@@ -101,5 +106,13 @@ pub mod gen {
 
     pub fn data_ty(data: DataDefId) -> TyId {
         Ty::data(data, NodeOrigin::Generated)
+    }
+
+    pub fn void_term() -> TermId {
+        Term::void(NodeOrigin::Generated)
+    }
+
+    pub fn void_ty() -> TyId {
+        Ty::void(NodeOrigin::Generated)
     }
 }

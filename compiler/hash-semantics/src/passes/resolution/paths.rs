@@ -21,7 +21,7 @@
 
 use std::fmt;
 
-use hash_ast::ast;
+use hash_ast::ast::{self, AstNodeId};
 use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
@@ -51,8 +51,8 @@ use crate::diagnostics::error::{SemanticError, SemanticResult};
 #[derive(Clone, Debug)]
 pub struct AstPathComponent<'a> {
     pub name: Identifier,
-    pub name_span: Span,
-    pub args: Vec<AstArgGroup<'a>>,
+    pub name_node_id: AstNodeId,
+    pub args: Node<Vec<AstArgGroup<'a>>>,
     pub node_id: ast::AstNodeId,
 }
 
@@ -62,9 +62,14 @@ pub struct AstPathComponent<'a> {
 pub type AstPath<'a> = Vec<AstPathComponent<'a>>;
 
 impl AstPathComponent<'_> {
+    /// Get the origin of this path component.
+    pub fn origin(&self) -> NodeOrigin {
+        NodeOrigin::Given(self.node_id)
+    }
+
     /// Get the span of this path component.
     pub fn span(&self) -> Span {
-        let span = self.name_span;
+        let span = self.name_node_id.span();
         if let Some(last_arg) = self.args.last() {
             span.join(last_arg.span())
         } else {
@@ -112,13 +117,25 @@ pub enum TerminalResolvedPathComponent {
     /// A function reference.
     FnDef(FnDefId),
     /// A data constructor pattern.
-    CtorPat(CtorPat),
+    CtorPat(Node<CtorPat>),
     /// A data constructor term.
-    CtorTerm(CtorTerm),
+    CtorTerm(Node<CtorTerm>),
     /// A function call term.
-    FnCall(FnCallTerm),
+    FnCall(Node<FnCallTerm>),
     /// A variable bound in the current context.
     Var(SymbolId),
+}
+
+impl TerminalResolvedPathComponent {
+    pub fn origin(&self) -> NodeOrigin {
+        match self {
+            TerminalResolvedPathComponent::FnDef(f) => f.origin(),
+            TerminalResolvedPathComponent::CtorPat(c) => c.origin,
+            TerminalResolvedPathComponent::CtorTerm(c) => c.origin,
+            TerminalResolvedPathComponent::FnCall(f) => f.origin,
+            TerminalResolvedPathComponent::Var(v) => v.origin(),
+        }
+    }
 }
 
 /// The result of resolving a path component.
@@ -140,7 +157,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn resolve_ast_name(
         &self,
         name: Identifier,
-        name_span: Span,
+        name_node_id: AstNodeId,
         starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
     ) -> SemanticResult<(SymbolId, BindingKind)> {
         match starting_from {
@@ -150,13 +167,13 @@ impl<'tc> ResolutionPass<'tc> {
                     .scoping()
                     .enter_scope(ContextKind::Access(member_value, data_def_id.into()), || {
                         self.scoping().add_data_params_and_ctors(data_def_id);
-                        self.resolve_ast_name(name, name_span, None)
+                        self.resolve_ast_name(name, name_node_id, None)
                     }),
                 NonTerminalResolvedPathComponent::Mod(mod_def_id) => self.scoping().enter_scope(
                     ContextKind::Access(member_value, mod_def_id.into()),
                     || {
                         self.scoping().add_mod_members(mod_def_id);
-                        self.resolve_ast_name(name, name_span, None)
+                        self.resolve_ast_name(name, name_node_id, None)
                     },
                 ),
             },
@@ -164,7 +181,7 @@ impl<'tc> ResolutionPass<'tc> {
                 // If there is no start point, try to lookup the variable in the current scope.
                 self.scoping().lookup_symbol_by_name_or_error(
                     name,
-                    name_span,
+                    name_node_id,
                     self.scoping().get_current_context_kind(),
                 )
             }
@@ -183,7 +200,7 @@ impl<'tc> ResolutionPass<'tc> {
         starting_from: Option<(NonTerminalResolvedPathComponent, Span)>,
     ) -> SemanticResult<ResolvedAstPathComponent> {
         let (_binding, binding_kind) =
-            self.resolve_ast_name(component.name, component.name_span, starting_from)?;
+            self.resolve_ast_name(component.name, component.node_id, starting_from)?;
 
         match binding_kind {
             BindingKind::ModMember(_, mod_member_id) => {
@@ -197,7 +214,7 @@ impl<'tc> ResolutionPass<'tc> {
                                 [] => (
                                     ResolvedArgs::Term(Node::create_at(
                                         Node::<Arg>::empty_seq(),
-                                        NodeOrigin::Generated,
+                                        component.args.origin,
                                     )),
                                     None,
                                 ),
@@ -209,7 +226,7 @@ impl<'tc> ResolutionPass<'tc> {
                                     (
                                         ResolvedArgs::Term(Node::create_at(
                                             Node::<Arg>::empty_seq(),
-                                            NodeOrigin::Generated,
+                                            component.args.origin,
                                         )),
                                         Some(self.make_args_from_ast_arg_group(arg_group)?),
                                     )
@@ -241,15 +258,18 @@ impl<'tc> ResolutionPass<'tc> {
                                 Some(ResolvedArgs::Pat(ctor_pat_args, ctor_pat_args_spread)),
                             ) => match data_def_single_ctor {
                                 Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
-                                    TerminalResolvedPathComponent::CtorPat(CtorPat {
-                                        ctor,
-                                        data_args,
-                                        ctor_pat_args,
-                                        ctor_pat_args_spread,
-                                    }),
+                                    TerminalResolvedPathComponent::CtorPat(Node::at(
+                                        CtorPat {
+                                            ctor,
+                                            data_args,
+                                            ctor_pat_args,
+                                            ctor_pat_args_spread,
+                                        },
+                                        component.origin(),
+                                    )),
                                 )),
                                 None => Err(SemanticError::DataDefIsNotSingleton {
-                                    location: component.name_span,
+                                    location: component.name_node_id.span(),
                                 }),
                             },
                             (
@@ -257,19 +277,18 @@ impl<'tc> ResolutionPass<'tc> {
                                 Some(ResolvedArgs::Term(ctor_args)),
                             ) => match data_def_single_ctor {
                                 Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
-                                    TerminalResolvedPathComponent::CtorTerm(CtorTerm {
-                                        ctor,
-                                        data_args,
-                                        ctor_args,
-                                    }),
+                                    TerminalResolvedPathComponent::CtorTerm(Node::at(
+                                        CtorTerm { ctor, data_args, ctor_args },
+                                        component.origin(),
+                                    )),
                                 )),
                                 None => Err(SemanticError::DataDefIsNotSingleton {
-                                    location: component.name_span,
+                                    location: component.name_node_id.span(),
                                 }),
                             },
                             (ResolvedArgs::Pat(_, _), _) => {
                                 Err(SemanticError::CannotUseDataTypeInPatternPosition {
-                                    location: component.name_span,
+                                    location: component.name_node_id.span(),
                                 })
                             }
                         }
@@ -288,7 +307,10 @@ impl<'tc> ResolutionPass<'tc> {
                                 component.span(),
                             )?;
                             Ok(ResolvedAstPathComponent::Terminal(
-                                TerminalResolvedPathComponent::FnCall(resultant_term),
+                                TerminalResolvedPathComponent::FnCall(Node::at(
+                                    resultant_term,
+                                    component.origin(),
+                                )),
                             ))
                         }
                     },
@@ -299,7 +321,7 @@ impl<'tc> ResolutionPass<'tc> {
                 let applied_args = match &component.args[..] {
                     [] => ResolvedArgs::Term(Node::create_at(
                         Node::<Arg>::empty_seq(),
-                        NodeOrigin::Generated,
+                        component.args.origin,
                     )),
                     [arg_group] => self.make_args_from_ast_arg_group(arg_group)?,
                     [_first, second, _rest @ ..] => {
@@ -317,21 +339,23 @@ impl<'tc> ResolutionPass<'tc> {
                             match applied_args {
                                 ResolvedArgs::Term(ctor_args) => {
                                     Ok(ResolvedAstPathComponent::Terminal(
-                                        TerminalResolvedPathComponent::CtorTerm(CtorTerm {
-                                            ctor: ctor_def_id,
-                                            ctor_args,
-                                            data_args,
-                                        }),
+                                        TerminalResolvedPathComponent::CtorTerm(Node::at(
+                                            CtorTerm { ctor: ctor_def_id, ctor_args, data_args },
+                                            component.origin(),
+                                        )),
                                     ))
                                 }
                                 ResolvedArgs::Pat(ctor_pat_args, spread) => {
                                     Ok(ResolvedAstPathComponent::Terminal(
-                                        TerminalResolvedPathComponent::CtorPat(CtorPat {
-                                            ctor: ctor_def_id,
-                                            ctor_pat_args,
-                                            data_args,
-                                            ctor_pat_args_spread: spread,
-                                        }),
+                                        TerminalResolvedPathComponent::CtorPat(Node::at(
+                                            CtorPat {
+                                                ctor: ctor_def_id,
+                                                ctor_pat_args,
+                                                data_args,
+                                                ctor_pat_args_spread: spread,
+                                            },
+                                            component.origin(),
+                                        )),
                                     ))
                                 }
                             }
@@ -358,7 +382,10 @@ impl<'tc> ResolutionPass<'tc> {
                             component.span(),
                         )?;
                         Ok(ResolvedAstPathComponent::Terminal(
-                            TerminalResolvedPathComponent::FnCall(resultant_term),
+                            TerminalResolvedPathComponent::FnCall(Node::at(
+                                resultant_term,
+                                component.origin(),
+                            )),
                         ))
                     }
                 }

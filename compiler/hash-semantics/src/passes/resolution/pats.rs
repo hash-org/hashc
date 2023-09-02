@@ -58,7 +58,7 @@ impl ResolutionPass<'_> {
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<PatArg>::seq(args), NodeOrigin::Generated))
+        Ok(Node::create_at(Node::<PatArg>::seq(args), NodeOrigin::Given(entries.id())))
     }
 
     /// Create a [`PatListId`] from the given [`ast::Pat`]s.
@@ -66,11 +66,11 @@ impl ResolutionPass<'_> {
         &self,
         pats: &ast::AstNodes<ast::Pat>,
     ) -> SemanticResult<PatListId> {
-        let pats = pats
+        let created_pats = pats
             .iter()
             .map(|pat| Ok(PatOrCapture::Pat(self.make_pat_from_ast_pat(pat.ast_ref())?)))
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(PatOrCapture::seq(pats), NodeOrigin::Generated))
+        Ok(Node::create_at(PatOrCapture::seq(created_pats), NodeOrigin::Given(pats.id())))
     }
 
     /// Create a [`Spread`] from the given [`ast::SpreadPat`].
@@ -87,13 +87,13 @@ impl ResolutionPass<'_> {
                     self.scoping()
                         .lookup_symbol_by_name_or_error(
                             name.ident,
-                            name.span(),
+                            name.id(),
                             self.scoping().get_current_context_kind(),
                         )
                         .unwrap()
                         .0
                 }
-                None => SymbolId::fresh(),
+                None => SymbolId::fresh(NodeOrigin::Given(node.id())),
             };
             Spread { name: symbol, index: node.position }
         }))
@@ -108,8 +108,8 @@ impl ResolutionPass<'_> {
             Some(mut subject_path) => {
                 subject_path.push(AstPathComponent {
                     name: node.property.ident,
-                    name_span: node.property.span(),
-                    args: vec![],
+                    name_node_id: node.property.id(),
+                    args: Node::at(vec![], NodeOrigin::Given(node.id())),
                     node_id: node.id(),
                 });
                 Ok(subject_path)
@@ -144,8 +144,8 @@ impl ResolutionPass<'_> {
     ) -> SemanticResult<AstPath<'a>> {
         Ok(vec![AstPathComponent {
             name: node.name.ident,
-            name_span: node.name.span(),
-            args: vec![],
+            name_node_id: node.name.id(),
+            args: Node::at(vec![], NodeOrigin::Given(node.id())),
             node_id: node.id(),
         }])
     }
@@ -202,7 +202,7 @@ impl ResolutionPass<'_> {
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::CtorPat(ctor_pat) => {
                     // Constructor pattern
-                    Ok(Node::create_at(Pat::Ctor(*ctor_pat), NodeOrigin::Generated))
+                    Ok(Node::create_at(Pat::Ctor(**ctor_pat), NodeOrigin::Generated))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Binding pattern
@@ -359,7 +359,10 @@ impl ResolutionPass<'_> {
                 NodeOrigin::Generated,
             ),
             ast::Pat::Wild(_) => Node::create_at(
-                Pat::Binding(BindingPat { name: SymbolId::fresh(), is_mutable: false }),
+                Pat::Binding(BindingPat {
+                    name: SymbolId::fresh(NodeOrigin::Given(node.id())),
+                    is_mutable: false,
+                }),
                 NodeOrigin::Generated,
             ),
             ast::Pat::Range(ast::RangePat { lo, hi, end }) => {

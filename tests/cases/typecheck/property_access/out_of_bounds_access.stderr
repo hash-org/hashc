@@ -1,6 +1,6 @@
-error[0016]: property `2` not found on type `(s517: i32, s519: i32)`
+error[0016]: property `2` not found on type `(s515: i32, s517: i32)`
  --> $DIR/out_of_bounds_access.hash:4:3
 3 |     t := (1, 2)
 4 |     t.2
-  |     ^ term has type `(s517: i32, s519: i32)`. Property `2` is not present on this type
+  |     ^ term has type `(s515: i32, s517: i32)`. Property `2` is not present on this type
 5 |   }

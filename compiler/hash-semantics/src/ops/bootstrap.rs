@@ -7,10 +7,10 @@ use hash_intrinsics::intrinsics::DefinedIntrinsics;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     self,
+    building::gen::sym,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
     node::{Node, NodeOrigin},
     primitives::{primitives, DefinedPrimitives},
-    symbols::sym,
     utils::AccessToUtils,
 };
 use hash_utils::itertools::Itertools;

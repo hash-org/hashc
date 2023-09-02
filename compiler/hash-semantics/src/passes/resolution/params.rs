@@ -101,7 +101,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).unwrap_or_else(
                 || {
                     // Default as "Type"
-                    Ok(Ty::flexible_universe())
+                    Ok(Ty::flexible_universe(NodeOrigin::InferredFrom(ast_param.id())))
                 },
             ),
         );
@@ -145,7 +145,7 @@ impl<'tc> ResolutionPass<'tc> {
                 .or_else(|| {
                     if implicit {
                         // Default as "Type"
-                        Some(Ok(Ty::flexible_universe()))
+                        Some(Ok(Ty::flexible_universe(NodeOrigin::InferredFrom(ast_param.id()))))
                     } else {
                         None
                     }
@@ -189,7 +189,8 @@ impl<'tc> ResolutionPass<'tc> {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
                     self.scoping().add_param_binding(param_id);
-                    params_id = Some(Node::create_at(param_id.0, NodeOrigin::Generated));
+                    params_id =
+                        Some(Node::create_at(param_id.0, NodeOrigin::Given(ast_param.id())));
                 }
                 None => {
                     // Continue resolving the rest of the parameters and report the error at the
@@ -203,7 +204,7 @@ impl<'tc> ResolutionPass<'tc> {
             Err(SemanticError::Signal)
         } else {
             Ok(params_id.unwrap_or_else(|| {
-                Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
+                Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Given(node.id()))
             }))
         }
     }
@@ -227,7 +228,8 @@ impl<'tc> ResolutionPass<'tc> {
                 Some(param_id) => {
                     // Remember the params ID to return at the end
                     self.scoping().add_param_binding(param_id);
-                    params_id = Some(Node::create_at(param_id.0, NodeOrigin::Generated));
+                    params_id =
+                        Some(Node::create_at(param_id.0, NodeOrigin::Given(ast_param.id())));
                 }
                 None => {
                     // Continue resolving the rest of the parameters and report the error at the
@@ -241,7 +243,7 @@ impl<'tc> ResolutionPass<'tc> {
             Err(SemanticError::Signal)
         } else {
             Ok(params_id.unwrap_or_else(|| {
-                Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Generated)
+                Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Given(node.id()))
             }))
         }
     }
