@@ -1,0 +1,10 @@
+// stage=parse, run=fail
+
+
+main := () => {
+    match k {
+        // ~ERROR: should write literal as `-2`
+        - 2 => { 1 },
+        _ => {  0 }
+    };
+}

@@ -2,7 +2,7 @@
 use hash_ast::{ast::TyParamOrigin, origin::PatOrigin};
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
-    report::{ReportElement, ReportNote, ReportNoteKind},
+    report::help,
     reporter::{Reporter, Reports},
 };
 use hash_source::{identifier::Identifier, location::Span};
@@ -122,6 +122,10 @@ pub enum ParseErrorKind {
         /// Where the use of the pattern originated from
         origin: PatOrigin,
     },
+
+    /// When an attempt is made to write an expression which would evaluate to a
+    /// negative literal, i.e. `- 1`, `- /* boo! */ 2`, etc.
+    UnsupportedExprInPat { value: String },
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
@@ -195,6 +199,12 @@ impl From<ParseError> for Reports {
 
                 format!("spread patterns `...` can only be used once in a {origin} pattern")
             }
+            ParseErrorKind::UnsupportedExprInPat { value } => {
+                help_notes.push(help!("consider writting the literal as `-{}`", *value));
+
+                "negative numerical literals must be written as a single numerical value"
+                    .to_string()
+            }
         };
 
         // `AstGenErrorKind::Expected` format the error message in their own way,
@@ -209,10 +219,7 @@ impl From<ParseError> for Reports {
 
         // If the generated error has suggested tokens that aren't empty.
         if !expected.is_empty() {
-            help_notes.push(ReportElement::Note(ReportNote::new(
-                ReportNoteKind::Help,
-                format!("expected {expected}"),
-            )));
+            help_notes.push(help!("expected {expected}"));
         }
 
         // Now actually build the report

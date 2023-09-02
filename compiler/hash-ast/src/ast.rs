@@ -796,6 +796,8 @@ define_tree! {
     #[node]
     pub struct IntLit {
         /// The raw hunk of text that represents the literal.
+        ///
+        /// **Note** This span does not include the suffix of the literal, e.g. `i32`.
         pub hunk: Hunk,
 
         /// The base that specified the integer literal, e.g. `0x` for hexadecimal.
@@ -810,6 +812,8 @@ define_tree! {
     #[node]
     pub struct FloatLit {
         /// Raw value hunk of the float literal.
+        ///
+        /// **Note** This span does not include the suffix of the literal, e.g. `f32`.
         pub hunk: Hunk,
 
         /// Whether the literal has an ascription

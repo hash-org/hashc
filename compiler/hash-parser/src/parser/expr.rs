@@ -777,11 +777,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
 
                 self.skip_token();
-                // let value = usize::try_from(&interned_lit).map_err(|_| {
-                //     self.make_err(ParseErrorKind::InvalidPropertyAccess, ExpectedItem::empty(), None, Some(token.span))
-                // })?;
-                // @@FixMe: we need to parse here from source?
-                let value = 0;
+                let value = self.source.hunk(token.span).parse::<usize>().map_err(|_| {
+                    self.make_err(ParseErrorKind::InvalidPropertyAccess, ExpectedItem::empty(), None, Some(token.span))
+                })?;
 
                 let property = self.node_with_span(PropertyKind::NumericField(value), token.span);
 

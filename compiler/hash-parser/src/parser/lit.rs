@@ -1,8 +1,8 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_source::location::ByteRange;
-use hash_token::{keyword::Keyword, Token, TokenKind};
+use hash_source::{identifier::Identifier, location::ByteRange};
+use hash_token::{keyword::Keyword, FloatLitKind, IntLitKind, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -43,11 +43,30 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_span(
             match token.kind {
                 TokenKind::Int(base, kind) => {
-                    let hunk = Hunk::create(self.make_span(token.span));
+                    // don't include the length of the prefix in the span
+                    let span = if let IntLitKind::Suffixed(suffix) = kind {
+                        ByteRange::new(
+                            token.span.start(),
+                            token.span.end() - Identifier::from(suffix).len(),
+                        )
+                    } else {
+                        token.span
+                    };
+
+                    let hunk = Hunk::create(self.make_span(span));
                     Lit::Int(IntLit { hunk, base, kind })
                 }
                 TokenKind::Float(kind) => {
-                    let hunk = Hunk::create(self.make_span(token.span));
+                    let span = if let FloatLitKind::Suffixed(suffix) = kind {
+                        ByteRange::new(
+                            token.span.start(),
+                            token.span.end() - Identifier::from(suffix).len(),
+                        )
+                    } else {
+                        token.span
+                    };
+
+                    let hunk = Hunk::create(self.make_span(span));
                     Lit::Float(FloatLit { hunk, kind })
                 }
                 _ => panic!("expected numeric token in parse_numeric_lit()"),
