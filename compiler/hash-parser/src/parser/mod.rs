@@ -157,8 +157,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Function to create a [Span] from a [ByteRange] by using the
     /// provided resolver
-    pub(crate) fn make_span(&self, span: ByteRange) -> Span {
-        Span { range: span, id: self.resolver.source() }
+    pub(crate) fn make_span(&self, range: ByteRange) -> Span {
+        Span { range, id: self.resolver.source() }
     }
 
     /// Get the current offset of where the stream is at.

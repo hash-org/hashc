@@ -257,7 +257,7 @@ pub trait PrimitiveUtils: AccessToEnv {
     /// Get the given term as a float literal if possible.
     fn create_term_from_integer_lit<L: Into<IntConstantValue>>(&self, lit: L) -> TermId {
         let lit = Lit::Int(InternedInt::create(IntConstant::new(lit.into(), None)).into());
-        Node::create_at(Term::Lit(Node::create_gen(lit)), NodeOrigin::Generated)
+        Node::create_gen(Term::Lit(Node::create_gen(lit)))
     }
 
     /// Get the given term as a character literal if possible.
