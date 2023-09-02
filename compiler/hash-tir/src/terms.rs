@@ -115,21 +115,21 @@ impl Term {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
     }
 
-    pub fn void() -> TermId {
+    pub fn void(origin: NodeOrigin) -> TermId {
         Node::create(Node::at(
             Term::Tuple(TupleTerm {
-                data: Node::create(Node::at(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+                data: Node::create(Node::at(Node::<Arg>::empty_seq(), origin)),
             }),
-            NodeOrigin::Generated,
+            origin,
         ))
     }
 
-    pub fn hole() -> TermId {
-        Node::create(Node::at(Term::Hole(Hole::fresh()), NodeOrigin::Generated))
+    pub fn hole(origin: NodeOrigin) -> TermId {
+        Node::create(Node::at(Term::Hole(Hole::fresh(origin)), NodeOrigin::Generated))
     }
 
     pub fn var(symbol: SymbolId) -> TermId {
-        Node::create(Node::at(Term::Var(symbol), NodeOrigin::Generated))
+        Node::create(Node::at(Term::Var(symbol), symbol.value().origin))
     }
 
     /// Create a new term.

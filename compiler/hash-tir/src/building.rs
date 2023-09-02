@@ -6,11 +6,13 @@ pub mod gen {
     use hash_utils::itertools::Itertools;
 
     use crate::{
-        node::Node,
+        args::{Arg, ArgsId},
+        data::{DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
+        node::{Node, NodeOrigin},
         params::{Param, ParamsId},
         symbols::SymbolId,
         terms::TermId,
-        tys::TyId,
+        tys::{Ty, TyId},
     };
 
     /// Building utilities for TIR nodes which do not have an origin, i.e. are
@@ -18,7 +20,7 @@ pub mod gen {
 
     /// Create a symbol with the given name.
     pub fn sym(name: impl Into<Identifier>) -> SymbolId {
-        SymbolId::from_name(name)
+        SymbolId::from_name(name, NodeOrigin::Generated)
     }
 
     /// Create a parameter list with the given parameters.
@@ -28,5 +30,76 @@ pub mod gen {
                 .map(|(name, ty, default)| Node::gen(Param { name, ty, default }))
                 .collect_vec(),
         ))
+    }
+
+    /// Create a parameter list with the given parameters.
+    pub fn args(data: impl IntoIterator<Item = TermId>) -> ArgsId {
+        Arg::seq_positional(data, NodeOrigin::Generated)
+    }
+
+    /// Create an empty data definition.
+    pub fn empty_data_def(name: SymbolId, params: ParamsId) -> DataDefId {
+        DataDef::empty(name, params, NodeOrigin::Generated, NodeOrigin::Generated)
+    }
+
+    /// Create an enum definition.
+    pub fn enum_def(
+        name: SymbolId,
+        params: ParamsId,
+        variants: impl IntoIterator<Item = (SymbolId, ParamsId)>,
+    ) -> DataDefId {
+        let variants = Node::gen(
+            variants.into_iter().map(|(name, params)| Node::gen((name, params))).collect_vec(),
+        );
+        DataDef::enum_def(name, params, move |_| variants, NodeOrigin::Generated)
+    }
+
+    /// Create an indexed enum definition.
+    pub fn indexed_enum_def(
+        name: SymbolId,
+        params: ParamsId,
+        variants: impl IntoIterator<Item = (SymbolId, ParamsId, Option<ArgsId>)>,
+    ) -> DataDefId {
+        DataDef::indexed_enum_def(
+            name,
+            params,
+            move |_| {
+                Node::gen(
+                    variants
+                        .into_iter()
+                        .map(|(name, params, args)| Node::gen((name, params, args)))
+                        .collect_vec(),
+                )
+            },
+            NodeOrigin::Generated,
+        )
+    }
+
+    /// Create a primitive data definition.
+    pub fn primitive(name: SymbolId, info: PrimitiveCtorInfo) -> DataDefId {
+        Node::create_gen(DataDef {
+            name,
+            params: Node::create_gen(Node::<Param>::empty_seq()),
+            ctors: DataDefCtors::Primitive(info),
+        })
+    }
+
+    /// Create a primitive data definition with parameters.
+    ///
+    /// These may be referenced in `info`.
+    pub fn primitive_with_params(
+        name: SymbolId,
+        params: ParamsId,
+        info: PrimitiveCtorInfo,
+    ) -> DataDefId {
+        Node::create_gen(DataDef { name, params, ctors: DataDefCtors::Primitive(info) })
+    }
+
+    pub fn universe() -> TyId {
+        Ty::flexible_universe(NodeOrigin::Generated)
+    }
+
+    pub fn data_ty(data: DataDefId) -> TyId {
+        Ty::data(data, NodeOrigin::Generated)
     }
 }

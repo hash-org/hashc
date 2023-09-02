@@ -45,31 +45,26 @@ pub struct Symbol {
 
 tir_node_single_store!(Symbol);
 
-/// Shorthand for `Symbol::from_name`.
-pub fn sym(name: impl Into<Identifier>) -> SymbolId {
-    SymbolId::from_name(name)
-}
-
 impl SymbolId {
     /// Create a new symbol from a name.
-    pub fn from_name(name: impl Into<Identifier>) -> Self {
-        Node::create_at(Symbol { name: Some(name.into()) }, NodeOrigin::Generated)
+    pub fn from_name(name: impl Into<Identifier>, origin: NodeOrigin) -> Self {
+        Node::create_at(Symbol { name: Some(name.into()) }, origin)
     }
 
     /// Create a new symbol without a name.
-    pub fn fresh() -> Self {
-        Node::create_at(Symbol { name: None }, NodeOrigin::Generated)
+    pub fn fresh(origin: NodeOrigin) -> Self {
+        Node::create_at(Symbol { name: None }, origin)
     }
 
     /// Create a new symbol with the same name as this one.
-    pub fn duplicate(&self) -> SymbolId {
+    pub fn duplicate(&self, origin: NodeOrigin) -> SymbolId {
         let name = self.borrow().name;
-        Node::create_at(Symbol { name }, NodeOrigin::Generated)
+        Node::create_at(Symbol { name }, origin)
     }
 
     /// Create a new symbol with an `_` as its name.
-    pub fn fresh_underscore() -> Self {
-        Node::create_at(Symbol { name: Some(IDENTS.underscore) }, NodeOrigin::Generated)
+    pub fn fresh_underscore(origin: NodeOrigin) -> Self {
+        Node::create_at(Symbol { name: Some(IDENTS.underscore) }, origin)
     }
 
     /// Get an [Identifier] name for this symbol. If the symbol does not have a

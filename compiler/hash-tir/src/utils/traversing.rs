@@ -19,7 +19,7 @@ use crate::{
     fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
     locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
-    node::Node,
+    node::{Node, NodeOrigin},
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId},
     refs::{DerefTerm, RefTerm, RefTy},
@@ -42,6 +42,17 @@ pub enum Atom {
     Ty(TyId),
     FnDef(FnDefId),
     Pat(PatId),
+}
+
+impl Atom {
+    pub fn origin(self) -> NodeOrigin {
+        match self {
+            Atom::Term(t) => t.value().origin,
+            Atom::Ty(t) => t.value().origin,
+            Atom::FnDef(f) => f.value().origin,
+            Atom::Pat(p) => p.value().origin,
+        }
+    }
 }
 
 impl fmt::Display for Atom {

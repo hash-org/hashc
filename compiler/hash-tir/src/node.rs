@@ -108,4 +108,12 @@ impl NodeOrigin {
             NodeOrigin::Generated => None,
         }
     }
+
+    /// Create a new origin which is inferred from the current one.
+    pub fn inferred(&self) -> Self {
+        match self {
+            NodeOrigin::Given(g) | NodeOrigin::InferredFrom(g) => NodeOrigin::InferredFrom(*g),
+            NodeOrigin::Generated => NodeOrigin::Generated,
+        }
+    }
 }

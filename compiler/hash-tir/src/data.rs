@@ -25,7 +25,7 @@ use crate::{
     ast_info::HasNodeId,
     environment::stores::tir_stores,
     node::{Node, NodeOrigin},
-    params::{Param, ParamsId},
+    params::ParamsId,
     pats::PatArgsWithSpread,
     symbols::SymbolId,
     terms::TermId,
@@ -160,9 +160,10 @@ pub enum DataDefCtors {
 impl CtorDef {
     /// Create data constructors from the given iterator, for the given data
     /// definition.
-    pub fn seq_from_data<I: IntoIterator<Item = CtorDefData>>(
+    pub fn seq_from_data<I: IntoIterator<Item = Node<CtorDefData>>>(
         data_def_id: DataDefId,
         data: I,
+        origin: NodeOrigin,
     ) -> CtorDefsId
     where
         I::IntoIter: ExactSizeIterator,
@@ -177,10 +178,10 @@ impl CtorDef {
                         params: data.params,
                         result_args: data.result_args,
                     },
-                    NodeOrigin::Generated,
+                    data.origin,
                 )
             })),
-            NodeOrigin::Generated,
+            origin,
         ))
     }
 }
@@ -230,46 +231,23 @@ impl HasNodeId for DataDefId {
 
 impl DataDef {
     /// Create an empty data definition.
-    pub fn empty(name: SymbolId, params: ParamsId) -> DataDefId {
+    pub fn empty(
+        name: SymbolId,
+        params: ParamsId,
+        data_origin: NodeOrigin,
+        ctors_origin: NodeOrigin,
+    ) -> DataDefId {
         Node::create_at(
             DataDef {
                 name,
                 params,
                 ctors: DataDefCtors::Defined(Node::create(Node::at(
                     Node::<CtorDef>::empty_seq(),
-                    NodeOrigin::Generated,
+                    ctors_origin,
                 ))),
             },
-            NodeOrigin::Generated,
+            data_origin,
         )
-    }
-
-    /// Create a primitive data definition.
-    pub fn primitive(name: SymbolId, info: PrimitiveCtorInfo) -> DataDefId {
-        Node::create_at(
-            DataDef {
-                name,
-                params: Node::create(Node::at(Node::<Param>::empty_seq(), NodeOrigin::Generated)),
-                ctors: DataDefCtors::Primitive(info),
-            },
-            NodeOrigin::Generated,
-        )
-    }
-
-    /// Create a primitive data definition with parameters.
-    ///
-    /// These may be referenced in `info`.
-    pub fn primitive_with_params(
-        name: SymbolId,
-        params: ParamsId,
-        info: impl FnOnce(DataDefId) -> PrimitiveCtorInfo,
-    ) -> DataDefId {
-        Node::create_with(|id| {
-            Node::at(
-                DataDef { name, params, ctors: DataDefCtors::Primitive(info(id)) },
-                NodeOrigin::Generated,
-            )
-        })
     }
 
     /// Get the single constructor of the given data definition, if it is indeed
@@ -291,7 +269,12 @@ impl DataDef {
     ///
     /// This will create a data definition with a single constructor, which
     /// takes the fields as parameters and returns the data type.
-    pub fn struct_def(name: SymbolId, params: ParamsId, fields_params: ParamsId) -> DataDefId {
+    pub fn struct_def(
+        name: SymbolId,
+        params: ParamsId,
+        fields_params: ParamsId,
+        struct_origin: NodeOrigin,
+    ) -> DataDefId {
         // Create the arguments for the constructor, which are the type
         // parameters given.
         let result_args = Arg::seq_from_param_names_as_vars(params);
@@ -305,19 +288,23 @@ impl DataDef {
                     ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
                         id,
                         once({
-                            CtorDefData {
-                                // Name of the constructor is the same as the data definition,
-                                // though we need to create a new
-                                // symbol for it
-                                name: name.duplicate(),
-                                // The constructor is the only one
-                                params: fields_params,
-                                result_args,
-                            }
+                            Node::at(
+                                CtorDefData {
+                                    // Name of the constructor is the same as the data definition,
+                                    // though we need to create a new
+                                    // symbol for it
+                                    name: name.duplicate(name.value().origin),
+                                    // The constructor is the only one
+                                    params: fields_params,
+                                    result_args,
+                                },
+                                fields_params.value().origin,
+                            )
                         }),
+                        fields_params.value().origin,
                     )),
                 },
-                NodeOrigin::Generated,
+                struct_origin,
             )
         })
     }
@@ -327,36 +314,43 @@ impl DataDef {
     pub fn indexed_enum_def(
         name: SymbolId,
         params: ParamsId,
-        variants: impl Fn(DataDefId) -> Vec<(SymbolId, ParamsId, Option<ArgsId>)>,
+        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<(SymbolId, ParamsId, Option<ArgsId>)>>>,
+        enum_origin: NodeOrigin,
     ) -> DataDefId {
         // Create the data definition for the enum
         Node::create_with(|id| {
-            Node::at(
-                DataDef {
-                    name,
-                    params,
-                    ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
-                        id,
-                        variants(id)
-                            .into_iter()
-                            .map(|(variant_name, fields_params, result_args)| {
-                                // Create a constructor for each variant
-                                CtorDefData {
-                                    name: variant_name,
-                                    params: fields_params,
-                                    result_args: result_args.unwrap_or_else(|| {
-                                        // Create the arguments for the constructor, which are the
-                                        // type parameters
-                                        // given.
-                                        Arg::seq_from_param_names_as_vars(params)
-                                    }),
-                                }
-                            })
-                            .collect_vec(),
-                    )),
-                },
-                NodeOrigin::Generated,
-            )
+            let variants = variants(id);
+            let variants_origin = variants.origin;
+
+            let ctor_defs = CtorDef::seq_from_data(
+                id,
+                variants
+                    .data
+                    .into_iter()
+                    .map(|node| {
+                        let (variant_name, fields_params, result_args) = *node;
+                        // Create a constructor for each variant
+                        Node::at(
+                            CtorDefData {
+                                name: variant_name,
+                                params: fields_params,
+                                result_args: result_args.unwrap_or_else(|| {
+                                    // Create the arguments for the constructor, which
+                                    // are
+                                    // the
+                                    // type parameters
+                                    // given.
+                                    Arg::seq_from_param_names_as_vars(params)
+                                }),
+                            },
+                            node.origin,
+                        )
+                    })
+                    .collect_vec(),
+                variants_origin,
+            );
+
+            Node::at(DataDef { name, params, ctors: DataDefCtors::Defined(ctor_defs) }, enum_origin)
         })
     }
 
@@ -371,14 +365,25 @@ impl DataDef {
     pub fn enum_def(
         name: SymbolId,
         params: ParamsId,
-        variants: impl Fn(DataDefId) -> Vec<(SymbolId, ParamsId)>,
+        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<(SymbolId, ParamsId)>>>,
+        enum_origin: NodeOrigin,
     ) -> DataDefId {
-        Self::indexed_enum_def(name, params, |def_id| {
-            variants(def_id)
-                .into_iter()
-                .map(|(variant_name, fields_params)| (variant_name, fields_params, None))
-                .collect_vec()
-        })
+        Self::indexed_enum_def(
+            name,
+            params,
+            |def_id| {
+                let variants = variants(def_id);
+                Node::at(
+                    variants
+                        .data
+                        .into_iter()
+                        .map(|node| node.with_data((node.0, node.1, None)))
+                        .collect_vec(),
+                    variants.origin,
+                )
+            },
+            enum_origin,
+        )
     }
 }
 

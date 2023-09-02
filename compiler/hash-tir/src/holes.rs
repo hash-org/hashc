@@ -3,6 +3,7 @@
 use core::fmt;
 
 use super::symbols::SymbolId;
+use crate::node::NodeOrigin;
 
 /// A hole, or in other words a variable which will be resolved as a term later.
 ///
@@ -14,8 +15,8 @@ pub struct Hole(pub SymbolId);
 
 impl Hole {
     /// Create a new hole.
-    pub fn fresh() -> Self {
-        Self(SymbolId::fresh())
+    pub fn fresh(origin: NodeOrigin) -> Self {
+        Self(SymbolId::fresh(origin))
     }
 }
 

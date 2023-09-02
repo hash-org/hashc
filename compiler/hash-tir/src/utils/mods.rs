@@ -35,7 +35,8 @@ impl<'tc> ModUtils<'tc> {
                 let module_name: Identifier = self.source_map().source_name(source_id).into();
                 let mod_def_id = Node::create_at(
                     ModDef {
-                        name: SymbolId::from_name(module_name),
+                        // @@Todo: what origin should we use here?
+                        name: SymbolId::from_name(module_name, NodeOrigin::Generated),
                         kind: ModKind::Source(
                             source_id,
                             // @@Hack: leak the path to still allow ModKind to implement Copy.
