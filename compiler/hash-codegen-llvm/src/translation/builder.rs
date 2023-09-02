@@ -851,7 +851,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // If the operand is a zst, we return a `()` value
         place.info.layout.map(|layout| {
             if layout.is_zst() {
-                return OperandRef::new_zst(self, place.info);
+                return OperandRef::zst(place.info);
             }
 
             let value = if layout.is_llvm_immediate() {

@@ -296,6 +296,17 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     (arg.immediate_or_scalar_pair(builder), abi_alignment, false)
                 }
             },
+            OperandValue::Zero => match arg_abi.mode {
+                PassMode::Indirect { on_stack, .. } => {
+                    if on_stack {
+                        panic!("zst `{arg:?}` was passed with abi `{arg_abi:?}`");
+                    }
+
+                    let temp = PlaceRef::new_stack(builder, arg_abi.info);
+                    (temp.value, temp.alignment, true)
+                }
+                mode => panic!("zst wasn't ignored, pass with `{mode:?}`"),
+            },
             OperandValue::Ref(value, alignment) => {
                 let abi_alignment = arg_abi.info.abi_alignment();
 

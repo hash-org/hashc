@@ -11,7 +11,7 @@ use crate::{
     common::MemFlags,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
-        ty::TypeBuilderMethods, CodeGenObject, Codegen,
+        ty::TypeBuilderMethods, CodeGenObject,
     },
 };
 
@@ -28,6 +28,9 @@ pub enum OperandValue<V: std::fmt::Debug> {
     /// A pair of values, which is supported by a few instructions (
     /// particularly for checked operations; amongst other things).
     Pair(V, V),
+
+    /// A zero sized value.
+    Zero,
 }
 
 impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
@@ -46,17 +49,16 @@ impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
         destination: PlaceRef<V>,
         flags: MemFlags,
     ) {
-        let (is_zst, abi) = destination.info.layout.map(|layout| (layout.is_zst(), layout.abi));
-
-        // We don't emit storing of zero-sized types, because they don't
-        // actually take up any space and the only way to mimic this would
-        // be to emit a `undef` value for the store, which would then
-        // be eliminated by the backend (which would be useless).
-        if is_zst {
-            return;
-        }
+        let abi = destination.info.layout.map(|layout| layout.abi);
 
         match self {
+            OperandValue::Zero => {
+                // We don't emit storing of zero-sized types, because they don't
+                // actually take up any space and the only way to mimic this
+                // would be to emit a `undef` value for the
+                // store, which would then be eliminated by the
+                // backend (which would be useless).
+            }
             OperandValue::Ref(value, source_alignment) => {
                 // Since `memcpy` does not support non-temporal stores, we
                 // need to load the value from the source, and then store
@@ -126,11 +128,8 @@ pub struct OperandRef<V: std::fmt::Debug> {
 
 impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
     /// Create a new zero-sized type [OperandRef].
-    pub fn new_zst<Builder: Codegen<'b, Value = V>>(builder: &Builder, info: TyInfo) -> Self {
-        Self {
-            value: OperandValue::Immediate(builder.const_undef(builder.immediate_backend_ty(info))),
-            info,
-        }
+    pub fn zst(info: TyInfo) -> Self {
+        Self { value: OperandValue::Zero, info }
     }
 
     /// Create a new [OperandRef] from an immediate value or a packed
@@ -196,6 +195,7 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
             OperandValue::Immediate(value) => (value, None),
             OperandValue::Pair(value, extra) => (value, Some(extra)),
             OperandValue::Ref(..) => panic!("deref on a by-ref operand"),
+            OperandValue::Zero => panic!("deref on a zero-sized type"),
         };
 
         let info = builder.layout_of(projected_ty);
@@ -213,21 +213,12 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
     ) -> Self {
         let size = self.info.size();
         let field_info = self.info.field(builder.layouts(), index);
-        let (is_zst, field_abi, field_size, offset) = field_info.layout.map(|field_layout| {
-            (
-                field_layout.is_zst(),
-                field_layout.abi,
-                field_layout.size,
-                field_layout.shape.offset(index),
-            )
+        let (field_abi, field_size, offset) = field_info.layout.map(|field_layout| {
+            (field_layout.abi, field_layout.size, field_layout.shape.offset(index))
         });
 
-        // If the field is a ZST, we return early
-        if is_zst {
-            return Self::new_zst(builder, field_info);
-        }
-
         let mut value = match (self.value, field_abi) {
+            _ if field_info.is_zst() => OperandValue::Zero,
             // The new type is a scalar, pair, or vector.
             (OperandValue::Pair(..) | OperandValue::Immediate(_), _) if field_size == size => {
                 assert_eq!(offset.bytes(), 0);
@@ -251,29 +242,14 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
 
         // Convert booleans into `i1`s for immediate and pairs, everything
         // else should be unreachable.
-        //
-        // @@BitCasts: since LLVM requires pointer types (we apply a bitcast here),
-        // The bitcasts can be removed, unless we don't use LLVM 15.
         match (&mut value, field_abi) {
+            (OperandValue::Zero, _) => {}
             (OperandValue::Immediate(value), _) => {
                 *value = builder.to_immediate(*value, field_info.layout);
-
-                // @@BitCasts
-                *value = builder.bit_cast(*value, builder.immediate_backend_ty(field_info));
             }
             (OperandValue::Pair(value_a, value_b), AbiRepresentation::Pair(scalar_a, scalar_b)) => {
                 *value_a = builder.to_immediate_scalar(*value_a, scalar_a);
                 *value_b = builder.to_immediate_scalar(*value_b, scalar_b);
-
-                // @@BitCasts
-                *value_a = builder.bit_cast(
-                    *value_a,
-                    builder.scalar_pair_element_backend_ty(field_info, 0, true),
-                );
-                *value_b = builder.bit_cast(
-                    *value_b,
-                    builder.scalar_pair_element_backend_ty(field_info, 0, true),
-                );
             }
             (OperandValue::Pair(..), _) => unreachable!(),
             (OperandValue::Ref(..), _) => unreachable!(),
@@ -296,9 +272,11 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 let ty = constant.ty();
                 let info = builder.layout_of(ty);
 
+                // @@Refactor: we should move this into its own function so that we can
+                // implement const allocations.
                 let value = match constant {
                     ir::ConstKind::Value(const_value) => match const_value {
-                        ir::Const::Zero(_) => return OperandRef::new_zst(builder, info),
+                        ir::Const::Zero(_) => return OperandRef::zst(info),
                         value @ (ir::Const::Bool(_)
                         | ir::Const::Char(_)
                         | ir::Const::Int(_)
@@ -342,7 +320,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         let info = self.compute_place_ty_info(builder, place);
 
         if info.is_zst() {
-            return OperandRef::new_zst(builder, info);
+            return OperandRef::zst(info);
         }
 
         // Try generate a direct reference to the operand...
@@ -377,7 +355,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                             let element_info = operand.info.field(builder.layouts(), 0);
 
                             if element_info.is_zst() {
-                                operand = OperandRef::new_zst(builder, element_info)
+                                operand = OperandRef::zst(element_info)
                             } else {
                                 return None;
                             }

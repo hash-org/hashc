@@ -6,7 +6,7 @@
 use std::iter;
 
 use fixedbitset::FixedBitSet;
-use hash_abi::FnAbiId;
+use hash_abi::{FnAbiId, PassMode};
 use hash_ir::{
     ir::{self, Local},
     traversal,
@@ -184,7 +184,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
             if memory_locals.contains(local.index()) {
                 LocalRef::Place(PlaceRef::new_stack(&mut builder, info))
             } else {
-                LocalRef::new_operand(&builder, info)
+                LocalRef::new_operand(info)
             }
         };
 
@@ -234,10 +234,10 @@ fn allocate_argument_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
                 // to do some extra work to get the argument into the
                 // correct form.
                 match arg_abi.mode {
-                    hash_abi::PassMode::Ignore => {
-                        return local(OperandRef::new_zst(builder, arg_abi.info));
+                    PassMode::Ignore => {
+                        return local(OperandRef::zst(arg_abi.info));
                     }
-                    hash_abi::PassMode::Direct(_) => {
+                    PassMode::Direct(_) => {
                         let arg_value = builder.get_param(param_index);
                         param_index += 1;
 
