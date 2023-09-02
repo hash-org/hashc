@@ -21,8 +21,8 @@ use std::num;
 use hash_reporting::{hash_error_codes::error_codes::HashErrorCode, reporter::Reporter};
 use hash_source::{
     constant::{
-        FloatConstant, FloatTy, IntTy, InternedFloat, InternedInt, NormalisedIntTy, SIntTy, Size,
-        UIntTy,
+        FloatConstant, FloatTy, IntConstant, IntTy, InternedFloat, InternedInt, NormalisedIntTy,
+        SIntTy, Size, UIntTy,
     },
     SourceMap,
 };
@@ -98,18 +98,17 @@ impl LitParseError {
             LitParseErrorKind::IntOverflow { base, ty } => {
                 // Compute additional note about what literal to use, if we overflow.
                 let suggestion = if ty.original.is_bigint() {
-                    format!(", use a `ibig` instead")
+                    ", use a `ibig` instead".to_string()
                 } else {
                     format!(
-                        "whose range is `{}..{}`, use a `{}` instead",
-                        ty.normalised.numeric_min(Size::ZERO),
+                        " whose range is `{}..{}`, use a `{}` instead",
+                        ty.normalised.signed_min(Size::ZERO),
                         ty.normalised.numeric_max(Size::ZERO),
                         int_ty_suggestion(self.contents.as_str(), base, ty.normalised)
                     )
                 };
 
-                reporter
-                    .error()
+                error
                     .title(format!("literal out of range for type `{}`", ty.original))
                     .add_labelled_span(self.span.span(), "here")
                     .add_note(format!(
@@ -158,7 +157,7 @@ pub fn parse_int_const_from_lit(
     sources: &SourceMap,
     ptr_size: Size,
 ) -> LitParseResult<InternedInt> {
-    let ty = NormalisedIntTy::new(annotation.unwrap_or(IntTy::default()), ptr_size);
+    let ty = NormalisedIntTy::new(annotation.unwrap_or_default(), ptr_size);
     let base: u32 = lit.base.into();
 
     // We have to cleanup the hunk, remove any underscores
@@ -176,7 +175,7 @@ pub fn parse_int_const_from_lit(
         };
     }
 
-    let lit = match ty.normalised {
+    let mut lit: IntConstant = match ty.normalised {
         IntTy::Int(ty) => match ty {
             SIntTy::I8 => parse!(i8),
             SIntTy::I16 => parse!(i16),
@@ -197,6 +196,12 @@ pub fn parse_int_const_from_lit(
         },
     };
 
+    // If the given type is a usize/isize, we need to adjust
+    // the type on the constant to reflect that.
+    if ty.original.is_platform_dependent() {
+        lit.suffix = Some(ty.original.into());
+    }
+
     Ok(InternedInt::create(lit))
 }
 
@@ -209,7 +214,7 @@ pub fn parse_float_const_from_lit(
     annotation: Option<FloatTy>,
     sources: &SourceMap,
 ) -> LitParseResult<InternedFloat> {
-    let ty = annotation.unwrap_or(FloatTy::default());
+    let ty = annotation.unwrap_or_default();
 
     // We have to cleanup the hunk, remove any underscores
     let mut hunk = sources.hunk(lit.hunk.span()).to_string();

@@ -33,7 +33,7 @@ pub enum LitValue<R, V> {
 impl<R, V: Copy> LitValue<R, V> {
     pub fn value(&self) -> V {
         match self {
-            LitValue::Raw(_) => panic!("raw literal has not been interned"),
+            LitValue::Raw(_) => panic!("raw literal has not been baked"),
             LitValue::Value(value) => *value,
         }
     }
@@ -56,6 +56,16 @@ impl IntLit {
     /// Return the value of the integer literal.
     pub fn value(&self) -> BigInt {
         self.value.value().as_big()
+    }
+
+    /// Check whether that value is negative.
+    ///
+    /// **Note**: For raw values, we just check if the value starts with a `-`.
+    pub fn is_negative(&self, env: &Env<'_>) -> bool {
+        match self.value {
+            LitValue::Raw(lit) => env.source_map().hunk(lit.hunk.span()).starts_with('-'),
+            LitValue::Value(value) => value.as_big() < 0.into(),
+        }
     }
 
     /// Compute the [FloatTy] from the given float literal. The rules of

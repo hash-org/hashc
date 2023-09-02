@@ -102,6 +102,15 @@ impl TryFrom<Identifier> for FloatTy {
     }
 }
 
+impl From<FloatTy> for Identifier {
+    fn from(value: FloatTy) -> Self {
+        match value {
+            FloatTy::F32 => IDENTS.f32,
+            FloatTy::F64 => IDENTS.f64,
+        }
+    }
+}
+
 // -------------------- Floats --------------------
 
 /// The inner stored value of a [FloatConstant].
@@ -152,19 +161,6 @@ impl FloatConstant {
         match self.value {
             F64(_) => FloatTy::F64,
             F32(_) => FloatTy::F32,
-        }
-    }
-
-    /// Perform a conversion from the [FloatConstant] into a specified
-    /// [FloatTy].
-    fn convert_into(self, ty: FloatTy) -> Self {
-        if self.ty() == ty {
-            return self;
-        }
-
-        match ty {
-            FloatTy::F64 => Self::new(F64(self.as_f64()), Some(IDENTS.f64)),
-            FloatTy::F32 => Self::new(F32(self.as_f64() as f32), Some(IDENTS.f32)),
         }
     }
 }
@@ -283,14 +279,6 @@ impl InternedFloat {
         let mut store = CONSTS.floats.write();
         let value = store.get_mut(self).unwrap();
         *value = -*value;
-    }
-
-    /// Adjust the underlying [FloatConstant] into a specified
-    /// [FloatTy].
-    pub fn adjust_to(self, ty: FloatTy) {
-        let mut store = CONSTS.floats.write();
-        let value = store.get_mut(self).unwrap();
-        *value = value.convert_into(ty);
     }
 
     /// Map the interned float.
@@ -628,39 +616,6 @@ impl IntConstant {
             _ => false,
         }
     }
-    /// Convert the [IntConstant] into the [IntConstant] with
-    /// the specified `ty`.
-    fn convert_into(&mut self, ty: IntTy, ptr_width: Size) {
-        if self.ty() == ty {
-            return;
-        }
-
-        let suffix: Identifier = ty.into();
-
-        // Re-make the value based on the new type.
-        let value = match ty.normalise(ptr_width) {
-            IntTy::Int(SIntTy::I8) => IntConstantValue::I8((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::I16) => IntConstantValue::I16((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::I32) => IntConstantValue::I32((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::I64) => IntConstantValue::I64((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::I128) => IntConstantValue::I128((&*self).try_into().unwrap()),
-            IntTy::Int(SIntTy::IBig) => {
-                IntConstantValue::Big(Box::new((&*self).try_into().unwrap()))
-            }
-            IntTy::UInt(UIntTy::U8) => IntConstantValue::U8((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::U16) => IntConstantValue::U16((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::U32) => IntConstantValue::U32((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::U64) => IntConstantValue::U64((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::U128) => IntConstantValue::U128((&*self).try_into().unwrap()),
-            IntTy::UInt(UIntTy::UBig) => {
-                IntConstantValue::Big(Box::new((&*self).try_into().unwrap()))
-            }
-            _ => unreachable!(),
-        };
-
-        self.value = value;
-        self.suffix = Some(suffix);
-    }
 }
 
 impl Neg for IntConstant {
@@ -880,14 +835,6 @@ impl InternedInt {
         let mut store = CONSTS.ints.write();
         let value = store.index_mut(self);
         *value = value.clone().neg();
-    }
-
-    /// Adjust the type of the underlying constant to the newly
-    /// specified type.
-    pub fn adjust_to(self, ty: IntTy, ptr_width: Size) {
-        let mut store = CONSTS.ints.write();
-        let value = store.index_mut(self);
-        value.convert_into(ty, ptr_width);
     }
 
     /// Convert a bias encoded `u128` value with an associated [IntTy] and

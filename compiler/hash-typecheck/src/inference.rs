@@ -498,12 +498,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             Ty::Data(data_ty) => match data_ty.data_def.value().ctors {
                                 DataDefCtors::Primitive(primitive_ctors) => match primitive_ctors {
                                     PrimitiveCtorInfo::Numeric(numeric) => {
-                                        let value = int_lit.value();
                                         // If the value is not compatible with the numeric type,
-                                        // then
-                                        // return `None` and the unification will fail.
+                                        // then return `None` and the unification will fail.
                                         if numeric.is_float
-                                            || (!numeric.is_signed && value < 0.into())
+                                            || (!numeric.is_signed
+                                                && int_lit.is_negative(self.env()))
                                         {
                                             None
                                         } else {
