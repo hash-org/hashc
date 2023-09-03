@@ -147,14 +147,14 @@ impl<'tc> Scoping<'tc> {
     pub(super) fn lookup_symbol_by_name_or_error(
         &self,
         name: impl Into<Identifier>,
-        origin_node_id: AstNodeId,
+        node: AstNodeId,
         looking_in: ContextKind,
     ) -> SemanticResult<(SymbolId, BindingKind)> {
         let name = name.into();
         let symbol =
             self.lookup_symbol_by_name(name).ok_or_else(|| SemanticError::SymbolNotFound {
-                symbol: SymbolId::from_name(name, NodeOrigin::Given(origin_node_id)),
-                location: origin_node_id.span(),
+                symbol: SymbolId::from_name(name, NodeOrigin::Given(node)),
+                location: node.span(),
                 looking_in,
             })?;
 
