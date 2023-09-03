@@ -73,7 +73,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     pub(super) fn wildcards_from_ctor(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> Fields {
         let ctor = self.get_deconstructed_ctor(ctor);
 
-        match *ctor {
+        match ctor {
             ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
                 match *ctx.ty.value() {
                     Ty::Tuple(TupleTy { data }) => {

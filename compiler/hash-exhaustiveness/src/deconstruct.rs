@@ -13,7 +13,6 @@ use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataTy},
-    node::Node,
     pats::PatId,
     tys::{Ty, TyId},
 };
@@ -92,19 +91,21 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         ctor_id: DeconstructedCtorId,
     ) -> DeconstructedPat {
         let fields = self.wildcards_from_ctor(ctx, ctor_id);
+
         DeconstructedPat::new(ctor_id, fields, ctx.ty, None)
     }
 
     /// Create a new wildcard [DeconstructedPat], primarily used when
     /// performing specialisations.
-    pub(super) fn wildcard_from_ty(&self, ty: TyId) -> Node<DeconstructedPat> {
-        let ctor = self.ctor_store().create(ty.origin().with_data(DeconstructedCtor::Wildcard));
-        ty.origin().with_data(DeconstructedPat::new(ctor, Fields::empty(), ty, None))
+    pub(super) fn wildcard_from_ty(&self, ty: TyId) -> DeconstructedPat {
+        let ctor = self.ctor_store().create(DeconstructedCtor::Wildcard);
+
+        DeconstructedPat::new(ctor, Fields::empty(), ty, None)
     }
 
     /// Check whether this [DeconstructedPat] is an `or` pattern.
     pub(super) fn is_or_pat(&self, pat: &DeconstructedPat) -> bool {
-        self.ctor_store().map_fast(pat.ctor, |ctor| matches!(**ctor, DeconstructedCtor::Or))
+        self.ctor_store().map_fast(pat.ctor, |ctor| matches!(ctor, DeconstructedCtor::Or))
     }
 
     /// Perform a `specialisation` on the current [DeconstructedPat]. This means
@@ -121,7 +122,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let pat_ctor = self.get_deconstructed_ctor(pat.ctor);
         let other_ctor = self.get_deconstructed_ctor(other_ctor_id);
 
-        match (*pat_ctor, *other_ctor) {
+        match (pat_ctor, other_ctor) {
             (DeconstructedCtor::Wildcard, _) => {
                 // We return a wildcard for each field of `other_ctor`.
                 self.wildcards_from_ctor(ctx, other_ctor_id).iter_patterns().collect()
@@ -199,7 +200,7 @@ impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId> {
 
         pat_store.map_fast(self.item, |pat| {
             ctor_store.map_fast(pat.ctor, |ctor| {
-                match **ctor {
+                match ctor {
                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                         match *pat.ty.value() {
                             Ty::Tuple(_) => {}
@@ -208,10 +209,10 @@ impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId> {
 
                                 // If we have a variant, we print the specific variant that is
                                 // currently active.
-                                if let DeconstructedCtor::Variant(index) = **ctor {
+                                if let DeconstructedCtor::Variant(index) = ctor {
                                     let ctors = data_def.borrow().ctors.assert_defined();
                                     let ctor_name =
-                                        CtorDefId(ctors.elements(), index).borrow().name;
+                                        CtorDefId(ctors.elements(), *index).borrow().name;
                                     write!(f, "::{ctor_name}")?;
                                 }
                             }

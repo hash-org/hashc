@@ -104,7 +104,7 @@ impl DeconstructedCtor {
 impl<'tc> ExhaustivenessChecker<'tc> {
     /// Compute the `arity` of this [DeconstructedCtor].
     pub(crate) fn ctor_arity(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> usize {
-        match *self.get_deconstructed_ctor(ctor) {
+        match self.get_deconstructed_ctor(ctor) {
             ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
                 // if it a tuple, get the length and that is the arity
                 // if it is a struct or enum, then we get that variant and
@@ -166,7 +166,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     ) -> SmallVec<[DeconstructedCtorId; 1]> {
         let ctor = self.get_deconstructed_ctor(ctor_id);
 
-        match *ctor {
+        match ctor {
             DeconstructedCtor::Wildcard => {
                 let mut wildcard = self.split_wildcard_from_pat_ctx(ctx);
                 self.split_wildcard(ctx, &mut wildcard, ctors);
@@ -182,7 +182,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 range
                     .iter()
                     .map(DeconstructedCtor::IntRange)
-                    .map(|c| self.ctor_store().create(ctor.with_data(c)))
+                    .map(|ctor| self.ctor_store().create(ctor))
                     .collect()
             }
             DeconstructedCtor::Array(Array { kind: ArrayKind::Var(prefix_len, suffix_len) }) => {
@@ -194,7 +194,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 list.split(lists);
                 list.iter()
                     .map(DeconstructedCtor::Array)
-                    .map(|c| self.ctor_store().create(ctor.with_data(c)))
+                    .map(|ctor| self.ctor_store().create(ctor))
                     .collect()
             }
             // In any other case, the split just puts this constructor
@@ -253,12 +253,12 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             return false;
         }
 
-        match *self.get_deconstructed_ctor(pat) {
+        match self.get_deconstructed_ctor(pat) {
             // If `self` is `Single`, `used_ctors` cannot contain anything else than `Single`s.
             DeconstructedCtor::Single => !used_ctors.is_empty(),
             DeconstructedCtor::Variant(i) => used_ctors.iter().any(|c| {
                 self.ctor_store()
-                    .map_fast(*c, |c| matches!(**c, DeconstructedCtor::Variant(k) if k == i))
+                    .map_fast(*c, |c| matches!(c, DeconstructedCtor::Variant(k) if *k == i))
             }),
             DeconstructedCtor::IntRange(range) => used_ctors
                 .iter()

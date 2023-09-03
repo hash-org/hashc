@@ -47,6 +47,10 @@
 //! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
 #![feature(let_chains, if_let_guard)]
 
+// ##GeneratedOrigin(crate): This crate only produces TIR nodes which are
+// printed, and never shown as a span in any diagnostics. Therefore, all origins
+// are set to `NodeOrigin::Generated`.
+
 pub mod constant;
 pub mod construct;
 pub mod deconstruct;
@@ -70,7 +74,6 @@ use hash_source::location::Span;
 use hash_storage::store::CloneStore;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
-    node::Node,
     pats::PatId,
     tys::TyId,
 };
@@ -214,21 +217,15 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         &self.ecx.deconstructed_pat_store
     }
 
-    pub(crate) fn get_deconstructed_ctor(
-        &self,
-        id: DeconstructedCtorId,
-    ) -> Node<DeconstructedCtor> {
+    pub(crate) fn get_deconstructed_ctor(&self, id: DeconstructedCtorId) -> DeconstructedCtor {
         self.ecx.deconstructed_ctor_store.get(id)
     }
 
-    pub(crate) fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> Node<DeconstructedPat> {
+    pub(crate) fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> DeconstructedPat {
         self.ecx.deconstructed_pat_store.get(id)
     }
 
-    pub(crate) fn get_deconstructed_pat_ctor(
-        &self,
-        id: DeconstructedPatId,
-    ) -> Node<DeconstructedCtor> {
+    pub(crate) fn get_deconstructed_pat_ctor(&self, id: DeconstructedPatId) -> DeconstructedCtor {
         let deconstructed_pat = self.get_deconstructed_pat(id);
         self.get_deconstructed_ctor(deconstructed_pat.ctor)
     }
