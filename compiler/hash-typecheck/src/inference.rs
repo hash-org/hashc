@@ -583,7 +583,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Err(TcError::MismatchingTypes {
                 expected: annotation_ty,
                 actual: {
-                    // @@MissingOrigins
+                    // @@MissingOrigin
                     Ty::expect_same(
                         annotation_ty,
                         Ty::from(
@@ -664,7 +664,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Either create a default list type or apply the substitution to the annotation
         // type
         if let Ty::Hole(_) = *annotation_ty.value() {
-            // @@MissingOrigins
+            // @@MissingOrigin
             self.check_by_unify(
                 Ty::from(
                     DataTy {
@@ -753,7 +753,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 args: Arg::seq_from_params_as_holes(data_def.params),
             },
             _ => {
-                // @@MissingOrigins
+                // @@MissingOrigin
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: Ty::from(
@@ -975,7 +975,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         };
 
         if let Some(entry_point) = entry_point {
-            // @@MissingOrigins
+            // @@MissingOrigin
             // Maybe it is better to check this manually?
             let call_term = Node::create_at(
                 Term::FnCall(FnCallTerm {
@@ -1152,7 +1152,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_ty(&self, ty_id: TyId, annotation_ty: TyId) -> TcResult<()> {
         // @@Todo: properly deal with universes
         self.register_new_atom(ty_id, annotation_ty);
-        // @@MissingOrigins
+        // @@MissingOrigin
         let inner_is_ty =
             |ty: TyId| Ty::expect_same(ty, Ty::flexible_universe(NodeOrigin::Generated));
         let expects_ty = |ty: TyId| self.check_by_unify(ty, inner_is_ty(ty));
@@ -1570,7 +1570,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             if !inhabited.get() {
                 unified_ty = Ty::expect_same(unified_ty, never_ty());
             } else {
-                // @@MissingOrigins: generated is not quite right here, it is more like
+                // @@MissingOrigin: generated is not quite right here, it is more like
                 // "natively expected"...
                 unified_ty = Ty::expect_same(unified_ty, Ty::void(NodeOrigin::Generated));
             }
@@ -1720,7 +1720,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Ty::Hole(_) => Ty::hole(list_pat.pats.origin()),
             _ => {
-                // @@MissingOrigins
+                // @@MissingOrigin
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: {
