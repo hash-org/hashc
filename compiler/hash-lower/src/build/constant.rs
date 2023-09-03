@@ -5,7 +5,7 @@
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 
 use hash_ast::ast::AstNodeId;
-use hash_ir::ir::{self, BinOp, Const, ConstKind};
+use hash_ir::ir::{self, BinOp, Const};
 use hash_reporting::macros::panic_on_span;
 use hash_source::constant::{FloatConstant, FloatConstantValue, IntConstant, InternedFloat};
 use hash_storage::store::statics::StoreId;
@@ -30,12 +30,12 @@ pub fn lit_to_const(lit: LitId) -> ir::Const {
 impl<'tcx> BodyBuilder<'tcx> {
     /// Lower a simple literal into an [ir::Const], this does not deal
     /// with literals that are arrays or other compound data structures.
-    pub(crate) fn as_constant(&mut self, lit: LitId) -> ConstKind {
-        ConstKind::Value(lit_to_const(lit))
+    pub(crate) fn as_constant(&mut self, lit: LitId) -> Const {
+        lit_to_const(lit)
     }
 
     /// Lower a constant expression, i.e. a literal value.
-    pub(crate) fn lower_constant_expr(&mut self, term: &Term, origin: AstNodeId) -> ConstKind {
+    pub(crate) fn lower_constant_expr(&mut self, term: &Term, origin: AstNodeId) -> Const {
         match term {
             Term::Lit(lit) => self.as_constant(*lit),
             _ => panic_on_span!(origin.span(), "cannot lower non-literal expression into constant"),

@@ -612,12 +612,12 @@ impl<'tcx> BodyBuilder<'tcx> {
         let element_ty = ty.borrow().element_ty().unwrap();
         let size = self.ctx.size_of(element_ty).unwrap() * args.len();
         let const_size = InternedInt::create_usize(size, ptr_width);
-        let size_op = Operand::Const(Const::Int(const_size).into());
+        let size_op = Operand::Const(Const::Int(const_size));
 
         // find the `malloc` function which is defined in the prelude
         // and within the `libc` module
         let item = self.lookup_libc_fn("malloc").expect("`malloc` not found");
-        let subject = Operand::Const(Const::Zero(item).into());
+        let subject = Operand::Const(Const::Zero(item));
 
         // 1).
         //
@@ -653,7 +653,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // Finally, transmute the SizedPointer into a `&[T]` and assign it to the
         // destination.
         let transmute_fn = self.ctx().intrinsics().get_ty(Intrinsic::Transmute).unwrap();
-        let subject = Operand::Const(Const::Zero(transmute_fn).into());
+        let subject = Operand::Const(Const::Zero(transmute_fn));
 
         unpack!(
             block = self.build_fn_call(
@@ -662,8 +662,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 subject,
                 // The first two arguments are the fill-ins for the generic parameters.
                 vec![
-                    Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
-                    Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
+                    Operand::Const(Const::zero()),
+                    Operand::Const(Const::zero()),
                     Operand::Place(sized_ptr)
                 ],
                 origin

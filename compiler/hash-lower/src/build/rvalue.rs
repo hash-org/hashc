@@ -4,7 +4,7 @@
 use hash_ast::ast::AstNodeId;
 use hash_ir::{
     cast::CastKind,
-    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, UnaryOp},
+    ir::{AssertKind, BasicBlock, BinOp, Const, Operand, RValue, UnaryOp},
     ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
 use hash_source::constant::{IntConstant, IntTy, InternedInt};
@@ -147,7 +147,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let int_ty: IntTy = (*signed_ty).into();
                 let const_int =
                     InternedInt::from_u128(int_ty.numeric_min(ptr_size), int_ty, ptr_size);
-                Const::Int(const_int).into()
+                Const::Int(const_int)
             }
             _ => unreachable!(),
         });
@@ -177,7 +177,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
             if ty_id.map(|ty| matches!(ty, IrTy::FnDef { .. })) {
-                return block.and(Operand::Const(Const::Zero(ty_id).into()));
+                return block.and(Operand::Const(Const::Zero(ty_id)));
             }
         }
 
@@ -209,8 +209,8 @@ impl<'tcx> BodyBuilder<'tcx> {
         rhs: Operand,
     ) -> BlockAnd<RValue> {
         // try to constant fold the two operands
-        if let Operand::Const(ConstKind::Value(lhs_value)) = lhs &&
-           let Operand::Const(ConstKind::Value(rhs_value)) = rhs {
+        if let Operand::Const(lhs_value) = lhs &&
+           let Operand::Const(rhs_value) = rhs {
             if let Some(folded) = self.try_fold_const_op(op, lhs_value, rhs_value) {
                 return block.and(folded.into());
             }
@@ -261,7 +261,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let is_zero = self.temp_place(COMMON_IR_TYS.bool);
 
                 let const_val = Const::Int(IntConstant::from_uint(0, uint_ty).into());
-                let zero_val = Operand::Const(const_val.into());
+                let zero_val = Operand::Const(const_val);
 
                 self.control_flow_graph.push_assign(
                     block,
@@ -279,7 +279,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     let sint_ty = int_ty.to_signed();
 
                     let const_val = Const::Int(IntConstant::from_sint(-1, sint_ty).into());
-                    let negative_one_val = Operand::Const(const_val.into());
+                    let negative_one_val = Operand::Const(const_val);
                     let minimum_value = self.min_value_of_ty(ty);
 
                     let is_negative_one = self.temp_place(COMMON_IR_TYS.bool);

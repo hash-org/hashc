@@ -15,9 +15,9 @@
 //!    for nodes that don't need to be dealt with.
 use crate::{
     ir::{
-        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, ConstKind, ConstOp,
-        IrRef, Local, Operand, Place, PlaceProjection, RValue, Statement, SwitchTargets,
-        Terminator, UnaryOp,
+        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, Const, ConstOp, IrRef,
+        Local, Operand, Place, PlaceProjection, RValue, Statement, SwitchTargets, Terminator,
+        UnaryOp,
     },
     ty::{IrTyId, Mutability, RefKind, VariantIdx},
 };
@@ -132,7 +132,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         walk_mut::walk_rvalue(self, value, reference);
     }
 
-    fn visit_const_rvalue(&mut self, _: &ConstKind, _: IrRef) {}
+    fn visit_const_rvalue(&mut self, _: &Const, _: IrRef) {}
 
     fn visit_use_rvalue(&mut self, value: &Operand, reference: IrRef) {
         walk_mut::walk_use_rvalue(self, value, reference);
@@ -258,7 +258,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         walk_mut::walk_operand(self, operand, reference);
     }
 
-    fn visit_const_value(&mut self, _: &ConstKind, _reference: IrRef) {}
+    fn visit_const_value(&mut self, _: &Const, _reference: IrRef) {}
 
     fn visit_place(&mut self, place: &Place, ctx: PlaceContext, reference: IrRef) {
         walk_mut::walk_place(self, place, ctx, reference);
@@ -727,7 +727,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         walk_modifying::walk_operand(self, operand, reference);
     }
 
-    fn visit_const_value(&self, _: &mut ConstKind, _reference: IrRef) {}
+    fn visit_const_value(&self, _: &mut Const, _reference: IrRef) {}
 
     fn visit_place(&self, place: &mut Place, ctx: PlaceContext, reference: IrRef) {
         walk_modifying::walk_place(self, place, ctx, reference);

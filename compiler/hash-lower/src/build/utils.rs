@@ -105,9 +105,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) -> RValue {
         let adt = ty.borrow().as_adt();
         let ptr_width = self.target().ptr_size();
-        let metadata =
-            Operand::Const(Const::Int(InternedInt::create_usize(metadata, ptr_width)).into());
-
+        let metadata = Operand::Const(Const::Int(InternedInt::create_usize(metadata, ptr_width)));
         RValue::Aggregate(AggregateKind::Struct(adt), vec![ptr, metadata])
     }
 

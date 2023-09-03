@@ -100,12 +100,6 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         func: Builder::Function,
         starting_block: Builder::BasicBlock,
     ) -> Self {
-        // Verify that the IR body has resolved all "constant" references
-        // as they should be resolved by this point.
-        //
-        // @@Todo: where do `#run` directives fit into this scheme?
-        assert!(body.needed_constants.is_empty());
-
         let block_map = body
             .blocks()
             .indices()

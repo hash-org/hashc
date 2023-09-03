@@ -64,12 +64,6 @@ pub enum Const {
     Str(InternedStr),
 }
 
-impl From<Const> for ConstKind {
-    fn from(value: Const) -> Self {
-        Self::Value(value)
-    }
-}
-
 impl Const {
     /// Create a [Const::Zero] with a unit type, the total zero.
     pub fn zero() -> Self {
@@ -81,6 +75,22 @@ impl Const {
     /// than emitting a equality check for each case.
     pub fn is_switchable(&self) -> bool {
         matches!(self, Self::Char(_) | Self::Int(_) | Self::Bool(_))
+    }
+
+    /// Compute the type of the [Const] provided with an IR context.
+    ///
+    /// N.B. Computing the `ty` of a [Const] will always yield a normalised
+    /// type, i.e. a `usize` will be converted into a `u64` on 64-bit
+    /// platforms.
+    pub fn ty(&self) -> IrTyId {
+        match self {
+            Const::Zero(ty) => *ty,
+            Const::Bool(_) => COMMON_IR_TYS.bool,
+            Const::Char(_) => COMMON_IR_TYS.char,
+            Const::Int(value) => value.map(|int| int.normalised_ty().to_ir_ty()),
+            Const::Float(value) => value.map(|float| float.ty().to_ir_ty()),
+            Const::Str(_) => COMMON_IR_TYS.str,
+        }
     }
 
     /// Create a new [Const] from a scalar value, with the appropriate
@@ -133,78 +143,15 @@ pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
     }
 }
 
-/// An un-evaluated constant value within the Hash IR. These values are
-/// references to constant expressions that are defined outside of a
-/// particular function body or are marked as `const` and will need to
-/// be computed after all IR is built. A [UnevaluatedConst] refers to
-/// a scope of where the value originated, and the [Identifier] that
-/// is marked as `const`. However, once the new typechecking backend is
-/// implemented, this is likely to change to some kind of `DefId` which
-/// points to some declaration that needs to be evaluated.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct UnevaluatedConst {
-    /// The name of the constant.
-    pub name: Identifier,
-}
-
-/// A constant value that is used within the IR. A [ConstKind] is either
-/// an actual [Const] value, or an un-evaluated reference to a constant
-/// expression that comes outside of a particular function body. These
-/// "unevaluated" values will be removed during IR simplification stages since
-/// all of the items are inlined.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum ConstKind {
-    /// A constant value that is defined within the program source.
-    Value(Const),
-    /// A constant value that is defined within the program source, but is not
-    /// evaluated yet.
-    Unevaluated(UnevaluatedConst),
-}
-
-impl ConstKind {
-    /// Compute the type of the [ConstKind] provided with an IR context.
-    ///
-    /// N.B. Computing the `ty` of a [ConstKind] will always yield a normalised
-    /// type, i.e. a `usize` will be converted into a `u64` on 64-bit
-    /// platforms.
-    pub fn ty(&self) -> IrTyId {
-        match self {
-            Self::Value(value) => match value {
-                Const::Zero(ty) => *ty,
-                Const::Bool(_) => COMMON_IR_TYS.bool,
-                Const::Char(_) => COMMON_IR_TYS.char,
-                Const::Int(value) => value.map(|int| int.normalised_ty().to_ir_ty()),
-                Const::Float(value) => value.map(|float| float.ty().to_ir_ty()),
-                Const::Str(_) => COMMON_IR_TYS.str,
-            },
-            Self::Unevaluated(UnevaluatedConst { .. }) => {
-                // @@Todo: This will be implemented when constants are clearly
-                // associated with a definition ID making it easy to look them
-                // up within the context.
-                todo!()
-            }
-        }
-    }
-}
-
-impl From<ConstKind> for Operand {
-    fn from(constant: ConstKind) -> Self {
+impl From<Const> for Operand {
+    fn from(constant: Const) -> Self {
         Self::Const(constant)
     }
 }
 
-impl From<ConstKind> for RValue {
-    fn from(constant: ConstKind) -> Self {
+impl From<Const> for RValue {
+    fn from(constant: Const) -> Self {
         Self::Use(Operand::Const(constant))
-    }
-}
-
-impl fmt::Display for ConstKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Value(value) => write!(f, "{value}"),
-            Self::Unevaluated(UnevaluatedConst { name }) => write!(f, "<unevaluated> {name}"),
-        }
     }
 }
 
@@ -684,7 +631,7 @@ impl AggregateKind {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Operand {
     /// A constant value.
-    Const(ConstKind),
+    Const(Const),
 
     /// A place that is being used.
     Place(Place),
@@ -763,7 +710,7 @@ impl RValue {
 
     /// Convert the RValue into a constant, having previously
     /// checked that it is a constant.
-    pub fn as_const(&self) -> ConstKind {
+    pub fn as_const(&self) -> Const {
         match self {
             RValue::Use(Operand::Const(c)) => *c,
             rvalue => unreachable!("Expected a constant, got {:?}", rvalue),
@@ -798,12 +745,6 @@ impl RValue {
                 ty.borrow().discriminant_ty()
             }
         }
-    }
-}
-
-impl From<Const> for RValue {
-    fn from(value: Const) -> Self {
-        Self::Use(Operand::Const(ConstKind::Value(value)))
     }
 }
 
@@ -1283,9 +1224,6 @@ pub struct Body {
     /// - the remaining are temporaries that are used within the function.
     pub declarations: LocalDecls,
 
-    /// Constants that need to be resolved after IR building and pre-codegen.
-    pub needed_constants: Vec<UnevaluatedConst>,
-
     /// Information that is derived when the body in being
     /// lowered.
     pub info: BodyInfo,
@@ -1312,7 +1250,6 @@ impl Body {
         origin: AstNodeId,
     ) -> Self {
         Self {
-            needed_constants: vec![],
             basic_blocks: BasicBlocks::new(blocks),
             info,
             declarations,

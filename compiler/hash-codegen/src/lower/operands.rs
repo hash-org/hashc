@@ -275,31 +275,26 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 // @@Refactor: we should move this into its own function so that we can
                 // implement const allocations.
                 let value = match constant {
-                    ir::ConstKind::Value(const_value) => match const_value {
-                        ir::Const::Zero(_) => return OperandRef::zst(info),
-                        value @ (ir::Const::Bool(_)
-                        | ir::Const::Char(_)
-                        | ir::Const::Int(_)
-                        | ir::Const::Float(_)) => {
-                            let ty = builder.immediate_backend_ty(info);
-                            let abi = info.layout.borrow().abi;
+                    ir::Const::Zero(_) => return OperandRef::zst(info),
+                    value @ (ir::Const::Bool(_)
+                    | ir::Const::Char(_)
+                    | ir::Const::Int(_)
+                    | ir::Const::Float(_)) => {
+                        let ty = builder.immediate_backend_ty(info);
+                        let abi = info.layout.borrow().abi;
 
-                            let AbiRepresentation::Scalar(scalar) = abi else {
-                                panic!("scalar constant doesn't have a scalar ABI representation")
-                            };
+                        let AbiRepresentation::Scalar(scalar) = abi else {
+                            panic!("scalar constant doesn't have a scalar ABI representation")
+                        };
 
-                            // We convert the constant to a backend equivalent scalar
-                            // value and then emit it as an immediate operand value.
-                            let value = builder.const_scalar_value(*value, scalar, ty);
-                            OperandValue::Immediate(value)
-                        }
-                        ir::Const::Str(interned_str) => {
-                            let (ptr, size) = builder.const_str(*interned_str);
-                            OperandValue::Pair(ptr, size)
-                        }
-                    },
-                    ir::ConstKind::Unevaluated(_) => {
-                        panic!("un-evaluated constant at code generation")
+                        // We convert the constant to a backend equivalent scalar
+                        // value and then emit it as an immediate operand value.
+                        let value = builder.const_scalar_value(*value, scalar, ty);
+                        OperandValue::Immediate(value)
+                    }
+                    ir::Const::Str(interned_str) => {
+                        let (ptr, size) = builder.const_str(*interned_str);
+                        OperandValue::Pair(ptr, size)
                     }
                 };
 

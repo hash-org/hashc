@@ -647,7 +647,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         panic!("expected two target blocks for `Eq` test");
                     };
 
-                    let expected = Operand::Const(value.into());
+                    let expected = Operand::Const(value);
                     let actual = place.into();
 
                     self.compare(block, success, fail, BinOp::Eq, expected, actual, span);
@@ -662,8 +662,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let lb_success = self.control_flow_graph.start_new_block();
                 let target_blocks = make_target_blocks(self);
 
-                let lo = Operand::Const(lo.into());
-                let hi = Operand::Const(hi.into());
+                let lo = Operand::Const(lo);
+                let hi = Operand::Const(hi);
                 let val = place.into();
 
                 let [success, fail] = *target_blocks else {
@@ -732,7 +732,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     value: IntConstantValue::U64(len),
                     suffix: None,
                 }));
-                let expected = Operand::Const(const_len.into());
+                let expected = Operand::Const(const_len);
 
                 let [success, fail] = *target_blocks else {
                     panic!("expected two target blocks for `Len` test");

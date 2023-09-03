@@ -13,9 +13,6 @@
 //! )
 //! ```
 //!
-//! And it will print the layout of the inner type, but this requires to support
-//! @@UniversalParserDirectives.
-//!
 //!
 //! 2. Add unit tests for some layout printing
 //!

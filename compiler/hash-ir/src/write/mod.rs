@@ -93,9 +93,7 @@ impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Operand::Place(place) => write!(f, "{place}"),
-            Operand::Const(ConstKind::Value(Const::Zero(ty))) => {
-                write!(f, "{ty}")
-            }
+            Operand::Const(Const::Zero(ty)) => write!(f, "{ty}"),
             Operand::Const(const_value) => write!(f, "const {const_value}"),
         }
     }
