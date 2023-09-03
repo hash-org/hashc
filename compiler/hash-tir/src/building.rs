@@ -2,6 +2,9 @@
 
 /// Building utilities for TIR nodes which do not have an origin, i.e. are
 /// "generated".
+///
+/// Ideally, when this module is used, an according `##GeneratedOrigin` comment
+/// should be added to the code.
 pub mod gen {
     use hash_source::identifier::Identifier;
     use hash_storage::store::statics::SequenceStoreValue;

@@ -544,7 +544,10 @@ impl<'tc> ResolutionPass<'tc> {
         macro_rules! lit_prim {
             ($name:ident,$lit_name:ident, $contents:expr) => {
                 Term::from(
-                    Term::Lit(Node::create_gen(Lit::$name($lit_name::from($contents)))),
+                    Term::Lit(Node::create_at(
+                        Lit::$name($lit_name::from($contents)),
+                        NodeOrigin::Given(node.id()),
+                    )),
                     NodeOrigin::Given(node.id()),
                 )
             };
@@ -791,7 +794,7 @@ impl<'tc> ResolutionPass<'tc> {
                         TermId::empty_seq(),
                         NodeOrigin::Given(node.contents.id()),
                     ),
-                    stack_id: Stack::empty(),
+                    stack_id: Stack::empty(NodeOrigin::Given(node.contents.id())),
                 },
                 NodeOrigin::Given(node.contents.id()),
             ),

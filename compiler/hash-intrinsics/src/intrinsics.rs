@@ -199,6 +199,11 @@ pub enum EndoBinOp {
     Mod,
 }
 
+// ##GeneratedOrigins: The nodes created in the `impl` below do not have source
+// origins since they are defined in-line in the compiler. @@Improvement: Add
+// source origins to the intrinsics by writing their headers in an actual source
+// file.
+
 impl DefinedIntrinsics {
     /// Add the `un_op` intrinsic.
     ///
@@ -296,6 +301,7 @@ impl DefinedIntrinsics {
                         }
                         LitTy::Bool => {
                             let a: bool = env.try_use_term_as_bool(a).unwrap();
+                            // @@MissingOrigin
                             Ok(env
                                 .new_bool_term(operate_bool!(parsed_op, a), NodeOrigin::Generated))
                         }
@@ -357,6 +363,7 @@ impl DefinedIntrinsics {
 
                 let lhs: bool = env.try_use_term_as_bool(lhs).unwrap();
                 let rhs: bool = env.try_use_term_as_bool(rhs).unwrap();
+                // @@MissingOrigin
                 Ok(env.new_bool_term(operate_bool!(parsed_op, lhs, rhs), NodeOrigin::Generated))
             },
         )
@@ -459,6 +466,7 @@ impl DefinedIntrinsics {
                     ($rust_ty:ty) => {{
                         let lhs: $rust_ty = env.try_use_term_as_integer_lit(lhs).unwrap();
                         let rhs: $rust_ty = env.try_use_term_as_integer_lit(rhs).unwrap();
+                        // @@MissingOrigin
                         Ok(env.new_bool_term(
                             operate_int!(parsed_op, lhs, rhs),
                             NodeOrigin::Generated,
@@ -484,6 +492,7 @@ impl DefinedIntrinsics {
                         LitTy::F32 => {
                             let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
                             let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
+                            // @@MissingOrigin
                             Ok(env.new_bool_term(
                                 operate_float!(parsed_op, lhs, rhs),
                                 NodeOrigin::Generated,
@@ -492,6 +501,7 @@ impl DefinedIntrinsics {
                         LitTy::F64 => {
                             let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
                             let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
+                            // @@MissingOrigin
                             Ok(env.new_bool_term(
                                 operate_float!(parsed_op, lhs, rhs),
                                 NodeOrigin::Generated,
@@ -500,6 +510,7 @@ impl DefinedIntrinsics {
                         LitTy::Bool => {
                             let lhs: bool = env.try_use_term_as_bool(lhs).unwrap();
                             let rhs: bool = env.try_use_term_as_bool(rhs).unwrap();
+                            // @@MissingOrigin
                             Ok(env.new_bool_term(
                                 operate_bool!(parsed_op, lhs, rhs),
                                 NodeOrigin::Generated,
@@ -508,6 +519,7 @@ impl DefinedIntrinsics {
                         LitTy::Char => {
                             let lhs: char = env.try_use_term_as_char_lit(lhs).unwrap();
                             let rhs: char = env.try_use_term_as_char_lit(rhs).unwrap();
+                            // @@MissingOrigin
                             Ok(env.new_bool_term(
                                 operate_char!(parsed_op, lhs, rhs),
                                 NodeOrigin::Generated,
@@ -683,6 +695,7 @@ impl DefinedIntrinsics {
                     if let (Ty::Data(lhs_data), Ty::Data(rhs_data)) =
                         (*lhs_ty.value(), *rhs_ty.value())
                     {
+                        // @@MissingOrigin
                         if lhs_data.args.len() == 0 && rhs_data.args.len() == 0 {
                             return Ok(prim.new_bool_term(
                                 lhs_data.data_def == rhs_data.data_def,
@@ -823,6 +836,7 @@ impl DefinedIntrinsics {
 
         let u8 = data_ty(primitives().u8());
         let usize = data_ty(primitives().usize());
+
         let raw_ptr_ty = env.new_ref_ty(u8, RefKind::Raw, false, NodeOrigin::Generated);
 
         // ptr_offset
@@ -903,6 +917,8 @@ impl DefinedIntrinsics {
         let name = name.into();
         let intrinsic_id = IntrinsicId(sym(name));
 
+        // ##GeneratedOrigins: Intrinsics do not have a source location since they are
+        // defined in-line in the compiler.
         let fn_def = Node::create_gen(FnDef {
             name: intrinsic_id.0,
             ty: fn_ty,

@@ -35,7 +35,7 @@ impl<'tc> ModUtils<'tc> {
                 let module_name: Identifier = self.source_map().source_name(source_id).into();
                 let mod_def_id = Node::create_at(
                     ModDef {
-                        // @@Todo: what origin should we use here?
+                        // @@MissingOrigin
                         name: SymbolId::from_name(module_name, NodeOrigin::Generated),
                         kind: ModKind::Source(
                             source_id,

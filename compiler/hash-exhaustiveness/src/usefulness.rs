@@ -172,6 +172,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             DeconstructedPat::new(ctor, fields, ctx.ty, None)
         };
 
+        // ##GeneratedOrigin: this is a generated witness, which does not correspond to
+        // a source location.
         let pat = self.deconstructed_pat_store().create(Node::gen(pat));
         witness.0.push(pat);
         witness
@@ -210,6 +212,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                         .iter_missing_ctors(&wildcard)
                         .map(|missing_ctor| {
                             let pat = self.wildcard_from_ctor(ctx, missing_ctor);
+                            // ##GeneratedOrigin: this is a generated witness, which does not
+                            // correspond to a source location.
                             self.deconstructed_pat_store().create(Node::gen(pat))
                         })
                         .collect_vec();

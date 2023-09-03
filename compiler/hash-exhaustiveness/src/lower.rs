@@ -334,7 +334,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let args = Node::create_at(Node::<PatArg>::seq(fields), params.origin());
 
         if field_count != params.len() {
-            // @@Origins: how can we get the origin here?
+            // @@MissingOrigin: how can we get the origin here?
             (
                 args,
                 Some(Spread { name: SymbolId::fresh(NodeOrigin::Generated), index: field_count }),

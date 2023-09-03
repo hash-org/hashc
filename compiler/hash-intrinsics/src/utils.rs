@@ -241,14 +241,13 @@ pub trait PrimitiveUtils: AccessToEnv {
     }
 
     /// Get the given term as a float literal if possible.
-    // @@Todo: make this take an `origin`
     fn create_term_from_float_lit<L: Into<FloatConstantValue>>(&self, lit: L) -> TermId {
         let lit = Lit::Float(InternedFloat::create(FloatConstant::new(lit.into(), None)).into());
+        // @@MissingOrigin
         Node::create_gen(Term::Lit(Node::create_gen(lit)))
     }
 
     /// Get the given term as a float literal if possible.
-    // @@Todo: make this take an `origin`
     fn try_use_term_as_float_lit<L: From<f64>>(&self, term: TermId) -> Option<L> {
         match *term.value() {
             Term::Lit(lit) => match *lit.value() {
@@ -260,9 +259,9 @@ pub trait PrimitiveUtils: AccessToEnv {
     }
 
     /// Get the given term as a float literal if possible.
-    // @@Todo: make this take an `origin`
     fn create_term_from_integer_lit<L: Into<IntConstantValue>>(&self, lit: L) -> TermId {
         let lit = Lit::Int(InternedInt::create(IntConstant::new(lit.into(), None)).into());
+        // @@MissingOrigin
         Node::create_gen(Term::Lit(Node::create_gen(lit)))
     }
 
@@ -278,9 +277,9 @@ pub trait PrimitiveUtils: AccessToEnv {
     }
 
     /// Get the given term as a character literal if possible.
-    // @@Todo: make this take an `origin`
     fn create_term_from_char_lit(&self, lit: char) -> TermId {
         let val = Lit::Char(CharLit { underlying: ast::CharLit { data: lit } });
+        // @@MissingOrigin
         Node::create_at(Term::Lit(Node::create_gen(val)), NodeOrigin::Generated)
     }
 

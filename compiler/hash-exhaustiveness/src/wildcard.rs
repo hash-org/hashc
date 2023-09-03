@@ -190,7 +190,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             .filter(move |ctor| !self.is_ctor_covered_by_any(*ctor, &wildcard.matrix_ctors))
     }
 
-    /// Convert the current [SplitWildcard] into it's respective constructors.
+    /// Convert the current [SplitWildcard] into its respective constructors.
     ///
     /// In the case that the wildcard has missing constructors, it is at the
     /// top level, and the row type is not of an integral kind then we will
@@ -241,6 +241,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 DeconstructedCtor::Wildcard
             };
 
+            // ##GeneratedOrigin: This constructor is generated, and has no original source
+            // span.
             let ctor = self.ctor_store().create(Node::gen(ctor));
             return smallvec![ctor];
         }

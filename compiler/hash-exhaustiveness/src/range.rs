@@ -346,6 +346,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
         // Emit diagnostics for all of the found overlaps
         for (overlapping_range, id) in overlaps {
+            // ##GeneratedOrigin: This is a generated range which shows the overlap between
+            // given ranges, so it is not associated with a single source location.
             let RangePat { hi, .. } = self.construct_range_pat(
                 overlapping_range,
                 ty,

@@ -12,6 +12,11 @@ use crate::{
     mods::{ModMember, ModMemberValue},
 };
 
+// ##GeneratedOrigins: The nodes created in this module do not have source
+// origins since they are defined in-line in the compiler. @@Improvement: Add
+// source origins to the primitives by writing their headers in an actual source
+// file.
+
 macro_rules! defined_primitives {
     ($($name:ident),* $(,)?) => {
         #[derive(Debug, Copy, Clone)]

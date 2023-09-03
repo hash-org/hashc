@@ -1,5 +1,5 @@
 //! Utilities for creating parameters and arguments during discovery.
-use hash_ast::ast::{self};
+use hash_ast::ast::{self, AstNodeId};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     environment::stores::tir_stores,
@@ -24,7 +24,7 @@ impl<'tc> DiscoveryPass<'tc> {
                         Some(name) => {
                             ParamIndex::Name(name.ident).into_symbol(NodeOrigin::Given(name.id()))
                         }
-                        None => ParamIndex::Position(i).into_symbol(NodeOrigin::Generated),
+                        None => ParamIndex::Position(i).into_symbol(NodeOrigin::Given(param.id())),
                     }),
                     NodeOrigin::Given(param.id()),
                 )
@@ -47,11 +47,12 @@ impl<'tc> DiscoveryPass<'tc> {
     pub(super) fn create_hole_params_from_params(
         &self,
         node: Option<&ast::AstNode<ast::Params>>,
+        alternative_origin: AstNodeId,
     ) -> ParamsId {
         if let Some(params) = node {
             self.create_hole_params_from(&params.params, |param| &param.name)
         } else {
-            Node::create_gen(Node::<Param>::empty_seq())
+            Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Given(alternative_origin))
         }
     }
 
@@ -60,11 +61,12 @@ impl<'tc> DiscoveryPass<'tc> {
     pub(super) fn create_hole_params_from_ty_params(
         &self,
         params: Option<&ast::AstNode<ast::TyParams>>,
+        alternative_origin: AstNodeId,
     ) -> ParamsId {
         if let Some(ty_params) = params {
             self.create_hole_params_from(&ty_params.params, |param| &param.name)
         } else {
-            Node::create_gen(Node::<Param>::empty_seq())
+            Node::create_at(Node::<Param>::empty_seq(), NodeOrigin::Given(alternative_origin))
         }
     }
 }

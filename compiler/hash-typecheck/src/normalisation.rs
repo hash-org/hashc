@@ -12,7 +12,6 @@ use hash_tir::{
     args::{Arg, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
-    building::gen::void_term,
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
@@ -20,7 +19,7 @@ use hash_tir::{
     fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
-    node::{Node, NodeOrigin},
+    node::Node,
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::DerefTerm,
@@ -488,7 +487,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             return evaluation_to(ref_expr.subject);
         }
 
-        evaluation_if(|| Term::from(*deref_term, deref_term.origin), &st)
+        evaluation_if(|| Term::from(*deref_term, deref_term.origin.computed()), &st)
     }
 
     /// Get the parameter at the given index in the given argument list.
@@ -582,7 +581,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate an assignment term.
-    fn eval_assign(&self, mut assign_term: AssignTerm) -> FullEvaluation<Atom> {
+    fn eval_assign(&self, mut assign_term: Node<AssignTerm>) -> FullEvaluation<Atom> {
         assign_term.value = self.to_term(self.eval(assign_term.value.into())?);
 
         match *assign_term.subject.value() {
@@ -605,10 +604,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             Term::Var(var) => {
                 self.context().modify_assignment(var, assign_term.value);
             }
-            _ => panic!("Invalid assign {}", &assign_term),
+            _ => panic!("Invalid assign {}", &*assign_term),
         }
 
-        full_evaluation_to(void_term())
+        full_evaluation_to(Term::void(assign_term.origin.computed()))
     }
 
     /// Evaluate a match term.
@@ -666,14 +665,14 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             )? {
                 MatchResult::Successful => {
                     // All good
-                    evaluation_to(void_term())
+                    evaluation_to(Term::void(decl_term.origin.computed()))
                 }
                 MatchResult::Failed => {
                     panic!("Non-exhaustive let-binding: {}", &*decl_term)
                 }
                 MatchResult::Stuck => {
                     info!("Stuck evaluating let-binding: {}", &*decl_term);
-                    evaluation_if(|| Term::from(*decl_term, decl_term.origin), &st)
+                    evaluation_if(|| Term::from(*decl_term, decl_term.origin.computed()), &st)
                 }
             },
             None => {
@@ -689,7 +688,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a `loop` term.
-    fn eval_loop(&self, loop_term: LoopTerm) -> FullEvaluation<Atom> {
+    fn eval_loop(&self, loop_term: Node<LoopTerm>) -> FullEvaluation<Atom> {
         loop {
             match self.eval_block(*loop_term.block) {
                 Ok(_) | Err(Signal::Continue) => continue,
@@ -697,7 +696,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Err(e) => return Err(e),
             }
         }
-        full_evaluation_to(void_term())
+        full_evaluation_to(Term::void(loop_term.origin.computed()))
     }
 
     /// Evaluate a term and use it as a type.
@@ -715,8 +714,8 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate some arguments
-    fn eval_args(&self, args: ArgsId) -> Evaluation<ArgsId> {
-        let args = args.value();
+    fn eval_args(&self, args_id: ArgsId) -> Evaluation<ArgsId> {
+        let args = args_id.value();
         let st = eval_state();
 
         let evaluated_arg_data = args
@@ -728,13 +727,13 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                         target: arg.target,
                         value: self.to_term(self.eval_nested_and_record(arg.value.into(), &st)?),
                     },
-                    NodeOrigin::Generated,
+                    arg.origin,
                 ))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         evaluation_if(
-            || Node::create_at(Node::<Arg>::seq(evaluated_arg_data), NodeOrigin::Generated),
+            || Node::create_at(Node::<Arg>::seq(evaluated_arg_data), args_id.origin().computed()),
             &st,
         )
     }
@@ -805,7 +804,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             }
         }
 
-        evaluation_if(|| Term::from(*fn_call, fn_call.origin), &st)
+        evaluation_if(|| Term::from(*fn_call, fn_call.origin.computed()), &st)
     }
 
     /// Evaluate an atom, performing at least a single step of normalisation.
@@ -888,13 +887,17 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                 // Imperative:
                 Term::LoopControl(loop_control) => Err(self.eval_loop_control(loop_control)),
-                Term::Assign(assign_term) => ctrl_map_full(self.eval_assign(assign_term)),
+                Term::Assign(assign_term) => {
+                    ctrl_map_full(self.eval_assign(term.origin().with_data(assign_term)))
+                }
                 Term::Decl(decl_term) => {
                     ctrl_map(self.eval_decl(term.origin().with_data(decl_term)))
                 }
                 Term::Return(return_expr) => self.eval_return(return_expr)?,
                 Term::Block(block_term) => ctrl_map(self.eval_block(block_term)),
-                Term::Loop(loop_term) => ctrl_map_full(self.eval_loop(loop_term)),
+                Term::Loop(loop_term) => {
+                    ctrl_map_full(self.eval_loop(term.origin().with_data(loop_term)))
+                }
             },
             Atom::Ty(ty) => match *ty.value() {
                 Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
@@ -921,7 +924,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 PatOrCapture::Capture(_) => Some(term_list.elements().at(i).unwrap()),
             })
             .collect_vec();
-        Node::create_at(TermId::seq(spread_term_list), NodeOrigin::Generated)
+        Node::create_at(TermId::seq(spread_term_list), term_list.origin().computed())
     }
 
     /// From the given arguments matching with the given parameters, extract the
@@ -937,15 +940,12 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 PatOrCapture::Pat(_) => None,
                 PatOrCapture::Capture(_) => {
                     let arg = term_args.at(i).unwrap().value();
-                    Some(Node::at(
-                        Arg { target: arg.target, value: arg.value },
-                        NodeOrigin::Generated,
-                    ))
+                    Some(Node::at(Arg { target: arg.target, value: arg.value }, arg.origin))
                 }
             })
             .collect_vec();
 
-        Node::create_at(Node::<Arg>::seq(spread_term_args), NodeOrigin::Generated)
+        Node::create_at(Node::<Arg>::seq(spread_term_args), term_args.origin().computed())
     }
 
     /// Match the given arguments with the given pattern arguments.
@@ -1022,7 +1022,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             |sp| {
                 Term::from(
                     TupleTerm { data: self.extract_spread_args(term_args, pat_args) },
-                    sp.name.origin(),
+                    sp.name.origin().computed(),
                 )
             },
             |i| pat_args.at(i).unwrap().borrow().pat,
@@ -1240,7 +1240,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                         Term::Array(ArrayTerm {
                             elements: self.extract_spread_list(array_term.elements, list_pat.pats),
                         }),
-                        sp.name.origin(),
+                        sp.name.origin().computed(),
                     )
                 },
                 |i| list_pat.pats.elements().at(i).unwrap(),

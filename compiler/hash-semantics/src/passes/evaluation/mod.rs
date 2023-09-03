@@ -11,7 +11,7 @@ use hash_tir::{
     args::Arg,
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::FnCallTerm,
-    node::{Node, NodeOrigin},
+    node::Node,
     terms::{Term, TermId},
     utils::common::dump_tir,
 };
@@ -57,12 +57,9 @@ impl EvaluationPass<'_> {
                             FnCallTerm {
                                 subject: Term::from(def, def.origin()),
                                 implicit: false,
-                                args: Node::create_at(
-                                    Node::<Arg>::empty_seq(),
-                                    NodeOrigin::Generated,
-                                ),
+                                args: Node::create_at(Node::<Arg>::empty_seq(), def.origin()),
                             },
-                            NodeOrigin::Generated,
+                            def.origin(),
                         );
                         Ok(Some(call_term))
                     }

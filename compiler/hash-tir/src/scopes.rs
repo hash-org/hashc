@@ -111,8 +111,8 @@ pub struct Stack {
 
 impl Stack {
     /// Create a new stack with empty members.
-    pub fn empty() -> StackId {
-        Node::create_at(Stack { members: vec![], local_mod_def: None }, NodeOrigin::Generated)
+    pub fn empty(origin: NodeOrigin) -> StackId {
+        Node::create_at(Stack { members: vec![], local_mod_def: None }, origin)
     }
 }
 
