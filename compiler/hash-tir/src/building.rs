@@ -1,5 +1,7 @@
 /// Building utilities for TIR nodes.
 
+/// Building utilities for TIR nodes which do not have an origin, i.e. are
+/// "generated".
 pub mod gen {
     use hash_source::identifier::Identifier;
     use hash_storage::store::statics::SequenceStoreValue;
@@ -16,9 +18,6 @@ pub mod gen {
         terms::{Term, TermId},
         tys::{Ty, TyId},
     };
-
-    /// Building utilities for TIR nodes which do not have an origin, i.e. are
-    /// "generated".
 
     /// Create a symbol with the given name.
     pub fn sym(name: impl Into<Identifier>) -> SymbolId {
@@ -102,22 +101,27 @@ pub mod gen {
         Node::create_gen(DataDef { name, params, ctors: DataDefCtors::Primitive(info) })
     }
 
+    /// Create a flexible universe type.
     pub fn universe_ty() -> TyId {
         Ty::flexible_universe(NodeOrigin::Generated)
     }
 
+    /// Create a data type with no arguments.
     pub fn data_ty(data: DataDefId) -> TyId {
         Ty::data(data, NodeOrigin::Generated)
     }
 
+    /// Create an empty tuple term `()`.
     pub fn void_term() -> TermId {
         Term::void(NodeOrigin::Generated)
     }
 
+    /// Create an empty tuple type `()`.
     pub fn void_ty() -> TyId {
         Ty::void(NodeOrigin::Generated)
     }
 
+    /// Create the empty type.
     pub fn never_ty() -> TyId {
         Ty::from(
             DataTy {
@@ -128,14 +132,17 @@ pub mod gen {
         )
     }
 
+    /// Create a term by the given data.
     pub fn term(inner: impl Into<Term>) -> TermId {
         Term::from(inner, NodeOrigin::Generated)
     }
 
+    /// Create a type by the given data.
     pub fn ty(inner: impl Into<Ty>) -> TyId {
         Ty::from(inner, NodeOrigin::Generated)
     }
 
+    /// Create a pattern by the given data.
     pub fn pat(inner: impl Into<Pat>) -> PatId {
         Node::create_at(inner.into(), NodeOrigin::Generated)
     }
