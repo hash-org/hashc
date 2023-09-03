@@ -9,7 +9,7 @@ doctest = false
 
 [dependencies]
 llvm-sys = "150.0.3"
-inkwell = { version="0.2.0", features = ["llvm15-0"] }
+inkwell = { git = "https://github.com/feds01/inkwell.git", branch="master", features = ["llvm15-0"] }
 
 hash-attrs = { path = "../hash-attrs" }
 hash-codegen = {path = "../hash-codegen" }

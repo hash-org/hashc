@@ -32,11 +32,10 @@ use inkwell::{
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
     values::{
         AggregateValueEnum, AnyValue, AnyValueEnum, AsValueRef, BasicMetadataValueEnum, BasicValue,
-        BasicValueEnum, FunctionValue, InstructionValue, IntMathValue, IntValue, PhiValue,
-        UnnamedAddress,
+        BasicValueEnum, FunctionValue, InstructionValue, IntValue, PhiValue, UnnamedAddress,
     },
 };
-use llvm_sys::core::{LLVMBuildExactUDiv, LLVMGetTypeKind};
+use llvm_sys::core as llvm;
 
 use super::{
     abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,
@@ -343,7 +342,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let c_string = CString::new("").unwrap();
 
         let value = unsafe {
-            LLVMBuildExactUDiv(
+            llvm::LLVMBuildExactUDiv(
                 self.builder.as_mut_ptr(),
                 lhs.as_value_ref(),
                 rhs.as_value_ref(),
@@ -425,7 +424,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
         // For some reason there is no function to get the width
         // of a float type, so we have to use raw fn call yet again...
-        let intrinsic = match { unsafe { LLVMGetTypeKind(ty.as_type_ref()) } } {
+        let intrinsic = match { unsafe { llvm::LLVMGetTypeKind(ty.as_type_ref()) } } {
             llvm_sys::LLVMTypeKind::LLVMHalfTypeKind
             | llvm_sys::LLVMTypeKind::LLVMFloatTypeKind => "llvm.pow.f32",
             llvm_sys::LLVMTypeKind::LLVMDoubleTypeKind => "llvm.pow.f64",
@@ -855,17 +854,30 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
             }
 
             let value = if layout.is_llvm_immediate() {
-                let const_value = None;
+                let mut const_value = None;
                 let ty = place.info.llvm_ty(self.ctx);
 
                 // Check here if the need to load it in a as global value, i.e.
                 // a constant...
+                //
                 // @@PatchInkwell: need to patch inkwell to be able to check if things are
                 // global variables, and constant.
-                //
-                // if let Some(global) = self.module.get_global(name) {
-                //     ...
-                // }
+                unsafe {
+                    let value = llvm::LLVMIsAGlobalVariable(place.value.as_value_ref());
+
+                    if !value.is_null()
+                        && (llvm::LLVMIsAConstant(value) as llvm_sys::prelude::LLVMBool) == 1
+                    {
+                        let init = llvm::LLVMGetInitializer(value);
+
+                        if !init.is_null() {
+                            let value = AnyValueEnum::new(init);
+                            if self.ty_of_value(value) == ty {
+                                const_value = Some(value);
+                            }
+                        }
+                    }
+                }
 
                 // If this wasn't a global constant value, we'll just load it in
                 // as a normal scalar.
