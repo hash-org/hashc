@@ -15,7 +15,7 @@ use super::common::{get_location, get_overall_location};
 use crate::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     environment::env::Env,
-    node::{Node, NodeOrigin},
+    node::Node,
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
 };
@@ -388,7 +388,7 @@ impl ParamUtils {
                             target: (ParamId(params_id.elements(), j).as_param_index()),
                             value: arg.value,
                         },
-                        NodeOrigin::Generated,
+                        arg.origin,
                     ));
                 }
                 ParamIndex::Name(arg_name) => {
@@ -414,7 +414,7 @@ impl ParamUtils {
                                 // Found an uncrossed parameter, add it to the result
                                 result[i] = Some(Node::at(
                                     Arg { target: arg.target, value: arg.value },
-                                    NodeOrigin::Generated,
+                                    arg.origin,
                                 ));
                             }
                         }
@@ -446,7 +446,7 @@ impl ParamUtils {
                     // If there is a default value, add it to the result
                     result[i] = Some(Node::at(
                         Arg { target: param_id.as_param_index(), value: default },
-                        NodeOrigin::Generated,
+                        param.origin,
                     ));
                 } else {
                     // No default value, and not present in the arguments, so
@@ -468,7 +468,7 @@ impl ParamUtils {
         // There should be no `None` elements at this point
         let new_args_id = Node::create_at(
             Node::<Arg>::seq(result.into_iter().map(|arg| arg.unwrap())),
-            NodeOrigin::Generated,
+            args_id.origin(),
         );
 
         Ok(new_args_id)
@@ -523,7 +523,7 @@ impl ParamUtils {
                             target: (ParamId(params_id.elements(), j)).as_param_index(),
                             pat: arg.pat,
                         },
-                        NodeOrigin::Generated,
+                        arg.origin,
                     ));
                 }
                 ParamIndex::Name(arg_name) => {
@@ -550,7 +550,7 @@ impl ParamUtils {
                                 // Found an uncrossed parameter, add it to the result
                                 result[i] = Some(Node::at(
                                     PatArg { target: arg.target, pat: arg.pat },
-                                    NodeOrigin::Generated,
+                                    arg.origin,
                                 ));
                             }
                         }
@@ -579,9 +579,9 @@ impl ParamUtils {
                     result[i] = Some(Node::at(
                         PatArg {
                             target: param_id.as_param_index(),
-                            pat: PatOrCapture::Capture(Node::at((), NodeOrigin::Generated)),
+                            pat: PatOrCapture::Capture(Node::at((), param_id.origin())),
                         },
-                        NodeOrigin::Generated,
+                        param_id.origin(),
                     ));
                 } else {
                     // No spread, and not present in the arguments, so
@@ -603,7 +603,7 @@ impl ParamUtils {
         // There should be no `None` elements at this point
         let new_args_id = Node::create_at(
             Node::<PatArg>::seq(result.into_iter().map(|arg| arg.unwrap())),
-            NodeOrigin::Generated,
+            args_id.origin(),
         );
 
         Ok(new_args_id)

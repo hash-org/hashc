@@ -113,41 +113,44 @@ pub trait PrimitiveUtils: AccessToEnv {
     }
 
     /// Create a boolean term of the given value.
-    fn new_bool_term(&self, value: bool) -> TermId {
+    fn new_bool_term(&self, value: bool, origin: NodeOrigin) -> TermId {
         Node::create_at(
             Term::Ctor(CtorTerm {
                 ctor: self.get_bool_ctor(value),
-                ctor_args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
-                data_args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+                ctor_args: Node::create_at(Node::<Arg>::empty_seq(), origin),
+                data_args: Node::create_at(Node::<Arg>::empty_seq(), origin),
             }),
-            NodeOrigin::Generated,
+            origin,
         )
     }
 
     /// Create a boolean pattern of the given value.
-    fn new_bool_pat(&self, value: bool) -> PatId {
+    fn new_bool_pat(&self, value: bool, origin: NodeOrigin) -> PatId {
         Node::create_at(
             Pat::Ctor(CtorPat {
                 ctor: self.get_bool_ctor(value),
-                ctor_pat_args: Node::create_at(Node::<PatArg>::empty_seq(), NodeOrigin::Generated),
-                data_args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+                ctor_pat_args: Node::create_at(Node::<PatArg>::empty_seq(), origin),
+                data_args: Node::create_at(Node::<Arg>::empty_seq(), origin),
                 ctor_pat_args_spread: None,
             }),
-            NodeOrigin::Generated,
+            origin,
         )
     }
 
     /// Create a new `never` type.
-    fn new_never_ty(&self) -> TyId {
-        Ty::from(DataTy {
-            args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
-            data_def: primitives().never(),
-        })
+    fn new_never_ty(&self, origin: NodeOrigin) -> TyId {
+        Ty::from(
+            DataTy {
+                args: Node::create_at(Node::<Arg>::empty_seq(), origin),
+                data_def: primitives().never(),
+            },
+            origin,
+        )
     }
 
     /// Create a new reference type.
-    fn new_ref_ty(&self, ty: TyId, kind: RefKind, mutable: bool) -> TyId {
-        Ty::from(RefTy { ty, kind, mutable })
+    fn new_ref_ty(&self, ty: TyId, kind: RefKind, mutable: bool, origin: NodeOrigin) -> TyId {
+        Ty::from(RefTy { ty, kind, mutable }, origin)
     }
 
     /// Get the given type as a primitive integer type if possible.
@@ -240,7 +243,8 @@ pub trait PrimitiveUtils: AccessToEnv {
     /// Get the given term as a float literal if possible.
     fn create_term_from_float_lit<L: Into<FloatConstantValue>>(&self, lit: L) -> TermId {
         let lit = Lit::Float(InternedFloat::create(FloatConstant::new(lit.into(), None)).into());
-        Node::create_at(Term::Lit(Node::create_gen(lit)), NodeOrigin::Generated)
+        // @@MissingOrigin
+        Node::create_gen(Term::Lit(Node::create_gen(lit)))
     }
 
     /// Get the given term as a float literal if possible.
@@ -257,6 +261,7 @@ pub trait PrimitiveUtils: AccessToEnv {
     /// Get the given term as a float literal if possible.
     fn create_term_from_integer_lit<L: Into<IntConstantValue>>(&self, lit: L) -> TermId {
         let lit = Lit::Int(InternedInt::create(IntConstant::new(lit.into(), None)).into());
+        // @@MissingOrigin
         Node::create_gen(Term::Lit(Node::create_gen(lit)))
     }
 
@@ -274,6 +279,7 @@ pub trait PrimitiveUtils: AccessToEnv {
     /// Get the given term as a character literal if possible.
     fn create_term_from_char_lit(&self, lit: char) -> TermId {
         let val = Lit::Char(CharLit { underlying: ast::CharLit { data: lit } });
+        // @@MissingOrigin
         Node::create_at(Term::Lit(Node::create_gen(val)), NodeOrigin::Generated)
     }
 

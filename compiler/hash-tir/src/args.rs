@@ -46,6 +46,8 @@ impl Arg {
     /// X := datatype <A: Type, B: Type, C: Type> { foo: () -> X<A, B, C> }
     ///                                                         ^^^^^^^^^ this is what this function creates
     /// ```
+    ///
+    /// This will use the origin of the arguments.
     pub fn seq_from_param_names_as_vars(params_id: ParamsId) -> ArgsId {
         Node::create_at(
             // For each parameter, create an argument referring to it
@@ -59,16 +61,16 @@ impl Arg {
                             Arg {
                                 target: ParamIndex::Position(i),
                                 value: Node::create(Node::at(
-                                    Term::Var(param.borrow().name),
-                                    NodeOrigin::Generated,
+                                    Term::Var(param.value().name),
+                                    param.value().name.origin(),
                                 )),
                             },
-                            NodeOrigin::Generated,
+                            param.origin(),
                         )
                     })
                     .collect_vec(),
             ),
-            NodeOrigin::Generated,
+            params_id.origin(),
         )
     }
 
@@ -77,24 +79,24 @@ impl Arg {
     /// Each argument will be a positional argument. Note that the outer
     /// iterator is for the argument groups, and the inner iterator is for
     /// the arguments in each group.
-    pub fn seq_positional(args: impl IntoIterator<Item = TermId>) -> ArgsId {
+    pub fn seq_positional(args: impl IntoIterator<Item = TermId>, origin: NodeOrigin) -> ArgsId {
         Node::create_at(
             Node::seq(
                 args.into_iter()
                     .enumerate()
                     .map(|(i, arg)| {
-                        Node::at(
-                            Arg { target: ParamIndex::Position(i), value: arg },
-                            NodeOrigin::Generated,
-                        )
+                        Node::at(Arg { target: ParamIndex::Position(i), value: arg }, arg.origin())
                     })
                     .collect_vec(),
             ),
-            NodeOrigin::Generated,
+            origin,
         )
     }
 
     /// Instantiate the given parameters with holes for each argument.
+    ///
+    /// This will use the origin of the parameters wrapped in
+    /// [`NodeOrigin::InferredFrom`].
     pub fn seq_from_params_as_holes(params_id: ParamsId) -> ArgsId {
         Node::create_at(
             Node::seq(
@@ -102,15 +104,18 @@ impl Arg {
                     .value()
                     .iter()
                     .enumerate()
-                    .map(|(i, _)| {
+                    .map(|(i, param)| {
                         Node::at(
-                            Arg { target: ParamIndex::Position(i), value: Term::hole() },
-                            NodeOrigin::Generated,
+                            Arg {
+                                target: ParamIndex::Position(i),
+                                value: Term::hole(param.origin().inferred()),
+                            },
+                            param.origin().inferred(),
                         )
                     })
                     .collect_vec(),
             ),
-            NodeOrigin::Generated,
+            params_id.origin().inferred(),
         )
     }
 }
@@ -164,6 +169,15 @@ pub enum SomeArgsId {
     Args(ArgsId),
 }
 
+impl SomeArgsId {
+    pub fn origin(self) -> NodeOrigin {
+        match self {
+            SomeArgsId::PatArgs(id) => id.origin(),
+            SomeArgsId::Args(id) => id.origin(),
+        }
+    }
+}
+
 /// An index into a `SomeArgsId`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
 pub enum SomeArgId {
@@ -172,8 +186,15 @@ pub enum SomeArgId {
 }
 
 impl SomeArgId {
-    pub fn into_name(&self) -> SymbolId {
-        self.target().into_symbol()
+    pub fn origin(self) -> NodeOrigin {
+        match self {
+            SomeArgId::PatArg(id) => id.origin(),
+            SomeArgId::Arg(id) => id.origin(),
+        }
+    }
+
+    pub fn into_name(&self, origin: NodeOrigin) -> SymbolId {
+        self.target().into_symbol(origin)
     }
 
     // Get the actual numerical parameter index from a given [ParamsId] and

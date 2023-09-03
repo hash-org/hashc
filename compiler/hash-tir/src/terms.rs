@@ -115,28 +115,30 @@ impl Term {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
     }
 
-    pub fn void() -> TermId {
+    pub fn void(origin: NodeOrigin) -> TermId {
         Node::create(Node::at(
             Term::Tuple(TupleTerm {
-                data: Node::create(Node::at(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+                data: Node::create(Node::at(Node::<Arg>::empty_seq(), origin)),
             }),
-            NodeOrigin::Generated,
+            origin,
         ))
     }
 
-    pub fn hole() -> TermId {
-        Node::create(Node::at(Term::Hole(Hole::fresh()), NodeOrigin::Generated))
+    pub fn hole(origin: NodeOrigin) -> TermId {
+        Node::create(Node::at(Term::Hole(Hole::fresh(origin)), origin))
     }
 
     pub fn var(symbol: SymbolId) -> TermId {
-        Node::create(Node::at(Term::Var(symbol), NodeOrigin::Generated))
+        Node::create(Node::at(Term::Var(symbol), symbol.origin()))
     }
 
     /// Create a new term.
     ///
     /// Prefer this to `Term::create` because this will also add the location
     /// and AST info to the term.
-    pub fn from(term: impl Into<Term>) -> TermId {
+    ///
+    /// @@Todo: remove once location store is removed.
+    pub fn from(term: impl Into<Term>, origin: NodeOrigin) -> TermId {
         let term = term.into();
         let (ast_info, location) = match term {
             Term::Ty(ty) => (ty.node_id(), get_location(ty)),
@@ -144,7 +146,7 @@ impl Term {
             Term::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Node::create(Node::at(term, NodeOrigin::Generated));
+        let created = Node::create_at(term, origin);
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }
@@ -155,9 +157,9 @@ impl Term {
     }
 
     /// Create a new term that inherits location and AST info from the given
-    /// `TermId`.
+    /// `source`.
     pub fn inherited_from(source: TermId, term: impl Into<Term>) -> TermId {
-        let created = Self::from(term);
+        let created = Self::from(term, source.origin());
         tir_stores().location().copy_location(source, created);
         if let Some(ast_info) = source.node_id() {
             tir_stores().ast_info().terms().insert(ast_info, created);
@@ -171,16 +173,16 @@ impl TermId {
     pub fn as_ty(&self) -> TyId {
         match self.try_as_ty() {
             Some(ty) => ty,
-            None => Ty::from(Ty::Eval(*self)),
+            None => Ty::from(Ty::Eval(*self), self.origin()),
         }
     }
 
     /// Try to use the given term as a type if easily possible.
     pub fn try_as_ty(&self) -> Option<TyId> {
         match *self.value() {
-            Term::Var(var) => Some(Ty::from(var)),
+            Term::Var(var) => Some(Ty::from(var, self.origin())),
             Term::Ty(ty) => Some(ty),
-            Term::Hole(hole) => Some(Ty::from(hole)),
+            Term::Hole(hole) => Some(Ty::from(hole, self.origin())),
             _ => None,
         }
     }

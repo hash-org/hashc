@@ -21,7 +21,7 @@ use hash_tir::{
     data::DataTy,
     fns::FnDefId,
     mods::{ModMember, ModMemberValue},
-    node::{Node, NodeOrigin},
+    node::Node,
     pats::PatId,
     symbols::SymbolId,
     terms::TermId,
@@ -87,7 +87,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         match member.value {
             ModMemberValue::Data(data_def) => {
-                let args = Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated);
+                let args = Node::create_at(Node::<Arg>::empty_seq(), data_def.origin());
                 let ty_id = self.ty_id_from_tir_data(DataTy { data_def, args });
                 Some(ty_id)
             }

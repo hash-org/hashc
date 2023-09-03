@@ -133,6 +133,9 @@ impl AstExpander<'_> {
             let mut attr = Attr::new(attr_id, node.id());
             let mut is_valid = true;
 
+            // ##GeneratedOrigin(below): these are for attributes defined in the compiler,
+            // not corresponding to any source files.
+
             // We have to build the arguments to the macro invocation
             // in the form of an `Args` and then use TIR param_utils to
             // check that the arguments and parameters match...
@@ -179,9 +182,10 @@ impl AstExpander<'_> {
 
                     macro_rules! lit_prim {
                         ($name:ident,$lit_name:ident, $contents:expr) => {
-                            Term::from(Term::Lit(Node::create_gen(Lit::$name($lit_name::from(
-                                $contents,
-                            )))))
+                            Term::from(
+                                Term::Lit(Node::create_gen(Lit::$name($lit_name::from($contents)))),
+                                NodeOrigin::Generated,
+                            )
                         };
                     }
 

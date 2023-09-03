@@ -42,21 +42,32 @@ pub struct Param {
 tir_node_sequence_store_direct!(Param);
 
 impl Param {
+    /// Whether the parameter is positional, i.e. it has no name.
+    pub fn is_positional(&self) -> bool {
+        self.name.value().name.is_none()
+    }
+
+    /// Get the name of the parameter, if it has one.
+    pub fn name(&self) -> Option<Identifier> {
+        self.name.value().name
+    }
+
     /// Create a new parameter list with the given names, and holes for all
-    /// types.
-    pub fn seq_from_names_with_hole_types(param_names: impl Iterator<Item = SymbolId>) -> ParamsId {
+    /// types (the second slot of the iterator value is the origin of the
+    /// inferred type).
+    pub fn seq_from_names_with_hole_types(
+        param_names: impl Iterator<Item = (SymbolId, NodeOrigin)>,
+        origin: NodeOrigin,
+    ) -> ParamsId {
         Node::create(Node::at(
             Node::seq(
                 param_names
-                    .map(|name| {
-                        Node::at(
-                            Param { name, ty: Ty::hole(), default: None },
-                            NodeOrigin::Generated,
-                        )
+                    .map(|(name, ty_origin)| {
+                        Node::at(Param { name, ty: Ty::hole(ty_origin), default: None }, ty_origin)
                     })
                     .collect_vec(),
             ),
-            NodeOrigin::Generated,
+            origin,
         ))
     }
 
@@ -64,22 +75,25 @@ impl Param {
     /// all types, and no default values.
     pub fn seq_from_args_with_hole_types(args: impl Into<SomeArgsId>) -> ParamsId {
         let args: SomeArgsId = args.into();
-        Param::seq_from_names_with_hole_types(args.iter().map(|arg| arg.into_name()))
+        Param::seq_from_names_with_hole_types(
+            args.iter().map(|arg| (arg.into_name(arg.origin()), arg.origin().inferred())),
+            args.origin().inferred(),
+        )
     }
 
-    pub fn seq_positional(tys: impl IntoIterator<Item = TyId>) -> ParamsId {
+    pub fn seq_positional(tys: impl IntoIterator<Item = TyId>, origin: NodeOrigin) -> ParamsId {
         Node::create(Node::at(
             Node::seq(
                 tys.into_iter()
                     .map(|ty| {
                         Node::at(
-                            Param { name: SymbolId::fresh(), ty, default: None },
-                            NodeOrigin::Generated,
+                            Param { name: SymbolId::fresh(ty.origin()), ty, default: None },
+                            ty.origin(),
                         )
                     })
                     .collect_vec(),
             ),
-            NodeOrigin::Generated,
+            origin,
         ))
     }
 
@@ -89,6 +103,8 @@ impl Param {
 }
 
 impl ParamId {
+    /// Convert the parameter into a [ParamIndex], by using the name of the
+    /// parameter if it has one, or the position otherwise.
     pub fn as_param_index(&self) -> ParamIndex {
         let name_sym = self.borrow().name.borrow();
         name_sym.name.map(ParamIndex::Name).unwrap_or(ParamIndex::Position(self.1))
@@ -132,10 +148,10 @@ impl From<ParamId> for ParamIndex {
 impl ParamIndex {
     /// Get the name of the parameter, if it is named, or a fresh symbol
     /// otherwise.
-    pub fn into_symbol(&self) -> SymbolId {
+    pub fn into_symbol(&self, origin: NodeOrigin) -> SymbolId {
         match self {
-            ParamIndex::Name(name) => SymbolId::from_name(*name),
-            ParamIndex::Position(_) => SymbolId::fresh(),
+            ParamIndex::Name(name) => SymbolId::from_name(*name, origin),
+            ParamIndex::Position(_) => SymbolId::fresh(origin),
         }
     }
 }

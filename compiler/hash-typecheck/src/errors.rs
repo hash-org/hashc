@@ -73,7 +73,12 @@ pub enum TcError {
     CannotDeref { subject: TermId, actual_subject_ty: TyId },
 
     /// Types don't match
-    MismatchingTypes { expected: TyId, actual: TyId, inferred_from: Option<LocationTarget> },
+    MismatchingTypes {
+        expected: TyId,
+        actual: TyId,
+        // @@Remove because it can be derived from `expected/actual.origin()`
+        inferred_from: Option<LocationTarget>,
+    },
 
     /// Types don't match
     MismatchingArrayLengths { expected_len: TermId, got_len: TermId },

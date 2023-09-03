@@ -7,14 +7,15 @@ use hash_storage::store::{statics::StoreId, DefaultPartialStore, PartialStore, S
 use hash_tir::{
     self,
     ast_info::HasNodeId,
-    building::gen::{params, sym},
+    building::gen::{
+        data_ty, never_ty, params, params_pos, sym, ty, universe_ty, void_term, void_ty,
+    },
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
     intrinsics::IntrinsicId,
     lits::Lit,
     mods::{ModMember, ModMemberValue},
-    node::Node,
-    params::Param,
+    node::{Node, NodeOrigin},
     primitives::primitives,
     refs::RefKind,
     terms::{Term, TermId},
@@ -198,6 +199,11 @@ pub enum EndoBinOp {
     Mod,
 }
 
+// ##GeneratedOrigins: The nodes created in the `impl` below do not have source
+// origins since they are defined in-line in the compiler. @@Improvement: Add
+// source origins to the intrinsics by writing their headers in an actual source
+// file.
+
 impl DefinedIntrinsics {
     /// Add the `un_op` intrinsic.
     ///
@@ -213,11 +219,11 @@ impl DefinedIntrinsics {
         let op_sym = sym("op");
         let a_sym = sym("a");
         let params = params([
-            (t_sym, Ty::flexible_universe(), None),
-            (op_sym, Ty::data(primitives().u8()), None),
-            (a_sym, Ty::from(t_sym), None),
+            (t_sym, universe_ty(), None),
+            (op_sym, data_ty(primitives().u8()), None),
+            (a_sym, ty(t_sym), None),
         ]);
-        let ret = Ty::from(t_sym);
+        let ret = ty(t_sym);
 
         Self::add_intrinsic(
             implementations,
@@ -295,7 +301,9 @@ impl DefinedIntrinsics {
                         }
                         LitTy::Bool => {
                             let a: bool = env.try_use_term_as_bool(a).unwrap();
-                            Ok(env.new_bool_term(operate_bool!(parsed_op, a)))
+                            // @@MissingOrigin
+                            Ok(env
+                                .new_bool_term(operate_bool!(parsed_op, a), NodeOrigin::Generated))
                         }
                         _ => Err(INVALID_OP.to_string()),
                     },
@@ -318,11 +326,11 @@ impl DefinedIntrinsics {
         let op_sym = sym("op");
         let a_sym = sym("a");
         let b_sym = sym("b");
-        let ty = Ty::data(primitives().bool());
+        let ty = data_ty(primitives().bool());
 
         let params = params([
-            (t_sym, Ty::flexible_universe(), None),
-            (op_sym, Ty::data(primitives().u8()), None),
+            (t_sym, universe_ty(), None),
+            (op_sym, data_ty(primitives().u8()), None),
             (a_sym, ty, None),
             (b_sym, ty, None),
         ]);
@@ -355,7 +363,8 @@ impl DefinedIntrinsics {
 
                 let lhs: bool = env.try_use_term_as_bool(lhs).unwrap();
                 let rhs: bool = env.try_use_term_as_bool(rhs).unwrap();
-                Ok(env.new_bool_term(operate_bool!(parsed_op, lhs, rhs)))
+                // @@MissingOrigin
+                Ok(env.new_bool_term(operate_bool!(parsed_op, lhs, rhs), NodeOrigin::Generated))
             },
         )
     }
@@ -377,12 +386,12 @@ impl DefinedIntrinsics {
         let a_sym = sym("a");
         let b_sym = sym("b");
         let params = params([
-            (t_sym, Ty::flexible_universe(), None),
-            (op_sym, Ty::data(primitives().u8()), None),
-            (a_sym, Ty::from(t_sym), None),
-            (b_sym, Ty::from(t_sym), None),
+            (t_sym, universe_ty(), None),
+            (op_sym, data_ty(primitives().u8()), None),
+            (a_sym, ty(t_sym), None),
+            (b_sym, ty(t_sym), None),
         ]);
-        let ret = Ty::data(primitives().bool());
+        let ret = data_ty(primitives().bool());
 
         Self::add_intrinsic(
             implementations,
@@ -457,7 +466,11 @@ impl DefinedIntrinsics {
                     ($rust_ty:ty) => {{
                         let lhs: $rust_ty = env.try_use_term_as_integer_lit(lhs).unwrap();
                         let rhs: $rust_ty = env.try_use_term_as_integer_lit(rhs).unwrap();
-                        Ok(env.new_bool_term(operate_int!(parsed_op, lhs, rhs)))
+                        // @@MissingOrigin
+                        Ok(env.new_bool_term(
+                            operate_int!(parsed_op, lhs, rhs),
+                            NodeOrigin::Generated,
+                        ))
                     }};
                 }
 
@@ -479,22 +492,38 @@ impl DefinedIntrinsics {
                         LitTy::F32 => {
                             let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
                             let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_float!(parsed_op, lhs, rhs)))
+                            // @@MissingOrigin
+                            Ok(env.new_bool_term(
+                                operate_float!(parsed_op, lhs, rhs),
+                                NodeOrigin::Generated,
+                            ))
                         }
                         LitTy::F64 => {
                             let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
                             let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_float!(parsed_op, lhs, rhs)))
+                            // @@MissingOrigin
+                            Ok(env.new_bool_term(
+                                operate_float!(parsed_op, lhs, rhs),
+                                NodeOrigin::Generated,
+                            ))
                         }
                         LitTy::Bool => {
                             let lhs: bool = env.try_use_term_as_bool(lhs).unwrap();
                             let rhs: bool = env.try_use_term_as_bool(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_bool!(parsed_op, lhs, rhs)))
+                            // @@MissingOrigin
+                            Ok(env.new_bool_term(
+                                operate_bool!(parsed_op, lhs, rhs),
+                                NodeOrigin::Generated,
+                            ))
                         }
                         LitTy::Char => {
                             let lhs: char = env.try_use_term_as_char_lit(lhs).unwrap();
                             let rhs: char = env.try_use_term_as_char_lit(rhs).unwrap();
-                            Ok(env.new_bool_term(operate_char!(parsed_op, lhs, rhs)))
+                            // @@MissingOrigin
+                            Ok(env.new_bool_term(
+                                operate_char!(parsed_op, lhs, rhs),
+                                NodeOrigin::Generated,
+                            ))
                         }
                     },
                     None => Err(INVALID_OP.to_string()),
@@ -520,12 +549,12 @@ impl DefinedIntrinsics {
         let a_sym = sym("a");
         let b_sym = sym("b");
         let params = params([
-            (t_sym, Ty::flexible_universe(), None),
-            (op_sym, Ty::data(primitives().u8()), None),
-            (a_sym, Ty::from(t_sym), None),
-            (b_sym, Ty::from(t_sym), None),
+            (t_sym, universe_ty(), None),
+            (op_sym, data_ty(primitives().u8()), None),
+            (a_sym, ty(t_sym), None),
+            (b_sym, ty(t_sym), None),
         ]);
-        let ret = Ty::from(t_sym);
+        let ret = ty(t_sym);
 
         Self::add_intrinsic(
             implementations,
@@ -648,14 +677,14 @@ impl DefinedIntrinsics {
     fn add_prim_type_eq_op(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
-        let ty = Ty::flexible_universe();
-        let bool_ty = Ty::data(primitives().bool());
+        let ty = universe_ty();
+        let bool_ty = data_ty(primitives().bool());
         let bin_op_name = "prim_type_eq".to_string();
 
         Self::add_intrinsic(
             implementations,
             bin_op_name,
-            FnTy::builder().params(Param::seq_positional([ty, ty])).return_ty(bool_ty).build(),
+            FnTy::builder().params(params_pos([ty, ty])).return_ty(bool_ty).build(),
             |prim, args| {
                 let (lhs, rhs) = (args[0], args[1]);
                 let invalid = || {
@@ -666,8 +695,12 @@ impl DefinedIntrinsics {
                     if let (Ty::Data(lhs_data), Ty::Data(rhs_data)) =
                         (*lhs_ty.value(), *rhs_ty.value())
                     {
+                        // @@MissingOrigin
                         if lhs_data.args.len() == 0 && rhs_data.args.len() == 0 {
-                            return Ok(prim.new_bool_term(lhs_data.data_def == rhs_data.data_def));
+                            return Ok(prim.new_bool_term(
+                                lhs_data.data_def == rhs_data.data_def,
+                                NodeOrigin::Generated,
+                            ));
                         }
                     }
                 }
@@ -688,7 +721,7 @@ impl DefinedIntrinsics {
         // Aborting
         let abort = add(
             "abort",
-            FnTy::builder().params(params([])).return_ty(env.new_never_ty()).build(),
+            FnTy::builder().params(params([])).return_ty(never_ty()).build(),
             |_, _| process::exit(1),
         );
 
@@ -696,8 +729,8 @@ impl DefinedIntrinsics {
         let panic = add(
             "panic",
             FnTy::builder()
-                .params(Param::seq_positional([Ty::data(primitives().str())]))
-                .return_ty(env.new_never_ty())
+                .params(params_pos([data_ty(primitives().str())]))
+                .return_ty(never_ty())
                 .build(),
             |_, args| {
                 stream_less_writeln!("{}", args[1]);
@@ -709,8 +742,8 @@ impl DefinedIntrinsics {
         let user_error = add(
             "user_error",
             FnTy::builder()
-                .params(Param::seq_positional([Ty::data(primitives().str())]))
-                .return_ty(env.new_never_ty())
+                .params(params_pos([data_ty(primitives().str())]))
+                .return_ty(never_ty())
                 .build(),
             |_, args| {
                 let err = || Err("`user_error` expects a string literal as argument".to_string());
@@ -728,21 +761,19 @@ impl DefinedIntrinsics {
         let debug_print = {
             let t_sym = sym("T");
             let a_sym = sym("a");
-            let params =
-                params([(t_sym, Ty::flexible_universe(), None), (a_sym, Ty::from(t_sym), None)]);
-            let ret = Ty::void();
+            let params = params([(t_sym, universe_ty(), None), (a_sym, ty(t_sym), None)]);
+            let ret = void_ty();
             add("debug_print", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
                 stream_less_writeln!("{}", args[1]);
-                Ok(Term::void())
+                Ok(void_term())
             })
         };
 
         let print_fn_directives = {
             let t_sym = sym("T");
             let a_sym = sym("a");
-            let params =
-                params([(t_sym, Ty::flexible_universe(), None), (a_sym, Ty::from(t_sym), None)]);
-            let ret = Ty::void();
+            let params = params([(t_sym, universe_ty(), None), (a_sym, ty(t_sym), None)]);
+            let ret = void_ty();
             add(
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
@@ -752,7 +783,7 @@ impl DefinedIntrinsics {
                             stream_less_writeln!("{:?}", attrs);
                         });
                     }
-                    Ok(Term::void())
+                    Ok(void_term())
                 },
             )
         };
@@ -760,9 +791,8 @@ impl DefinedIntrinsics {
         let eval = {
             let t_sym = sym("T");
             let a_sym = sym("a");
-            let params =
-                params([(t_sym, Ty::flexible_universe(), None), (a_sym, Ty::from(t_sym), None)]);
-            let ret = Ty::from(t_sym);
+            let params = params([(t_sym, universe_ty(), None), (a_sym, ty(t_sym), None)]);
+            let ret = ty(t_sym);
             add("eval", FnTy::builder().params(params).return_ty(ret).build(), |env, args| {
                 let evaluated = env.normalise_term(args[1])?;
                 Ok(evaluated)
@@ -787,8 +817,8 @@ impl DefinedIntrinsics {
         // Size of
         let size_of = {
             let t_sym = sym("T");
-            let params = params([(t_sym, Ty::flexible_universe(), None)]);
-            let ret = Ty::data(primitives().usize());
+            let params = params([(t_sym, universe_ty(), None)]);
+            let ret = data_ty(primitives().usize());
             add("size_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`size_of` intrinsic evaluation")
             })
@@ -797,16 +827,17 @@ impl DefinedIntrinsics {
         // Align of
         let align_of = {
             let t_sym = sym("T");
-            let params = params([(t_sym, Ty::flexible_universe(), None)]);
-            let ret = Ty::data(primitives().usize());
+            let params = params([(t_sym, universe_ty(), None)]);
+            let ret = data_ty(primitives().usize());
             add("align_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`align_of` intrinsic evaluation")
             })
         };
 
-        let u8 = Ty::data(primitives().u8());
-        let usize = Ty::data(primitives().usize());
-        let raw_ptr_ty = env.new_ref_ty(u8, RefKind::Raw, false);
+        let u8 = data_ty(primitives().u8());
+        let usize = data_ty(primitives().usize());
+
+        let raw_ptr_ty = env.new_ref_ty(u8, RefKind::Raw, false, NodeOrigin::Generated);
 
         // ptr_offset
         let ptr_offset = {
@@ -827,12 +858,12 @@ impl DefinedIntrinsics {
             let a_sym = sym("item");
             let u_sym = sym("U");
             let params = params([
-                (t_sym, Ty::flexible_universe(), None),
-                (u_sym, Ty::flexible_universe(), None),
-                (a_sym, Ty::from(t_sym), None),
+                (t_sym, universe_ty(), None),
+                (u_sym, universe_ty(), None),
+                (a_sym, ty(t_sym), None),
             ]);
 
-            let ret = Ty::from(u_sym);
+            let ret = ty(u_sym);
             add("transmute", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
                 // No-op
                 Ok(args[2])
@@ -844,12 +875,12 @@ impl DefinedIntrinsics {
             let a_sym = sym("item");
             let u_sym = sym("U");
             let params = params([
-                (t_sym, Ty::flexible_universe(), None),
-                (u_sym, Ty::flexible_universe(), None),
-                (a_sym, Ty::from(t_sym), None),
+                (t_sym, universe_ty(), None),
+                (u_sym, universe_ty(), None),
+                (a_sym, ty(t_sym), None),
             ]);
 
-            let ret = Ty::from(u_sym);
+            let ret = ty(u_sym);
             add("cast", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`cast` intrinsic evaluation")
             })
@@ -886,6 +917,8 @@ impl DefinedIntrinsics {
         let name = name.into();
         let intrinsic_id = IntrinsicId(sym(name));
 
+        // ##GeneratedOrigins: Intrinsics do not have a source location since they are
+        // defined in-line in the compiler.
         let fn_def = Node::create_gen(FnDef {
             name: intrinsic_id.0,
             ty: fn_ty,

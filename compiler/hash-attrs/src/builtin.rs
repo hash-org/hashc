@@ -3,7 +3,7 @@
 use std::sync::LazyLock;
 
 use hash_source::identifier::Identifier;
-use hash_tir::{building::gen::params, primitives::primitives, symbols::sym, tys::Ty};
+use hash_tir::{building::gen, primitives::primitives, tys::Ty};
 use paste::paste;
 
 use crate::{
@@ -15,7 +15,9 @@ use crate::{
 // i.e. a list of values.
 macro_rules! make_ty {
     ($kind: ident) => {
-        Ty::data(primitives().$kind())
+        // ##GeneratedOrigin: these attributes are generated, so they do not
+        // have an origin.
+        Ty::data(primitives().$kind(), hash_tir::node::NodeOrigin::Generated)
     };
 }
 
@@ -28,11 +30,11 @@ macro_rules! define_attr {
         let name: Identifier = stringify!($name).into();
 
         let params = if ${count(arg)} == 0 {
-            params([])
+            gen::params([])
         } else {
-            params([
+            gen::params([
                 $(
-                    (sym(stringify!(arg)), make_ty!($ty), None)
+                    (gen::sym(stringify!(arg)), make_ty!($ty), None)
                 ),*
             ])
         };

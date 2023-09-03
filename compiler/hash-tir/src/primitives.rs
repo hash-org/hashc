@@ -4,16 +4,18 @@ use std::{iter::once, sync::OnceLock};
 use hash_storage::store::statics::StoreId;
 
 use crate::{
-    args::Arg,
-    building::gen::params,
-    data::{
-        ArrayCtorInfo, DataDef, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo,
+    building::gen::{
+        args, data_ty, empty_data_def, enum_def, indexed_enum_def, params, primitive,
+        primitive_with_params, sym, term, ty, universe_ty,
     },
+    data::{ArrayCtorInfo, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
     mods::{ModMember, ModMemberValue},
-    symbols::sym,
-    terms::Term,
-    tys::Ty,
 };
+
+// ##GeneratedOrigins: The nodes created in this module do not have source
+// origins since they are defined in-line in the compiler. @@Improvement: Add
+// source origins to the primitives by writing their headers in an actual source
+// file.
 
 macro_rules! defined_primitives {
     ($($name:ident),* $(,)?) => {
@@ -91,7 +93,7 @@ impl DefinedPrimitives {
     pub fn create() -> Self {
         // Helper function to create a numeric primitive.
         let numeric = |name, bits, signed, float| {
-            DataDef::primitive(
+            primitive(
                 sym(name),
                 PrimitiveCtorInfo::Numeric(NumericCtorInfo {
                     bits: if bits == 0 {
@@ -109,12 +111,14 @@ impl DefinedPrimitives {
 
         DefinedPrimitives {
             // Never
-            never: DataDef::empty(sym("never"), params([])),
+            never: empty_data_def(sym("never"), params([])),
 
             // bool
-            bool: DataDef::enum_def(sym("bool"), params([]), |_| {
-                vec![(sym("true"), params([])), (sym("false"), params([]))]
-            }),
+            bool: enum_def(
+                sym("bool"),
+                params([]),
+                [(sym("true"), params([])), (sym("false"), params([]))],
+            ),
 
             // numerics
             i8: numeric("i8", 8, true, false),
@@ -137,35 +141,33 @@ impl DefinedPrimitives {
             f64: numeric("f64", 64, false, true),
 
             // str and char
-            str: DataDef::primitive(sym("str"), PrimitiveCtorInfo::Str),
-            char: DataDef::primitive(sym("char"), PrimitiveCtorInfo::Char),
+            str: primitive(sym("str"), PrimitiveCtorInfo::Str),
+            char: primitive(sym("char"), PrimitiveCtorInfo::Char),
 
             // list
             list: {
                 let list_sym = sym("List");
                 let t_sym = sym("T");
-                let params = params(once((t_sym, Ty::flexible_universe(), None)));
-                DataDef::primitive_with_params(list_sym, params, |_| {
-                    PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                        element_ty: Ty::var(t_sym),
-                        length: None,
-                    })
-                })
+                let params = params(once((t_sym, universe_ty(), None)));
+                primitive_with_params(
+                    list_sym,
+                    params,
+                    PrimitiveCtorInfo::Array(ArrayCtorInfo { element_ty: ty(t_sym), length: None }),
+                )
             },
             array: {
                 let list_sym = sym("Array");
                 let t_sym = sym("T");
                 let n_sym = sym("n");
-                let params = params([
-                    (t_sym, Ty::flexible_universe(), None),
-                    (n_sym, Ty::data(usize), None),
-                ]);
-                DataDef::primitive_with_params(list_sym, params, |_| {
+                let params = params([(t_sym, universe_ty(), None), (n_sym, data_ty(usize), None)]);
+                primitive_with_params(
+                    list_sym,
+                    params,
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                        element_ty: Ty::var(t_sym),
-                        length: Some(Term::from(n_sym)),
-                    })
-                })
+                        element_ty: ty(t_sym),
+                        length: Some(term(n_sym)),
+                    }),
+                )
             },
 
             // option
@@ -174,11 +176,9 @@ impl DefinedPrimitives {
                 let none_sym = sym("None");
                 let some_sym = sym("Some");
                 let t_sym = sym("T");
-                let ps = params(once((t_sym, Ty::flexible_universe(), None)));
-                let some_params = params(once((sym("value"), Ty::var(t_sym), None)));
-                DataDef::enum_def(option_sym, ps, |_| {
-                    vec![(none_sym, params([])), (some_sym, some_params)]
-                })
+                let ps = params(once((t_sym, universe_ty(), None)));
+                let some_params = params(once((sym("value"), ty(t_sym), None)));
+                enum_def(option_sym, ps, [(none_sym, params([])), (some_sym, some_params)])
             },
 
             // result
@@ -188,13 +188,10 @@ impl DefinedPrimitives {
                 let err_sym = sym("Err");
                 let t_sym = sym("T");
                 let e_sym = sym("E");
-                let ps = params([
-                    (t_sym, Ty::flexible_universe(), None),
-                    (e_sym, Ty::flexible_universe(), None),
-                ]);
-                let ok_ps = params(once((sym("value"), Ty::var(t_sym), None)));
-                let err_ps = params(once((sym("error"), Ty::var(e_sym), None)));
-                DataDef::enum_def(result_sym, ps, |_| vec![(ok_sym, ok_ps), (err_sym, err_ps)])
+                let ps = params([(t_sym, universe_ty(), None), (e_sym, universe_ty(), None)]);
+                let ok_ps = params(once((sym("value"), ty(t_sym), None)));
+                let err_ps = params(once((sym("error"), ty(e_sym), None)));
+                enum_def(result_sym, ps, [(ok_sym, ok_ps), (err_sym, err_ps)])
             },
             equal: {
                 let eq_sym = sym("Equal");
@@ -207,18 +204,15 @@ impl DefinedPrimitives {
                 let x_sym = sym("x");
 
                 let ps = params([
-                    (t_sym, Ty::flexible_universe(), None),
-                    (a_sym, Ty::var(t_sym), None),
-                    (b_sym, Ty::var(t_sym), None),
+                    (t_sym, universe_ty(), None),
+                    (a_sym, ty(t_sym), None),
+                    (b_sym, ty(t_sym), None),
                 ]);
-                let refl_ps = params(once((x_sym, Ty::var(t_sym), None)));
+                let refl_ps = params(once((x_sym, ty(t_sym), None)));
 
-                let refl_result_args =
-                    Arg::seq_positional([Term::var(t_sym), Term::var(x_sym), Term::var(x_sym)]);
+                let refl_result_args = args([term(t_sym), term(x_sym), term(x_sym)]);
 
-                DataDef::indexed_enum_def(eq_sym, ps, |_| {
-                    vec![(refl_sym, refl_ps, Some(refl_result_args))]
-                })
+                indexed_enum_def(eq_sym, ps, [(refl_sym, refl_ps, Some(refl_result_args))])
             },
         }
     }

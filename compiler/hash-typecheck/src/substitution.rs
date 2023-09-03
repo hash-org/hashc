@@ -505,10 +505,10 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             if let Some(ident) = src_id.borrow().name_ident() {
                 sub.insert(
                     src.name,
-                    Term::from(AccessTerm {
-                        subject: access_subject,
-                        field: ParamIndex::Name(ident),
-                    }),
+                    Term::from(
+                        AccessTerm { subject: access_subject, field: ParamIndex::Name(ident) },
+                        access_subject.origin(),
+                    ),
                 );
             }
         }
@@ -529,7 +529,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             let src = src.value();
             let target = target.value();
             if src.name != target.name {
-                sub.insert(src.name, Term::from(target.name));
+                sub.insert(src.name, Term::from(target.name, target.origin));
             }
         }
         sub
@@ -564,10 +564,10 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         for (name, value) in sub.iter() {
             match *value.value() {
                 Term::Var(v) => {
-                    reversed_sub.insert(v, Term::from(name));
+                    reversed_sub.insert(v, Term::from(name, name.origin()));
                 }
                 Term::Hole(h) => {
-                    reversed_sub.insert(h.0, Term::from(name));
+                    reversed_sub.insert(h.0, Term::from(name, name.origin()));
                 }
                 _ => {
                     panic!("cannot reverse non-injective substitution");

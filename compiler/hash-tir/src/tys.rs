@@ -90,63 +90,71 @@ pub struct TypeOfTerm {
 
 impl Ty {
     /// Create a type of types, i.e. small `Type`.
-    pub fn small_universe() -> TyId {
-        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(0) }), NodeOrigin::Generated))
+    pub fn small_universe(origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(0) }), origin))
     }
 
     /// Create a large type of types, i.e. `Type(n)` for some natural number
     /// `n`.
-    pub fn universe(n: usize) -> TyId {
-        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(n) }), NodeOrigin::Generated))
+    pub fn universe(n: usize, origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(n) }), origin))
+    }
+
+    /// Create a type of types, with a flexible universe size, for the given
+    /// type node.
+    ///
+    /// This is the default when `Type` is used in a type signature.
+    pub fn universe_of(node: impl Into<Atom>) -> TyId {
+        let node = node.into();
+        Ty::flexible_universe(node.origin().inferred())
     }
 
     /// Create a type of types, with a flexible universe size.
     ///
     /// This is the default when `Type` is used in a type signature.
-    pub fn flexible_universe() -> TyId {
-        Node::create(Node::at(Ty::Universe(UniverseTy { size: None }), NodeOrigin::Generated))
+    pub fn flexible_universe(origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(Ty::Universe(UniverseTy { size: None }), origin))
     }
 
     /// Create a new empty tuple type.
-    pub fn void() -> TyId {
+    pub fn void(origin: NodeOrigin) -> TyId {
         Node::create(Node::at(
-            Ty::Tuple(TupleTy {
-                data: Node::create(Node::at(Node::<Param>::empty_seq(), NodeOrigin::Generated)),
-            }),
-            NodeOrigin::Generated,
+            Ty::Tuple(TupleTy { data: Node::create(Node::at(Node::<Param>::empty_seq(), origin)) }),
+            origin,
         ))
     }
 
     /// Create a new variable type.
     pub fn var(symbol: SymbolId) -> TyId {
-        Node::create(Node::at(Ty::Var(symbol), NodeOrigin::Generated))
+        Node::create(Node::at(Ty::Var(symbol), symbol.origin()))
     }
 
     /// Create a new hole type.
-    pub fn hole() -> TyId {
-        Node::create(Node::at(Ty::Hole(Hole::fresh()), NodeOrigin::Generated))
+    pub fn hole(origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(Ty::Hole(Hole::fresh(origin)), origin))
     }
 
     /// Create a new data type with no arguments.
-    pub fn data(data_def: DataDefId) -> TyId {
+    pub fn data(data_def: DataDefId, origin: NodeOrigin) -> TyId {
         Node::create(Node::at(
             Ty::Data(DataTy {
                 data_def,
-                args: Node::create(Node::at(Node::<Arg>::empty_seq(), NodeOrigin::Generated)),
+                args: Node::create(Node::at(Node::<Arg>::empty_seq(), origin)),
             }),
-            NodeOrigin::Generated,
+            origin,
         ))
     }
 
     /// Create a new type.
-    pub fn from(ty: impl Into<Ty>) -> TyId {
+    /// @@Todo: remove once location store is removed.
+    pub fn from(ty: impl Into<Ty>, origin: NodeOrigin) -> TyId {
         let ty = ty.into();
         let (ast_info, location) = match ty {
             Ty::Eval(term) => (term.node_id(), get_location(term)),
             Ty::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Node::create(Node::at(ty, NodeOrigin::Generated));
+        let created = Node::create_at(ty, origin);
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }
@@ -194,7 +202,8 @@ impl Ty {
 
     /// Create a new type hole for typing the given atom.
     pub fn hole_for(src: impl Into<Atom>) -> TyId {
-        let ty = Ty::hole();
+        let src = src.into();
+        let ty = Ty::hole(src.origin().inferred());
         Ty::expect_is(src, ty)
     }
 }
@@ -203,13 +212,13 @@ impl TyId {
     /// Try to use the given type as a term.
     pub fn as_term(&self) -> TermId {
         match *self.value() {
-            Ty::Var(var) => Term::from(var),
-            Ty::Hole(hole) => Term::from(hole),
+            Ty::Var(var) => Term::from(var, self.origin()),
+            Ty::Hole(hole) => Term::from(hole, self.origin()),
             Ty::Eval(term) => match term.try_as_ty() {
                 Some(ty) => ty.as_term(),
                 None => term,
             },
-            _ => Term::from(*self),
+            _ => Term::from(*self, self.origin()),
         }
     }
 }

@@ -2,10 +2,10 @@
 //! the AST and adds them to the stores.
 
 use hash_ast::{
-    ast::{self},
+    ast::{self, AstNodeId},
     visitor::AstVisitor,
 };
-use hash_tir::{environment::env::AccessToEnv, symbols::SymbolId};
+use hash_tir::{environment::env::AccessToEnv, node::NodeOrigin, symbols::SymbolId};
 use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
@@ -74,7 +74,9 @@ impl<'tc> DiscoveryPass<'tc> {
     }
 
     /// Take the currently set name hint, or create a new internal name.
-    fn take_name_hint_or_create_internal_name(&self) -> SymbolId {
-        self.name_hint.take().unwrap_or_else(SymbolId::fresh)
+    fn take_name_hint_or_create_internal_name(&self, alternative_origin: AstNodeId) -> SymbolId {
+        self.name_hint
+            .take()
+            .unwrap_or_else(|| SymbolId::fresh(NodeOrigin::Given(alternative_origin)))
     }
 }

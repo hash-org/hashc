@@ -11,7 +11,7 @@ use hash_tir::{
     args::Arg,
     environment::{env::AccessToEnv, stores::tir_stores},
     fns::FnCallTerm,
-    node::{Node, NodeOrigin},
+    node::Node,
     terms::{Term, TermId},
     utils::common::dump_tir,
 };
@@ -53,11 +53,14 @@ impl EvaluationPass<'_> {
                 let def = AccessToSemEnv::entry_point(self).def();
                 match def {
                     Some(def) => {
-                        let call_term = Term::from(FnCallTerm {
-                            subject: Term::from(def),
-                            implicit: false,
-                            args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
-                        });
+                        let call_term = Term::from(
+                            FnCallTerm {
+                                subject: Term::from(def, def.origin()),
+                                implicit: false,
+                                args: Node::create_at(Node::<Arg>::empty_seq(), def.origin()),
+                            },
+                            def.origin(),
+                        );
                         Ok(Some(call_term))
                     }
                     None => {

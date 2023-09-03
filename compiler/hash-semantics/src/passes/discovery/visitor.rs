@@ -14,7 +14,7 @@ use hash_tir::{
     mods::{ModDef, ModKind, ModMember},
     node::{Node, NodeOrigin},
     scopes::Stack,
-    symbols::sym,
+    symbols::SymbolId,
     terms::Term,
     tuples::TupleTy,
     tys::Ty,
@@ -58,7 +58,10 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     ) -> Result<Self::DeclarationRet, Self::Error> {
         let walk_with_name_hint = || -> Result<_, Self::Error> {
             let name = match node.pat.body() {
-                ast::Pat::Binding(binding) => Some(sym(binding.name.ident)),
+                ast::Pat::Binding(binding) => Some(SymbolId::from_name(
+                    binding.name.ident,
+                    NodeOrigin::Given(binding.name.id()),
+                )),
                 // If the pattern is not a binding, we don't know the name of the declaration
                 _ => None,
             };
@@ -139,7 +142,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         // A match case creates its own stack scope.
-        let stack_id = Stack::empty();
+        let stack_id = Stack::empty(NodeOrigin::Given(node.id()));
         self.enter_def(node, stack_id, || {
             self.add_pat_node_binds_to_stack(node.pat.ast_ref(), stack_id, None, Some(&node.expr));
             walk::walk_match_case(self, node)
@@ -167,7 +170,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
         // Get the mod block name from the name hint.
-        let mod_block_name = self.take_name_hint_or_create_internal_name();
+        let mod_block_name = self.take_name_hint_or_create_internal_name(node.id());
 
         // @@Todo: error if the mod block has generics
 
@@ -176,9 +179,12 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             ModDef {
                 name: mod_block_name,
                 kind: ModKind::ModBlock,
-                members: Node::create_at(Node::<ModMember>::empty_seq(), NodeOrigin::Generated),
+                members: Node::create_at(
+                    Node::<ModMember>::empty_seq(),
+                    NodeOrigin::Given(node.block.id()),
+                ),
             },
-            NodeOrigin::Generated,
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the mod block
@@ -192,13 +198,14 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        let struct_name = self.take_name_hint_or_create_internal_name();
+        let struct_name = self.take_name_hint_or_create_internal_name(node.id());
 
         // Create a data definition for the struct
         let struct_def_id = DataDef::struct_def(
             struct_name,
-            self.create_hole_params_from_ty_params(node.ty_params.as_ref()),
-            self.create_hole_params_from_params(Some(&node.fields)),
+            self.create_hole_params_from_ty_params(node.ty_params.as_ref(), node.id()),
+            self.create_hole_params_from_params(Some(&node.fields), node.fields.id()),
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the struct; note that the fields have already been created, they
@@ -215,25 +222,37 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        let enum_name = self.take_name_hint_or_create_internal_name();
+        let enum_name = self.take_name_hint_or_create_internal_name(node.id());
 
         // Create a data definition for the enum
-
         let enum_def_id = DataDef::indexed_enum_def(
             enum_name,
-            self.create_hole_params_from_ty_params(node.ty_params.as_ref()),
+            self.create_hole_params_from_ty_params(node.ty_params.as_ref(), node.id()),
             |_| {
-                node.entries
-                    .iter()
-                    .map(|variant| {
-                        (
-                            sym(variant.name.ident),
-                            self.create_hole_params_from_params(variant.fields.as_ref()),
-                            None,
-                        )
-                    })
-                    .collect_vec()
+                Node::at(
+                    node.entries
+                        .iter()
+                        .map(|variant| {
+                            Node::at(
+                                (
+                                    SymbolId::from_name(
+                                        variant.name.ident,
+                                        NodeOrigin::Given(variant.name.id()),
+                                    ),
+                                    self.create_hole_params_from_params(
+                                        variant.fields.as_ref(),
+                                        variant.id(),
+                                    ),
+                                    None,
+                                ),
+                                NodeOrigin::Given(variant.id()),
+                            )
+                        })
+                        .collect_vec(),
+                    NodeOrigin::Given(node.entries.id()),
+                )
             },
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the enum; the variants have already been created.
@@ -245,22 +264,27 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     type FnDefRet = ();
     fn visit_fn_def(&self, node: AstNodeRef<ast::FnDef>) -> Result<Self::FnDefRet, Self::Error> {
         // Get the function name from the name hint.
-        let fn_def_name = self.take_name_hint_or_create_internal_name();
+        let fn_def_name = self.take_name_hint_or_create_internal_name(node.id());
 
         // Create a function definition
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: FnBody::Defined(Term::hole()),
+                body: FnBody::Defined(Term::hole(NodeOrigin::Given(node.fn_body.id()))),
                 ty: FnTy {
                     implicit: false,
                     is_unsafe: false,
-                    params: self.create_hole_params_from_params(Some(&node.params)),
+                    params: self
+                        .create_hole_params_from_params(Some(&node.params), node.params.id()),
                     pure: false,
-                    return_ty: Ty::hole(),
+                    return_ty: node
+                        .return_ty
+                        .as_ref()
+                        .map(|ty| Ty::hole(NodeOrigin::Given(ty.id())))
+                        .unwrap_or_else(|| Ty::hole(NodeOrigin::InferredFrom(node.fn_body.id()))),
                 },
             },
-            NodeOrigin::Generated,
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the function body
@@ -277,22 +301,29 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         // Type functions are interpreted as functions that are implicit.
 
         // Get the function name from the name hint.
-        let fn_def_name = self.take_name_hint_or_create_internal_name();
+        let fn_def_name = self.take_name_hint_or_create_internal_name(node.id());
 
         // Create a function definition
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: FnBody::Defined(Term::hole()),
+                body: FnBody::Defined(Term::hole(NodeOrigin::Given(node.ty_fn_body.id()))),
                 ty: FnTy {
                     implicit: true,
                     is_unsafe: false,
-                    params: self.create_hole_params_from_ty_params(Some(&node.params)),
+                    params: self
+                        .create_hole_params_from_ty_params(Some(&node.params), node.params.id()),
                     pure: true,
-                    return_ty: Ty::hole(),
+                    return_ty: node
+                        .return_ty
+                        .as_ref()
+                        .map(|ty| Ty::hole(NodeOrigin::Given(ty.id())))
+                        .unwrap_or_else(|| {
+                            Ty::hole(NodeOrigin::InferredFrom(node.ty_fn_body.id()))
+                        }),
                 },
             },
-            NodeOrigin::Generated,
+            NodeOrigin::Given(node.id()),
         );
 
         // Traverse the function body
@@ -306,6 +337,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: AstNodeRef<ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
+        let origin = NodeOrigin::Given(node.id());
         match self.get_current_item() {
             Some(ItemId::Def(def_id)) => match def_id {
                 // If we are in a mod or data block, this isn't a stack scope so we don't do anything.
@@ -317,7 +349,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 DefId::Stack(_) |
                 // If we are in a function, then this is the function's body, so we add a new stack
                 DefId::Fn(_) => {
-                    let stack_id = Stack::empty();
+                    let stack_id = Stack::empty(origin);
                     self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                     Ok(())
                 }
@@ -325,13 +357,13 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             Some(ItemId::Ty(_)) => {
                 // If we are in a function type, then this is the function's type return, so we
                 // add a new stack
-                let stack_id = Stack::empty();
+                let stack_id = Stack::empty(origin);
                 self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                 Ok(())
             }
             None => {
                 // This is a root scope for interactive, so we add a new stack
-                let stack_id = Stack::empty();
+                let stack_id = Stack::empty(origin);
                 self.enter_def(node, stack_id, || walk::walk_body_block(self, node))?;
                 Ok(())
             }
@@ -344,13 +376,17 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::TyFnTy>,
     ) -> Result<Self::TyFnTyRet, Self::Error> {
         // This will be filled in during resolution
-        let fn_ty_id = Ty::from(FnTy {
-            implicit: true,
-            is_unsafe: false,
-            params: self.create_hole_params_from_ty_params(Some(&node.params)),
-            pure: true,
-            return_ty: Ty::hole(),
-        });
+        let fn_ty_id = Ty::from(
+            FnTy {
+                implicit: true,
+                is_unsafe: false,
+                params: self
+                    .create_hole_params_from_ty_params(Some(&node.params), node.params.id()),
+                pure: true,
+                return_ty: Ty::hole(NodeOrigin::Given(node.return_ty.id())),
+            },
+            NodeOrigin::Given(node.id()),
+        );
 
         // Traverse the type function body
         self.enter_item(node, fn_ty_id, || walk::walk_ty_fn_ty(self, node))?;
@@ -361,13 +397,16 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
     type FnTyRet = ();
     fn visit_fn_ty(&self, node: AstNodeRef<ast::FnTy>) -> Result<Self::FnTyRet, Self::Error> {
         // This will be filled in during resolution
-        let fn_ty_id = Ty::from(FnTy {
-            implicit: false,
-            is_unsafe: false,
-            params: self.create_hole_params_from_params(Some(&node.params)),
-            pure: false,
-            return_ty: Ty::hole(),
-        });
+        let fn_ty_id = Ty::from(
+            FnTy {
+                implicit: false,
+                is_unsafe: false,
+                params: self.create_hole_params_from_params(Some(&node.params), node.params.id()),
+                pure: false,
+                return_ty: Ty::hole(NodeOrigin::Given(node.return_ty.id())),
+            },
+            NodeOrigin::Given(node.id()),
+        );
 
         // Traverse the function body
         self.enter_item(node, fn_ty_id, || walk::walk_fn_ty(self, node))?;
@@ -381,8 +420,12 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: AstNodeRef<ast::TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         // This will be filled in during resolution
-        let tuple_ty_id =
-            Ty::from(TupleTy { data: self.create_hole_params_from_params(Some(&node.entries)) });
+        let tuple_ty_id = Ty::from(
+            TupleTy {
+                data: self.create_hole_params_from_params(Some(&node.entries), node.entries.id()),
+            },
+            NodeOrigin::Given(node.id()),
+        );
 
         // Traverse the tuple body
         self.enter_item(node, tuple_ty_id, || walk::walk_tuple_ty(self, node))?;

@@ -16,7 +16,7 @@ use hash_tir::{
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
     node::{Node, NodeOrigin},
     scopes::StackId,
-    symbols::{sym, SymbolId},
+    symbols::SymbolId,
     tys::TyId,
     utils::AccessToUtils,
 };
@@ -203,13 +203,14 @@ impl<'tc> DiscoveryPass<'tc> {
 
                         // Set module members.
                         let mod_members = Node::create_at(
-                            Node::<ModMember>::seq(members.iter().map(|(_, data)| {
+                            Node::<ModMember>::seq(members.iter().map(|(node, data)| {
                                 Node::at(
                                     ModMember { name: data.name, value: data.value },
-                                    NodeOrigin::Generated,
+                                    NodeOrigin::Given(*node),
                                 )
                             })),
-                            NodeOrigin::Generated,
+                            // Origin should be already set in the visitor:
+                            mod_def_id.value().members.origin(),
                         );
                         mod_def_id.borrow_mut().members = mod_members;
 
@@ -230,10 +231,21 @@ impl<'tc> DiscoveryPass<'tc> {
                     if let Some(members) = members {
                         let members = std::mem::take(members);
 
+                        let ctors_origin = match data_def_id.value().ctors {
+                            DataDefCtors::Defined(d) => d.origin(),
+                            DataDefCtors::Primitive(_) => unreachable!(
+                                "Primitive data definition not allowed during discovery: {}",
+                                data_def_id
+                            ),
+                        };
+
                         // Set data constructors.
                         let ctors = CtorDef::seq_from_data(
                             data_def_id,
-                            members.iter().map(|(_, data)| data).copied(),
+                            members
+                                .iter()
+                                .map(|(node, data)| Node::at(*data, NodeOrigin::Given(*node))),
+                            ctors_origin,
                         );
                         data_def_id.borrow_mut().ctors = DataDefCtors::Defined(ctors);
 
@@ -280,16 +292,20 @@ impl<'tc> DiscoveryPass<'tc> {
                         // If we got local mod members, create a new mod def and
                         // add it to the stack definition.
                         if !mod_members.is_empty() {
+                            let stack_origin = stack_id.origin();
                             let local_mod_def_id = Node::create_at(
                                 ModDef {
                                     kind: ModKind::ModBlock,
-                                    name: sym(format!("stack_mod_{}", stack_id.to_index())),
+                                    name: SymbolId::from_name(
+                                        format!("stack_mod_{}", stack_id.to_index()),
+                                        stack_origin,
+                                    ),
                                     members: Node::create_at(
                                         Node::<ModMember>::empty_seq(),
-                                        NodeOrigin::Generated,
+                                        stack_origin,
                                     ),
                                 },
-                                NodeOrigin::Generated,
+                                stack_origin,
                             );
                             stack_id.borrow_mut().local_mod_def = Some(local_mod_def_id);
                             self.def_state().mod_members.insert(local_mod_def_id, mod_members);
@@ -471,8 +487,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     buf.push((
                         name.id(),
                         Decl {
-                            name: sym(name.ident),
-                            // is_mutable: false,
+                            name: SymbolId::from_name(name.ident, NodeOrigin::Given(name.id())),
                             ty: None,
                             value: None,
                         },
@@ -485,9 +500,10 @@ impl<'tc> DiscoveryPass<'tc> {
                 buf.push((
                     node.id(),
                     Decl {
-                        name: sym(binding.name.ident),
-                        // is_mutable: binding.mutability.as_ref().map(|m| *m.body())
-                        //     == Some(ast::Mutability::Mutable),
+                        name: SymbolId::from_name(
+                            binding.name.ident,
+                            NodeOrigin::Given(binding.name.id()),
+                        ),
                         ty: None,
                         value: None,
                     },
@@ -539,7 +555,7 @@ impl<'tc> DiscoveryPass<'tc> {
             ast::Pat::Wild(_) => buf.push((
                 node.id(),
                 Decl {
-                    name: SymbolId::fresh(),
+                    name: SymbolId::fresh(NodeOrigin::Given(node.id())),
                     // is_mutable: false,
                     ty: None,
                     value: None,
