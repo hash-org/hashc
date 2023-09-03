@@ -89,24 +89,27 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 
     /// Convert a [Pat] into a [DeconstructedPat].
-    pub(crate) fn deconstruct_pat(&self, ty_id: TyId, pat_id: PatId) -> DeconstructedPat {
+    pub(crate) fn deconstruct_pat(&self, ty_id: TyId, pat_id: PatId) -> Node<DeconstructedPat> {
         let (ctor, fields) = match *pat_id.value() {
-            Pat::Binding(_) => (DeconstructedCtor::Wildcard, vec![]),
+            Pat::Binding(_) => (pat_id.origin().with_data(DeconstructedCtor::Wildcard), vec![]),
             Pat::Range(range) => {
                 let range = self.lower_pat_range(ty_id, range);
-                (DeconstructedCtor::IntRange(range), vec![])
+                (pat_id.origin().with_data(DeconstructedCtor::IntRange(range)), vec![])
             }
             Pat::Lit(LitPat(lit)) => match *lit.value() {
-                Lit::Str(lit) => (DeconstructedCtor::Str(lit.interned_value()), vec![]),
+                Lit::Str(lit) => (
+                    pat_id.origin().with_data(DeconstructedCtor::Str(lit.interned_value())),
+                    vec![],
+                ),
                 Lit::Int(lit) => {
                     let value = Constant::from_int(lit.interned_value(), ty_id);
                     let range = self.make_range_from_constant(value);
-                    (DeconstructedCtor::IntRange(range), vec![])
+                    (pat_id.origin().with_data(DeconstructedCtor::IntRange(range)), vec![])
                 }
                 Lit::Char(lit) => {
                     let value = Constant::from_char(lit.value(), ty_id);
                     let range = self.make_range_from_constant(value);
-                    (DeconstructedCtor::IntRange(range), vec![])
+                    (pat_id.origin().with_data(DeconstructedCtor::IntRange(range)), vec![])
                 }
                 _ => unreachable!(),
             },
@@ -130,7 +133,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     wilds[field.index] = self.deconstruct_pat(wilds[field.index].ty, field.pat);
                 }
 
-                (DeconstructedCtor::Single, wilds.to_vec())
+                (pat_id.origin().with_data(DeconstructedCtor::Single), wilds.to_vec())
             }
             Pat::Ctor(CtorPat { ctor, ctor_pat_args: args, .. }) => {
                 let params = ctor.borrow().params;
@@ -155,11 +158,11 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 }
 
                 let CtorDefId(ctor_defs, index) = ctor;
-                let ctor = if index != 0 || ctor_defs.len() > 1 {
+                let ctor = ctor.origin().with_data(if index != 0 || ctor_defs.len() > 1 {
                     DeconstructedCtor::Variant(ctor.1)
                 } else {
                     DeconstructedCtor::Single
-                };
+                });
 
                 (ctor, wilds.to_vec())
             }
@@ -195,7 +198,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     ArrayKind::Fixed(prefix.len() + suffix.len())
                 };
 
-                let ctor = DeconstructedCtor::Array(Array::new(kind));
+                let ctor = pat_id.origin().with_data(DeconstructedCtor::Array(Array::new(kind)));
                 let fields = prefix.into_iter().chain(suffix).collect_vec();
 
                 (ctor, fields)
@@ -211,7 +214,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 // it should be that the union-ty is simplified into a single term?
                 let fields = pats.iter().map(|pat| self.deconstruct_pat(ty_id, *pat)).collect_vec();
 
-                (DeconstructedCtor::Or, fields)
+                (pat_id.origin().with_data(DeconstructedCtor::Or), fields)
             }
             Pat::If(IfPat { pat, .. }) => {
                 let pat = self.deconstruct_pat(ty_id, pat);
@@ -224,13 +227,16 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let ctor = self.ctor_store().create(ctor);
 
         // Now we need to put them in the store...
-        DeconstructedPat::new(
-            ctor,
-            Fields::from_iter(
-                fields.into_iter().map(|field| self.deconstructed_pat_store().create(field)),
+        Node::at(
+            DeconstructedPat::new(
+                ctor,
+                Fields::from_iter(
+                    fields.into_iter().map(|field| self.deconstructed_pat_store().create(field)),
+                ),
+                ty_id,
+                Some(pat_id),
             ),
-            ty_id,
-            Some(pat_id),
+            pat_id.origin(),
         )
     }
 
@@ -240,7 +246,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let ctor_store = self.ctor_store();
 
         deconstructed_store.map_fast(pat, |deconstructed| {
-            let DeconstructedPat {ty, fields, ..} = deconstructed;
+            let DeconstructedPat {ty, fields, ..} = &**deconstructed;
 
             // Short-circuit, if the pattern already has an associated `PatId`...
             if deconstructed.id.is_some() {
@@ -248,16 +254,16 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             }
 
             ctor_store.map_fast(deconstructed.ctor, |ctor| {
-                let pat = match ctor {
+                let pat = match **ctor {
                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                         match *ty.value() {
                             Ty::Data(DataTy { data_def, args }) => {
                                 let ctor_def_id = data_def.borrow().ctors.assert_defined();
 
                                 // We need to reconstruct the ctor-def-id...
-                                let variant_idx = match ctor {
+                                let variant_idx = match **ctor {
                                     DeconstructedCtor::Single => 0,
-                                    DeconstructedCtor::Variant(idx) => *idx,
+                                    DeconstructedCtor::Variant(idx) => idx,
                                     _ => unreachable!()
                                 };
                                 let ctor = CtorDefId(ctor_def_id.elements(), variant_idx);
@@ -272,22 +278,24 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                             _ => unreachable!()
                         }
                     }
-                    DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
-                    DeconstructedCtor::Str(str) => Pat::Lit(LitPat(Node::create_gen(Lit::Str(StrLit::from(*str))))),
+                    // @@Origins: we could be more granular and provide the origin of each endpoint by wrapping `range.{start,end}` in `Node`.
+                    DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, range, deconstructed.origin, deconstructed.origin),
+                    DeconstructedCtor::Str(str) => Pat::Lit(LitPat(Node::create_at(Lit::Str(StrLit::from(str)), deconstructed.origin))),
                     DeconstructedCtor::Array(Array { kind }) => {
                         let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
-                        let pats = Node::create_at(PatOrCapture::seq(children), NodeOrigin::Generated);
+                        let pats = Node::create_at(PatOrCapture::seq(children), deconstructed.origin);
 
                         match kind {
                             ArrayKind::Fixed(_) => {
                                 Pat::Array(ArrayPat { pats, spread: None })
                             }
                             ArrayKind::Var(prefix, _) => {
-                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: SymbolId::fresh_underscore(NodeOrigin::Generated), index: *prefix }) })
+                                // @@Origins: how can we get the original symbol here?
+                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: SymbolId::fresh_underscore(deconstructed.origin), index: prefix }) })
                             }
                         }
                     }
-                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: SymbolId::fresh_underscore(NodeOrigin::Generated), is_mutable: false }),
+                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: SymbolId::fresh_underscore(deconstructed.origin), is_mutable: false }),
                     DeconstructedCtor::Or => {
                         panic!("cannot convert an `or` deconstructed pat back into pat")
                     }
@@ -297,7 +305,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 };
 
                 // Now put the pat on the store and return it
-                Node::create_at(pat, NodeOrigin::Generated)
+                Node::create_at(pat, deconstructed.origin)
             })
         })
     }
@@ -317,15 +325,16 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                         target: ParamId(params.elements(), index).as_param_index(),
                         pat: self.construct_pat(p).into(),
                     },
-                    NodeOrigin::Generated,
+                    self.get_deconstructed_pat(p).origin,
                 )
             })
             .collect_vec();
 
         let field_count = fields.len();
-        let args = Node::create_at(Node::<PatArg>::seq(fields), NodeOrigin::Generated);
+        let args = Node::create_at(Node::<PatArg>::seq(fields), params.origin());
 
         if field_count != params.len() {
+            // @@Origins: how can we get the origin here?
             (
                 args,
                 Some(Spread { name: SymbolId::fresh(NodeOrigin::Generated), index: field_count }),
@@ -364,7 +373,13 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
     /// Convert [IntRange] into a [Pat] by judging the given
     /// type that is stored within the parent [DeconstructedPat].
-    pub fn construct_pat_from_range(&self, ty: TyId, range: IntRange) -> Pat {
+    pub fn construct_pat_from_range(
+        &self,
+        ty: TyId,
+        range: IntRange,
+        lo_origin: NodeOrigin,
+        hi_origin: NodeOrigin,
+    ) -> Pat {
         if range.is_singleton() {
             // `ubig` and `ibig` won't appear here since the range will never become
             // a singleton, and in fact the range will never be constructed from a
@@ -378,17 +393,17 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                     let ptr_size = self.target().ptr_size();
                     let val = InternedInt::from_u128(lo, ty.into(), ptr_size);
-                    Pat::Lit(LitPat(Node::create_gen(Lit::Int(IntLit::from(val)))))
+                    Pat::Lit(LitPat(Node::create_at(Lit::Int(IntLit::from(val)), lo_origin)))
                 }
                 LitTy::Char => {
                     let (lo, _) = range.boundaries();
                     let val = unsafe { char::from_u32_unchecked(lo as u32) };
-                    Pat::Lit(LitPat(Node::create_gen(Lit::Char(CharLit::from(val)))))
+                    Pat::Lit(LitPat(Node::create_at(Lit::Char(CharLit::from(val)), lo_origin)))
                 }
                 _ => unreachable!(),
             }
         } else {
-            Pat::Range(self.construct_range_pat(range, ty))
+            Pat::Range(self.construct_range_pat(range, ty, lo_origin, hi_origin))
         }
     }
 
@@ -398,7 +413,13 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// which should yield a [Pat::Lit] instead of a [Pat::Range], if this
     /// is the desired behaviour, then you should use
     /// [`Self::construct_pat_from_range`].
-    pub(crate) fn construct_range_pat(&self, range: IntRange, ty: TyId) -> RangePat {
+    pub(crate) fn construct_range_pat(
+        &self,
+        range: IntRange,
+        ty: TyId,
+        lo_origin: NodeOrigin,
+        hi_origin: NodeOrigin,
+    ) -> RangePat {
         let (lo, hi) = range.boundaries();
         let bias = range.bias;
         let (lo, hi) = (lo ^ bias, hi ^ bias);
@@ -421,8 +442,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                 let lo_val = InternedInt::from_u128(lo, kind, ptr_width);
                 let hi_val = InternedInt::from_u128(hi, kind, ptr_width);
-                let lo = LitPat(Node::create_gen(Lit::Int(IntLit::from(lo_val))));
-                let hi = LitPat(Node::create_gen(Lit::Int(IntLit::from(hi_val))));
+                let lo = LitPat(Node::create_at(Lit::Int(IntLit::from(lo_val)), lo_origin));
+                let hi = LitPat(Node::create_at(Lit::Int(IntLit::from(hi_val)), hi_origin));
 
                 (lo, hi)
             }
@@ -441,8 +462,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     (lo_val, hi_val)
                 };
 
-                let lo = LitPat(Node::create_gen(Lit::Char(lo_val.into())));
-                let hi = LitPat(Node::create_gen(Lit::Char(hi_val.into())));
+                let lo = LitPat(Node::create_at(Lit::Char(lo_val.into()), lo_origin));
+                let hi = LitPat(Node::create_at(Lit::Char(hi_val.into()), hi_origin));
 
                 (lo, hi)
             }

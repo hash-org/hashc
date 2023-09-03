@@ -125,7 +125,7 @@ impl Term {
     }
 
     pub fn hole(origin: NodeOrigin) -> TermId {
-        Node::create(Node::at(Term::Hole(Hole::fresh(origin)), NodeOrigin::Generated))
+        Node::create(Node::at(Term::Hole(Hole::fresh(origin)), origin))
     }
 
     pub fn var(symbol: SymbolId) -> TermId {

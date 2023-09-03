@@ -8,7 +8,7 @@
 use std::iter::once;
 
 use hash_storage::store::Store;
-use hash_tir::{pats::PatId, tys::TyId};
+use hash_tir::{node::Node, pats::PatId, tys::TyId};
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 
 use super::{
@@ -172,7 +172,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             DeconstructedPat::new(ctor, fields, ctx.ty, None)
         };
 
-        let pat = self.deconstructed_pat_store().create(pat);
+        let pat = self.deconstructed_pat_store().create(Node::gen(pat));
         witness.0.push(pat);
         witness
     }
@@ -194,7 +194,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             Usefulness::WithWitnesses(witnesses) => {
                 let new_witnesses = if self
                     .ctor_store()
-                    .map_fast(ctor_id, |ctor| matches!(ctor, DeconstructedCtor::Missing))
+                    .map_fast(ctor_id, |ctor| matches!(**ctor, DeconstructedCtor::Missing))
                 {
                     // We got the special `Missing` constructor, so each of the missing constructors
                     // gives a new  pattern that is not caught by the match. We
@@ -210,7 +210,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                         .iter_missing_ctors(&wildcard)
                         .map(|missing_ctor| {
                             let pat = self.wildcard_from_ctor(ctx, missing_ctor);
-                            self.deconstructed_pat_store().create(pat)
+                            self.deconstructed_pat_store().create(Node::gen(pat))
                         })
                         .collect_vec();
 
@@ -304,7 +304,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
         let head = self.get_deconstructed_pat(v.head());
 
-        let DeconstructedPat { ty, .. } = head;
+        let DeconstructedPat { ty, .. } = *head;
 
         // Create a new `PatCtx`, based on on the provided parameters
         let ctx = PatCtx::new(ty, is_top_level);
@@ -341,7 +341,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
             // check that int ranges don't overlap here, in case
             // they're partially covered by other ranges.
-            if let DeconstructedCtor::IntRange(range) = self.get_deconstructed_ctor(v_ctor) {
+            if let DeconstructedCtor::IntRange(range) = *self.get_deconstructed_ctor(v_ctor) {
                 if let Some(head_id) = head.id {
                     self.check_for_overlapping_endpoints(
                         head_id,

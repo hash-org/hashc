@@ -9,6 +9,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequ
 use hash_target::size::Size;
 use hash_tir::{
     data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
+    node::Node,
     tys::Ty,
 };
 use hash_utils::smallvec::{smallvec, SmallVec};
@@ -68,25 +69,31 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 match def.ctors {
                     DataDefCtors::Defined(ctors) => {
                         if ctors.len() == 1 {
-                            smallvec![DeconstructedCtor::Single]
+                            smallvec![ctors.origin().with_data(DeconstructedCtor::Single)]
                         } else {
                             // The exception is if the pattern is at the top level, because
                             // we want empty matches to
                             // be considered exhaustive.
                             let is_secretly_empty = ctors.value().is_empty() && !ctx.is_top_level;
 
-                            let mut ctors: SmallVec<[_; 1]> = ctors
+                            let mut variants: SmallVec<[_; 1]> = ctors
                                 .value()
                                 .iter()
                                 .enumerate()
-                                .map(|(index, _)| DeconstructedCtor::Variant(index))
+                                .map(|(index, ctor_def_id)| {
+                                    ctor_def_id
+                                        .origin()
+                                        .with_data(DeconstructedCtor::Variant(index))
+                                })
                                 .collect();
 
                             if is_secretly_empty {
-                                ctors.push(DeconstructedCtor::NonExhaustive);
+                                variants.push(
+                                    ctors.origin().with_data(DeconstructedCtor::NonExhaustive),
+                                );
                             }
 
-                            ctors
+                            variants
                         }
                     }
                     DataDefCtors::Primitive(ctor) => match ctor {
@@ -97,40 +104,46 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                                     let max = min - 1;
 
                                     // i_kind::MIN..=_kind::MAX
-                                    smallvec![make_range(min, max)]
+                                    smallvec![data_def.origin().with_data(make_range(min, max))]
                                 } else {
                                     let size = Size::from_bits(bits as u64);
                                     let max = size.truncate(u128::MAX);
 
-                                    smallvec![make_range(0, max)]
+                                    smallvec![data_def.origin().with_data(make_range(0, max))]
                                 }
                             } else {
                                 // This is then either a `ubig` or `ibig` which are un-bounded and
                                 // hence non-exhaustive.
-                                smallvec![DeconstructedCtor::NonExhaustive]
+                                smallvec![data_def.origin().with_data(DeconstructedCtor::NonExhaustive)]
                             }
                         }
                         PrimitiveCtorInfo::Str => {
-                            smallvec![DeconstructedCtor::NonExhaustive]
+                            smallvec![data_def.origin().with_data(DeconstructedCtor::NonExhaustive)]
                         }
                         PrimitiveCtorInfo::Char => smallvec![
                             // The valid Unicode Scalar Value ranges.
-                            make_range('\u{0000}' as u128, '\u{D7FF}' as u128),
-                            make_range('\u{E000}' as u128, '\u{10FFFF}' as u128),
+                            data_def
+                                .origin()
+                                .with_data(make_range('\u{0000}' as u128, '\u{D7FF}' as u128)),
+                            data_def
+                                .origin()
+                                .with_data(make_range('\u{E000}' as u128, '\u{10FFFF}' as u128)),
                         ],
                         PrimitiveCtorInfo::Array(_) =>
                         // @@Todo: investigate what should happen here, we should probably use a
                         // fixed array here.
                         {
-                            smallvec![DeconstructedCtor::Array(Array {
-                                kind: ArrayKind::Var(0, 0)
-                            })]
+                            smallvec![data_def.origin().with_data(DeconstructedCtor::Array(
+                                Array { kind: ArrayKind::Var(0, 0) }
+                            ))]
                         }
                     },
                 }
             }
-            Ty::Tuple(..) => smallvec![DeconstructedCtor::Single],
-            _ => smallvec![DeconstructedCtor::NonExhaustive],
+            Ty::Tuple(tuple_ty) => {
+                smallvec![tuple_ty.data.origin().with_data(DeconstructedCtor::Single)]
+            }
+            _ => smallvec![ctx.ty.origin().with_data(DeconstructedCtor::NonExhaustive)],
         };
 
         // Now we have to allocate `all_ctors` into storage
@@ -228,7 +241,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 DeconstructedCtor::Wildcard
             };
 
-            let ctor = self.ctor_store().create(ctor);
+            let ctor = self.ctor_store().create(Node::gen(ctor));
             return smallvec![ctor];
         }
 

@@ -41,6 +41,7 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::Store;
 use hash_tir::{
     environment::env::AccessToEnv,
+    node::NodeOrigin,
     pats::{PatId, RangePat},
     tys::TyId,
 };
@@ -345,7 +346,12 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
         // Emit diagnostics for all of the found overlaps
         for (overlapping_range, id) in overlaps {
-            let RangePat { hi, .. } = self.construct_range_pat(overlapping_range, ty);
+            let RangePat { hi, .. } = self.construct_range_pat(
+                overlapping_range,
+                ty,
+                NodeOrigin::Generated,
+                NodeOrigin::Generated,
+            );
 
             self.diagnostics.add_warning(ExhaustivenessWarning::OverlappingRangeEnd {
                 range: id,

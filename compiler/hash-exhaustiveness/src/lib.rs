@@ -70,6 +70,7 @@ use hash_source::location::Span;
 use hash_storage::store::CloneStore;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
+    node::Node,
     pats::PatId,
     tys::TyId,
 };
@@ -213,15 +214,21 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         &self.ecx.deconstructed_pat_store
     }
 
-    pub(crate) fn get_deconstructed_ctor(&self, id: DeconstructedCtorId) -> DeconstructedCtor {
+    pub(crate) fn get_deconstructed_ctor(
+        &self,
+        id: DeconstructedCtorId,
+    ) -> Node<DeconstructedCtor> {
         self.ecx.deconstructed_ctor_store.get(id)
     }
 
-    pub(crate) fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> DeconstructedPat {
+    pub(crate) fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> Node<DeconstructedPat> {
         self.ecx.deconstructed_pat_store.get(id)
     }
 
-    pub(crate) fn get_deconstructed_pat_ctor(&self, id: DeconstructedPatId) -> DeconstructedCtor {
+    pub(crate) fn get_deconstructed_pat_ctor(
+        &self,
+        id: DeconstructedPatId,
+    ) -> Node<DeconstructedCtor> {
         let deconstructed_pat = self.get_deconstructed_pat(id);
         self.get_deconstructed_ctor(deconstructed_pat.ctor)
     }
