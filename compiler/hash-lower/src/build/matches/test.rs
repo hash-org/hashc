@@ -22,6 +22,7 @@ use hash_tir::{
     control::IfPat,
     data::CtorPat,
     environment::env::AccessToEnv,
+    node::NodesId,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };

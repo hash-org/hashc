@@ -11,6 +11,7 @@ use hash_tir::{
     fns::FnBody,
     holes::Hole,
     mods::ModDefId,
+    node::NodeId,
     params::{ParamId, ParamIndex, ParamsId},
     pats::Pat,
     sub::Sub,

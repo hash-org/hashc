@@ -2,6 +2,7 @@
 use core::fmt;
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
+use hash_ast::ast::AstNodeId;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -15,11 +16,10 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::{env::Env, stores::tir_stores},
+    environment::env::Env,
     fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
-    locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
-    node::{Node, NodeOrigin},
+    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId},
     refs::{DerefTerm, RefTerm, RefTy},
@@ -55,6 +55,17 @@ impl Atom {
     }
 }
 
+impl HasAstNodeId for Atom {
+    fn node_id(&self) -> Option<AstNodeId> {
+        match self {
+            Atom::Term(t) => t.node_id(),
+            Atom::Ty(t) => t.node_id(),
+            Atom::FnDef(f) => f.node_id(),
+            Atom::Pat(p) => p.node_id(),
+        }
+    }
+}
+
 impl fmt::Display for Atom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -62,17 +73,6 @@ impl fmt::Display for Atom {
             Atom::Ty(ty_id) => write!(f, "{}", ty_id),
             Atom::FnDef(fn_def_id) => write!(f, "{}", fn_def_id),
             Atom::Pat(pat_id) => write!(f, "{}", pat_id),
-        }
-    }
-}
-
-impl From<Atom> for LocationTarget {
-    fn from(atom: Atom) -> Self {
-        match atom {
-            Atom::Term(term_id) => Self::Term(term_id),
-            Atom::Ty(ty_id) => Self::Ty(ty_id),
-            Atom::FnDef(fn_def_id) => Self::FnDef(fn_def_id),
-            Atom::Pat(pat_id) => Self::Pat(pat_id),
         }
     }
 }
@@ -267,7 +267,6 @@ impl TraversingUtils {
             },
         }?;
 
-        tir_stores().location().copy_location(term_id, result);
         Ok(result)
     }
 
@@ -315,7 +314,7 @@ impl TraversingUtils {
                 Ty::Universe(universe_ty) => Ok(Ty::from(universe_ty, origin)),
             },
         }?;
-        tir_stores().location().copy_location(ty_id, result);
+
         Ok(result)
     }
 
@@ -365,7 +364,7 @@ impl TraversingUtils {
                 }
             },
         }?;
-        tir_stores().location().copy_location(pat_id, result);
+
         Ok(result)
     }
 
@@ -419,7 +418,6 @@ impl TraversingUtils {
             Ok(Node::create_at(Node::<Param>::seq(new_params), params_id.origin()))
         }?;
 
-        tir_stores().location().copy_locations(*params_id.value(), *new_params.value());
         Ok(new_params)
     }
 
@@ -432,7 +430,6 @@ impl TraversingUtils {
             ));
         }
         let new_args_id = Node::create_at(Node::<Arg>::seq(new_args), args_id.origin());
-        tir_stores().location().copy_locations(*args_id.value(), *new_args_id.value());
         Ok(new_args_id)
     }
 
@@ -460,7 +457,6 @@ impl TraversingUtils {
             Ok(Node::create_at(Node::<PatArg>::seq(new_args), pat_args_id.origin()))
         }?;
 
-        tir_stores().location().copy_locations(*pat_args_id.value(), *new_pat_args.value());
         Ok(new_pat_args)
     }
 
@@ -500,16 +496,12 @@ impl TraversingUtils {
                             fn_def.origin,
                         );
 
-                        tir_stores().ast_info().fn_defs().copy_node(fn_def_id, def);
                         Ok(def)
                     }
                     FnBody::Intrinsic(_) | FnBody::Axiom => Ok(fn_def_id),
                 }
             }
         }?;
-
-        tir_stores().location().copy_location(fn_def_id, new_fn_def);
-        tir_stores().ast_info().fn_defs().copy_node(fn_def_id, new_fn_def);
 
         Ok(new_fn_def)
     }

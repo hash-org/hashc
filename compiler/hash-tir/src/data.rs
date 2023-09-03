@@ -3,7 +3,6 @@
 use core::fmt;
 use std::{borrow::Borrow, fmt::Display, iter::once};
 
-use hash_ast::ast;
 use hash_storage::{
     get,
     store::{
@@ -22,9 +21,8 @@ use super::{
 };
 use crate::{
     args::Arg,
-    ast_info::HasNodeId,
     environment::stores::tir_stores,
-    node::{Node, NodeOrigin},
+    node::{Node, NodeId, NodeOrigin, NodesId},
     params::ParamsId,
     pats::PatArgsWithSpread,
     symbols::SymbolId,
@@ -221,13 +219,6 @@ pub struct DataDef {
 }
 
 tir_node_single_store!(DataDef);
-
-// @@Temporary while Nodes still have generated origins
-impl HasNodeId for DataDefId {
-    fn node_id(&self) -> Option<ast::AstNodeId> {
-        tir_stores().ast_info().data_defs().get_node_by_data(*self)
-    }
-}
 
 impl DataDef {
     /// Create an empty data definition.

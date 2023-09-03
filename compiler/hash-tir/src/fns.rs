@@ -2,14 +2,13 @@
 
 use std::fmt::Display;
 
-use hash_ast::ast;
 use hash_storage::store::statics::StoreId;
 use typed_builder::TypedBuilder;
 
 use super::{intrinsics::IntrinsicId, tys::Ty};
 use crate::{
-    args::ArgsId, ast_info::HasNodeId, environment::stores::tir_stores, params::ParamsId,
-    symbols::SymbolId, terms::TermId, tir_node_single_store, tys::TyId,
+    args::ArgsId, environment::stores::tir_stores, params::ParamsId, symbols::SymbolId,
+    terms::TermId, tir_node_single_store, tys::TyId,
 };
 
 /// A function type.
@@ -100,12 +99,6 @@ impl FnDef {
 }
 
 tir_node_single_store!(FnDef);
-
-impl HasNodeId for FnDefId {
-    fn node_id(&self) -> Option<ast::AstNodeId> {
-        tir_stores().ast_info().fn_defs().get_node_by_data(*self)
-    }
-}
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]

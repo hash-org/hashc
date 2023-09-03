@@ -1,6 +1,6 @@
 //! Definitions related to parameters to data types, functions, etc.
 use core::fmt;
-use std::fmt::Debug;
+use std::{fmt::Debug, option::Option};
 
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
@@ -11,7 +11,6 @@ use hash_utils::{derive_more::From, itertools::Itertools};
 
 use super::{
     args::{ArgsId, PatArgsId},
-    locations::IndexedLocationTarget,
     terms::TermId,
 };
 use crate::{
@@ -20,7 +19,7 @@ use crate::{
     data::{CtorDefId, DataDefId},
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
-    node::{Node, NodeOrigin},
+    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     symbols::SymbolId,
     tir_node_sequence_store_direct,
     tuples::TupleTy,
@@ -190,12 +189,12 @@ impl SomeParamsOrArgsId {
     }
 }
 
-impl From<SomeParamsOrArgsId> for IndexedLocationTarget {
-    fn from(target: SomeParamsOrArgsId) -> Self {
-        match target {
-            SomeParamsOrArgsId::Params(id) => IndexedLocationTarget::Params(*id.value()),
-            SomeParamsOrArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(*id.value()),
-            SomeParamsOrArgsId::Args(id) => IndexedLocationTarget::Args(*id.value()),
+impl HasAstNodeId for SomeParamsOrArgsId {
+    fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
+        match self {
+            SomeParamsOrArgsId::Params(id) => id.node_id(),
+            SomeParamsOrArgsId::PatArgs(id) => id.node_id(),
+            SomeParamsOrArgsId::Args(id) => id.node_id(),
         }
     }
 }

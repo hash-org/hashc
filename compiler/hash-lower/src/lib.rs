@@ -34,7 +34,7 @@ use hash_pipeline::{
 use hash_semantics::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::statics::StoreId;
-use hash_tir::environment::{source_info::CurrentSourceInfo, stores::tir_stores};
+use hash_tir::environment::source_info::CurrentSourceInfo;
 use hash_utils::{
     indexmap::IndexMap,
     rayon,
@@ -164,7 +164,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // in the `AstInfo`. If the ADT contains a `#layout_of` attribute,
         // then we try to lower the type, and then print the layout of
         // the type.
-        tir_stores().ast_info().data_defs().iter_with(|id, def| {
+        data.semantic_storage.ast_info.data_defs().iter_with(|id, def| {
             if attr_store().node_has_attr(id, attrs::LAYOUT_OF) {
                 builder.dump_ty_layout(def, data.stdout.clone())
             }

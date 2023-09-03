@@ -6,7 +6,6 @@
 pub mod access;
 pub mod args;
 pub mod arrays;
-pub mod ast_info;
 pub mod atom_info;
 pub mod building;
 pub mod casting;
@@ -18,7 +17,6 @@ pub mod fns;
 pub mod holes;
 pub mod intrinsics;
 pub mod lits;
-pub mod locations;
 pub mod mods;
 pub mod node;
 pub mod params;

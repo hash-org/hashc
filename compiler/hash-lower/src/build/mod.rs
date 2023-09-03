@@ -28,6 +28,7 @@ use hash_tir::{
     context::{Context, ScopeKind},
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
+    node::NodesId,
     symbols::SymbolId,
     terms::TermId,
 };

@@ -11,11 +11,11 @@ use hash_storage::store::{
 };
 use hash_utils::{pluralise, printing::SequenceDisplay};
 
-use super::common::{get_location, get_overall_location};
+use super::common::get_span;
 use crate::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     environment::env::Env,
-    node::Node,
+    node::{Node, NodeId, NodesId},
     params::{ParamId, ParamIndex, ParamsId},
     pats::Spread,
 };
@@ -76,7 +76,7 @@ impl ParamError {
                         expected.len(),
                         pluralise!(expected.len())
                     ));
-                if let Some(location) = get_overall_location(*expected.value()) {
+                if let Some(location) = get_span(expected) {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -86,7 +86,7 @@ impl ParamError {
                         ),
                     );
                 }
-                if let Some(location) = get_overall_location(*got) {
+                if let Some(location) = get_span(*got) {
                     error.add_labelled_span(
                         location,
                         format!("received {} argument{} here", got.len(), pluralise!(got.len())),
@@ -98,10 +98,10 @@ impl ParamError {
                     .error()
                     .code(HashErrorCode::ParameterInUse)
                     .title("received a duplicate argument");
-                if let Some(location) = get_location(first) {
+                if let Some(location) = get_span(first) {
                     error.add_labelled_span(location, "first occurrence of this argument");
                 }
-                if let Some(location) = get_location(second) {
+                if let Some(location) = get_span(second) {
                     error.add_labelled_span(location, "second occurrence of this argument");
                 }
             }
@@ -110,10 +110,10 @@ impl ParamError {
                     .error()
                     .code(HashErrorCode::ParameterInUse)
                     .title("received a duplicate parameter");
-                if let Some(location) = get_location(first) {
+                if let Some(location) = get_span(first) {
                     error.add_labelled_span(location, "first occurrence of this parameter");
                 }
-                if let Some(location) = get_location(second) {
+                if let Some(location) = get_span(second) {
                     error.add_labelled_span(location, "second occurrence of this parameter");
                 }
             }
@@ -122,10 +122,10 @@ impl ParamError {
                     .error()
                     .code(HashErrorCode::ParameterInUse)
                     .title("received a positional argument after a named argument");
-                if let Some(location) = get_location(first_named) {
+                if let Some(location) = get_span(first_named) {
                     error.add_labelled_span(location, "first named argument");
                 }
-                if let Some(location) = get_location(next_positional) {
+                if let Some(location) = get_span(next_positional) {
                     error.add_labelled_span(location, "next positional argument");
                 }
                 error.add_info("positional arguments must come before named arguments");
@@ -138,10 +138,10 @@ impl ParamError {
                     .error()
                     .code(HashErrorCode::ParameterInUse)
                     .title("found a required parameter after a default parameter");
-                if let Some(location) = get_location(first_default) {
+                if let Some(location) = get_span(first_default) {
                     error.add_labelled_span(location, "first default parameter");
                 }
-                if let Some(location) = get_location(next_non_default) {
+                if let Some(location) = get_span(next_non_default) {
                     error.add_labelled_span(location, "next required parameter");
                 }
                 error.add_info("parameters with defaults must come after required parameters");
@@ -151,10 +151,10 @@ impl ParamError {
                     "received an argument named `{}` but no parameter with that name exists",
                     arg.target()
                 ));
-                if let Some(location) = get_location(arg) {
+                if let Some(location) = get_span(arg) {
                     error.add_labelled_span(location, "argument with this name");
                 }
-                if let Some(location) = get_overall_location(*params.value()) {
+                if let Some(location) = get_span(params) {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -174,10 +174,10 @@ impl ParamError {
                     "expected an argument named `{}` but none was found",
                     param.as_param_index()
                 ));
-                if let Some(location) = get_location(param) {
+                if let Some(location) = get_span(param) {
                     error.add_labelled_span(location, "parameter with this name");
                 }
-                if let Some(location) = get_overall_location(*args) {
+                if let Some(location) = get_span(*args) {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -199,7 +199,7 @@ impl ParamError {
                     .error()
                     .code(HashErrorCode::ParameterInUse)
                     .title("received a positional argument after a spread argument");
-                if let Some(location) = get_location(next_positional) {
+                if let Some(location) = get_span(next_positional) {
                     error.add_labelled_span(location, "next positional argument");
                 }
                 error.add_info("positional arguments must come before spread arguments");
@@ -209,10 +209,10 @@ impl ParamError {
                     .error()
                     .code(HashErrorCode::ParameterInUse)
                     .title("received two parameters with different names");
-                if let Some(location) = get_location(param_a) {
+                if let Some(location) = get_span(param_a) {
                     error.add_labelled_span(location, "first parameter with this name");
                 }
-                if let Some(location) = get_location(param_b) {
+                if let Some(location) = get_span(param_b) {
                     error.add_labelled_span(location, "second parameter with this name");
                 }
             }

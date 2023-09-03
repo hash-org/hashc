@@ -20,18 +20,18 @@ use hash_storage::store::{
 };
 use hash_target::size::Size;
 use hash_tir::{
-    ast_info::HasNodeId,
     data::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
     environment::env::AccessToEnv,
     fns::{FnBody, FnDef, FnDefId, FnTy},
+    node::{HasAstNodeId, NodesId},
     primitives::primitives,
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::common::get_location,
+    utils::common::get_span,
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
@@ -151,7 +151,7 @@ impl<'ir> BuilderCtx<'ir> {
                 let message =
                     format!("all types should be monomorphised before lowering, type: `{}`", ty);
 
-                if let Some(location) = get_location(id) {
+                if let Some(location) = get_span(id) {
                     panic_on_span!(location, self.source_map(), format!("{message}"))
                 } else {
                     panic!("{message}")
@@ -211,7 +211,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
-        let source = get_location(fn_def).map(|location| location.id);
+        let source = get_span(fn_def).map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
         let params = IrTyListId::seq(

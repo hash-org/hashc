@@ -17,11 +17,10 @@ use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_target::HasTarget;
 use hash_tir::{
     args::Arg,
-    ast_info::HasNodeId,
     data::DataTy,
     fns::FnDefId,
     mods::{ModMember, ModMemberValue},
-    node::Node,
+    node::{HasAstNodeId, Node, NodeId},
     pats::PatId,
     symbols::SymbolId,
     terms::TermId,

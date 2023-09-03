@@ -1,13 +1,25 @@
 error[0037]: expected an argument named `age` but none was found
- --> $DIR/missing-fields.hash:5:5
-4 |       name: str,
-5 |       age: i32,
-  |       ^^^^^^^^ parameter with this name
-6 |       width: f32,
+  --> $DIR/missing-fields.hash:5:5
+ 4 |       name: str,
+ 5 |       age: i32,
+   |       ^^^^^^^^ parameter with this name
+ 6 |       width: f32,
+
+  --> $DIR/missing-fields.hash:14:9
+13 |   
+14 |       Dog(name=name, height=height) := viktor;
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^ received these arguments: either `name`, or `height`
+15 |   };
 
 error[0037]: expected an argument named `width` but none was found
- --> $DIR/missing-fields.hash:6:5
-5 |       age: i32,
-6 |       width: f32,
-  |       ^^^^^^^^^^ parameter with this name
-7 |       height: f32,
+  --> $DIR/missing-fields.hash:6:5
+ 5 |       age: i32,
+ 6 |       width: f32,
+   |       ^^^^^^^^^^ parameter with this name
+ 7 |       height: f32,
+
+  --> $DIR/missing-fields.hash:14:9
+13 |   
+14 |       Dog(name=name, height=height) := viktor;
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^ received these arguments: either `name`, or `height`
+15 |   };

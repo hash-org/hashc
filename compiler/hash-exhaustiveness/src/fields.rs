@@ -11,6 +11,7 @@ use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataTy},
+    node::NodesId,
     tuples::TupleTy,
     tys::{Ty, TyId},
 };

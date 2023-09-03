@@ -3,24 +3,22 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use hash_ast::ast;
 use hash_storage::store::statics::{SequenceStoreValue, SingleStoreValue, StoreId};
 use hash_utils::derive_more::From;
 
 use super::{holes::Hole, symbols::SymbolId};
 use crate::{
     args::Arg,
-    ast_info::HasNodeId,
     data::{DataDefId, DataTy},
     environment::stores::tir_stores,
     fns::FnTy,
-    node::{Node, NodeOrigin},
+    node::{Node, NodeId, NodeOrigin},
     params::Param,
     refs::RefTy,
     terms::{Term, TermId},
     tir_node_single_store,
     tuples::TupleTy,
-    utils::{common::get_location, traversing::Atom},
+    utils::traversing::Atom,
 };
 
 /// The type of types, i.e. a universe.
@@ -75,12 +73,6 @@ pub enum Ty {
 }
 
 tir_node_single_store!(Ty);
-
-impl HasNodeId for TyId {
-    fn node_id(&self) -> Option<ast::AstNodeId> {
-        tir_stores().ast_info().tys().get_node_by_data(*self)
-    }
-}
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]
@@ -148,55 +140,17 @@ impl Ty {
     /// Create a new type.
     /// @@Todo: remove once location store is removed.
     pub fn from(ty: impl Into<Ty>, origin: NodeOrigin) -> TyId {
-        let ty = ty.into();
-        let (ast_info, location) = match ty {
-            Ty::Eval(term) => (term.node_id(), get_location(term)),
-            Ty::Var(v) => (None, get_location(v)),
-            _ => (None, None),
-        };
-        let created = Node::create_at(ty, origin);
-        if let Some(location) = location {
-            tir_stores().location().add_location_to_target(created, location);
-        }
-        if let Some(ast_info) = ast_info {
-            tir_stores().ast_info().tys().insert(ast_info, created);
-        }
-        created
+        Node::create_at(ty.into(), origin)
     }
 
     /// Create a new expected type for typing the given term.
-    pub fn expect_same(ty: TyId, expectation: TyId) -> TyId {
-        tir_stores().location().copy_location(ty, expectation);
-        if let Some(ast_info) = ty.node_id() {
-            tir_stores().ast_info().tys().insert(ast_info, expectation);
-        }
+    pub fn expect_same(_ty: TyId, expectation: TyId) -> TyId {
         expectation
     }
 
     /// Create a new expected type for typing the given term.
     pub fn expect_is(atom: impl Into<Atom>, ty: TyId) -> TyId {
-        let atom: Atom = atom.into();
-        let (ast_info, location) = match atom {
-            Atom::Term(origin_term) => match *origin_term.value() {
-                Term::Ty(ty) => (ty.node_id(), get_location(ty)),
-                Term::FnRef(f) => (f.node_id(), get_location(f)),
-                Term::Var(v) => (None, get_location(v)),
-                _ => (origin_term.node_id(), tir_stores().location().get_location(origin_term)),
-            },
-            Atom::Ty(origin_ty) => {
-                (origin_ty.node_id(), tir_stores().location().get_location(origin_ty))
-            }
-            Atom::FnDef(_) => todo!(),
-            Atom::Pat(origin_pat) => {
-                (origin_pat.node_id(), tir_stores().location().get_location(origin_pat))
-            }
-        };
-        if let Some(location) = location {
-            tir_stores().location().add_location_to_target(ty, location);
-        }
-        if let Some(ast_info) = ast_info {
-            tir_stores().ast_info().tys().insert(ast_info, ty);
-        }
+        ty.borrow_mut().origin = atom.into().origin().inferred();
         ty
     }
 

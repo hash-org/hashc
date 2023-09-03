@@ -7,13 +7,11 @@ use hash_storage::stores;
 
 use crate::{
     args::{ArgsSeqStore, ArgsStore, PatArgsSeqStore, PatArgsStore},
-    ast_info::AstInfo,
     atom_info::AtomInfoStore,
     control::{MatchCasesSeqStore, MatchCasesStore},
     data::{CtorDefsSeqStore, CtorDefsStore, DataDefStore},
     fns::FnDefStore,
     lits::LitStore,
-    locations::LocationStore,
     mods::{ModDefStore, ModMembersSeqStore, ModMembersStore},
     params::{ParamsSeqStore, ParamsStore},
     pats::{PatListSeqStore, PatListStore, PatStore},
@@ -35,7 +33,6 @@ stores! {
     ctor_defs_seq: CtorDefsSeqStore,
     data_def: DataDefStore,
     fn_def: FnDefStore,
-    location: LocationStore,
     lit: LitStore,
     mod_def: ModDefStore,
     mod_members: ModMembersStore,
@@ -56,7 +53,6 @@ stores! {
     match_cases: MatchCasesStore,
     match_cases_seq: MatchCasesSeqStore,
     atom_info: AtomInfoStore,
-    ast_info: AstInfo,
 }
 
 /// The global [`Stores`] instance.
@@ -114,6 +110,40 @@ macro_rules! tir_debug_name_of_store_id {
     };
 }
 
+/// Implement `NodeId` and `NodesId` for the given ID type.
+#[macro_export]
+macro_rules! impl_nodes_id {
+    ($id:ty, $id_seq:ty) => {
+        impl $crate::node::NodesId for $id {
+            type Elements = $id_seq;
+            fn elements_node(&self) -> $crate::node::Node<Self::Elements> {
+                use hash_storage::store::statics::StoreId;
+                self.value()
+            }
+        }
+    };
+}
+
+/// Implement `NodeId` for the given ID type.
+#[macro_export]
+macro_rules! impl_node_id {
+    ($id:ty) => {
+        impl $crate::node::NodeId for $id {
+            fn origin(self) -> $crate::node::NodeOrigin {
+                use hash_storage::store::statics::StoreId;
+                self.borrow().origin
+            }
+        }
+
+        impl $crate::node::HasAstNodeId for $id {
+            fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
+                use hash_storage::store::statics::StoreId;
+                self.value().node_id()
+            }
+        }
+    };
+}
+
 /// Define a TIR node that is stored in a single store.
 ///
 /// This internally uses `hash_storage::static_single_store!` to define the
@@ -156,23 +186,8 @@ macro_rules! tir_node_single_store {
             store_name = $store_name,
             store_source = tir_stores()
         );
-
         $crate::tir_debug_value_of_single_store_id!($id);
-
-        impl $id {
-            /// Get the origin of the value.
-            pub fn origin(self) -> $crate::node::NodeOrigin {
-                use hash_storage::store::statics::StoreId;
-                self.value().origin
-            }
-        }
-
-        // @@Todo: enable once locations are properly set up
-        // impl $crate::ast_info::HasNodeId for $id {
-        //     fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
-        //         self.value().node_id()
-        //     }
-        // }
+        $crate::impl_node_id!($id);
     };
 }
 
@@ -243,12 +258,15 @@ macro_rules! tir_node_sequence_store_direct {
         );
 
         $crate::tir_debug_value_of_sequence_store_element_id!($el_id);
+        $crate::impl_node_id!($el_id);
+        $crate::impl_nodes_id!($id, $id_seq);
 
         /// The sequence wrapper key can act as a read-only key for the sequence store.
         impl hash_storage::store::sequence::SequenceStoreKey for $id {
             type ElementKey = $el_id;
 
             fn to_index_and_len(self) -> (usize, usize) {
+                use $crate::node::NodesId;
                 self.elements().to_index_and_len()
             }
 
@@ -266,22 +284,6 @@ macro_rules! tir_node_sequence_store_direct {
             fn from(value: ($id, usize)) -> Self {
                 use hash_storage::store::statics::StoreId;
                 $el_id(value.0.value().data, value.1)
-            }
-        }
-
-        impl $id {
-            /// Access the elements of this sequence wrapper.
-            pub fn elements(self) -> $id_seq {
-                use hash_storage::store::statics::StoreId;
-                *self.value()
-            }
-        }
-
-        impl $el_id {
-            /// Access the origin of this sequence element.
-            pub fn origin(self) -> $crate::node::NodeOrigin {
-                use hash_storage::store::statics::StoreId;
-                self.value().origin
             }
         }
     };
@@ -346,12 +348,14 @@ macro_rules! tir_node_sequence_store_indirect {
             store_name = $seq_store_name,
             store_source = tir_stores()
         );
+        $crate::impl_nodes_id!($id, $id_seq);
 
         /// The sequence wrapper key can act as a read-only key for the sequence store.
         impl hash_storage::store::sequence::SequenceStoreKey for $id {
             type ElementKey = $el_id;
 
             fn to_index_and_len(self) -> (usize, usize) {
+                use $crate::node::NodesId;
                 self.elements().to_index_and_len()
             }
 
@@ -368,14 +372,6 @@ macro_rules! tir_node_sequence_store_indirect {
             fn from(value: ($id, usize)) -> Self {
                 use hash_storage::store::statics::StoreId;
                 value.0.borrow().at(value.1).unwrap()
-            }
-        }
-
-        impl $id {
-            /// Access the elements of this sequence wrapper.
-            pub fn elements(self) -> $id_seq {
-                use hash_storage::store::statics::StoreId;
-                *self.value()
             }
         }
     };

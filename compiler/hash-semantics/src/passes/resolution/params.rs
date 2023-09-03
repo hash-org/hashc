@@ -8,7 +8,6 @@ use hash_storage::store::{
 };
 use hash_tir::{
     args::{ArgsId, PatArgsId},
-    environment::stores::tir_stores,
     fns::FnCallTerm,
     node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},
@@ -20,6 +19,7 @@ use hash_tir::{
 use super::ResolutionPass;
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
+    environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
 };
 
@@ -107,7 +107,7 @@ impl<'tc> ResolutionPass<'tc> {
         );
 
         // Get the existing param id from the AST info store:
-        let param_id = tir_stores().ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+        let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
 
         match resolved_ty {
             Some(resolved_ty) => {
@@ -154,7 +154,7 @@ impl<'tc> ResolutionPass<'tc> {
         );
 
         // Get the existing param id from the AST info store:
-        let param_id = tir_stores().ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+        let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
         match (resolved_ty, default_value) {
             (Some(resolved_ty), Some(resolved_default_value)) => {
                 let mut param = param_id.borrow_mut();

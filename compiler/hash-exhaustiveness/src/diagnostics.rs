@@ -7,7 +7,7 @@ use hash_reporting::{
     reporter::Reporter,
 };
 use hash_source::location::Span;
-use hash_tir::{lits::LitPat, pats::PatId, utils::common::get_location};
+use hash_tir::{lits::LitPat, pats::PatId, utils::common::get_span};
 use hash_utils::{
     itertools::Itertools,
     pluralise,
@@ -91,7 +91,7 @@ impl ExhaustivenessError {
                     .code(HashErrorCode::RefutablePat)
                     .title(format!("refutable pattern in {origin} binding: {pats} not covered"))
                     .add_labelled_span(
-                        get_location(pat).unwrap(),
+                        get_span(pat).unwrap(),
                         format!("pattern{} {pats} not covered", pluralise!(uncovered_pats.len())),
                     );
             }
@@ -123,7 +123,7 @@ impl ExhaustivenessError {
                     .error()
                     .code(HashErrorCode::InvalidRangePatBoundaries)
                     .title(message)
-                    .add_labelled_span(get_location(pat).unwrap(), "");
+                    .add_labelled_span(get_span(pat).unwrap(), "");
             }
         }
     }
@@ -172,7 +172,7 @@ impl ExhaustivenessWarning {
                     .title(format!("match case `{pat}` is redundant when matching on subject"))
                     .add_labelled_span(*location, "the match subject is given here...")
                     .add_labelled_span(
-                        get_location(pat).unwrap(),
+                        get_span(pat).unwrap(),
                         "... and this pattern will never match the subject",
                     );
             }
@@ -180,17 +180,17 @@ impl ExhaustivenessWarning {
                 reporter
                     .warning()
                     .title("pattern is unreachable")
-                    .add_labelled_span(get_location(pat).unwrap(), "");
+                    .add_labelled_span(get_span(pat).unwrap(), "");
             }
             ExhaustivenessWarning::OverlappingRangeEnd { range, overlaps, overlapping_term } => {
                 reporter
                     .warning()
                     .title("range pattern has an overlap with another pattern")
                     .add_labelled_span(
-                        get_location(range).unwrap(),
+                        get_span(range).unwrap(),
                         format!("this range overlaps on `{overlapping_term}`..."),
                     )
-                    .add_labelled_span(get_location(overlaps).unwrap(), "...with this range");
+                    .add_labelled_span(get_span(overlaps).unwrap(), "...with this range");
             }
         }
     }

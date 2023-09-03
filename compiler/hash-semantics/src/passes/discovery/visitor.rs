@@ -18,7 +18,6 @@ use hash_tir::{
     terms::Term,
     tuples::TupleTy,
     tys::Ty,
-    utils::AccessToUtils,
 };
 use hash_utils::itertools::Itertools;
 
@@ -156,7 +155,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let source_id = self.current_source_info().source_id();
-        let mod_def_id = self.mod_utils().create_or_get_module_mod_def(source_id.into());
+        let mod_def_id = self.create_or_get_module_mod_def(source_id.into());
 
         // Traverse the module
         self.enter_def(node, mod_def_id, || walk::walk_module(self, node))?;

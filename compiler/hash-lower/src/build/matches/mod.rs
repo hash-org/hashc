@@ -19,6 +19,7 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{IfPat, MatchCasesId},
+    node::NodesId,
     pats::{Pat, PatId},
     terms::{Term, TermId},
 };

@@ -9,7 +9,7 @@ use hash_tir::{
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
     environment::env::AccessToEnv,
     lits::{CharLit, Lit},
-    node::{Node, NodeOrigin},
+    node::{Node, NodeOrigin, NodesId},
     pats::{Pat, PatId},
     primitives::primitives,
     refs::{RefKind, RefTy},

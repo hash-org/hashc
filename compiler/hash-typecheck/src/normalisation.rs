@@ -15,11 +15,10 @@ use hash_tir::{
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    environment::stores::tir_stores,
     fns::{FnBody, FnCallTerm, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
-    node::Node,
+    node::{Node, NodeId, NodesId},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::DerefTerm,
@@ -844,7 +843,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             result
         })?;
 
-        tir_stores().location().copy_location(atom, result);
         evaluation_if(|| result, &st)
     }
 
