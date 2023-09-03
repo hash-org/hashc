@@ -403,7 +403,7 @@ impl<'s> AstDesugaring<'s> {
                 else_block_span,
             )
         } else {
-            // ##Hack: We don't have a span for the branch, so we rely on using the span of
+            // @@Hack: We don't have a span for the branch, so we rely on using the span of
             // the entire if-clause. This might not be the exactly right approach because
             // some later checks (within typechecking) might report errors that are related
             // to a missing else-branch because the return type of the block doesn't become

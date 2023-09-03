@@ -94,8 +94,8 @@ impl IntLit {
     /// baked.
     ///
     /// @@Future: we shouldn't change the literal inplace, we should return a
-    /// new // literal value, or we should return a new term which is the
-    /// bigint term.
+    /// new literal value, or we should return a new term which is the bigint
+    /// term.
     pub fn bake(&mut self, env: &Env<'_>, int_ty: IntTy) -> LitParseResult<()> {
         if let LitValue::Raw(lit) = self.value {
             let value = parse_int_const_from_lit(
