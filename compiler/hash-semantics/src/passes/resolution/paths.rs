@@ -302,9 +302,9 @@ impl<'tc> ResolutionPass<'tc> {
                         )),
                         args => {
                             let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                                Term::from(Term::FnRef(fn_def_id)),
+                                Term::from(Term::FnRef(fn_def_id), component.origin()),
                                 args,
-                                component.span(),
+                                component.node_id,
                             )?;
                             Ok(ResolvedAstPathComponent::Terminal(
                                 TerminalResolvedPathComponent::FnCall(Node::at(
@@ -377,9 +377,9 @@ impl<'tc> ResolutionPass<'tc> {
                     )),
                     args => {
                         let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                            Term::from(Term::Var(decl)),
+                            Term::from(Term::Var(decl), component.origin()),
                             args,
-                            component.span(),
+                            component.node_id,
                         )?;
                         Ok(ResolvedAstPathComponent::Terminal(
                             TerminalResolvedPathComponent::FnCall(Node::at(

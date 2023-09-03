@@ -146,14 +146,15 @@ impl Ty {
     }
 
     /// Create a new type.
-    pub fn from(ty: impl Into<Ty>) -> TyId {
+    /// @@Todo: remove once location store is removed.
+    pub fn from(ty: impl Into<Ty>, origin: NodeOrigin) -> TyId {
         let ty = ty.into();
         let (ast_info, location) = match ty {
             Ty::Eval(term) => (term.node_id(), get_location(term)),
             Ty::Var(v) => (None, get_location(v)),
             _ => (None, None),
         };
-        let created = Node::create(Node::at(ty, NodeOrigin::Generated));
+        let created = Node::create_at(ty, origin);
         if let Some(location) = location {
             tir_stores().location().add_location_to_target(created, location);
         }
@@ -211,13 +212,13 @@ impl TyId {
     /// Try to use the given type as a term.
     pub fn as_term(&self) -> TermId {
         match *self.value() {
-            Ty::Var(var) => Term::from(var),
-            Ty::Hole(hole) => Term::from(hole),
+            Ty::Var(var) => Term::from(var, self.origin()),
+            Ty::Hole(hole) => Term::from(hole, self.origin()),
             Ty::Eval(term) => match term.try_as_ty() {
                 Some(ty) => ty.as_term(),
                 None => term,
             },
-            _ => Term::from(*self),
+            _ => Term::from(*self, self.origin()),
         }
     }
 }

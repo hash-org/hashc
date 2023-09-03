@@ -252,7 +252,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         match atom {
             Atom::Term(term) => Some(term),
             Atom::Ty(ty) => Some(ty.as_term()),
-            Atom::FnDef(fn_def_id) => Some(Term::from(fn_def_id)),
+            Atom::FnDef(fn_def_id) => Some(Term::from(fn_def_id, fn_def_id.origin())),
             _ => None,
         }
     }
@@ -478,7 +478,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a dereference term.
-    fn eval_deref(&self, mut deref_term: DerefTerm) -> AtomEvaluation {
+    fn eval_deref(&self, mut deref_term: Node<DerefTerm>) -> AtomEvaluation {
         let st = eval_state();
         deref_term.subject = self.to_term(self.eval_and_record(deref_term.subject.into(), &st)?);
 
@@ -488,7 +488,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             return evaluation_to(ref_expr.subject);
         }
 
-        evaluation_if(|| Term::from(deref_term), &st)
+        evaluation_if(|| Term::from(*deref_term, deref_term.origin), &st)
     }
 
     /// Get the parameter at the given index in the given argument list.
@@ -649,7 +649,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a declaration term.
-    fn eval_decl(&self, mut decl_term: DeclTerm) -> AtomEvaluation {
+    fn eval_decl(&self, mut decl_term: Node<DeclTerm>) -> AtomEvaluation {
         let st = eval_state();
         decl_term.value = decl_term
             .value
@@ -669,15 +669,15 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     evaluation_to(void_term())
                 }
                 MatchResult::Failed => {
-                    panic!("Non-exhaustive let-binding: {}", &decl_term)
+                    panic!("Non-exhaustive let-binding: {}", &*decl_term)
                 }
                 MatchResult::Stuck => {
-                    info!("Stuck evaluating let-binding: {}", &decl_term);
-                    evaluation_if(|| Term::from(decl_term), &st)
+                    info!("Stuck evaluating let-binding: {}", &*decl_term);
+                    evaluation_if(|| Term::from(*decl_term, decl_term.origin), &st)
                 }
             },
             None => {
-                panic!("Let binding with no value: {}", &decl_term)
+                panic!("Let binding with no value: {}", &*decl_term)
             }
         }
     }
@@ -740,7 +740,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a function call.
-    fn eval_fn_call(&self, mut fn_call: FnCallTerm) -> AtomEvaluation {
+    fn eval_fn_call(&self, mut fn_call: Node<FnCallTerm>) -> AtomEvaluation {
         let st = eval_state();
 
         fn_call.subject = self.to_term(self.eval_and_record(fn_call.subject.into(), &st)?);
@@ -805,7 +805,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             }
         }
 
-        evaluation_if(|| Term::from(fn_call), &st)
+        evaluation_if(|| Term::from(*fn_call, fn_call.origin), &st)
     }
 
     /// Evaluate an atom, performing at least a single step of normalisation.
@@ -867,10 +867,14 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::TypeOf(term) => ctrl_map(self.eval_type_of(term)),
                 Term::Unsafe(unsafe_expr) => ctrl_map(self.eval_unsafe(unsafe_expr)),
                 Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
-                Term::FnCall(fn_call) => ctrl_map(self.eval_fn_call(fn_call)),
+                Term::FnCall(fn_call) => {
+                    ctrl_map(self.eval_fn_call(term.origin().with_data(fn_call)))
+                }
                 Term::Cast(cast_term) => ctrl_map(self.eval_cast(cast_term)),
                 Term::Hole(Hole(var)) | Term::Var(var) => ctrl_map(self.eval_var(var)),
-                Term::Deref(deref_term) => ctrl_map(self.eval_deref(deref_term)),
+                Term::Deref(deref_term) => {
+                    ctrl_map(self.eval_deref(term.origin().with_data(deref_term)))
+                }
                 Term::Access(access_term) => ctrl_map(self.eval_access(access_term)),
                 Term::Index(index_term) => ctrl_map(self.eval_index(index_term)),
 
@@ -885,7 +889,9 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 // Imperative:
                 Term::LoopControl(loop_control) => Err(self.eval_loop_control(loop_control)),
                 Term::Assign(assign_term) => ctrl_map_full(self.eval_assign(assign_term)),
-                Term::Decl(decl_term) => ctrl_map(self.eval_decl(decl_term)),
+                Term::Decl(decl_term) => {
+                    ctrl_map(self.eval_decl(term.origin().with_data(decl_term)))
+                }
                 Term::Return(return_expr) => self.eval_return(return_expr)?,
                 Term::Block(block_term) => ctrl_map(self.eval_block(block_term)),
                 Term::Loop(loop_term) => ctrl_map_full(self.eval_loop(loop_term)),
@@ -1013,7 +1019,12 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         self.match_some_list_and_get_binds(
             term_args.len(),
             spread,
-            |_| Term::from(TupleTerm { data: self.extract_spread_args(term_args, pat_args) }),
+            |sp| {
+                Term::from(
+                    TupleTerm { data: self.extract_spread_args(term_args, pat_args) },
+                    sp.name.origin(),
+                )
+            },
             |i| pat_args.at(i).unwrap().borrow().pat,
             |i| term_args.at(i).unwrap().borrow().value,
             f,
@@ -1223,11 +1234,14 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             (Term::Array(array_term), Pat::Array(list_pat)) => self.match_some_list_and_get_binds(
                 array_term.elements.len(),
                 list_pat.spread,
-                |_| {
+                |sp| {
                     // Lists can have spreads, which return sublists
-                    Term::from(Term::Array(ArrayTerm {
-                        elements: self.extract_spread_list(array_term.elements, list_pat.pats),
-                    }))
+                    Term::from(
+                        Term::Array(ArrayTerm {
+                            elements: self.extract_spread_list(array_term.elements, list_pat.pats),
+                        }),
+                        sp.name.origin(),
+                    )
                 },
                 |i| list_pat.pats.elements().at(i).unwrap(),
                 |i| array_term.elements.elements().at(i).unwrap(),

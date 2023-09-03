@@ -7,9 +7,11 @@ pub mod gen {
 
     use crate::{
         args::{Arg, ArgsId},
-        data::{DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
+        data::{DataDef, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
         node::{Node, NodeOrigin},
         params::{Param, ParamsId},
+        pats::{Pat, PatId},
+        primitives::primitives,
         symbols::SymbolId,
         terms::{Term, TermId},
         tys::{Ty, TyId},
@@ -114,5 +116,27 @@ pub mod gen {
 
     pub fn void_ty() -> TyId {
         Ty::void(NodeOrigin::Generated)
+    }
+
+    pub fn never_ty() -> TyId {
+        Ty::from(
+            DataTy {
+                args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+                data_def: primitives().never(),
+            },
+            NodeOrigin::Generated,
+        )
+    }
+
+    pub fn term(inner: impl Into<Term>) -> TermId {
+        Term::from(inner, NodeOrigin::Generated)
+    }
+
+    pub fn ty(inner: impl Into<Ty>) -> TyId {
+        Ty::from(inner, NodeOrigin::Generated)
+    }
+
+    pub fn pat(inner: impl Into<Pat>) -> PatId {
+        Node::create_at(inner.into(), NodeOrigin::Generated)
     }
 }

@@ -6,9 +6,9 @@
 
 use std::iter::once;
 
-use hash_ast::ast::{self, AstNodeRef};
+use hash_ast::ast::{self, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::IDENTS, location::Span};
+use hash_source::identifier::IDENTS;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     args::{Arg, ArgsId},
@@ -115,39 +115,45 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_ty_from_resolved_ast_path(
         &self,
         path: &ResolvedAstPathComponent,
-        original_node_span: Span,
+        original_node_id: AstNodeId,
     ) -> SemanticResult<TyId> {
+        let origin = NodeOrigin::Given(original_node_id);
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => match non_terminal {
                 NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
                     // Data type
-                    Ok(Ty::from(Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args })))
+                    Ok(Ty::from(
+                        Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args }),
+                        origin,
+                    ))
                 }
                 NonTerminalResolvedPathComponent::Mod(_) => {
                     // Modules are not allowed in type positions
                     Err(SemanticError::CannotUseModuleInTypePosition {
-                        location: original_node_span,
+                        location: original_node_id.span(),
                     })
                 }
             },
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(fn_def_id) => {
-                    Ok(Term::from(Term::FnRef(*fn_def_id)).as_ty())
+                    Ok(Term::from(Term::FnRef(*fn_def_id), origin).as_ty())
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
-                        original_node_span,
+                        original_node_id.span(),
                         self.source_map(),
                         "found CtorPat in type ast path"
                     )
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
-                    Ok(Term::from(Term::Ctor(**ctor_term)).as_ty())
+                    Ok(Term::from(Term::Ctor(**ctor_term), origin).as_ty())
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                    Ok(Term::from(Term::FnCall(**fn_call_term)).as_ty())
+                    Ok(Term::from(Term::FnCall(**fn_call_term), origin).as_ty())
                 }
-                TerminalResolvedPathComponent::Var(bound_var) => Ok(Ty::from(Ty::Var(*bound_var))),
+                TerminalResolvedPathComponent::Var(bound_var) => {
+                    Ok(Ty::from(Ty::Var(*bound_var), origin))
+                }
             },
         }
     }
@@ -181,7 +187,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_ty_from_ast_access_ty(&self, node: AstNodeRef<ast::AccessTy>) -> SemanticResult<TyId> {
         let path = self.access_ty_as_ast_path(node)?;
         let resolved_path = self.resolve_ast_path(&path)?;
-        self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
+        self.make_ty_from_resolved_ast_path(&resolved_path, node.id())
     }
 
     /// Make a type from the given [`ast::NamedTy`].
@@ -193,7 +199,7 @@ impl<'tc> ResolutionPass<'tc> {
         } else {
             let path = self.named_ty_as_ast_path(node)?;
             let resolved_path = self.resolve_ast_path(&path)?;
-            self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
+            self.make_ty_from_resolved_ast_path(&resolved_path, node.id())
         }
     }
 
@@ -203,7 +209,7 @@ impl<'tc> ResolutionPass<'tc> {
         match self.ty_fn_call_as_ast_path(node)? {
             Some(path) => {
                 let resolved_path = self.resolve_ast_path(&path)?;
-                self.make_ty_from_resolved_ast_path(&resolved_path, node.span())
+                self.make_ty_from_resolved_ast_path(&resolved_path, node.id())
             }
             None => {
                 let subject =
@@ -211,10 +217,11 @@ impl<'tc> ResolutionPass<'tc> {
                 let args = self.try_or_add_error(self.make_args_from_ast_ty_args(&node.args));
 
                 match (subject, args) {
-                    (Some(subject), Some(args)) => {
-                        Ok(Term::from(Term::FnCall(FnCallTerm { subject, args, implicit: true }))
-                            .as_ty())
-                    }
+                    (Some(subject), Some(args)) => Ok(Term::from(
+                        Term::FnCall(FnCallTerm { subject, args, implicit: true }),
+                        NodeOrigin::Given(node.id()),
+                    )
+                    .as_ty()),
                     _ => Err(SemanticError::Signal),
                 }
             }
@@ -230,7 +237,7 @@ impl<'tc> ResolutionPass<'tc> {
         } else {
             self.scoping().enter_tuple_ty(node, |mut tuple_ty| {
                 tuple_ty.data = self.resolve_params_from_ast_params(&node.entries, false)?;
-                Ok(Ty::from(tuple_ty))
+                Ok(Ty::from(tuple_ty, NodeOrigin::Given(node.id())))
             })
         }
     }
@@ -241,41 +248,53 @@ impl<'tc> ResolutionPass<'tc> {
         match node.len.as_ref() {
             Some(len) => {
                 let length_term = self.make_term_from_ast_expr(len.ast_ref())?;
-                Ok(Ty::from(Ty::Data(DataTy {
-                    data_def: primitives().array(),
+                Ok(Ty::from(
+                    Ty::Data(DataTy {
+                        data_def: primitives().array(),
+                        args: Arg::seq_positional(
+                            [inner_ty.as_term(), length_term],
+                            NodeOrigin::Given(node.id()),
+                        ),
+                    }),
+                    NodeOrigin::Given(node.id()),
+                ))
+            }
+            None => Ok(Ty::from(
+                Ty::Data(DataTy {
+                    data_def: primitives().list(),
                     args: Arg::seq_positional(
-                        [inner_ty.as_term(), length_term],
+                        once(inner_ty.as_term()),
                         NodeOrigin::Given(node.id()),
                     ),
-                })))
-            }
-            None => Ok(Ty::from(Ty::Data(DataTy {
-                data_def: primitives().list(),
-                args: Arg::seq_positional(once(inner_ty.as_term()), NodeOrigin::Given(node.id())),
-            }))),
+                }),
+                NodeOrigin::Given(node.id()),
+            )),
         }
     }
 
     /// Make a type from the given [`ast::RefTy`].
     fn make_ty_from_ref_ty(&self, node: AstNodeRef<ast::RefTy>) -> SemanticResult<TyId> {
         let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
-        Ok(Ty::from(Ty::Ref(RefTy {
-            ty: inner_ty,
-            kind: match node.kind.as_ref() {
-                Some(kind) => match kind.body() {
-                    ast::RefKind::Raw => RefKind::Raw,
-                    ast::RefKind::Normal => RefKind::Local,
+        Ok(Ty::from(
+            Ty::Ref(RefTy {
+                ty: inner_ty,
+                kind: match node.kind.as_ref() {
+                    Some(kind) => match kind.body() {
+                        ast::RefKind::Raw => RefKind::Raw,
+                        ast::RefKind::Normal => RefKind::Local,
+                    },
+                    None => RefKind::Local,
                 },
-                None => RefKind::Local,
-            },
-            mutable: match node.mutability.as_ref() {
-                Some(mutability) => match mutability.body() {
-                    ast::Mutability::Mutable => true,
-                    ast::Mutability::Immutable => false,
+                mutable: match node.mutability.as_ref() {
+                    Some(mutability) => match mutability.body() {
+                        ast::Mutability::Mutable => true,
+                        ast::Mutability::Immutable => false,
+                    },
+                    None => false,
                 },
-                None => false,
-            },
-        })))
+            }),
+            NodeOrigin::Given(node.id()),
+        ))
     }
 
     /// Make a type from the given [`ast::Ty`].
@@ -301,7 +320,9 @@ impl<'tc> ResolutionPass<'tc> {
             }
 
             match (params, return_ty) {
-                (Some(_params), Some(_return_ty)) => Ok(Ty::from(ty_fn)),
+                (Some(_params), Some(_return_ty)) => {
+                    Ok(Ty::from(ty_fn, NodeOrigin::Given(node.id())))
+                }
                 _ => Err(SemanticError::Signal),
             }
         })
@@ -330,7 +351,9 @@ impl<'tc> ResolutionPass<'tc> {
             }
 
             match (params, return_ty) {
-                (Some(_params), Some(_return_ty)) => Ok(Ty::from(fn_ty)),
+                (Some(_params), Some(_return_ty)) => {
+                    Ok(Ty::from(fn_ty, NodeOrigin::Given(node.id())))
+                }
                 _ => Err(SemanticError::Signal),
             }
         })
@@ -346,12 +369,13 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
-        let typeof_lhs = Term::from(TypeOfTerm { term: lhs.as_term() });
+        let typeof_lhs =
+            Term::from(TypeOfTerm { term: lhs.as_term() }, NodeOrigin::Given(node.id()));
         let args = Arg::seq_positional(
             vec![typeof_lhs, lhs.as_term(), rhs.as_term()],
             NodeOrigin::Given(node.id()),
         );
-        Ok(Ty::from(DataTy { data_def: primitives().equal(), args }))
+        Ok(Ty::from(DataTy { data_def: primitives().equal(), args }, NodeOrigin::Given(node.id())))
     }
 
     /// Make a type from the given [`ast::Ty`] and assign it to the node in
@@ -377,7 +401,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Ty::Macro(invocation) => self.make_ty_from_ast_ty(invocation.subject.ast_ref())?,
             ast::Ty::Expr(expr) => {
                 let expr = self.make_term_from_ast_expr(expr.expr.ast_ref())?;
-                Ty::from(expr)
+                Ty::from(expr, NodeOrigin::Given(node.id()))
             }
             ast::Ty::Union(_) => {
                 panic_on_span!(node.span(), self.source_map(), "Found union type after discovery")

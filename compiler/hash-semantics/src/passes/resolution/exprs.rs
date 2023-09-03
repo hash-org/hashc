@@ -13,7 +13,6 @@ use hash_intrinsics::{
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::location::Span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -324,22 +323,26 @@ impl<'tc> ResolutionPass<'tc> {
     pub(super) fn make_term_from_resolved_ast_path(
         &self,
         path: &ResolvedAstPathComponent,
-        original_node_span: Span,
+        original_node_id: AstNodeId,
     ) -> SemanticResult<TermId> {
+        let origin = NodeOrigin::Given(original_node_id);
         match path {
             ResolvedAstPathComponent::NonTerminal(non_terminal) => {
                 match non_terminal {
                     NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
                         // Data type
-                        Ok(Term::from(Term::Ty(Ty::from(Ty::Data(DataTy {
-                            data_def: *data_def_id,
-                            args: *data_def_args,
-                        })))))
+                        Ok(Term::from(
+                            Term::Ty(Ty::from(
+                                Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args }),
+                                origin,
+                            )),
+                            origin,
+                        ))
                     }
                     NonTerminalResolvedPathComponent::Mod(_) => {
                         // Modules are not allowed in value positions
                         Err(SemanticError::CannotUseModuleInValuePosition {
-                            location: original_node_span,
+                            location: original_node_id.span(),
                         })
                     }
                 }
@@ -347,26 +350,26 @@ impl<'tc> ResolutionPass<'tc> {
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(fn_def_id) => {
                     // Reference to a function definition
-                    Ok(Term::from(Term::FnRef(*fn_def_id)))
+                    Ok(Term::from(Term::FnRef(*fn_def_id), origin))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
-                        original_node_span,
+                        original_node_id.span(),
                         self.source_map(),
                         "found CtorPat in value ast path"
                     )
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
                     // Constructor
-                    Ok(Term::from(Term::Ctor(**ctor_term)))
+                    Ok(Term::from(Term::Ctor(**ctor_term), origin))
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
                     // Function call
-                    Ok(Term::from(Term::FnCall(**fn_call_term)))
+                    Ok(Term::from(Term::FnCall(**fn_call_term), origin))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Bound variable
-                    Ok(Term::from(Term::Var(*bound_var)))
+                    Ok(Term::from(Term::Var(*bound_var), origin))
                 }
             },
         }
@@ -379,7 +382,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let path = self.variable_expr_as_ast_path(node)?;
         let resolved_path = self.resolve_ast_path(&path)?;
-        self.make_term_from_resolved_ast_path(&resolved_path, node.span())
+        self.make_term_from_resolved_ast_path(&resolved_path, node.id())
     }
 
     /// Make a term from an [`ast::ConstructorCallExpr`].
@@ -391,7 +394,7 @@ impl<'tc> ResolutionPass<'tc> {
         match self.constructor_call_as_ast_path(node)? {
             Some(path) => {
                 let resolved_path = self.resolve_ast_path(&path)?;
-                self.make_term_from_resolved_ast_path(&resolved_path, node.span())
+                self.make_term_from_resolved_ast_path(&resolved_path, node.id())
             }
             None => {
                 let subject =
@@ -400,9 +403,10 @@ impl<'tc> ResolutionPass<'tc> {
                     self.try_or_add_error(self.make_args_from_constructor_call_args(&node.args));
 
                 match (subject, args) {
-                    (Some(subject), Some(args)) => {
-                        Ok(Term::from(Term::FnCall(FnCallTerm { subject, args, implicit: false })))
-                    }
+                    (Some(subject), Some(args)) => Ok(Term::from(
+                        Term::FnCall(FnCallTerm { subject, args, implicit: false }),
+                        NodeOrigin::Given(node.id()),
+                    )),
                     _ => Err(SemanticError::Signal),
                 }
             }
@@ -417,7 +421,7 @@ impl<'tc> ResolutionPass<'tc> {
         match self.access_expr_as_ast_path(node)? {
             Some(path) => {
                 let resolved_path = self.resolve_ast_path(&path)?;
-                self.make_term_from_resolved_ast_path(&resolved_path, node.span())
+                self.make_term_from_resolved_ast_path(&resolved_path, node.id())
             }
             None => {
                 // Namespace handled above.
@@ -429,7 +433,10 @@ impl<'tc> ResolutionPass<'tc> {
                     ast::PropertyKind::NumericField(number) => ParamIndex::Position(*number),
                 };
 
-                Ok(Term::from(Term::Access(AccessTerm { subject, field })))
+                Ok(Term::from(
+                    Term::Access(AccessTerm { subject, field }),
+                    NodeOrigin::Given(node.id()),
+                ))
             }
         }
     }
@@ -475,9 +482,10 @@ impl<'tc> ResolutionPass<'tc> {
         };
 
         match (pat, ty, value) {
-            (Some(pat), Some(ty), Some(value)) => {
-                Ok(Term::from(Term::Decl(DeclTerm { bind_pat: pat, ty, value })))
-            }
+            (Some(pat), Some(ty), Some(value)) => Ok(Term::from(
+                Term::Decl(DeclTerm { bind_pat: pat, ty, value }),
+                NodeOrigin::Given(node.id()),
+            )),
             _ => {
                 // If pat had an error, then we can't make a term, and the
                 // error will have been added already.
@@ -492,18 +500,21 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::RefExpr>,
     ) -> SemanticResult<TermId> {
         let subject = self.make_term_from_ast_expr(node.inner_expr.ast_ref())?;
-        Ok(Term::from(Term::Ref(RefTerm {
-            kind: match node.kind {
-                ast::RefKind::Raw => RefKind::Raw,
-                ast::RefKind::Normal => RefKind::Local,
-            },
-            mutable: node
-                .mutability
-                .as_ref()
-                .map(|m| *m.body())
-                .is_some_and(|mutability| mutability == ast::Mutability::Mutable),
-            subject,
-        })))
+        Ok(Term::from(
+            Term::Ref(RefTerm {
+                kind: match node.kind {
+                    ast::RefKind::Raw => RefKind::Raw,
+                    ast::RefKind::Normal => RefKind::Local,
+                },
+                mutable: node
+                    .mutability
+                    .as_ref()
+                    .map(|m| *m.body())
+                    .is_some_and(|mutability| mutability == ast::Mutability::Mutable),
+                subject,
+            }),
+            NodeOrigin::Given(node.id()),
+        ))
     }
 
     /// Make a term from an [`ast::DerefExpr`].
@@ -512,7 +523,7 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::DerefExpr>,
     ) -> SemanticResult<TermId> {
         let subject = self.make_term_from_ast_expr(node.data.ast_ref())?;
-        Ok(Term::from(Term::Deref(DerefTerm { subject })))
+        Ok(Term::from(Term::Deref(DerefTerm { subject }), NodeOrigin::Given(node.id())))
     }
 
     /// Make a term from an [`ast::UnsafeExpr`].
@@ -521,7 +532,7 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::UnsafeExpr>,
     ) -> SemanticResult<TermId> {
         let inner = self.make_term_from_ast_expr(node.data.ast_ref())?;
-        Ok(Term::from(Term::Unsafe(UnsafeTerm { inner })))
+        Ok(Term::from(Term::Unsafe(UnsafeTerm { inner }), NodeOrigin::Given(node.id())))
     }
 
     /// Make a term from an [`ast::LitExpr`].
@@ -532,7 +543,10 @@ impl<'tc> ResolutionPass<'tc> {
         // Macro to make a literal primitive term
         macro_rules! lit_prim {
             ($name:ident,$lit_name:ident, $contents:expr) => {
-                Term::from(Term::Lit(Node::create_gen(Lit::$name($lit_name::from($contents)))))
+                Term::from(
+                    Term::Lit(Node::create_gen(Lit::$name($lit_name::from($contents)))),
+                    NodeOrigin::Given(node.id()),
+                )
             };
         }
 
@@ -541,10 +555,12 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Lit::Char(char_lit) => Ok(lit_prim!(Char, CharLit, *char_lit)),
             ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, IntLit, *int_lit)),
             ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
-            ast::Lit::Bool(bool_lit) => Ok(self.sem_env().new_bool_term(bool_lit.data)),
+            ast::Lit::Bool(bool_lit) => {
+                Ok(self.sem_env().new_bool_term(bool_lit.data, NodeOrigin::Given(node.id())))
+            }
             ast::Lit::Tuple(tuple_lit) => {
                 let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
-                Ok(Term::from(Term::Tuple(TupleTerm { data: args })))
+                Ok(Term::from(Term::Tuple(TupleTerm { data: args }), NodeOrigin::Given(node.id())))
             }
             ast::Lit::Array(array_lit) => {
                 let element_vec: Vec<_> = array_lit
@@ -554,7 +570,7 @@ impl<'tc> ResolutionPass<'tc> {
                     .collect::<SemanticResult<_>>()?;
                 let elements =
                     Node::create_at(TermId::seq(element_vec), NodeOrigin::Given(node.id()));
-                Ok(Term::from(Term::Array(ArrayTerm { elements })))
+                Ok(Term::from(Term::Array(ArrayTerm { elements }), NodeOrigin::Given(node.id())))
             }
         }
     }
@@ -567,9 +583,10 @@ impl<'tc> ResolutionPass<'tc> {
         let subject = self.try_or_add_error(self.make_term_from_ast_expr(node.expr.ast_ref()));
         let ty = self.try_or_add_error(self.make_ty_from_ast_ty(node.ty.ast_ref()));
         match (subject, ty) {
-            (Some(subject), Some(ty)) => {
-                Ok(Term::from(Term::Cast(CastTerm { subject_term: subject, target_ty: ty })))
-            }
+            (Some(subject), Some(ty)) => Ok(Term::from(
+                Term::Cast(CastTerm { subject_term: subject, target_ty: ty }),
+                NodeOrigin::Given(node.id()),
+            )),
             _ => Err(SemanticError::Signal),
         }
     }
@@ -583,23 +600,23 @@ impl<'tc> ResolutionPass<'tc> {
             Some(expr) => self.make_term_from_ast_expr(expr.ast_ref())?,
             None => Term::void(NodeOrigin::Given(node.id())),
         };
-        Ok(Term::from(Term::Return(ReturnTerm { expression })))
+        Ok(Term::from(Term::Return(ReturnTerm { expression }), NodeOrigin::Given(node.id())))
     }
 
     /// Make a term from an [`ast::BreakStatement`].
     fn make_term_from_ast_break_statement(
         &self,
-        _: AstNodeRef<ast::BreakStatement>,
+        node: AstNodeRef<ast::BreakStatement>,
     ) -> SemanticResult<TermId> {
-        Ok(Term::from(Term::LoopControl(LoopControlTerm::Break)))
+        Ok(Term::from(Term::LoopControl(LoopControlTerm::Break), NodeOrigin::Given(node.id())))
     }
 
     /// Make a term from an [`ast::ContinueStatement`].
     fn make_term_from_ast_continue_statement(
         &self,
-        _: AstNodeRef<ast::ContinueStatement>,
+        node: AstNodeRef<ast::ContinueStatement>,
     ) -> SemanticResult<TermId> {
-        Ok(Term::from(Term::LoopControl(LoopControlTerm::Continue)))
+        Ok(Term::from(Term::LoopControl(LoopControlTerm::Continue), NodeOrigin::Given(node.id())))
     }
 
     /// Make a term from an [`ast::AssignExpr`].
@@ -611,9 +628,10 @@ impl<'tc> ResolutionPass<'tc> {
         let rhs = self.try_or_add_error(self.make_term_from_ast_expr(node.rhs.ast_ref()));
 
         match (lhs, rhs) {
-            (Some(lhs), Some(rhs)) => {
-                Ok(Term::from(Term::Assign(AssignTerm { subject: lhs, value: rhs })))
-            }
+            (Some(lhs), Some(rhs)) => Ok(Term::from(
+                Term::Assign(AssignTerm { subject: lhs, value: rhs }),
+                NodeOrigin::Given(node.id()),
+            )),
             _ => Err(SemanticError::Signal),
         }
     }
@@ -654,9 +672,10 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Create a term if all ok
         match (subject, cases.len() == node.cases.len()) {
-            (Some(subject), true) => {
-                Ok(Term::from(Term::Match(MatchTerm { subject, cases, origin: node.origin })))
-            }
+            (Some(subject), true) => Ok(Term::from(
+                Term::Match(MatchTerm { subject, cases, origin: node.origin }),
+                NodeOrigin::Given(node.id()),
+            )),
             _ => Err(SemanticError::Signal),
         }
     }
@@ -730,21 +749,19 @@ impl<'tc> ResolutionPass<'tc> {
                     (Some(Some(expr)), true) => {
                         let statements =
                             Node::create_at(TermId::seq(statements), NodeOrigin::Given(node.id()));
-                        Ok(Term::from(Term::Block(BlockTerm {
-                            statements,
-                            return_value: expr,
-                            stack_id,
-                        })))
+                        Ok(Term::from(
+                            Term::Block(BlockTerm { statements, return_value: expr, stack_id }),
+                            NodeOrigin::Given(node.id()),
+                        ))
                     }
                     (None, true) => {
                         let statements =
                             Node::create_at(TermId::seq(statements), NodeOrigin::Given(node.id()));
                         let return_value = Term::void(NodeOrigin::Given(node.id()));
-                        Ok(Term::from(Term::Block(BlockTerm {
-                            statements,
-                            return_value,
-                            stack_id,
-                        })))
+                        Ok(Term::from(
+                            Term::Block(BlockTerm { statements, return_value, stack_id }),
+                            NodeOrigin::Given(node.id()),
+                        ))
                     }
                     _ => Err(SemanticError::Signal),
                 }
@@ -767,15 +784,24 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Block::Body(body_block) => {
                 self.make_term_from_ast_body_block(node.contents.with_body(body_block))?
             }
-            inner => Term::from(BlockTerm {
-                return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
-                statements: Node::create_at(TermId::empty_seq(), NodeOrigin::Given(node.id())),
-                stack_id: Stack::empty(),
-            }),
+            inner => Term::from(
+                BlockTerm {
+                    return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
+                    statements: Node::create_at(
+                        TermId::empty_seq(),
+                        NodeOrigin::Given(node.contents.id()),
+                    ),
+                    stack_id: Stack::empty(),
+                },
+                NodeOrigin::Given(node.contents.id()),
+            ),
         };
 
         let block = term_as_variant!(self, inner.value(), Block);
-        Ok(Term::from(Term::Loop(LoopTerm { block: inner.value().with_data(block) })))
+        Ok(Term::from(
+            Term::Loop(LoopTerm { block: inner.value().with_data(block) }),
+            NodeOrigin::Given(node.id()),
+        ))
     }
 
     /// Make a term from an [`ast::Block`].
@@ -869,7 +895,9 @@ impl<'tc> ResolutionPass<'tc> {
 
         // If all ok, create a fn ref term
         match (params, return_ty, return_value) {
-            (Some(_), None | Some(Some(_)), Some(_)) => Ok(Term::from(Term::FnRef(fn_def_id))),
+            (Some(_), None | Some(Some(_)), Some(_)) => {
+                Ok(Term::from(Term::FnRef(fn_def_id), NodeOrigin::Given(node_id)))
+            }
             _ => Err(SemanticError::Signal),
         }
     }
@@ -915,7 +943,7 @@ impl<'tc> ResolutionPass<'tc> {
             node.rhs.ast_ref(),
             NodeOrigin::Given(node.id()),
         )?;
-        Ok(Term::from(AssignTerm { subject, value }))
+        Ok(Term::from(AssignTerm { subject, value }, NodeOrigin::Given(node.id())))
     }
 
     /// Make a term from an [`ast::BinaryExpr`].
@@ -938,7 +966,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let subject = self.make_term_from_ast_expr(node.subject.ast_ref())?;
         let index = self.make_term_from_ast_expr(node.index_expr.ast_ref())?;
-        Ok(Term::from(IndexTerm { subject, index }))
+        Ok(Term::from(IndexTerm { subject, index }, NodeOrigin::Given(node.id())))
     }
 
     /// Make a term from a binary expression.
@@ -953,7 +981,7 @@ impl<'tc> ResolutionPass<'tc> {
         let rhs = self.make_term_from_ast_expr(rhs)?;
 
         // For the type, we use the type of the lhs
-        let typeof_lhs = Term::from(TypeOfTerm { term: lhs });
+        let typeof_lhs = Term::from(TypeOfTerm { term: lhs }, origin);
 
         // Pick the right intrinsic function and binary operator number
         let (intrinsic_fn_def, bin_op_num): (FnDefId, u8) = match op {
@@ -981,23 +1009,31 @@ impl<'tc> ResolutionPass<'tc> {
             ast::BinOp::Div => (self.intrinsics().endo_bin_op(), EndoBinOp::Div.into()),
             ast::BinOp::Mod => (self.intrinsics().endo_bin_op(), EndoBinOp::Mod.into()),
             ast::BinOp::As => {
-                return Ok(Term::from(CastTerm { subject_term: lhs, target_ty: rhs.as_ty() }));
+                return Ok(Term::from(
+                    CastTerm { subject_term: lhs, target_ty: rhs.as_ty() },
+                    origin,
+                ));
             }
             ast::BinOp::Merge => {
                 let args = Arg::seq_positional([typeof_lhs, lhs, rhs], origin);
-                return Ok(Ty::from(DataTy { data_def: primitives().equal(), args }).as_term());
+                return Ok(
+                    Ty::from(DataTy { data_def: primitives().equal(), args }, origin).as_term()
+                );
             }
         };
 
         // Invoke the intrinsic function
-        Ok(Term::from(FnCallTerm {
-            subject: Term::from(intrinsic_fn_def),
-            args: Arg::seq_positional(
-                [typeof_lhs, self.create_term_from_integer_lit(bin_op_num), lhs, rhs],
-                origin,
-            ),
-            implicit: false,
-        }))
+        Ok(Term::from(
+            FnCallTerm {
+                subject: Term::from(intrinsic_fn_def, origin),
+                args: Arg::seq_positional(
+                    [typeof_lhs, self.create_term_from_integer_lit(bin_op_num), lhs, rhs],
+                    origin,
+                ),
+                implicit: false,
+            },
+            origin,
+        ))
     }
 
     /// Make a term from an [`ast::UnaryExpr`].
@@ -1006,12 +1042,13 @@ impl<'tc> ResolutionPass<'tc> {
         node: AstNodeRef<ast::UnaryExpr>,
     ) -> SemanticResult<TermId> {
         let a = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-        let typeof_a = Term::from(TypeOfTerm { term: a });
+        let origin = NodeOrigin::Given(node.id());
+        let typeof_a = Term::from(TypeOfTerm { term: a }, origin);
 
         let (intrinsic_fn_def, op_num): (FnDefId, u8) = match node.operator.body() {
             ast::UnOp::TypeOf => {
                 let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-                return Ok(Term::from(TypeOfTerm { term: inner }));
+                return Ok(Term::from(TypeOfTerm { term: inner }, origin));
             }
             ast::UnOp::BitNot => (self.intrinsics().un_op(), UnOp::BitNot.into()),
             ast::UnOp::Not => (self.intrinsics().un_op(), UnOp::Not.into()),
@@ -1019,13 +1056,16 @@ impl<'tc> ResolutionPass<'tc> {
         };
 
         // Invoke the intrinsic function
-        Ok(Term::from(FnCallTerm {
-            subject: Term::from(intrinsic_fn_def),
-            args: Arg::seq_positional(
-                [typeof_a, self.create_term_from_integer_lit(op_num), a],
-                NodeOrigin::Given(node.id()),
-            ),
-            implicit: false,
-        }))
+        Ok(Term::from(
+            FnCallTerm {
+                subject: Term::from(intrinsic_fn_def, origin),
+                args: Arg::seq_positional(
+                    [typeof_a, self.create_term_from_integer_lit(op_num), a],
+                    NodeOrigin::Given(node.id()),
+                ),
+                implicit: false,
+            },
+            origin,
+        ))
     }
 }

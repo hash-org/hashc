@@ -466,7 +466,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     self.context().add_assignment(
                         src_param.name,
                         src_param.ty,
-                        Term::from(target_param.name),
+                        Term::from(target_param.name, target_param.origin),
                     );
 
                     // Unify the types

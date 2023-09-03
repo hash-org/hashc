@@ -6,12 +6,10 @@ use hash_storage::store::statics::StoreId;
 use crate::{
     building::gen::{
         args, data_ty, empty_data_def, enum_def, indexed_enum_def, params, primitive,
-        primitive_with_params, sym, universe_ty,
+        primitive_with_params, sym, term, ty, universe_ty,
     },
     data::{ArrayCtorInfo, DataDefId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo},
     mods::{ModMember, ModMemberValue},
-    terms::Term,
-    tys::Ty,
 };
 
 macro_rules! defined_primitives {
@@ -149,10 +147,7 @@ impl DefinedPrimitives {
                 primitive_with_params(
                     list_sym,
                     params,
-                    PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                        element_ty: Ty::var(t_sym),
-                        length: None,
-                    }),
+                    PrimitiveCtorInfo::Array(ArrayCtorInfo { element_ty: ty(t_sym), length: None }),
                 )
             },
             array: {
@@ -164,8 +159,8 @@ impl DefinedPrimitives {
                     list_sym,
                     params,
                     PrimitiveCtorInfo::Array(ArrayCtorInfo {
-                        element_ty: Ty::var(t_sym),
-                        length: Some(Term::from(n_sym)),
+                        element_ty: ty(t_sym),
+                        length: Some(term(n_sym)),
                     }),
                 )
             },
@@ -177,7 +172,7 @@ impl DefinedPrimitives {
                 let some_sym = sym("Some");
                 let t_sym = sym("T");
                 let ps = params(once((t_sym, universe_ty(), None)));
-                let some_params = params(once((sym("value"), Ty::var(t_sym), None)));
+                let some_params = params(once((sym("value"), ty(t_sym), None)));
                 enum_def(option_sym, ps, [(none_sym, params([])), (some_sym, some_params)])
             },
 
@@ -189,8 +184,8 @@ impl DefinedPrimitives {
                 let t_sym = sym("T");
                 let e_sym = sym("E");
                 let ps = params([(t_sym, universe_ty(), None), (e_sym, universe_ty(), None)]);
-                let ok_ps = params(once((sym("value"), Ty::var(t_sym), None)));
-                let err_ps = params(once((sym("error"), Ty::var(e_sym), None)));
+                let ok_ps = params(once((sym("value"), ty(t_sym), None)));
+                let err_ps = params(once((sym("error"), ty(e_sym), None)));
                 enum_def(result_sym, ps, [(ok_sym, ok_ps), (err_sym, err_ps)])
             },
             equal: {
@@ -205,12 +200,12 @@ impl DefinedPrimitives {
 
                 let ps = params([
                     (t_sym, universe_ty(), None),
-                    (a_sym, Ty::var(t_sym), None),
-                    (b_sym, Ty::var(t_sym), None),
+                    (a_sym, ty(t_sym), None),
+                    (b_sym, ty(t_sym), None),
                 ]);
-                let refl_ps = params(once((x_sym, Ty::var(t_sym), None)));
+                let refl_ps = params(once((x_sym, ty(t_sym), None)));
 
-                let refl_result_args = args([Term::var(t_sym), Term::var(x_sym), Term::var(x_sym)]);
+                let refl_result_args = args([term(t_sym), term(x_sym), term(x_sym)]);
 
                 indexed_enum_def(eq_sym, ps, [(refl_sym, refl_ps, Some(refl_result_args))])
             },

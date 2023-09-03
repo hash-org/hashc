@@ -1,6 +1,6 @@
 //! Resolution of AST parameters and arguments to terms.
 
-use hash_ast::ast::{self, AstNodeRef};
+use hash_ast::ast::{self, AstNodeId, AstNodeRef};
 use hash_source::location::Span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
@@ -292,7 +292,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         subject: TermId,
         args: &[AstArgGroup],
-        original_span: Span,
+        original_node_id: AstNodeId,
     ) -> SemanticResult<FnCallTerm> {
         debug_assert!(!args.is_empty());
         let mut current_subject = subject;
@@ -303,17 +303,20 @@ impl<'tc> ResolutionPass<'tc> {
                 ResolvedArgs::Term(args) => {
                     // Here we are trying to call a function with term arguments.
                     // Apply the arguments to the current subject and continue.
-                    current_subject = Term::from(Term::FnCall(FnCallTerm {
-                        subject: current_subject,
-                        args,
-                        implicit: matches!(arg_group, AstArgGroup::ImplicitArgs(_)),
-                    }));
+                    current_subject = Term::from(
+                        Term::FnCall(FnCallTerm {
+                            subject: current_subject,
+                            args,
+                            implicit: matches!(arg_group, AstArgGroup::ImplicitArgs(_)),
+                        }),
+                        NodeOrigin::Given(original_node_id),
+                    );
                 }
                 ResolvedArgs::Pat(_, _) => {
                     // Here we are trying to call a function with pattern arguments.
                     // This is not allowed.
                     return Err(SemanticError::CannotUseFunctionInPatternPosition {
-                        location: original_span,
+                        location: original_node_id.span(),
                     });
                 }
             }

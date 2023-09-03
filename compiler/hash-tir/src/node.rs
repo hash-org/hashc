@@ -117,4 +117,8 @@ impl NodeOrigin {
             NodeOrigin::Generated => NodeOrigin::Generated,
         }
     }
+
+    pub fn with_data<E>(&self, data: E) -> Node<E> {
+        Node { data, origin: *self }
+    }
 }

@@ -264,7 +264,9 @@ impl ResolutionPass<'_> {
                 Pat::Lit(LitPat(Node::create_gen(Lit::Int((*int_lit).into())))),
                 NodeOrigin::Generated,
             ),
-            ast::Lit::Bool(bool_lit) => self.new_bool_pat(bool_lit.data),
+            ast::Lit::Bool(bool_lit) => {
+                self.new_bool_pat(bool_lit.data, NodeOrigin::Given(lit_pat.id()))
+            }
             ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
                 panic!("Found invalid literal in pattern")
             }

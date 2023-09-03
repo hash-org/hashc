@@ -53,11 +53,17 @@ impl EvaluationPass<'_> {
                 let def = AccessToSemEnv::entry_point(self).def();
                 match def {
                     Some(def) => {
-                        let call_term = Term::from(FnCallTerm {
-                            subject: Term::from(def),
-                            implicit: false,
-                            args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
-                        });
+                        let call_term = Term::from(
+                            FnCallTerm {
+                                subject: Term::from(def, def.origin()),
+                                implicit: false,
+                                args: Node::create_at(
+                                    Node::<Arg>::empty_seq(),
+                                    NodeOrigin::Generated,
+                                ),
+                            },
+                            NodeOrigin::Generated,
+                        );
                         Ok(Some(call_term))
                     }
                     None => {
