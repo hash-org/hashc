@@ -2,7 +2,6 @@
 
 use std::fmt;
 
-use hash_ast::tree::AstTreeGenerator;
 use hash_fmt::AstPrinter;
 use hash_source::SourceMap;
 use hash_utils::{
@@ -10,7 +9,7 @@ use hash_utils::{
     tree_writing::{CharacterSet, TreeWriter, TreeWriterConfig},
 };
 
-use crate::attr::AttrNode;
+use crate::{attr::AttrNode, tree::AstTreeGenerator};
 
 /// Enum representing the different options for dumping the IR. It can either
 /// be emitted in the pretty-printing format, or in the `graphviz` format.

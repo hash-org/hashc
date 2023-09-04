@@ -2,12 +2,11 @@
 
 use std::{convert::Infallible, iter};
 
-use hash_utils::{itertools::Itertools, tree_writing::TreeNode};
-
-use crate::{
+use hash_ast::{
     ast,
     visitor::{walk, AstVisitor},
 };
+use hash_utils::{itertools::Itertools, tree_writing::TreeNode};
 
 /// Struct implementing [crate::visitor::AstVisitor], for the purpose of
 /// transforming the AST tree into a [TreeNode] tree, for visualisation
