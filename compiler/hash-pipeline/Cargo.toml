@@ -14,7 +14,6 @@ clap = { version = "4.3.8", features = ["derive"] }
 
 hash-ast = { path = "../hash-ast" }
 hash-ast-utils = { path = "../hash-ast-utils" }
-hash-fmt = { path = "../hash-fmt" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
 hash-target = { path = "../hash-target" }

@@ -6,4 +6,5 @@
 pub mod attr;
 pub mod dump;
 
+pub mod pretty;
 pub mod tree;

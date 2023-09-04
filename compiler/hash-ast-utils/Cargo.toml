@@ -9,6 +9,6 @@ doctest = false
 
 [dependencies]
 hash-ast = { path = "../hash-ast" }
-hash-fmt = { path = "../hash-fmt" }
 hash-source = { path = "../hash-source" }
+hash-token = { path = "../hash-token" }
 hash-utils = { path = "../hash-utils" }

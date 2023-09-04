@@ -4,7 +4,7 @@
 use hash_ast::{ast, visitor::AstVisitorMutSelf};
 use hash_token::delimiter::Delimiter;
 
-use crate::AstPrinter;
+use super::AstPrettyPrinter;
 
 /// Various options that can be used to configure how a collection is printed
 /// by the `AstPrinter`.
@@ -89,7 +89,7 @@ impl CollectionPrintingOptions {
     }
 }
 
-impl<'ast, T> AstPrinter<'ast, T>
+impl<'ast, T> AstPrettyPrinter<'ast, T>
 where
     T: std::io::Write,
 {

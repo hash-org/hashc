@@ -440,7 +440,6 @@ dependencies = [
  "hash-ast",
  "hash-ast-utils",
  "hash-attrs",
- "hash-fmt",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -456,8 +455,8 @@ name = "hash-ast-utils"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
- "hash-fmt",
  "hash-source",
+ "hash-token",
  "hash-utils",
 ]
 
@@ -578,16 +577,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-fmt"
-version = "0.1.0"
-dependencies = [
- "hash-ast",
- "hash-source",
- "hash-token",
- "hash-utils",
-]
-
-[[package]]
 name = "hash-intrinsics"
 version = "0.1.0"
 dependencies = [
@@ -700,7 +689,6 @@ dependencies = [
  "const_format",
  "hash-ast",
  "hash-ast-utils",
- "hash-fmt",
  "hash-reporting",
  "hash-source",
  "hash-target",

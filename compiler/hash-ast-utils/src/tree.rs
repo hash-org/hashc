@@ -11,7 +11,7 @@ use hash_utils::{itertools::Itertools, tree_writing::TreeNode};
 /// Struct implementing [crate::visitor::AstVisitor], for the purpose of
 /// transforming the AST tree into a [TreeNode] tree, for visualisation
 /// purposes.
-pub struct AstTreeGenerator;
+pub struct AstTreePrinter;
 
 /// Easy way to format a [TreeNode] label with a main label as well as short
 /// contents, and a quoting string.
@@ -19,7 +19,7 @@ fn labelled(label: impl ToString, contents: impl ToString, quote_str: &str) -> S
     format!("{} {quote_str}{}{quote_str}", label.to_string(), contents.to_string())
 }
 
-impl AstVisitor for AstTreeGenerator {
+impl AstVisitor for AstTreePrinter {
     type Error = Infallible;
 
     type NameRet = TreeNode;

@@ -275,6 +275,52 @@ attr_node_impls! {
     BodyBlock
 }
 
+macro_rules! generate_vis {
+    ($fn_name:ident, $vis_name:ident) => {
+        #[allow(unused_mut)]
+        pub fn $fn_name<T: $vis_name, O>(&self, mut visitor: T) -> Result<O, T::Error>
+        where
+            T: $vis_name<
+                LitRet = O,
+                ExprRet = O,
+                FnDefRet = O,
+                StructDefRet = O,
+                EnumDefRet = O,
+                EnumDefEntryRet = O,
+                ModDefRet = O,
+                MatchCaseRet = O,
+                ParamRet = O,
+                ExprArgRet = O,
+                PatRet = O,
+                TyRet = O,
+                TyArgRet = O,
+                PatArgRet = O,
+                ModuleRet = O,
+                BodyBlockRet = O,
+            >,
+        {
+            match *self {
+                AttrNode::Lit(lit) => visitor.visit_lit(lit),
+                AttrNode::Expr(expr) => visitor.visit_expr(expr),
+                AttrNode::FnDef(func) => visitor.visit_fn_def(func),
+                AttrNode::StructDef(struct_def) => visitor.visit_struct_def(struct_def),
+                AttrNode::EnumDef(enum_def) => visitor.visit_enum_def(enum_def),
+                AttrNode::EnumDefEntry(enum_variant) => visitor.visit_enum_def_entry(enum_variant),
+                AttrNode::ModDef(mod_def) => visitor.visit_mod_def(mod_def),
+                AttrNode::MatchCase(match_case) => visitor.visit_match_case(match_case),
+                AttrNode::Param(param) => visitor.visit_param(param),
+                AttrNode::ExprArg(expr_arg) => visitor.visit_expr_arg(expr_arg),
+                AttrNode::Pat(pat) => visitor.visit_pat(pat),
+                AttrNode::Ty(ty) => visitor.visit_ty(ty),
+                AttrNode::TyArg(ty_arg) => visitor.visit_ty_arg(ty_arg),
+                AttrNode::PatArg(pat_arg) => visitor.visit_pat_arg(pat_arg),
+                AttrNode::Module(module) => visitor.visit_module(module),
+                AttrNode::BodyBlock(body_block) => visitor.visit_body_block(body_block),
+            }
+        }
+    };
+}
+
 impl<'ast> AttrNode<'ast> {
     /// Create an [ApplicationTarget] from an [ast::Expr]. This will essentially
     /// compute a target from the expression.
@@ -348,88 +394,6 @@ impl<'ast> AttrNode<'ast> {
         }
     }
 
-    pub fn visit<T: AstVisitor, O>(&self, visitor: T) -> Result<O, T::Error>
-    where
-        T: AstVisitor<
-            LitRet = O,
-            ExprRet = O,
-            FnDefRet = O,
-            StructDefRet = O,
-            EnumDefRet = O,
-            EnumDefEntryRet = O,
-            ModDefRet = O,
-            MatchCaseRet = O,
-            ParamRet = O,
-            ExprArgRet = O,
-            PatRet = O,
-            TyRet = O,
-            TyArgRet = O,
-            PatArgRet = O,
-            ModuleRet = O,
-            BodyBlockRet = O,
-        >,
-    {
-        match *self {
-            AttrNode::Lit(lit) => visitor.visit_lit(lit),
-            AttrNode::Expr(expr) => visitor.visit_expr(expr),
-            AttrNode::FnDef(func) => visitor.visit_fn_def(func),
-            AttrNode::StructDef(struct_def) => visitor.visit_struct_def(struct_def),
-            AttrNode::EnumDef(enum_def) => visitor.visit_enum_def(enum_def),
-            AttrNode::EnumDefEntry(enum_variant) => visitor.visit_enum_def_entry(enum_variant),
-            AttrNode::ModDef(mod_def) => visitor.visit_mod_def(mod_def),
-            AttrNode::MatchCase(match_case) => visitor.visit_match_case(match_case),
-            AttrNode::Param(param) => visitor.visit_param(param),
-            AttrNode::ExprArg(expr_arg) => visitor.visit_expr_arg(expr_arg),
-            AttrNode::Pat(pat) => visitor.visit_pat(pat),
-            AttrNode::Ty(ty) => visitor.visit_ty(ty),
-            AttrNode::TyArg(ty_arg) => visitor.visit_ty_arg(ty_arg),
-            AttrNode::PatArg(pat_arg) => visitor.visit_pat_arg(pat_arg),
-            AttrNode::Module(module) => visitor.visit_module(module),
-            AttrNode::BodyBlock(body_block) => visitor.visit_body_block(body_block),
-        }
-    }
-
-    pub fn visit_with_mut_visitor<T: AstVisitorMutSelf, O>(
-        &self,
-        mut visitor: T,
-    ) -> Result<O, T::Error>
-    where
-        T: AstVisitorMutSelf<
-            LitRet = O,
-            ExprRet = O,
-            FnDefRet = O,
-            StructDefRet = O,
-            EnumDefRet = O,
-            EnumDefEntryRet = O,
-            ModDefRet = O,
-            MatchCaseRet = O,
-            ParamRet = O,
-            ExprArgRet = O,
-            PatRet = O,
-            TyRet = O,
-            TyArgRet = O,
-            PatArgRet = O,
-            ModuleRet = O,
-            BodyBlockRet = O,
-        >,
-    {
-        match *self {
-            AttrNode::Lit(lit) => visitor.visit_lit(lit),
-            AttrNode::Expr(expr) => visitor.visit_expr(expr),
-            AttrNode::FnDef(func) => visitor.visit_fn_def(func),
-            AttrNode::StructDef(struct_def) => visitor.visit_struct_def(struct_def),
-            AttrNode::EnumDef(enum_def) => visitor.visit_enum_def(enum_def),
-            AttrNode::EnumDefEntry(enum_variant) => visitor.visit_enum_def_entry(enum_variant),
-            AttrNode::ModDef(mod_def) => visitor.visit_mod_def(mod_def),
-            AttrNode::MatchCase(match_case) => visitor.visit_match_case(match_case),
-            AttrNode::Param(param) => visitor.visit_param(param),
-            AttrNode::ExprArg(expr_arg) => visitor.visit_expr_arg(expr_arg),
-            AttrNode::Pat(pat) => visitor.visit_pat(pat),
-            AttrNode::Ty(ty) => visitor.visit_ty(ty),
-            AttrNode::TyArg(ty_arg) => visitor.visit_ty_arg(ty_arg),
-            AttrNode::PatArg(pat_arg) => visitor.visit_pat_arg(pat_arg),
-            AttrNode::Module(module) => visitor.visit_module(module),
-            AttrNode::BodyBlock(body_block) => visitor.visit_body_block(body_block),
-        }
-    }
+    generate_vis!(visit, AstVisitor);
+    generate_vis!(visit_mut, AstVisitorMutSelf);
 }

@@ -1,7 +1,5 @@
 //! The Hash formatter is a pretty printer for the Hash AST, it is used to
 //! format the AST into a human readable format.
-#![feature(let_chains)]
-
 mod collection;
 mod config;
 mod state;
@@ -17,7 +15,7 @@ use state::AstPrinterState;
 
 /// The AST printer, this is just a container to store the [AstPrintingConfig]
 /// and implement the traversal for the AST pretty printing.
-pub struct AstPrinter<'ast, T> {
+pub struct AstPrettyPrinter<'ast, T> {
     /// Output stream to write the AST to.
     fmt: &'ast mut T,
 
@@ -28,7 +26,7 @@ pub struct AstPrinter<'ast, T> {
     config: AstPrintingConfig,
 }
 
-impl<'ast, T> AstPrinter<'ast, T>
+impl<'ast, T> AstPrettyPrinter<'ast, T>
 where
     T: std::io::Write,
 {
@@ -67,7 +65,7 @@ where
     }
 }
 
-impl<'ast, T> AstVisitorMutSelf for AstPrinter<'ast, T>
+impl<'ast, T> AstVisitorMutSelf for AstPrettyPrinter<'ast, T>
 where
     T: std::io::Write,
 {

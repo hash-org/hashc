@@ -2,14 +2,13 @@
 
 use std::fmt;
 
-use hash_fmt::AstPrinter;
 use hash_source::SourceMap;
 use hash_utils::{
     clap,
     tree_writing::{CharacterSet, TreeWriter, TreeWriterConfig},
 };
 
-use crate::{attr::AttrNode, tree::AstTreeGenerator};
+use crate::{attr::AttrNode, pretty::AstPrettyPrinter, tree::AstTreePrinter};
 
 /// Enum representing the different options for dumping the IR. It can either
 /// be emitted in the pretty-printing format, or in the `graphviz` format.
@@ -42,14 +41,14 @@ pub fn dump_ast(
 ) -> std::io::Result<()> {
     match mode {
         AstDumpMode::Pretty => {
-            let printer = AstPrinter::new(writer);
-            node.visit_with_mut_visitor(printer)?;
+            let printer = AstPrettyPrinter::new(writer);
+            node.visit_mut(printer)?;
         }
         AstDumpMode::Tree => {
             // In the tree mode, we prepend the output with the item that we dumped.
             writeln!(writer, "AST for `{}`:", source_map.fmt_location(node.id().span()))?;
 
-            let tree = node.visit(AstTreeGenerator).unwrap();
+            let tree = node.visit(AstTreePrinter).unwrap();
             let config = TreeWriterConfig::from_character_set(character_set);
             writeln!(writer, "{}", TreeWriter::new_with_config(&tree, config))?;
         }
