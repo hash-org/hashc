@@ -355,7 +355,7 @@ impl<'s> AstDesugaring<'s> {
     /// when an if block returns something from a previous branch, then this
     /// will fail compilation and it will be reported.
     ///
-    /// @@Note: We could just add some flag on the match-case to say that when
+    /// ##Note: We could just add some flag on the match-case to say that when
     /// it was lowered from a if-block, it was missing an else case, and
     /// this would mean we don't always have to add it. However, this might
     /// complicate things with pattern exhaustiveness because then there

@@ -189,7 +189,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             // Body block.
             TokenKind::Tree(Delimiter::Brace, _) => {
-                // @@Hack: we need to backtrack a single token so that `parse_block` can be
+                // ##Hack: we need to backtrack a single token so that `parse_block` can be
                 // used.
                 self.offset.set(self.offset.get() - 1);
 

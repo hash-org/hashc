@@ -30,6 +30,7 @@ use hash_storage::{
 use hash_target::{
     abi::{self, Abi, Integer, ScalarKind},
     data_layout::HasDataLayout,
+    primitives::BigIntTy,
     size::Size,
 };
 use hash_utils::{
@@ -463,15 +464,6 @@ impl IrTy {
     }
 }
 
-impl From<IntTy> for IrTy {
-    fn from(value: IntTy) -> Self {
-        match value {
-            IntTy::Int(ty) => Self::Int(ty),
-            IntTy::UInt(ty) => Self::UInt(ty),
-        }
-    }
-}
-
 impl From<IrTy> for IntTy {
     fn from(ty: IrTy) -> Self {
         match ty {
@@ -531,6 +523,12 @@ macro_rules! create_common_ty_table {
 
             /// A void pointer, i.e. `&()`.
             pub void_ptr: IrTyId,
+
+            /// The big unsigned integer type.
+            pub ubig: IrTyId,
+
+            /// The big signed integer type.
+            pub ibig: IrTyId,
         }
 
         impl CommonIrTys {
@@ -542,6 +540,8 @@ macro_rules! create_common_ty_table {
                     raw_ptr: IrTyId::from_index_unchecked(0),
                     void_ptr: IrTyId::from_index_unchecked(0),
                     str: IrTyId::from_index_unchecked(0),
+                    ubig: IrTyId::from_index_unchecked(0),
+                    ibig: IrTyId::from_index_unchecked(0),
                 };
 
                 // Create a `unit` type in order to reserve the first index of
@@ -557,12 +557,17 @@ macro_rules! create_common_ty_table {
                 let void_ptr = IrTy::create(IrTy::Ref(table.unit, Mutability::Immutable, RefKind::Raw));
                 let str = IrTy::create(IrTy::Ref(table.unsized_str, Mutability::Immutable, RefKind::Normal));
 
+                let ubig =  IrTy::create(IrTy::Slice(table.u64));
+                let ibig = IrTy::tuple(&[table.bool, table.ubig]);
+
                 CommonIrTys {
                     byte_slice,
                     ptr,
                     raw_ptr,
                     void_ptr,
                     str,
+                    ubig,
+                    ibig,
                     ..table
                 }
             }
@@ -577,32 +582,50 @@ macro_rules! create_common_ty_table {
 }
 
 create_common_ty_table!(
+    // ------------------------------------------
     // Primitive types
+    // ------------------------------------------
     bool: IrTy::Bool,
     char: IrTy::Char,
     never: IrTy::Never,
+
+    // ------------------------------------------
     // Unsized string refers to the inner type of a `str`.
     //
     // @@Temporary This is only  temporary until str/[T] type semantics and rules are decided and
     // implemented.
+    // ------------------------------------------
     unsized_str: IrTy::Str,
+
+    // ------------------------------------------
     // Floating point types
+    // ------------------------------------------
     f32: IrTy::Float(FloatTy::F32),
     f64: IrTy::Float(FloatTy::F64),
+
+    // ------------------------------------------
     // Signed integer types
+    // ------------------------------------------
     i8: IrTy::Int(SIntTy::I8),
     i16: IrTy::Int(SIntTy::I16),
     i32: IrTy::Int(SIntTy::I32),
     i64: IrTy::Int(SIntTy::I64),
     i128: IrTy::Int(SIntTy::I128),
     isize: IrTy::Int(SIntTy::ISize),
+
+    // ------------------------------------------
     // Unsigned integer types
+    // ------------------------------------------
     u8: IrTy::UInt(UIntTy::U8),
     u16: IrTy::UInt(UIntTy::U16),
     u32: IrTy::UInt(UIntTy::U32),
     u64: IrTy::UInt(UIntTy::U64),
     u128: IrTy::UInt(UIntTy::U128),
-    usize: IrTy::UInt(UIntTy::USize), // Unit types, and unit ptr types
+
+    // ------------------------------------------
+    // Unit types, and unit ptr types
+    // ------------------------------------------
+    usize: IrTy::UInt(UIntTy::USize),
     unit: IrTy::Adt(AdtId::UNIT),
 );
 
@@ -784,7 +807,6 @@ impl ToIrTy for IntTy {
                 SIntTy::I64 => COMMON_IR_TYS.i64,
                 SIntTy::I128 => COMMON_IR_TYS.i128,
                 SIntTy::ISize => COMMON_IR_TYS.isize,
-                _ => unimplemented!(),
             },
             IntTy::UInt(ty) => match ty {
                 UIntTy::U8 => COMMON_IR_TYS.u8,
@@ -793,7 +815,10 @@ impl ToIrTy for IntTy {
                 UIntTy::U64 => COMMON_IR_TYS.u64,
                 UIntTy::U128 => COMMON_IR_TYS.u128,
                 UIntTy::USize => COMMON_IR_TYS.usize,
-                _ => unimplemented!(),
+            },
+            IntTy::Big(ty) => match ty {
+                BigIntTy::IBig => COMMON_IR_TYS.ibig,
+                BigIntTy::UBig => COMMON_IR_TYS.ubig,
             },
         }
     }

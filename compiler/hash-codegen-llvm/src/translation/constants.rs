@@ -148,14 +148,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
 
                 // Convert the constant into a u128 and then emit the
                 // correct LLVM constant for it.
-                const_int
-                    .value
-                    .as_u128()
-                    .map(|value| self.const_uint_big(ty, value))
-                    .unwrap_or_else(|| {
-                        // @@Todo: deal with bigints...
-                        unimplemented!()
-                    })
+                self.const_uint_big(ty, const_int.value.as_u128())
             }
             Const::Float(interned_float) => self.const_float(ty, interned_float.value().as_f64()),
             Const::Str(str) => self.const_str(str).0,
@@ -169,7 +162,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
                 return None;
             }
 
-            // @@Hack: this doesn't properly handle the full range of i128 values, however]
+            // ##Hack: this doesn't properly handle the full range of i128 values, however]
             // Inkwell doesn't support arbitrary precision integers, so we can't do much better...
             // unless we @@PatchInkwell
             if sign_extend {

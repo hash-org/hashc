@@ -276,7 +276,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// last byte is that identifies the sign.
     pub(crate) fn signed_bias(&self, ty: TyId) -> u128 {
         if let Some(ty) = self.try_use_ty_as_int_ty(ty) {
-            if ty.is_signed() && !ty.is_bigint() {
+            if ty.is_signed() && !ty.is_big() {
                 let size = ty.size(self.target().ptr_size());
                 let bits = size.bits() as u128;
                 return 1u128 << (bits - 1);

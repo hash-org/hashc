@@ -22,7 +22,6 @@ use hash_tir::{
     tys::Ty,
 };
 use hash_utils::stream_less_writeln;
-use num_bigint::{BigInt, BigUint};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::utils::{LitTy, PrimitiveUtils};
@@ -286,10 +285,6 @@ impl DefinedIntrinsics {
                         LitTy::I32 => handle_integer!(i32),
                         LitTy::I64 => handle_integer!(i64),
                         LitTy::I128 => handle_integer!(i128),
-                        LitTy::IBig => {
-                            let a: BigInt = env.try_use_term_as_integer_lit(a).unwrap();
-                            Ok(env.create_term_from_integer_lit(operate_integer!(parsed_op, a)))
-                        }
                         LitTy::F32 => {
                             // @@Todo: properly handle f32
                             let a: f64 = env.try_use_term_as_float_lit(a).unwrap();
@@ -487,8 +482,6 @@ impl DefinedIntrinsics {
                         LitTy::I32 => handle_integer!(i32),
                         LitTy::I64 => handle_integer!(i64),
                         LitTy::I128 => handle_integer!(i128),
-                        LitTy::UBig => handle_integer!(BigUint),
-                        LitTy::IBig => handle_integer!(BigInt),
                         LitTy::F32 => {
                             let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
                             let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();
@@ -572,23 +565,6 @@ impl DefinedIntrinsics {
                 )
                 .map_err(|_| INVALID_OP)?;
 
-                // Valid operations on big-ints
-                macro_rules! operate_bigint {
-                    ($op:expr, $lhs:expr, $rhs:expr) => {
-                        match $op {
-                            EndoBinOp::BitOr => $lhs | $rhs,
-                            EndoBinOp::BitAnd => $lhs & $rhs,
-                            EndoBinOp::BitXor => $lhs ^ $rhs,
-                            EndoBinOp::Add => $lhs + $rhs,
-                            EndoBinOp::Sub => $lhs - $rhs,
-                            EndoBinOp::Mul => $lhs * $rhs,
-                            EndoBinOp::Div => $lhs / $rhs,
-                            EndoBinOp::Mod => $lhs % $rhs,
-                            _ => return Err(INVALID_OP.to_string()),
-                        }
-                    };
-                }
-
                 // Valid operations on floats
                 macro_rules! operate_float {
                     ($op:expr, $lhs:expr, $rhs:expr) => {
@@ -631,14 +607,6 @@ impl DefinedIntrinsics {
                     }};
                 }
 
-                macro_rules! handle_bigint {
-                    ($rust_ty:ty) => {{
-                        let lhs: $rust_ty = env.try_use_term_as_integer_lit(lhs).unwrap();
-                        let rhs: $rust_ty = env.try_use_term_as_integer_lit(rhs).unwrap();
-                        Ok(env.create_term_from_integer_lit(operate_bigint!(parsed_op, lhs, rhs)))
-                    }};
-                }
-
                 // Handle each `T` parameter:
                 match env.try_use_ty_as_lit_ty(t.as_ty()) {
                     Some(lit_ty) => match lit_ty {
@@ -652,8 +620,6 @@ impl DefinedIntrinsics {
                         LitTy::I32 => handle_integer!(i32),
                         LitTy::I64 => handle_integer!(i64),
                         LitTy::I128 => handle_integer!(i128),
-                        LitTy::UBig => handle_bigint!(BigUint),
-                        LitTy::IBig => handle_bigint!(BigInt),
                         LitTy::F32 => {
                             let lhs: f64 = env.try_use_term_as_float_lit(lhs).unwrap();
                             let rhs: f64 = env.try_use_term_as_float_lit(rhs).unwrap();

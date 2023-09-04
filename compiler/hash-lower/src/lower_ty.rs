@@ -373,7 +373,13 @@ impl<'ir> BuilderCtx<'ir> {
                                         }
                                     }
                                 }
-                                _ => unimplemented!(), // We don't implement big-ints yet
+                                NumericCtorBits::Unbounded => {
+                                    if is_signed {
+                                        COMMON_IR_TYS.ibig
+                                    } else {
+                                        COMMON_IR_TYS.ubig
+                                    }
+                                }
                             }
                         }
                     }

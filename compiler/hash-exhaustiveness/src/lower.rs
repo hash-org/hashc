@@ -370,7 +370,6 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             // a singleton, and in fact the range will never be constructed from a
             // `ubig` or `ibig` type.
             match self.try_use_ty_as_lit_ty(ty).unwrap() {
-                LitTy::UBig | LitTy::IBig => unreachable!(),
                 ty if ty.is_int() => {
                     let (lo, _) = range.boundaries();
                     let bias = range.bias;
@@ -413,9 +412,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             | LitTy::I64
             | LitTy::U64
             | LitTy::U128
-            | LitTy::I128
-            | LitTy::IBig
-            | LitTy::UBig => {
+            | LitTy::I128 => {
                 let kind = self.try_use_ty_as_int_ty(ty).unwrap();
                 let ptr_width = self.target().ptr_size();
 

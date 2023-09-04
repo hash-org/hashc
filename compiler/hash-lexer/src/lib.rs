@@ -209,7 +209,7 @@ impl<'a> Lexer<'a> {
 
                         let offset = self.offset.get();
 
-                        // @@Hack: since we already compare if the first item is a slash, we'll just
+                        // ##Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
                         return Some(Token::new(
                             TokenKind::Slash,
@@ -359,8 +359,6 @@ impl<'a> Lexer<'a> {
         debug_assert!(is_id_start(first));
 
         let start = self.offset.get() - first.len_utf8();
-        // @@Hack: instead of using an iterator to collect, we want to eat the chars and
-        // then take a slice at the end
         self.eat_while_and_discard(is_id_continue);
 
         let name = &self.contents.0[start..self.offset.get()];

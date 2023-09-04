@@ -60,7 +60,6 @@ pub enum UIntTy {
     U64,
     U128,
     USize,
-    UBig,
 }
 
 impl UIntTy {
@@ -74,7 +73,6 @@ impl UIntTy {
             UIntTy::U64 => Size::from_bytes(8),
             UIntTy::USize => ptr_size,
             UIntTy::U128 => Size::from_bytes(16),
-            UIntTy::UBig => panic!("ubig has no defined size"),
         }
     }
 
@@ -116,7 +114,6 @@ impl UIntTy {
             UIntTy::U64 => "u64",
             UIntTy::U128 => "u128",
             UIntTy::USize => "usize",
-            UIntTy::UBig => "ubig",
         }
     }
 
@@ -139,7 +136,6 @@ impl From<SIntTy> for UIntTy {
             SIntTy::I64 => UIntTy::U64,
             SIntTy::I128 => UIntTy::U128,
             SIntTy::ISize => UIntTy::USize,
-            SIntTy::IBig => UIntTy::UBig,
         }
     }
 }
@@ -177,7 +173,6 @@ pub enum SIntTy {
     I64,
     I128,
     ISize,
-    IBig,
 }
 
 impl SIntTy {
@@ -191,7 +186,6 @@ impl SIntTy {
             SIntTy::I64 => Size::from_bytes(8),
             SIntTy::ISize => ptr_width,
             SIntTy::I128 => Size::from_bytes(16),
-            SIntTy::IBig => panic!("Cannot get size of IBig"),
         }
     }
 
@@ -225,7 +219,7 @@ impl SIntTy {
         self.size(ptr_size).signed_int_min()
     }
 
-    /// Convert the [IntTy] into a primitive type name
+    /// Convert the [SIntTy] into a primitive type name.
     pub fn to_name(&self) -> &'static str {
         match self {
             SIntTy::I8 => "i8",
@@ -234,7 +228,6 @@ impl SIntTy {
             SIntTy::I64 => "i64",
             SIntTy::I128 => "i128",
             SIntTy::ISize => "isize",
-            SIntTy::IBig => "ibig",
         }
     }
 
@@ -257,7 +250,6 @@ impl From<UIntTy> for SIntTy {
             UIntTy::U64 => SIntTy::I64,
             UIntTy::U128 => SIntTy::I128,
             UIntTy::USize => SIntTy::ISize,
-            UIntTy::UBig => SIntTy::IBig,
         }
     }
 }
@@ -286,13 +278,32 @@ impl fmt::Display for SIntTy {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum BigIntTy {
+    IBig,
+    UBig,
+}
+
+impl BigIntTy {
+    pub fn to_name(&self) -> &'static str {
+        match self {
+            BigIntTy::IBig => "ibig",
+            BigIntTy::UBig => "ubig",
+        }
+    }
+}
+
 /// The representation of an integer type.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum IntTy {
     /// Signed integer variant.
     Int(SIntTy),
+
     /// Unsigned integer variant.
     UInt(UIntTy),
+
+    /// The big int type variants.
+    Big(BigIntTy),
 }
 
 impl Default for IntTy {
@@ -302,11 +313,6 @@ impl Default for IntTy {
 }
 
 impl IntTy {
-    /// Check if the type is is bounded, i.e. not a `ubig` or `ibig` type.
-    pub fn is_bounded(&self) -> bool {
-        !matches!(self, IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig))
-    }
-
     /// Convert a [Integer] with signed-ness into a [IntTy]
     pub fn from_integer(integer: Integer, signed: bool) -> Self {
         if signed {
@@ -321,6 +327,7 @@ impl IntTy {
         match self {
             IntTy::Int(ty) => ty.to_name(),
             IntTy::UInt(ty) => ty.to_name(),
+            IntTy::Big(ty) => ty.to_name(),
         }
     }
 
@@ -335,6 +342,7 @@ impl IntTy {
         match self {
             IntTy::Int(_) => size.truncate(size.signed_int_min() as u128),
             IntTy::UInt(_) => 0,
+            _ => unreachable!(),
         }
     }
 
@@ -348,6 +356,7 @@ impl IntTy {
         match self {
             IntTy::Int(_) => size.signed_int_min(),
             IntTy::UInt(_) => 0,
+            _ => unreachable!(),
         }
     }
 
@@ -360,6 +369,7 @@ impl IntTy {
         match self {
             IntTy::Int(val) => val.max(ptr_size) as u128,
             IntTy::UInt(_) => self.size(ptr_size).unsigned_int_max(),
+            _ => unreachable!(),
         }
     }
 
@@ -368,6 +378,7 @@ impl IntTy {
         match self {
             IntTy::Int(ty) => ty.size(ptr_width),
             IntTy::UInt(ty) => ty.size(ptr_width),
+            _ => unreachable!(),
         }
     }
 
@@ -387,8 +398,8 @@ impl IntTy {
     }
 
     /// Check if the type is a [BigInt] variant, i.e. `ibig` or `ubig`.
-    pub fn is_bigint(self) -> bool {
-        matches!(self, IntTy::Int(SIntTy::IBig) | IntTy::UInt(UIntTy::UBig))
+    pub fn is_big(self) -> bool {
+        matches!(self, IntTy::Big(_))
     }
 
     /// Normalise an [IntTy] by removing "usize" and "isize" variants into
@@ -397,6 +408,7 @@ impl IntTy {
         match self {
             IntTy::Int(ty) => IntTy::Int(ty.normalise(ptr_width)),
             IntTy::UInt(ty) => IntTy::UInt(ty.normalise(ptr_width)),
+            _ => self,
         }
     }
 
@@ -405,6 +417,7 @@ impl IntTy {
         match self {
             IntTy::Int(ty) => ty.into(),
             IntTy::UInt(ty) => ty,
+            _ => unreachable!(),
         }
     }
 
@@ -413,6 +426,7 @@ impl IntTy {
         match self {
             IntTy::Int(ty) => ty,
             IntTy::UInt(ty) => ty.into(),
+            _ => unreachable!(),
         }
     }
 }
