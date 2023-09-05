@@ -1,6 +1,7 @@
-//! Defines various utilties that can be used to hash the AST. This crate
-//! exists so that items for [hash_fmt] and other places can be used to work
-//! with the AST whilst not being directly in [hash_ast].
+//! Defines various utilties that can be used on the AST. Mainly, this
+//! crate defines AST printing functionalities, including the `tree` view
+//! and the `pretty` prininging view, in addition to the implementation of
+//! the `#dump_ast` directive.
 #![feature(let_chains)]
 
 pub mod attr;
