@@ -27,7 +27,7 @@ use hash_ast_utils::attr::AttrNode;
 use hash_attrs::checks::AttrChecker;
 use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
 use hash_reporting::diagnostic::DiagnosticsMut;
-use hash_source::{SourceId, SourceMap};
+use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
 use hash_utils::crossbeam_channel::Sender;
 
@@ -44,8 +44,6 @@ pub struct AstExpander<'ctx> {
     /// A reference to the compiler settings.
     pub settings: &'ctx CompilerSettings,
 
-    pub sources: &'ctx SourceMap,
-
     pub stdout: CompilerOutputStream,
 
     /// Any diagnostics that have been emitted during the expansion stage.
@@ -58,13 +56,11 @@ impl<'ctx> AstExpander<'ctx> {
     pub fn new(
         id: SourceId,
         settings: &'ctx CompilerSettings,
-        sources: &'ctx SourceMap,
         data_layout: &'ctx TargetDataLayout,
         stdout: CompilerOutputStream,
     ) -> Self {
         Self {
             settings,
-            sources,
             stdout,
             diagnostics: ExpansionDiagnostics::new(),
             checker: AttrChecker::new(id, data_layout),

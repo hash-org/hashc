@@ -2,7 +2,6 @@
 
 use std::fmt;
 
-use hash_source::SourceMap;
 use hash_utils::itertools::Itertools;
 
 use super::WriteIr;
@@ -156,7 +155,6 @@ impl fmt::Display for IrBodyWriter<'_> {
 
 /// Dump all of the provided [Body]s to standard output using the `dot` format.
 pub fn dump_ir_bodies(
-    source_map: &SourceMap,
     bodies: &[Body],
     dump_all: bool,
     prelude_is_quiet: bool,
@@ -184,7 +182,7 @@ pub fn dump_ir_bodies(
             "IR dump for {} `{}` defined at {}\n{}",
             body.info().source(),
             body.info().name(),
-            source_map.fmt_location(body.span()),
+            body.span().fmt_path(),
             IrBodyWriter::new(body)
         )?;
     }

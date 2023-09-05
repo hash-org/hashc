@@ -7,10 +7,7 @@ use std::{
 };
 
 use hash_source::{InteractiveId, ModuleId, SourceId};
-use hash_utils::{
-    index_vec::{index_vec, IndexVec},
-    path::adjust_canonicalisation,
-};
+use hash_utils::index_vec::{index_vec, IndexVec};
 
 use crate::ast::{AstNode, BodyBlock, Module, OwnsAstNode};
 
@@ -69,30 +66,21 @@ impl OwnsAstNode<BodyBlock> for InteractiveBlock {
 pub struct ModuleEntry {
     /// The absolute path of the module on disk.
     pub path: PathBuf,
+
     /// The generated AST for the module, set when parsing is complete.
-    node: Option<AstNode<Module>>,
+    node: AstNode<Module>,
 }
 
 impl ModuleEntry {
     /// Create a new [ModuleEntry] with a specified `path` and the `node being
     /// set to [None].
-    pub fn new(path: PathBuf) -> Self {
-        Self { path, node: None }
+    pub fn new(path: PathBuf, node: AstNode<Module>) -> Self {
+        Self { path, node }
     }
 
     /// Get the `path` from the [Module].
     pub fn path(&self) -> &Path {
         &self.path
-    }
-
-    /// Get the canonicalised `path` from the [Module].
-    pub fn canonicalised_path(&self) -> String {
-        adjust_canonicalisation(self.path())
-    }
-
-    /// Set the `node` for given [Module]
-    pub fn set_node(&mut self, node: AstNode<Module>) {
-        self.node = Some(node);
     }
 }
 
@@ -100,13 +88,13 @@ impl OwnsAstNode<Module> for ModuleEntry {
     /// Get a reference to node within [ModuleEntry]. This
     /// assumes that the node had already been set.
     fn node(&self) -> &AstNode<Module> {
-        self.node.as_ref().unwrap()
+        &self.node
     }
 
     /// Get a mutable reference to node within [ModuleEntry]. This
     /// assumes that the node had already been set.
     fn node_mut(&mut self) -> &mut AstNode<Module> {
-        self.node.as_mut().unwrap()
+        &mut self.node
     }
 }
 

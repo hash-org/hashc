@@ -3,6 +3,7 @@ use std::fmt::Display;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
+use hash_source::SourceMapUtils;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
@@ -10,7 +11,7 @@ use hash_storage::store::{
 use hash_tir::{
     context::Decl,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::stores::tir_stores,
     fns::FnDefId,
     locations::LocationTarget,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
@@ -399,7 +400,7 @@ impl<'tc> DiscoveryPass<'tc> {
             Some(ast::Expr::Block(block)) => block.data.id(),
             Some(_) => node.value.as_ref().unwrap().id(),
             _ => {
-                panic_on_span!(node.span(), self.source_map(), "Found declaration without value")
+                panic_on_span!(node.span(), "Found declaration without value")
             }
         };
 
@@ -408,7 +409,7 @@ impl<'tc> DiscoveryPass<'tc> {
                 // Import
                 ast::Expr::Import(import_expr) => {
                     let source_id =
-                        self.source_map().get_id_by_path(&import_expr.data.resolved_path).unwrap();
+                        SourceMapUtils::id_by_path(&import_expr.data.resolved_path).unwrap();
                     let imported_mod_def_id =
                         self.mod_utils().create_or_get_module_mod_def(source_id.into());
                     Some(ModMember { name, value: ModMemberValue::Mod(imported_mod_def_id) })
@@ -477,7 +478,6 @@ impl<'tc> DiscoveryPass<'tc> {
     /// It leaves types as holes and values as `None`, because they will be
     /// resolved at a later stage.
     pub(super) fn add_stack_members_in_pat_to_buf(
-        &self,
         node: AstNodeRef<ast::Pat>,
         buf: &mut SmallVec<[(AstNodeId, Decl); 3]>,
     ) {
@@ -511,18 +511,14 @@ impl<'tc> DiscoveryPass<'tc> {
             }
             ast::Pat::Module(_) => {
                 // This should have been handled pre-tc semantics
-                panic_on_span!(
-                    node.span(),
-                    self.source_map(),
-                    "Found module pattern in stack definition"
-                )
+                panic_on_span!(node.span(), "Found module pattern in stack definition")
             }
             ast::Pat::Tuple(ast::TuplePat { fields, spread }) => {
                 if let Some(spread_node) = &spread {
                     register_spread_pat(spread_node, buf);
                 }
                 for field in fields.ast_ref_iter() {
-                    self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
+                    Self::add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
             }
             ast::Pat::Constructor(ast::ConstructorPat { fields, spread, .. }) => {
@@ -530,11 +526,11 @@ impl<'tc> DiscoveryPass<'tc> {
                     register_spread_pat(spread_node, buf);
                 }
                 for field in fields.ast_ref_iter() {
-                    self.add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
+                    Self::add_stack_members_in_pat_to_buf(field.pat.ast_ref(), buf);
                 }
             }
             ast::Pat::Macro(ast::PatMacroInvocation { subject, .. }) => {
-                self.add_stack_members_in_pat_to_buf(subject.ast_ref(), buf)
+                Self::add_stack_members_in_pat_to_buf(subject.ast_ref(), buf)
             }
             ast::Pat::Array(ast::ArrayPat { fields, spread }) => {
                 if let Some(spread_node) = &spread {
@@ -542,16 +538,18 @@ impl<'tc> DiscoveryPass<'tc> {
                 }
 
                 for field in fields.ast_ref_iter() {
-                    self.add_stack_members_in_pat_to_buf(field, buf);
+                    Self::add_stack_members_in_pat_to_buf(field, buf);
                 }
             }
             ast::Pat::Or(or_pat) => match or_pat.variants.get(0) {
                 // @@Invariant: Here we assume that each branch of the or pattern has the same
                 // members This should have already been checked at pre-tc semantics.
-                Some(pat) => self.add_stack_members_in_pat_to_buf(pat.ast_ref(), buf),
-                None => panic_on_span!(node.span(), self.source_map(), "Found empty or pattern"),
+                Some(pat) => Self::add_stack_members_in_pat_to_buf(pat.ast_ref(), buf),
+                None => panic_on_span!(node.span(), "Found empty or pattern"),
             },
-            ast::Pat::If(if_pat) => self.add_stack_members_in_pat_to_buf(if_pat.pat.ast_ref(), buf),
+            ast::Pat::If(if_pat) => {
+                Self::add_stack_members_in_pat_to_buf(if_pat.pat.ast_ref(), buf)
+            }
             ast::Pat::Wild(_) => buf.push((
                 node.id(),
                 Decl {
@@ -595,7 +593,7 @@ impl<'tc> DiscoveryPass<'tc> {
                     found_members
                         .push((node.id(), Decl { name: declaration_name, ty: None, value: None }))
                 }
-                _ => self.add_stack_members_in_pat_to_buf(node, &mut found_members),
+                _ => Self::add_stack_members_in_pat_to_buf(node, &mut found_members),
             }
             for (node_id, stack_member) in found_members {
                 members.push((node_id, stack_member.into()));

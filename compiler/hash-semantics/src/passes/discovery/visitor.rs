@@ -6,6 +6,7 @@ use hash_ast::{
     visitor::walk,
 };
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
+use hash_source::SourceMapUtils;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     data::DataDef,
@@ -87,7 +88,6 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 DefId::Data(_) => {
                     panic_on_span!(
                         node.span(),
-                        self.source_map(),
                         "found declaration in data definition scope, which should have been handled earlier"
                     )
                 }
@@ -112,7 +112,6 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
                 DefId::Fn(_) => {
                     panic_on_span!(
                         node.span(),
-                        self.source_map(),
                         "found declaration in function scope, which should instead be in a stack scope"
                     )
                 }
@@ -120,16 +119,11 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
             Some(ItemId::Ty(_)) => {
                 panic_on_span!(
                         node.span(),
-                        self.source_map(),
                         "found declaration in function type scope, which should instead be in a stack scope"
                     )
             }
             None => {
-                panic_on_span!(
-                    node.span(),
-                    self.source_map(),
-                    "found declaration before any scopes"
-                )
+                panic_on_span!(node.span(), "found declaration before any scopes")
             }
         };
 
@@ -467,7 +461,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
     type ImportRet = ();
     fn visit_import(&self, node: AstNodeRef<ast::Import>) -> Result<Self::ImportRet, Self::Error> {
-        let source_id = self.source_map().get_id_by_path(&node.resolved_path).unwrap();
+        let source_id = SourceMapUtils::id_by_path(&node.resolved_path).unwrap();
         self.current_source_info()
             .with_source_id(source_id, || DiscoveryPass::new(self.sem_env()).pass_source())?;
         Ok(())

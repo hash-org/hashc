@@ -7,19 +7,18 @@ pub mod identifier;
 pub mod location;
 
 use std::{
+    collections::HashMap,
     fmt,
-    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
 
-use bimap::BiMap;
 use hash_utils::{
     index_vec::{define_index_type, index_vec, IndexVec},
+    parking_lot::RwLock,
     path::adjust_canonicalisation,
-    range_map::RangeMap,
 };
-use location::{ByteRange, RowCol, RowColRange, Span};
-use once_cell::sync::OnceCell;
+use location::{ByteRange, LineRanges, RowColRange, SpannedSource};
+use once_cell::sync::{Lazy, OnceCell};
 
 /// Used to check what kind of [SourceId] is being
 /// stored, i.e. the most significant bit denotes whether
@@ -95,16 +94,19 @@ impl SourceId {
     }
 
     /// Check whether the [SourceId] points to a module.
+    #[inline]
     pub fn is_module(&self) -> bool {
         self._raw >> 31 == 1
     }
 
     /// Check whether the [SourceId] points to a interactive block.
+    #[inline]
     pub fn is_interactive(&self) -> bool {
         self._raw >> 31 == 0
     }
 
     /// Check whether the [SourceId] points to the prelude.
+    #[inline]
     pub fn is_prelude(&self) -> bool {
         self._raw == SOURCE_KIND_MASK
     }
@@ -114,6 +116,16 @@ impl SourceId {
     fn value(&self) -> u32 {
         // clear the last bit
         self._raw & 0x7fff_ffff
+    }
+
+    /// Check the [ModuleKind] of a given [SourceId].
+    pub fn module_kind(&self) -> Option<ModuleKind> {
+        if self.is_interactive() {
+            return None;
+        }
+
+        let value = self.value();
+        SOURCE_MAP.read().modules.get(value as usize).map(|module| module.kind)
     }
 }
 
@@ -164,155 +176,139 @@ pub enum ModuleKind {
     EntryPoint,
 }
 
-/// This struct is used a wrapper for a [RangeMap] in order to
-/// implement a nice display format, amongst other things. However,
-/// it is a bit of a @@Hack, but I don't think there is really any other
-/// better way to do this.
 #[derive(Debug)]
-pub struct LineRanges(RangeMap<usize, ()>);
+enum SourceKind {
+    Module {
+        /// The path of the module.
+        path: PathBuf,
+    },
 
-impl LineRanges {
-    /// Create a line range from a string slice.
-    pub fn new_from_str(s: &str) -> Self {
-        // Pre-allocate the line ranges to a specific size by counting the number of
-        // newline characters within the module source.
-        let mut ranges = Self(RangeMap::with_capacity(bytecount::count(s.as_bytes(), b'\n')));
-
-        // Now, iterate through the source and record the position of each newline
-        // range, and push it into the map.
-        let mut count = 0;
-
-        for line in s.lines() {
-            ranges.append(count..=(count + line.len()), ());
-            count += line.len() + 1;
-        }
-
-        ranges
-    }
-
-    /// Get a [RowCol] from a given byte index.
-    pub fn get_row_col(&self, index: usize) -> RowCol {
-        let ranges = &self.0;
-        let line = ranges.index_wrapping(index);
-        let key = ranges.key_wrapping(index);
-        let offset = key.start();
-
-        RowCol { row: line, column: index - offset }
-    }
-
-    /// Returns the line and column of the given [ByteRange]
-    pub fn row_cols(&self, range: ByteRange) -> RowColRange {
-        let start = self.get_row_col(range.start());
-        let end = self.get_row_col(range.end());
-
-        RowColRange { start, end }
-    }
+    /// An interactive block.
+    Interactive,
 }
 
-impl Deref for LineRanges {
-    type Target = RangeMap<usize, ()>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for LineRanges {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl fmt::Display for LineRanges {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (index, (key, _)) in self.iter().enumerate() {
-            writeln!(f, "{key}: {}", index + 1)?;
-        }
-
-        Ok(())
-    }
-}
-
-/// A [Source] is a wrapper around the contents of a source file that
-/// is stored in [SourceMap]. It features useful methods for extracting
-/// and reading sections of the source by using [Span] or [ByteRange]s.
-#[derive(Clone, Copy)]
-pub struct Source<'s>(pub &'s str);
-
-impl<'s> Source<'s> {
-    /// Create a [Source] from a [String].
-    pub fn from_string(s: &'s str) -> Self {
-        Self(s)
-    }
-
-    /// Get a hunk of the source by the specified [ByteRange].
-    pub fn hunk(&self, range: ByteRange) -> &'s str {
-        &self.0[range.start()..range.end()]
-    }
-}
-
-/// Stores all of the relevant source information about a particular module.
 #[derive(Debug)]
-pub struct Module {
+pub struct Source {
     /// The contents of the module.
     contents: String,
 
-    /// The kind of the module.
-    kind: ModuleKind,
-
     /// Line ranges for fast lookups, this is only computed when it is needed.
     line_ranges: OnceCell<LineRanges>,
+
+    /// Canonicalised version of the path.
+    canonicalised_path: OnceCell<PathBuf>,
+
+    extra: SourceKind,
 }
 
-impl Module {
-    /// Create a new [Module].
-    pub fn new(source: String, kind: ModuleKind) -> Self {
-        Self { contents: source, kind, line_ranges: OnceCell::new() }
+impl Source {
+    fn new(contents: String, extra: SourceKind) -> Self {
+        Self { contents, line_ranges: OnceCell::new(), canonicalised_path: OnceCell::new(), extra }
     }
 
-    /// Get the source of the module.
-    pub fn contents(&self) -> Source<'_> {
-        Source(&self.contents)
+    pub fn is_interactive(&self) -> bool {
+        matches!(self.extra, SourceKind::Interactive)
     }
 
-    /// Get the kind of the module.
-    pub fn kind(&self) -> ModuleKind {
-        self.kind
+    /// Get the contents of the module as a [SpannedSource].
+    pub fn contents(&self) -> SpannedSource<'_> {
+        SpannedSource(&self.contents)
+    }
+
+    /// Get the contents of the module as a [String].
+    pub fn owned_contents(&self) -> String {
+        self.contents.clone()
+    }
+
+    /// Get a hunk of the source by the specified [ByteRange].
+    pub fn hunk(&self, range: ByteRange) -> &str {
+        &self.contents[range.start()..range.end()]
+    }
+
+    pub fn row_cols(&self, range: ByteRange) -> RowColRange {
+        self.line_ranges().row_cols(range)
     }
 
     /// Get the line ranges for this particular module.
     pub fn line_ranges(&self) -> &LineRanges {
         self.line_ranges.get_or_init(|| LineRanges::new_from_str(&self.contents))
     }
+
+    /// Get the path of the module.
+    pub fn path(&self) -> &Path {
+        match &self.extra {
+            SourceKind::Module { path, .. } => path.as_path(),
+            SourceKind::Interactive => Path::new("<interactive>"),
+        }
+    }
+
+    pub fn canonicalised_path(&self) -> &Path {
+        self.canonicalised_path
+            .get_or_init(|| match &self.extra {
+                SourceKind::Module { path } => adjust_canonicalisation(path),
+                SourceKind::Interactive => PathBuf::from("<interactive>"),
+            })
+            .as_path()
+    }
+
+    /// Get the name of the [Source].
+    pub fn name(&self) -> &str {
+        match &self.extra {
+            SourceKind::Module { path, .. } => {
+                let prefix = path.file_prefix().unwrap();
+
+                // deal with `index.hash` case...
+                if prefix == "index" {
+                    if let Some(parent) = path.parent() {
+                        // Now we should be at the `parent` direct
+                        return parent.file_name().unwrap_or(prefix).to_str().unwrap();
+                    }
+                }
+
+                // If it is a normal filename, then just use the resultant prefix, or default
+                // to this if trying to extract the name of the parent fails... for example
+                // `/index.hash`
+                prefix.to_str().unwrap()
+            }
+            SourceKind::Interactive => "<interactive>",
+        }
+    }
 }
 
-/// A single entry within the interactive mode, this is used to store the
-/// contents of the interactive block. An [InteractiveBlock] is only part
-/// of the `<interactive>` module, and thus does not imply the same behaviour
-/// or handling as a [Module].
+/// Stores all of the relevant source information about a particular module.
+#[derive(Debug)]
+pub struct Module {
+    source: Source,
+
+    /// The kind of the module.
+    kind: ModuleKind,
+}
+
+impl Module {
+    /// Create a new [Module].
+    pub fn new(contents: String, path: PathBuf, kind: ModuleKind) -> Self {
+        Self { source: Source::new(contents, SourceKind::Module { path }), kind }
+    }
+
+    /// Create a dummy [Module] entry, this only used.
+    fn empty(path: PathBuf, kind: ModuleKind) -> Module {
+        Self { source: Source::new(String::new(), SourceKind::Module { path }), kind }
+    }
+}
+
+// /// A single entry within the interactive mode, this is used to store the
+// /// contents of the interactive block. An [InteractiveBlock] is only part
+// /// of the `<interactive>` module, and thus does not imply the same behaviour
+// /// or handling as a [Module].
 #[derive(Debug)]
 pub struct InteractiveBlock {
-    /// The contents of the interactive block.
-    contents: String,
-
-    /// Line ranges for fast lookups, this is only computed when it is needed.
-    line_ranges: OnceCell<LineRanges>,
+    source: Source,
 }
 
 impl InteractiveBlock {
     /// Create a new [InteractiveBlock].
     pub fn new(contents: String) -> Self {
-        Self { contents, line_ranges: OnceCell::new() }
-    }
-
-    /// Get the contents of the interactive block.
-    pub fn contents(&self) -> Source<'_> {
-        Source(&self.contents)
-    }
-
-    /// Get the line ranges for this particular interactive block.
-    pub fn line_ranges(&self) -> &LineRanges {
-        self.line_ranges.get_or_init(|| LineRanges::new_from_str(&self.contents))
+        Self { source: Source::new(contents, SourceKind::Interactive) }
     }
 }
 
@@ -325,7 +321,7 @@ impl InteractiveBlock {
 pub struct SourceMap {
     /// A map between [ModuleId] and [PathBuf]. This is a bi-directional map
     /// and such value and key lookups are available.
-    module_paths: BiMap<ModuleId, PathBuf>,
+    module_paths: HashMap<PathBuf, ModuleId>,
 
     ///  A map between [ModuleId] and the actual sources of the module.
     modules: IndexVec<ModuleId, Module>,
@@ -337,107 +333,26 @@ pub struct SourceMap {
 
 impl SourceMap {
     /// Create a new [SourceMap]
-    pub fn new() -> Self {
-        Self { module_paths: BiMap::new(), modules: index_vec![], interactive_blocks: index_vec![] }
+    fn new() -> Self {
+        Self {
+            module_paths: HashMap::new(),
+            modules: index_vec![],
+            interactive_blocks: index_vec![],
+        }
     }
 
-    /// Get a [Path] by a specific [SourceId]. If it is interactive, the path
-    /// is always set as `<interactive>`.
-    pub fn source_path(&self, id: SourceId) -> &Path {
+    fn source(&self, id: SourceId) -> &Source {
         if id.is_interactive() {
-            Path::new("<interactive>")
+            &self.interactive_blocks.get(id.value() as usize).unwrap().source
         } else {
-            self.module_path(id.into())
+            &self.modules.get(id.value() as usize).unwrap().source
         }
     }
 
-    /// Get a [Path] for a specific [ModuleId].
-    pub fn module_path(&self, id: ModuleId) -> &Path {
-        self.module_paths.get_by_left(&id).unwrap().as_path()
-    }
-
-    /// Get a canonicalised version of a [Path] for a [SourceId]. If it is
-    /// interactive, the path is always set as `<interactive>`. The function
-    /// automatically converts the value into a string.
-    pub fn canonicalised_path_by_id(&self, id: SourceId) -> String {
-        if id.is_interactive() {
-            String::from("<interactive>")
-        } else {
-            let value = id.into();
-            adjust_canonicalisation(self.module_paths.get_by_left(&value).unwrap())
-        }
-    }
-
-    /// Get the name of a [SourceId] by extracting the path and further
-    /// retrieving the stem of the filename as the name of the module. This
-    /// function adheres to the rules of module naming conventions which are
-    /// specified within the documentation book.
-    pub fn source_name(&self, id: SourceId) -> &str {
-        let path = self.source_path(id);
-
-        // for interactive, there is no file and so we just default to using the whole
-        // path
-        if id.is_interactive() {
-            path.to_str().unwrap()
-        } else {
-            let prefix = path.file_prefix().unwrap();
-
-            // deal with `index.hash` case...
-            if prefix == "index" {
-                if let Some(parent) = path.parent() {
-                    // Now we should be at the `parent` direct
-                    return parent.file_name().unwrap_or(prefix).to_str().unwrap();
-                }
-            }
-
-            // If it is a normal filename, then just use the resultant prefix, or default
-            // to this if trying to extract the name of the parent fails... for example
-            // `/index.hash`
-            prefix.to_str().unwrap()
-        }
-    }
-
-    /// Get a [ModuleId] by a specific [Path]. The function checks if there
-    /// is an entry for the specified `path` yielding a [ModuleId].
-    ///
-    /// N.B. This never returns a [InteractiveId] value.
-    pub fn get_id_by_path(&self, path: &Path) -> Option<SourceId> {
-        self.module_paths.get_by_right(path).copied().map(SourceId::from)
-    }
-
-    /// Get the raw contents of a module or interactive block by the
-    /// specified [SourceId]
-    pub fn contents(&self, source_id: SourceId) -> Source<'_> {
-        if source_id.is_interactive() {
-            self.interactive_blocks.get(source_id.value() as usize).unwrap().contents()
-        } else {
-            self.modules.get(source_id.value() as usize).unwrap().contents()
-        }
-    }
-
-    /// Get a hunk of the source by the specified [SourceId] and [Span].
-    pub fn hunk(&self, span: Span) -> &str {
-        self.contents(span.id).hunk(span.range)
-    }
-
-    /// Get the [LineRanges] for a specific [SourceId].
-    pub fn line_ranges(&self, source_id: SourceId) -> &LineRanges {
-        if source_id.is_interactive() {
-            self.interactive_blocks.get(source_id.value() as usize).unwrap().line_ranges()
-        } else {
-            self.modules.get(source_id.value() as usize).unwrap().line_ranges()
-        }
-    }
-
-    /// Get the [ModuleKind] by [SourceId]. If the `id` is
-    /// [InteractiveId], then the resultant [ModuleKind] is [None].
-    pub fn module_kind_by_id(&self, source_id: SourceId) -> Option<ModuleKind> {
-        if source_id.is_interactive() {
-            return None;
-        }
-
-        let value = source_id.value();
-        self.modules.get(value as usize).map(|module| module.kind)
+    fn add_interactive_block(&mut self, contents: String) -> SourceId {
+        let id = self.interactive_blocks.len() as u32;
+        self.interactive_blocks.push(InteractiveBlock::new(contents));
+        SourceId::new_interactive(id)
     }
 
     /// Get the entry point that has been registered with the [SourceMap].
@@ -449,44 +364,58 @@ impl SourceMap {
             .position(|module| matches!(module.kind, ModuleKind::EntryPoint))
             .map(|index| index.into())
     }
+}
 
-    /// Get a module by the specific [ModuleId].
-    pub fn get_module(&self, id: ModuleId) -> &Module {
-        self.modules.get(id).unwrap()
-    }
+static SOURCE_MAP: Lazy<RwLock<SourceMap>> = Lazy::new(|| {
+    let map = SourceMap::new();
+    RwLock::new(map)
+});
 
-    /// Add a module to the [SourceMap] with the specified resolved file path,
-    /// contents and a kind of module.
-    pub fn add_module(&mut self, path: PathBuf, contents: String, kind: ModuleKind) -> SourceId {
-        let id = self.modules.len() as u32;
-        self.modules.push(Module::new(contents, kind));
+pub struct SourceMapUtils;
+
+impl SourceMapUtils {
+    /// Reserve a [SourceId] a given module.
+    pub fn reserve_module(path: PathBuf, kind: ModuleKind) -> SourceId {
+        let mut map = SOURCE_MAP.write();
+
+        let id = map.modules.len() as u32;
+        map.modules.push(Module::empty(path.clone(), kind));
 
         // Create references for the paths reverse
         let id = ModuleId::from_raw(id);
-        self.module_paths.insert(id, path);
+        map.module_paths.insert(path, id);
         id.into()
     }
 
+    pub fn set_module_source(id: SourceId, contents: String) {
+        let mut map = SOURCE_MAP.write();
+        let id: ModuleId = id.into();
+
+        // Update the entry in the `module` vector. We don't need to put a
+        // path in since that happens when the module is reserved.
+        map.modules[id].source.contents = contents;
+    }
+
     /// Add an interactive block to the [SourceMap]
-    pub fn add_interactive_block(&mut self, contents: String) -> SourceId {
-        let id = self.interactive_blocks.len() as u32;
-        self.interactive_blocks.push(InteractiveBlock::new(contents));
-        SourceId::new_interactive(id)
+    pub fn add_interactive_block(contents: String) -> SourceId {
+        SOURCE_MAP.write().add_interactive_block(contents)
     }
 
-    /// Function to get a friendly representation of the [Span] in
-    /// terms of row and column positions.
-    pub fn get_row_col_for(&self, location: Span) -> RowColRange {
-        self.line_ranges(location.id).row_cols(location.range)
+    pub fn entry_point() -> Option<SourceId> {
+        SOURCE_MAP.read().entry_point().map(SourceId::from)
     }
 
-    /// Convert a [Span] in terms of the filename, row and column.
+    /// Get a [SourceId] by a specific [Path]. The function checks if there
+    /// is an entry for the specified `path` yielding a [SourceId].
     ///
-    /// @@cleanup: move this out of here.
-    pub fn fmt_location(&self, location: Span) -> String {
-        let name = self.canonicalised_path_by_id(location.id);
-        let span = self.get_row_col_for(location);
+    /// **Note**: this function has no effect when calling on `interactive`
+    /// sources.
+    pub fn id_by_path(path: &Path) -> Option<SourceId> {
+        SOURCE_MAP.read().module_paths.get(path).copied().map(SourceId::from)
+    }
 
-        format!("{name}:{span}")
+    pub fn map<T>(id: impl Into<SourceId>, f: impl FnOnce(&Source) -> T) -> T {
+        let map = SOURCE_MAP.read();
+        f(map.source(id.into()))
     }
 }

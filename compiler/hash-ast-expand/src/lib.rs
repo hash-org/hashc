@@ -71,11 +71,10 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         let (sender, receiver) = unbounded::<ExpansionDiagnostic>();
 
         let node_map = &mut workspace.node_map;
-        let sources = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
         let make_expander =
-            |source| AstExpander::new(source, settings, sources, data_layout, stdout.clone());
+            |source| AstExpander::new(source, settings, data_layout, stdout.clone());
 
         pool.scope(|scope| {
             let source_info = source_stage_info.get(entry_point);

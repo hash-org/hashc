@@ -2,11 +2,12 @@
 use std::{
     convert::TryInto,
     fmt::{self, Display},
+    ops::{Deref, DerefMut},
 };
 
-use hash_utils::derive_more::Constructor;
+use hash_utils::{derive_more::Constructor, range_map::RangeMap};
 
-use crate::SourceId;
+use crate::{SourceId, SourceMapUtils};
 
 /// [ByteRange] represents a location of a range of tokens within the source.
 ///
@@ -122,6 +123,25 @@ impl Span {
     pub fn is_empty(&self) -> bool {
         self.range.is_empty()
     }
+
+    pub fn fmt_path(&self) -> String {
+        SourceMapUtils::map(self.id, |source| {
+            format!("{}:{}", source.canonicalised_path().display(), source.row_cols(self.range))
+        })
+    }
+
+    /// Get the contents of the [Span] from the [SpannedSource].
+    pub fn contents(&self) -> String {
+        SourceMapUtils::map(self.id, |source| source.hunk(self.range).to_string())
+    }
+
+    /// Map the contents of the [Span].
+    pub fn map_contents<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&str) -> T,
+    {
+        SourceMapUtils::map(self.id, |source| f(source.hunk(self.range)))
+    }
 }
 
 /// Represents a position within a source using a `row` and `column`  
@@ -176,5 +196,92 @@ impl Display for RowColRange {
         } else {
             write!(f, "{}-{}", self.start, self.end)
         }
+    }
+}
+
+/// A [SpannedSource] is a wrapper around the contents of a source file that
+/// is stored in [SourceMap]. It features useful methods for extracting
+/// and reading sections of the source by using [Span] or [ByteRange]s.
+#[derive(Clone, Copy)]
+pub struct SpannedSource<'s>(pub &'s str);
+
+impl<'s> SpannedSource<'s> {
+    /// Create a [SpannedSource] from a [String].
+    pub fn from_string(s: &'s str) -> Self {
+        Self(s)
+    }
+
+    /// Get a hunk of the source by the specified [ByteRange].
+    pub fn hunk(&self, range: ByteRange) -> &'s str {
+        &self.0[range.start()..range.end()]
+    }
+}
+
+/// This struct is used a wrapper for a [RangeMap] in order to
+/// implement a nice display format, amongst other things. However,
+/// it is a bit of a @@Hack, but I don't think there is really any other
+/// better way to do this.
+#[derive(Debug)]
+pub struct LineRanges(RangeMap<usize, ()>);
+
+impl LineRanges {
+    /// Create a line range from a string slice.
+    pub fn new_from_str(s: &str) -> Self {
+        // Pre-allocate the line ranges to a specific size by counting the number of
+        // newline characters within the module source.
+        let mut ranges = Self(RangeMap::with_capacity(bytecount::count(s.as_bytes(), b'\n')));
+
+        // Now, iterate through the source and record the position of each newline
+        // range, and push it into the map.
+        let mut count = 0;
+
+        for line in s.lines() {
+            ranges.append(count..=(count + line.len()), ());
+            count += line.len() + 1;
+        }
+
+        ranges
+    }
+
+    /// Get a [RowCol] from a given byte index.
+    pub fn get_row_col(&self, index: usize) -> RowCol {
+        let ranges = &self.0;
+        let line = ranges.index_wrapping(index);
+        let key = ranges.key_wrapping(index);
+        let offset = key.start();
+
+        RowCol { row: line, column: index - offset }
+    }
+
+    /// Returns the line and column of the given [ByteRange]
+    pub fn row_cols(&self, range: ByteRange) -> RowColRange {
+        let start = self.get_row_col(range.start());
+        let end = self.get_row_col(range.end());
+
+        RowColRange { start, end }
+    }
+}
+
+impl Deref for LineRanges {
+    type Target = RangeMap<usize, ()>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for LineRanges {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl fmt::Display for LineRanges {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, (key, _)) in self.iter().enumerate() {
+            writeln!(f, "{key}: {}", index + 1)?;
+        }
+
+        Ok(())
     }
 }

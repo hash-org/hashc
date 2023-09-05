@@ -13,7 +13,7 @@ use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     args::{Arg, ArgsId},
     data::DataTy,
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::stores::tir_stores,
     fns::FnCallTerm,
     node::{Node, NodeOrigin},
     params::ParamIndex,
@@ -139,11 +139,7 @@ impl<'tc> ResolutionPass<'tc> {
                     Ok(Term::from(Term::FnRef(*fn_def_id), origin).as_ty())
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
-                    panic_on_span!(
-                        original_node_id.span(),
-                        self.source_map(),
-                        "found CtorPat in type ast path"
-                    )
+                    panic_on_span!(original_node_id.span(), "found CtorPat in type ast path")
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
                     Ok(Term::from(Term::Ctor(**ctor_term), origin).as_ty())
@@ -404,7 +400,7 @@ impl<'tc> ResolutionPass<'tc> {
                 Ty::from(expr, NodeOrigin::Given(node.id()))
             }
             ast::Ty::Union(_) => {
-                panic_on_span!(node.span(), self.source_map(), "Found union type after discovery")
+                panic_on_span!(node.span(), "Found union type after discovery")
             }
         };
 

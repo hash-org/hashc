@@ -13,6 +13,7 @@ use hash_intrinsics::{
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
+use hash_source::SourceMapUtils;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -192,7 +193,8 @@ impl<'tc> ResolutionPass<'tc> {
 
             ast::Expr::Import(import_expr) => {
                 let source_id =
-                    self.source_map().get_id_by_path(&import_expr.data.resolved_path).unwrap();
+                    SourceMapUtils::id_by_path(&import_expr.data.resolved_path).unwrap();
+
                 self.current_source_info().with_source_id(source_id, || {
                     ResolutionPass::new(self.sem_env()).pass_source()
                 })?;
@@ -262,11 +264,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 ast::PropertyKind::NumericField(_) => {
                     // Should have been caught at semantics
-                    panic_on_span!(
-                        node.span(),
-                        self.source_map(),
-                        "Namespace followed by numeric field found"
-                    )
+                    panic_on_span!(node.span(), "Namespace followed by numeric field found")
                 }
             },
             ast::AccessKind::Property => Ok(None),
@@ -353,11 +351,7 @@ impl<'tc> ResolutionPass<'tc> {
                     Ok(Term::from(Term::FnRef(*fn_def_id), origin))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
-                    panic_on_span!(
-                        original_node_id.span(),
-                        self.source_map(),
-                        "found CtorPat in value ast path"
-                    )
+                    panic_on_span!(original_node_id.span(), "found CtorPat in value ast path")
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
                     // Constructor
@@ -772,7 +766,6 @@ impl<'tc> ResolutionPass<'tc> {
             .unwrap_or_else(|| {
                 panic_on_span!(
                     node.span(),
-                    self.source_map(),
                     "Found non-stack body block in make_term_from_ast_body_block"
                 )
             })
@@ -824,7 +817,6 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Block::For(_) | ast::Block::While(_) | ast::Block::If(_) => {
                 panic_on_span!(
                     node.span(),
-                    self.source_map(),
                     "Found non-desugared block in make_term_from_ast_block_expr"
                 )
             }

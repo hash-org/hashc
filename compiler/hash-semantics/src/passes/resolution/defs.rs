@@ -7,6 +7,7 @@ use std::cell::Cell;
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
+use hash_source::SourceMapUtils;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     data::DataDefCtors,
@@ -212,10 +213,9 @@ impl<'tc> ResolutionPass<'tc> {
                             }
                             ast::Expr::Import(import_expr) => {
                                 // If it's an import, resolve the source
-                                let source_id = self
-                                    .source_map()
-                                    .get_id_by_path(&import_expr.data.resolved_path)
-                                    .unwrap();
+                                let source_id =
+                                    SourceMapUtils::id_by_path(&import_expr.data.resolved_path)
+                                        .unwrap();
                                 self.current_source_info().with_source_id(source_id, || {
                                     ResolutionPass::new(self.sem_env()).pass_source()
                                 })?;

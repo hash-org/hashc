@@ -10,10 +10,7 @@ use hash_reporting::{
 use hash_source::location::Span;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
+    environment::{env::Env, stores::tir_stores},
     fns::FnDefId,
     impl_access_to_env,
     locations::LocationTarget,
@@ -141,7 +138,7 @@ impl_access_to_env!(TcErrorReporter<'env>);
 impl fmt::Display for TcErrorReporter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let reports = Self::format_error(&TcError::Signal);
-        write!(f, "{}", ReportWriter::new(reports, self.source_map()))
+        write!(f, "{}", ReportWriter::new(reports))
     }
 }
 

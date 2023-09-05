@@ -60,9 +60,9 @@ impl IntLit {
     /// Check whether that value is negative.
     ///
     /// **Note**: For raw values, we just check if the value starts with a `-`.
-    pub fn is_negative(&self, env: &Env<'_>) -> bool {
+    pub fn is_negative(&self) -> bool {
         match self.value {
-            LitValue::Raw(lit) => env.source_map().hunk(lit.hunk.span()).starts_with('-'),
+            LitValue::Raw(lit) => lit.hunk.span().map_contents(|s| s.starts_with('-')),
             LitValue::Value(value) => value.is_negative(),
         }
     }
@@ -98,13 +98,8 @@ impl IntLit {
     /// term.
     pub fn bake(&mut self, env: &Env<'_>, int_ty: IntTy) -> LitParseResult<()> {
         if let LitValue::Raw(lit) = self.value {
-            let value = parse_int_const_from_lit(
-                &lit,
-                Some(int_ty),
-                env.source_map(),
-                env.target().ptr_size(),
-                true,
-            )?;
+            let value =
+                parse_int_const_from_lit(&lit, Some(int_ty), env.target().ptr_size(), true)?;
 
             match value {
                 IntValue::Small(value) => {
@@ -209,9 +204,9 @@ impl FloatLit {
     ///
     /// This function does not do anyttihng if the literal has already been
     /// baked.
-    pub fn bake(&mut self, env: &Env<'_>, float_ty: FloatTy) -> LitParseResult<()> {
+    pub fn bake(&mut self, float_ty: FloatTy) -> LitParseResult<()> {
         if let LitValue::Raw(lit) = self.value {
-            let value = parse_float_const_from_lit(&lit, Some(float_ty), env.source_map())?;
+            let value = parse_float_const_from_lit(&lit, Some(float_ty))?;
 
             self.value = LitValue::Value(value);
         }

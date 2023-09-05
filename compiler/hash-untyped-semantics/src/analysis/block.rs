@@ -12,7 +12,7 @@ use hash_ast::{
 use super::SemanticAnalyser;
 use crate::diagnostics::error::AnalysisErrorKind;
 
-impl SemanticAnalyser<'_> {
+impl SemanticAnalyser {
     /// This function will verify that all of the given expressions are
     /// declarations. Additionally, the function checks that all of the
     /// declarations within the scope do not attempt to declare the binding

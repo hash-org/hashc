@@ -118,7 +118,6 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
         let env = Env::new(
             &semantic_storage.context,
             &workspace.node_map,
-            &workspace.source_map,
             settings.target(),
             &current_source_info,
         );

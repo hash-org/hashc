@@ -1,5 +1,5 @@
 //! Hash diagnostic report data structures.
-use std::{cell::Cell, fmt};
+use std::{cell::OnceCell, fmt};
 
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::location::{RowColRange, Span};
@@ -117,15 +117,19 @@ impl ReportNote {
 /// optional [ReportCodeBlockInfo] which adds a message pointed to a code item.
 #[derive(Debug, Clone)]
 pub struct ReportCodeBlock {
-    pub source_location: Span,
+    pub span: Span,
     pub code_message: String,
-    pub(crate) info: Cell<Option<ReportCodeBlockInfo>>,
+    pub(crate) info: OnceCell<ReportCodeBlockInfo>,
 }
 
 impl ReportCodeBlock {
     /// Create a new [ReportCodeBlock] from a [Span] and a message.
     pub fn new(source_location: Span, code_message: impl ToString) -> Self {
-        Self { source_location, code_message: code_message.to_string(), info: Cell::new(None) }
+        Self {
+            span: source_location,
+            code_message: code_message.to_string(),
+            info: OnceCell::new(),
+        }
     }
 }
 

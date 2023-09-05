@@ -1,5 +1,4 @@
 use hash_ast::node_map::NodeMap;
-use hash_source::SourceMap;
 use hash_target::Target;
 
 use super::source_info::CurrentSourceInfo;
@@ -50,7 +49,6 @@ macro_rules! env {
 env! {
     context: Context,
     node_map: NodeMap,
-    source_map: SourceMap,
     target: Target,
     current_source_info: CurrentSourceInfo,
 }

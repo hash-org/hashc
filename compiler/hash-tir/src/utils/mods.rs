@@ -1,6 +1,6 @@
 //! Module-related utilities.
 use hash_ast::ast::OwnsAstNode;
-use hash_source::{identifier::Identifier, ModuleId};
+use hash_source::{identifier::Identifier, ModuleId, SourceMapUtils};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_utils::derive_more::Constructor;
 
@@ -32,7 +32,8 @@ impl<'tc> ModUtils<'tc> {
             None => {
                 // Create a new module definition.
                 let source_id = module_id.into();
-                let module_name: Identifier = self.source_map().source_name(source_id).into();
+                let module_name: Identifier =
+                    SourceMapUtils::map(source_id, |source| source.name().into());
                 let mod_def_id = Node::create_at(
                     ModDef {
                         // @@MissingOrigin
@@ -43,12 +44,9 @@ impl<'tc> ModUtils<'tc> {
                             // We need the path inside ModKind so that we can print it without
                             // requiring access to source map. Ideally SourceMap should be static
                             // so that this is not needed.
-                            Box::leak(
-                                self.source_map()
-                                    .source_path(source_id)
-                                    .to_path_buf()
-                                    .into_boxed_path(),
-                            ),
+                            Box::leak(SourceMapUtils::map(source_id, |source| {
+                                source.path().to_path_buf().into_boxed_path()
+                            })),
                         ),
                         members: Node::create_at(
                             Node::<ModMember>::empty_seq(),

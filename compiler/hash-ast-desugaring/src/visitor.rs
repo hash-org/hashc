@@ -5,22 +5,18 @@ use hash_ast::{
     ast_visitor_mut_default_impl,
     visitor::{walk_mut, AstVisitorMut},
 };
-use hash_source::SourceMap;
 
 #[derive(Debug)]
-pub struct AstDesugaring<'s> {
-    pub(crate) source_map: &'s SourceMap,
-}
+pub struct AstDesugaring {}
 
-impl<'s> AstDesugaring<'s> {
-    /// Create a new [AstDesugaring]. Contains the [SourceMap] and the
-    /// current id of the source in reference.
-    pub fn new(source_map: &'s SourceMap) -> Self {
-        Self { source_map }
+impl AstDesugaring {
+    /// Create a new [AstDesugaring].
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-impl<'s> AstVisitorMut for AstDesugaring<'s> {
+impl AstVisitorMut for AstDesugaring {
     type Error = Infallible;
     ast_visitor_mut_default_impl!(hiding: Block);
 

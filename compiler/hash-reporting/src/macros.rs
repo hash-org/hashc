@@ -8,7 +8,7 @@ use hash_utils::stream_less_ewriteln;
 /// is a useful utility to denote where a panic occurs and provide additional
 /// context about where the panic occurred in regards to traversing the sources.
 pub macro panic_on_span {
-    ($location:expr, $sources:expr, $fmt: expr) => {
+    ($location:expr, $fmt: expr) => {
         {
 
             let mut reporter = $crate::reporter::Reporter::new();
@@ -16,12 +16,12 @@ pub macro panic_on_span {
                 .title($fmt)
                 .add_labelled_span($location, "here");
 
-            stream_less_ewriteln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports(), $sources));
+            stream_less_ewriteln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports()));
             std::panic::panic_any("A fatal error occurred during compilation on the reported node");
         }
     },
-    ($location:expr, $sources:expr, $fmt: expr, $($arg:tt)*) => {
-        panic_on_span!($location, $sources, format!($fmt, $($arg)*))
+    ($location:expr, $fmt: expr, $($arg:tt)*) => {
+        panic_on_span!($location, format!($fmt, $($arg)*))
     }
 }
 
@@ -30,7 +30,7 @@ pub macro panic_on_span {
 /// to quickly print the `span` of something and the `message` associated with
 /// it.
 pub macro compiler_note {
-    ($location:expr, $sources:expr, $fmt: expr) => {
+    ($location:expr, $fmt: expr) => {
         {
             use hash_utils::stream_less_ewriteln;
 
@@ -39,10 +39,10 @@ pub macro compiler_note {
                 .title($fmt)
                 .add_labelled_span($location, "here");
 
-            stream_less_ewriteln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports(), $sources));
+            stream_less_ewriteln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports()));
         }
     },
-    ($location:expr, $sources:expr, $fmt: expr, $($arg:tt)*) => {
-        compiler_note!($location, $sources, format!($fmt, $($arg)*))
+    ($location:expr, $fmt: expr, $($arg:tt)*) => {
+        compiler_note!($location, format!($fmt, $($arg)*))
     }
 }

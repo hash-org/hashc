@@ -28,7 +28,7 @@ impl Display for FieldNamingExpectation {
     }
 }
 
-impl SemanticAnalyser<'_> {
+impl SemanticAnalyser {
     /// Function to check whether the naming convention of a set of fields is
     /// consistent. Consistency is determined whether all of the fields
     /// are named or if they are all un-named.

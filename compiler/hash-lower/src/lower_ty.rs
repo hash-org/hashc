@@ -152,7 +152,7 @@ impl<'ir> BuilderCtx<'ir> {
                     format!("all types should be monomorphised before lowering, type: `{}`", ty);
 
                 if let Some(location) = get_location(id) {
-                    panic_on_span!(location, self.source_map(), format!("{message}"))
+                    panic_on_span!(location, format!("{message}"))
                 } else {
                     panic!("{message}")
                 }

@@ -69,14 +69,13 @@ impl<Ctx: AstDesugaringCtxQuery> CompilerStage<Ctx> for AstDesugaringPass {
         let AstDesugaringCtx { workspace, pool } = &mut ctx.data();
 
         let node_map = &mut workspace.node_map;
-        let source_map = &workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
             if !source_stage_info.get(entry_point).is_desugared() && entry_point.is_interactive() {
                 let source = node_map.get_interactive_block_mut(entry_point.into());
-                let mut desugarer = AstDesugaring::new(source_map);
+                let mut desugarer = AstDesugaring::new();
 
                 desugarer.visit_body_block(source.node_ref_mut()).unwrap();
             }
@@ -102,7 +101,7 @@ impl<Ctx: AstDesugaringCtxQuery> CompilerStage<Ctx> for AstDesugaringPass {
                 // investigating this in the future.
                 for expr in module.node_mut().contents.iter_mut() {
                     scope.spawn(move |_| {
-                        let mut desugarer = AstDesugaring::new(source_map);
+                        let mut desugarer = AstDesugaring::new();
                         desugarer.visit_expr(expr.ast_ref_mut()).unwrap()
                     })
                 }

@@ -21,7 +21,6 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     control::IfPat,
     data::CtorPat,
-    environment::env::AccessToEnv,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };
@@ -199,7 +198,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                             if adt.flags.is_struct() {
                                 panic_on_span!(
                                     origin.span(),
-                                    self.source_map(),
                                     "attempt to test simplify-able pattern, `{}`",
                                     (pair.pat)
                                 )
@@ -249,15 +247,12 @@ impl<'tcx> BodyBuilder<'tcx> {
             Pat::If(IfPat { pat, .. }) => {
                 self.test_match_pair(&MatchPair { pat, place: pair.place.clone() })
             }
-            Pat::Or(_) => panic_on_span!(
-                origin.span(),
-                self.source_map(),
-                "or patterns should be handled by `test_or_pat`"
-            ),
+            Pat::Or(_) => {
+                panic_on_span!(origin.span(), "or patterns should be handled by `test_or_pat`")
+            }
             Pat::Tuple(_) | Pat::Binding(_) => {
                 panic_on_span!(
                     origin.span(),
-                    self.source_map(),
                     "attempt to test simplify-able pattern, `{}`",
                     (pair.pat)
                 )

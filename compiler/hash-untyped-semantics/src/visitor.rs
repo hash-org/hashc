@@ -22,7 +22,7 @@ use crate::{
     diagnostics::{error::AnalysisErrorKind, warning::AnalysisWarningKind},
 };
 
-impl<'s> SemanticAnalyser<'s> {
+impl SemanticAnalyser {
     /// This function is used by directives that require their usage to be
     /// within a constant block, i.e. the `dump_ir` directive must only
     /// accept declarations that are in constant blocks. This function will
@@ -46,7 +46,7 @@ impl<'s> SemanticAnalyser<'s> {
     }
 }
 
-impl AstVisitorMutSelf for SemanticAnalyser<'_> {
+impl AstVisitorMutSelf for SemanticAnalyser {
     type Error = Infallible;
 
     ast_visitor_mut_self_default_impl!(
@@ -147,7 +147,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         panic_on_span!(
             node.span(),
-            self.source_map,
             "hit non de-sugared for-block whilst performing semantic analysis"
         );
     }
@@ -160,7 +159,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         panic_on_span!(
             node.span(),
-            self.source_map,
             "hit non de-sugared while-block whilst performing semantic analysis"
         );
     }
@@ -193,7 +191,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
     ) -> Result<Self::IfClauseRet, Self::Error> {
         panic_on_span!(
             node.span(),
-            self.source_map,
             "hit non de-sugared if-clause whilst performing semantic analysis"
         );
     }
@@ -206,7 +203,6 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
     ) -> Result<Self::IfBlockRet, Self::Error> {
         panic_on_span!(
             node.span(),
-            self.source_map,
             "hit non de-sugared if-block whilst performing semantic analysis"
         );
     }

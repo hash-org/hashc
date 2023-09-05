@@ -12,7 +12,6 @@ use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::env::AccessToEnv,
     pats::{Pat, PatId},
     scopes::{BindingPat, DeclTerm},
     symbols::SymbolId,
@@ -58,7 +57,6 @@ impl<'tcx> BodyBuilder<'tcx> {
         } else {
             panic_on_span!(
                 decl_origin.span(),
-                self.source_map(),
                 "expected initialisation value, declaration are expected to have values (for now)."
             );
         };

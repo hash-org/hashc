@@ -14,10 +14,13 @@ use std::{
 };
 
 use hash_source::{
-    location::{RowCol, RowColRange, Span},
-    SourceMap,
+    location::{RowColRange, Span},
+    Source, SourceMapUtils,
 };
-use hash_utils::highlight::{highlight, Colour, Modifier};
+use hash_utils::{
+    highlight::{highlight, Colour, Modifier},
+    range_map::Range,
+};
 
 use crate::report::{
     ReportCodeBlock, ReportCodeBlockInfo, ReportElement, ReportKind, ReportNote, ReportNoteKind,
@@ -65,54 +68,41 @@ fn compute_buffers(start_row: usize, end_row: usize) -> (usize, usize) {
 
 impl ReportCodeBlock {
     // Get the indent widths of this code block as (outer, inner).
-    pub(crate) fn info(&self, sources: &SourceMap) -> ReportCodeBlockInfo {
-        match self.info.get() {
-            Some(info) => info,
-            None => {
-                let Span { range: span, id } = self.source_location;
-                let source = sources.line_ranges(id);
+    pub(crate) fn info(&self, source: &Source) -> &ReportCodeBlockInfo {
+        self.info.get_or_init(|| {
+            let Span { range, .. } = self.span;
+            let ranges = source.line_ranges();
+            let (start, end, last) = (
+                ranges.get_row_col(range.start()),
+                ranges.get_row_col(range.end()),
+                ranges.get_row_col(source.contents().0.len() - 1),
+            );
 
-                // Compute offset rows and columns from the provided span
-                let start @ RowCol { row: start_row, .. } = source.get_row_col(span.start());
-                let end @ RowCol { row: end_row, .. } = source.get_row_col(span.end());
-                let RowCol { row: last_row, .. } =
-                    source.get_row_col(sources.contents(id).0.len() - 1);
+            // Compute the selected span outside of the diagnostic span
+            let (top_buf, bottom_buf) = compute_buffers(start.row, end.row);
 
-                // Compute the selected span outside of the diagnostic span
-                let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
+            // Compute the size of the indent based on the line numbers
+            let indent_width = (start.row.saturating_sub(top_buf) + 1)
+                .max((end.row + bottom_buf).min(last.row) + 1)
+                .to_string()
+                .chars()
+                .count();
 
-                // Compute the size of the indent based on the line numbers
-                let indent_width = (start_row.saturating_sub(top_buf) + 1)
-                    .max((end_row + bottom_buf).min(last_row) + 1)
-                    .to_string()
-                    .chars()
-                    .count();
-
-                let span = RowColRange::new(start, end);
-                let info = ReportCodeBlockInfo { indent_width, span };
-
-                self.info.replace(Some(info));
-                info
-            }
-        }
+            let span = RowColRange::new(start, end);
+            ReportCodeBlockInfo { indent_width, span }
+        })
     }
 
     /// Function to extract the block of the code that will be used to display
     /// the span of the diagnostic.
-    fn get_source_view<'a>(
-        &self,
-        modules: &'a SourceMap,
-    ) -> impl Iterator<Item = (usize, &'a str)> {
-        // Get the actual contents of the erroneous span
-        let source_id = self.source_location.id;
-        let source = modules.contents(source_id);
-
-        let ReportCodeBlockInfo { span, .. } = self.info(modules);
+    fn get_source_view<'a>(&self, source: &'a Source) -> impl Iterator<Item = (usize, &'a str)> {
+        let ReportCodeBlockInfo { span, .. } = self.info(source);
         let (start_row, end_row) = span.rows();
-
         let (top_buffer, bottom_buffer) = compute_buffers(start_row, end_row);
 
+        // Get the actual contents of the erroneous span
         source
+            .contents()
             .0
             .lines()
             .enumerate()
@@ -137,13 +127,12 @@ impl ReportCodeBlock {
     fn render_line_view(
         &self,
         f: &mut fmt::Formatter,
-        modules: &SourceMap,
+        source: &Source,
         longest_indent_width: usize,
-        report_kind: ReportKind,
+        kind: ReportKind,
     ) -> fmt::Result {
-        let error_view = self.get_source_view(modules);
-
-        let ReportCodeBlockInfo { span, .. } = self.info(modules);
+        let error_view = self.get_source_view(source);
+        let ReportCodeBlockInfo { span, .. } = self.info(source);
 
         let (start_row, end_row) = span.rows();
         let (start_column, end_column) = span.columns();
@@ -153,7 +142,7 @@ impl ReportCodeBlock {
             let index_str = format!("{:>longest_indent_width$}", index + 1);
 
             let line_number = if (start_row..=end_row).contains(&index) {
-                highlight(report_kind.as_colour(), &index_str)
+                highlight(kind.as_colour(), &index_str)
             } else {
                 index_str
             };
@@ -187,7 +176,7 @@ impl ReportCodeBlock {
                     "{} {}   {}",
                     " ".repeat(longest_indent_width),
                     highlight(Colour::Blue, "|"),
-                    highlight(report_kind.as_colour(), &code_note)
+                    highlight(kind.as_colour(), &code_note)
                 )?;
             }
         }
@@ -223,13 +212,12 @@ impl ReportCodeBlock {
     fn render_block_view(
         &self,
         f: &mut fmt::Formatter,
-        modules: &SourceMap,
+        source: &Source,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
-        let error_view = self.get_source_view(modules);
-
-        let ReportCodeBlockInfo { span, .. } = self.info(modules);
+        let error_view = self.get_source_view(source);
+        let ReportCodeBlockInfo { span, .. } = self.info(source);
 
         // If the difference between the rows is longer than `LINE_SKIP_THRESHOLD`
         // lines, then we essentially begin to collapse the view by using `...`
@@ -239,7 +227,7 @@ impl ReportCodeBlock {
 
         let skip_lines_range = if end_row - start_row > LINE_SKIP_THRESHOLD {
             let mid = LINE_SKIP_THRESHOLD / 2;
-            Some((start_row + mid)..=(end_row - mid))
+            Some(Range::new(start_row + mid, end_row - mid))
         } else {
             None
         };
@@ -270,8 +258,8 @@ impl ReportCodeBlock {
             };
 
             // So if we're at the start of the 'skip' range, use '...' instead
-            if let Some(range) = skip_lines_range.clone() {
-                if *range.start() == index {
+            if let Some(range) = skip_lines_range {
+                if range.start() == index {
                     let range_line_number = format!(
                         "{:<pad_width$}",
                         ".".repeat(3),
@@ -289,7 +277,7 @@ impl ReportCodeBlock {
                 }
 
                 // Skip the lines
-                if range.contains(&index) {
+                if range.contains(index) {
                     continue;
                 }
             }
@@ -347,35 +335,35 @@ impl ReportCodeBlock {
     pub(crate) fn render(
         &self,
         f: &mut fmt::Formatter,
-        source_map: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
-        let source_id = self.source_location.id;
-        let ReportCodeBlockInfo { span, .. } = self.info(source_map);
+        SourceMapUtils::map(self.span.id, |source| {
+            let ReportCodeBlockInfo { span, .. } = self.info(source);
 
-        // Print the filename of the code block...
-        writeln!(
-            f,
-            "{}{} {}",
-            " ".repeat(longest_indent_width),
-            highlight(Colour::Blue, "-->"),
-            highlight(
-                Modifier::Underline,
-                format!("{}:{}", source_map.canonicalised_path_by_id(source_id), span.start)
-            )
-        )?;
+            // Print the filename of the code block...
+            writeln!(
+                f,
+                "{}{} {}",
+                " ".repeat(longest_indent_width),
+                highlight(Colour::Blue, "-->"),
+                highlight(
+                    Modifier::Underline,
+                    format!("{}:{}", source.canonicalised_path().display(), span.start)
+                )
+            )?;
 
-        // Now we can determine whether we want to use the `block` or the `line` view.
-        // The block view is for displaying large spans for multiple lines,
-        // whilst the line view is for a single line span.
-        let (start_row, end_row) = span.rows();
+            // Now we can determine whether we want to use the `block` or the `line` view.
+            // The block view is for displaying large spans for multiple lines,
+            // whilst the line view is for a single line span.
+            let (start_row, end_row) = span.rows();
 
-        if start_row == end_row {
-            self.render_line_view(f, source_map, longest_indent_width, report_kind)
-        } else {
-            self.render_block_view(f, source_map, longest_indent_width, report_kind)
-        }
+            if start_row == end_row {
+                self.render_line_view(f, source, longest_indent_width, report_kind)
+            } else {
+                self.render_block_view(f, source, longest_indent_width, report_kind)
+            }
+        })
     }
 }
 
@@ -425,13 +413,12 @@ impl ReportElement {
     pub(crate) fn render(
         &self,
         f: &mut fmt::Formatter,
-        modules: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
         match self {
             ReportElement::CodeBlock(code_block) => {
-                code_block.render(f, modules, longest_indent_width, report_kind)
+                code_block.render(f, longest_indent_width, report_kind)
             }
             ReportElement::Note(note) => note.render(f, longest_indent_width),
         }

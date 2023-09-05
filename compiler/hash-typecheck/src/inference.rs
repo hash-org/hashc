@@ -453,7 +453,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 if let Some(float_ty) = self.try_use_ty_as_float_ty(inferred_ty) {
                     lit.modify(|float| match &mut float.data {
-                        Lit::Float(fl) => fl.bake(self.env(), float_ty),
+                        Lit::Float(fl) => fl.bake(float_ty),
                         _ => unreachable!(),
                     })?;
                 }
@@ -518,8 +518,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                                                 // type,
                                                 // then return `None` and the unification will fail.
                                                 if numeric.is_float
-                                                    || (!numeric.is_signed
-                                                        && int_lit.is_negative(self.env()))
+                                                    || (!numeric.is_signed && int_lit.is_negative())
                                                 {
                                                     None
                                                 } else {
@@ -965,12 +964,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let has_entry_point_attr =
             attr_store().node_has_attr(fn_def_id.node_id_or_default(), attrs::ENTRY_POINT);
 
+        let kind = self.current_source_info().source_id().module_kind();
+
         let entry_point = if has_entry_point_attr {
             Some(EntryPointKind::Named(fn_def_name))
-        } else if fn_def_name == IDENTS.main
-            && self.source_map().module_kind_by_id(self.current_source_info().source_id())
-                == Some(ModuleKind::EntryPoint)
-        {
+        } else if fn_def_name == IDENTS.main && kind == Some(ModuleKind::EntryPoint) {
             Some(EntryPointKind::Main)
         } else {
             None

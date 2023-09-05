@@ -12,6 +12,7 @@ use std::{env, ops::AddAssign, path::PathBuf, time::Duration};
 use hash_ast::{ast, node_map::ModuleEntry};
 use hash_lexer::Lexer;
 use hash_pipeline::{
+    fs::read_in_path,
     interface::{CompilerInterface, CompilerStage, StageMetrics},
     settings::CompilerStageKind,
     workspace::Workspace,
@@ -21,7 +22,9 @@ use hash_reporting::{
     report::Report,
     reporter::Reports,
 };
-use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
+use hash_source::{
+    location::SpannedSource, InteractiveId, ModuleId, ModuleKind, SourceId, SourceMapUtils,
+};
 use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
     indexmap::IndexMap,
@@ -53,6 +56,7 @@ impl Parser {
         // However, this might make the metrics output more difficult to read, so
         // perhaps there should be a "light" metrics mode, and a more verbose
         // one.
+        self.metrics.entry("read").or_default().add_assign(metrics.read);
         self.metrics.entry("tokenise").or_default().add_assign(metrics.tokenise);
         self.metrics.entry("gen").or_default().add_assign(metrics.gen);
     }
@@ -100,12 +104,9 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
         assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
 
         let node_map = &mut workspace.node_map;
-        let source_map = &mut workspace.source_map;
 
         // Parse the entry point
-        let entry_source_kind =
-            ParseSource::from_source(entry_point, node_map, source_map, current_dir);
-        parse_source(entry_source_kind, sender);
+        parse_source(ParseSource::from_source(entry_point, current_dir), sender);
 
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
@@ -118,24 +119,25 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
                     ParserAction::SetModuleNode { id, node, diagnostics, timings } => {
                         collected_diagnostics.extend(diagnostics);
                         self.merge_metrics(timings);
-                        node_map.get_module_mut(id).set_node(node);
+
+                        let path = SourceMapUtils::map(id, |source| source.path().to_path_buf());
+                        node_map.add_module(ModuleEntry::new(path, node));
                     }
-                    ParserAction::ParseImport { resolved_path, contents, sender } => {
-                        if source_map.get_id_by_path(&resolved_path).is_some() {
+                    ParserAction::ParseImport { resolved_path, sender } => {
+                        // If we have already resolved the module, then we don't
+                        // need to parse it again.
+                        if SourceMapUtils::id_by_path(&resolved_path).is_some() {
                             continue;
                         }
 
-                        let module_id = source_map.add_module(
-                            resolved_path.clone(),
-                            contents,
-                            ModuleKind::Normal,
-                        );
-
-                        let module = ModuleEntry::new(resolved_path);
-                        node_map.add_module(module);
-
-                        let source = ParseSource::from_module(module_id, node_map, source_map);
-                        scope.spawn(move |_| parse_source(source, sender));
+                        scope.spawn(move |_| {
+                            // reserve a module id for the module we are about to parse.
+                            let id = SourceMapUtils::reserve_module(
+                                resolved_path.clone(),
+                                ModuleKind::Normal,
+                            );
+                            parse_source(ParseSource::from_source(id, resolved_path), sender)
+                        });
                     }
                     ParserAction::Error { diagnostics, timings } => {
                         collected_diagnostics.extend(diagnostics);
@@ -178,6 +180,9 @@ pub struct ParseTimings {
     /// The amound of time the parser took to generate AST for the
     /// source.
     gen: Duration,
+
+    /// The amount of time it took to read in the source from disk.
+    read: Duration,
 }
 
 impl AccessToMetrics for ParseTimings {
@@ -185,6 +190,7 @@ impl AccessToMetrics for ParseTimings {
         match name {
             "tokenise" => self.tokenise = time,
             "gen" => self.gen = time,
+            "read" => self.read = time,
             _ => unreachable!(),
         }
     }
@@ -195,7 +201,7 @@ impl AccessToMetrics for ParseTimings {
 pub enum ParserAction {
     /// A worker has specified that a module should be put in the queue for
     /// lexing and parsing.
-    ParseImport { resolved_path: PathBuf, contents: String, sender: Sender<ParserAction> },
+    ParseImport { resolved_path: PathBuf, sender: Sender<ParserAction> },
 
     /// A unrecoverable error occurred during the parsing or lexing of a module.
     Error { diagnostics: Vec<Report>, timings: ParseTimings },
@@ -237,16 +243,45 @@ pub enum ParserAction {
 
 /// Parse a specific source specified by [ParseSource].
 fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
-    let source_id = source.id();
     let mut timings = ParseTimings::default();
+    let id = source.id();
+
+    // Read in the contents from disk if this is a module, otherwise copy
+    // from the already inserted interactive line.
+    let contents = time_item(&mut timings, "read", |_| {
+        if id.is_interactive() {
+            // @@Dumbness: We have to copy out the contents of the interactive line.
+            Ok(SourceMapUtils::map(id, |source| source.owned_contents()))
+        } else {
+            let path = SourceMapUtils::map(id, |source| source.path().to_path_buf());
+            read_in_path(path.as_path())
+        }
+    });
+
+    let Ok(contents) = contents else {
+        // We failed to read in the contents of the path, we emit a
+        // an error to the diagnostics channel.
+        sender
+            .send(ParserAction::Error { diagnostics: vec![contents.unwrap_err().into()], timings })
+            .unwrap();
+        return;
+    };
+
+    let spanned = SpannedSource::from_string(contents.as_str());
 
     // Lex the contents of the module or interactive block
-    let mut lexer = Lexer::new(source.contents(), source_id);
+    let mut lexer = Lexer::new(spanned, id);
     let tokens = time_item(&mut timings, "tokenise", |_| lexer.tokenise());
 
     // Check if the lexer has errors...
     if lexer.has_errors() {
         sender.send(ParserAction::Error { diagnostics: lexer.into_reports(), timings }).unwrap();
+
+        // We need to finally put the sources into the source map.
+        if id.is_module() {
+            SourceMapUtils::set_module_source(id, contents);
+        }
+
         return;
     }
 
@@ -254,16 +289,17 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.
-    let resolver = ImportResolver::new(source_id, source.path(), sender);
+    let resolver = ImportResolver::new(id, source.parent(), sender);
     let diagnostics = ParserDiagnostics::new();
-    let mut gen = AstGen::new(source.contents(), &tokens, &trees, &resolver, &diagnostics);
+    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &diagnostics);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
-    let id = source.id();
     let action = match id.is_interactive() {
         false => {
             let node = time_item(&mut timings, "gen", |_| gen.parse_module());
+            SourceMapUtils::set_module_source(id, contents);
+
             ParserAction::SetModuleNode {
                 id: id.into(),
                 node,

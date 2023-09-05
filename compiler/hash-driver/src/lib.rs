@@ -35,7 +35,7 @@ use hash_reporting::report::Report;
 use hash_semantics::{
     SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
 };
-use hash_source::{SourceId, SourceMap};
+use hash_source::SourceId;
 use hash_untyped_semantics::{
     UntypedSemanticAnalysis, UntypedSemanticAnalysisCtx, UntypedSemanticAnalysisCtxQuery,
 };
@@ -90,15 +90,14 @@ impl CompilerBuilder {
 
 pub mod utils {
     use hash_reporting::{report::Report, writer::ReportWriter};
-    use hash_source::SourceMap;
     use hash_utils::stream_less_ewriteln;
 
     /// Emit a fatal compiler error and exit the compiler. These kind of errors
     /// are not **panics** but they are neither recoverable. This function
     /// will convert the error into a [Report] and then write it to the
     /// error stream.
-    pub fn emit_fatal_error<E: Into<Report>>(error: E, sources: &SourceMap) -> ! {
-        stream_less_ewriteln!("{}", ReportWriter::single(error.into(), sources));
+    pub fn emit_fatal_error<E: Into<Report>>(error: E) -> ! {
+        stream_less_ewriteln!("{}", ReportWriter::single(error.into()));
         std::process::exit(-1);
     }
 
@@ -109,14 +108,9 @@ pub mod utils {
     /// be used in contexts where the error type is known to implementing the
     /// [Into<Report>] trait.
     pub fn emit_on_fatal_error<T, E: Into<Report>>(f: impl FnOnce() -> Result<T, E>) -> T {
-        // ##Hack: we have to create a dummy source map here so that we can use it
-        // to report errors in the case that the compiler fails to start up. After the
-        // workspace is initiated, it is replaced with the real source map.
-        let source_map = SourceMap::new();
-
         match f() {
             Ok(value) => value,
-            Err(err) => emit_fatal_error(err, &source_map),
+            Err(err) => emit_fatal_error(err),
         }
     }
 }
@@ -206,9 +200,8 @@ impl Compiler {
         let target = settings.target();
 
         // @@Fixme: ideally this error should be handled else-where
-        let layout_info = target
-            .parse_data_layout()
-            .unwrap_or_else(|err| utils::emit_fatal_error(err, &workspace.source_map));
+        let layout_info =
+            target.parse_data_layout().unwrap_or_else(|err| utils::emit_fatal_error(err));
 
         Self {
             error_stream: Box::new(error_stream),
@@ -281,11 +274,6 @@ impl CompilerInterface for Compiler {
     /// Get a reference to [NodeMap] for the current [Workspace].
     fn node_map(&self) -> &NodeMap {
         &self.workspace.node_map
-    }
-
-    /// Get a reference to [SourceMap] for the current [Workspace].
-    fn source_map(&self) -> &SourceMap {
-        &self.workspace.source_map
     }
 }
 
