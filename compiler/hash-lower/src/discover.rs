@@ -120,7 +120,7 @@ impl FnDiscoverer<'_> {
             // @@Incomplete: mod-blocks that are already lowered won't be caught by
             // the queue-deduplication.
             match mod_def_id.borrow().kind {
-                ModKind::Source(id, _) if !self.stage_info.get(id).is_lowered() => {}
+                ModKind::Source(id) if !self.stage_info.get(id).is_lowered() => {}
                 _ => continue,
             };
 

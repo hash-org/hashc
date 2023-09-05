@@ -38,16 +38,7 @@ impl<'tc> ModUtils<'tc> {
                     ModDef {
                         // @@MissingOrigin
                         name: SymbolId::from_name(module_name, NodeOrigin::Generated),
-                        kind: ModKind::Source(
-                            source_id,
-                            // @@Hack: leak the path to still allow ModKind to implement Copy.
-                            // We need the path inside ModKind so that we can print it without
-                            // requiring access to source map. Ideally SourceMap should be static
-                            // so that this is not needed.
-                            Box::leak(SourceMapUtils::map(source_id, |source| {
-                                source.path().to_path_buf().into_boxed_path()
-                            })),
-                        ),
+                        kind: ModKind::Source(source_id),
                         members: Node::create_at(
                             Node::<ModMember>::empty_seq(),
                             NodeOrigin::Generated,
