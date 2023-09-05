@@ -13,7 +13,6 @@ use hash_intrinsics::{
     utils::PrimitiveUtils,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::SourceMapUtils;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -192,9 +191,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
 
             ast::Expr::Import(import_expr) => {
-                let source_id =
-                    SourceMapUtils::id_by_path(&import_expr.data.resolved_path).unwrap();
-
+                let source_id = import_expr.data.source;
                 self.current_source_info().with_source_id(source_id, || {
                     ResolutionPass::new(self.sem_env()).pass_source()
                 })?;

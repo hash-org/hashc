@@ -7,7 +7,7 @@ mod import_resolver;
 pub mod parser;
 mod source;
 
-use std::{env, ops::AddAssign, path::PathBuf, time::Duration};
+use std::{env, ops::AddAssign, time::Duration};
 
 use hash_ast::{ast, node_map::ModuleEntry};
 use hash_lexer::Lexer;
@@ -22,9 +22,7 @@ use hash_reporting::{
     report::Report,
     reporter::Reports,
 };
-use hash_source::{
-    location::SpannedSource, InteractiveId, ModuleId, ModuleKind, SourceId, SourceMapUtils,
-};
+use hash_source::{location::SpannedSource, InteractiveId, ModuleId, SourceId, SourceMapUtils};
 use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
     indexmap::IndexMap,
@@ -106,7 +104,7 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
         let node_map = &mut workspace.node_map;
 
         // Parse the entry point
-        parse_source(ParseSource::from_source(entry_point, current_dir), sender);
+        parse_source(ParseSource::from_source(entry_point, Some(current_dir)), sender);
 
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
@@ -123,20 +121,15 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
                         let path = SourceMapUtils::map(id, |source| source.path().to_path_buf());
                         node_map.add_module(ModuleEntry::new(path, node));
                     }
-                    ParserAction::ParseImport { resolved_path, sender } => {
-                        // If we have already resolved the module, then we don't
-                        // need to parse it again.
-                        if SourceMapUtils::id_by_path(&resolved_path).is_some() {
-                            continue;
-                        }
+                    ParserAction::ParseImport { source, sender } => {
+                        // ##Note: import de-duplication is already ensured by the
+                        // sender. The resolved path of the specified module is looked
+                        // up in the source map before sending this message. If an existing
+                        // `SourceId` is already present, then the message is not sent.
 
                         scope.spawn(move |_| {
                             // reserve a module id for the module we are about to parse.
-                            let id = SourceMapUtils::reserve_module(
-                                resolved_path.clone(),
-                                ModuleKind::Normal,
-                            );
-                            parse_source(ParseSource::from_source(id, resolved_path), sender)
+                            parse_source(ParseSource::from_source(source, None), sender)
                         });
                     }
                     ParserAction::Error { diagnostics, timings } => {
@@ -201,7 +194,7 @@ impl AccessToMetrics for ParseTimings {
 pub enum ParserAction {
     /// A worker has specified that a module should be put in the queue for
     /// lexing and parsing.
-    ParseImport { resolved_path: PathBuf, sender: Sender<ParserAction> },
+    ParseImport { source: SourceId, sender: Sender<ParserAction> },
 
     /// A unrecoverable error occurred during the parsing or lexing of a module.
     Error { diagnostics: Vec<Report>, timings: ParseTimings },

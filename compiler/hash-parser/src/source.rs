@@ -20,9 +20,9 @@ pub struct ParseSource {
 
 impl ParseSource {
     /// Create a [ParseSource] from a general [SourceId]
-    pub fn from_source(id: SourceId, current_dir: PathBuf) -> Self {
+    pub fn from_source(id: SourceId, current_dir: Option<PathBuf>) -> Self {
         if id.is_interactive() {
-            Self { id, parent: current_dir }
+            Self { id, parent: current_dir.unwrap() }
         } else {
             Self {
                 id,

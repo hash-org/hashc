@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use hash_pipeline::fs::{resolve_path, ImportError};
-use hash_source::{constant::InternedStr, SourceId};
+use hash_source::{constant::InternedStr, ModuleKind, SourceId, SourceMapUtils};
 use hash_utils::crossbeam_channel::Sender;
 
 use crate::ParserAction;
@@ -40,18 +40,23 @@ impl<'p> ImportResolver<'p> {
     /// contents of the provided `import_path`, resolve the contents of the
     /// module, and then proceed to send a [ParserAction::ParseImport]
     /// through the message queue.
-    pub(crate) fn resolve_import(&self, path: InternedStr) -> Result<PathBuf, ImportError> {
+    pub(crate) fn resolve_import(&self, path: InternedStr) -> Result<SourceId, ImportError> {
         // Read the contents of the file
         let resolved_path = resolve_path(path, self.root_dir)?;
 
-        // Send over the resolved path and the contents of the file
+        // Check if we have already parsed this file
+        if let Some(source) = SourceMapUtils::id_by_path(&resolved_path) {
+            return Ok(source);
+        }
+
+        // Otherwise, we reserve a module id for the file.
+        //
+        // Send over the resolved path and the contents of the file.
+        let source = SourceMapUtils::reserve_module(resolved_path, ModuleKind::Normal);
         self.sender
-            .send(ParserAction::ParseImport {
-                resolved_path: resolved_path.clone(),
-                sender: self.sender.clone(),
-            })
+            .send(ParserAction::ParseImport { source, sender: self.sender.clone() })
             .unwrap();
-        Ok(resolved_path)
+        Ok(source)
     }
 
     /// Yield a [Sender<ParserAction>] whilst consuming self.

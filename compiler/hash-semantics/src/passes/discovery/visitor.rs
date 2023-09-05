@@ -6,7 +6,6 @@ use hash_ast::{
     visitor::walk,
 };
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
-use hash_source::SourceMapUtils;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     data::DataDef,
@@ -461,9 +460,8 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
     type ImportRet = ();
     fn visit_import(&self, node: AstNodeRef<ast::Import>) -> Result<Self::ImportRet, Self::Error> {
-        let source_id = SourceMapUtils::id_by_path(&node.resolved_path).unwrap();
         self.current_source_info()
-            .with_source_id(source_id, || DiscoveryPass::new(self.sem_env()).pass_source())?;
+            .with_source_id(node.source, || DiscoveryPass::new(self.sem_env()).pass_source())?;
         Ok(())
     }
 }

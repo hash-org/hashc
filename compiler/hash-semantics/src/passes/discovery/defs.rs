@@ -3,7 +3,6 @@ use std::fmt::Display;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
-use hash_source::SourceMapUtils;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
@@ -408,8 +407,7 @@ impl<'tc> DiscoveryPass<'tc> {
             Some(value) => match value.body() {
                 // Import
                 ast::Expr::Import(import_expr) => {
-                    let source_id =
-                        SourceMapUtils::id_by_path(&import_expr.data.resolved_path).unwrap();
+                    let source_id = import_expr.data.source;
                     let imported_mod_def_id =
                         self.mod_utils().create_or_get_module_mod_def(source_id.into());
                     Some(ModMember { name, value: ModMemberValue::Mod(imported_mod_def_id) })
