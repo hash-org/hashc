@@ -49,7 +49,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         arms: MatchCasesId,
         match_origin: ast::MatchOrigin,
     ) -> BlockAnd<()> {
-        // @@Hack: if the match-origin is an `if`-chain, then we don't bother
+        // ##Hack: if the match-origin is an `if`-chain, then we don't bother
         // lowering the place since we always know that the branches are
         // always matching, and it's only guards that are being tested. Therefore,
         // we use the `subject_place` as the `return_place` in this instance.

@@ -420,7 +420,7 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
 
         if let AbiRepresentation::Scalar(scalar) = abi {
             if let ScalarKind::Int { .. } = scalar.kind() {
-                // @@Hack: if the value is boolean, the range metadata would become
+                // ##Hack: if the value is boolean, the range metadata would become
                 // 0..0 due to the fact that the type of it is `i1`. This would be rejected
                 // by the LLVM IR verifier... so we don't add the range metadata for
                 // boolean types.

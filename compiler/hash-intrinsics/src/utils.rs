@@ -4,11 +4,12 @@ use hash_source::constant::{
     InternedFloat, InternedInt, SIntTy, UIntTy,
 };
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
+use hash_target::primitives::BigIntTy;
 use hash_tir::{
     args::{Arg, PatArg},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataTy, PrimitiveCtorInfo},
     environment::env::AccessToEnv,
-    lits::{CharLit, Lit},
+    lits::{CharLit, IntLit, Lit},
     node::{Node, NodeOrigin, NodesId},
     pats::{Pat, PatId},
     primitives::primitives,
@@ -16,7 +17,6 @@ use hash_tir::{
     terms::{Term, TermId},
     tys::{Ty, TyId},
 };
-use num_bigint::BigInt;
 
 /// Primitive literal types.
 ///
@@ -34,8 +34,6 @@ pub enum LitTy {
     U64,
     U128,
     I128,
-    IBig,
-    UBig,
     F32,
     F64,
     Bool,
@@ -57,8 +55,6 @@ impl LitTy {
                 | LitTy::U64
                 | LitTy::U128
                 | LitTy::I128
-                | LitTy::IBig
-                | LitTy::UBig
         )
     }
 }
@@ -71,13 +67,11 @@ impl From<LitTy> for IntTy {
             LitTy::U32 => IntTy::UInt(UIntTy::U32),
             LitTy::U64 => IntTy::UInt(UIntTy::U64),
             LitTy::U128 => IntTy::UInt(UIntTy::U128),
-            LitTy::UBig => IntTy::UInt(UIntTy::UBig),
             LitTy::I8 => IntTy::Int(SIntTy::I8),
             LitTy::I16 => IntTy::Int(SIntTy::I16),
             LitTy::I32 => IntTy::Int(SIntTy::I32),
             LitTy::I64 => IntTy::Int(SIntTy::I64),
             LitTy::I128 => IntTy::Int(SIntTy::I128),
-            LitTy::IBig => IntTy::Int(SIntTy::IBig),
             _ => unreachable!(),
         }
     }
@@ -167,8 +161,8 @@ pub trait PrimitiveUtils: AccessToEnv {
                 d if d == primitives().u64() => Some(IntTy::UInt(UIntTy::U64)),
                 d if d == primitives().i128() => Some(IntTy::Int(SIntTy::I128)),
                 d if d == primitives().u128() => Some(IntTy::UInt(UIntTy::U128)),
-                d if d == primitives().ibig() => Some(IntTy::Int(SIntTy::IBig)),
-                d if d == primitives().ubig() => Some(IntTy::UInt(UIntTy::UBig)),
+                d if d == primitives().ibig() => Some(IntTy::Big(BigIntTy::IBig)),
+                d if d == primitives().ubig() => Some(IntTy::Big(BigIntTy::UBig)),
                 d if d == primitives().isize() => Some(IntTy::Int(SIntTy::ISize)),
                 d if d == primitives().usize() => Some(IntTy::UInt(UIntTy::USize)),
                 _ => None,
@@ -214,8 +208,6 @@ pub trait PrimitiveUtils: AccessToEnv {
                 d if d == primitives().u64() => Some(LitTy::U64),
                 d if d == primitives().u128() => Some(LitTy::U128),
                 d if d == primitives().i128() => Some(LitTy::I128),
-                d if d == primitives().ibig() => Some(LitTy::IBig),
-                d if d == primitives().ubig() => Some(LitTy::UBig),
                 d if d == primitives().f32() => Some(LitTy::F32),
                 d if d == primitives().f64() => Some(LitTy::F64),
                 d if d == primitives().bool() => Some(LitTy::Bool),
@@ -258,7 +250,13 @@ pub trait PrimitiveUtils: AccessToEnv {
         }
     }
 
-    /// Get the given term as a float literal if possible.
+    /// Create a term from the given usize integer literal.
+    fn create_term_from_usize_lit(&self, lit: usize) -> TermId {
+        let lit: IntLit = InternedInt::create_usize(lit, self.target().ptr_size()).into();
+        Node::create_gen(Term::Lit(Node::create_gen(Lit::Int(lit))))
+    }
+
+    /// Create a term from the given integer literal.
     fn create_term_from_integer_lit<L: Into<IntConstantValue>>(&self, lit: L) -> TermId {
         let lit = Lit::Int(InternedInt::create(IntConstant::new(lit.into(), None)).into());
         // @@MissingOrigin
@@ -284,10 +282,13 @@ pub trait PrimitiveUtils: AccessToEnv {
     }
 
     /// Get the given term as an integer literal if possible.
-    fn try_use_term_as_integer_lit<L: TryFrom<BigInt>>(&self, term: TermId) -> Option<L> {
+    fn try_use_term_as_integer_lit<L: for<'a> TryFrom<&'a IntConstant>>(
+        &self,
+        term: TermId,
+    ) -> Option<L> {
         match *term.value() {
             Term::Lit(lit) => match *lit.value() {
-                Lit::Int(i) => i.value().try_into().ok(),
+                Lit::Int(i) => (&i.value()).try_into().ok(),
                 _ => None,
             },
             Term::Var(sym) => self
@@ -317,7 +318,6 @@ pub trait PrimitiveUtils: AccessToEnv {
     fn numeric_max_val_of_lit(&self, ty: TyId) -> Option<u128> {
         match self.try_use_ty_as_lit_ty(ty)? {
             // There is no maximum value for big integers.
-            LitTy::UBig | LitTy::IBig => None,
             ty if ty.is_int() => {
                 let int_ty: IntTy = ty.into();
                 Some(int_ty.numeric_max(self.target().ptr_size()))
@@ -333,7 +333,6 @@ pub trait PrimitiveUtils: AccessToEnv {
     fn numeric_min_val_of_lit(&self, ty: TyId) -> Option<u128> {
         match self.try_use_ty_as_lit_ty(ty)? {
             // There is no minimum value for big integers.
-            LitTy::UBig | LitTy::IBig => None,
             ty if ty.is_int() => {
                 let int_ty: IntTy = ty.into();
                 Some(int_ty.numeric_min(self.target().ptr_size()))

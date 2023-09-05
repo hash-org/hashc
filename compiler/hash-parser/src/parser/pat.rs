@@ -406,7 +406,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        // @@Hack: here it might actually be a nested pattern in parentheses. So we
+        // ##Hack: here it might actually be a nested pattern in parentheses. So we
         // perform a slight transformation if the number of parsed patterns is
         // only one. So essentially we handle the case where a pattern is
         // wrapped in parentheses and so we just unwrap it.

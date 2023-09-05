@@ -287,7 +287,7 @@ impl AstVisitorMutSelf for SemanticAnalyser<'_> {
         &mut self,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        // @@Note: We probably don't have to walk this??
+        // ##Note: We probably don't have to walk this??
         let _ = walk_mut_self::walk_merge_declaration(self, node);
         Ok(())
     }

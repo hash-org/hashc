@@ -53,8 +53,6 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// them. If the operation is not possible, then the function will
     /// return [None].
     pub(crate) fn try_fold_const_op(&mut self, op: BinOp, lhs: Const, rhs: Const) -> Option<Const> {
-        // @@Todo: for now we only handle `small` values of integer types, in the
-        // future we should also be able to perform folds on `ibig` and `ubig` values.
         if let Const::Int(interned_lhs) = lhs && let Const::Int(interned_rhs) = rhs
         {
             let lhs_const = interned_lhs.value();

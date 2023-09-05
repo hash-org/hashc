@@ -149,7 +149,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        // @@Hack: avoid making another id and allocating another span for
+        // ##Hack: avoid making another id and allocating another span for
         // just a wrapper for the children. Ideally, this problem could be
         // fixed if we had `OptionalChildren!` in tree-def.
         Ok(self.make_macro_invocations(self.nodes_with_joined_span(invocations, start)))
