@@ -29,7 +29,7 @@ pub macro panic_on_span {
 /// standard output, this does not panic, it is intended as a debugging utility
 /// to quickly print the `span` of something and the `message` associated with
 /// it.
-pub macro compiler_note {
+pub macro note_on_span {
     ($location:expr, $fmt: expr) => {
         {
             use hash_utils::stream_less_ewriteln;
