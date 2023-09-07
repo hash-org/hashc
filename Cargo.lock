@@ -608,6 +608,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-ir-utils"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-ir",
+ "hash-layout",
+ "hash-source",
+ "hash-storage",
+ "hash-target",
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-layout"
 version = "0.1.0"
 dependencies = [

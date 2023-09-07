@@ -602,4 +602,9 @@ impl LayoutId {
     pub fn alignments(&self) -> Alignments {
         self.borrow().alignment
     }
+
+    /// Get the offset of a given field index.
+    pub fn offset_of(&self, index: usize) -> Size {
+        self.borrow().shape.offset(index)
+    }
 }

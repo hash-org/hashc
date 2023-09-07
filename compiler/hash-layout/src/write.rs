@@ -23,7 +23,7 @@ use std::{fmt, iter};
 
 use hash_ir::ty::{IrTy, VariantIdx};
 use hash_storage::store::statics::StoreId;
-use hash_target::{abi::AbiRepresentation, size::Size};
+use hash_target::{abi::AbiRepresentation, data_layout::HasDataLayout, size::Size};
 use hash_utils::tree_writing::CharacterSet;
 
 use crate::{

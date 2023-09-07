@@ -203,6 +203,26 @@ impl ScalarKind {
     pub fn from_signed_int_ty<C: HasDataLayout>(ty: SIntTy, ctx: &C) -> Self {
         Self::Int { kind: Integer::from_signed_int_ty(ty, ctx), signed: true }
     }
+
+    /// Get the [IntTy] of the [ScalarKind].
+    ///
+    /// ##Note: This will panic if called on a floating point [ScalarKind].
+    pub fn int_ty(&self) -> IntTy {
+        match self {
+            ScalarKind::Int { kind, signed } => {
+                if *signed {
+                    IntTy::UInt(UIntTy::from_size(kind.size()))
+                } else {
+                    IntTy::Int(SIntTy::from_size(kind.size()))
+                }
+            }
+            ScalarKind::Pointer(_) => {
+                // @@Todo: change this to deal with non-default address spaces.
+                IntTy::UInt(UIntTy::USize)
+            }
+            ScalarKind::Float { .. } => panic!("`int_ty()` called on non-integral ScalarKind"),
+        }
+    }
 }
 
 impl From<FloatTy> for ScalarKind {

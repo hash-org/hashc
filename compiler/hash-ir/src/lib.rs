@@ -5,11 +5,13 @@
     type_alias_impl_trait,
     decl_macro,
     box_patterns,
-    variant_count
+    variant_count,
+    const_option
 )]
 
 pub mod basic_blocks;
 pub mod cast;
+pub mod constant;
 pub mod intrinsics;
 pub mod ir;
 pub mod lang_items;
@@ -23,6 +25,7 @@ use std::{
     sync::OnceLock,
 };
 
+use constant::Allocations;
 use hash_source::entry_point::EntryPointState;
 use hash_storage::{store::SequenceStoreKey, stores};
 use hash_tir::{
@@ -148,7 +151,8 @@ stores!(
     tys: IrTyStore,
     ty_list: IrTyListStore,
     instances: InstanceStore,
-    projections: ProjectionStore
+    projections: ProjectionStore,
+    allocations: Allocations
 );
 
 /// The global [`IrStores`] instance.

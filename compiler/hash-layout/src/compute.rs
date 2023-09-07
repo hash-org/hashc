@@ -13,7 +13,7 @@ use hash_storage::store::{
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
-    data_layout::TargetDataLayout,
+    data_layout::{HasDataLayout, TargetDataLayout},
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
@@ -109,12 +109,17 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 }
 
 /// A auxiliary context for methods defined on [Layout]
-/// which require access to other [Layout]s and information
-/// generated in the [IrCtx].
+/// which require access to other [Layout]s.
 #[derive(Clone, Copy)]
 pub struct LayoutComputer<'l> {
     /// A reference tot the [LayoutCtx].
     ctx: &'l LayoutCtx,
+}
+
+impl HasDataLayout for LayoutComputer<'_> {
+    fn data_layout(&self) -> &TargetDataLayout {
+        &self.ctx.data_layout
+    }
 }
 
 impl<'l> LayoutComputer<'l> {
@@ -131,12 +136,6 @@ impl<'l> LayoutComputer<'l> {
     /// Returns a reference to the layout store.
     pub fn store(&self) -> &LayoutStore {
         layout_store().layouts()
-    }
-
-    /// Get a reference to the data layout of the current
-    /// session.
-    pub fn data_layout(&self) -> &TargetDataLayout {
-        &self.ctx.data_layout
     }
 
     /// Get a reference to the [CommonLayout]s that are available

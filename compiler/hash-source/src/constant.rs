@@ -7,10 +7,12 @@
 use std::{
     cmp::Ordering,
     fmt,
+    io::Read,
     ops::{IndexMut, Neg},
 };
 
 use fnv::FnvBuildHasher;
+use hash_target::data_layout::Endian;
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
 pub use hash_target::primitives::*;
@@ -311,6 +313,32 @@ impl fmt::Display for InternedFloat {
 
 // -------------------- Integers --------------------
 
+/// Read a unsigned integer from the given source buffer. This supports buffers
+/// of up to 16 bytes in length, and will automaitcally convert it into a
+/// `u128`.
+///
+/// If the desired size should be smaller than a `u128` (which) is often the
+/// case, the integer can be "truncated" using [`Size::truncate`].
+pub fn read_target_uint(endian: Endian, mut data: &[u8]) -> u128 {
+    // This u128 holds an "any-size uint" (since smaller uints can fits in it)
+    let mut buf = [0u8; std::mem::size_of::<u128>()];
+
+    // So we do not read exactly 16 bytes into the u128, just the "payload".
+    let uint = match endian {
+        Endian::Little => {
+            data.read(&mut buf).unwrap();
+            u128::from_le_bytes(buf)
+        }
+        Endian::Big => {
+            data.read(&mut buf[16 - data.len()..]).unwrap();
+            u128::from_be_bytes(buf)
+        }
+    };
+
+    debug_assert!(data.len() == 0); // We should have consumed the source buffer.
+    uint
+}
+
 /// Value of the [IntConstant], stores between an `u8` to `u128` value,
 /// including signed variants.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Copy)]
@@ -582,6 +610,13 @@ impl IntConstant {
         }
 
         self.to_int_ty()
+    }
+
+    /// Get the size of the constant.
+    pub fn size(&self) -> Size {
+        // ##Hack: we always get a normalised type, so we don't need to cate
+        // about the size of the constant.
+        self.ty().size(Size::ZERO)
     }
 
     /// Check if the [IntConstant] is `signed` by checking if the specified
