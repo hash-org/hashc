@@ -4,10 +4,7 @@
 use std::cmp::Ordering;
 
 use hash_ast::ast;
-use hash_ir::{
-    ir::{compare_constant_values, Const},
-    ty::IrTyId,
-};
+use hash_ir::{ir::Const, ty::IrTyId};
 use hash_tir::pats::RangePat;
 
 use crate::build::BodyBuilder;
@@ -69,5 +66,27 @@ impl ConstRange {
                     (Less, _) | (Equal, ast::RangeEnd::Included)
                 ),
         )
+    }
+}
+
+/// This performs a shallow [Const] comparison that checks if two constants are the 
+/// same. This is only used when checking various properties of [ConstRange] and shouldn't 
+/// be used as a general purpose "comparison" function for constants.
+/// 
+/// ##Note: This will panic if the constants below are larger than 128bits in size. This 
+/// is mostly intended for scalars.
+pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
+    match (left, right) {
+        (Const::Zero(_), Const::Zero(_)) => Some(Ordering::Equal),
+        (Const::Bool(left), Const::Bool(right)) => Some(left.cmp(&right)),
+        (Const::Char(left), Const::Char(right)) => Some(left.cmp(&right)),
+        (Const::Int(left), Const::Int(right)) => {
+            left.map(|left| right.map(|right| left.partial_cmp(right)))
+        }
+        (Const::Float(left), Const::Float(right)) => {
+            left.map(|left| right.map(|right| left.partial_cmp(right)))
+        }
+        (Const::Str(left), Const::Str(right)) => Some(left.cmp(&right)),
+        _ => None,
     }
 }

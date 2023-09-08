@@ -2,7 +2,6 @@
 //! under construction and is subject to change.
 use core::slice;
 use std::{
-    cmp::Ordering,
     fmt,
     iter::{self, once},
 };
@@ -123,23 +122,6 @@ impl fmt::Display for Const {
             Self::Float(flt) => write!(f, "{flt}"),
             Self::Str(s) => write!(f, "{s:?}"),
         }
-    }
-}
-
-/// Perform a value comparison between two constants.
-pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
-    match (left, right) {
-        (Const::Zero(_), Const::Zero(_)) => Some(Ordering::Equal),
-        (Const::Bool(left), Const::Bool(right)) => Some(left.cmp(&right)),
-        (Const::Char(left), Const::Char(right)) => Some(left.cmp(&right)),
-        (Const::Int(left), Const::Int(right)) => {
-            left.map(|left| right.map(|right| left.partial_cmp(right)))
-        }
-        (Const::Float(left), Const::Float(right)) => {
-            left.map(|left| right.map(|right| left.partial_cmp(right)))
-        }
-        (Const::Str(left), Const::Str(right)) => Some(left.cmp(&right)),
-        _ => None,
     }
 }
 
