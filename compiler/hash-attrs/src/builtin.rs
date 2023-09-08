@@ -2,14 +2,12 @@
 
 use std::sync::LazyLock;
 
+use hash_ast_utils::attr::AttrTarget;
 use hash_source::identifier::Identifier;
 use hash_tir::{building::gen, primitives::primitives, tys::Ty};
 use paste::paste;
 
-use crate::{
-    target::AttrTarget,
-    ty::{AttrId, AttrTy, AttrTyMap},
-};
+use crate::ty::{AttrId, AttrTy, AttrTyMap};
 
 // @@Future: add more complex rules which allow to specify more exotic types,
 // i.e. a list of values.

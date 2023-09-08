@@ -1,13 +1,11 @@
 //! Errors that can occur from attribute checking.
 
 use hash_ast::ast::AstNodeId;
+use hash_ast_utils::attr::AttrTarget;
 use hash_reporting::reporter::Reporter;
 use hash_utils::printing::SequenceDisplay;
 
-use crate::{
-    attr::{AttrValue, REPR_OPTIONS},
-    target::AttrTarget,
-};
+use crate::attr::{AttrValue, REPR_OPTIONS};
 
 /// Utility type which wraps a [Result] with an [AttrError].
 pub type AttrResult<T = ()> = Result<T, AttrError>;

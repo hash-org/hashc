@@ -4,6 +4,7 @@
 #![feature(let_chains)]
 
 use diagnostics::ExpansionDiagnostic;
+use expander::AstExpander;
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
@@ -14,11 +15,10 @@ use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
 use hash_utils::{crossbeam_channel::unbounded, rayon};
-use visitor::AstExpander;
 
 mod attr;
 mod diagnostics;
-mod visitor;
+mod expander;
 
 /// The [AstExpansionPass] represents the stage in the pipeline that will
 /// expand any macros or directives that are present within the AST.
@@ -67,14 +67,15 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace, pool, data_layout, settings, .. } = ctx.data();
+        let AstExpansionCtx { workspace, data_layout, settings, stdout, pool } = ctx.data();
         let (sender, receiver) = unbounded::<ExpansionDiagnostic>();
 
         let node_map = &mut workspace.node_map;
         let sources = &mut workspace.source_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
-        let make_expander = |source| AstExpander::new(source, sources, settings, data_layout);
+        let make_expander =
+            |source| AstExpander::new(source, settings, sources, data_layout, stdout.clone());
 
         pool.scope(|scope| {
             let source_info = source_stage_info.get(entry_point);
@@ -85,6 +86,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
                 let source = node_map.get_interactive_block(entry_point.into());
 
                 expander.visit_body_block(source.node_ref()).unwrap();
+                expander.emit_diagnostics_to(&sender);
             }
 
             for (id, module) in node_map.iter_modules().enumerate() {
@@ -101,6 +103,7 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
                 expander.visit_module(module.node().ast_ref()).unwrap();
                 expander.emit_diagnostics_to(&sender);
 
+                // Then queue up all of the expressions in the module for expansion.
                 for expr in module.node().contents.iter() {
                     let sender = sender.clone();
                     scope.spawn(move |_| {
@@ -135,7 +138,9 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         let mut stdout = ctx.output_stream();
 
         if settings.stage > CompilerStageKind::Parse && settings.ast_settings().dump {
-            ctx.workspace().print_sources(entry_point, &mut stdout, settings).unwrap();
+            let set = settings.character_set;
+            let mode = settings.ast_settings.dump_mode;
+            ctx.workspace().print_sources(entry_point, mode, set, &mut stdout).unwrap();
         }
     }
 }

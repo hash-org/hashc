@@ -1,11 +1,11 @@
 //! Definitions of the various kinds of errors that can occur during the
 //! expansion phase of the compiler.
 use hash_ast::{ast::AstNodeId, lit::LitParseError};
+use hash_ast_utils::attr::AttrTarget;
 use hash_attrs::{
     attr::{AttrArgIdx, AttrValueKind},
     builtin::ATTR_MAP,
     diagnostics::AttrError,
-    target::AttrTarget,
 };
 use hash_reporting::{
     hash_error_codes::error_codes::HashErrorCode,

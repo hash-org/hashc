@@ -11,6 +11,7 @@ doctest = false
 paste = "1.0.14"
 
 hash-ast = { path = "../hash-ast" }
+hash-ast-utils = { path = "../hash-ast-utils" }
 hash-error-codes = { path = "../hash-error-codes" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }

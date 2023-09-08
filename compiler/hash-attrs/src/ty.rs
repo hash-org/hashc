@@ -2,6 +2,7 @@
 //! attribute definitions into something that the compiler can understand and
 //! later use to programatically check attribute annotations.
 
+use hash_ast_utils::attr::AttrTarget;
 use hash_source::identifier::Identifier;
 use hash_tir::params::ParamsId;
 use hash_utils::{
@@ -9,7 +10,7 @@ use hash_utils::{
     index_vec::{define_index_type, IndexVec},
 };
 
-use crate::{builtin::ATTR_MAP, target::AttrTarget};
+use crate::builtin::ATTR_MAP;
 
 define_index_type! {
     /// This is the unique identifier for an AST node. This is used to

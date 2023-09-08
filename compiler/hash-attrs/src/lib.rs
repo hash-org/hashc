@@ -6,5 +6,4 @@ pub mod attr;
 pub mod builtin;
 pub mod checks;
 pub mod diagnostics;
-pub mod target;
 pub mod ty;

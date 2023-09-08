@@ -4,13 +4,12 @@ use std::{
     process::{Command, Stdio},
 };
 
-use clap::Parser;
 use hash_driver::CompilerBuilder;
 use hash_pipeline::{
     interface::CompilerInterface,
     settings::{CompilerSettings, CompilerStageKind},
 };
-use hash_utils::{crash::crash_handler, log, logging::CompilerLogger};
+use hash_utils::{clap::Parser, crash::crash_handler, log, logging::CompilerLogger};
 
 /// The logger that is used by the compiler for `log!` statements.
 pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;

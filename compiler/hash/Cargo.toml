@@ -12,7 +12,6 @@ path = "./src/main.rs"
 [dependencies]
 profiling = "1.0.6"
 tracy-client = "0.13.2"
-clap = { version = "4.3.8", features = ["derive"] }
 
 hash-ast = { path = "../hash-ast" }
 hash-pipeline = { path = "../hash-pipeline" }

@@ -25,6 +25,7 @@ pub mod tree_writing;
 pub use arrayvec;
 pub use backtrace;
 pub use bitflags;
+pub use clap;
 pub use crossbeam_channel;
 pub use dashmap;
 pub use derive_more;

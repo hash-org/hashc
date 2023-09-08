@@ -6,7 +6,7 @@ pub mod ast;
 pub mod lit;
 pub mod node_map;
 pub mod origin;
-pub mod tree;
+
 pub mod visitor {
     pub use super::ast::{
         walk, walk_mut, walk_mut_self, AstVisitor, AstVisitorMut, AstVisitorMutSelf,

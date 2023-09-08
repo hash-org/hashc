@@ -1,6 +1,7 @@
 //! Implementation of attribute checking for specific attributes.
 //!
 //!  
+use hash_ast_utils::attr::{AttrNode, AttrTarget};
 use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
 
@@ -8,7 +9,6 @@ use crate::{
     attr::{Attr, Attrs, ReprAttr},
     builtin::attrs,
     diagnostics::{AttrError, AttrResult, AttrWarning},
-    target::{AttrNode, AttrTarget},
 };
 
 /// Used to check attributes, and emit diagnostics if the attributes
@@ -102,7 +102,7 @@ impl<'env> AttrChecker<'env> {
         // Check that the specified `#repr` attribute is valid.
         let repr = ReprAttr::parse(attr, self.data_layout)?;
 
-        if let ReprAttr::Int(_) = repr && let AttrNode::Struct(_) = node {
+        if let ReprAttr::Int(_) = repr && let AttrNode::StructDef(_) = node {
             return Err(AttrError::InvalidReprForItem {
                 origin: attr.origin,
                 item: AttrTarget::StructDef,
@@ -143,8 +143,8 @@ impl<'env> AttrChecker<'env> {
         self.check_duplicate_attr(attrs, attr)?;
 
         let (maybe_params, item) = match &node {
-            AttrNode::Struct(def) => (def.ty_params.as_ref(), AttrTarget::StructDef),
-            AttrNode::Enum(def) => (def.ty_params.as_ref(), AttrTarget::EnumDef),
+            AttrNode::StructDef(def) => (def.ty_params.as_ref(), AttrTarget::StructDef),
+            AttrNode::EnumDef(def) => (def.ty_params.as_ref(), AttrTarget::EnumDef),
             _ => unreachable!("`#layout_of` attribute applied to non-struct/enum item"),
         };
 
