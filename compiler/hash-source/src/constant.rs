@@ -7,7 +7,7 @@
 use std::{
     cmp::Ordering,
     fmt,
-    io::Read,
+    io::{self, Read},
     ops::{IndexMut, Neg},
 };
 
@@ -319,24 +319,24 @@ impl fmt::Display for InternedFloat {
 ///
 /// If the desired size should be smaller than a `u128` (which) is often the
 /// case, the integer can be "truncated" using [`Size::truncate`].
-pub fn read_target_uint(endian: Endian, mut data: &[u8]) -> u128 {
+pub fn read_target_uint(endian: Endian, mut data: &[u8]) -> io::Result<u128> {
     // This u128 holds an "any-size uint" (since smaller uints can fits in it)
     let mut buf = [0u8; std::mem::size_of::<u128>()];
 
     // So we do not read exactly 16 bytes into the u128, just the "payload".
     let uint = match endian {
         Endian::Little => {
-            data.read(&mut buf).unwrap();
+            let _ = data.read(&mut buf)?;
             u128::from_le_bytes(buf)
         }
         Endian::Big => {
-            data.read(&mut buf[16 - data.len()..]).unwrap();
+            let _ = data.read(&mut buf[16 - data.len()..])?;
             u128::from_be_bytes(buf)
         }
     };
 
-    debug_assert!(data.len() == 0); // We should have consumed the source buffer.
-    uint
+    debug_assert!(data.is_empty()); // We should have consumed the source buffer.
+    Ok(uint)
 }
 
 /// Value of the [IntConstant], stores between an `u8` to `u128` value,

@@ -9,24 +9,16 @@
 
 use std::io;
 
+use hash_ir::ir::{BasicBlock, BasicBlockData, Body, BodySource, Const, TerminatorKind};
+use hash_layout::compute::LayoutComputer;
+use hash_utils::derive_more::Constructor;
 use html_escape::encode_text;
 
-use crate::{
-    ir::{BasicBlock, BasicBlockData, Body, BodySource, Const, TerminatorKind},
-    write::WriteIr,
-};
+use crate::WriteIr;
 
 /// Used to separate line statements between each declaration within
 /// a particular body graph.
 const LINE_SEPARATOR: &str = r#"<br align="left"/>"#;
-
-pub struct IrGraphWriter<'ir> {
-    /// The body that is being outputted as a graph
-    body: &'ir Body,
-
-    /// Options for the style of the graph that is being emitted
-    options: IrGraphOptions,
-}
 
 #[derive(Debug, Clone)]
 pub struct IrGraphOptions {
@@ -54,11 +46,19 @@ impl Default for IrGraphOptions {
     }
 }
 
-impl<'ir> IrGraphWriter<'ir> {
-    pub fn new(body: &'ir Body, options: IrGraphOptions) -> Self {
-        Self { body, options }
-    }
+#[derive(Constructor)]
+pub struct IrGraphWriter<'ir> {
+    /// The body that is being outputted as a graph
+    body: &'ir Body,
 
+    /// The layout computer.
+    lc: LayoutComputer<'ir>,
+
+    /// Options for the style of the graph that is being emitted
+    options: IrGraphOptions,
+}
+
+impl<'ir> IrGraphWriter<'ir> {
     /// Function that writes the body to the appropriate writer.
     pub fn write_body(&self, w: &mut impl io::Write) -> io::Result<()> {
         if let Some(index) = self.options.use_subgraph {
@@ -253,7 +253,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left" balign="left">{}</td></tr>"#,
-                encode_text(&format!("{}", statement))
+                encode_text(&format!("{}", statement.with(self.lc)))
             )?;
         }
 
@@ -262,7 +262,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left">{}</td></tr>"#,
-                encode_text(&format!("{}", terminator.with_edges(false)))
+                encode_text(&format!("{}", terminator.with_edges(self.lc, false)))
             )?;
         }
 
@@ -276,6 +276,7 @@ pub fn dump_ir_bodies(
     bodies: &[Body],
     dump_all: bool,
     prelude_is_quiet: bool,
+    lc: LayoutComputer<'_>,
     writer: &mut impl io::Write,
 ) -> io::Result<()> {
     writeln!(writer, "digraph program {{")?;
@@ -293,7 +294,7 @@ pub fn dump_ir_bodies(
         }
 
         let opts = IrGraphOptions { use_subgraph: Some(id), ..IrGraphOptions::default() };
-        let dumper = IrGraphWriter::new(body, opts);
+        let dumper = IrGraphWriter::new(body, lc, opts);
         dumper.write_body(writer)?;
     }
 

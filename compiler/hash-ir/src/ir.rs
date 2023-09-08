@@ -502,7 +502,7 @@ pub enum PlaceProjection {
 /// Additionally, [Place]s allow for projections to be applied
 /// to a place in order to specify a location within the [Local],
 /// i.e. an array index, a field access, etc.
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Place {
     /// The original place of where this is referring to.
     pub local: Local,
@@ -576,6 +576,53 @@ impl From<Place> for Operand {
 impl From<Place> for RValue {
     fn from(value: Place) -> Self {
         Self::Use(Operand::Place(value))
+    }
+}
+
+impl fmt::Display for Place {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // First we, need to deal with the `deref` projections, since
+        // they need to be printed in reverse
+        for projection in self.projections.borrow().iter().rev() {
+            match projection {
+                PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
+                PlaceProjection::Deref => write!(f, "(*")?,
+                PlaceProjection::SubSlice { .. }
+                | PlaceProjection::ConstantIndex { .. }
+                | PlaceProjection::Index(_) => {}
+            }
+        }
+
+        write!(f, "{:?}", self.local)?;
+
+        for projection in self.projections.borrow().iter() {
+            match projection {
+                PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
+                PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
+                PlaceProjection::ConstantIndex { offset, min_length, from_end: true } => {
+                    write!(f, "[-{offset:?} of {min_length:?}]")?;
+                }
+                PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
+                    write!(f, "[{offset:?} of {min_length:?}]")?;
+                }
+                PlaceProjection::SubSlice { from, to, from_end: true } if *to == 0 => {
+                    write!(f, "[{from}:]")?;
+                }
+                PlaceProjection::SubSlice { from, to, from_end: false } if *from == 0 => {
+                    write!(f, "[:-{to:?}]")?;
+                }
+                PlaceProjection::SubSlice { from, to, from_end: true } => {
+                    write!(f, "[{from}:-{to:?}]")?;
+                }
+                PlaceProjection::SubSlice { from, to, from_end: false } => {
+                    write!(f, "[{from:?}:{to:?}]")?;
+                }
+                PlaceProjection::Field(index) => write!(f, ".{index})")?,
+                PlaceProjection::Deref => write!(f, ")")?,
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -1308,12 +1355,12 @@ impl Body {
     }
 
     /// Get the [Span] of the [Body].
-    pub(crate) fn span(&self) -> Span {
+    pub fn span(&self) -> Span {
         self.origin.span()
     }
 
     /// Get the [SourceId] of the [Body].
-    pub(crate) fn source(&self) -> SourceId {
+    pub fn source(&self) -> SourceId {
         self.origin.source()
     }
 }
@@ -1432,7 +1479,10 @@ impl IrRef {
 
 #[cfg(test)]
 mod tests {
-    use crate::ir::*;
+    use crate::{
+        ir::{Local, Place, PlaceProjection, ProjectionId},
+        ty::VariantIdx,
+    };
 
     #[test]
     fn test_place_display() {

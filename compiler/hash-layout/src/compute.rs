@@ -17,10 +17,10 @@ use hash_target::{
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
-use hash_utils::index_vec::IndexVec;
+use hash_utils::{derive_more::Constructor, index_vec::IndexVec};
 
 use crate::{
-    layout_store, CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape,
+    layout_store, CommonLayouts, FieldLayout, Layout, LayoutId, LayoutShape, LayoutStorage,
     LayoutStore, PointeeInfo, PointerKind, TyInfo, Variants,
 };
 
@@ -110,10 +110,10 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 
 /// A auxiliary context for methods defined on [Layout]
 /// which require access to other [Layout]s.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Constructor)]
 pub struct LayoutComputer<'l> {
     /// A reference tot the [LayoutCtx].
-    ctx: &'l LayoutCtx,
+    ctx: &'l LayoutStorage,
 }
 
 impl HasDataLayout for LayoutComputer<'_> {
@@ -123,13 +123,8 @@ impl HasDataLayout for LayoutComputer<'_> {
 }
 
 impl<'l> LayoutComputer<'l> {
-    /// Create a new [LayoutCtx].
-    pub fn new(ctx: &'l LayoutCtx) -> Self {
-        Self { ctx }
-    }
-
     /// Returns a reference to the [LayoutCtx].
-    pub fn ctx(&self) -> &LayoutCtx {
+    pub fn ctx(&self) -> &LayoutStorage {
         self.ctx
     }
 

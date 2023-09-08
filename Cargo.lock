@@ -604,7 +604,6 @@ dependencies = [
  "hash-target",
  "hash-tir",
  "hash-utils",
- "html-escape",
 ]
 
 [[package]]
@@ -618,6 +617,7 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-utils",
+ "html-escape",
 ]
 
 [[package]]
@@ -665,6 +665,7 @@ dependencies = [
  "hash-attrs",
  "hash-intrinsics",
  "hash-ir",
+ "hash-ir-utils",
  "hash-layout",
  "hash-pipeline",
  "hash-reporting",

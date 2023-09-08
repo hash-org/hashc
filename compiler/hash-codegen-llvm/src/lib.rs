@@ -20,7 +20,7 @@ use error::{CodeGenError, CodegenResult};
 use hash_attrs::builtin::attrs;
 use hash_codegen::{
     backend::{BackendCtx, CodeGenStorage, CompilerBackend},
-    layout::LayoutCtx,
+    layout::LayoutStorage,
     lower::codegen_ir_body,
     symbols::mangle::compute_symbol_name,
     target::{HasTarget, TargetArch},
@@ -78,7 +78,7 @@ pub struct LLVMBackend<'b> {
 
     /// All of the information about the layouts of types
     /// in the current session.
-    layouts: &'b LayoutCtx,
+    layouts: &'b LayoutStorage,
 
     /// The target machine that we use to write all of the
     /// generated code into the object files.
@@ -101,9 +101,9 @@ impl<'b, 'm> LLVMBackend<'b> {
     pub fn new(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Self {
         let BackendCtx {
             workspace,
-            ir_storage,
+            icx: ir_storage,
             codegen_storage,
-            layout_storage: layouts,
+            lcx: layouts,
             settings,
             stdout,
             ..

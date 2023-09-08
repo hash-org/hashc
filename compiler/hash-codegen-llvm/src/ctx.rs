@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 
 use hash_codegen::{
     backend::CodeGenStorage,
-    layout::{compute::LayoutComputer, LayoutCtx},
+    layout::{compute::LayoutComputer, LayoutStorage},
     symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
@@ -38,7 +38,7 @@ pub struct CodeGenCtx<'b, 'm> {
     pub codegen_ctx: &'b CodeGenStorage,
 
     /// Store for all of the information about type [Layout]s.
-    pub layouts: &'b LayoutCtx,
+    pub layouts: &'b LayoutStorage,
 
     /// The LLVM module that we are putting items into.
     pub module: &'b llvm::module::Module<'m>,
@@ -85,7 +85,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
         module: &'b llvm::module::Module<'m>,
         settings: &'b CompilerSettings,
         ir_ctx: &'b IrCtx,
-        layouts: &'b LayoutCtx,
+        layouts: &'b LayoutStorage,
         codegen_ctx: &'b CodeGenStorage,
     ) -> Self {
         let ptr_size = layouts.data_layout.pointer_size;

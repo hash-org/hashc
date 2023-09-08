@@ -18,7 +18,6 @@ pub mod lang_items;
 pub mod traversal;
 pub mod ty;
 pub mod visitor;
-pub mod write;
 
 use std::{
     cell::{Ref, RefCell, RefMut},

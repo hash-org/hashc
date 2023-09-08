@@ -12,7 +12,9 @@ use std::{
 
 use hash_source::constant::{read_target_uint, IntConstant, IntConstantValue};
 use hash_storage::{static_single_store, store::statics::StoreId};
-use hash_target::{alignment::Alignment, data_layout::HasDataLayout, size::Size};
+use hash_target::{
+    alignment::Alignment, data_layout::HasDataLayout, primitives::IntTy, size::Size,
+};
 use hash_utils::derive_more::Constructor;
 
 use crate::{
@@ -45,6 +47,11 @@ impl Const {
         Self::new(COMMON_IR_TYS.unit, ConstKind::Zero)
     }
 
+    /// Check if the [Const] is a zero value.
+    pub fn is_zero(&self) -> bool {
+        matches!(self.kind, ConstKind::Zero)
+    }
+
     /// Get the type of the constant.
     pub fn ty(&self) -> IrTyId {
         self.ty
@@ -57,10 +64,7 @@ impl Const {
 
     /// Check if the constant is switchable.
     pub fn is_switchable(&self) -> bool {
-        match self.kind {
-            ConstKind::Scalar(_) if self.ty.borrow().is_switchable() => true,
-            _ => false,
-        }
+        matches!(self.kind, ConstKind::Scalar(_) if self.ty.borrow().is_switchable())
     }
 
     /// Get the backing [AllocId] if the constant is an allocation.
@@ -71,6 +75,12 @@ impl Const {
             ConstKind::Alloc { alloc, .. } => alloc,
             _ => panic!("Const is not an allocation"),
         }
+    }
+
+    /// Create a new [Const] from a integer with the given type.
+    pub fn from_int<C: HasDataLayout>(value: u128, ty: IrTyId, ctx: &C) -> Self {
+        let size = IntTy::from(ty.value()).size(ctx.data_layout().pointer_size);
+        Const { ty, kind: ConstKind::Scalar(Scalar::from_uint(value, size)) }
     }
 }
 
@@ -424,7 +434,7 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     /// @@FixMe: Add some kind of errors for this?
     pub fn read_scalar<C: HasDataLayout>(&self, range: AllocRange, ctx: &C) -> Scalar {
         let data = self.get_bytes_unchecked(range);
-        let int = read_target_uint(ctx.data_layout().endian, data);
+        let int = read_target_uint(ctx.data_layout().endian, data).unwrap();
 
         // Finally, convert it into a scalar from the integer and size.
         Scalar::from_uint(int, range.size)

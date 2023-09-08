@@ -8,6 +8,8 @@ edition = "2021"
 doctest = false
 
 [dependencies]
+html-escape = "0.2.12"
+
 hash-ast = { path = "../hash-ast" }
 hash-ir = { path = "../hash-ir" }
 hash-layout = { path = "../hash-layout" }

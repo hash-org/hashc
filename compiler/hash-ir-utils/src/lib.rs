@@ -6,163 +6,30 @@
 //! One of the main uses of this crate uses `hash-layout` to provide needed
 //! information about data rerpesenttion when constructing and destructing
 //! Hash IR constants into various representations.
+#![feature(let_chains)]
+pub mod const_utils;
+pub mod graphviz;
+pub mod pretty;
+
 use std::{
     fmt::{self, Formatter},
     iter,
     ops::Deref,
 };
 
+use const_utils::ConstUtils;
 use hash_ir::{
-    constant::{AllocRange, Const, ConstKind, Scalar, ScalarInt},
-    ty::{AdtFlags, IrTy, ToIrTy, VariantIdx},
+    constant::{Const, ConstKind, Scalar, ScalarInt},
+    ir::{
+        AggregateKind, AssertKind, Operand, RValue, Statement, StatementKind, Terminator,
+        TerminatorKind,
+    },
+    ty::{AdtFlags, IrTy, Mutability, VariantIdx},
 };
-use hash_layout::{compute::LayoutComputer, TyInfo, Variants};
+use hash_layout::compute::LayoutComputer;
 use hash_source::constant::IntConstant;
 use hash_storage::store::statics::StoreId;
-use hash_target::{data_layout::HasDataLayout, primitives::FloatTy, size::Size};
-use hash_utils::{derive_more::Constructor, itertools::Itertools};
-
-#[derive(Constructor)]
-pub struct ConstUtils<'ctx> {
-    /// The [LayoutComputer] is used to compute the layout of the data
-    /// under the constant.
-    lc: LayoutComputer<'ctx>,
-
-    inner: &'ctx Const,
-}
-
-impl Deref for ConstUtils<'_> {
-    type Target = Const;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl ConstUtils<'_> {
-    /// Compute a [TyInfo] from a [Const].
-    pub(crate) fn ty_info(&self) -> TyInfo {
-        let ty = self.ty();
-        TyInfo { ty, layout: self.lc.layout_of_ty(ty).unwrap() }
-    }
-
-    /// Create a inner [Const] (a field) from a field, and the [AllocId]
-    /// that backs the current constant.
-    fn field_from_alloc(&self, offset: Size, field_info: TyInfo) -> Const {
-        // @@Correctness: should we really return a `Zero` here?
-        if field_info.layout.is_zst() {
-            return Const::new(field_info.ty, ConstKind::Zero);
-        }
-
-        // Check if we can just use a scalar value here..
-        let try_as_scalar = match field_info.ty.value() {
-            ty if ty.is_scalar() => true,
-            IrTy::Ref(ty, _, _) => ty.map(|inner| matches!(inner, IrTy::Str | IrTy::Slice(_))),
-            _ => false,
-        };
-
-        let alloc = self.alloc();
-
-        if try_as_scalar {
-            let range = AllocRange::new(offset, field_info.layout.size());
-            let scalar = alloc.borrow().read_scalar(range, &self.lc);
-            Const::new(field_info.ty, ConstKind::Scalar(scalar))
-        } else {
-            // We essentially move the offset to the field, and update the
-            // type so that the inner readers can perform the same operation
-            // until we reach a leaf `ConstKind`, i.e. a zero or a scalar.
-            Const::new(field_info.ty, ConstKind::Alloc { offset, alloc })
-        }
-    }
-
-    /// Read the discriminant of the given [Const]. If the [Const] is not an
-    /// allocation then this will return `None`. This will return the
-    /// [VariantIdx] and the relative offset of the data that is stored in
-    /// the allocation.
-    fn read_discriminant(&self) -> Option<(Size, VariantIdx)> {
-        let info = self.ty_info();
-        let ConstKind::Alloc { offset, alloc } = self.kind() else { return None };
-
-        // Read the layout variant and deduce either the variant-idx, or
-        // the tag to later compute the tag.
-        let (tag, field) = match info.layout.borrow().variants {
-            // @@FixMe: `Single` is still used to represent the layout for an `enum`
-            // which has no variatns. Perhaps this should return `0` on it?
-            Variants::Single { index } => return Some((offset, index)),
-            Variants::Multiple { tag, field, .. } => (tag, field),
-        };
-
-        // We have to look more precisely at the layout to determine
-        // the actual 'variant' index.
-        let tag_layout = self.lc.layout_of_ty(tag.kind().int_ty().to_ir_ty()).ok()?;
-        let tag_size = tag_layout.size();
-
-        // We need to read the value at the given field offset.
-        let offset = offset + info.layout.offset_of(field);
-        let range = AllocRange::new(offset, tag_size);
-        let data = alloc.borrow().read_scalar(range, &self.lc).assert_bits(tag_size);
-
-        let (variant, _) = match info.ty.value() {
-            IrTy::Adt(def) => def
-                .borrow()
-                .discriminants()
-                .find(|(_, val)| *val == data)
-                .unwrap_or_else(|| panic!("couldn't find computed discriminant in type")),
-            _ => unreachable!(),
-        };
-
-        Some((offset, variant))
-    }
-
-    /// Destructure the [Const] into the given children fields. This is useful
-    /// for when the [Const] needs to be inspected field-by-field.
-    ///
-    /// ##Note: This only destructures the top-level fields of the constant. It
-    /// is intended that this is recursively called on each further field to
-    /// then destructure that field.
-    pub fn destructure_const(&self) -> Option<DestructuredConst> {
-        let info @ TyInfo { ty, layout } = self.ty_info();
-        let value @ ConstKind::Alloc { mut offset, .. } = self.kind() else { return None };
-
-        let (variant, field_count, downcasted_layout) = match ty.value() {
-            IrTy::Array { length, .. } => (None, length, layout),
-            IrTy::Adt(def) if def.borrow().variants.is_empty() => return None,
-            IrTy::Adt(def) => {
-                let (offset_with_tag, variant) = self.read_discriminant()?;
-                let variant_layout = info.for_variant(self.lc, variant);
-                offset = offset_with_tag;
-
-                (Some(variant), def.borrow().variant(variant).fields.len(), variant_layout.layout)
-            }
-            ty => panic!("cannot destructure a non-aggregate value: {value:?} ty: {ty:?}"),
-        };
-
-        // ##Note: we're using the same `ty` here even for the case
-        // where the enum variant is downcasted. This is fine since the
-        // layout representation is intended to work for this case. We
-        // will still have to call `field()` with the enum type, but the
-        // specific layout of the variant that we care about... which we
-        // just computed.
-        let downcasted_info = TyInfo::new(ty, downcasted_layout);
-
-        // Now we can actually destructure the value into the fields.
-        let fields = (0..field_count)
-            .map(|i| {
-                // We essentially have to make a new constant based on the type.
-                let field = downcasted_info.field(self.lc, i);
-                self.field_from_alloc(offset, field)
-            })
-            .collect_vec();
-
-        Some(DestructuredConst { variant, fields })
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct DestructuredConst {
-    pub variant: Option<VariantIdx>,
-    pub fields: Vec<Const>,
-}
+use hash_target::{data_layout::HasDataLayout, primitives::FloatTy};
 
 /// A function to pretty print the [Const] in a human-readable format, this
 /// is used when printing the generated IR.
@@ -240,7 +107,10 @@ pub fn pretty_print_const(
                         f.write_str(")")?;
                         Ok(())
                     }
-                    _ => todo!(),
+                    AdtFlags::UNION => {
+                        unimplemented!("union representations aren't implemented yet")
+                    }
+                    _ => unreachable!(),
                 }
             } else {
                 Ok(())
@@ -284,5 +154,260 @@ pub fn pretty_print_scalar(
             write!(f, "0x{:x} as {ty}", data)
         }
         _ => panic!("unexpected type for scalar: {ty:?}"),
+    }
+}
+
+/// Struct that is used to write interned IR components.
+pub struct IrWriter<'ctx, T> {
+    /// The item that is being printed.
+    pub item: T,
+
+    /// The layout computer is used to compute the layout of the data
+    /// under the constant.
+    pub lc: LayoutComputer<'ctx>,
+
+    /// Whether the formatting implementations should write
+    /// edges for IR items, this mostly applies to [Terminator]s.
+    pub with_edges: bool,
+}
+
+impl<'ctx, T> IrWriter<'ctx, T> {
+    /// Create a new IR writer for the given body.
+    pub fn new(item: T, lc: LayoutComputer<'ctx>) -> Self {
+        Self { item, lc, with_edges: false }
+    }
+}
+
+impl<'ctx, T> From<&'ctx IrWriter<'ctx, T>> for LayoutComputer<'ctx> {
+    fn from(value: &'ctx IrWriter<'ctx, T>) -> Self {
+        value.lc
+    }
+}
+
+impl<T> Deref for IrWriter<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.item
+    }
+}
+
+pub trait WriteIr<'ctx>: Sized {
+    #[inline]
+    fn with_edges(self, lc: LayoutComputer<'ctx>, with_edges: bool) -> IrWriter<'ctx, Self> {
+        IrWriter { item: self, lc, with_edges }
+    }
+
+    fn with<U: Into<LayoutComputer<'ctx>>>(self, other: U) -> IrWriter<'ctx, Self> {
+        IrWriter::new(self, other.into())
+    }
+}
+
+impl WriteIr<'_> for &Operand {}
+impl fmt::Display for IrWriter<'_, &Operand> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.item {
+            Operand::Place(place) => write!(f, "{}", place),
+            Operand::Const(_constant) => {
+                // if !constant.is_zero() {
+                //     write!(f, "const ")?;
+                // }
+                // pretty_print_const(constant, self.lc, f)
+                todo!()
+            }
+        }
+    }
+}
+
+impl WriteIr<'_> for &RValue {}
+impl fmt::Display for IrWriter<'_, &RValue> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.item {
+            RValue::Use(operand) => write!(f, "{}", operand.with(self)),
+            RValue::BinaryOp(op, operands) => {
+                let (lhs, rhs) = operands.as_ref();
+
+                write!(f, "{op:?}({}, {})", lhs.with(self), rhs.with(self))
+            }
+            RValue::CheckedBinaryOp(op, operands) => {
+                let (lhs, rhs) = operands.as_ref();
+
+                write!(f, "Checked{op:?}({}, {})", lhs.with(self), rhs.with(self))
+            }
+            RValue::Len(place) => write!(f, "len({})", place),
+            RValue::Cast(_, op, ty) => {
+                // We write out the type fully for the cast.
+                write!(f, "cast({}, {})", ty, op.with(self))
+            }
+            RValue::UnaryOp(op, operand) => {
+                write!(f, "{op:?}({})", operand.with(self))
+            }
+            RValue::ConstOp(op, operand) => write!(f, "{op:?}({operand:?})"),
+            RValue::Discriminant(place) => {
+                write!(f, "discriminant({})", place)
+            }
+            RValue::Ref(mutability, place, kind) => match mutability {
+                Mutability::Mutable => write!(f, "&mut {kind}{}", place),
+                Mutability::Immutable => write!(f, "&{kind}{}", place),
+            },
+            RValue::Aggregate(aggregate_kind, operands) => {
+                let fmt_operands = |f: &mut fmt::Formatter, start: char, end: char| {
+                    write!(f, "{start}")?;
+
+                    for (i, operand) in operands.iter().enumerate() {
+                        if i != 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", operand.with(self))?;
+                    }
+
+                    write!(f, "{end}")
+                };
+
+                match aggregate_kind {
+                    AggregateKind::Tuple(_) => fmt_operands(f, '(', ')'),
+                    AggregateKind::Array(_) => fmt_operands(f, '[', ']'),
+                    AggregateKind::Enum(adt, index) => {
+                        let name = adt.borrow().variants.get(*index).unwrap().name;
+                        write!(f, "{}::{name}", adt)?;
+                        fmt_operands(f, '(', ')')
+                    }
+                    AggregateKind::Struct(adt) => {
+                        write!(f, "{}", adt)?;
+                        fmt_operands(f, '(', ')')
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl WriteIr<'_> for &Statement {}
+impl fmt::Display for IrWriter<'_, &Statement> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            StatementKind::Nop => write!(f, "nop"),
+            StatementKind::Assign(place, value) => {
+                write!(f, "{} = {}", place, value.with(self))
+            }
+            StatementKind::Discriminate(place, index) => {
+                write!(f, "discriminant({}) = {index}", place)
+            }
+            StatementKind::Live(local) => {
+                write!(f, "live({local:?})")
+            }
+            StatementKind::Dead(local) => {
+                write!(f, "dead({local:?})")
+            }
+        }
+    }
+}
+
+impl WriteIr<'_> for &Terminator {}
+impl fmt::Display for IrWriter<'_, &Terminator> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.item.kind {
+            TerminatorKind::Goto(place) if self.with_edges => write!(f, "goto -> {place:?}"),
+            TerminatorKind::Goto(_) => write!(f, "goto"),
+            TerminatorKind::Return => write!(f, "return"),
+            TerminatorKind::Call { op, args, target, destination } => {
+                write!(f, "{} = {}(", destination, op.with(self))?;
+
+                // write all of the arguments
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+
+                    write!(f, "{}", arg.with(self))?;
+                }
+
+                // Only print the target if there is a target, and if the formatting
+                // specifies that edges should be printed.
+                if let Some(target) = target && self.with_edges {
+                    write!(f, ") -> {target:?}")
+                } else {
+                    write!(f, ")")
+                }
+            }
+            TerminatorKind::Unreachable => write!(f, "unreachable"),
+            TerminatorKind::Switch { value, targets } => {
+                write!(f, "switch({})", value.with(self))?;
+
+                if self.with_edges {
+                    write!(f, " [")?;
+
+                    // Iterate over each value in the table, and add a arrow denoting
+                    // that the CF will go to the specified block given the specified
+                    // `value`.
+                    for (i, (value, target)) in targets.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+
+                        // We want to create an a constant from this value
+                        // with the type, and then print it.
+                        let value = Const::from_int(value, targets.ty, &self.lc);
+
+                        pretty_print_const(&value, self.lc, f)?;
+                        write!(f, " -> {target:?}")?;
+                    }
+
+                    // Write the default case
+                    if let Some(otherwise) = targets.otherwise {
+                        write!(f, ", otherwise -> {otherwise:?}]")?;
+                    }
+                }
+
+                Ok(())
+            }
+            TerminatorKind::Assert { condition, expected, kind, target } => {
+                write!(
+                    f,
+                    "assert({}, {expected:?}, \"{}\")",
+                    condition.with(self),
+                    kind.with(self)
+                )?;
+
+                if self.with_edges {
+                    write!(f, " -> {target:?}")?;
+                }
+
+                Ok(())
+            }
+        }
+    }
+}
+
+impl WriteIr<'_> for &AssertKind {}
+impl fmt::Display for IrWriter<'_, &AssertKind> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.item {
+            AssertKind::DivisionByZero { operand } => {
+                write!(f, "attempt to divide `{}` by zero", operand.with(self))
+            }
+            AssertKind::RemainderByZero { operand } => {
+                write!(f, "attempt to take the remainder of `{}` by zero", operand.with(self))
+            }
+            AssertKind::Overflow { op, lhs, rhs } => {
+                write!(
+                    f,
+                    "attempt to compute `{} {op} {}`, which would overflow",
+                    lhs.with(self),
+                    rhs.with(self)
+                )
+            }
+            AssertKind::NegativeOverflow { operand } => {
+                write!(f, "attempt to negate `{}`, which would overflow", operand.with(self))
+            }
+            AssertKind::BoundsCheck { len, index } => {
+                write!(
+                    f,
+                    "index out of bounds: the length is `{}` but index is `{}`",
+                    len.with(self),
+                    index.with(self)
+                )
+            }
+        }
     }
 }
