@@ -49,7 +49,8 @@ pub struct CompilerBuilder;
 impl CompilerBuilder {
     /// Create a new [Compiler] with the default stage configuration.
     pub fn build_with_settings(settings: CompilerSettings) -> Driver<Compiler> {
-        let session = utils::emit_on_fatal_error(|| Compiler::new(settings));
+        let stream = CompilerOutputStream::Stdout(std::io::stdout());
+        let session = utils::emit_on_fatal_error(stream, || Compiler::new(settings));
         Self::build_with_interface(session)
     }
 
@@ -89,15 +90,16 @@ impl CompilerBuilder {
 }
 
 pub mod utils {
-    use hash_reporting::{report::Report, writer::ReportWriter};
-    use hash_utils::stream_less_ewriteln;
+    use hash_pipeline::interface::CompilerOutputStream;
+    use hash_reporting::report::Report;
+    use hash_utils::stream_writeln;
 
     /// Emit a fatal compiler error and exit the compiler. These kind of errors
     /// are not **panics** but they are neither recoverable. This function
     /// will convert the error into a [Report] and then write it to the
     /// error stream.
-    pub fn emit_fatal_error<E: Into<Report>>(error: E) -> ! {
-        stream_less_ewriteln!("{}", ReportWriter::single(error.into()));
+    pub fn emit_fatal_error<E: Into<Report>>(mut stream: CompilerOutputStream, error: E) -> ! {
+        stream_writeln!(stream, "{}", error.into());
         std::process::exit(-1);
     }
 
@@ -107,10 +109,13 @@ pub mod utils {
     /// The error type is intentionally not specified so that this function can
     /// be used in contexts where the error type is known to implementing the
     /// [Into<Report>] trait.
-    pub fn emit_on_fatal_error<T, E: Into<Report>>(f: impl FnOnce() -> Result<T, E>) -> T {
+    pub fn emit_on_fatal_error<T, E: Into<Report>>(
+        stream: CompilerOutputStream,
+        f: impl FnOnce() -> Result<T, E>,
+    ) -> T {
         match f() {
             Ok(value) => value,
-            Err(err) => emit_fatal_error(err),
+            Err(err) => emit_fatal_error(stream, err),
         }
     }
 }
@@ -200,8 +205,9 @@ impl Compiler {
         let target = settings.target();
 
         // @@Fixme: ideally this error should be handled else-where
-        let layout_info =
-            target.parse_data_layout().unwrap_or_else(|err| utils::emit_fatal_error(err));
+        let layout_info = target
+            .parse_data_layout()
+            .unwrap_or_else(|err| utils::emit_fatal_error(error_stream(), err));
 
         Self {
             error_stream: Box::new(error_stream),

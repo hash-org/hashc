@@ -37,7 +37,7 @@ use hash_pipeline::{
     settings::CompilerSettings,
     workspace::Workspace,
 };
-use hash_reporting::{report::Report, writer::ReportWriter};
+use hash_reporting::report::Report;
 use hash_testing_internal::{
     metadata::{HandleWarnings, TestResult},
     TestingInput,
@@ -107,11 +107,8 @@ fn compare_emitted_diagnostics(
     diagnostics: Vec<Report>,
 ) -> std::io::Result<()> {
     // First, convert the diagnostics into a string.
-    let contents = diagnostics
-        .into_iter()
-        .map(|report| format!("{}", ReportWriter::single(report)))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let contents =
+        diagnostics.into_iter().map(|report| format!("{}", report)).collect::<Vec<_>>().join("\n");
 
     compare_output(input, OutputKind::Stderr, contents.as_str())
 }
@@ -273,7 +270,7 @@ fn handle_pass_case(
             "\ntest case did not pass:\n{}",
             diagnostics
                 .into_iter()
-                .map(|report| format!("{}", ReportWriter::single(report)))
+                .map(|report| format!("{}", report))
                 .collect::<Vec<_>>()
                 .join("\n")
         );

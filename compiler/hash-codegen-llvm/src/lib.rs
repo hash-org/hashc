@@ -37,7 +37,7 @@ use hash_pipeline::{
     settings::CompilerSettings,
     workspace::Workspace,
 };
-use hash_reporting::writer::ReportWriter;
+use hash_reporting::report::Report;
 use hash_source::{ModuleId, SourceMapUtils};
 use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::{
@@ -204,7 +204,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             let report =
                 info_report(format!("wrote assembly file to `{}`", asm_path.to_string_lossy()));
 
-            stream_writeln!(self.stdout, "{}", ReportWriter::new(vec![report]));
+            stream_writeln!(self.stdout, "{}", report);
         }
 
         self.target_machine
@@ -303,7 +303,7 @@ impl<'b, 'm> LLVMBackend<'b> {
                 let mut stdout = self.stdout.clone();
                 let func = FunctionPrinter::new(body.info.name(), ctx.get_fn(instance));
 
-                stream_writeln!(stdout, "{}", ReportWriter::new(vec![func.into()]));
+                stream_writeln!(stdout, "{}", Report::from(func));
             }
         }
     }

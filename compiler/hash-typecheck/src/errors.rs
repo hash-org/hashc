@@ -5,7 +5,6 @@ use hash_reporting::{
     diagnostic::IntoCompound,
     hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
-    writer::ReportWriter,
 };
 use hash_source::location::Span;
 use hash_storage::store::SequenceStoreKey;
@@ -133,7 +132,7 @@ impl_access_to_env!(TcErrorReporter<'env>);
 impl fmt::Display for TcErrorReporter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let reports = Self::format_error(&TcError::Signal);
-        write!(f, "{}", ReportWriter::new(reports))
+        write!(f, "{}", Reporter::from_reports(reports))
     }
 }
 

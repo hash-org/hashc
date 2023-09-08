@@ -16,7 +16,7 @@ pub macro panic_on_span {
                 .title($fmt)
                 .add_labelled_span($location, "here");
 
-            stream_less_ewriteln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports()));
+            stream_less_ewriteln!("{}", reporter);
             std::panic::panic_any("A fatal error occurred during compilation on the reported node");
         }
     },
@@ -39,7 +39,7 @@ pub macro note_on_span {
                 .title($fmt)
                 .add_labelled_span($location, "here");
 
-            stream_less_ewriteln!("{}", $crate::writer::ReportWriter::new(reporter.into_reports()));
+            stream_less_ewriteln!("{}", reporter);
         }
     },
     ($location:expr, $fmt: expr, $($arg:tt)*) => {

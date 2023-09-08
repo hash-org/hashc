@@ -2,7 +2,10 @@
 use std::{cell::OnceCell, fmt};
 
 use hash_error_codes::error_codes::HashErrorCode;
-use hash_source::location::{RowColRange, Span};
+use hash_source::{
+    location::{RowColRange, Span},
+    SourceMapUtils,
+};
 use hash_utils::highlight::{highlight, Colour, Modifier};
 
 /// A data type representing a comment/message on a specific span in a code
@@ -141,6 +144,13 @@ pub enum ReportElement {
     Note(ReportNote),
 }
 
+/// Create a help note with the given message.
+pub macro help {
+    ($($arg:tt)*) => {
+        ReportElement::Note(ReportNote::new(ReportNoteKind::Help, format!($($arg)*)))
+    }
+}
+
 /// The report data type represents the entire report which might contain many
 /// [ReportElement]s. The report also contains a general [ReportKind] and a
 /// general message.
@@ -257,9 +267,40 @@ impl Default for Report {
     }
 }
 
-/// Create a help note with the given message.
-pub macro help {
-    ($($arg:tt)*) => {
-        ReportElement::Note(ReportNote::new(ReportNoteKind::Help, format!($($arg)*)))
+impl fmt::Display for Report {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Add the optional error code to the general message...
+        let error_code_fmt = match self.error_code {
+            Some(error_code) => highlight(
+                self.kind.as_colour() | Modifier::Bold,
+                format!("[{:0>4}]", error_code.to_num()),
+            ),
+            None => String::new(),
+        };
+
+        // Add the general note about the report...
+        writeln!(f, "{}{}: {}", self.kind, error_code_fmt, highlight(Modifier::Bold, &self.title),)?;
+
+        let longest_indent_width =
+            self.contents.iter().fold(0, |longest_indent_width, element| match element {
+                ReportElement::CodeBlock(code_block) => {
+                    SourceMapUtils::map(code_block.span.id, |source| {
+                        code_block.info(source).indent_width.max(longest_indent_width)
+                    })
+                }
+                ReportElement::Note(_) => longest_indent_width,
+            });
+
+        let mut iter = self.contents.iter().peekable();
+
+        while let Some(note) = iter.next() {
+            note.render(f, longest_indent_width, self.kind)?;
+
+            if matches!(iter.peek(), Some(ReportElement::CodeBlock(_))) {
+                writeln!(f)?;
+            }
+        }
+
+        Ok(())
     }
 }

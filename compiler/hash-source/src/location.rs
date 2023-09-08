@@ -124,6 +124,12 @@ impl Span {
         self.range.is_empty()
     }
 
+    /// Formaat the [Span] into a file path with a column and row number.
+    ///
+    /// The span is formatted into the following format:
+    /// ```notrust
+    /// <path>:<start.row>:<start.column>:<end.row>:<end.column>
+    /// ```
     pub fn fmt_path(&self) -> String {
         SourceMapUtils::map(self.id, |source| {
             format!("{}:{}", source.canonicalised_path().display(), source.row_cols(self.range))

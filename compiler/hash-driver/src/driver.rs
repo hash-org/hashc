@@ -12,7 +12,7 @@ use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::CompilerStageKind,
 };
-use hash_reporting::writer::ReportWriter;
+use hash_reporting::reporter::Reporter;
 use hash_source::{ModuleKind, SourceId};
 use hash_utils::{log, stream_writeln, timing::timed};
 
@@ -267,7 +267,7 @@ impl<I: CompilerInterface> Driver<I> {
             if self.compiler.diagnostics().iter().any(|r| r.is_error()) {
                 panic!(
                     "failed to bootstrap compiler: {}",
-                    ReportWriter::new(self.compiler.diagnostics().to_owned(),)
+                    Reporter::from_reports(self.compiler.diagnostics().to_owned())
                 );
             }
 
@@ -282,7 +282,7 @@ impl<I: CompilerInterface> Driver<I> {
         let mut stderr = self.compiler.error_stream();
 
         // @@Copying: Ideally, we would not want to copy here!
-        for diagnostic in self.compiler.diagnostics().iter().cloned() {
+        for diagnostic in self.compiler.diagnostics().iter() {
             if diagnostic.is_error() {
                 err_count += 1;
             }
@@ -291,7 +291,7 @@ impl<I: CompilerInterface> Driver<I> {
                 warn_count += 1;
             }
 
-            stream_writeln!(stderr, "{}", ReportWriter::single(diagnostic));
+            stream_writeln!(stderr, "{}", diagnostic);
         }
 
         // ##Hack: to prevent the compiler from printing this message when the pipeline
