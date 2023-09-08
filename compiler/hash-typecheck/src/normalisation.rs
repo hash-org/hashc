@@ -603,7 +603,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             _ => panic!("Invalid assign {}", &*assign_term),
         }
 
-        full_evaluation_to(Term::void(assign_term.origin.computed()))
+        full_evaluation_to(Term::unit(assign_term.origin.computed()))
     }
 
     /// Evaluate a match term.
@@ -661,7 +661,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             )? {
                 MatchResult::Successful => {
                     // All good
-                    evaluation_to(Term::void(decl_term.origin.computed()))
+                    evaluation_to(Term::unit(decl_term.origin.computed()))
                 }
                 MatchResult::Failed => {
                     panic!("Non-exhaustive let-binding: {}", &*decl_term)
@@ -692,7 +692,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Err(e) => return Err(e),
             }
         }
-        full_evaluation_to(Term::void(loop_term.origin.computed()))
+        full_evaluation_to(Term::unit(loop_term.origin.computed()))
     }
 
     /// Evaluate some arguments

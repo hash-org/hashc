@@ -195,26 +195,26 @@ impl<'tc> ResolutionPass<'tc> {
                 self.current_source_info().with_source_id(source_id, || {
                     ResolutionPass::new(self.sem_env()).pass_source()
                 })?;
-                Term::void(NodeOrigin::Given(node.id()))
+                Term::unit(NodeOrigin::Given(node.id()))
             }
 
             // No-ops (not supported or handled earlier):
             ast::Expr::TraitDef(_)
             | ast::Expr::MergeDeclaration(_)
             | ast::Expr::ImplDef(_)
-            | ast::Expr::TraitImpl(_) => Term::void(NodeOrigin::Given(node.id())),
+            | ast::Expr::TraitImpl(_) => Term::unit(NodeOrigin::Given(node.id())),
 
             ast::Expr::StructDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
-                Term::void(NodeOrigin::Given(node.id()))
+                Term::unit(NodeOrigin::Given(node.id()))
             }
             ast::Expr::EnumDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
-                Term::void(NodeOrigin::Given(node.id()))
+                Term::unit(NodeOrigin::Given(node.id()))
             }
             ast::Expr::ModDef(mod_def) => {
                 self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?;
-                Term::void(NodeOrigin::Given(node.id()))
+                Term::unit(NodeOrigin::Given(node.id()))
             }
         };
 
@@ -590,7 +590,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let expression = match node.expr.as_ref() {
             Some(expr) => self.make_term_from_ast_expr(expr.ast_ref())?,
-            None => Term::void(NodeOrigin::Given(node.id())),
+            None => Term::unit(NodeOrigin::Given(node.id())),
         };
         Ok(Term::from(Term::Return(ReturnTerm { expression }), NodeOrigin::Given(node.id())))
     }
@@ -749,7 +749,7 @@ impl<'tc> ResolutionPass<'tc> {
                     (None, true) => {
                         let statements =
                             Node::create_at(TermId::seq(statements), NodeOrigin::Given(node.id()));
-                        let return_value = Term::void(NodeOrigin::Given(node.id()));
+                        let return_value = Term::unit(NodeOrigin::Given(node.id()));
                         Ok(Term::from(
                             Term::Block(BlockTerm { statements, return_value, stack_id }),
                             NodeOrigin::Given(node.id()),

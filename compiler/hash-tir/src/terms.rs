@@ -21,6 +21,7 @@ use crate::{
     lits::LitId,
     node::{Node, NodeId, NodeOrigin},
     params::Param,
+    primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
@@ -51,6 +52,14 @@ pub struct TypeOfTerm {
 /// them through some secondary map.
 #[derive(Debug, Clone, From, Copy)]
 pub enum Term {
+    // -- General --
+    // Variables
+    Var(SymbolId),
+    // Scopes
+    Block(BlockTerm),
+
+    // -- Values --
+
     // Primitives
     Tuple(TupleTerm),
     Lit(LitId),
@@ -61,12 +70,6 @@ pub enum Term {
     // Functions
     FnCall(FnCallTerm),
     FnRef(FnDefId),
-
-    // Scopes
-    Block(BlockTerm),
-
-    // Variables
-    Var(SymbolId),
 
     // Loops
     Loop(LoopTerm),
@@ -98,7 +101,7 @@ pub enum Term {
     Ref(RefTerm),
     Deref(DerefTerm),
 
-    // Types
+    // -- Types --
     /// Tuple type
     TupleTy(TupleTy),
 
@@ -130,7 +133,7 @@ impl Term {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
     }
 
-    pub fn void(origin: NodeOrigin) -> TermId {
+    pub fn unit(origin: NodeOrigin) -> TermId {
         Node::create(Node::at(
             Term::Tuple(TupleTerm {
                 data: Node::create(Node::at(Node::<Arg>::empty_seq(), origin)),
@@ -147,12 +150,7 @@ impl Term {
         Node::create(Node::at(Term::Var(symbol), symbol.origin()))
     }
 
-    /// Create a new term.
-    ///
-    /// Prefer this to `Term::create` because this will also add the location
-    /// and AST info to the term.
-    ///
-    /// @@Todo: remove once location store is removed.
+    /// Create a new term with the given origin.
     pub fn from(term: impl Into<Term>, origin: NodeOrigin) -> TermId {
         Node::create_at(term.into(), origin)
     }
@@ -198,9 +196,15 @@ impl Term {
         ))
     }
 
-    /// Create a new expected type for typing the given term.
-    pub fn expect_same(_ty: TyId, expectation: TyId) -> TyId {
-        expectation
+    /// Create the empty type.
+    pub fn never_ty(origin: NodeOrigin) -> TyId {
+        Ty::from(
+            DataTy {
+                args: Node::create_at(Node::<Arg>::empty_seq(), origin),
+                data_def: primitives().never(),
+            },
+            origin,
+        )
     }
 
     /// Create a new expected type for typing the given term.

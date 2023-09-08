@@ -569,19 +569,15 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Err(TcError::MismatchingTypes {
                 expected: annotation_ty,
                 actual: {
-                    // @@MissingOrigin
-                    Ty::expect_same(
-                        annotation_ty,
-                        Ty::from(
-                            DataTy {
-                                data_def: primitives().list(),
-                                args: Arg::seq_positional(
-                                    [Ty::hole(NodeOrigin::Generated)],
-                                    NodeOrigin::Generated,
-                                ),
-                            },
-                            NodeOrigin::Generated,
-                        ),
+                    Ty::from(
+                        DataTy {
+                            data_def: primitives().list(),
+                            args: Arg::seq_positional(
+                                [Ty::hole(NodeOrigin::Expected)],
+                                NodeOrigin::Expected,
+                            ),
+                        },
+                        NodeOrigin::Expected,
                     )
                 },
             })
@@ -641,7 +637,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Either create a default list type or apply the substitution to the annotation
         // type
         if let Ty::Hole(_) = *annotation_ty.value() {
-            // @@MissingOrigin
             self.check_by_unify(
                 Ty::from(
                     DataTy {
@@ -651,7 +646,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             list_annotation_inner_ty.origin(),
                         ),
                     },
-                    NodeOrigin::Generated,
+                    NodeOrigin::Expected,
                 ),
                 annotation_ty,
             )?
@@ -730,12 +725,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 args: Arg::seq_from_params_as_holes(data_def.params),
             },
             _ => {
-                // @@MissingOrigin
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: Ty::from(
                         DataTy { args: data_args, data_def: ctor.data_def_id },
-                        NodeOrigin::Generated,
+                        original_term_id.origin(),
                     ),
                 });
             }
@@ -1500,11 +1494,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         if matches!(*unified_ty.value(), Ty::Hole(_)) {
             if !inhabited.get() {
-                unified_ty = Ty::expect_same(unified_ty, never_ty());
+                unified_ty = Ty::never_ty(NodeOrigin::Expected);
             } else {
-                // @@MissingOrigin: generated is not quite right here, it is more like
-                // "natively expected"...
-                unified_ty = Ty::expect_same(unified_ty, Ty::unit_ty(NodeOrigin::Generated));
+                unified_ty = Ty::unit_ty(NodeOrigin::Expected);
             }
         }
 
@@ -1529,10 +1521,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// [`InferOps::infer_term_of_term_or_hole`].
     pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
         self.register_new_atom(term_id, annotation_ty);
-
-        // @@MissingOrigin
-        let inner_is_ty = |ty: TyId| Ty::expect_same(ty, Ty::universe(NodeOrigin::Generated));
-        let expects_ty = |ty: TyId| self.check_by_unify(ty, inner_is_ty(ty));
+        let expects_ty = |ty: TyId| self.check_by_unify(ty, Ty::universe(NodeOrigin::Expected));
 
         match *term_id.value() {
             Term::Tuple(tuple_term) => {
@@ -1583,13 +1572,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Ty::FnTy(fn_ty) => {
                 self.infer_params(fn_ty.params, || {
-                    self.infer_term(fn_ty.return_ty, inner_is_ty(fn_ty.return_ty))
+                    self.infer_term(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
                 })?;
                 expects_ty(annotation_ty)?;
             }
             Ty::RefTy(ref_ty) => {
                 // Infer the inner type
-                self.infer_term(ref_ty.ty, inner_is_ty(ref_ty.ty))?;
+                self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
                 expects_ty(annotation_ty)?;
             }
             Ty::DataTy(mut data_ty) => {
@@ -1682,7 +1671,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Ty::Hole(_) => Ty::hole(list_pat.pats.origin()),
             _ => {
-                // @@MissingOrigin
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: {

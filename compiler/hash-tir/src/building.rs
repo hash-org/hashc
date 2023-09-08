@@ -12,11 +12,10 @@ pub mod gen {
 
     use crate::{
         args::{Arg, ArgsId},
-        data::{DataDef, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
+        data::{DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
         node::{Node, NodeOrigin},
         params::{Param, ParamsId},
         pats::{Pat, PatId},
-        primitives::primitives,
         symbols::SymbolId,
         terms::{Term, TermId, Ty, TyId},
     };
@@ -114,24 +113,18 @@ pub mod gen {
     }
 
     /// Create an empty tuple term `()`.
-    pub fn void_term() -> TermId {
-        Term::void(NodeOrigin::Generated)
+    pub fn unit_term() -> TermId {
+        Term::unit(NodeOrigin::Generated)
     }
 
     /// Create an empty tuple type `()`.
-    pub fn void_ty() -> TyId {
+    pub fn unit_ty() -> TyId {
         Ty::unit_ty(NodeOrigin::Generated)
     }
 
     /// Create the empty type.
     pub fn never_ty() -> TyId {
-        Ty::from(
-            DataTy {
-                args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
-                data_def: primitives().never(),
-            },
-            NodeOrigin::Generated,
-        )
+        Ty::never_ty(NodeOrigin::Generated)
     }
 
     /// Create a term by the given data.

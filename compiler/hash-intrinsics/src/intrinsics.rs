@@ -7,7 +7,7 @@ use hash_storage::store::{statics::StoreId, DefaultPartialStore, PartialStore, S
 use hash_tir::{
     self,
     building::gen::{
-        data_ty, never_ty, params, params_pos, sym, ty, universe_ty, void_term, void_ty,
+        data_ty, never_ty, params, params_pos, sym, ty, unit_term, unit_ty, universe_ty,
     },
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDef, FnDefId, FnTy},
@@ -722,10 +722,10 @@ impl DefinedIntrinsics {
             let t_sym = sym("T");
             let a_sym = sym("a");
             let params = params([(t_sym, universe_ty(), None), (a_sym, ty(t_sym), None)]);
-            let ret = void_ty();
+            let ret = unit_ty();
             add("debug_print", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
                 stream_less_writeln!("{}", args[1]);
-                Ok(void_term())
+                Ok(unit_term())
             })
         };
 
@@ -733,7 +733,7 @@ impl DefinedIntrinsics {
             let t_sym = sym("T");
             let a_sym = sym("a");
             let params = params([(t_sym, universe_ty(), None), (a_sym, ty(t_sym), None)]);
-            let ret = void_ty();
+            let ret = unit_ty();
             add(
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
@@ -743,7 +743,7 @@ impl DefinedIntrinsics {
                             stream_less_writeln!("{:?}", attrs);
                         });
                     }
-                    Ok(void_term())
+                    Ok(unit_term())
                 },
             )
         };
