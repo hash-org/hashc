@@ -15,7 +15,7 @@ use hash_tir::{
     data::{CtorDefId, DataTy},
     node::NodesId,
     pats::PatId,
-    tys::{Ty, TyId},
+    terms::{Ty, TyId},
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
@@ -204,8 +204,8 @@ impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId> {
                 match ctor {
                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                         match *pat.ty.value() {
-                            Ty::Tuple(_) => {}
-                            Ty::Data(ty @ DataTy { data_def, .. }) => {
+                            Ty::TupleTy(_) => {}
+                            Ty::DataTy(ty @ DataTy { data_def, .. }) => {
                                 write!(f, "{ty}")?;
 
                                 // If we have a variant, we print the specific variant that is

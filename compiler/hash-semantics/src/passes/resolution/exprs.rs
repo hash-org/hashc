@@ -33,9 +33,8 @@ use hash_tir::{
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
     term_as_variant,
-    terms::{Term, TermId, UnsafeTerm},
+    terms::{Term, TermId, Ty, TyOfTerm, UnsafeTerm},
     tuples::TupleTerm,
-    tys::{Ty, TypeOfTerm},
 };
 use hash_utils::itertools::Itertools;
 
@@ -136,7 +135,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Expr::Access(access_expr) => {
                 self.make_term_from_ast_access_expr(node.with_body(access_expr))?
             }
-            ast::Expr::Ty(expr_ty) => self.make_term_from_ast_ty_expr(node.with_body(expr_ty))?,
+            ast::Expr::Ty(expr_ty) => self.make_ty_from_ast_ty(expr_ty.ty.ast_ref())?,
             ast::Expr::Macro(invocation) => {
                 self.make_term_from_ast_macro_invocation_expr(node.with_body(invocation))?
             }
@@ -196,26 +195,26 @@ impl<'tc> ResolutionPass<'tc> {
                 self.current_source_info().with_source_id(source_id, || {
                     ResolutionPass::new(self.sem_env()).pass_source()
                 })?;
-                Term::void(NodeOrigin::Given(node.id()))
+                Term::unit(NodeOrigin::Given(node.id()))
             }
 
             // No-ops (not supported or handled earlier):
             ast::Expr::TraitDef(_)
             | ast::Expr::MergeDeclaration(_)
             | ast::Expr::ImplDef(_)
-            | ast::Expr::TraitImpl(_) => Term::void(NodeOrigin::Given(node.id())),
+            | ast::Expr::TraitImpl(_) => Term::unit(NodeOrigin::Given(node.id())),
 
             ast::Expr::StructDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
-                Term::void(NodeOrigin::Given(node.id()))
+                Term::unit(NodeOrigin::Given(node.id()))
             }
             ast::Expr::EnumDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
-                Term::void(NodeOrigin::Given(node.id()))
+                Term::unit(NodeOrigin::Given(node.id()))
             }
             ast::Expr::ModDef(mod_def) => {
                 self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?;
-                Term::void(NodeOrigin::Given(node.id()))
+                Term::unit(NodeOrigin::Given(node.id()))
             }
         };
 
@@ -331,10 +330,7 @@ impl<'tc> ResolutionPass<'tc> {
                     NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
                         // Data type
                         Ok(Term::from(
-                            Term::Ty(Ty::from(
-                                Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args }),
-                                origin,
-                            )),
+                            Ty::DataTy(DataTy { data_def: *data_def_id, args: *data_def_args }),
                             origin,
                         ))
                     }
@@ -438,12 +434,6 @@ impl<'tc> ResolutionPass<'tc> {
                 ))
             }
         }
-    }
-
-    /// Make a term from an [`ast::TyExpr`].
-    fn make_term_from_ast_ty_expr(&self, node: AstNodeRef<ast::TyExpr>) -> SemanticResult<TermId> {
-        let ty = self.make_ty_from_ast_ty(node.ty.ast_ref())?;
-        Ok(ty.as_term())
     }
 
     /// Make a term from an [`ast::DirectiveExpr`].
@@ -600,7 +590,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let expression = match node.expr.as_ref() {
             Some(expr) => self.make_term_from_ast_expr(expr.ast_ref())?,
-            None => Term::void(NodeOrigin::Given(node.id())),
+            None => Term::unit(NodeOrigin::Given(node.id())),
         };
         Ok(Term::from(Term::Return(ReturnTerm { expression }), NodeOrigin::Given(node.id())))
     }
@@ -759,7 +749,7 @@ impl<'tc> ResolutionPass<'tc> {
                     (None, true) => {
                         let statements =
                             Node::create_at(TermId::seq(statements), NodeOrigin::Given(node.id()));
-                        let return_value = Term::void(NodeOrigin::Given(node.id()));
+                        let return_value = Term::unit(NodeOrigin::Given(node.id()));
                         Ok(Term::from(
                             Term::Block(BlockTerm { statements, return_value, stack_id }),
                             NodeOrigin::Given(node.id()),
@@ -983,7 +973,7 @@ impl<'tc> ResolutionPass<'tc> {
         let rhs = self.make_term_from_ast_expr(rhs)?;
 
         // For the type, we use the type of the lhs
-        let typeof_lhs = Term::from(TypeOfTerm { term: lhs }, origin);
+        let typeof_lhs = Term::from(TyOfTerm { term: lhs }, origin);
 
         // Pick the right intrinsic function and binary operator number
         let (intrinsic_fn_def, bin_op_num): (FnDefId, u8) = match op {
@@ -1011,16 +1001,11 @@ impl<'tc> ResolutionPass<'tc> {
             ast::BinOp::Div => (self.intrinsics().endo_bin_op(), EndoBinOp::Div.into()),
             ast::BinOp::Mod => (self.intrinsics().endo_bin_op(), EndoBinOp::Mod.into()),
             ast::BinOp::As => {
-                return Ok(Term::from(
-                    CastTerm { subject_term: lhs, target_ty: rhs.as_ty() },
-                    origin,
-                ));
+                return Ok(Term::from(CastTerm { subject_term: lhs, target_ty: rhs }, origin));
             }
             ast::BinOp::Merge => {
                 let args = Arg::seq_positional([typeof_lhs, lhs, rhs], origin);
-                return Ok(
-                    Ty::from(DataTy { data_def: primitives().equal(), args }, origin).as_term()
-                );
+                return Ok(Ty::from(DataTy { data_def: primitives().equal(), args }, origin));
             }
         };
 
@@ -1045,12 +1030,12 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let a = self.make_term_from_ast_expr(node.expr.ast_ref())?;
         let origin = NodeOrigin::Given(node.id());
-        let typeof_a = Term::from(TypeOfTerm { term: a }, origin);
+        let typeof_a = Term::from(TyOfTerm { term: a }, origin);
 
         let (intrinsic_fn_def, op_num): (FnDefId, u8) = match node.operator.body() {
             ast::UnOp::TypeOf => {
                 let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-                return Ok(Term::from(TypeOfTerm { term: inner }, origin));
+                return Ok(Term::from(TyOfTerm { term: inner }, origin));
             }
             ast::UnOp::BitNot => (self.intrinsics().un_op(), UnOp::BitNot.into()),
             ast::UnOp::Not => (self.intrinsics().un_op(), UnOp::Not.into()),

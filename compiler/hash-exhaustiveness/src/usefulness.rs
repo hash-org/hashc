@@ -8,7 +8,7 @@
 use std::iter::once;
 
 use hash_storage::store::Store;
-use hash_tir::{pats::PatId, tys::TyId};
+use hash_tir::{pats::PatId, terms::TyId};
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 
 use super::{

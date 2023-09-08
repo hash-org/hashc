@@ -20,8 +20,7 @@ use hash_tir::{
     node::{Node, NodeOrigin},
     params::ParamIndex,
     primitives::primitives,
-    terms::Term,
-    tys::{Ty, TyId},
+    terms::{Term, Ty, TyId},
     utils::params::ParamUtils,
 };
 
@@ -108,7 +107,7 @@ impl AstExpander<'_> {
         };
 
         match *param_ty.value() {
-            Ty::Data(data) => match data.data_def {
+            Ty::DataTy(data) => match data.data_def {
                 d if d == primitives().i32() => {
                     maybe_emit_err(matches!(value, AttrValueKind::Int(_)))
                 }

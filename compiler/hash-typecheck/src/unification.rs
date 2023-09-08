@@ -13,8 +13,7 @@ use hash_tir::{
     params::ParamsId,
     sub::Sub,
     symbols::SymbolId,
-    terms::{Term, TermId},
-    tys::{Ty, TyId},
+    terms::{Term, TermId, Ty, TyId},
     utils::{traversing::Atom, AccessToUtils},
 };
 use hash_utils::derive_more::Deref;
@@ -65,10 +64,6 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     /// Unify two atoms.
     pub fn unify_atoms(&self, src: Atom, target: Atom) -> TcResult<()> {
         match (src, target) {
-            (Atom::Ty(src_id), Atom::Ty(target_id)) => {
-                self.unify_tys(src_id, target_id)?;
-                Ok(())
-            }
             (Atom::Term(src_id), Atom::Term(target_id)) => {
                 self.unify_terms(src_id, target_id)?;
                 Ok(())
@@ -116,8 +111,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             Ok(())
         } else {
             match (src_id.into(), target_id.into()) {
-                (Atom::Term(a), Atom::Term(b)) => Err(TcError::UndecidableEquality { a, b }),
-                (Atom::Ty(a), Atom::Ty(b)) => {
+                (Atom::Term(a), Atom::Term(b)) => {
                     Err(TcError::MismatchingTypes { expected: b, actual: a })
                 }
                 (Atom::FnDef(a), Atom::FnDef(b)) => Err(TcError::MismatchingFns { a, b }),
@@ -134,8 +128,9 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         target_id: impl Into<Atom>,
     ) -> TcResult<U> {
         match (src_id.into(), target_id.into()) {
-            (Atom::Term(a), Atom::Term(b)) => Err(TcError::UndecidableEquality { a, b }),
-            (Atom::Ty(a), Atom::Ty(b)) => Err(TcError::MismatchingTypes { expected: b, actual: a }),
+            (Atom::Term(a), Atom::Term(b)) => {
+                Err(TcError::MismatchingTypes { expected: b, actual: a })
+            }
             (Atom::FnDef(a), Atom::FnDef(b)) => Err(TcError::MismatchingFns { a, b }),
             (Atom::Pat(a), Atom::Pat(b)) => Err(TcError::MismatchingPats { a, b }),
             _ => unreachable!(),
@@ -154,13 +149,15 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             self.mismatching_atoms(src_id, target_id)
         } else {
             // Unify parameters and apply to return types
-            self.unify_params(f1.params, f2.params, || self.unify_tys(f1.return_ty, f2.return_ty))?;
+            self.unify_params(f1.params, f2.params, || {
+                self.unify_terms(f1.return_ty, f2.return_ty)
+            })?;
 
             let forward_sub = self.sub_ops().create_sub_from_param_names(f1.params, f2.params);
-            f2.return_ty = self.sub_ops().apply_sub_to_ty(f2.return_ty, &forward_sub);
+            f2.return_ty = self.sub_ops().apply_sub_to_term(f2.return_ty, &forward_sub);
 
             let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
-            f1.return_ty = self.sub_ops().apply_sub_to_ty(f1.return_ty, &backward_sub);
+            f1.return_ty = self.sub_ops().apply_sub_to_term(f1.return_ty, &backward_sub);
 
             src_id.set(src_id.value().with_data(f1.into()));
             target_id.set(target_id.value().with_data(f2.into()));
@@ -195,18 +192,6 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     _ => panic!("unify_hole_with: expected hole for hole src"),
                 }
             }
-            Atom::Ty(ty_id) => {
-                let dest_ty = norm_ops.to_ty(sub_dest_atom).value();
-                match *ty_id.value() {
-                    Ty::Hole(Hole(h)) => {
-                        if self.modify_terms.get() {
-                            ty_id.set(dest_ty);
-                        }
-                        h
-                    }
-                    _ => panic!("unify_hole_with: expected hole for hole src"),
-                }
-            }
             Atom::FnDef(_) | Atom::Pat(_) => {
                 panic!("unify_hole_with: expected term or ty for hole src")
             }
@@ -231,13 +216,17 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         }
     }
 
-    pub fn unify_tys_self_contained(&self, src_id: TyId, target_id: TyId) -> TcResult<(TyId, Sub)> {
+    pub fn unify_terms_self_contained(
+        &self,
+        src_id: TyId,
+        target_id: TyId,
+    ) -> TcResult<(TyId, Sub)> {
         let initial = target_id;
         let sub = self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
-            self.unify_tys(src_id, target_id)?;
+            self.unify_terms(src_id, target_id)?;
             Ok(self.sub_ops().create_sub_from_current_scope())
         })?;
-        let subbed_initial = self.sub_ops().apply_sub_to_ty(initial, &sub);
+        let subbed_initial = self.sub_ops().apply_sub_to_term(initial, &sub);
         self.add_unification_from_sub(&sub);
         Ok((subbed_initial, sub))
     }
@@ -257,70 +246,6 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             Ok(())
         } else {
             self.mismatching_atoms(a_id, b_id)
-        }
-    }
-
-    /// Unify two types.
-    pub fn unify_tys(&self, src_id: TyId, target_id: TyId) -> TcResult<()> {
-        if src_id == target_id {
-            return Ok(());
-        }
-
-        let norm_ops = self.norm_ops();
-
-        norm_ops.normalise_in_place(src_id.into())?;
-        norm_ops.normalise_in_place(target_id.into())?;
-
-        let src = src_id.value();
-        let target = target_id.value();
-
-        match (*src, *target) {
-            (Ty::Hole(h1), Ty::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
-            (Ty::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
-            (_, Ty::Hole(_b)) => self.unify_hole_with(target_id, src_id),
-
-            (Ty::Var(a), _) if self.pat_binds.get().is_some() => {
-                self.add_unification(a, target_id.as_term());
-                Ok(())
-            }
-            (_, Ty::Var(b)) if self.pat_binds.get().is_some() => {
-                self.add_unification(b, src_id.as_term());
-                Ok(())
-            }
-
-            // If the source is uninhabitable, then we can unify it with
-            // anything
-            (_, _) if self.is_uninhabitable(src_id)? => Ok(()),
-
-            (Ty::Var(a), Ty::Var(b)) => {
-                self.unify_vars(a, b, src_id.as_term(), target_id.as_term())
-            }
-            (Ty::Var(_), _) | (_, Ty::Var(_)) => self.mismatching_atoms(src_id, target_id),
-
-            (Ty::Eval(t1), Ty::Eval(t2)) => self.unify_terms(t1, t2),
-            (Ty::Eval(_), _) | (_, Ty::Eval(_)) => self.mismatching_atoms(src_id, target_id),
-
-            (Ty::Tuple(t1), Ty::Tuple(t2)) => self.unify_params(t1.data, t2.data, || Ok(())),
-            (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => self.mismatching_atoms(src_id, target_id),
-
-            (Ty::Fn(f1), Ty::Fn(f2)) => self.unify_fn_tys(f1, f2, src_id, target_id),
-            (Ty::Fn(_), _) | (_, Ty::Fn(_)) => self.mismatching_atoms(src_id, target_id),
-
-            (Ty::Ref(r1), Ty::Ref(r2)) if r1.mutable == r2.mutable && r1.kind == r2.kind => {
-                self.unify_tys(r1.ty, r2.ty)
-            }
-            (Ty::Ref(_), _) | (_, Ty::Ref(_)) => self.mismatching_atoms(src_id, target_id),
-
-            (Ty::Data(d1), Ty::Data(d2)) if d1.data_def == d2.data_def => {
-                self.unify_args(d1.args, d2.args)
-            }
-            (Ty::Data(_), _) | (_, Ty::Data(_)) => self.mismatching_atoms(src_id, target_id),
-
-            (Ty::Universe(u1), Ty::Universe(u2)) => self.ok_or_mismatching_atoms(
-                u1.size.is_none() || u2.size.is_none() || u1.size.unwrap() <= u2.size.unwrap(),
-                src_id,
-                target_id,
-            ),
         }
     }
 
@@ -358,75 +283,83 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         let src = src_id.value();
         let target = target_id.value();
 
-        match (src_id.try_as_ty(), target_id.try_as_ty()) {
-            (Some(src_ty), Some(target_ty)) => self.unify_tys(src_ty, target_ty),
-            _ => match (*src, *target) {
-                (Term::Hole(h1), Term::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
-                (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
-                (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
+        match (*src, *target) {
+            (Term::Hole(h1), Term::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
+            (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
+            (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
 
-                (Term::Var(a), _) if self.pat_binds.get().is_some() => {
-                    self.add_unification(a, target_id);
-                    Ok(())
-                }
-                (_, Term::Var(b)) if self.pat_binds.get().is_some() => {
-                    self.add_unification(b, src_id);
-                    Ok(())
-                }
-                (Term::Var(a), Term::Var(b)) => self.unify_vars(a, b, src_id, target_id),
-                (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
+            (Term::Var(a), _) if self.pat_binds.get().is_some() => {
+                self.add_unification(a, target_id);
+                Ok(())
+            }
+            (_, Term::Var(b)) if self.pat_binds.get().is_some() => {
+                self.add_unification(b, src_id);
+                Ok(())
+            }
+            (Term::Var(a), Term::Var(b)) => self.unify_vars(a, b, src_id, target_id),
+            (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
 
-                (Term::Tuple(t1), Term::Tuple(t2)) => self.unify_args(t1.data, t2.data),
-                (Term::Tuple(_), _) | (_, Term::Tuple(_)) => {
-                    self.mismatching_atoms(src_id, target_id)
-                }
+            // If the source is uninhabitable, then we can unify it with
+            // anything
+            (_, _) if self.is_uninhabitable(src_id)? => Ok(()),
 
-                (Term::Ctor(c1), Term::Ctor(c2)) if c1.ctor == c2.ctor => {
-                    self.unify_args(c1.data_args, c2.data_args)?;
-                    self.unify_args(c1.ctor_args, c2.ctor_args)?;
-                    Ok(())
-                }
-                (Term::Ctor(_), _) | (_, Term::Ctor(_)) => {
-                    self.mismatching_atoms(src_id, target_id)
-                }
+            (Ty::TupleTy(t1), Ty::TupleTy(t2)) => self.unify_params(t1.data, t2.data, || Ok(())),
+            (Ty::TupleTy(_), _) | (_, Ty::TupleTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-                (Term::Ty(t1), _) => self.unify_terms(t1.as_term(), target_id),
-                (_, Term::Ty(t2)) => self.unify_terms(src_id, t2.as_term()),
+            (Ty::FnTy(f1), Ty::FnTy(f2)) => self.unify_fn_tys(f1, f2, src_id, target_id),
+            (Ty::FnTy(_), _) | (_, Ty::FnTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-                (Term::Lit(l1), Term::Lit(l2)) => self.ok_or_mismatching_atoms(
-                    self.lits_are_equal(*l1.value(), *l2.value()),
-                    src_id,
-                    target_id,
-                ),
-                (Term::Lit(_), _) | (_, Term::Lit(_)) => self.mismatching_atoms(src_id, target_id),
+            (Ty::RefTy(r1), Ty::RefTy(r2)) if r1.mutable == r2.mutable && r1.kind == r2.kind => {
+                self.unify_terms(r1.ty, r2.ty)
+            }
+            (Ty::RefTy(_), _) | (_, Ty::RefTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-                (Term::Access(a1), Term::Access(a2)) if a1.field == a2.field => {
-                    self.unify_terms(a1.subject, a2.subject)
-                }
-                (Term::Access(_), _) | (_, Term::Access(_)) => {
-                    self.mismatching_atoms(src_id, target_id)
-                }
+            (Ty::DataTy(d1), Ty::DataTy(d2)) if d1.data_def == d2.data_def => {
+                self.unify_args(d1.args, d2.args)
+            }
+            (Ty::DataTy(_), _) | (_, Ty::DataTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-                (Term::Ref(r1), Term::Ref(r2))
-                    if r1.mutable == r2.mutable && r1.kind == r2.kind =>
-                {
-                    self.unify_terms(r1.subject, r2.subject)
-                }
-                (Term::Ref(_), _) | (_, Term::Ref(_)) => self.mismatching_atoms(src_id, target_id),
+            (Ty::Universe, Ty::Universe) => Ok(()),
 
-                (Term::FnCall(c1), Term::FnCall(c2)) => self.unify_fn_calls(c1, c2),
-                (Term::FnCall(_), _) | (_, Term::FnCall(_)) => {
-                    self.mismatching_atoms(src_id, target_id)
-                }
+            (Term::Tuple(t1), Term::Tuple(t2)) => self.unify_args(t1.data, t2.data),
+            (Term::Tuple(_), _) | (_, Term::Tuple(_)) => self.mismatching_atoms(src_id, target_id),
 
-                (Term::FnRef(f1), Term::FnRef(f2)) if f1 == f2 => Ok(()),
-                (Term::FnRef(_), _) | (_, Term::FnRef(_)) => {
-                    self.mismatching_atoms(src_id, target_id)
-                }
+            (Term::Ctor(c1), Term::Ctor(c2)) if c1.ctor == c2.ctor => {
+                self.unify_args(c1.data_args, c2.data_args)?;
+                self.unify_args(c1.ctor_args, c2.ctor_args)?;
+                Ok(())
+            }
+            (Term::Ctor(_), _) | (_, Term::Ctor(_)) => self.mismatching_atoms(src_id, target_id),
 
-                // @@Todo: rest
-                _ => self.mismatching_atoms(src_id, target_id),
-            },
+            (Term::Lit(l1), Term::Lit(l2)) => self.ok_or_mismatching_atoms(
+                self.lits_are_equal(*l1.value(), *l2.value()),
+                src_id,
+                target_id,
+            ),
+            (Term::Lit(_), _) | (_, Term::Lit(_)) => self.mismatching_atoms(src_id, target_id),
+
+            (Term::Access(a1), Term::Access(a2)) if a1.field == a2.field => {
+                self.unify_terms(a1.subject, a2.subject)
+            }
+            (Term::Access(_), _) | (_, Term::Access(_)) => {
+                self.mismatching_atoms(src_id, target_id)
+            }
+
+            (Term::Ref(r1), Term::Ref(r2)) if r1.mutable == r2.mutable && r1.kind == r2.kind => {
+                self.unify_terms(r1.subject, r2.subject)
+            }
+            (Term::Ref(_), _) | (_, Term::Ref(_)) => self.mismatching_atoms(src_id, target_id),
+
+            (Term::FnCall(c1), Term::FnCall(c2)) => self.unify_fn_calls(c1, c2),
+            (Term::FnCall(_), _) | (_, Term::FnCall(_)) => {
+                self.mismatching_atoms(src_id, target_id)
+            }
+
+            (Term::FnRef(f1), Term::FnRef(f2)) if f1 == f2 => Ok(()),
+            (Term::FnRef(_), _) | (_, Term::FnRef(_)) => self.mismatching_atoms(src_id, target_id),
+
+            // @@Todo: rest
+            _ => self.mismatching_atoms(src_id, target_id),
         }
     }
 
@@ -468,9 +401,9 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
                     );
 
                     // Unify the types
-                    self.unify_tys(src_param.ty, target_param.ty)?;
-                    self.sub_ops().apply_sub_to_ty_in_place(target_param.ty, &forward_sub);
-                    self.sub_ops().apply_sub_to_ty_in_place(src_param.ty, &backward_sub);
+                    self.unify_terms(src_param.ty, target_param.ty)?;
+                    self.sub_ops().apply_sub_to_term_in_place(target_param.ty, &forward_sub);
+                    self.sub_ops().apply_sub_to_term_in_place(src_param.ty, &backward_sub);
                 }
 
                 // Run the in-scope closure
@@ -526,7 +459,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
         let ty = self.norm_ops().to_ty(self.norm_ops().normalise(ty.into())?);
         match *ty.value() {
-            Ty::Data(data_ty) => {
+            Ty::DataTy(data_ty) => {
                 let data_def = data_ty.data_def.borrow();
                 match data_def.ctors {
                     DataDefCtors::Defined(ctors) => Ok(ctors.len() == 0),

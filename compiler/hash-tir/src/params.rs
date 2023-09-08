@@ -21,9 +21,9 @@ use crate::{
     fns::{FnDefId, FnTy},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     symbols::SymbolId,
+    terms::{Ty, TyId},
     tir_node_sequence_store_direct,
     tuples::TupleTy,
-    tys::{Ty, TyId},
 };
 
 /// A parameter, declaring a potentially named variable with a given type and

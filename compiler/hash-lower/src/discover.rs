@@ -160,7 +160,6 @@ impl FnDiscoverer<'_> {
         self.traversing_utils()
             .visit_term::<!, _>(term, &mut |atom: Atom| match atom {
                 Atom::Term(_) => Ok(ControlFlow::Continue(())),
-                Atom::Ty(_) => Ok(ControlFlow::Break(())),
                 Atom::FnDef(fn_def) => {
                     // @@Todo: this doesn't deal with captures.
                     if !fns.contains(fn_def) && self.queue_fn_and_body(fn_def).is_some() {

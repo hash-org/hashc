@@ -42,7 +42,7 @@ use hash_storage::store::Store;
 use hash_tir::{
     environment::env::AccessToEnv,
     pats::{PatId, RangePat},
-    tys::TyId,
+    terms::TyId,
 };
 
 use crate::{

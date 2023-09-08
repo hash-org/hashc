@@ -28,9 +28,9 @@ use hash_tir::{
     params::ParamIndex,
     refs::{self, RefTerm},
     scopes::AssignTerm,
-    terms::{Term, TermId, UnsafeTerm},
+    term_as_variant,
+    terms::{Term, TermId, Ty, UnsafeTerm},
     tuples::TupleTerm,
-    ty_as_variant,
 };
 use hash_utils::itertools::Itertools;
 
@@ -135,7 +135,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // Get the type of the function into or to to get the
                         // fn-type so that we can enter the scope.
                         let ty = self.get_inferred_ty(subject);
-                        let fn_ty = ty_as_variant!(self, *ty.value(), Fn);
+                        let fn_ty = term_as_variant!(self, ty.value(), FnTy);
 
                         // Try and create the ir_type from a function definition, otherwise
                         // if it is just a function, then we make the the type from the function.
@@ -328,9 +328,15 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block.unit()
             }
 
-            Term::Cast(_) | Term::TypeOf(_) | Term::Ty(_) | Term::Hole(_) | Term::FnRef(_) => {
-                block.unit()
-            }
+            Term::Cast(_)
+            | Term::TypeOf(_)
+            | Ty::DataTy(_)
+            | Ty::FnTy(_)
+            | Ty::TupleTy(_)
+            | Ty::RefTy(_)
+            | Ty::Universe
+            | Term::Hole(_)
+            | Term::FnRef(_) => block.unit(),
         };
 
         block_and

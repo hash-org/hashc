@@ -12,8 +12,7 @@ use hash_tir::{
     node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
-    terms::{Term, TermId},
-    tys::Ty,
+    terms::{Term, TermId, Ty},
 };
 
 use super::ResolutionPass;
@@ -101,7 +100,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast_param.ty.as_ref().map(|ty| self.make_ty_from_ast_ty(ty.ast_ref())).unwrap_or_else(
                 || {
                     // Default as "Type"
-                    Ok(Ty::flexible_universe(NodeOrigin::InferredFrom(ast_param.id())))
+                    Ok(Ty::universe(NodeOrigin::InferredFrom(ast_param.id())))
                 },
             ),
         );
@@ -145,7 +144,7 @@ impl<'tc> ResolutionPass<'tc> {
                 .or_else(|| {
                     if implicit {
                         // Default as "Type"
-                        Some(Ok(Ty::flexible_universe(NodeOrigin::InferredFrom(ast_param.id()))))
+                        Some(Ok(Ty::universe(NodeOrigin::InferredFrom(ast_param.id()))))
                     } else {
                         None
                     }

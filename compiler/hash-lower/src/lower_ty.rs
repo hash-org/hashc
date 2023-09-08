@@ -29,8 +29,8 @@ use hash_tir::{
     node::{HasAstNodeId, NodesId},
     primitives::primitives,
     refs::RefTy,
+    terms::{Ty, TyId},
     tuples::TupleTy,
-    tys::{Ty, TyId},
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
@@ -75,10 +75,10 @@ impl<'ir> BuilderCtx<'ir> {
             // its own caching, but we still want to add an entry here for `TyId` since
             // we want to avoid computing the `ty_from_tir_data` as well.
             let result = match &(*ty).data {
-                Ty::Data(data_ty) => self.ty_from_tir_data(*data_ty),
+                Ty::DataTy(data_ty) => self.ty_from_tir_data(*data_ty),
 
                 // Hot path for unit types.
-                Ty::Tuple(tuple) if tuple.data.is_empty() => COMMON_IR_TYS.unit,
+                Ty::TupleTy(tuple) if tuple.data.is_empty() => COMMON_IR_TYS.unit,
                 _ => self.uncached_ty_from_tir_ty(id, &ty),
             };
 
@@ -89,7 +89,7 @@ impl<'ir> BuilderCtx<'ir> {
     /// Get the [IrTy] from the given [Ty].
     fn uncached_ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> IrTyId {
         let ty = match *ty {
-            Ty::Tuple(TupleTy { data }) => {
+            Ty::TupleTy(TupleTy { data }) => {
                 // Optimise, if this is a UNIT, then we can just return a unit type.
                 if data.is_empty() {
                     return COMMON_IR_TYS.unit;
@@ -112,14 +112,14 @@ impl<'ir> BuilderCtx<'ir> {
                 let adt = Adt::new_with_flags("tuple".into(), index_vec![variant], flags);
                 IrTy::Adt(Adt::create(adt))
             }
-            Ty::Fn(FnTy { params, return_ty, .. }) => {
+            Ty::FnTy(FnTy { params, return_ty, .. }) => {
                 let params = IrTyListId::seq(
                     params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
                 );
                 let return_ty = self.ty_id_from_tir_ty(return_ty);
                 IrTy::Fn { params, return_ty }
             }
-            Ty::Ref(RefTy { kind, mutable, ty }) => {
+            Ty::RefTy(RefTy { kind, mutable, ty }) => {
                 let ty = self.ty_id_from_tir_ty(ty);
                 let mutability = if mutable { Mutability::Mutable } else { Mutability::Immutable };
                 let ref_kind = match kind {
@@ -130,8 +130,7 @@ impl<'ir> BuilderCtx<'ir> {
 
                 IrTy::Ref(ty, mutability, ref_kind)
             }
-            Ty::Data(data_ty) => return self.ty_from_tir_data(data_ty),
-            Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
+            Ty::DataTy(data_ty) => return self.ty_from_tir_data(data_ty),
 
             // This is a type variable that should be found in the scope. It is
             // resolved and substituted in the `Ty::Var` case below.
@@ -139,7 +138,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // @@Temporary
                 if self.context().try_get_decl(sym).is_some() {
                     let term = self.context().get_binding_value(sym);
-                    let ty = term.as_ty().value();
+                    let ty = term.value();
                     return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {
                     return COMMON_IR_TYS.unit; // We just return the unit type
@@ -156,6 +155,8 @@ impl<'ir> BuilderCtx<'ir> {
                     panic!("{message}")
                 }
             }
+
+            _ => IrTy::Adt(AdtId::UNIT),
         };
 
         IrTy::create(ty)
@@ -266,10 +267,9 @@ impl<'ir> BuilderCtx<'ir> {
         let subs = if ty.args.len() > 0 {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
-            Some(IrTyListId::seq(ty.args.elements().borrow().iter().map(|arg| {
-                let ty = arg.value.as_ty();
-                self.ty_id_from_tir_ty(ty)
-            })))
+            Some(IrTyListId::seq(
+                ty.args.elements().borrow().iter().map(|arg| self.ty_id_from_tir_ty(arg.value)),
+            ))
         } else {
             None
         };

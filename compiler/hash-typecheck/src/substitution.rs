@@ -16,8 +16,7 @@ use hash_tir::{
     pats::Pat,
     sub::Sub,
     symbols::SymbolId,
-    terms::{Term, TermId},
-    tys::{Ty, TyId},
+    terms::{Term, TermId, Ty},
     utils::{
         traversing::{Atom, TraversingUtils},
         AccessToUtils,
@@ -67,7 +66,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         let mut shadowed_sub = sub.clone();
         for param in params.iter() {
             let param = param.value();
-            self.apply_sub_to_ty_in_place(param.ty, &shadowed_sub);
+            self.apply_sub_to_term_in_place(param.ty, &shadowed_sub);
             shadowed_sub.remove(param.name);
             if let Some(default) = param.default {
                 self.apply_sub_to_term_in_place(default, &shadowed_sub);
@@ -93,31 +92,9 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                     self.apply_sub_to_atom_in_place(ty.into(), sub);
                 }
             }
-            Atom::Ty(_) | Atom::FnDef(_) => {}
+            Atom::FnDef(_) => {}
         }
         match atom {
-            Atom::Ty(ty) => match *ty.value() {
-                Ty::Hole(Hole(symbol)) | Ty::Var(symbol) => {
-                    match sub.get_sub_for_var_or_hole(symbol) {
-                        Some(subbed_term) => {
-                            let subbed_ty_val = subbed_term.as_ty().value();
-                            ty.set(subbed_ty_val);
-                            ControlFlow::Break(())
-                        }
-                        None => ControlFlow::Continue(()),
-                    }
-                }
-                Ty::Tuple(tuple_ty) => {
-                    let _ = self.apply_sub_to_params_and_get_shadowed(tuple_ty.data, sub);
-                    ControlFlow::Break(())
-                }
-                Ty::Fn(fn_ty) => {
-                    let shadowed_sub = self.apply_sub_to_params_and_get_shadowed(fn_ty.params, sub);
-                    self.apply_sub_to_ty_in_place(fn_ty.return_ty, &shadowed_sub);
-                    ControlFlow::Break(())
-                }
-                _ => ControlFlow::Continue(()),
-            },
             Atom::Term(term) => match *term.value() {
                 Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
                     Some(subbed_term) => {
@@ -127,13 +104,22 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                     }
                     None => ControlFlow::Continue(()),
                 },
+                Ty::TupleTy(tuple_ty) => {
+                    let _ = self.apply_sub_to_params_and_get_shadowed(tuple_ty.data, sub);
+                    ControlFlow::Break(())
+                }
+                Ty::FnTy(fn_ty) => {
+                    let shadowed_sub = self.apply_sub_to_params_and_get_shadowed(fn_ty.params, sub);
+                    self.apply_sub_to_term_in_place(fn_ty.return_ty, &shadowed_sub);
+                    ControlFlow::Break(())
+                }
                 _ => ControlFlow::Continue(()),
             },
             Atom::FnDef(fn_def_id) => {
                 let fn_def = fn_def_id.value();
                 let fn_ty = fn_def.ty;
                 let shadowed_sub = self.apply_sub_to_params_and_get_shadowed(fn_ty.params, sub);
-                self.apply_sub_to_ty_in_place(fn_ty.return_ty, &shadowed_sub);
+                self.apply_sub_to_term_in_place(fn_ty.return_ty, &shadowed_sub);
                 match fn_def.body {
                     FnBody::Defined(defined) => {
                         self.apply_sub_to_term_in_place(defined, &shadowed_sub);
@@ -158,28 +144,21 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     ) -> ControlFlow<()> {
         let var_matches = &var_matches;
         match atom {
-            Atom::Ty(ty) => match *ty.value() {
-                Ty::Hole(Hole(symbol)) | Ty::Var(symbol) if var_matches.contains(&symbol) => {
+            Atom::Term(term) => match *term.value() {
+                Term::Hole(Hole(symbol)) | Term::Var(symbol) if var_matches.contains(&symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
                 }
-                Ty::Tuple(tuple_ty) => {
+                Ty::TupleTy(tuple_ty) => {
                     let _ = self.params_contain_vars(tuple_ty.data, var_matches, can_apply);
                     ControlFlow::Break(())
                 }
-                Ty::Fn(fn_ty) => {
+                Ty::FnTy(fn_ty) => {
                     let seen = self.params_contain_vars(fn_ty.params, var_matches, can_apply);
                     if self.atom_contains_vars(fn_ty.return_ty.into(), &seen) {
                         *can_apply = true;
                         return ControlFlow::Break(());
                     }
-                    ControlFlow::Break(())
-                }
-                _ => ControlFlow::Continue(()),
-            },
-            Atom::Term(term) => match *term.value() {
-                Term::Hole(Hole(symbol)) | Term::Var(symbol) if var_matches.contains(&symbol) => {
-                    *can_apply = true;
                     ControlFlow::Break(())
                 }
                 _ => ControlFlow::Continue(()),
@@ -251,15 +230,6 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
             .into_ok()
     }
 
-    pub fn apply_sub_to_ty_in_place(&self, ty_id: TyId, sub: &Sub) {
-        self.traversing_utils
-            .visit_ty::<!, _>(
-                ty_id,
-                &mut |atom| Ok(self.apply_sub_to_atom_in_place_once(atom, sub)),
-            )
-            .into_ok()
-    }
-
     pub fn apply_sub_to_params_in_place(&self, params_id: ParamsId, sub: &Sub) {
         self.traversing_utils
             .visit_params::<!, _>(params_id, &mut |atom| {
@@ -305,13 +275,6 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// accordingly.
     pub fn has_holes_once(&self, atom: Atom, has_holes: &mut Option<Atom>) -> ControlFlow<()> {
         match atom {
-            Atom::Ty(ty) => match *ty.value() {
-                Ty::Hole(_) => {
-                    *has_holes = Some(atom);
-                    ControlFlow::Break(())
-                }
-                _ => ControlFlow::Continue(()),
-            },
             Atom::Term(term) => match *term.value() {
                 Term::Hole(_) => {
                     *has_holes = Some(atom);
@@ -462,12 +425,6 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         copy
     }
 
-    pub fn apply_sub_to_ty(&self, ty: TyId, sub: &Sub) -> TyId {
-        let copy = self.copy_ty(ty);
-        self.apply_sub_to_ty_in_place(copy, sub);
-        copy
-    }
-
     pub fn apply_sub_to_term(&self, term: TermId, sub: &Sub) -> TermId {
         let copy = self.copy_term(term);
         self.apply_sub_to_term_in_place(copy, sub);
@@ -586,11 +543,6 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     /// Copies a type, returning a new type.
     pub fn copy_term(&self, term: TermId) -> TermId {
         self.traversing_utils.fmap_term::<!, _>(term, |_a| Ok(ControlFlow::Continue(()))).into_ok()
-    }
-
-    /// Copies a type, returning a new type.
-    pub fn copy_ty(&self, ty: TyId) -> TyId {
-        self.traversing_utils.fmap_ty::<!, _>(ty, |_a| Ok(ControlFlow::Continue(()))).into_ok()
     }
 
     /// Copies parameters, returning new parameters.

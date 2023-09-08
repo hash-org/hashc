@@ -21,9 +21,9 @@ use hash_tir::{
     pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,
     symbols::SymbolId,
+    term_as_variant,
+    terms::{Ty, TyId},
     tuples::{TuplePat, TupleTy},
-    ty_as_variant,
-    tys::{Ty, TyId},
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
@@ -113,7 +113,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             Pat::Tuple(TuplePat { data, .. }) => {
                 // We need to read the tuple type from the ctx type and then create
                 // wildcard fields for all of the inner types
-                let tuple_ty = ty_as_variant!(ty, *ty_id.value(), Tuple);
+                let tuple_ty = term_as_variant!(ty, ty_id.value(), TupleTy);
                 let fields = self.deconstruct_pat_fields(data, tuple_ty.data);
 
                 // Create wild-cards for all of the tuple inner members
@@ -251,7 +251,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 let pat = match ctor {
                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                         match *ty.value() {
-                            Ty::Data(DataTy { data_def, args }) => {
+                            Ty::DataTy(DataTy { data_def, args }) => {
                                 let ctor_def_id = data_def.borrow().ctors.assert_defined();
 
                                 // We need to reconstruct the ctor-def-id...
@@ -265,7 +265,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 
                                 Pat::Ctor(CtorPat { ctor, ctor_pat_args: pats, ctor_pat_args_spread: spread, data_args: args })
                             }
-                            Ty::Tuple(TupleTy { data }) => {
+                            Ty::TupleTy(TupleTy { data }) => {
                                 let (pats, spread) = self.construct_pat_args(fields, data);
                                 Pat::Tuple(TuplePat { data: pats, data_spread: spread })
                             }

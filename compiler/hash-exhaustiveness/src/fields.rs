@@ -12,8 +12,8 @@ use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataTy},
     node::NodesId,
+    terms::{Ty, TyId},
     tuples::TupleTy,
-    tys::{Ty, TyId},
 };
 use hash_utils::itertools::Itertools;
 
@@ -77,12 +77,12 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         match ctor {
             ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
                 match *ctx.ty.value() {
-                    Ty::Tuple(TupleTy { data }) => {
+                    Ty::TupleTy(TupleTy { data }) => {
                         let tys =
                             data.elements().borrow().iter().map(|member| member.ty).collect_vec();
                         self.wildcards_from_tys(tys)
                     }
-                    Ty::Data(DataTy { data_def, .. }) => {
+                    Ty::DataTy(DataTy { data_def, .. }) => {
                         // get the variant index from the deconstructed ctor
                         let variant_idx =
                             if let DeconstructedCtor::Variant(idx) = ctor { idx } else { 0 };

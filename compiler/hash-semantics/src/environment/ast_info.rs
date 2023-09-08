@@ -10,8 +10,7 @@ use hash_tir::{
     params::{ParamId, ParamsSeqId},
     pats::PatId,
     scopes::StackId,
-    terms::TermId,
-    tys::TyId,
+    terms::{TermId, TyId},
 };
 use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
 

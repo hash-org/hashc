@@ -12,7 +12,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::identifier::Identifier;
-use hash_tir::{tys::TyId, utils::params::ParamError};
+use hash_tir::{terms::TyId, utils::params::ParamError};
 use hash_utils::derive_more::{Constructor, From};
 
 #[derive(Constructor, Debug)]

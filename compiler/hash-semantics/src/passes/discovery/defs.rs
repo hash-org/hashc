@@ -17,7 +17,7 @@ use hash_tir::{
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     scopes::StackId,
     symbols::SymbolId,
-    tys::TyId,
+    terms::TyId,
 };
 use hash_utils::{
     derive_more::From,
