@@ -37,7 +37,7 @@ pub struct UnsafeTerm {
 
 /// Infer the type of the given term, returning its type.
 #[derive(Debug, Clone, Copy)]
-pub struct TypeOfTerm {
+pub struct TyOfTerm {
     pub term: TermId,
 }
 
@@ -95,7 +95,7 @@ pub enum Term {
 
     // Casting
     Cast(CastTerm),
-    TypeOf(TypeOfTerm),
+    TypeOf(TyOfTerm),
 
     // References
     Ref(RefTerm),
@@ -295,7 +295,7 @@ impl fmt::Display for TermListId {
     }
 }
 
-impl fmt::Display for TypeOfTerm {
+impl fmt::Display for TyOfTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "typeof {}", self.term)
     }

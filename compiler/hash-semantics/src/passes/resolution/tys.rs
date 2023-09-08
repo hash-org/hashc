@@ -19,7 +19,7 @@ use hash_tir::{
     params::ParamIndex,
     primitives::primitives,
     refs::{RefKind, RefTy},
-    terms::{Term, Ty, TyId, TypeOfTerm},
+    terms::{Term, Ty, TyId, TyOfTerm},
 };
 
 use super::{
@@ -365,7 +365,7 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
-        let typeof_lhs = Term::from(TypeOfTerm { term: lhs }, NodeOrigin::Given(node.id()));
+        let typeof_lhs = Term::from(TyOfTerm { term: lhs }, NodeOrigin::Given(node.id()));
         let args = Arg::seq_positional(vec![typeof_lhs, lhs, rhs], NodeOrigin::Given(node.id()));
         Ok(Ty::from(DataTy { data_def: primitives().equal(), args }, NodeOrigin::Given(node.id())))
     }

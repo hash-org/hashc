@@ -38,7 +38,7 @@ use hash_tir::{
     sub::Sub,
     symbols::SymbolId,
     term_as_variant,
-    terms::{Term, TermId, TermListId, Ty, TyId, TypeOfTerm, UnsafeTerm},
+    terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
     utils::{common::dump_tir, traversing::Atom, AccessToUtils},
 };
@@ -1216,14 +1216,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer a `typeof` term, and return it.
-    pub fn infer_termpe_of_term(
+    pub fn infer_ty_of_term(
         &self,
-        type_of_term: TypeOfTerm,
+        ty_of_term: TyOfTerm,
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
-        let inferred_ty = Ty::hole_for(type_of_term.term);
-        self.infer_term(type_of_term.term, inferred_ty)?;
+        let inferred_ty = Ty::hole_for(ty_of_term.term);
+        self.infer_term(ty_of_term.term, inferred_ty)?;
         self.infer_term(inferred_ty, annotation_ty)?;
         self.norm_ops().normalise_in_place(original_term_id.into())?;
         Ok(())
@@ -1550,7 +1550,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 self.infer_block_term(&block_term, annotation_ty, term_id)?
             }
             Term::TypeOf(ty_of_term) => {
-                self.infer_termpe_of_term(ty_of_term, annotation_ty, term_id)?
+                self.infer_ty_of_term(ty_of_term, annotation_ty, term_id)?
             }
             Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
             Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,

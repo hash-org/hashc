@@ -33,7 +33,7 @@ use hash_tir::{
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
     term_as_variant,
-    terms::{Term, TermId, Ty, TypeOfTerm, UnsafeTerm},
+    terms::{Term, TermId, Ty, TyOfTerm, UnsafeTerm},
     tuples::TupleTerm,
 };
 use hash_utils::itertools::Itertools;
@@ -973,7 +973,7 @@ impl<'tc> ResolutionPass<'tc> {
         let rhs = self.make_term_from_ast_expr(rhs)?;
 
         // For the type, we use the type of the lhs
-        let typeof_lhs = Term::from(TypeOfTerm { term: lhs }, origin);
+        let typeof_lhs = Term::from(TyOfTerm { term: lhs }, origin);
 
         // Pick the right intrinsic function and binary operator number
         let (intrinsic_fn_def, bin_op_num): (FnDefId, u8) = match op {
@@ -1030,12 +1030,12 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TermId> {
         let a = self.make_term_from_ast_expr(node.expr.ast_ref())?;
         let origin = NodeOrigin::Given(node.id());
-        let typeof_a = Term::from(TypeOfTerm { term: a }, origin);
+        let typeof_a = Term::from(TyOfTerm { term: a }, origin);
 
         let (intrinsic_fn_def, op_num): (FnDefId, u8) = match node.operator.body() {
             ast::UnOp::TypeOf => {
                 let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-                return Ok(Term::from(TypeOfTerm { term: inner }, origin));
+                return Ok(Term::from(TyOfTerm { term: inner }, origin));
             }
             ast::UnOp::BitNot => (self.intrinsics().un_op(), UnOp::BitNot.into()),
             ast::UnOp::Not => (self.intrinsics().un_op(), UnOp::Not.into()),

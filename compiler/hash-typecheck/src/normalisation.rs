@@ -24,7 +24,7 @@ use hash_tir::{
     refs::DerefTerm,
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     symbols::SymbolId,
-    terms::{Term, TermId, TermListId, Ty, TyId, TypeOfTerm, UnsafeTerm},
+    terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::TupleTerm,
     utils::{
         traversing::{Atom, TraversingUtils},
@@ -557,7 +557,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a `typeof` term.
-    fn eval_type_of(&self, type_of_term: TypeOfTerm) -> AtomEvaluation {
+    fn eval_type_of(&self, type_of_term: TyOfTerm) -> AtomEvaluation {
         // Infer the type of the term:
         match self.try_get_inferred_ty(type_of_term.term) {
             Some(ty) => evaluation_to(ty),

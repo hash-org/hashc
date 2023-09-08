@@ -24,7 +24,7 @@ use crate::{
     pats::{Pat, PatId, PatListId},
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    terms::{Term, TermId, TermListId, Ty, TypeOfTerm, UnsafeTerm},
+    terms::{Term, TermId, TermListId, Ty, TyOfTerm, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
 };
 
@@ -239,7 +239,7 @@ impl TraversingUtils {
                 }
                 Term::TypeOf(type_of_term) => {
                     let term = self.fmap_term(type_of_term.term, f)?;
-                    Ok(Term::from(TypeOfTerm { term }, origin))
+                    Ok(Term::from(TyOfTerm { term }, origin))
                 }
                 Term::Ref(ref_term) => {
                     let subject = self.fmap_term(ref_term.subject, f)?;
