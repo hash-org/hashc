@@ -37,7 +37,7 @@ use hash_pipeline::{
     settings::CompilerSettings,
     workspace::Workspace,
 };
-use hash_reporting::{report::Report, writer::ReportWriter};
+use hash_reporting::report::Report;
 use hash_testing_internal::{
     metadata::{HandleWarnings, TestResult},
     TestingInput,
@@ -59,7 +59,7 @@ fn stringify_test_dir_path(path: &Path) -> String {
     // to escape them.
     #[cfg(target_os = "windows")]
     let test_dir = {
-        let mut dir = regex::escape(&adjust_canonicalisation(path));
+        let mut dir = regex::escape(&adjust_canonicalisation(path).display().to_string());
 
         // @@Hack: on windows, the separator is a backslash, which is problematic
         //         for ui-tests, since they expect a `/` (forward slash) as the
@@ -72,7 +72,7 @@ fn stringify_test_dir_path(path: &Path) -> String {
 
     #[cfg(not(target_os = "windows"))]
     let test_dir = {
-        let mut dir = adjust_canonicalisation(path);
+        let mut dir = adjust_canonicalisation(path).display().to_string();
         dir.push('/');
         dir
     };
@@ -105,14 +105,10 @@ fn strip_contents(contents: &str, test: &TestingInput) -> String {
 fn compare_emitted_diagnostics(
     input: &TestingInput,
     diagnostics: Vec<Report>,
-    sources: &Workspace,
 ) -> std::io::Result<()> {
     // First, convert the diagnostics into a string.
-    let contents = diagnostics
-        .into_iter()
-        .map(|report| format!("{}", ReportWriter::single(report, &sources.source_map)))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let contents =
+        diagnostics.into_iter().map(|report| format!("{}", report)).collect::<Vec<_>>().join("\n");
 
     compare_output(input, OutputKind::Stderr, contents.as_str())
 }
@@ -216,7 +212,6 @@ fn compare_stream(
 fn handle_failure_case(
     test: TestingInput,
     diagnostics: Vec<Report>,
-    sources: &Workspace,
     output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
     // verify that the case failed, as in reports where generated
@@ -249,7 +244,7 @@ fn handle_failure_case(
         })
         .collect();
 
-    compare_emitted_diagnostics(&test, diagnostics, sources)?;
+    compare_emitted_diagnostics(&test, diagnostics)?;
     compare_stream(&test, OutputKind::Stdout, output_stream)
 }
 
@@ -260,7 +255,6 @@ fn handle_failure_case(
 fn handle_pass_case(
     test: TestingInput,
     diagnostics: Vec<Report>,
-    sources: &Workspace,
     output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
     let did_pass = match test.metadata.warnings {
@@ -276,7 +270,7 @@ fn handle_pass_case(
             "\ntest case did not pass:\n{}",
             diagnostics
                 .into_iter()
-                .map(|report| format!("{}", ReportWriter::single(report, &sources.source_map)))
+                .map(|report| format!("{}", report))
                 .collect::<Vec<_>>()
                 .join("\n")
         );
@@ -284,7 +278,7 @@ fn handle_pass_case(
 
     // If we need to compare the output of the warnings, to the previous result...
     if test.metadata.warnings == HandleWarnings::Compare {
-        compare_emitted_diagnostics(&test, diagnostics, sources)?;
+        compare_emitted_diagnostics(&test, diagnostics)?;
     }
 
     compare_stream(&test, OutputKind::Stdout, output_stream)
@@ -343,17 +337,15 @@ fn handle_test(test: TestingInput) {
     // // Now parse the module and store the result
     compiler.run_on_entry_point();
 
-    let workspace = compiler.workspace();
-
     // @@Copying: we shouldn't really need to clone the diagnostics here!!
     let diagnostics = compiler.diagnostics().to_owned();
 
     // Based on the specified metadata within the test case itself, we know
     // whether the test should fail or not
     if test.metadata.completion == TestResult::Fail {
-        handle_failure_case(test, diagnostics, workspace, &output_stream).unwrap();
+        handle_failure_case(test, diagnostics, &output_stream).unwrap();
     } else {
-        handle_pass_case(test, diagnostics, workspace, &output_stream).unwrap();
+        handle_pass_case(test, diagnostics, &output_stream).unwrap();
     }
 }
 

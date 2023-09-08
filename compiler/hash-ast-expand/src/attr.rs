@@ -74,7 +74,7 @@ impl AstExpander<'_> {
         if should_dump {
             let mode = self.settings.ast_settings.dump_mode;
             let character_set = self.settings.character_set;
-            dump_ast(subject, mode, character_set, self.sources, &mut self.stdout).unwrap();
+            dump_ast(subject, mode, character_set, &mut self.stdout).unwrap();
         }
     }
 
@@ -161,11 +161,8 @@ impl AstExpander<'_> {
 
                     // If we can't convert this into an attribute value, then we
                     // can't properly check the invocation.
-                    let attr_value = match AttrValueKind::try_from_expr(
-                        arg.value.body(),
-                        self.sources,
-                        ptr_size,
-                    ) {
+                    let attr_value = match AttrValueKind::try_from_expr(arg.value.body(), ptr_size)
+                    {
                         Ok(Some(value)) => value,
                         Ok(None) => {
                             let expr_kind = AttrTarget::classify_expr(arg.value.body());

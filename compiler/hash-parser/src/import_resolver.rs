@@ -1,9 +1,9 @@
 //! Self hosted hash parser, this function contains the implementations for
 //! `hash-ast` which provides a general interface to write a parser.
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use hash_pipeline::fs::{read_in_path, resolve_path, ImportError};
-use hash_source::{constant::InternedStr, SourceId};
+use hash_pipeline::fs::{resolve_path, ImportError};
+use hash_source::{constant::InternedStr, ModuleKind, SourceId, SourceMapUtils};
 use hash_utils::crossbeam_channel::Sender;
 
 use crate::ParserAction;
@@ -15,7 +15,7 @@ pub struct ImportResolver<'p> {
     /// The associated [SourceId] with the import resolution.
     source_id: SourceId,
     /// Working directory from where the import path resolution occurs.
-    root_dir: &'p Path,
+    root_dir: &'p PathBuf,
     /// The parser message queue sender.
     sender: Sender<ParserAction>,
 }
@@ -25,7 +25,7 @@ impl<'p> ImportResolver<'p> {
     /// directory and a message queue sender.
     pub(crate) fn new(
         source_id: SourceId,
-        root_dir: &'p Path,
+        root_dir: &'p PathBuf,
         sender: Sender<ParserAction>,
     ) -> Self {
         Self { root_dir, sender, source_id }
@@ -40,20 +40,23 @@ impl<'p> ImportResolver<'p> {
     /// contents of the provided `import_path`, resolve the contents of the
     /// module, and then proceed to send a [ParserAction::ParseImport]
     /// through the message queue.
-    pub(crate) fn resolve_import(&self, path: InternedStr) -> Result<PathBuf, ImportError> {
+    pub(crate) fn resolve_import(&self, path: InternedStr) -> Result<SourceId, ImportError> {
         // Read the contents of the file
         let resolved_path = resolve_path(path, self.root_dir)?;
-        let contents = read_in_path(resolved_path.as_path())?;
 
-        // Send over the resolved path and the contents of the file
+        // Check if we have already parsed this file
+        if let Some(source) = SourceMapUtils::id_by_path(&resolved_path) {
+            return Ok(source);
+        }
+
+        // Otherwise, we reserve a module id for the file.
+        //
+        // Send over the resolved path and the contents of the file.
+        let source = SourceMapUtils::reserve_module(resolved_path, ModuleKind::Normal);
         self.sender
-            .send(ParserAction::ParseImport {
-                resolved_path: resolved_path.clone(),
-                contents,
-                sender: self.sender.clone(),
-            })
+            .send(ParserAction::ParseImport { source, sender: self.sender.clone() })
             .unwrap();
-        Ok(resolved_path)
+        Ok(source)
     }
 
     /// Yield a [Sender<ParserAction>] whilst consuming self.

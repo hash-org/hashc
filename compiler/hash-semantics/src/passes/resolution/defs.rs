@@ -213,10 +213,7 @@ impl<'tc> ResolutionPass<'tc> {
                             }
                             ast::Expr::Import(import_expr) => {
                                 // If it's an import, resolve the source
-                                let source_id = self
-                                    .source_map()
-                                    .get_id_by_path(&import_expr.data.resolved_path)
-                                    .unwrap();
+                                let source_id = import_expr.data.source;
                                 self.current_source_info().with_source_id(source_id, || {
                                     ResolutionPass::new(self.sem_env()).pass_source()
                                 })?;

@@ -2,7 +2,7 @@
 use std::{
     env,
     fmt::Display,
-    fs,
+    fs, io,
     path::{Path, PathBuf, MAIN_SEPARATOR},
 };
 
@@ -67,6 +67,22 @@ impl From<ImportError> for Report {
         let mut report = Report::new();
         report.kind(ReportKind::Error).title(format!("{value}"));
         report
+    }
+}
+
+impl From<(PathBuf, io::Error)> for ImportError {
+    fn from(value: (PathBuf, io::Error)) -> Self {
+        match value.1.kind() {
+            io::ErrorKind::NotFound => ImportError {
+                path: value.0.to_str().unwrap().into(),
+                kind: ImportErrorKind::NotFound,
+            },
+            io::ErrorKind::PermissionDenied => ImportError {
+                path: value.0.to_str().unwrap().into(),
+                kind: ImportErrorKind::UnreadableFile,
+            },
+            err => panic!("unexpected IO error occurred during import resolution: {err:?}"),
+        }
     }
 }
 
@@ -161,15 +177,18 @@ pub fn resolve_path<'p>(
 
     let modules = get_stdlib_modules(STDLIB);
 
+    let canonicalise = |path: &Path| path.canonicalize().map_err(|err| (path.to_path_buf(), err));
+
     // check if the given path is equal to any of the standard library paths, and
     // if so we prefix it with the standard library path.
     if modules.contains(&import_path.to_path_buf()) {
         let path = Path::new(STDLIB).join(import_path.with_extension("hash"));
-        return Ok(path);
+
+        return Ok(canonicalise(&path)?);
     }
 
     // otherwise, we have to resolve the module path based on the working directory
-    let work_dir = wd.canonicalize().unwrap();
+    let work_dir = canonicalise(wd)?;
     let raw_path = work_dir.join(import_path);
 
     // If the provided path is a directory, we assume that the user is referencing
@@ -180,13 +199,13 @@ pub fn resolve_path<'p>(
         let idx_path = raw_path.join("index.hash");
 
         if idx_path.exists() {
-            return Ok(idx_path);
+            return Ok(canonicalise(&idx_path)?);
         }
 
         // ok now check if the user is referencing a module instead of the dir
         let raw_path_hash = raw_path.with_extension("hash");
         if raw_path_hash.exists() {
-            return Ok(raw_path_hash);
+            return Ok(canonicalise(&raw_path_hash)?);
         }
 
         Err(ImportError { path: path.into(), kind: ImportErrorKind::MissingIndex })
@@ -212,7 +231,7 @@ pub fn resolve_path<'p>(
                 // Only try to check this route if the provided file did not already have an
                 // extension
                 if raw_path.extension().is_none() && raw_path_hash.exists() {
-                    Ok(raw_path_hash)
+                    Ok(canonicalise(&raw_path_hash)?)
                 } else {
                     Err(ImportError { path: path.into(), kind: ImportErrorKind::NotFound })
                 }

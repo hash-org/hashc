@@ -15,7 +15,6 @@ use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::env::AccessToEnv,
     lits::{CharLit, Lit, LitPat, StrLit},
     node::{Node, NodeId, NodeOrigin},
     params::ParamIndex,
@@ -235,7 +234,6 @@ impl ResolutionPass<'_> {
                 TerminalResolvedPathComponent::CtorTerm(_) => {
                     panic_on_span!(
                         original_node_id.span(),
-                        self.source_map(),
                         "Found constructor term in pattern, expected constructor pattern"
                     )
                 }
@@ -338,11 +336,7 @@ impl ResolutionPass<'_> {
             }
             ast::Pat::Module(_) => {
                 // This should be handled earlier
-                panic_on_span!(
-                    node.span(),
-                    self.source_map(),
-                    "Found module pattern during symbol resolution"
-                )
+                panic_on_span!(node.span(), "Found module pattern during symbol resolution")
             }
             ast::Pat::Tuple(tuple_pat) => Node::create_at(
                 Pat::Tuple(TuplePat {

@@ -7,7 +7,7 @@ use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use crate::visitor::AstDesugaring;
 
-impl<'s> AstDesugaring<'s> {
+impl AstDesugaring {
     /// This function is responsible for converting a [ForLoopBlock] into a
     /// simpler [ast::LoopBlock]. This is not obvious from the function
     /// definition because it accepts a [ast::AstNode<ast::Block>], not
@@ -39,12 +39,9 @@ impl<'s> AstDesugaring<'s> {
         // Since this function expects it to be a for-loop block, we match it and unwrap
         let block = match node {
             ast::Block::For(body) => body,
-            block => panic_on_span!(
-                parent_span,
-                self.source_map,
-                "lowering: expected for-loop, got {}",
-                block.as_str()
-            ),
+            block => {
+                panic_on_span!(parent_span, "lowering: expected for-loop, got {}", block.as_str())
+            }
         };
 
         let ast::ForLoopBlock { pat, iterator, for_body } = block;
@@ -189,7 +186,6 @@ impl<'s> AstDesugaring<'s> {
             ast::Block::While(body) => body,
             block => panic_on_span!(
                 parent_span,
-                self.source_map,
                 "lowering: expected while-block, got {}",
                 block.as_str()
             ),
@@ -365,12 +361,9 @@ impl<'s> AstDesugaring<'s> {
         // Since this function expects it to be a for-loop block, we match it and unwrap
         let block = match node {
             ast::Block::If(body) => body,
-            block => panic_on_span!(
-                parent_span,
-                self.source_map,
-                "lowering: expected if-block, got {}",
-                block.as_str()
-            ),
+            block => {
+                panic_on_span!(parent_span, "lowering: expected if-block, got {}", block.as_str())
+            }
         };
 
         // We don't case about 'clauses' because we can use the visitor to transform

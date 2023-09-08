@@ -55,7 +55,6 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
         let (sender, receiver) = unbounded::<AnalysisDiagnostic>();
         let UntypedSemanticAnalysisCtx { workspace, pool } = stage_data.data();
 
-        let source_map = &workspace.source_map;
         let node_map = &mut workspace.node_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
@@ -66,7 +65,7 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
                 let source = node_map.get_interactive_block(entry_point.into());
 
                 // setup a visitor and the context
-                let mut visitor = SemanticAnalyser::new(source_map);
+                let mut visitor = SemanticAnalyser::new();
 
                 visitor.visit_body_block(source.node_ref()).unwrap();
                 visitor.emit_diagnostics_to(&sender);
@@ -83,7 +82,7 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
                     continue;
                 }
 
-                let mut visitor = SemanticAnalyser::new(source_map);
+                let mut visitor = SemanticAnalyser::new();
 
                 // Check that all of the root scope statements are only declarations
                 let errors = visitor.visit_module(module.node_ref()).unwrap();
@@ -100,7 +99,7 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
                     let sender = sender.clone();
 
                     scope.spawn(move |_| {
-                        let mut visitor = SemanticAnalyser::new(source_map);
+                        let mut visitor = SemanticAnalyser::new();
 
                         visitor.visit_expr(expr.ast_ref()).unwrap();
                         visitor.emit_diagnostics_to(&sender);

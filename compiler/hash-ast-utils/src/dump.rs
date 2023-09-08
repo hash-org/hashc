@@ -2,7 +2,6 @@
 
 use std::fmt;
 
-use hash_source::SourceMap;
 use hash_utils::{
     clap,
     tree_writing::{CharacterSet, TreeWriter, TreeWriterConfig},
@@ -36,7 +35,6 @@ pub fn dump_ast(
     node: AttrNode<'_>,
     mode: AstDumpMode,
     character_set: CharacterSet,
-    source_map: &SourceMap,
     writer: &mut impl std::io::Write,
 ) -> std::io::Result<()> {
     match mode {
@@ -46,7 +44,7 @@ pub fn dump_ast(
         }
         AstDumpMode::Tree => {
             // In the tree mode, we prepend the output with the item that we dumped.
-            writeln!(writer, "AST for `{}`:", source_map.fmt_location(node.id().span()))?;
+            writeln!(writer, "AST for `{}`:", node.id().span().fmt_path())?;
 
             let tree = node.visit(AstTreePrinter).unwrap();
             let config = TreeWriterConfig::from_character_set(character_set);

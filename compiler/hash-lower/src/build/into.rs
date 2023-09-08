@@ -250,11 +250,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // start of the loop block, and when this is a break, we need to
                 // **jump** to the proceeding block of the loop block
                 let Some(LoopBlockInfo { loop_body, next_block }) = self.loop_block_info else {
-                    panic_on_span!(
-                        span.span(),
-                        self.env().source_map(),
-                        "`continue` or `break` outside of loop"
-                    );
+                    panic_on_span!(span.span(), "`continue` or `break` outside of loop");
                 };
 
                 // Add terminators to this block to specify where this block will jump...
@@ -380,8 +376,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // if let IrTy::Fn { params, .. } = fn_ty {
         //     if args.len() != params.len() {
         //         panic_on_span!(
-        //             span.into_location(self.source_id),
-        //             self.env().source_map(),
+        //             origin.span(),
         //             "default arguments on functions are not currently supported",
         //         );
         //     }
@@ -528,7 +523,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                 if args.len() != field_count {
                     panic_on_span!(
                         origin.span(),
-                        self.source_map(),
                         "default arguments on constructors are not currently supported, params={} args={}",
                         field_count,
                         args.len(),
