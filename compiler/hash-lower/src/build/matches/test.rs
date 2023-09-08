@@ -343,7 +343,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // @@Todo: when we switch to new patterns, we can look this up without
                 // the additional evaluation. However, we might need to modify the `Eq`
                 // on `ir::Const` to actually check if integer values are equal.
-                let value = self.evaluate_lit_pat(lit).0;
+                let value = self.eval_lit_pat(lit).0;
                 let index = options.get_index_of(&value).unwrap();
 
                 // remove the candidate from the pairs
@@ -427,18 +427,18 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // Check if the two ranged overlap, and if they don't then the pattern
                 // can only be matched if this test fails
-                if !range.overlaps(&actual_range)? {
+                if !range.overlaps(&actual_range, self.ctx.layout_computer())? {
                     Some(1)
                 } else {
                     None
                 }
             }
             (TestKind::Range { ref range }, Pat::Lit(lit_pat)) => {
-                let (value, _) = self.evaluate_lit_pat(lit_pat);
+                let (value, _) = self.eval_lit_pat(lit_pat);
 
                 // If the `value` is not contained in the testing range, so the `value` can be
                 // matched only if the test fails.
-                if let Some(false) = range.contains(value) {
+                if let Some(false) = range.contains(value, self.ctx.layout_computer()) {
                     Some(1)
                 } else {
                     None
@@ -819,7 +819,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         match *match_pair.pat.value() {
             Pat::Lit(term) => {
-                let (constant, value) = self.evaluate_lit_pat(term);
+                let (constant, value) = self.eval_lit_pat(term);
                 options.entry(constant).or_insert(value);
                 true
             }
@@ -863,7 +863,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // Iterate over all of the options and check if the
         // value is contained in the constant range.
         for &value in options.keys() {
-            if const_range.contains(value)? {
+            if const_range.contains(value, self.ctx.layout_computer())? {
                 return Some(false);
             }
         }

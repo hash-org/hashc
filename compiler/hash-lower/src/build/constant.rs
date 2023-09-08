@@ -38,6 +38,8 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn lower_constant_expr(&mut self, term: &Term, origin: AstNodeId) -> Const {
         match term {
             Term::Lit(lit) => self.as_constant(*lit),
+            // @@TirToConst: implement the conversion from an arbitrary TIR data term into a Const
+            // value.
             _ => panic_on_span!(origin.span(), "cannot lower non-literal expression into constant"),
         }
     }

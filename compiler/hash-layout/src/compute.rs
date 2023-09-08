@@ -139,6 +139,11 @@ impl<'l> LayoutComputer<'l> {
         &self.ctx.common_layouts
     }
 
+    /// Compute the [Size] of a [IrTyId].
+    pub fn size_of_ty(&self, ty: IrTyId) -> Result<Size, LayoutError> {
+        Ok(self.layout_of_ty(ty)?.size())
+    }
+
     /// This is the entry point of the layout computation engine. From
     /// here, the [Layout] of a type will be computed all the way recursively
     /// until all of the leaves of the type are also turned into [Layout]s.

@@ -9,6 +9,21 @@ use hash_storage::store::statics::StoreId;
 use hash_target::size::Size;
 use hash_utils::{derive_more::Constructor, itertools::Itertools};
 
+/// Utility structure used to represent what a [Const] is destructured into
+/// by [`ConstUtils::destructure_const`]. This is useful for when the [Const]
+/// needs to be inspected field-by-field.
+#[derive(Clone, Debug)]
+pub struct DestructuredConst {
+    /// The variant index of the [Const] if it is an enum. This is `None` if
+    /// the [Const] is not an ADT, i.e. an array.
+    pub variant: Option<VariantIdx>,
+
+    /// The newly generated top-level [Const]s that the original [Const] was
+    /// deconstructed into. Each of these [Const]s could again be destrcutured
+    /// into further fields.
+    pub fields: Vec<Const>,
+}
+
 /// Utilties for reading [Const] data and performing various other
 /// operations on the [Const] representation.
 #[derive(Constructor)]
@@ -146,10 +161,14 @@ impl ConstUtils<'_> {
 
         Some(DestructuredConst { variant, fields })
     }
-}
 
-#[derive(Clone, Debug)]
-pub struct DestructuredConst {
-    pub variant: Option<VariantIdx>,
-    pub fields: Vec<Const>,
+    /// Evaluate the value of the [Scalar] constant into a `u128` value.
+    pub fn eval_bits(&self) -> u128 {
+        let size = self.lc.size_of_ty(self.ty()).unwrap();
+
+        match self.kind {
+            ConstKind::Scalar(scalar) => scalar.to_bits(size).unwrap(),
+            _ => panic!("cannot evaluate non-scalar constant"),
+        }
+    }
 }

@@ -121,7 +121,7 @@ impl ConstKind {}
 /// A scalar value. [Scalar]s are used to represent all integer, characters, and
 /// floating point values, as well as integers. The largest scalar value is
 /// 128bits, i.e. a `u128` or `i128`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(packed)]
 pub struct Scalar {
     /// The buffer of the scalar, up to 16bytes.

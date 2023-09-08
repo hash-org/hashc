@@ -159,7 +159,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Convert the [LitPat] into a [Const] and return the value of the constant
     /// as a [u128]. This literal term must be an integral type.
-    pub(crate) fn evaluate_lit_pat(&self, pat: LitPat) -> (Const, u128) {
+    pub(crate) fn eval_lit_pat(&self, pat: LitPat) -> (Const, u128) {
         match *(*pat).value() {
             Lit::Int(lit) => {
                 let value = lit.interned_value();
@@ -183,14 +183,14 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// the range. In the case of a missing `lo`, it is then assumed that
     /// the value is `ty::MIN` and in the case of a missing `hi`, it is
     /// assumed that the value is `ty::MAX`.
-    pub(crate) fn evaluate_range_lit(
+    pub(crate) fn eval_range_lit(
         &self,
         maybe_pat: Option<LitPat>,
         ty: IrTyId,
         at_end: bool,
     ) -> (Const, u128) {
         match maybe_pat {
-            Some(pat) => self.evaluate_lit_pat(pat),
+            Some(pat) => self.eval_lit_pat(pat),
             None => ty.map(|ty| match ty {
                 IrTy::Char if at_end => (Const::Char(std::char::MAX), std::char::MAX as u128),
                 IrTy::Char => (Const::Char(0 as char), 0),
