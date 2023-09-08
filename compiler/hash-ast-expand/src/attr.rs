@@ -135,7 +135,7 @@ impl AstExpander<'_> {
             // We have to build the arguments to the macro invocation
             // in the form of an `Args` and then use TIR param_utils to
             // check that the arguments and parameters match...
-            let (mac_args, _args_node_id) = if let Some(mac_args) = node.args.as_ref() {
+            let mac_args = if let Some(mac_args) = node.args.as_ref() {
                 let mut args = Vec::with_capacity(mac_args.args.len());
 
                 for (index, arg) in mac_args.args.iter().enumerate() {
@@ -202,15 +202,9 @@ impl AstExpander<'_> {
                     args.push(Node::at(Arg { target, value }, NodeOrigin::Given(arg.id())));
                 }
 
-                (
-                    Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Given(node.id())),
-                    mac_args.id(),
-                )
+                Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Given(node.id()))
             } else {
-                (
-                    Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Given(node.id())),
-                    node.name.id(),
-                )
+                Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Given(node.id()))
             };
 
             if is_valid && let Err(param_err) =

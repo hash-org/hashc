@@ -216,7 +216,6 @@ impl<'tc> DiscoveryPass<'tc> {
                     },
                     NodeOrigin::Generated,
                 );
-                // tir_stores().ast_info().mod_defs().insert(source_node_id, mod_def_id);
                 mod_def_id
             }
         }

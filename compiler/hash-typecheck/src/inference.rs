@@ -42,11 +42,7 @@ use hash_tir::{
     tuples::{TuplePat, TupleTerm, TupleTy},
     ty_as_variant,
     tys::{Ty, TyId, TypeOfTerm},
-    utils::{
-        common::{dump_tir, get_span},
-        traversing::Atom,
-        AccessToUtils,
-    },
+    utils::{common::dump_tir, traversing::Atom, AccessToUtils},
 };
 use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
@@ -101,7 +97,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Create a new [ExhaustivenessChecker] so it can be used to check
     /// refutability or exhaustiveness of patterns.
     fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<'_> {
-        let location = get_span(subject).unwrap();
+        let location = subject.span().unwrap();
         ExhaustivenessChecker::new(location, self.env())
     }
 
@@ -627,12 +623,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a primitive term.
-    pub fn infer_array_term(
-        &self,
-        array_term: &ArrayTerm,
-        annotation_ty: TyId,
-        _original_term_id: TermId,
-    ) -> TcResult<()> {
+    pub fn infer_array_term(&self, array_term: &ArrayTerm, annotation_ty: TyId) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
         let (list_annotation_inner_ty, list_len) = self
             .use_ty_as_array(annotation_ty)?
@@ -1592,7 +1583,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 self.infer_tuple_term(&tuple_term, annotation_ty, term_id)?
             }
             Term::Lit(lit_term) => self.infer_lit(lit_term, annotation_ty)?,
-            Term::Array(prim_term) => self.infer_array_term(&prim_term, annotation_ty, term_id)?,
+            Term::Array(prim_term) => self.infer_array_term(&prim_term, annotation_ty)?,
             Term::Ctor(ctor_term) => self.infer_ctor_term(&ctor_term, annotation_ty, term_id)?,
             Term::FnCall(fn_call_term) => {
                 self.infer_fn_call_term(&fn_call_term, annotation_ty, term_id)?

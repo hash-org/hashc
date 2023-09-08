@@ -13,12 +13,12 @@ use hash_tir::{
     environment::env::{AccessToEnv, Env},
     fns::FnDefId,
     impl_access_to_env,
-    node::{NodeId, NodeOrigin},
+    node::{HasAstNodeId, NodeId, NodeOrigin},
     params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
     pats::PatId,
     terms::TermId,
     tys::TyId,
-    utils::{common::get_span, params::ParamError, traversing::Atom},
+    utils::{params::ParamError, traversing::Atom},
 };
 use hash_utils::derive_more::{Constructor, From};
 
@@ -152,7 +152,7 @@ impl<'tc> TcErrorReporter<'tc> {
             TcError::Blocked(location) => {
                 let error = reporter.error().title("blocked while typechecking".to_string());
 
-                if let Some(location) = get_span(location) {
+                if let Some(location) = location.span() {
                     error.add_span(location);
                 }
             }
@@ -162,7 +162,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .code(HashErrorCode::UnresolvedType)
                     .title(format!("cannot infer the type of this term: `{}`", *atom));
 
-                if let Some(location) = get_span(atom) {
+                if let Some(location) = atom.span() {
                     error
                         .add_span(location)
                         .add_help("consider adding more type annotations to this expression");
@@ -182,13 +182,16 @@ impl<'tc> TcErrorReporter<'tc> {
                     "mismatch in parameter length: expected {param_length} but got {arg_length}"
                 ));
 
-                if let Some(location) = get_span(params_id) {
+                if let Some(location) = params_id.span() {
                     error
                         .add_span(location)
                         .add_info(format!("expected {param_length} parameters here"));
                 }
 
-                if let Some(location) = get_span(*args_id) {
+                if let Some(location) = {
+                    let target = *args_id;
+                    target.span()
+                } {
                     error
                         .add_span(location)
                         .add_info(format!("got {arg_length} {} here", args_id.as_str()));
@@ -199,7 +202,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::InvalidCallSubject)
                     .title("the subject of this dereference is not a reference");
-                if let Some(location) = get_span(subject) {
+                if let Some(location) = subject.span() {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -220,10 +223,10 @@ impl<'tc> TcErrorReporter<'tc> {
                         format!("type `{}` inferred from here", *actual),
                     );
                 }
-                if let Some(location) = get_span(expected) {
+                if let Some(location) = expected.span() {
                     error.add_labelled_span(location, format!("this expects type `{}`", *expected));
                 }
-                if let Some(location) = get_span(actual) {
+                if let Some(location) = actual.span() {
                     error.add_labelled_span(location, format!("this is of type `{}`", *actual));
                 }
             }
@@ -232,7 +235,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     "cannot determine if expressions `{}` and `{}` are equal",
                     *a, *b,
                 ));
-                if let Some(location) = get_span(a) {
+                if let Some(location) = a.span() {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -241,7 +244,7 @@ impl<'tc> TcErrorReporter<'tc> {
                         ),
                     );
                 }
-                if let Some(location) = get_span(b) {
+                if let Some(location) = b.span() {
                     error.add_labelled_span(location, format!("`{}` from here", *b));
                 }
             }
@@ -274,14 +277,14 @@ impl<'tc> TcErrorReporter<'tc> {
                         kind_name, *inferred_term_ty
                     ));
 
-                if let Some(location) = get_span(term) {
+                if let Some(location) = term.span() {
                     error.add_labelled_span(
                         location,
                         format!("expected a {kind_name}, but got this value instead"),
                     );
                 }
 
-                if let Some(location) = get_span(inferred_term_ty) {
+                if let Some(location) = inferred_term_ty.span() {
                     error.add_labelled_span(
                         location,
                         format!("this value has type `{}`", *inferred_term_ty),
@@ -293,7 +296,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::InvalidPropertyAccess)
                     .title(format!("property `{}` not found on type `{}`", *property, *term_ty));
-                if let Some(location) = get_span(term) {
+                if let Some(location) = term.span() {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -310,13 +313,13 @@ impl<'tc> TcErrorReporter<'tc> {
                         annotation_params_id.len(),
                         given_params_id.len()
                     ));
-                if let Some(location) = get_span(given_params_id) {
+                if let Some(location) = given_params_id.span() {
                     error.add_labelled_span(
                         location,
                         format!("got {} parameters here", given_params_id.len(),),
                     );
                 }
-                if let Some(location) = get_span(annotation_params_id) {
+                if let Some(location) = annotation_params_id.span() {
                     error.add_labelled_span(
                         location,
                         format!("expected {} parameters from here", annotation_params_id.len(),),
@@ -338,7 +341,7 @@ impl<'tc> TcErrorReporter<'tc> {
                         get_call_kind(actual_implicit)
                     ),
                 );
-                if let Some(location) = get_span(site) {
+                if let Some(location) = site.span() {
                     error.add_labelled_span(location, "unexpected call kind at this call site");
                 }
             }
@@ -351,10 +354,10 @@ impl<'tc> TcErrorReporter<'tc> {
                         "expected array of length {} but got array of length {}",
                         *expected_len, *got_len
                     ));
-                if let Some(location) = get_span(expected_len) {
+                if let Some(location) = expected_len.span() {
                     error.add_labelled_span(location, "expected array length");
                 }
-                if let Some(location) = get_span(got_len) {
+                if let Some(location) = got_len.span() {
                     error.add_labelled_span(location, "got array length");
                 }
             }
@@ -363,7 +366,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let error = reporter.error().code(HashErrorCode::DisallowedType).title(format!(
                     "cannot use a value of type `{formatted_ty}` in type position",
                 ));
-                if let Some(location) = get_span(location) {
+                if let Some(location) = location.span() {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -377,10 +380,10 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::TypeMismatch)
                     .title(format!("expected pattern `{}`, but got pattern `{}`", *a, *b));
-                if let Some(location) = get_span(a) {
+                if let Some(location) = a.span() {
                     error.add_labelled_span(location, "expected pattern");
                 }
-                if let Some(location) = get_span(b) {
+                if let Some(location) = b.span() {
                     error.add_labelled_span(location, "got pattern");
                 }
             }
@@ -390,10 +393,10 @@ impl<'tc> TcErrorReporter<'tc> {
                     *a,
                     *b
                 ));
-                if let Some(location) = get_span(a) {
+                if let Some(location) = a.span() {
                     error.add_labelled_span(location, "expected function");
                 }
-                if let Some(location) = get_span(b) {
+                if let Some(location) = b.span() {
                     error.add_labelled_span(location, "got function");
                 }
             }
@@ -408,13 +411,19 @@ impl<'tc> TcErrorReporter<'tc> {
                     a.len(),
                     b.len()
                 ));
-                if let Some(location) = get_span(*a) {
+                if let Some(location) = {
+                    let target = *a;
+                    target.span()
+                } {
                     error.add_labelled_span(
                         location,
                         format!("expected {} {name_of_args} here", a.len()),
                     );
                 }
-                if let Some(location) = get_span(*b) {
+                if let Some(location) = {
+                    let target = *b;
+                    target.span()
+                } {
                     error.add_labelled_span(
                         location,
                         format!("got {} {name_of_args} here", b.len()),
@@ -426,10 +435,10 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::TypeMismatch)
                     .title(format!("cannot unify `{}` with `{}`", *src, *target));
-                if let Some(location) = get_span(src) {
+                if let Some(location) = src.span() {
                     error.add_labelled_span(location, "cannot unify this type");
                 }
-                if let Some(location) = get_span(target) {
+                if let Some(location) = target.span() {
                     error.add_labelled_span(location, "with this type");
                 }
             }
@@ -438,7 +447,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::DisallowedType)
                     .title(format!("cannot use locals from this block in type `{}`", *ty));
-                if let Some(location) = get_span(ty) {
+                if let Some(location) = ty.span() {
                     error.add_labelled_span(location, "type containing locals");
                 }
             }

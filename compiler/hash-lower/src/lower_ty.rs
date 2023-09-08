@@ -31,7 +31,6 @@ use hash_tir::{
     refs::RefTy,
     tuples::TupleTy,
     tys::{Ty, TyId},
-    utils::common::get_span,
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
@@ -151,7 +150,7 @@ impl<'ir> BuilderCtx<'ir> {
                 let message =
                     format!("all types should be monomorphised before lowering, type: `{}`", ty);
 
-                if let Some(location) = get_span(id) {
+                if let Some(location) = id.span() {
                     panic_on_span!(location, self.source_map(), format!("{message}"))
                 } else {
                     panic!("{message}")
@@ -211,7 +210,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // Check whether this is an intrinsic item, since we need to handle
         // them differently
-        let source = get_span(fn_def).map(|location| location.id);
+        let source = fn_def.span().map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
         let params = IrTyListId::seq(
