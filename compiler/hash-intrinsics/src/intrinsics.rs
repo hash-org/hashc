@@ -6,7 +6,6 @@ use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, DefaultPartialStore, PartialStore, SequenceStoreKey};
 use hash_tir::{
     self,
-    ast_info::HasNodeId,
     building::gen::{
         data_ty, never_ty, params, params_pos, sym, ty, universe_ty, void_term, void_ty,
     },
@@ -15,7 +14,7 @@ use hash_tir::{
     intrinsics::IntrinsicId,
     lits::Lit,
     mods::{ModMember, ModMemberValue},
-    node::{Node, NodeOrigin},
+    node::{HasAstNodeId, Node, NodeOrigin},
     primitives::primitives,
     refs::RefKind,
     terms::{Term, TermId},

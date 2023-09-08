@@ -30,6 +30,7 @@ use hash_source::constant::InternedStr;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store};
 use hash_tir::{
     data::{CtorDefId, DataTy},
+    node::NodesId,
     tuples::TupleTy,
     tys::Ty,
 };

@@ -23,7 +23,7 @@ use hash_tir::{
         source_info::CurrentSourceInfo,
     },
     mods::ModDefId,
-    node::Node,
+    node::{Node, NodeId},
 };
 use hash_utils::stream_writeln;
 

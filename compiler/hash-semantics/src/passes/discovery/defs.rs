@@ -1,8 +1,9 @@
 //! Utilities for keeping track of definitions during the discovery pass.
-use std::fmt::Display;
+use std::{fmt::Display, option::Option};
 
-use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
+use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef, OwnsAstNode};
 use hash_reporting::macros::panic_on_span;
+use hash_source::{identifier::Identifier, ModuleId, SourceMapUtils};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
@@ -10,15 +11,13 @@ use hash_storage::store::{
 use hash_tir::{
     context::Decl,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
-    environment::stores::tir_stores,
+    environment::env::AccessToEnv,
     fns::FnDefId,
-    locations::LocationTarget,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
-    node::{Node, NodeOrigin},
+    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     scopes::StackId,
     symbols::SymbolId,
     tys::TyId,
-    utils::AccessToUtils,
 };
 use hash_utils::{
     derive_more::From,
@@ -27,6 +26,7 @@ use hash_utils::{
 };
 
 use super::DiscoveryPass;
+use crate::environment::sem_env::AccessToSemEnv;
 
 /// The ID of some definition.
 ///
@@ -40,13 +40,13 @@ pub enum DefId {
     Stack(StackId),
 }
 
-impl From<DefId> for LocationTarget {
-    fn from(def_id: DefId) -> Self {
-        match def_id {
-            DefId::Mod(mod_id) => LocationTarget::ModDef(mod_id),
-            DefId::Data(data_id) => LocationTarget::DataDef(data_id),
-            DefId::Fn(fn_id) => LocationTarget::FnDef(fn_id),
-            DefId::Stack(stack_id) => LocationTarget::Stack(stack_id),
+impl HasAstNodeId for DefId {
+    fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
+        match *self {
+            DefId::Mod(id) => id.node_id(),
+            DefId::Data(id) => id.node_id(),
+            DefId::Fn(id) => id.node_id(),
+            DefId::Stack(id) => id.node_id(),
         }
     }
 }
@@ -135,11 +135,8 @@ impl<'tc> DiscoveryPass<'tc> {
         f: impl FnOnce() -> T,
     ) -> T {
         let def_id = def_id.into();
-        let ast_info = tir_stores().ast_info();
+        let ast_info = self.ast_info();
         let node_id = originating_node.id();
-
-        // Add location information to the definition.
-        self.add_node_location_to_def(def_id, originating_node);
 
         // Add the definition to the member context.
         match def_id {
@@ -174,7 +171,7 @@ impl<'tc> DiscoveryPass<'tc> {
 
     /// Add the given definition to the AST info of the given node.
     pub(super) fn add_def_to_ast_info<U>(&self, item_id: ItemId, node: AstNodeRef<U>) {
-        let ast_info = tir_stores().ast_info();
+        let ast_info = self.ast_info();
         match item_id {
             ItemId::Def(def_id) => match def_id {
                 DefId::Mod(id) => ast_info.mod_defs().insert(node.id(), id),
@@ -186,6 +183,33 @@ impl<'tc> DiscoveryPass<'tc> {
         };
     }
 
+    /// Create or get an existing module definition by `[SourceId]`.
+    pub fn create_or_get_module_mod_def(&self, module_id: ModuleId) -> ModDefId {
+        let source_node_id = self.node_map().get_module(module_id).node_ref().id();
+        match self.ast_info().mod_defs().get_data_by_node(source_node_id) {
+            Some(existing) => existing,
+            None => {
+                // Create a new module definition.
+                let source_id = module_id.into();
+                let module_name: Identifier =
+                    SourceMapUtils::map(source_id, |source| source.name().into());
+
+                // @@MissingOrigin
+                Node::create_at(
+                    ModDef {
+                        name: SymbolId::from_name(module_name, NodeOrigin::Generated),
+                        kind: ModKind::Source(source_id),
+                        members: Node::create_at(
+                            Node::<ModMember>::empty_seq(),
+                            NodeOrigin::Generated,
+                        ),
+                    },
+                    NodeOrigin::Generated,
+                )
+            }
+        }
+    }
+
     /// Add the found members of the given definitions to the definitions
     /// themselves, as well as to the `ast_info` stores.
     ///
@@ -194,7 +218,7 @@ impl<'tc> DiscoveryPass<'tc> {
     /// `MemberData` and then using its `MemberId` and `AstNodeId` we add it to
     /// `AstInfo` store, appropriately depending on the definition kind,
     pub(super) fn add_found_members_to_def(&self, def_id: impl Into<DefId>) {
-        let ast_info = tir_stores().ast_info();
+        let ast_info = self.ast_info();
         match def_id.into() {
             DefId::Mod(mod_def_id) => {
                 self.def_state().mod_members.modify_fast(mod_def_id, |members| {
@@ -315,10 +339,6 @@ impl<'tc> DiscoveryPass<'tc> {
                                 ast_info.stacks().get_node_by_data(stack_id).unwrap(),
                                 local_mod_def_id,
                             );
-                            tir_stores().location().add_location_to_target(
-                                local_mod_def_id,
-                                tir_stores().location().get_location(stack_id).unwrap(),
-                            );
 
                             // Add the members to the local mod def.
                             self.add_found_members_to_def(local_mod_def_id)
@@ -343,7 +363,7 @@ impl<'tc> DiscoveryPass<'tc> {
             _ => return false, // Mod members need values
         };
 
-        let ast_info = tir_stores().ast_info();
+        let ast_info = self.ast_info();
 
         // Function definitions are not considered module members in stack
         // scope, they are considered closures instead.
@@ -362,7 +382,7 @@ impl<'tc> DiscoveryPass<'tc> {
         name: SymbolId,
         def_node_id: AstNodeId,
     ) -> Option<ModMember> {
-        let ast_info = tir_stores().ast_info();
+        let ast_info = self.ast_info();
         if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
             // Function definition in a module
             Some(ModMember { name, value: ModMemberValue::Fn(fn_def_id) })
@@ -408,8 +428,7 @@ impl<'tc> DiscoveryPass<'tc> {
                 // Import
                 ast::Expr::Import(import_expr) => {
                     let source_id = import_expr.data.source;
-                    let imported_mod_def_id =
-                        self.mod_utils().create_or_get_module_mod_def(source_id.into());
+                    let imported_mod_def_id = self.create_or_get_module_mod_def(source_id.into());
                     Some(ModMember { name, value: ModMemberValue::Mod(imported_mod_def_id) })
                 }
                 // Directive, recurse
@@ -597,15 +616,5 @@ impl<'tc> DiscoveryPass<'tc> {
                 members.push((node_id, stack_member.into()));
             }
         });
-    }
-
-    /// Add the location of the given node to the given `DefId`, as appropriate
-    /// depending on the variant.
-    pub(super) fn add_node_location_to_def<U>(
-        &self,
-        def_id: DefId,
-        originating_node: AstNodeRef<U>,
-    ) {
-        tir_stores().location().add_location_to_target(def_id, originating_node.span());
     }
 }

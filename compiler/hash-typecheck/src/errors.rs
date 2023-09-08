@@ -8,17 +8,17 @@ use hash_reporting::{
     writer::ReportWriter,
 };
 use hash_source::location::Span;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::SequenceStoreKey;
 use hash_tir::{
-    environment::{env::Env, stores::tir_stores},
+    environment::env::Env,
     fns::FnDefId,
     impl_access_to_env,
-    locations::LocationTarget,
+    node::{HasAstNodeId, NodeId, NodeOrigin},
     params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
     pats::PatId,
     terms::TermId,
     tys::TyId,
-    utils::{common::get_location, params::ParamError, traversing::Atom},
+    utils::{params::ParamError, traversing::Atom},
 };
 use hash_utils::derive_more::{Constructor, From};
 
@@ -42,7 +42,7 @@ pub enum WrongTermKind {
 
 pub enum TcError {
     /// Blocked, cannot continue. This is used as a signal in the typechecker.
-    Blocked(LocationTarget),
+    Blocked(NodeOrigin),
 
     /// Signal to assert that there are other errors in the diagnostics store.
     Signal,
@@ -70,12 +70,7 @@ pub enum TcError {
     CannotDeref { subject: TermId, actual_subject_ty: TyId },
 
     /// Types don't match
-    MismatchingTypes {
-        expected: TyId,
-        actual: TyId,
-        // @@Remove because it can be derived from `expected/actual.origin()`
-        inferred_from: Option<LocationTarget>,
-    },
+    MismatchingTypes { expected: TyId, actual: TyId },
 
     /// Types don't match
     MismatchingArrayLengths { expected_len: TermId, got_len: TermId },
@@ -105,7 +100,7 @@ pub enum TcError {
     TryingToReferenceLocalsInType { ty: TyId },
 
     /// Cannot use the given term in a type position.
-    CannotUseInTyPos { location: LocationTarget, inferred_ty: TyId },
+    CannotUseInTyPos { location: NodeOrigin, inferred_ty: TyId },
 
     /// An error related to argument/parameter matching.
     #[from]
@@ -152,13 +147,12 @@ impl<'tc> TcErrorReporter<'tc> {
 
     /// Format the error nicely and add it to the given reporter.
     pub fn add_to_reporter(error: &TcError, reporter: &mut Reporter) {
-        let locations = tir_stores().location();
         match error {
             TcError::Signal => {}
             TcError::Blocked(location) => {
                 let error = reporter.error().title("blocked while typechecking".to_string());
 
-                if let Some(location) = get_location(location) {
+                if let Some(location) = location.span() {
                     error.add_span(location);
                 }
             }
@@ -168,7 +162,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .code(HashErrorCode::UnresolvedType)
                     .title(format!("cannot infer the type of this term: `{}`", *atom));
 
-                if let Some(location) = get_location(atom) {
+                if let Some(location) = atom.span() {
                     error
                         .add_span(location)
                         .add_help("consider adding more type annotations to this expression");
@@ -188,13 +182,16 @@ impl<'tc> TcErrorReporter<'tc> {
                     "mismatch in parameter length: expected {param_length} but got {arg_length}"
                 ));
 
-                if let Some(location) = locations.get_overall_location(*params_id.value()) {
+                if let Some(location) = params_id.span() {
                     error
                         .add_span(location)
                         .add_info(format!("expected {param_length} parameters here"));
                 }
 
-                if let Some(location) = locations.get_overall_location(*args_id) {
+                if let Some(location) = {
+                    let target = *args_id;
+                    target.span()
+                } {
                     error
                         .add_span(location)
                         .add_info(format!("got {arg_length} {} here", args_id.as_str()));
@@ -205,7 +202,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::InvalidCallSubject)
                     .title("the subject of this dereference is not a reference");
-                if let Some(location) = locations.get_location(subject) {
+                if let Some(location) = subject.span() {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -215,22 +212,21 @@ impl<'tc> TcErrorReporter<'tc> {
                     );
                 }
             }
-            TcError::MismatchingTypes { expected, actual, inferred_from } => {
+            TcError::MismatchingTypes { expected, actual } => {
                 let error = reporter
                     .error()
                     .code(HashErrorCode::TypeMismatch)
                     .title(format!("expected type `{}` but got `{}`", *expected, *actual,));
-                if let Some(location) = inferred_from.and_then(|term| locations.get_location(term))
-                {
+                if let NodeOrigin::InferredFrom(location) = actual.origin() {
                     error.add_labelled_span(
-                        location,
+                        location.span(),
                         format!("type `{}` inferred from here", *actual),
                     );
                 }
-                if let Some(location) = locations.get_location(expected) {
+                if let Some(location) = expected.span() {
                     error.add_labelled_span(location, format!("this expects type `{}`", *expected));
                 }
-                if let Some(location) = locations.get_location(actual) {
+                if let Some(location) = actual.span() {
                     error.add_labelled_span(location, format!("this is of type `{}`", *actual));
                 }
             }
@@ -239,7 +235,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     "cannot determine if expressions `{}` and `{}` are equal",
                     *a, *b,
                 ));
-                if let Some(location) = locations.get_location(a) {
+                if let Some(location) = a.span() {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -248,7 +244,7 @@ impl<'tc> TcErrorReporter<'tc> {
                         ),
                     );
                 }
-                if let Some(location) = locations.get_location(b) {
+                if let Some(location) = b.span() {
                     error.add_labelled_span(location, format!("`{}` from here", *b));
                 }
             }
@@ -257,9 +253,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::TypeMismatch)
                     .title("range patterns should contain valid literals");
-                if let Some(location) = locations.get_location(location) {
-                    error.add_labelled_span(location, "not a valid range literal");
-                }
+                error.add_labelled_span(*location, "not a valid range literal");
             }
             TcError::ParamMatch(err) => {
                 ParamError::add_to_reporter(err, reporter);
@@ -283,14 +277,14 @@ impl<'tc> TcErrorReporter<'tc> {
                         kind_name, *inferred_term_ty
                     ));
 
-                if let Some(location) = locations.get_location(term) {
+                if let Some(location) = term.span() {
                     error.add_labelled_span(
                         location,
                         format!("expected a {kind_name}, but got this value instead"),
                     );
                 }
 
-                if let Some(location) = locations.get_location(inferred_term_ty) {
+                if let Some(location) = inferred_term_ty.span() {
                     error.add_labelled_span(
                         location,
                         format!("this value has type `{}`", *inferred_term_ty),
@@ -302,7 +296,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::InvalidPropertyAccess)
                     .title(format!("property `{}` not found on type `{}`", *property, *term_ty));
-                if let Some(location) = locations.get_location(term) {
+                if let Some(location) = term.span() {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -319,15 +313,13 @@ impl<'tc> TcErrorReporter<'tc> {
                         annotation_params_id.len(),
                         given_params_id.len()
                     ));
-                if let Some(location) = locations.get_overall_location(*given_params_id.value()) {
+                if let Some(location) = given_params_id.span() {
                     error.add_labelled_span(
                         location,
                         format!("got {} parameters here", given_params_id.len(),),
                     );
                 }
-                if let Some(location) =
-                    locations.get_overall_location(*annotation_params_id.value())
-                {
+                if let Some(location) = annotation_params_id.span() {
                     error.add_labelled_span(
                         location,
                         format!("expected {} parameters from here", annotation_params_id.len(),),
@@ -349,7 +341,7 @@ impl<'tc> TcErrorReporter<'tc> {
                         get_call_kind(actual_implicit)
                     ),
                 );
-                if let Some(location) = locations.get_location(site) {
+                if let Some(location) = site.span() {
                     error.add_labelled_span(location, "unexpected call kind at this call site");
                 }
             }
@@ -362,10 +354,10 @@ impl<'tc> TcErrorReporter<'tc> {
                         "expected array of length {} but got array of length {}",
                         *expected_len, *got_len
                     ));
-                if let Some(location) = locations.get_location(expected_len) {
+                if let Some(location) = expected_len.span() {
                     error.add_labelled_span(location, "expected array length");
                 }
-                if let Some(location) = locations.get_location(got_len) {
+                if let Some(location) = got_len.span() {
                     error.add_labelled_span(location, "got array length");
                 }
             }
@@ -374,7 +366,7 @@ impl<'tc> TcErrorReporter<'tc> {
                 let error = reporter.error().code(HashErrorCode::DisallowedType).title(format!(
                     "cannot use a value of type `{formatted_ty}` in type position",
                 ));
-                if let Some(location) = locations.get_location(location) {
+                if let Some(location) = location.span() {
                     error.add_labelled_span(
                         location,
                         format!(
@@ -388,10 +380,10 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::TypeMismatch)
                     .title(format!("expected pattern `{}`, but got pattern `{}`", *a, *b));
-                if let Some(location) = locations.get_location(a) {
+                if let Some(location) = a.span() {
                     error.add_labelled_span(location, "expected pattern");
                 }
-                if let Some(location) = locations.get_location(b) {
+                if let Some(location) = b.span() {
                     error.add_labelled_span(location, "got pattern");
                 }
             }
@@ -401,10 +393,10 @@ impl<'tc> TcErrorReporter<'tc> {
                     *a,
                     *b
                 ));
-                if let Some(location) = locations.get_location(a) {
+                if let Some(location) = a.span() {
                     error.add_labelled_span(location, "expected function");
                 }
-                if let Some(location) = locations.get_location(b) {
+                if let Some(location) = b.span() {
                     error.add_labelled_span(location, "got function");
                 }
             }
@@ -419,13 +411,19 @@ impl<'tc> TcErrorReporter<'tc> {
                     a.len(),
                     b.len()
                 ));
-                if let Some(location) = locations.get_overall_location(*a) {
+                if let Some(location) = {
+                    let target = *a;
+                    target.span()
+                } {
                     error.add_labelled_span(
                         location,
                         format!("expected {} {name_of_args} here", a.len()),
                     );
                 }
-                if let Some(location) = locations.get_overall_location(*b) {
+                if let Some(location) = {
+                    let target = *b;
+                    target.span()
+                } {
                     error.add_labelled_span(
                         location,
                         format!("got {} {name_of_args} here", b.len()),
@@ -437,10 +435,10 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::TypeMismatch)
                     .title(format!("cannot unify `{}` with `{}`", *src, *target));
-                if let Some(location) = locations.get_location(src) {
+                if let Some(location) = src.span() {
                     error.add_labelled_span(location, "cannot unify this type");
                 }
-                if let Some(location) = locations.get_location(target) {
+                if let Some(location) = target.span() {
                     error.add_labelled_span(location, "with this type");
                 }
             }
@@ -449,7 +447,7 @@ impl<'tc> TcErrorReporter<'tc> {
                     .error()
                     .code(HashErrorCode::DisallowedType)
                     .title(format!("cannot use locals from this block in type `{}`", *ty));
-                if let Some(location) = locations.get_location(ty) {
+                if let Some(location) = ty.span() {
                     error.add_labelled_span(location, "type containing locals");
                 }
             }

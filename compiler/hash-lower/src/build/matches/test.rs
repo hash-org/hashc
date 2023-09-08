@@ -21,6 +21,7 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     control::IfPat,
     data::CtorPat,
+    node::NodesId,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
 };

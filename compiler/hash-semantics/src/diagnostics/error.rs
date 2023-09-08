@@ -5,7 +5,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_source::location::Span;
-use hash_tir::{symbols::SymbolId, terms::TermId, utils::common::get_location};
+use hash_tir::{node::HasAstNodeId, symbols::SymbolId, terms::TermId};
 use hash_typecheck::errors::{TcError, TcErrorReporter};
 use hash_utils::thin_vec::ThinVec;
 
@@ -121,7 +121,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                     .code(HashErrorCode::UnresolvedType)
                     .title("cannot infer the type of this term".to_string());
 
-                if let Some(location) = get_location(term) {
+                if let Some(location) = term.span() {
                     error
                         .add_span(location)
                         .add_help("consider adding more type annotations to this expression");
@@ -165,7 +165,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
                 );
 
                 if let ContextKind::Access(_, def) = looking_in {
-                    if let Some(location) = get_location(def) {
+                    if let Some(location) = def.span() {
                         error.add_span(location).add_info(format!(
                             "{def_name} is defined here, and has no member `{search_name}`",
                         ));

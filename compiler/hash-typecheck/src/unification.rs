@@ -118,7 +118,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             match (src_id.into(), target_id.into()) {
                 (Atom::Term(a), Atom::Term(b)) => Err(TcError::UndecidableEquality { a, b }),
                 (Atom::Ty(a), Atom::Ty(b)) => {
-                    Err(TcError::MismatchingTypes { expected: b, actual: a, inferred_from: None })
+                    Err(TcError::MismatchingTypes { expected: b, actual: a })
                 }
                 (Atom::FnDef(a), Atom::FnDef(b)) => Err(TcError::MismatchingFns { a, b }),
                 (Atom::Pat(a), Atom::Pat(b)) => Err(TcError::MismatchingPats { a, b }),
@@ -135,9 +135,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     ) -> TcResult<U> {
         match (src_id.into(), target_id.into()) {
             (Atom::Term(a), Atom::Term(b)) => Err(TcError::UndecidableEquality { a, b }),
-            (Atom::Ty(a), Atom::Ty(b)) => {
-                Err(TcError::MismatchingTypes { expected: b, actual: a, inferred_from: None })
-            }
+            (Atom::Ty(a), Atom::Ty(b)) => Err(TcError::MismatchingTypes { expected: b, actual: a }),
             (Atom::FnDef(a), Atom::FnDef(b)) => Err(TcError::MismatchingFns { a, b }),
             (Atom::Pat(a), Atom::Pat(b)) => Err(TcError::MismatchingPats { a, b }),
             _ => unreachable!(),

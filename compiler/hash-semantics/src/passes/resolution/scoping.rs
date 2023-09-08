@@ -6,14 +6,10 @@ use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataDefId},
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
+    environment::env::{AccessToEnv, Env},
     fns::FnTy,
-    locations::LocationTarget,
     mods::{ModDefId, ModMemberId},
-    node::NodeOrigin,
+    node::{NodeOrigin, NodesId},
     params::ParamId,
     scopes::StackId,
     symbols::SymbolId,
@@ -39,7 +35,7 @@ pub enum ContextKind {
     ///
     /// The tuple contains the identifier accessing from and the location target
     /// of the definition .
-    Access(NonTerminalResolvedPathComponent, LocationTarget),
+    Access(NonTerminalResolvedPathComponent, NodeOrigin),
     /// Just the current scope.
     Environment,
 }
@@ -268,16 +264,15 @@ impl<'tc> Scoping<'tc> {
     /// binds, as added by the `add_stack_members_in_pat_to_buf` method of the
     /// `ScopeDiscoveryPass`.
     pub(super) fn for_each_stack_member_of_pat(
+        &self,
         node: ast::AstNodeRef<ast::Pat>,
         f: &mut impl FnMut(SymbolId),
     ) {
         macro_rules! for_spread_pat {
             ($spread:expr) => {
                 if let Some(name) = &$spread.name {
-                    if let Some(member_id) = tir_stores()
-                        .ast_info()
-                        .stack_members()
-                        .get_data_by_node(name.ast_ref().id())
+                    if let Some(member_id) =
+                        self.ast_info().stack_members().get_data_by_node(name.ast_ref().id())
                     {
                         f(member_id.name);
                     }
@@ -287,8 +282,7 @@ impl<'tc> Scoping<'tc> {
 
         match node.body() {
             ast::Pat::Binding(_) => {
-                if let Some(member_id) =
-                    tir_stores().ast_info().stack_members().get_data_by_node(node.id())
+                if let Some(member_id) = self.ast_info().stack_members().get_data_by_node(node.id())
                 {
                     f(member_id.name);
                 }
@@ -298,7 +292,7 @@ impl<'tc> Scoping<'tc> {
                     for_spread_pat!(spread_node);
                 }
                 for entry in tuple_pat.fields.ast_ref_iter() {
-                    Self::for_each_stack_member_of_pat(entry.pat.ast_ref(), f);
+                    self.for_each_stack_member_of_pat(entry.pat.ast_ref(), f);
                 }
             }
             ast::Pat::Constructor(constructor_pat) => {
@@ -306,29 +300,28 @@ impl<'tc> Scoping<'tc> {
                     for_spread_pat!(spread_node);
                 }
                 for field in constructor_pat.fields.ast_ref_iter() {
-                    Self::for_each_stack_member_of_pat(field.pat.ast_ref(), f);
+                    self.for_each_stack_member_of_pat(field.pat.ast_ref(), f);
                 }
             }
             ast::Pat::Macro(invocation) => {
-                Self::for_each_stack_member_of_pat(invocation.subject.ast_ref(), f);
+                self.for_each_stack_member_of_pat(invocation.subject.ast_ref(), f);
             }
             ast::Pat::Array(array_pat) => {
                 if let Some(spread_node) = &array_pat.spread {
                     for_spread_pat!(spread_node);
                 }
                 for pat in array_pat.fields.ast_ref_iter() {
-                    Self::for_each_stack_member_of_pat(pat, f);
+                    self.for_each_stack_member_of_pat(pat, f);
                 }
             }
             ast::Pat::Or(or_pat) => {
                 if let Some(pat) = or_pat.variants.get(0) {
-                    Self::for_each_stack_member_of_pat(pat.ast_ref(), f)
+                    self.for_each_stack_member_of_pat(pat.ast_ref(), f)
                 }
             }
-            ast::Pat::If(if_pat) => Self::for_each_stack_member_of_pat(if_pat.pat.ast_ref(), f),
+            ast::Pat::If(if_pat) => self.for_each_stack_member_of_pat(if_pat.pat.ast_ref(), f),
             ast::Pat::Wild(_) => {
-                if let Some(member_id) =
-                    tir_stores().ast_info().stack_members().get_data_by_node(node.id())
+                if let Some(member_id) = self.ast_info().stack_members().get_data_by_node(node.id())
                 {
                     f(member_id.name);
                 }
@@ -345,8 +338,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::BodyBlock>,
         f: impl FnOnce(StackId) -> T,
     ) -> Option<T> {
-        tir_stores()
-            .ast_info()
+        self.ast_info()
             .stacks()
             .get_data_by_node(node.id())
             .map(|stack_id| self.enter_scope(ContextKind::Environment, || f(stack_id)))
@@ -358,7 +350,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::TyFnTy>,
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
-        let fn_ty_id = tir_stores().ast_info().tys().get_data_by_node(node.id()).unwrap();
+        let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
         let fn_ty = ty_as_variant!(self, *fn_ty_id.value(), Fn);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
@@ -369,7 +361,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::FnTy>,
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
-        let fn_ty_id = tir_stores().ast_info().tys().get_data_by_node(node.id()).unwrap();
+        let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
         let fn_ty = ty_as_variant!(self, *fn_ty_id.value(), Fn);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
@@ -380,7 +372,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::TupleTy>,
         f: impl FnOnce(TupleTy) -> T,
     ) -> T {
-        let tuple_ty_id = tir_stores().ast_info().tys().get_data_by_node(node.id()).unwrap();
+        let tuple_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
         let tuple_ty = ty_as_variant!(self, *tuple_ty_id.value(), Tuple);
         self.enter_scope(ContextKind::Environment, || f(tuple_ty))
     }
@@ -391,7 +383,7 @@ impl<'tc> Scoping<'tc> {
     ///
     /// If the declaration is not in a stack scope, this is a no-op.
     pub(super) fn register_declaration(&self, node: ast::AstNodeRef<ast::Declaration>) {
-        Self::for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
+        self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
             self.add_stack_binding(member);
         });
     }
@@ -402,11 +394,11 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::MatchCase>,
         f: impl FnOnce(StackId) -> T,
     ) -> T {
-        let stack_id = tir_stores().ast_info().stacks().get_data_by_node(node.id()).unwrap();
+        let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
         // Each match case has its own scope, so we need to enter it, and add all the
         // pattern bindings to the context.
         self.enter_scope(ContextKind::Environment, || {
-            Self::for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
+            self.for_each_stack_member_of_pat(node.pat.ast_ref(), &mut |member| {
                 self.add_stack_binding(member);
             });
             f(stack_id)

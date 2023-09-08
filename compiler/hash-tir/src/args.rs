@@ -1,7 +1,7 @@
 //! Definitions related to arguments to data structures, functions,
 //! etc.
 use core::fmt;
-use std::fmt::Debug;
+use std::{fmt::Debug, option::Option};
 
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
@@ -9,14 +9,10 @@ use hash_storage::store::{
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 
-use super::{
-    locations::{IndexedLocationTarget, LocationTarget},
-    params::ParamIndex,
-    pats::PatId,
-};
+use super::{params::ParamIndex, pats::PatId};
 use crate::{
     environment::stores::tir_stores,
-    node::{Node, NodeOrigin},
+    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     params::ParamsId,
     symbols::SymbolId,
     terms::{Term, TermId},
@@ -231,20 +227,20 @@ impl From<(SomeArgsId, usize)> for SomeArgId {
     }
 }
 
-impl From<SomeArgsId> for IndexedLocationTarget {
-    fn from(val: SomeArgsId) -> Self {
-        match val {
-            SomeArgsId::PatArgs(id) => IndexedLocationTarget::PatArgs(id.elements()),
-            SomeArgsId::Args(id) => IndexedLocationTarget::Args(id.elements()),
+impl HasAstNodeId for SomeArgsId {
+    fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
+        match self {
+            SomeArgsId::PatArgs(id) => id.node_id(),
+            SomeArgsId::Args(id) => id.node_id(),
         }
     }
 }
 
-impl From<SomeArgId> for LocationTarget {
-    fn from(val: SomeArgId) -> Self {
-        match val {
-            SomeArgId::PatArg(id) => LocationTarget::PatArg(id),
-            SomeArgId::Arg(id) => LocationTarget::Arg(id),
+impl HasAstNodeId for SomeArgId {
+    fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
+        match self {
+            SomeArgId::PatArg(id) => id.node_id(),
+            SomeArgId::Arg(id) => id.node_id(),
         }
     }
 }

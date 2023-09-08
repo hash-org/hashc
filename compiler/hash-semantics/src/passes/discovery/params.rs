@@ -1,13 +1,13 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self, AstNodeId};
-use hash_storage::store::statics::{SequenceStoreValue, StoreId};
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    environment::stores::tir_stores,
-    node::{Node, NodeOrigin},
+    node::{Node, NodeOrigin, NodesId},
     params::{Param, ParamId, ParamIndex, ParamsId},
 };
 
 use super::DiscoveryPass;
+use crate::environment::sem_env::AccessToSemEnv;
 
 impl<'tc> DiscoveryPass<'tc> {
     /// Create a parameter list from the given AST generic parameter list, where
@@ -31,12 +31,9 @@ impl<'tc> DiscoveryPass<'tc> {
             }),
             NodeOrigin::Given(params.id()),
         );
-        tir_stores()
-            .location()
-            .add_locations_to_targets(*params_id.value(), |i| Some(params[i].span()));
 
         for (i, param) in params.iter().enumerate() {
-            tir_stores().ast_info().params().insert(param.id(), ParamId(params_id.elements(), i));
+            self.ast_info().params().insert(param.id(), ParamId(params_id.elements(), i));
         }
 
         params_id

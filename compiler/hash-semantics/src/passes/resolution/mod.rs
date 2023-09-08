@@ -6,7 +6,7 @@
 
 use hash_ast::ast::{self};
 use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
-use hash_tir::environment::{env::AccessToEnv, stores::tir_stores};
+use hash_tir::environment::env::AccessToEnv;
 
 use self::scoping::{ContextKind, Scoping};
 use super::ast_utils::AstPass;
@@ -65,7 +65,7 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         }
 
         let term_id = self.make_term_from_ast_body_block(node)?;
-        tir_stores().ast_info().terms().insert(node.id(), term_id);
+        self.ast_info().terms().insert(node.id(), term_id);
         Ok(())
     }
 

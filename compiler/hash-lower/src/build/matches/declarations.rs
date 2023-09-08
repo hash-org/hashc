@@ -12,6 +12,7 @@ use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
+    node::NodesId,
     pats::{Pat, PatId},
     scopes::{BindingPat, DeclTerm},
     symbols::SymbolId,

@@ -8,6 +8,7 @@
 use diagnostics::{error::SemanticError, warning::SemanticWarning};
 use environment::{
     analysis_progress::AnalysisProgress,
+    ast_info::AstInfo,
     sem_env::{
         AccessToSemEnv, DiagnosticsStore, EntryPoint, PreludeOrUnset, RootModOrUnset, SemEnv,
     },
@@ -76,6 +77,9 @@ pub struct SemanticStorage {
     /// Progress of analysis
     pub analysis_progress: AnalysisProgress,
 
+    /// AST map to TIR nodes
+    pub ast_info: AstInfo,
+
     // Bootstrapping:
     pub prelude_or_unset: PreludeOrUnset,
     pub primitives_or_unset: DefinedPrimitivesOrUnset,
@@ -90,6 +94,7 @@ impl SemanticStorage {
             context: Context::new(),
             diagnostics: DiagnosticsStore::new(),
             prelude_or_unset: OnceCell::new(),
+            ast_info: AstInfo::new(),
             primitives_or_unset: OnceCell::new(),
             entry_point: EntryPoint::new(),
             intrinsics_or_unset: OnceCell::new(),
@@ -127,6 +132,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &env,
             &semantic_storage.diagnostics,
             &semantic_storage.entry_point,
+            &semantic_storage.ast_info,
             &semantic_storage.prelude_or_unset,
             &semantic_storage.intrinsics_or_unset,
             &semantic_storage.root_mod_or_unset,

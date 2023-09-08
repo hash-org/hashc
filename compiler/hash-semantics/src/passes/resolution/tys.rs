@@ -13,7 +13,6 @@ use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     args::{Arg, ArgsId},
     data::DataTy,
-    environment::stores::tir_stores,
     fns::FnCallTerm,
     node::{Node, NodeOrigin},
     params::ParamIndex,
@@ -33,6 +32,7 @@ use super::{
 };
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
+    environment::sem_env::AccessToSemEnv,
     ops::common::CommonOps,
 };
 
@@ -404,8 +404,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
         };
 
-        tir_stores().ast_info().tys().insert(node.id(), ty_id);
-        tir_stores().location().add_location_to_target(ty_id, node.span());
+        self.ast_info().tys().insert(node.id(), ty_id);
         Ok(ty_id)
     }
 }

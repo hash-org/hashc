@@ -16,7 +16,7 @@ use hash_tir::{
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
     environment::env::AccessToEnv,
     lits::{CharLit, IntLit, Lit, LitPat, StrLit},
-    node::{Node, NodeOrigin},
+    node::{Node, NodeOrigin, NodesId},
     params::{ParamId, ParamsId},
     pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,

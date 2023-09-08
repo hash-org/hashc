@@ -20,7 +20,6 @@ use hash_tir::{
     access::AccessTerm,
     args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
-    ast_info::HasNodeId,
     atom_info::ItemInAtomInfo,
     building::gen::{data_ty, never_ty},
     casting::CastTerm,
@@ -29,9 +28,8 @@ use hash_tir::{
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     fns::{FnBody, FnCallTerm, FnDefId, FnTy},
     lits::{Lit, LitId},
-    locations::LocationTarget,
     mods::{ModDefId, ModMemberId, ModMemberValue},
-    node::{Node, NodeOrigin},
+    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     primitives::primitives,
@@ -44,11 +42,7 @@ use hash_tir::{
     tuples::{TuplePat, TupleTerm, TupleTy},
     ty_as_variant,
     tys::{Ty, TyId, TypeOfTerm},
-    utils::{
-        common::{dump_tir, get_location},
-        traversing::Atom,
-        AccessToUtils,
-    },
+    utils::{common::dump_tir, traversing::Atom, AccessToUtils},
 };
 use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
@@ -102,11 +96,8 @@ pub struct InferenceOps<'a, T: AccessToTypechecking>(&'a T);
 impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Create a new [ExhaustivenessChecker] so it can be used to check
     /// refutability or exhaustiveness of patterns.
-    fn exhaustiveness_checker<U: Into<LocationTarget>>(
-        &self,
-        subject: U,
-    ) -> ExhaustivenessChecker<'_> {
-        let location = get_location(subject).unwrap();
+    fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<'_> {
+        let location = subject.span().unwrap();
         ExhaustivenessChecker::new(location, self.env())
     }
 
@@ -412,7 +403,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             TupleTy { data: inferred },
                             original_term_id.origin().inferred(),
                         ),
-                        inferred_from: Some(original_term_id.into()),
                     });
                 }
             };
@@ -575,11 +565,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         Ok(())
     }
 
-    pub fn use_ty_as_array(
-        &self,
-        annotation_ty: TyId,
-        inferred_from: Option<LocationTarget>,
-    ) -> TcResult<Option<(TyId, Option<TermId>)>> {
+    pub fn use_ty_as_array(&self, annotation_ty: TyId) -> TcResult<Option<(TyId, Option<TermId>)>> {
         let mismatch = || {
             Err(TcError::MismatchingTypes {
                 expected: annotation_ty,
@@ -602,7 +588,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         ),
                     )
                 },
-                inferred_from,
             })
         };
 
@@ -637,15 +622,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a primitive term.
-    pub fn infer_array_term(
-        &self,
-        array_term: &ArrayTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
+    pub fn infer_array_term(&self, array_term: &ArrayTerm, annotation_ty: TyId) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
         let (list_annotation_inner_ty, list_len) = self
-            .use_ty_as_array(annotation_ty, Some(original_term_id.into()))?
+            .use_ty_as_array(annotation_ty)?
             .unwrap_or_else(|| (Ty::hole(array_term.elements.origin().inferred()), None));
 
         self.infer_unified_term_list(array_term.elements, list_annotation_inner_ty)?;
@@ -761,7 +741,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         DataTy { args: data_args, data_def: ctor.data_def_id },
                         NodeOrigin::Generated,
                     ),
-                    inferred_from: Some(original_atom.into()),
                 });
             }
         };
@@ -1329,7 +1308,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         },
                         original_term_id.origin().inferred(),
                     ),
-                    inferred_from: Some(original_term_id.into()),
                 })
             }
         };
@@ -1603,7 +1581,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 self.infer_tuple_term(&tuple_term, annotation_ty, term_id)?
             }
             Term::Lit(lit_term) => self.infer_lit(lit_term, annotation_ty)?,
-            Term::Array(prim_term) => self.infer_array_term(&prim_term, annotation_ty, term_id)?,
+            Term::Array(prim_term) => self.infer_array_term(&prim_term, annotation_ty)?,
             Term::Ctor(ctor_term) => self.infer_ctor_term(&ctor_term, annotation_ty, term_id)?,
             Term::FnCall(fn_call_term) => {
                 self.infer_fn_call_term(&fn_call_term, annotation_ty, term_id)?
@@ -1683,7 +1661,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         original_pat_id,
                         Ty::from(TupleTy { data: inferred }, original_pat_id.origin().inferred()),
                     ),
-                    inferred_from: Some(original_pat_id.into()),
                 });
             }
         };
@@ -1738,7 +1715,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             original_pat_id.origin().inferred(),
                         )
                     },
-                    inferred_from: Some(original_pat_id.into()),
                 });
             }
         };
@@ -1793,7 +1769,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         DataTy { args: data_args, data_def: ctor.data_def_id },
                         original_atom.origin().inferred(),
                     ),
-                    inferred_from: Some(original_atom.into()),
                 });
             }
         };
@@ -2006,7 +1981,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     /// Dump the TIR for the given target if it has a `#dump_tir` directive
     /// applied on it.
-    pub fn potentially_dump_tir(&self, target: impl ToString + HasNodeId) {
+    pub fn potentially_dump_tir(&self, target: impl ToString + HasAstNodeId) {
         let has_dump_dir = if let Some(id) = target.node_id() {
             attr_store().node_has_attr(id, attrs::DUMP_TIR)
         } else {

@@ -15,8 +15,59 @@ use super::{
 use crate::{
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
-    locations::{IndexedLocationTarget, LocationTarget},
 };
+
+macro_rules! atom_info {
+    ($($name:ident: <$item:ident, $item_ty:ty>),* $(,)?) => {
+        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+        pub enum AtomInfoStoreItem {
+            $(
+                $item($item),
+            )*
+        }
+
+        #[derive(Debug)]
+        pub struct AtomInfoStore {
+            $(
+                pub $name: AtomInfoStoreData<$item, $item_ty>,
+            )*
+        }
+
+        impl AtomInfoStore {
+            pub fn new() -> Self {
+                Self {
+                    $(
+                        $name: DefaultPartialStore::new(),
+                    )*
+                }
+            }
+        }
+
+        impl Default for AtomInfoStore {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+
+        $(
+            impl<T: AccessToEnv> ItemInAtomInfo<$item, $item_ty> for T {
+                fn data(&self) -> &AtomInfoStoreData<$item, $item_ty> {
+                    &tir_stores().atom_info().$name
+                }
+            }
+        )*
+    };
+}
+
+// Each stored atom, its value and its type:
+atom_info! {
+    terms: <TermId, TyId>,
+    tys: <TyId, TyId>,
+    pats: <PatId, TyId>,
+    args: <ArgsId, ParamsId>,
+    pat_args: <PatArgsId, ParamsId>,
+    fns: <FnDefId, FnTy>
+}
 
 /// Information about an atom in the program.
 ///
@@ -117,12 +168,7 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
     }
 
     /// Register the inferred value and type, for the given value.
-    fn register_atom_inference_without_location(
-        &self,
-        key: Item,
-        inferred: Item,
-        inferred_ty: ItemTy,
-    ) {
+    fn register_atom_inference(&self, key: Item, inferred: Item, inferred_ty: ItemTy) {
         let is_present = self.data().modify_fast(key, |info| match info {
             Some(info) => {
                 info.inferred = Some((inferred, inferred_ty));
@@ -138,86 +184,7 @@ pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
 
         if key != inferred {
             // Set the mapping from the inferred value to itself too.
-            self.register_atom_inference_without_location(inferred, inferred, inferred_ty)
-        }
-    }
-
-    /// Register the inferred value and type, for the given value.
-    fn register_atom_inference_indexed(&self, key: Item, inferred: Item, inferred_ty: ItemTy)
-    where
-        Item: Into<IndexedLocationTarget>,
-    {
-        self.register_atom_inference_without_location(key, inferred, inferred_ty);
-        tir_stores().location().copy_locations(key.into(), inferred.into());
-
-        if key != inferred {
-            // Set the mapping from the inferred value to itself too.
-            self.register_atom_inference_indexed(inferred, inferred, inferred_ty)
-        }
-    }
-
-    /// Register the inferred value and type, for the given value.
-    fn register_atom_inference(&self, key: Item, inferred: Item, inferred_ty: ItemTy)
-    where
-        Item: Into<LocationTarget>,
-    {
-        self.register_atom_inference_without_location(key, inferred, inferred_ty);
-        tir_stores().location().copy_location(key, inferred);
-
-        if key != inferred {
-            // Set the mapping from the inferred value to itself too.
             self.register_atom_inference(inferred, inferred, inferred_ty)
         }
     }
-}
-macro_rules! atom_info {
-    ($($name:ident: <$item:ident, $item_ty:ty>),* $(,)?) => {
-        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-        pub enum AtomInfoStoreItem {
-            $(
-                $item($item),
-            )*
-        }
-
-        #[derive(Debug)]
-        pub struct AtomInfoStore {
-            $(
-                pub $name: AtomInfoStoreData<$item, $item_ty>,
-            )*
-        }
-
-        impl AtomInfoStore {
-            pub fn new() -> Self {
-                Self {
-                    $(
-                        $name: DefaultPartialStore::new(),
-                    )*
-                }
-            }
-        }
-
-        impl Default for AtomInfoStore {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        $(
-            impl<T: AccessToEnv> ItemInAtomInfo<$item, $item_ty> for T {
-                fn data(&self) -> &AtomInfoStoreData<$item, $item_ty> {
-                    &tir_stores().atom_info().$name
-                }
-            }
-        )*
-    };
-}
-
-// Each stored atom, its value and its type:
-atom_info! {
-    terms: <TermId, TyId>,
-    tys: <TyId, TyId>,
-    pats: <PatId, TyId>,
-    args: <ArgsId, ParamsId>,
-    pat_args: <PatArgsId, ParamsId>,
-    fns: <FnDefId, FnTy>
 }
