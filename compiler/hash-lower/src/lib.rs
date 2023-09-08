@@ -164,6 +164,10 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // in the `AstInfo`. If the ADT contains a `#layout_of` attribute,
         // then we try to lower the type, and then print the layout of
         // the type.
+        //
+        // @@Todo: instead of looping through all the data defs, we should
+        // instead look at a queue of data defs which should have been constructed
+        // earlier.
         data.semantic_storage.ast_info.data_defs().iter_with(|id, def| {
             if attr_store().node_has_attr(id, attrs::LAYOUT_OF) {
                 builder.dump_ty_layout(def, data.stdout.clone())
