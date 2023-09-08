@@ -503,7 +503,7 @@ impl<'a> Lexer<'a> {
                 // Check that the suffix is correct for the literal
                 let kind = if let Some(suffix) = maybe_suffix {
                     match FloatTy::try_from(suffix) {
-                        Ok(_) => todo!(),
+                        Ok(suffix) => FloatLitKind::Suffixed(suffix),
                         Err(_) => {
                             return self.emit_error(
                                 None,
