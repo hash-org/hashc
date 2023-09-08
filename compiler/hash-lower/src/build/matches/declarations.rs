@@ -13,6 +13,7 @@ use hash_tir::{
     control::{IfPat, OrPat},
     data::CtorPat,
     environment::env::AccessToEnv,
+    node::NodesId,
     pats::{Pat, PatId},
     scopes::{BindingPat, DeclTerm},
     symbols::SymbolId,

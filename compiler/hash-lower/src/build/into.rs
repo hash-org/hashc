@@ -24,6 +24,7 @@ use hash_tir::{
     data::CtorTerm,
     environment::env::AccessToEnv,
     fns::FnCallTerm,
+    node::NodesId,
     params::ParamIndex,
     refs::{self, RefTerm},
     scopes::AssignTerm,

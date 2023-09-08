@@ -24,7 +24,7 @@ use hash_tir::{
     casting::CastTerm,
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::env::AccessToEnv,
     fns::{FnBody, FnCallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     node::{Node, NodeOrigin},
@@ -219,8 +219,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
         };
 
-        tir_stores().ast_info().terms().insert(node.id(), term_id);
-        tir_stores().location().add_location_to_target(term_id, node.span());
+        self.ast_info().terms().insert(node.id(), term_id);
         Ok(term_id)
     }
 
@@ -701,7 +700,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                     // Get the ids of the local mod members
                     mod_member_ids.extend(local_mod_members.iter().map(|member_id| {
-                        tir_stores().ast_info().mod_members().get_node_by_data(member_id).unwrap()
+                        self.ast_info().mod_members().get_node_by_data(member_id).unwrap()
                     }));
 
                     // Resolve them
@@ -849,7 +848,7 @@ impl<'tc> ResolutionPass<'tc> {
         node_id: AstNodeId,
     ) -> SemanticResult<TermId> {
         // Function should already be discovered
-        let fn_def_id = tir_stores().ast_info().fn_defs().get_data_by_node(node_id).unwrap();
+        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
 
         // Whether the function has been marked as pure by a directive
         let is_pure_by_directive = attr_store().node_has_attr(node_id, attrs::PURE);

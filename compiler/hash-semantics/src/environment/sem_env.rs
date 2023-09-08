@@ -12,7 +12,7 @@ use hash_tir::{
 use hash_typecheck::{errors::TcError, AccessToTypechecking};
 use once_cell::unsync::OnceCell;
 
-use super::analysis_progress::AnalysisProgress;
+use super::{analysis_progress::AnalysisProgress, ast_info::AstInfo};
 use crate::{
     diagnostics::{error::SemanticError, warning::SemanticWarning},
     ops::bootstrap::DefinedIntrinsicsOrUnset,
@@ -76,6 +76,7 @@ sem_env! {
     #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
     entry_point: EntryPoint,
+    ast_info: AstInfo,
     prelude_or_unset: PreludeOrUnset,
     intrinsics_or_unset: DefinedIntrinsicsOrUnset,
     root_mod_or_unset: RootModOrUnset,

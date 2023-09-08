@@ -1,9 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use hash_ast::ast::AstNodeId;
-use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
-
-use crate::{
+use hash_tir::{
     args::{ArgId, ArgsSeqId, PatArgId, PatArgsSeqId},
     context::Decl,
     data::{CtorDefId, CtorDefsSeqId, DataDefId},
@@ -15,27 +13,7 @@ use crate::{
     terms::TermId,
     tys::TyId,
 };
-
-/// A trait used to access AST information about a particular
-/// type. This is useful for when we want to access the [AstNodeId]
-/// of a particular node.
-///
-/// @@Temporary: This will probably only exist until the TIR stores
-/// NodeIds directly in the structure, instead of using the [AstMap].
-pub trait HasNodeId {
-    /// Get the [AstNodeId] of the node.
-    fn node_id(&self) -> Option<AstNodeId>;
-
-    /// Get the [AstNodeId] of the node, or panic if it does not exist.
-    fn node_id_ensured(&self) -> AstNodeId {
-        self.node_id().expect("Expected node id to exist")
-    }
-
-    /// Get the [AstNodeId] or default to a [`AstNodeId::null()`].
-    fn node_id_or_default(&self) -> AstNodeId {
-        self.node_id().unwrap_or_else(AstNodeId::null)
-    }
-}
+use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
 
 /// This is used to store the relations between [AstNodeId]s and their
 /// respective [`T`]. There is no assumption that the relation is uniquely

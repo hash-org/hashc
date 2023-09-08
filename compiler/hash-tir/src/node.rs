@@ -6,12 +6,68 @@
 //!
 //! Nodes normally live in stores, which can be created through the
 //! `crate::environment::stores::tir_node_*` macros.
+use core::fmt;
+
 use hash_ast::ast::AstNodeId;
 use hash_source::{location::Span, SourceId};
-use hash_storage::store::statics::SingleStoreValue;
+use hash_storage::store::statics::{SequenceStoreId, SingleStoreValue};
 use hash_utils::derive_more::{Deref, DerefMut};
 
-use crate::ast_info::HasNodeId;
+/// A trait used to access AST information about a particular
+/// type. This is useful for when we want to access the [AstNodeId]
+/// of a particular node.
+pub trait HasAstNodeId {
+    /// Get the [AstNodeId] of the node.
+    fn node_id(&self) -> Option<AstNodeId>;
+
+    /// Get the [AstNodeId] of the node, or panic if it does not exist.
+    fn node_id_ensured(&self) -> AstNodeId {
+        self.node_id().expect("Expected node id to exist")
+    }
+
+    /// Get the [AstNodeId] or default to a [`AstNodeId::null()`].
+    fn node_id_or_default(&self) -> AstNodeId {
+        self.node_id().unwrap_or_else(AstNodeId::null)
+    }
+
+    /// Get the span of this node.
+    fn span(&self) -> Option<Span> {
+        self.node_id().map(|n| n.span())
+    }
+
+    /// Get the source ID of this node.
+    fn source(&self) -> Option<SourceId> {
+        self.node_id().map(|n| n.source())
+    }
+}
+
+impl<T: HasAstNodeId> HasAstNodeId for &T {
+    fn node_id(&self) -> Option<AstNodeId> {
+        (*self).node_id()
+    }
+}
+
+/// A trait implemented by all TIR node IDs.
+pub trait NodeId: HasAstNodeId {
+    /// Get the origin of the TIR node.
+    fn origin(self) -> NodeOrigin;
+}
+
+/// A trait implemented by all TIR sequence store node ID wrappers.
+///
+/// See `crate::environment::stores::tir_node_*_sequence_store` for more
+/// information.
+pub trait NodesId: NodeId {
+    type Elements: SequenceStoreId;
+
+    /// Get the underlying sequence node of the TIR node.
+    fn elements_node(&self) -> Node<Self::Elements>;
+
+    /// Get the elements of the TIR node.
+    fn elements(&self) -> Self::Elements {
+        self.elements_node().data
+    }
+}
 
 /// Represents a node in the TIR.
 ///
@@ -59,16 +115,6 @@ impl<Data> Node<Data> {
         self.origin.node()
     }
 
-    /// Get the span of this node.
-    pub fn span(&self) -> Option<Span> {
-        self.node().map(|n| n.span())
-    }
-
-    /// Get the source ID of this node.
-    pub fn source(&self) -> Option<SourceId> {
-        self.node().map(|n| n.source())
-    }
-
     /// Create a new node with the same origin, but different data.
     pub fn with_data<E>(&self, new_data: E) -> Node<E> {
         Node { data: new_data, origin: self.origin }
@@ -82,14 +128,26 @@ impl<D, Data: From<D>> From<(D, NodeOrigin)> for Node<Data> {
     }
 }
 
-impl<T> HasNodeId for Node<T> {
+impl<T> HasAstNodeId for Node<T> {
     fn node_id(&self) -> Option<AstNodeId> {
-        match self.origin {
+        self.origin.node_id()
+    }
+}
+
+impl HasAstNodeId for NodeOrigin {
+    fn node_id(&self) -> Option<AstNodeId> {
+        match self {
             NodeOrigin::ComputedFrom(id) | NodeOrigin::Given(id) | NodeOrigin::InferredFrom(id) => {
-                Some(id)
+                Some(*id)
             }
             NodeOrigin::Generated => None,
         }
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Node<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.data.fmt(f)
     }
 }
 

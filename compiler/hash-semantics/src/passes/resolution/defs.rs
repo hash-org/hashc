@@ -10,8 +10,9 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     data::DataDefCtors,
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberValue},
+    node::NodesId,
     tys::Ty,
 };
 
@@ -31,7 +32,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::ModDef>,
     ) -> SemanticResult<ModDefId> {
-        let mod_def_id = tir_stores().ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         self.resolve_mod_def_inner_terms(mod_def_id, node.block.members())?;
         Ok(mod_def_id)
     }
@@ -41,7 +42,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::Module>,
     ) -> SemanticResult<ModDefId> {
-        let mod_def_id = tir_stores().ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
         self.resolve_mod_def_inner_terms(mod_def_id, node.contents.ast_ref_iter())?;
         Ok(mod_def_id)
     }
@@ -55,7 +56,7 @@ impl<'tc> ResolutionPass<'tc> {
         originating_node: ast::AstNodeRef<ast::Expr>,
     ) -> SemanticResult<()> {
         let data_def_id =
-            tir_stores().ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
+            self.ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
         self.scoping().enter_scope(ContextKind::Environment, || {
             let found_error = &Cell::new(false);
             let attempt = |err| {

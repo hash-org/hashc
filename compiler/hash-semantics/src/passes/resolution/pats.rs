@@ -15,9 +15,9 @@ use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
-    environment::{env::AccessToEnv, stores::tir_stores},
+    environment::env::AccessToEnv,
     lits::{CharLit, Lit, LitPat, StrLit},
-    node::{Node, NodeOrigin},
+    node::{Node, NodeId, NodeOrigin},
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
@@ -33,7 +33,10 @@ use super::{
     },
     ResolutionPass,
 };
-use crate::diagnostics::error::{SemanticError, SemanticResult};
+use crate::{
+    diagnostics::error::{SemanticError, SemanticResult},
+    environment::sem_env::AccessToSemEnv,
+};
 
 impl ResolutionPass<'_> {
     /// Make TC pattern arguments from the given set of AST pattern arguments.
@@ -309,7 +312,7 @@ impl ResolutionPass<'_> {
         node: AstNodeRef<ast::Pat>,
     ) -> SemanticResult<PatId> {
         // Maybe it has already been made:
-        if let Some(pat_id) = tir_stores().ast_info().pats().get_data_by_node(node.id()) {
+        if let Some(pat_id) = self.ast_info().pats().get_data_by_node(node.id()) {
             return Ok(pat_id);
         }
         let origin = NodeOrigin::Given(node.id());
@@ -385,8 +388,7 @@ impl ResolutionPass<'_> {
             }
         };
 
-        tir_stores().ast_info().pats().insert(node.id(), pat_id);
-        tir_stores().location().add_location_to_target(pat_id, node.span());
+        self.ast_info().pats().insert(node.id(), pat_id);
         Ok(pat_id)
     }
 }

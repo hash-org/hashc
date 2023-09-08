@@ -3,7 +3,7 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use hash_ast::ast::{self, RangeEnd};
+use hash_ast::ast::RangeEnd;
 use hash_storage::{
     get,
     store::{statics::StoreId, TrivialSequenceStoreKey},
@@ -20,8 +20,8 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, ast_info::HasNodeId, environment::stores::tir_stores,
-    tir_node_sequence_store_indirect, tir_node_single_store,
+    arrays::ArrayPat, environment::stores::tir_stores, tir_node_sequence_store_indirect,
+    tir_node_single_store,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
@@ -84,12 +84,6 @@ pub enum Pat {
 
 tir_node_single_store!(Pat);
 tir_node_sequence_store_indirect!(PatList[PatOrCapture]);
-
-impl HasNodeId for PatId {
-    fn node_id(&self) -> Option<ast::AstNodeId> {
-        tir_stores().ast_info().pats().get_node_by_data(*self)
-    }
-}
 
 impl Pat {
     /// Check if the pattern is a [`Pat::Or`].

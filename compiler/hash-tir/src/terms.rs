@@ -3,7 +3,6 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use hash_ast::ast;
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -15,19 +14,17 @@ use crate::{
     access::AccessTerm,
     args::Arg,
     arrays::{ArrayTerm, IndexTerm},
-    ast_info::HasNodeId,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::CtorTerm,
     environment::stores::tir_stores,
     fns::{FnCallTerm, FnDefId},
     lits::LitId,
-    node::{Node, NodeOrigin},
+    node::{Node, NodeId, NodeOrigin},
     refs::{DerefTerm, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::TupleTerm,
     tys::{Ty, TyId},
-    utils::common::get_location,
 };
 
 /// A term that can contain unsafe operations.
@@ -104,12 +101,6 @@ pub enum Term {
 tir_node_single_store!(Term);
 tir_node_sequence_store_indirect!(TermList[TermId]);
 
-impl HasNodeId for TermId {
-    fn node_id(&self) -> Option<ast::AstNodeId> {
-        tir_stores().ast_info().terms().get_node_by_data(*self)
-    }
-}
-
 impl Term {
     pub fn is_void(&self) -> bool {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
@@ -139,32 +130,13 @@ impl Term {
     ///
     /// @@Todo: remove once location store is removed.
     pub fn from(term: impl Into<Term>, origin: NodeOrigin) -> TermId {
-        let term = term.into();
-        let (ast_info, location) = match term {
-            Term::Ty(ty) => (ty.node_id(), get_location(ty)),
-            Term::FnRef(f) => (f.node_id(), get_location(f)),
-            Term::Var(v) => (None, get_location(v)),
-            _ => (None, None),
-        };
-        let created = Node::create_at(term, origin);
-        if let Some(location) = location {
-            tir_stores().location().add_location_to_target(created, location);
-        }
-        if let Some(ast_info) = ast_info {
-            tir_stores().ast_info().terms().insert(ast_info, created);
-        }
-        created
+        Node::create_at(term.into(), origin)
     }
 
     /// Create a new term that inherits location and AST info from the given
     /// `source`.
     pub fn inherited_from(source: TermId, term: impl Into<Term>) -> TermId {
-        let created = Self::from(term, source.origin());
-        tir_stores().location().copy_location(source, created);
-        if let Some(ast_info) = source.node_id() {
-            tir_stores().ast_info().terms().insert(ast_info, created);
-        }
-        created
+        Self::from(term, source.origin())
     }
 }
 

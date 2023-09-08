@@ -8,11 +8,11 @@ use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
-    ast_info::HasNodeId,
     atom_info::ItemInAtomInfo,
     environment::env::{AccessToEnv, Env},
     fns::{FnBody, FnDefId},
     mods::{ModDef, ModKind, ModMemberValue},
+    node::HasAstNodeId,
     terms::TermId,
     utils::{traversing::Atom, AccessToUtils},
 };

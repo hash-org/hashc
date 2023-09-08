@@ -13,6 +13,7 @@ use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataTy},
+    node::NodesId,
     pats::PatId,
     tys::{Ty, TyId},
 };

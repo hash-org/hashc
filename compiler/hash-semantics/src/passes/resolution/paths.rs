@@ -29,7 +29,7 @@ use hash_tir::{
     data::{CtorPat, CtorTerm, DataDefId},
     fns::{FnCallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
-    node::{Node, NodeOrigin},
+    node::{Node, NodeId, NodeOrigin},
     symbols::SymbolId,
     terms::Term,
 };
@@ -165,12 +165,12 @@ impl<'tc> ResolutionPass<'tc> {
                 // If we are starting from a module or data type, we need to enter their scopes.
                 NonTerminalResolvedPathComponent::Data(data_def_id, _def_args_id) => self
                     .scoping()
-                    .enter_scope(ContextKind::Access(member_value, data_def_id.into()), || {
+                    .enter_scope(ContextKind::Access(member_value, data_def_id.origin()), || {
                         self.scoping().add_data_params_and_ctors(data_def_id);
                         self.resolve_ast_name(name, name_node_id, None)
                     }),
                 NonTerminalResolvedPathComponent::Mod(mod_def_id) => self.scoping().enter_scope(
-                    ContextKind::Access(member_value, mod_def_id.into()),
+                    ContextKind::Access(member_value, mod_def_id.origin()),
                     || {
                         self.scoping().add_mod_members(mod_def_id);
                         self.resolve_ast_name(name, name_node_id, None)
