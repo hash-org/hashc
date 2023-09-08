@@ -15,7 +15,7 @@ macro_rules! make_ty {
     ($kind: ident) => {
         // ##GeneratedOrigin: these attributes are generated, so they do not
         // have an origin.
-        Ty::data(primitives().$kind(), hash_tir::node::NodeOrigin::Generated)
+        Ty::data_ty(primitives().$kind(), hash_tir::node::NodeOrigin::Generated)
     };
 }
 

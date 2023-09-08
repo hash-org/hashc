@@ -111,7 +111,7 @@ pub mod gen {
 
     /// Create a data type with no arguments.
     pub fn data_ty(data: DataDefId) -> TyId {
-        Ty::data(data, NodeOrigin::Generated)
+        Ty::data_ty(data, NodeOrigin::Generated)
     }
 
     /// Create an empty tuple term `()`.
@@ -121,7 +121,7 @@ pub mod gen {
 
     /// Create an empty tuple type `()`.
     pub fn void_ty() -> TyId {
-        Ty::void(NodeOrigin::Generated)
+        Ty::unit_ty(NodeOrigin::Generated)
     }
 
     /// Create the empty type.

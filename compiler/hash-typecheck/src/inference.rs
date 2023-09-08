@@ -472,7 +472,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer the type of a literal.
     pub fn infer_lit(&self, lit: LitId, annotation_ty: TyId) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
-        let inferred_ty = Ty::data(
+        let inferred_ty = Ty::data_ty(
             match *lit.value() {
                 Lit::Int(int_lit) => {
                     match int_lit.kind() {
@@ -1203,7 +1203,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             original_term_id,
         )?;
         let loop_term =
-            Ty::expect_is(original_term_id, Ty::void(original_term_id.origin().inferred()));
+            Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
         self.check_by_unify(loop_term, annotation_ty)?;
         Ok(())
     }
@@ -1340,7 +1340,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.infer_term(value, decl_term.ty)?;
         };
         self.infer_pat(decl_term.bind_pat, decl_term.ty, decl_term.value)?;
-        self.check_by_unify(Ty::void(original_term_id.origin().inferred()), annotation_ty)?;
+        self.check_by_unify(Ty::unit_ty(original_term_id.origin().inferred()), annotation_ty)?;
 
         // Check that the binding pattern of the declaration is irrefutable.
         let eck = self.exhaustiveness_checker(decl_term.bind_pat);
@@ -1430,7 +1430,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Ensure the index is a usize
         let index_ty = Ty::expect_is(
             index_term.index,
-            Ty::data(primitives().usize(), index_term.index.origin().inferred()),
+            Ty::data_ty(primitives().usize(), index_term.index.origin().inferred()),
         );
         self.infer_term(index_term.index, index_ty)?;
 
@@ -1481,7 +1481,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.check_by_unify(value_ty, subject_ty)?;
 
         let inferred_ty =
-            Ty::expect_is(original_term_id, Ty::void(original_term_id.origin().inferred()));
+            Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
         self.check_by_unify(inferred_ty, annotation_ty)?;
         Ok(())
     }
@@ -1551,7 +1551,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             } else {
                 // @@MissingOrigin: generated is not quite right here, it is more like
                 // "natively expected"...
-                unified_ty = Ty::expect_same(unified_ty, Ty::void(NodeOrigin::Generated));
+                unified_ty = Ty::expect_same(unified_ty, Ty::unit_ty(NodeOrigin::Generated));
             }
         }
 

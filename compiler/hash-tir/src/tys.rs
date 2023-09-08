@@ -73,7 +73,7 @@ impl Ty {
     }
 
     /// Create a new empty tuple type.
-    pub fn void(origin: NodeOrigin) -> TyId {
+    pub fn unit_ty(origin: NodeOrigin) -> TyId {
         Node::create(Node::at(
             Ty::TupleTy(TupleTy {
                 data: Node::create(Node::at(Node::<Param>::empty_seq(), origin)),
@@ -93,7 +93,7 @@ impl Ty {
     }
 
     /// Create a new data type with no arguments.
-    pub fn data(data_def: DataDefId, origin: NodeOrigin) -> TyId {
+    pub fn data_ty(data_def: DataDefId, origin: NodeOrigin) -> TyId {
         Node::create(Node::at(
             Ty::DataTy(DataTy {
                 data_def,
