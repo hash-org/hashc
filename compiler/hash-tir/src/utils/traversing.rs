@@ -285,11 +285,11 @@ impl TraversingUtils {
                 }
                 Ty::Hole(hole_ty) => Ok(Ty::from(hole_ty, origin)),
                 Ty::Var(var_ty) => Ok(Ty::from(var_ty, origin)),
-                Ty::Tuple(tuple_ty) => {
+                Ty::TupleTy(tuple_ty) => {
                     let data = self.fmap_params(tuple_ty.data, f)?;
                     Ok(Ty::from(TupleTy { data }, origin))
                 }
-                Ty::Fn(fn_ty) => {
+                Ty::FnTy(fn_ty) => {
                     let params = self.fmap_params(fn_ty.params, f)?;
                     let return_ty = self.fmap_ty(fn_ty.return_ty, f)?;
                     Ok(Ty::from(
@@ -303,15 +303,15 @@ impl TraversingUtils {
                         origin,
                     ))
                 }
-                Ty::Ref(ref_ty) => {
+                Ty::RefTy(ref_ty) => {
                     let ty = self.fmap_ty(ref_ty.ty, f)?;
                     Ok(Ty::from(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }, origin))
                 }
-                Ty::Data(data_ty) => {
+                Ty::DataTy(data_ty) => {
                     let args = self.fmap_args(data_ty.args, f)?;
                     Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }, origin))
                 }
-                Ty::Universe(universe_ty) => Ok(Ty::from(universe_ty, origin)),
+                Ty::Universe => Ok(Ty::from(Ty::Universe, origin)),
             },
         }?;
 
@@ -576,14 +576,14 @@ impl TraversingUtils {
             ControlFlow::Break(_) => Ok(()),
             ControlFlow::Continue(()) => match *ty_id.value() {
                 Ty::Eval(eval_term) => self.visit_term(eval_term, f),
-                Ty::Tuple(tuple_ty) => self.visit_params(tuple_ty.data, f),
-                Ty::Fn(fn_ty) => {
+                Ty::TupleTy(tuple_ty) => self.visit_params(tuple_ty.data, f),
+                Ty::FnTy(fn_ty) => {
                     self.visit_params(fn_ty.params, f)?;
                     self.visit_ty(fn_ty.return_ty, f)
                 }
-                Ty::Ref(ref_ty) => self.visit_ty(ref_ty.ty, f),
-                Ty::Data(data_ty) => self.visit_args(data_ty.args, f),
-                Ty::Universe(_) | Ty::Var(_) | Ty::Hole(_) => Ok(()),
+                Ty::RefTy(ref_ty) => self.visit_ty(ref_ty.ty, f),
+                Ty::DataTy(data_ty) => self.visit_args(data_ty.args, f),
+                Ty::Universe | Ty::Var(_) | Ty::Hole(_) => Ok(()),
             },
         }
     }

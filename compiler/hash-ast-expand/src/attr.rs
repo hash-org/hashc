@@ -108,7 +108,7 @@ impl AstExpander<'_> {
         };
 
         match *param_ty.value() {
-            Ty::Data(data) => match data.data_def {
+            Ty::DataTy(data) => match data.data_def {
                 d if d == primitives().i32() => {
                     maybe_emit_err(matches!(value, AttrValueKind::Int(_)))
                 }

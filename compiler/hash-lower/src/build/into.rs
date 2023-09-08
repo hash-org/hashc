@@ -135,7 +135,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // Get the type of the function into or to to get the
                         // fn-type so that we can enter the scope.
                         let ty = self.get_inferred_ty(subject);
-                        let fn_ty = ty_as_variant!(self, *ty.value(), Fn);
+                        let fn_ty = ty_as_variant!(self, *ty.value(), FnTy);
 
                         // Try and create the ir_type from a function definition, otherwise
                         // if it is just a function, then we make the the type from the function.

@@ -657,7 +657,7 @@ impl DefinedIntrinsics {
                 };
 
                 if let (Term::Ty(lhs_ty), Term::Ty(rhs_ty)) = (*lhs.value(), *rhs.value()) {
-                    if let (Ty::Data(lhs_data), Ty::Data(rhs_data)) =
+                    if let (Ty::DataTy(lhs_data), Ty::DataTy(rhs_data)) =
                         (*lhs_ty.value(), *rhs_ty.value())
                     {
                         // @@MissingOrigin

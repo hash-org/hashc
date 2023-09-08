@@ -300,27 +300,23 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             (Ty::Eval(t1), Ty::Eval(t2)) => self.unify_terms(t1, t2),
             (Ty::Eval(_), _) | (_, Ty::Eval(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Tuple(t1), Ty::Tuple(t2)) => self.unify_params(t1.data, t2.data, || Ok(())),
-            (Ty::Tuple(_), _) | (_, Ty::Tuple(_)) => self.mismatching_atoms(src_id, target_id),
+            (Ty::TupleTy(t1), Ty::TupleTy(t2)) => self.unify_params(t1.data, t2.data, || Ok(())),
+            (Ty::TupleTy(_), _) | (_, Ty::TupleTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Fn(f1), Ty::Fn(f2)) => self.unify_fn_tys(f1, f2, src_id, target_id),
-            (Ty::Fn(_), _) | (_, Ty::Fn(_)) => self.mismatching_atoms(src_id, target_id),
+            (Ty::FnTy(f1), Ty::FnTy(f2)) => self.unify_fn_tys(f1, f2, src_id, target_id),
+            (Ty::FnTy(_), _) | (_, Ty::FnTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Ref(r1), Ty::Ref(r2)) if r1.mutable == r2.mutable && r1.kind == r2.kind => {
+            (Ty::RefTy(r1), Ty::RefTy(r2)) if r1.mutable == r2.mutable && r1.kind == r2.kind => {
                 self.unify_tys(r1.ty, r2.ty)
             }
-            (Ty::Ref(_), _) | (_, Ty::Ref(_)) => self.mismatching_atoms(src_id, target_id),
+            (Ty::RefTy(_), _) | (_, Ty::RefTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Data(d1), Ty::Data(d2)) if d1.data_def == d2.data_def => {
+            (Ty::DataTy(d1), Ty::DataTy(d2)) if d1.data_def == d2.data_def => {
                 self.unify_args(d1.args, d2.args)
             }
-            (Ty::Data(_), _) | (_, Ty::Data(_)) => self.mismatching_atoms(src_id, target_id),
+            (Ty::DataTy(_), _) | (_, Ty::DataTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Universe(u1), Ty::Universe(u2)) => self.ok_or_mismatching_atoms(
-                u1.size.is_none() || u2.size.is_none() || u1.size.unwrap() <= u2.size.unwrap(),
-                src_id,
-                target_id,
-            ),
+            (Ty::Universe, Ty::Universe) => Ok(()),
         }
     }
 
@@ -526,7 +522,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
     pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
         let ty = self.norm_ops().to_ty(self.norm_ops().normalise(ty.into())?);
         match *ty.value() {
-            Ty::Data(data_ty) => {
+            Ty::DataTy(data_ty) => {
                 let data_def = data_ty.data_def.borrow();
                 match data_def.ctors {
                     DataDefCtors::Defined(ctors) => Ok(ctors.len() == 0),

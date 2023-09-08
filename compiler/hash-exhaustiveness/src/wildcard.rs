@@ -62,7 +62,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         // for `Option<!>`, we do not include `Some(_)` in the returned list of
         // constructors.
         let all_ctors = match *ctx.ty.value() {
-            Ty::Data(DataTy { data_def, .. }) => {
+            Ty::DataTy(DataTy { data_def, .. }) => {
                 let def = data_def.value();
 
                 match def.ctors {
@@ -129,7 +129,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     },
                 }
             }
-            Ty::Tuple(..) => smallvec![DeconstructedCtor::Single],
+            Ty::TupleTy(..) => smallvec![DeconstructedCtor::Single],
             _ => smallvec![DeconstructedCtor::NonExhaustive],
         };
 

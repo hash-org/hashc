@@ -120,7 +120,7 @@ impl<'tc> ResolutionPass<'tc> {
                                         self.make_ty_from_ast_ty(variant_ty.ast_ref()),
                                     ) {
                                         match *result.value() {
-                                            Ty::Data(d) if d.data_def == data_def_id => {
+                                            Ty::DataTy(d) if d.data_def == data_def_id => {
                                                 // Variant type is the same as the enum type
                                                 data_def_ctors.value().borrow_mut()[i].result_args = d.args;
                                             }

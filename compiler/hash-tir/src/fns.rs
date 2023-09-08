@@ -154,7 +154,7 @@ impl Display for FnTy {
 
 impl Display for FnDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if matches!(*self.ty.return_ty.value(), Ty::Fn(_)) {
+        if matches!(*self.ty.return_ty.value(), Ty::FnTy(_)) {
             if self.ty.is_unsafe {
                 write!(f, "unsafe ")?;
             }

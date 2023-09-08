@@ -107,11 +107,11 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                         None => ControlFlow::Continue(()),
                     }
                 }
-                Ty::Tuple(tuple_ty) => {
+                Ty::TupleTy(tuple_ty) => {
                     let _ = self.apply_sub_to_params_and_get_shadowed(tuple_ty.data, sub);
                     ControlFlow::Break(())
                 }
-                Ty::Fn(fn_ty) => {
+                Ty::FnTy(fn_ty) => {
                     let shadowed_sub = self.apply_sub_to_params_and_get_shadowed(fn_ty.params, sub);
                     self.apply_sub_to_ty_in_place(fn_ty.return_ty, &shadowed_sub);
                     ControlFlow::Break(())
@@ -163,11 +163,11 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                     *can_apply = true;
                     ControlFlow::Break(())
                 }
-                Ty::Tuple(tuple_ty) => {
+                Ty::TupleTy(tuple_ty) => {
                     let _ = self.params_contain_vars(tuple_ty.data, var_matches, can_apply);
                     ControlFlow::Break(())
                 }
-                Ty::Fn(fn_ty) => {
+                Ty::FnTy(fn_ty) => {
                     let seen = self.params_contain_vars(fn_ty.params, var_matches, can_apply);
                     if self.atom_contains_vars(fn_ty.return_ty.into(), &seen) {
                         *can_apply = true;

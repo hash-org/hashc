@@ -75,10 +75,10 @@ impl<'ir> BuilderCtx<'ir> {
             // its own caching, but we still want to add an entry here for `TyId` since
             // we want to avoid computing the `ty_from_tir_data` as well.
             let result = match &(*ty).data {
-                Ty::Data(data_ty) => self.ty_from_tir_data(*data_ty),
+                Ty::DataTy(data_ty) => self.ty_from_tir_data(*data_ty),
 
                 // Hot path for unit types.
-                Ty::Tuple(tuple) if tuple.data.is_empty() => COMMON_IR_TYS.unit,
+                Ty::TupleTy(tuple) if tuple.data.is_empty() => COMMON_IR_TYS.unit,
                 _ => self.uncached_ty_from_tir_ty(id, &ty),
             };
 
@@ -89,7 +89,7 @@ impl<'ir> BuilderCtx<'ir> {
     /// Get the [IrTy] from the given [Ty].
     fn uncached_ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> IrTyId {
         let ty = match *ty {
-            Ty::Tuple(TupleTy { data }) => {
+            Ty::TupleTy(TupleTy { data }) => {
                 // Optimise, if this is a UNIT, then we can just return a unit type.
                 if data.is_empty() {
                     return COMMON_IR_TYS.unit;
@@ -112,14 +112,14 @@ impl<'ir> BuilderCtx<'ir> {
                 let adt = Adt::new_with_flags("tuple".into(), index_vec![variant], flags);
                 IrTy::Adt(Adt::create(adt))
             }
-            Ty::Fn(FnTy { params, return_ty, .. }) => {
+            Ty::FnTy(FnTy { params, return_ty, .. }) => {
                 let params = IrTyListId::seq(
                     params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
                 );
                 let return_ty = self.ty_id_from_tir_ty(return_ty);
                 IrTy::Fn { params, return_ty }
             }
-            Ty::Ref(RefTy { kind, mutable, ty }) => {
+            Ty::RefTy(RefTy { kind, mutable, ty }) => {
                 let ty = self.ty_id_from_tir_ty(ty);
                 let mutability = if mutable { Mutability::Mutable } else { Mutability::Immutable };
                 let ref_kind = match kind {
@@ -130,8 +130,8 @@ impl<'ir> BuilderCtx<'ir> {
 
                 IrTy::Ref(ty, mutability, ref_kind)
             }
-            Ty::Data(data_ty) => return self.ty_from_tir_data(data_ty),
-            Ty::Eval(_) | Ty::Universe(_) => IrTy::Adt(AdtId::UNIT),
+            Ty::DataTy(data_ty) => return self.ty_from_tir_data(data_ty),
+            Ty::Eval(_) | Ty::Universe => IrTy::Adt(AdtId::UNIT),
 
             // This is a type variable that should be found in the scope. It is
             // resolved and substituted in the `Ty::Var` case below.

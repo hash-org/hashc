@@ -21,29 +21,6 @@ use crate::{
     utils::traversing::Atom,
 };
 
-/// The type of types, i.e. a universe.
-#[derive(Debug, Clone, Copy)]
-pub struct UniverseTy {
-    /// The size of the universe
-    ///
-    /// `Universe(n + 1)` includes everything inside `Universe(n)` as well as
-    /// the term `Universe(n)` itself.
-    ///
-    /// Root universe is Universe(0).
-    pub size: Option<usize>,
-}
-
-impl UniverseTy {
-    /// A flexible universe.
-    ///
-    /// In other words, a universe Type(w) where w is determined at
-    /// each usage.
-    // @@Todo: figure out what "flexible" really means.
-    pub fn is_flexible(&self) -> bool {
-        self.size.is_none()
-    }
-}
-
 /// Represents a type in a Hash program.
 #[derive(Debug, Clone, Copy, From)]
 pub enum Ty {
@@ -57,19 +34,19 @@ pub enum Ty {
     Var(SymbolId),
 
     /// Tuple type
-    Tuple(TupleTy),
+    TupleTy(TupleTy),
 
     /// Function type
-    Fn(FnTy),
+    FnTy(FnTy),
 
     /// Reference type
-    Ref(RefTy),
+    RefTy(RefTy),
 
     /// A user-defined data type
-    Data(DataTy),
+    DataTy(DataTy),
 
     /// The universe type
-    Universe(UniverseTy),
+    Universe,
 }
 
 tir_node_single_store!(Ty);
@@ -81,37 +58,26 @@ pub struct TypeOfTerm {
 }
 
 impl Ty {
-    /// Create a type of types, i.e. small `Type`.
-    pub fn small_universe(origin: NodeOrigin) -> TyId {
-        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(0) }), origin))
-    }
-
-    /// Create a large type of types, i.e. `Type(n)` for some natural number
-    /// `n`.
-    pub fn universe(n: usize, origin: NodeOrigin) -> TyId {
-        Node::create(Node::at(Ty::Universe(UniverseTy { size: Some(n) }), origin))
-    }
-
     /// Create a type of types, with a flexible universe size, for the given
     /// type node.
     ///
     /// This is the default when `Type` is used in a type signature.
     pub fn universe_of(node: impl Into<Atom>) -> TyId {
         let node = node.into();
-        Ty::flexible_universe(node.origin().inferred())
+        Ty::universe(node.origin().inferred())
     }
 
-    /// Create a type of types, with a flexible universe size.
-    ///
-    /// This is the default when `Type` is used in a type signature.
-    pub fn flexible_universe(origin: NodeOrigin) -> TyId {
-        Node::create(Node::at(Ty::Universe(UniverseTy { size: None }), origin))
+    /// Create a type of types.
+    pub fn universe(origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(Ty::Universe, origin))
     }
 
     /// Create a new empty tuple type.
     pub fn void(origin: NodeOrigin) -> TyId {
         Node::create(Node::at(
-            Ty::Tuple(TupleTy { data: Node::create(Node::at(Node::<Param>::empty_seq(), origin)) }),
+            Ty::TupleTy(TupleTy {
+                data: Node::create(Node::at(Node::<Param>::empty_seq(), origin)),
+            }),
             origin,
         ))
     }
@@ -129,7 +95,7 @@ impl Ty {
     /// Create a new data type with no arguments.
     pub fn data(data_def: DataDefId, origin: NodeOrigin) -> TyId {
         Node::create(Node::at(
-            Ty::Data(DataTy {
+            Ty::DataTy(DataTy {
                 data_def,
                 args: Node::create(Node::at(Node::<Arg>::empty_seq(), origin)),
             }),
@@ -177,16 +143,6 @@ impl TyId {
     }
 }
 
-impl fmt::Display for UniverseTy {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.size {
-            None => write!(f, "Type(*)"),
-            Some(0) => write!(f, "Type"),
-            Some(n) => write!(f, "Type({n})"),
-        }
-    }
-}
-
 impl fmt::Display for TyId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", *self.value())
@@ -201,11 +157,11 @@ impl fmt::Display for Ty {
             }
             Ty::Hole(hole) => write!(f, "{}", *hole),
             Ty::Var(resolved_var) => write!(f, "{}", *resolved_var),
-            Ty::Tuple(tuple_ty) => write!(f, "{}", tuple_ty),
-            Ty::Fn(fn_ty) => write!(f, "{}", fn_ty),
-            Ty::Ref(ref_ty) => write!(f, "{}", ref_ty),
-            Ty::Data(data_ty) => write!(f, "{}", data_ty),
-            Ty::Universe(universe_ty) => write!(f, "{universe_ty}"),
+            Ty::TupleTy(tuple_ty) => write!(f, "{}", tuple_ty),
+            Ty::FnTy(fn_ty) => write!(f, "{}", fn_ty),
+            Ty::RefTy(ref_ty) => write!(f, "{}", ref_ty),
+            Ty::DataTy(data_ty) => write!(f, "{}", data_ty),
+            Ty::Universe => write!(f, "Type"),
         }
     }
 }

@@ -315,7 +315,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     match self.try_get_inferred_ty(fn_call.subject) {
                         Some(fn_ty) => {
                             match *fn_ty.value() {
-                                Ty::Fn(fn_ty) => {
+                                Ty::FnTy(fn_ty) => {
                                     // If it is a function, check if it is pure
                                     if fn_ty.pure {
                                         // Check its args too
@@ -900,7 +900,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             Atom::Ty(ty) => match *ty.value() {
                 Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
                 Ty::Hole(Hole(var)) | Ty::Var(var) => ctrl_map(self.eval_var(var)),
-                Ty::Fn(_) | Ty::Tuple(_) | Ty::Data(_) | Ty::Universe(_) | Ty::Ref(_) => {
+                Ty::FnTy(_) | Ty::TupleTy(_) | Ty::DataTy(_) | Ty::Universe | Ty::RefTy(_) => {
                     ctrl_continue()
                 }
             },

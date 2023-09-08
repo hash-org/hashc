@@ -106,7 +106,7 @@ pub mod gen {
 
     /// Create a flexible universe type.
     pub fn universe_ty() -> TyId {
-        Ty::flexible_universe(NodeOrigin::Generated)
+        Ty::universe(NodeOrigin::Generated)
     }
 
     /// Create a data type with no arguments.

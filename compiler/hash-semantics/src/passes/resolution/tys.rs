@@ -124,7 +124,7 @@ impl<'tc> ResolutionPass<'tc> {
                 NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
                     // Data type
                     Ok(Ty::from(
-                        Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args }),
+                        Ty::DataTy(DataTy { data_def: *data_def_id, args: *data_def_args }),
                         origin,
                     ))
                 }
@@ -194,7 +194,7 @@ impl<'tc> ResolutionPass<'tc> {
     /// Make a type from the given [`ast::NamedTy`].
     fn make_ty_from_ast_named_ty(&self, node: AstNodeRef<ast::NamedTy>) -> SemanticResult<TyId> {
         if node.name.is(IDENTS.Type) {
-            Ok(Ty::flexible_universe(NodeOrigin::Given(node.id())))
+            Ok(Ty::universe(NodeOrigin::Given(node.id())))
         } else if node.name.is(IDENTS.underscore) {
             Ok(Ty::hole(NodeOrigin::Given(node.id())))
         } else {
@@ -250,7 +250,7 @@ impl<'tc> ResolutionPass<'tc> {
             Some(len) => {
                 let length_term = self.make_term_from_ast_expr(len.ast_ref())?;
                 Ok(Ty::from(
-                    Ty::Data(DataTy {
+                    Ty::DataTy(DataTy {
                         data_def: primitives().array(),
                         args: Arg::seq_positional(
                             [inner_ty.as_term(), length_term],
@@ -261,7 +261,7 @@ impl<'tc> ResolutionPass<'tc> {
                 ))
             }
             None => Ok(Ty::from(
-                Ty::Data(DataTy {
+                Ty::DataTy(DataTy {
                     data_def: primitives().list(),
                     args: Arg::seq_positional(
                         once(inner_ty.as_term()),
@@ -277,7 +277,7 @@ impl<'tc> ResolutionPass<'tc> {
     fn make_ty_from_ref_ty(&self, node: AstNodeRef<ast::RefTy>) -> SemanticResult<TyId> {
         let inner_ty = self.make_ty_from_ast_ty(node.inner.ast_ref())?;
         Ok(Ty::from(
-            Ty::Ref(RefTy {
+            Ty::RefTy(RefTy {
                 ty: inner_ty,
                 kind: match node.kind.as_ref() {
                     Some(kind) => match kind.body() {

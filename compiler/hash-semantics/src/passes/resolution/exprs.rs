@@ -332,7 +332,7 @@ impl<'tc> ResolutionPass<'tc> {
                         // Data type
                         Ok(Term::from(
                             Term::Ty(Ty::from(
-                                Ty::Data(DataTy { data_def: *data_def_id, args: *data_def_args }),
+                                Ty::DataTy(DataTy { data_def: *data_def_id, args: *data_def_args }),
                                 origin,
                             )),
                             origin,

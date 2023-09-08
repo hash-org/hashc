@@ -150,7 +150,7 @@ pub trait PrimitiveUtils: AccessToEnv {
     /// Get the given type as a primitive integer type if possible.
     fn try_use_ty_as_int_ty(&self, ty: TyId) -> Option<IntTy> {
         match *ty.value() {
-            Ty::Data(data) => match data.data_def {
+            Ty::DataTy(data) => match data.data_def {
                 d if d == primitives().i8() => Some(IntTy::Int(SIntTy::I8)),
                 d if d == primitives().u8() => Some(IntTy::UInt(UIntTy::U8)),
                 d if d == primitives().i16() => Some(IntTy::Int(SIntTy::I16)),
@@ -174,7 +174,7 @@ pub trait PrimitiveUtils: AccessToEnv {
     /// Get the given type as a primitive float type if possible.
     fn try_use_ty_as_float_ty(&self, ty: TyId) -> Option<FloatTy> {
         match *ty.value() {
-            Ty::Data(data) => match data.data_def {
+            Ty::DataTy(data) => match data.data_def {
                 d if d == primitives().f32() => Some(FloatTy::F32),
                 d if d == primitives().f64() => Some(FloatTy::F64),
                 _ => None,
@@ -186,7 +186,7 @@ pub trait PrimitiveUtils: AccessToEnv {
     /// Get the given type as a primitive array type if possible.
     fn try_use_ty_as_array_ty(&self, ty: TyId) -> Option<ArrayCtorInfo> {
         match *ty.value() {
-            Ty::Data(data) => match data.data_def.borrow().ctors {
+            Ty::DataTy(data) => match data.data_def.borrow().ctors {
                 DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array)) => Some(array),
                 _ => None,
             },
@@ -197,7 +197,7 @@ pub trait PrimitiveUtils: AccessToEnv {
     /// Get the given type as a literal type if possible.
     fn try_use_ty_as_lit_ty(&self, ty: TyId) -> Option<LitTy> {
         match *ty.value() {
-            Ty::Data(data) => match data.data_def {
+            Ty::DataTy(data) => match data.data_def {
                 d if d == primitives().i8() => Some(LitTy::I8),
                 d if d == primitives().u8() => Some(LitTy::U8),
                 d if d == primitives().i16() => Some(LitTy::I16),
