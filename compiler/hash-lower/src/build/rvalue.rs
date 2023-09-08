@@ -208,13 +208,16 @@ impl<'tcx> BodyBuilder<'tcx> {
         lhs: Operand,
         rhs: Operand,
     ) -> BlockAnd<RValue> {
+        // @@ConstFolding: maybe move this into an optimisation pass like
+        // `const-propagate` or something.
+        //
         // try to constant fold the two operands
-        if let Operand::Const(lhs_value) = lhs &&
-           let Operand::Const(rhs_value) = rhs {
-            if let Some(folded) = self.try_fold_const_op(op, lhs_value, rhs_value) {
-                return block.and(folded.into());
-            }
-        }
+        // if let Operand::Const(lhs_value) = lhs &&
+        //    let Operand::Const(rhs_value) = rhs {
+        //     if let Some(folded) = self.try_fold_const_op(op, lhs_value, rhs_value) {
+        //         return block.and(folded.into());
+        //     }
+        // }
 
         let operands = Box::new((lhs, rhs));
 

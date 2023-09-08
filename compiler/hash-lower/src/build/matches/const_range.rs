@@ -121,12 +121,13 @@ pub fn _compare_const_values(
     // compare and avoid the extra work.
     match ty {
         IrTy::Int(_) | IrTy::Float(_) => {}
-        _ => match (left.kind(), right.kind()) {
-            (ConstKind::Scalar(left_s), ConstKind::Scalar(right_s)) => {
-                return Some(left_s.cmp(&right_s))
+        _ => {
+            if let (ConstKind::Scalar(left_s), ConstKind::Scalar(right_s)) =
+                (left.kind(), right.kind())
+            {
+                return Some(left_s.cmp(&right_s));
             }
-            _ => {}
-        },
+        }
     };
 
     // Evaluate the bits of the constant, this implies that they will be
