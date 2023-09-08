@@ -23,8 +23,7 @@ use hash_tir::{
     fns::{FnCallTerm, FnDefId},
     lits::{Lit, LitPat},
     pats::PatId,
-    terms::{Term, TermId},
-    tys::TyId,
+    terms::{Term, TermId, TyId},
 };
 
 use super::BodyBuilder;
@@ -147,7 +146,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                         (args.at(1).unwrap().borrow().value, args.at(2).unwrap().borrow().value);
 
                     // Convert the `to_ty` into an IR type and
-                    let to_ty = to_ty.as_ty();
                     let ty = self.ty_id_from_tir_ty(to_ty);
 
                     FnCallTermKind::Cast(value, ty)

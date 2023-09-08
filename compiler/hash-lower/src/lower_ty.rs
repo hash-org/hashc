@@ -29,8 +29,8 @@ use hash_tir::{
     node::{HasAstNodeId, NodesId},
     primitives::primitives,
     refs::RefTy,
+    terms::{Ty, TyId},
     tuples::TupleTy,
-    tys::{Ty, TyId},
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
@@ -131,7 +131,6 @@ impl<'ir> BuilderCtx<'ir> {
                 IrTy::Ref(ty, mutability, ref_kind)
             }
             Ty::DataTy(data_ty) => return self.ty_from_tir_data(data_ty),
-            Ty::Eval(_) | Ty::Universe => IrTy::Adt(AdtId::UNIT),
 
             // This is a type variable that should be found in the scope. It is
             // resolved and substituted in the `Ty::Var` case below.
@@ -139,7 +138,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // @@Temporary
                 if self.context().try_get_decl(sym).is_some() {
                     let term = self.context().get_binding_value(sym);
-                    let ty = term.as_ty().value();
+                    let ty = term.value();
                     return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {
                     return COMMON_IR_TYS.unit; // We just return the unit type
@@ -156,6 +155,8 @@ impl<'ir> BuilderCtx<'ir> {
                     panic!("{message}")
                 }
             }
+
+            _ => IrTy::Adt(AdtId::UNIT),
         };
 
         IrTy::create(ty)
@@ -266,10 +267,9 @@ impl<'ir> BuilderCtx<'ir> {
         let subs = if ty.args.len() > 0 {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
-            Some(IrTyListId::seq(ty.args.elements().borrow().iter().map(|arg| {
-                let ty = arg.value.as_ty();
-                self.ty_id_from_tir_ty(ty)
-            })))
+            Some(IrTyListId::seq(
+                ty.args.elements().borrow().iter().map(|arg| self.ty_id_from_tir_ty(arg.value)),
+            ))
         } else {
             None
         };

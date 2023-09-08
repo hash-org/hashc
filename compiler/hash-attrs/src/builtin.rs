@@ -4,7 +4,7 @@ use std::sync::LazyLock;
 
 use hash_ast_utils::attr::AttrTarget;
 use hash_source::identifier::Identifier;
-use hash_tir::{building::gen, primitives::primitives, tys::Ty};
+use hash_tir::{building::gen, primitives::primitives, terms::Ty};
 use paste::paste;
 
 use crate::ty::{AttrId, AttrTy, AttrTyMap};

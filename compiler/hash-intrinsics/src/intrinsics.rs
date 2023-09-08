@@ -17,8 +17,7 @@ use hash_tir::{
     node::{HasAstNodeId, Node, NodeOrigin},
     primitives::primitives,
     refs::RefKind,
-    terms::{Term, TermId},
-    tys::Ty,
+    terms::{Term, TermId, Ty},
 };
 use hash_utils::stream_less_writeln;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -277,7 +276,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(t.as_ty()) {
+                match env.try_use_ty_as_lit_ty(t) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::I8 => handle_integer!(i8),
                         LitTy::I16 => handle_integer!(i16),
@@ -469,7 +468,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(t.as_ty()) {
+                match env.try_use_ty_as_lit_ty(t) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::U8 => handle_integer!(u8),
                         LitTy::U16 => handle_integer!(u16),
@@ -607,7 +606,7 @@ impl DefinedIntrinsics {
                 }
 
                 // Handle each `T` parameter:
-                match env.try_use_ty_as_lit_ty(t.as_ty()) {
+                match env.try_use_ty_as_lit_ty(t) {
                     Some(lit_ty) => match lit_ty {
                         LitTy::U8 => handle_integer!(u8),
                         LitTy::U16 => handle_integer!(u16),
@@ -656,17 +655,13 @@ impl DefinedIntrinsics {
                     Err("Invalid arguments for type equality intrinsic. Only data types with no arguments can be compared".to_string())
                 };
 
-                if let (Term::Ty(lhs_ty), Term::Ty(rhs_ty)) = (*lhs.value(), *rhs.value()) {
-                    if let (Ty::DataTy(lhs_data), Ty::DataTy(rhs_data)) =
-                        (*lhs_ty.value(), *rhs_ty.value())
-                    {
-                        // @@MissingOrigin
-                        if lhs_data.args.len() == 0 && rhs_data.args.len() == 0 {
-                            return Ok(prim.new_bool_term(
-                                lhs_data.data_def == rhs_data.data_def,
-                                NodeOrigin::Generated,
-                            ));
-                        }
+                if let (Ty::DataTy(lhs_data), Ty::DataTy(rhs_data)) = (*lhs.value(), *rhs.value()) {
+                    // @@MissingOrigin
+                    if lhs_data.args.len() == 0 && rhs_data.args.len() == 0 {
+                        return Ok(prim.new_bool_term(
+                            lhs_data.data_def == rhs_data.data_def,
+                            NodeOrigin::Generated,
+                        ));
                     }
                 }
 

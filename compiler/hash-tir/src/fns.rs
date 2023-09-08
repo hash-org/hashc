@@ -5,10 +5,14 @@ use std::fmt::Display;
 use hash_storage::store::statics::StoreId;
 use typed_builder::TypedBuilder;
 
-use super::{intrinsics::IntrinsicId, tys::Ty};
+use super::intrinsics::IntrinsicId;
 use crate::{
-    args::ArgsId, environment::stores::tir_stores, params::ParamsId, symbols::SymbolId,
-    terms::TermId, tir_node_single_store, tys::TyId,
+    args::ArgsId,
+    environment::stores::tir_stores,
+    params::ParamsId,
+    symbols::SymbolId,
+    terms::{TermId, Ty, TyId},
+    tir_node_single_store,
 };
 
 /// A function type.

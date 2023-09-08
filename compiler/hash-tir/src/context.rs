@@ -24,9 +24,8 @@ use crate::{
     scopes::StackId,
     sub::Sub,
     symbols::SymbolId,
-    terms::TermId,
+    terms::{TermId, TyId},
     tuples::TupleTy,
-    tys::TyId,
 };
 
 /// A binding that contains a type and optional value.

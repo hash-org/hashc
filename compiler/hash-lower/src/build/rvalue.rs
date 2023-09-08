@@ -10,7 +10,7 @@ use hash_ir::{
 use hash_source::constant::{IntConstant, IntTy, InternedInt};
 use hash_storage::store::statics::StoreId;
 use hash_target::HasTarget;
-use hash_tir::terms::{Term, TermId};
+use hash_tir::terms::{Term, TermId, Ty};
 
 use super::{
     category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
@@ -127,7 +127,11 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Index(_)
             | Term::Cast(_)
             | Term::TypeOf(_)
-            | Term::Ty(_)
+            | Ty::DataTy(_)
+            | Ty::FnTy(_)
+            | Ty::TupleTy(_)
+            | Ty::RefTy(_)
+            | Ty::Universe
             | Term::Ref(_)
             | Term::Deref(_)
             | Term::Hole(_)) => as_operand(term, self),

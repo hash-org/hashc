@@ -24,9 +24,8 @@ use hash_tir::{
     refs::DerefTerm,
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     symbols::SymbolId,
-    terms::{Term, TermId, TermListId, UnsafeTerm},
+    terms::{Term, TermId, TermListId, Ty, TyId, TypeOfTerm, UnsafeTerm},
     tuples::TupleTerm,
-    tys::{Ty, TyId, TypeOfTerm},
     utils::{
         traversing::{Atom, TraversingUtils},
         AccessToUtils,
@@ -183,9 +182,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Atom::Term(term_id) => {
                     term_id.set(self.to_term(result).value());
                 }
-                Atom::Ty(ty_id) => {
-                    ty_id.set(self.to_ty(result).value());
-                }
                 // Fn defs are already normalised.
                 Atom::FnDef(_) => return Ok(false),
                 Atom::Pat(pat_id) => {
@@ -227,8 +223,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Try to use the given atom as a type.
     pub fn maybe_to_ty(&self, atom: Atom) -> Option<TyId> {
         match atom {
-            Atom::Term(term) => term.try_as_ty(),
-            Atom::Ty(ty) => Some(ty),
+            Atom::Term(term) => Some(term),
             _ => None,
         }
     }
@@ -249,7 +244,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     pub fn maybe_to_term(&self, atom: Atom) -> Option<TermId> {
         match atom {
             Atom::Term(term) => Some(term),
-            Atom::Ty(ty) => Some(ty.as_term()),
             Atom::FnDef(fn_def_id) => Some(Term::from(fn_def_id, fn_def_id.origin())),
             _ => None,
         }
@@ -307,7 +301,11 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 | Term::Index(_)
                 | Term::Cast(_)
                 | Term::TypeOf(_)
-                | Term::Ty(_)
+                | Term::DataTy(_)
+                | Term::RefTy(_)
+                | Term::Universe
+                | Term::TupleTy(_)
+                | Term::FnTy(_)
                 | Term::Block(_) => Ok(ControlFlow::Continue(())),
 
                 Term::FnCall(fn_call) => {
@@ -364,14 +362,13 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                     Ok(ControlFlow::Break(()))
                 }
             },
-            Atom::Ty(_) => Ok(ControlFlow::Continue(())),
             Atom::FnDef(fn_def_id) => {
                 let fn_ty = fn_def_id.value().ty;
                 // Check its params and return type only (no body)
                 traversing_utils.visit_params(fn_ty.params, &mut |atom| {
                     self.atom_has_effects_once(traversing_utils, atom, has_effects)
                 })?;
-                traversing_utils.visit_ty(fn_ty.return_ty, &mut |atom| {
+                traversing_utils.visit_term(fn_ty.return_ty, &mut |atom| {
                     self.atom_has_effects_once(traversing_utils, atom, has_effects)
                 })?;
                 Ok(ControlFlow::Break(()))
@@ -698,20 +695,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         full_evaluation_to(Term::void(loop_term.origin.computed()))
     }
 
-    /// Evaluate a term and use it as a type.
-    fn eval_ty_eval(&self, term: TermId) -> AtomEvaluation {
-        let st = eval_state();
-        let evaluated = self.eval_and_record(term.into(), &st)?;
-        match evaluated {
-            Atom::Ty(_) => evaluation_to(evaluated),
-            Atom::Term(term) => match *term.value() {
-                Term::Ty(ty) => evaluation_to(Atom::Ty(ty)),
-                _ => evaluation_if(|| term, &st),
-            },
-            Atom::FnDef(_) | Atom::Pat(_) => unreachable!(),
-        }
-    }
-
     /// Evaluate some arguments
     fn eval_args(&self, args_id: ArgsId) -> Evaluation<ArgsId> {
         let args = args_id.value();
@@ -858,9 +841,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
         match atom {
             Atom::Term(term) => match *term.value() {
-                // Types
-                Term::Ty(_) => ctrl_continue(),
-
                 Term::TypeOf(term) => ctrl_map(self.eval_type_of(term)),
                 Term::Unsafe(unsafe_expr) => ctrl_map(self.eval_unsafe(unsafe_expr)),
                 Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
@@ -896,10 +876,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::Loop(loop_term) => {
                     ctrl_map_full(self.eval_loop(term.origin().with_data(loop_term)))
                 }
-            },
-            Atom::Ty(ty) => match *ty.value() {
-                Ty::Eval(term) => ctrl_map(self.eval_ty_eval(term)),
-                Ty::Hole(Hole(var)) | Ty::Var(var) => ctrl_map(self.eval_var(var)),
                 Ty::FnTy(_) | Ty::TupleTy(_) | Ty::DataTy(_) | Ty::Universe | Ty::RefTy(_) => {
                     ctrl_continue()
                 }
@@ -1047,7 +1023,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::Ctor(ctor_term) => ctor_term.ctor == self.get_bool_ctor(true),
                 _ => false,
             },
-            Atom::Ty(_) | Atom::FnDef(_) | Atom::Pat(_) => false,
+            Atom::FnDef(_) | Atom::Pat(_) => false,
         }
     }
 

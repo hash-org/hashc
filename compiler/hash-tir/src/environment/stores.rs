@@ -18,7 +18,6 @@ use crate::{
     scopes::StackStore,
     symbols::SymbolStore,
     terms::{TermListSeqStore, TermListStore, TermStore},
-    tys::TyStore,
 };
 
 // All the stores that contain definitions for the typechecker.
@@ -49,7 +48,6 @@ stores! {
     term: TermStore,
     term_list: TermListStore,
     term_list_seq: TermListSeqStore,
-    ty: TyStore,
     match_cases: MatchCasesStore,
     match_cases_seq: MatchCasesSeqStore,
     atom_info: AtomInfoStore,

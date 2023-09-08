@@ -24,9 +24,8 @@ use crate::{
     pats::{Pat, PatId, PatListId},
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
-    terms::{Term, TermId, TermListId, UnsafeTerm},
+    terms::{Term, TermId, TermListId, Ty, TypeOfTerm, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
-    tys::{Ty, TyId, TypeOfTerm},
 };
 
 /// Contains methods to traverse the Hash TIR structure.
@@ -39,7 +38,6 @@ pub struct TraversingUtils {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, From, TryInto)]
 pub enum Atom {
     Term(TermId),
-    Ty(TyId),
     FnDef(FnDefId),
     Pat(PatId),
 }
@@ -48,7 +46,6 @@ impl Atom {
     pub fn origin(self) -> NodeOrigin {
         match self {
             Atom::Term(t) => t.origin(),
-            Atom::Ty(t) => t.origin(),
             Atom::FnDef(f) => f.origin(),
             Atom::Pat(p) => p.origin(),
         }
@@ -59,7 +56,6 @@ impl HasAstNodeId for Atom {
     fn node_id(&self) -> Option<AstNodeId> {
         match self {
             Atom::Term(t) => t.node_id(),
-            Atom::Ty(t) => t.node_id(),
             Atom::FnDef(f) => f.node_id(),
             Atom::Pat(p) => p.node_id(),
         }
@@ -70,7 +66,6 @@ impl fmt::Display for Atom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Atom::Term(term_id) => write!(f, "{}", term_id),
-            Atom::Ty(ty_id) => write!(f, "{}", ty_id),
             Atom::FnDef(fn_def_id) => write!(f, "{}", fn_def_id),
             Atom::Pat(pat_id) => write!(f, "{}", pat_id),
         }
@@ -113,7 +108,6 @@ impl TraversingUtils {
     pub fn fmap_atom<E, F: Mapper<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
         match atom {
             Atom::Term(term_id) => Ok(Atom::Term(self.fmap_term(term_id, f)?)),
-            Atom::Ty(ty_id) => Ok(Atom::Ty(self.fmap_ty(ty_id, f)?)),
             Atom::FnDef(fn_def_id) => Ok(Atom::FnDef(self.fmap_fn_def(fn_def_id, f)?)),
             Atom::Pat(pat_id) => Ok(Atom::Pat(self.fmap_pat(pat_id, f)?)),
         }
@@ -124,8 +118,7 @@ impl TraversingUtils {
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
                 Atom::Term(t) => Ok(t),
-                Atom::Ty(ty) => Ok(ty.as_term()),
-                Atom::FnDef(fn_def_id) => Ok(Term::from(fn_def_id, origin)),
+                Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::FnRef(fn_def_id), origin)),
                 Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
             },
             ControlFlow::Continue(()) => match *term_id.value() {
@@ -216,7 +209,7 @@ impl TraversingUtils {
                 }
                 Term::Decl(decl_stack_member_term) => {
                     let bind_pat = self.fmap_pat(decl_stack_member_term.bind_pat, f)?;
-                    let ty = self.fmap_ty(decl_stack_member_term.ty, f)?;
+                    let ty = self.fmap_term(decl_stack_member_term.ty, f)?;
                     let value =
                         decl_stack_member_term.value.map(|v| self.fmap_term(v, f)).transpose()?;
                     Ok(Term::from(DeclTerm { ty, bind_pat, value }, origin))
@@ -241,16 +234,12 @@ impl TraversingUtils {
                 }
                 Term::Cast(cast_term) => {
                     let subject_term = self.fmap_term(cast_term.subject_term, f)?;
-                    let target_ty = self.fmap_ty(cast_term.target_ty, f)?;
+                    let target_ty = self.fmap_term(cast_term.target_ty, f)?;
                     Ok(Term::from(CastTerm { subject_term, target_ty }, origin))
                 }
                 Term::TypeOf(type_of_term) => {
                     let term = self.fmap_term(type_of_term.term, f)?;
                     Ok(Term::from(TypeOfTerm { term }, origin))
-                }
-                Term::Ty(ty) => {
-                    let ty = self.fmap_ty(ty, f)?;
-                    Ok(Term::from(ty, origin))
                 }
                 Term::Ref(ref_term) => {
                     let subject = self.fmap_term(ref_term.subject, f)?;
@@ -264,34 +253,13 @@ impl TraversingUtils {
                     Ok(Term::from(DerefTerm { subject }, origin))
                 }
                 Term::Hole(hole_term) => Ok(Term::from(hole_term, origin)),
-            },
-        }?;
-
-        Ok(result)
-    }
-
-    pub fn fmap_ty<E, F: Mapper<E>>(&self, ty_id: TyId, f: F) -> Result<TyId, E> {
-        let origin = ty_id.origin();
-        let result = match f(ty_id.into())? {
-            ControlFlow::Break(ty) => match ty {
-                Atom::Ty(ty) => Ok(ty),
-                Atom::Term(term) => Ok(term.as_ty()),
-                _ => unreachable!("got non-type in fmap_ty"),
-            },
-            ControlFlow::Continue(()) => match *ty_id.value() {
-                Ty::Eval(eval_term) => {
-                    let eval_term = self.fmap_term(eval_term, f)?;
-                    Ok(Ty::from(eval_term, origin))
-                }
-                Ty::Hole(hole_ty) => Ok(Ty::from(hole_ty, origin)),
-                Ty::Var(var_ty) => Ok(Ty::from(var_ty, origin)),
                 Ty::TupleTy(tuple_ty) => {
                     let data = self.fmap_params(tuple_ty.data, f)?;
                     Ok(Ty::from(TupleTy { data }, origin))
                 }
                 Ty::FnTy(fn_ty) => {
                     let params = self.fmap_params(fn_ty.params, f)?;
-                    let return_ty = self.fmap_ty(fn_ty.return_ty, f)?;
+                    let return_ty = self.fmap_term(fn_ty.return_ty, f)?;
                     Ok(Ty::from(
                         FnTy {
                             params,
@@ -304,7 +272,7 @@ impl TraversingUtils {
                     ))
                 }
                 Ty::RefTy(ref_ty) => {
-                    let ty = self.fmap_ty(ref_ty.ty, f)?;
+                    let ty = self.fmap_term(ref_ty.ty, f)?;
                     Ok(Ty::from(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }, origin))
                 }
                 Ty::DataTy(data_ty) => {
@@ -406,7 +374,7 @@ impl TraversingUtils {
                 new_params.push(Node::at(
                     Param {
                         name: param.name,
-                        ty: self.fmap_ty(param.ty, f)?,
+                        ty: self.fmap_term(param.ty, f)?,
                         default: param
                             .default
                             .map(|default| self.fmap_term(default, f))
@@ -478,7 +446,7 @@ impl TraversingUtils {
                 match fn_def.body {
                     FnBody::Defined(defined) => {
                         let params = self.fmap_params(fn_def.ty.params, f)?;
-                        let return_ty = self.fmap_ty(fn_def.ty.return_ty, f)?;
+                        let return_ty = self.fmap_term(fn_def.ty.return_ty, f)?;
                         let body = FnBody::Defined(self.fmap_term(defined, f)?);
 
                         let def = Node::create_at(
@@ -543,7 +511,7 @@ impl TraversingUtils {
                 Term::Return(return_term) => self.visit_term(return_term.expression, f),
                 Term::Decl(decl_stack_member_term) => {
                     self.visit_pat(decl_stack_member_term.bind_pat, f)?;
-                    self.visit_ty(decl_stack_member_term.ty, f)?;
+                    self.visit_term(decl_stack_member_term.ty, f)?;
                     let (Some(()) | None) =
                         decl_stack_member_term.value.map(|v| self.visit_term(v, f)).transpose()?;
                     Ok(())
@@ -560,30 +528,20 @@ impl TraversingUtils {
                 }
                 Term::Cast(cast_term) => {
                     self.visit_term(cast_term.subject_term, f)?;
-                    self.visit_ty(cast_term.target_ty, f)
+                    self.visit_term(cast_term.target_ty, f)
                 }
                 Term::TypeOf(type_of_term) => self.visit_term(type_of_term.term, f),
-                Term::Ty(ty) => self.visit_ty(ty, f),
                 Term::Ref(ref_term) => self.visit_term(ref_term.subject, f),
                 Term::Deref(deref_term) => self.visit_term(deref_term.subject, f),
                 Term::Hole(_) => Ok(()),
-            },
-        }
-    }
-
-    pub fn visit_ty<E, F: Visitor<E>>(&self, ty_id: TyId, f: &mut F) -> Result<(), E> {
-        match f(ty_id.into())? {
-            ControlFlow::Break(_) => Ok(()),
-            ControlFlow::Continue(()) => match *ty_id.value() {
-                Ty::Eval(eval_term) => self.visit_term(eval_term, f),
                 Ty::TupleTy(tuple_ty) => self.visit_params(tuple_ty.data, f),
                 Ty::FnTy(fn_ty) => {
                     self.visit_params(fn_ty.params, f)?;
-                    self.visit_ty(fn_ty.return_ty, f)
+                    self.visit_term(fn_ty.return_ty, f)
                 }
-                Ty::RefTy(ref_ty) => self.visit_ty(ref_ty.ty, f),
+                Ty::RefTy(ref_ty) => self.visit_term(ref_ty.ty, f),
                 Ty::DataTy(data_ty) => self.visit_args(data_ty.args, f),
-                Ty::Universe | Ty::Var(_) | Ty::Hole(_) => Ok(()),
+                Ty::Universe => Ok(()),
             },
         }
     }
@@ -624,7 +582,7 @@ impl TraversingUtils {
                 let fn_def = fn_def_id.value();
                 let fn_ty = fn_def.ty;
                 self.visit_params(fn_ty.params, f)?;
-                self.visit_ty(fn_ty.return_ty, f)?;
+                self.visit_term(fn_ty.return_ty, f)?;
 
                 match fn_def.body {
                     FnBody::Defined(defined) => self.visit_term(defined, f),
@@ -637,7 +595,6 @@ impl TraversingUtils {
     pub fn visit_atom<E, F: Visitor<E>>(&self, atom: Atom, f: &mut F) -> Result<(), E> {
         match atom {
             Atom::Term(term_id) => self.visit_term(term_id, f),
-            Atom::Ty(ty_id) => self.visit_ty(ty_id, f),
             Atom::FnDef(fn_def_id) => self.visit_fn_def(fn_def_id, f),
             Atom::Pat(pat_id) => self.visit_pat(pat_id, f),
         }
@@ -669,7 +626,7 @@ impl TraversingUtils {
 
     pub fn visit_params<E, F: Visitor<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
         for param in params_id.elements().value() {
-            self.visit_ty(param.ty, f)?;
+            self.visit_term(param.ty, f)?;
             if let Some(default) = param.default {
                 self.visit_term(default, f)?;
             }
@@ -741,7 +698,7 @@ impl TraversingUtils {
                 }
                 PrimitiveCtorInfo::Array(list_ctor_info) => {
                     // Traverse the inner type
-                    self.visit_ty(list_ctor_info.element_ty, f)?;
+                    self.visit_term(list_ctor_info.element_ty, f)?;
                     Ok(())
                 }
             },

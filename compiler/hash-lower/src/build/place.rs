@@ -10,7 +10,7 @@ use hash_tir::{
     arrays::IndexTerm,
     params::ParamIndex,
     refs::DerefTerm,
-    terms::{Term, TermId},
+    terms::{Term, TermId, Ty},
 };
 
 use super::{unpack, BlockAnd, BlockAndExtend, BodyBuilder};
@@ -157,7 +157,11 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Unsafe(_)
             | Term::Cast(_)
             | Term::TypeOf(_)
-            | Term::Ty(_)
+            | Ty::DataTy(_)
+            | Ty::FnTy(_)
+            | Ty::TupleTy(_)
+            | Ty::RefTy(_)
+            | Ty::Universe
             | Term::Ref(_)
             | Term::Hole(_) => {
                 // These expressions are not places, so we need to create a temporary

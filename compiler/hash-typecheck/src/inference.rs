@@ -38,10 +38,8 @@ use hash_tir::{
     sub::Sub,
     symbols::SymbolId,
     term_as_variant,
-    terms::{Term, TermId, TermListId, UnsafeTerm},
+    terms::{Term, TermId, TermListId, Ty, TyId, TypeOfTerm, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
-    ty_as_variant,
-    tys::{Ty, TyId, TypeOfTerm},
     utils::{common::dump_tir, traversing::Atom, AccessToUtils},
 };
 use hash_utils::derive_more::{Constructor, Deref};
@@ -133,7 +131,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for (arg, param_id) in args.zip(annotation_params.iter()) {
                     let param = param_id.value();
-                    let param_ty = self.sub_ops().copy_ty(param.ty);
+                    let param_ty = self.sub_ops().copy_term(param.ty);
                     infer_arg(&arg, param_ty)?;
                     self.sub_ops().apply_sub_to_atom_from_context(param_ty);
                     if let Some(value) = get_arg_value(&arg) {
@@ -337,7 +335,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for param_id in params.iter() {
                     let param = param_id.value();
-                    self.infer_ty(param.ty, Ty::universe_of(param.ty))?;
+                    self.infer_term(param.ty, Ty::universe_of(param.ty))?;
                     self.context().add_typing(param.name, param.ty);
                 }
 
@@ -359,14 +357,14 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// annotation type and return it (or to the inferred type if the annotation
     /// type is not given).
     pub fn check_by_unify(&self, inferred_ty: TyId, annotation_ty: TyId) -> TcResult<()> {
-        self.uni_ops().unify_tys(inferred_ty, annotation_ty)
+        self.uni_ops().unify_terms(inferred_ty, annotation_ty)
     }
 
     /// Check that the given type is well-formed, and normalise it.
     pub fn check_ty(&self, ty: TyId) -> TcResult<()> {
         match *ty.value() {
-            Ty::Hole(_) => Ok(()),
-            _ => self.infer_ty(ty, Ty::universe_of(ty)),
+            Ty::Universe | Ty::Hole(_) => Ok(()),
+            _ => self.infer_term(ty, Ty::universe_of(ty)),
         }
     }
 
@@ -375,7 +373,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         match *ty.value() {
             Ty::Hole(_) => Ok(()),
             _ => {
-                self.infer_ty(ty, Ty::universe_of(ty))?;
+                self.infer_term(ty, Ty::universe_of(ty))?;
                 let norm = self.norm_ops();
                 norm.normalise_in_place(ty.into())?;
                 Ok(())
@@ -578,10 +576,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             DataTy {
                                 data_def: primitives().list(),
                                 args: Arg::seq_positional(
-                                    [Term::from(
-                                        Ty::hole(NodeOrigin::Generated),
-                                        NodeOrigin::Generated,
-                                    )],
+                                    [Ty::hole(NodeOrigin::Generated)],
                                     NodeOrigin::Generated,
                                 ),
                             },
@@ -604,7 +599,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             self.infer_args(data.args, copied_params, |_| {
                                 let sub = self.sub_ops().create_sub_from_current_scope();
                                 let subbed_element_ty =
-                                    self.sub_ops().apply_sub_to_ty(array_prim.element_ty, &sub);
+                                    self.sub_ops().apply_sub_to_term(array_prim.element_ty, &sub);
                                 let subbed_index = array_prim
                                     .length
                                     .map(|l| self.sub_ops().apply_sub_to_term(l, &sub));
@@ -652,7 +647,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     DataTy {
                         data_def: primitives().list(),
                         args: Arg::seq_positional(
-                            [Term::from(list_annotation_inner_ty, NodeOrigin::Generated)],
+                            [list_annotation_inner_ty],
                             list_annotation_inner_ty.origin(),
                         ),
                     },
@@ -798,7 +793,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let uni_ops = self.uni_ops();
         uni_ops.with_binds(binds);
         uni_ops.add_unification_from_sub(&resulting_sub);
-        uni_ops.unify_tys(expected_data_ty, annotation_ty)?;
+        uni_ops.unify_terms(expected_data_ty, annotation_ty)?;
 
         // Now we gather the final substitution, and apply it to the result
         // arguments, the constructor data arguments, and finally the annotation
@@ -809,13 +804,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Set data args because they might have been updated again
         term.data_args = inferred_ctor_data_args;
         original_term_id.set(original_term_id.value().with_data(term.into()));
-        self.sub_ops().apply_sub_to_ty_in_place(annotation_ty, &final_sub);
+        self.sub_ops().apply_sub_to_term_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in term.data_args.iter().zip(subbed_ctor_result_args.iter())
         {
             let data_arg = data_arg.value();
             let result_data_arg = result_data_arg.value();
-            if let Some(ty) = data_arg.value.try_as_ty() && let Ty::Hole(_) = *ty.value() {
+            if let Ty::Hole(_) = *data_arg.value.value() {
                 data_arg.value.set(result_data_arg.value.value());
             }
         }
@@ -899,7 +894,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     }
 
                     let copied_params = self.sub_ops().copy_params(fn_ty.params);
-                    let copied_return_ty = self.sub_ops().copy_ty(fn_ty.return_ty);
+                    let copied_return_ty = self.sub_ops().copy_term(fn_ty.return_ty);
 
                     let mut fn_call_term = *fn_call_term;
                     self.infer_args(fn_call_term.args, copied_params, |inferred_fn_call_args| {
@@ -984,11 +979,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<FnTy> {
         let fn_def = fn_def_id.value();
         let fn_ty = Ty::from(fn_def.ty, fn_def_id.origin());
-        self.infer_ty(annotation_ty, Ty::universe_of(annotation_ty))?;
-        self.infer_ty(fn_ty, Ty::universe_of(fn_ty))?;
-        self.uni_ops().unify_tys(fn_ty, annotation_ty)?;
+        self.infer_term(annotation_ty, Ty::universe_of(annotation_ty))?;
+        self.infer_term(fn_ty, Ty::universe_of(fn_ty))?;
+        self.uni_ops().unify_terms(fn_ty, annotation_ty)?;
 
-        let fn_ty_value = ty_as_variant!(self, *fn_ty.value(), FnTy);
+        let fn_ty_value = term_as_variant!(self, fn_ty.value(), FnTy);
         fn_def_id.borrow_mut().ty = fn_ty_value;
 
         Ok(fn_ty_value)
@@ -1020,7 +1015,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // If we are only inferring the header, then we also want to check for
             // immediate body functions.
             self.infer_params(fn_def.ty.params, || {
-                self.infer_ty(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+                self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let FnBody::Defined(fn_body) = fn_def.body {
                     if let Term::FnRef(immediate_body_fn) = *fn_body.value() {
                         self.infer_fn_def(
@@ -1049,7 +1044,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             FnBody::Defined(fn_body) => {
                 self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
                     self.infer_params(fn_def.ty.params, || {
-                        self.infer_ty(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+                        self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                         self.infer_term(fn_body, fn_def.ty.return_ty)
                     })
                 })?;
@@ -1070,9 +1065,9 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         match self.context().try_get_decl(term) {
             Some(decl) => {
                 if let Some(ty) = decl.ty {
-                    let ty = self.sub_ops().copy_ty(ty);
+                    let ty = self.sub_ops().copy_term(ty);
                     self.check_ty(ty)?;
-                    self.uni_ops().unify_tys(ty, annotation_ty)?;
+                    self.uni_ops().unify_terms(ty, annotation_ty)?;
                     Ok(())
                 } else if decl.value.is_some() {
                     panic!("no type found for decl '{}'", decl)
@@ -1126,49 +1121,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         };
 
         self.check_by_unify(dereferenced_ty, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer the type of a type, and return it.
-    pub fn infer_ty(&self, ty_id: TyId, annotation_ty: TyId) -> TcResult<()> {
-        // @@Todo: properly deal with universes
-        self.register_new_atom(ty_id, annotation_ty);
-        // @@MissingOrigin
-        let inner_is_ty = |ty: TyId| Ty::expect_same(ty, Ty::universe(NodeOrigin::Generated));
-        let expects_ty = |ty: TyId| self.check_by_unify(ty, inner_is_ty(ty));
-
-        match *ty_id.value() {
-            Ty::Eval(eval) => {
-                self.infer_term(eval, annotation_ty)?;
-            }
-            Ty::Var(var) => self.infer_var(var, annotation_ty)?,
-            Ty::TupleTy(tuple_ty) => self.infer_params(tuple_ty.data, || Ok(()))?,
-            Ty::FnTy(fn_ty) => self.infer_params(fn_ty.params, || {
-                self.infer_ty(fn_ty.return_ty, inner_is_ty(fn_ty.return_ty))
-            })?,
-            Ty::RefTy(ref_ty) => {
-                // Infer the inner type
-                self.infer_ty(ref_ty.ty, inner_is_ty(ref_ty.ty))?;
-            }
-            Ty::DataTy(mut data_ty) => {
-                let data_def = data_ty.data_def.value();
-                let copied_params = self.sub_ops().copy_params(data_def.params);
-                self.infer_args(data_ty.args, copied_params, |inferred_data_ty_args| {
-                    data_ty.args = inferred_data_ty_args;
-                    ty_id.set(ty_id.value().with_data(data_ty.into()));
-                    Ok(())
-                })?
-            }
-            Ty::Universe => {}
-            Ty::Hole(_) => {}
-        };
-
-        // Ensure it is a type
-        expects_ty(annotation_ty)?;
-
-        self.register_atom_inference(ty_id, ty_id, annotation_ty);
-        self.potentially_dump_tir(ty_id);
-
         Ok(())
     }
 
@@ -1257,7 +1209,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             };
 
             let sub = self.sub_ops().create_sub_from_current_scope();
-            self.sub_ops().apply_sub_to_ty_in_place(annotation_ty, &sub);
+            self.sub_ops().apply_sub_to_term_in_place(annotation_ty, &sub);
 
             let sub_ops = self.sub_ops();
             let vars_in_scope = sub_ops.get_unassigned_vars_in_current_scope();
@@ -1270,7 +1222,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     }
 
     /// Infer a `typeof` term, and return it.
-    pub fn infer_type_of_term(
+    pub fn infer_termpe_of_term(
         &self,
         type_of_term: TypeOfTerm,
         annotation_ty: TyId,
@@ -1278,7 +1230,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         let inferred_ty = Ty::hole_for(type_of_term.term);
         self.infer_term(type_of_term.term, inferred_ty)?;
-        self.infer_ty(inferred_ty, annotation_ty)?;
+        self.infer_term(inferred_ty, annotation_ty)?;
         self.norm_ops().normalise_in_place(original_term_id.into())?;
         Ok(())
     }
@@ -1402,7 +1354,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let param_access_sub =
                 self.sub_ops().create_sub_from_param_access(params, access_term.subject);
             let subbed_param_ty =
-                self.sub_ops().apply_sub_to_ty(param.borrow().ty, &param_access_sub);
+                self.sub_ops().apply_sub_to_term(param.borrow().ty, &param_access_sub);
             self.check_by_unify(subbed_param_ty, annotation_ty)?;
             Ok(())
         } else {
@@ -1452,7 +1404,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     let sub = self
                         .sub_ops()
                         .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                    let array_ty = self.sub_ops().apply_sub_to_ty(array_primitive.element_ty, &sub);
+                    let array_ty =
+                        self.sub_ops().apply_sub_to_term(array_primitive.element_ty, &sub);
                     Ok(array_ty)
                 } else {
                     wrong_subject_ty()
@@ -1507,11 +1460,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         for case in match_term.cases.iter() {
             let case_data = case.value();
             self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
-                let subject_ty_copy = self.sub_ops().copy_ty(match_subject_ty);
+                let subject_ty_copy = self.sub_ops().copy_term(match_subject_ty);
 
                 self.infer_pat(case_data.bind_pat, subject_ty_copy, Some(match_term.subject))?;
                 let new_unified_ty =
-                    Ty::expect_is(case_data.value, self.sub_ops().copy_ty(unified_ty));
+                    Ty::expect_is(case_data.value, self.sub_ops().copy_term(unified_ty));
 
                 if let Some(match_subject_var) = match_subject_var {
                     if let Some(pat_term) = self.try_use_pat_as_term(case_data.bind_pat) {
@@ -1535,7 +1488,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         self.infer_term(case_data.value, new_unified_ty)?;
                         if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
                             inhabited.set(true);
-                            self.uni_ops().unify_tys(new_unified_ty, unified_ty)?;
+                            self.uni_ops().unify_terms(new_unified_ty, unified_ty)?;
                             unified_ty = new_unified_ty;
                         }
                     }
@@ -1573,9 +1526,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     ///
     /// If this is not possible, return `None`.
     /// To create a hole when this is not possible, use
-    /// [`InferOps::infer_ty_of_term_or_hole`].
+    /// [`InferOps::infer_term_of_term_or_hole`].
     pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
         self.register_new_atom(term_id, annotation_ty);
+
+        // @@MissingOrigin
+        let inner_is_ty = |ty: TyId| Ty::expect_same(ty, Ty::universe(NodeOrigin::Generated));
+        let expects_ty = |ty: TyId| self.check_by_unify(ty, inner_is_ty(ty));
 
         match *term_id.value() {
             Term::Tuple(tuple_term) => {
@@ -1594,7 +1551,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Return(return_term) => {
                 self.infer_return_term(&return_term, annotation_ty, term_id)?
             }
-            Term::Ty(ty_id) => self.infer_ty(ty_id, annotation_ty)?,
             Term::Deref(deref_term) => self.infer_deref_term(&deref_term, annotation_ty)?,
             Term::LoopControl(loop_control_term) => {
                 self.infer_loop_control_term(&loop_control_term, annotation_ty)?
@@ -1605,7 +1561,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 self.infer_block_term(&block_term, annotation_ty, term_id)?
             }
             Term::TypeOf(ty_of_term) => {
-                self.infer_type_of_term(ty_of_term, annotation_ty, term_id)?
+                self.infer_termpe_of_term(ty_of_term, annotation_ty, term_id)?
             }
             Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
             Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
@@ -1621,6 +1577,34 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 self.infer_assign_term(&assign_term, annotation_ty, term_id)?
             }
             Term::Hole(_) => {}
+            Ty::TupleTy(tuple_ty) => {
+                self.infer_params(tuple_ty.data, || Ok(()))?;
+                expects_ty(annotation_ty)?;
+            }
+            Ty::FnTy(fn_ty) => {
+                self.infer_params(fn_ty.params, || {
+                    self.infer_term(fn_ty.return_ty, inner_is_ty(fn_ty.return_ty))
+                })?;
+                expects_ty(annotation_ty)?;
+            }
+            Ty::RefTy(ref_ty) => {
+                // Infer the inner type
+                self.infer_term(ref_ty.ty, inner_is_ty(ref_ty.ty))?;
+                expects_ty(annotation_ty)?;
+            }
+            Ty::DataTy(mut data_ty) => {
+                let data_def = data_ty.data_def.value();
+                let copied_params = self.sub_ops().copy_params(data_def.params);
+                self.infer_args(data_ty.args, copied_params, |inferred_data_ty_args| {
+                    data_ty.args = inferred_data_ty_args;
+                    term_id.set(term_id.value().with_data(data_ty.into()));
+                    Ok(())
+                })?;
+                expects_ty(annotation_ty)?;
+            }
+            Ty::Universe => {
+                expects_ty(annotation_ty)?;
+            }
         };
 
         self.check_ty(annotation_ty)?;
@@ -1693,8 +1677,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Ty::DataTy(data) if data.data_def == primitives().list() => {
                 // Type is already checked
                 assert!(data.args.len() == 1);
-                let inner_term = ArgId(data.args.elements(), 0).borrow().value;
-                term_as_variant!(self, inner_term.value(), Ty)
+
+                ArgId(data.args.elements(), 0).borrow().value
             }
             Ty::Hole(_) => Ty::hole(list_pat.pats.origin()),
             _ => {
@@ -1706,10 +1690,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             DataTy {
                                 data_def: primitives().list(),
                                 args: Arg::seq_positional(
-                                    [Term::from(
-                                        Ty::hole(NodeOrigin::Generated),
-                                        NodeOrigin::Generated,
-                                    )],
+                                    [Ty::hole(NodeOrigin::Generated)],
                                     NodeOrigin::Generated,
                                 ),
                             },
@@ -1724,7 +1705,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let list_ty = DataTy {
             data_def: primitives().list(),
             args: Arg::seq_positional(
-                [Term::from(list_annotation_inner_ty, list_annotation_inner_ty.origin())],
+                [list_annotation_inner_ty],
                 list_annotation_inner_ty.origin(),
             ),
         };
@@ -1834,7 +1815,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let uni_ops = self.uni_ops();
         uni_ops.with_binds(binds);
         uni_ops.add_unification_from_sub(&resulting_sub);
-        uni_ops.unify_tys(expected_data_ty, annotation_ty)?;
+        uni_ops.unify_terms(expected_data_ty, annotation_ty)?;
 
         // Now we gather the final substitution, and apply it to the result
         // arguments, the constructor data arguments, and finally the annotation
@@ -1846,15 +1827,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Set data args because they might have been updated again
         pat.data_args = inferred_ctor_data_args;
         original_pat_id.set(original_pat_id.value().with_data(pat.into()));
-        self.sub_ops().apply_sub_to_ty_in_place(annotation_ty, &final_sub);
+        self.sub_ops().apply_sub_to_term_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in pat.data_args.iter().zip(subbed_ctor_result_args.iter())
         {
             let data_arg = data_arg.value();
             let result_data_arg = result_data_arg.value();
-            if let Some(ty) = data_arg.value.try_as_ty()
-                && let Ty::Hole(_) = *ty.value()
-            {
+            if let Ty::Hole(_) = *data_arg.value.value() {
                 data_arg.value.set(result_data_arg.value.value());
             }
         }
@@ -1931,7 +1910,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args },
                 ctor.origin(),
             );
-            self.infer_ty(return_ty, Ty::universe_of(return_ty))?;
+            self.infer_term(return_ty, Ty::universe_of(return_ty))?;
             Ok(())
         })
     }
@@ -1965,7 +1944,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                         }
                         PrimitiveCtorInfo::Array(array_ctor_info) => {
                             // Infer the inner type and length
-                            self.infer_ty(
+                            self.infer_term(
                                 array_ctor_info.element_ty,
                                 Ty::universe_of(array_ctor_info.element_ty),
                             )?;

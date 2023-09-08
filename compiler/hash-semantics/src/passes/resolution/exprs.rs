@@ -33,9 +33,8 @@ use hash_tir::{
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
     term_as_variant,
-    terms::{Term, TermId, UnsafeTerm},
+    terms::{Term, TermId, Ty, TypeOfTerm, UnsafeTerm},
     tuples::TupleTerm,
-    tys::{Ty, TypeOfTerm},
 };
 use hash_utils::itertools::Itertools;
 
@@ -136,7 +135,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Expr::Access(access_expr) => {
                 self.make_term_from_ast_access_expr(node.with_body(access_expr))?
             }
-            ast::Expr::Ty(expr_ty) => self.make_term_from_ast_ty_expr(node.with_body(expr_ty))?,
+            ast::Expr::Ty(expr_ty) => self.make_ty_from_ast_ty(expr_ty.ty.ast_ref())?,
             ast::Expr::Macro(invocation) => {
                 self.make_term_from_ast_macro_invocation_expr(node.with_body(invocation))?
             }
@@ -331,10 +330,7 @@ impl<'tc> ResolutionPass<'tc> {
                     NonTerminalResolvedPathComponent::Data(data_def_id, data_def_args) => {
                         // Data type
                         Ok(Term::from(
-                            Term::Ty(Ty::from(
-                                Ty::DataTy(DataTy { data_def: *data_def_id, args: *data_def_args }),
-                                origin,
-                            )),
+                            Ty::DataTy(DataTy { data_def: *data_def_id, args: *data_def_args }),
                             origin,
                         ))
                     }
@@ -438,12 +434,6 @@ impl<'tc> ResolutionPass<'tc> {
                 ))
             }
         }
-    }
-
-    /// Make a term from an [`ast::TyExpr`].
-    fn make_term_from_ast_ty_expr(&self, node: AstNodeRef<ast::TyExpr>) -> SemanticResult<TermId> {
-        let ty = self.make_ty_from_ast_ty(node.ty.ast_ref())?;
-        Ok(ty.as_term())
     }
 
     /// Make a term from an [`ast::DirectiveExpr`].
@@ -1011,16 +1001,11 @@ impl<'tc> ResolutionPass<'tc> {
             ast::BinOp::Div => (self.intrinsics().endo_bin_op(), EndoBinOp::Div.into()),
             ast::BinOp::Mod => (self.intrinsics().endo_bin_op(), EndoBinOp::Mod.into()),
             ast::BinOp::As => {
-                return Ok(Term::from(
-                    CastTerm { subject_term: lhs, target_ty: rhs.as_ty() },
-                    origin,
-                ));
+                return Ok(Term::from(CastTerm { subject_term: lhs, target_ty: rhs }, origin));
             }
             ast::BinOp::Merge => {
                 let args = Arg::seq_positional([typeof_lhs, lhs, rhs], origin);
-                return Ok(
-                    Ty::from(DataTy { data_def: primitives().equal(), args }, origin).as_term()
-                );
+                return Ok(Ty::from(DataTy { data_def: primitives().equal(), args }, origin));
             }
         };
 

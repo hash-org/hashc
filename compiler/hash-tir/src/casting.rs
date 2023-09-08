@@ -1,7 +1,8 @@
 //! Definitions related to type casting and coercion.
 use core::fmt;
 
-use super::{terms::TermId, tys::TyId};
+use super::terms::TermId;
+use crate::terms::TyId;
 
 /// Cast a given term to a given type. See [`CastKind`].
 ///

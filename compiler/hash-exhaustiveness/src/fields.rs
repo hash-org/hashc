@@ -12,8 +12,8 @@ use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataTy},
     node::NodesId,
+    terms::{Ty, TyId},
     tuples::TupleTy,
-    tys::{Ty, TyId},
 };
 use hash_utils::itertools::Itertools;
 

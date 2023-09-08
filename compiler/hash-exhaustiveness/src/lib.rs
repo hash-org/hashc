@@ -75,7 +75,7 @@ use hash_storage::store::CloneStore;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
     pats::PatId,
-    tys::TyId,
+    terms::TyId,
 };
 use storage::{
     DeconstructedCtorId, DeconstructedCtorStore, DeconstructedPatId, DeconstructedPatStore,

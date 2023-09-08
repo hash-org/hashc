@@ -17,7 +17,6 @@ use utility_types::omit;
 use super::{
     args::{ArgsId, PatArgsId},
     pats::Spread,
-    tys::TyId,
 };
 use crate::{
     args::Arg,
@@ -26,7 +25,7 @@ use crate::{
     params::ParamsId,
     pats::PatArgsWithSpread,
     symbols::SymbolId,
-    terms::TermId,
+    terms::{TermId, TyId},
     tir_node_sequence_store_direct, tir_node_single_store,
 };
 

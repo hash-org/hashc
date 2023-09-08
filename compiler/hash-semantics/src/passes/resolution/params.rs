@@ -12,8 +12,7 @@ use hash_tir::{
     node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
-    terms::{Term, TermId},
-    tys::Ty,
+    terms::{Term, TermId, Ty},
 };
 
 use super::ResolutionPass;

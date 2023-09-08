@@ -15,9 +15,8 @@ use hash_tir::{
     node::{Node, NodeOrigin},
     scopes::Stack,
     symbols::SymbolId,
-    terms::Term,
+    terms::{Term, Ty},
     tuples::TupleTy,
-    tys::Ty,
 };
 use hash_utils::itertools::Itertools;
 

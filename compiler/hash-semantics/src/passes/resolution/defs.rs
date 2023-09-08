@@ -13,7 +13,7 @@ use hash_tir::{
     environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberValue},
     node::NodesId,
-    tys::Ty,
+    terms::Ty,
 };
 
 use super::{scoping::ContextKind, ResolutionPass};

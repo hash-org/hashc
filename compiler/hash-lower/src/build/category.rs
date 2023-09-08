@@ -1,7 +1,7 @@
 //! Defines a category of AST expressions which can be used to determine how to
 //! lower them throughout the lowering stage.
 
-use hash_tir::terms::Term;
+use hash_tir::terms::{Term, Ty};
 
 /// A [Category] represents what category [ast::Expr]s belong to
 /// when they are being lowered. Depending on the category, we
@@ -65,7 +65,11 @@ impl Category {
             | Term::Array(_)
             | Term::Cast(_)
             | Term::TypeOf(_)
-            | Term::Ty(_)
+            | Ty::DataTy(_)
+            | Ty::FnTy(_)
+            | Ty::TupleTy(_)
+            | Ty::RefTy(_)
+            | Ty::Universe
             | Term::Hole(_) => Category::RValue(RValueKind::As),
         }
     }

@@ -21,9 +21,9 @@ use hash_tir::{
     pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,
     symbols::SymbolId,
+    term_as_variant,
+    terms::{Ty, TyId},
     tuples::{TuplePat, TupleTy},
-    ty_as_variant,
-    tys::{Ty, TyId},
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
@@ -113,7 +113,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             Pat::Tuple(TuplePat { data, .. }) => {
                 // We need to read the tuple type from the ctx type and then create
                 // wildcard fields for all of the inner types
-                let tuple_ty = ty_as_variant!(ty, *ty_id.value(), TupleTy);
+                let tuple_ty = term_as_variant!(ty, ty_id.value(), TupleTy);
                 let fields = self.deconstruct_pat_fields(data, tuple_ty.data);
 
                 // Create wild-cards for all of the tuple inner members

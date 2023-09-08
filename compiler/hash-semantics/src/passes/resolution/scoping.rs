@@ -13,8 +13,8 @@ use hash_tir::{
     params::ParamId,
     scopes::StackId,
     symbols::SymbolId,
+    term_as_variant,
     tuples::TupleTy,
-    ty_as_variant,
 };
 use hash_utils::state::HeavyState;
 
@@ -351,7 +351,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let fn_ty = ty_as_variant!(self, *fn_ty_id.value(), FnTy);
+        let fn_ty = term_as_variant!(self, fn_ty_id.value(), FnTy);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
 
@@ -362,7 +362,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let fn_ty = ty_as_variant!(self, *fn_ty_id.value(), FnTy);
+        let fn_ty = term_as_variant!(self, fn_ty_id.value(), FnTy);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
 
@@ -373,7 +373,7 @@ impl<'tc> Scoping<'tc> {
         f: impl FnOnce(TupleTy) -> T,
     ) -> T {
         let tuple_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
-        let tuple_ty = ty_as_variant!(self, *tuple_ty_id.value(), TupleTy);
+        let tuple_ty = term_as_variant!(self, tuple_ty_id.value(), TupleTy);
         self.enter_scope(ContextKind::Environment, || f(tuple_ty))
     }
 

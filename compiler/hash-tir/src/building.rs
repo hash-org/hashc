@@ -18,8 +18,7 @@ pub mod gen {
         pats::{Pat, PatId},
         primitives::primitives,
         symbols::SymbolId,
-        terms::{Term, TermId},
-        tys::{Ty, TyId},
+        terms::{Term, TermId, Ty, TyId},
     };
 
     /// Create a symbol with the given name.

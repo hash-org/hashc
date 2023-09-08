@@ -15,7 +15,7 @@ use hash_tir::{
     data::{CtorDefId, DataTy},
     node::NodesId,
     pats::PatId,
-    tys::{Ty, TyId},
+    terms::{Ty, TyId},
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 

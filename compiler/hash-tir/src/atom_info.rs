@@ -10,11 +10,11 @@ use super::{
     params::ParamsId,
     pats::PatId,
     terms::TermId,
-    tys::TyId,
 };
 use crate::{
     environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
+    terms::TyId,
 };
 
 macro_rules! atom_info {
@@ -62,7 +62,6 @@ macro_rules! atom_info {
 // Each stored atom, its value and its type:
 atom_info! {
     terms: <TermId, TyId>,
-    tys: <TyId, TyId>,
     pats: <PatId, TyId>,
     args: <ArgsId, ParamsId>,
     pat_args: <PatArgsId, ParamsId>,

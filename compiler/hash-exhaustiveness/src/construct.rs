@@ -31,8 +31,8 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store};
 use hash_tir::{
     data::{CtorDefId, DataTy},
     node::NodesId,
+    terms::Ty,
     tuples::TupleTy,
-    tys::Ty,
 };
 use hash_utils::smallvec::{smallvec, SmallVec};
 

@@ -24,9 +24,8 @@ use crate::{
     node::{Node, NodeOrigin},
     pats::PatId,
     symbols::SymbolId,
-    terms::{TermId, TermListId},
+    terms::{TermId, TermListId, TyId},
     tir_node_single_store,
-    tys::TyId,
 };
 
 /// A binding pattern, which is essentially a declaration left-hand side.

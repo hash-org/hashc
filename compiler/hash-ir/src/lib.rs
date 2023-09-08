@@ -28,7 +28,7 @@ use hash_storage::{store::SequenceStoreKey, stores};
 use hash_tir::{
     data::{DataDefId, DataTy},
     fns::FnDefId,
-    tys::TyId,
+    terms::TyId,
 };
 use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;

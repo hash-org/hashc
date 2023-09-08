@@ -19,8 +19,7 @@ use hash_tir::{
     params::ParamIndex,
     primitives::primitives,
     refs::{RefKind, RefTy},
-    terms::Term,
-    tys::{Ty, TyId, TypeOfTerm},
+    terms::{Term, Ty, TyId, TypeOfTerm},
 };
 
 use super::{
@@ -55,7 +54,7 @@ impl<'tc> ResolutionPass<'tc> {
                             .as_ref()
                             .map(|name| ParamIndex::Name(name.ident))
                             .unwrap_or_else(|| ParamIndex::Position(i)),
-                        value: self.make_ty_from_ast_ty(arg.ty.ast_ref())?.as_term(),
+                        value: self.make_ty_from_ast_ty(arg.ty.ast_ref())?,
                     },
                     NodeOrigin::Given(arg.id()),
                 ))
@@ -137,7 +136,7 @@ impl<'tc> ResolutionPass<'tc> {
             },
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(fn_def_id) => {
-                    Ok(Term::from(Term::FnRef(*fn_def_id), origin).as_ty())
+                    Ok(Term::from(Term::FnRef(*fn_def_id), origin))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
@@ -147,10 +146,10 @@ impl<'tc> ResolutionPass<'tc> {
                     )
                 }
                 TerminalResolvedPathComponent::CtorTerm(ctor_term) => {
-                    Ok(Term::from(Term::Ctor(**ctor_term), origin).as_ty())
+                    Ok(Term::from(Term::Ctor(**ctor_term), origin))
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                    Ok(Term::from(Term::FnCall(**fn_call_term), origin).as_ty())
+                    Ok(Term::from(Term::FnCall(**fn_call_term), origin))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     Ok(Ty::from(Ty::Var(*bound_var), origin))
@@ -221,8 +220,7 @@ impl<'tc> ResolutionPass<'tc> {
                     (Some(subject), Some(args)) => Ok(Term::from(
                         Term::FnCall(FnCallTerm { subject, args, implicit: true }),
                         NodeOrigin::Given(node.id()),
-                    )
-                    .as_ty()),
+                    )),
                     _ => Err(SemanticError::Signal),
                 }
             }
@@ -253,7 +251,7 @@ impl<'tc> ResolutionPass<'tc> {
                     Ty::DataTy(DataTy {
                         data_def: primitives().array(),
                         args: Arg::seq_positional(
-                            [inner_ty.as_term(), length_term],
+                            [inner_ty, length_term],
                             NodeOrigin::Given(node.id()),
                         ),
                     }),
@@ -263,10 +261,7 @@ impl<'tc> ResolutionPass<'tc> {
             None => Ok(Ty::from(
                 Ty::DataTy(DataTy {
                     data_def: primitives().list(),
-                    args: Arg::seq_positional(
-                        once(inner_ty.as_term()),
-                        NodeOrigin::Given(node.id()),
-                    ),
+                    args: Arg::seq_positional(once(inner_ty), NodeOrigin::Given(node.id())),
                 }),
                 NodeOrigin::Given(node.id()),
             )),
@@ -370,12 +365,8 @@ impl<'tc> ResolutionPass<'tc> {
     ) -> SemanticResult<TyId> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
-        let typeof_lhs =
-            Term::from(TypeOfTerm { term: lhs.as_term() }, NodeOrigin::Given(node.id()));
-        let args = Arg::seq_positional(
-            vec![typeof_lhs, lhs.as_term(), rhs.as_term()],
-            NodeOrigin::Given(node.id()),
-        );
+        let typeof_lhs = Term::from(TypeOfTerm { term: lhs }, NodeOrigin::Given(node.id()));
+        let args = Arg::seq_positional(vec![typeof_lhs, lhs, rhs], NodeOrigin::Given(node.id()));
         Ok(Ty::from(DataTy { data_def: primitives().equal(), args }, NodeOrigin::Given(node.id())))
     }
 
@@ -400,10 +391,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?,
             ast::Ty::Merge(merge_ty) => self.make_ty_from_merge_ty(node.with_body(merge_ty))?,
             ast::Ty::Macro(invocation) => self.make_ty_from_ast_ty(invocation.subject.ast_ref())?,
-            ast::Ty::Expr(expr) => {
-                let expr = self.make_term_from_ast_expr(expr.expr.ast_ref())?;
-                Ty::from(expr, NodeOrigin::Given(node.id()))
-            }
+            ast::Ty::Expr(expr) => self.make_term_from_ast_expr(expr.expr.ast_ref())?,
             ast::Ty::Union(_) => {
                 panic_on_span!(node.span(), self.source_map(), "Found union type after discovery")
             }

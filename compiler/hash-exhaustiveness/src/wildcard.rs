@@ -9,7 +9,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequ
 use hash_target::size::Size;
 use hash_tir::{
     data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
-    tys::Ty,
+    terms::Ty,
 };
 use hash_utils::smallvec::{smallvec, SmallVec};
 

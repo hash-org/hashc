@@ -16,8 +16,7 @@ use hash_tir::{
     node::{HasAstNodeId, NodeId, NodeOrigin},
     params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
     pats::PatId,
-    terms::TermId,
-    tys::TyId,
+    terms::{TermId, TyId},
     utils::{params::ParamError, traversing::Atom},
 };
 use hash_utils::derive_more::{Constructor, From};

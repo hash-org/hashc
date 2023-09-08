@@ -14,8 +14,7 @@ use hash_tir::{
     pats::{Pat, PatId},
     primitives::primitives,
     refs::{RefKind, RefTy},
-    terms::{Term, TermId},
-    tys::{Ty, TyId},
+    terms::{Term, TermId, Ty, TyId},
 };
 
 /// Primitive literal types.

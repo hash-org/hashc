@@ -20,8 +20,7 @@ use hash_tir::{
     node::{Node, NodeOrigin},
     params::ParamIndex,
     primitives::primitives,
-    terms::Term,
-    tys::{Ty, TyId},
+    terms::{Term, Ty, TyId},
     utils::params::ParamUtils,
 };
 

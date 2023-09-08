@@ -9,28 +9,35 @@ use hash_storage::store::{
 };
 use hash_utils::derive_more::From;
 
-use super::{casting::CastTerm, holes::Hole, symbols::SymbolId, tys::TypeOfTerm};
+use super::{casting::CastTerm, holes::Hole, symbols::SymbolId};
 use crate::{
     access::AccessTerm,
     args::Arg,
     arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    data::CtorTerm,
+    data::{CtorTerm, DataDefId, DataTy},
     environment::stores::tir_stores,
-    fns::{FnCallTerm, FnDefId},
+    fns::{FnCallTerm, FnDefId, FnTy},
     lits::LitId,
     node::{Node, NodeId, NodeOrigin},
-    refs::{DerefTerm, RefTerm},
+    params::Param,
+    refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm, DeclTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
-    tuples::TupleTerm,
-    tys::{Ty, TyId},
+    tuples::{TupleTerm, TupleTy},
+    utils::traversing::Atom,
 };
 
 /// A term that can contain unsafe operations.
 #[derive(Debug, Clone, Copy)]
 pub struct UnsafeTerm {
     pub inner: TermId,
+}
+
+/// Infer the type of the given term, returning its type.
+#[derive(Debug, Clone, Copy)]
+pub struct TypeOfTerm {
+    pub term: TermId,
 }
 
 /// A term in a Hash program.
@@ -85,14 +92,27 @@ pub enum Term {
 
     // Casting
     Cast(CastTerm),
-
-    // Types
     TypeOf(TypeOfTerm),
-    Ty(TyId),
 
     // References
     Ref(RefTerm),
     Deref(DerefTerm),
+
+    // Types
+    /// Tuple type
+    TupleTy(TupleTy),
+
+    /// Function type
+    FnTy(FnTy),
+
+    /// Reference type
+    RefTy(RefTy),
+
+    /// A user-defined data type
+    DataTy(DataTy),
+
+    /// The universe type
+    Universe,
 
     /// Holes
     Hole(Hole),
@@ -100,6 +120,10 @@ pub enum Term {
 
 tir_node_single_store!(Term);
 tir_node_sequence_store_indirect!(TermList[TermId]);
+
+pub type Ty = Term;
+pub type TyId = TermId;
+pub type TyListId = TermListId;
 
 impl Term {
     pub fn is_void(&self) -> bool {
@@ -138,25 +162,58 @@ impl Term {
     pub fn inherited_from(source: TermId, term: impl Into<Term>) -> TermId {
         Self::from(term, source.origin())
     }
-}
 
-impl TermId {
-    /// Try to use the given term as a type, or defer to a `Ty::Eval`.
-    pub fn as_ty(&self) -> TyId {
-        match self.try_as_ty() {
-            Some(ty) => ty,
-            None => Ty::from(Ty::Eval(*self), self.origin()),
-        }
+    /// Create a type of types, with a flexible universe size, for the given
+    /// type node.
+    ///
+    /// This is the default when `Type` is used in a type signature.
+    pub fn universe_of(node: impl Into<Atom>) -> TyId {
+        let node = node.into();
+        Ty::universe(node.origin().inferred())
     }
 
-    /// Try to use the given term as a type if easily possible.
-    pub fn try_as_ty(&self) -> Option<TyId> {
-        match *self.value() {
-            Term::Var(var) => Some(Ty::from(var, self.origin())),
-            Term::Ty(ty) => Some(ty),
-            Term::Hole(hole) => Some(Ty::from(hole, self.origin())),
-            _ => None,
-        }
+    /// Create a type of types.
+    pub fn universe(origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(Ty::Universe, origin))
+    }
+
+    /// Create a new empty tuple type.
+    pub fn unit_ty(origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(
+            Ty::TupleTy(TupleTy {
+                data: Node::create(Node::at(Node::<Param>::empty_seq(), origin)),
+            }),
+            origin,
+        ))
+    }
+
+    /// Create a new data type with no arguments.
+    pub fn data_ty(data_def: DataDefId, origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(
+            Ty::DataTy(DataTy {
+                data_def,
+                args: Node::create(Node::at(Node::<Arg>::empty_seq(), origin)),
+            }),
+            origin,
+        ))
+    }
+
+    /// Create a new expected type for typing the given term.
+    pub fn expect_same(_ty: TyId, expectation: TyId) -> TyId {
+        expectation
+    }
+
+    /// Create a new expected type for typing the given term.
+    pub fn expect_is(atom: impl Into<Atom>, ty: TyId) -> TyId {
+        ty.borrow_mut().origin = atom.into().origin().inferred();
+        ty
+    }
+
+    /// Create a new type hole for typing the given atom.
+    pub fn hole_for(src: impl Into<Atom>) -> TyId {
+        let src = src.into();
+        let ty = Ty::hole(src.origin().inferred());
+        Ty::expect_is(src, ty)
     }
 }
 
@@ -198,7 +255,6 @@ impl fmt::Display for Term {
             Term::Access(access_term) => write!(f, "{}", access_term),
             Term::Cast(cast_term) => write!(f, "{}", cast_term),
             Term::TypeOf(type_of_term) => write!(f, "{}", type_of_term),
-            Term::Ty(ty) => write!(f, "type {}", *ty),
             Term::Ref(ref_term) => write!(f, "{}", ref_term),
             Term::Deref(deref_term) => write!(f, "{}", deref_term),
             Term::Hole(hole) => write!(f, "{}", *hole),
@@ -208,6 +264,11 @@ impl fmt::Display for Term {
             Term::Array(array) => {
                 write!(f, "{}", array)
             }
+            Ty::TupleTy(tuple_ty) => write!(f, "{}", tuple_ty),
+            Ty::FnTy(fn_ty) => write!(f, "{}", fn_ty),
+            Ty::RefTy(ref_ty) => write!(f, "{}", ref_ty),
+            Ty::DataTy(data_ty) => write!(f, "{}", data_ty),
+            Ty::Universe => write!(f, "Type"),
         }
     }
 }
@@ -227,5 +288,11 @@ impl fmt::Display for TermListId {
             write!(f, "{}", term)?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Display for TypeOfTerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "typeof {}", self.term)
     }
 }
