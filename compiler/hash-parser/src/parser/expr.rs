@@ -654,13 +654,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let arg = self.parse_expr()?;
                 Expr::Unsafe(UnsafeExpr { data: arg })
             }
-            TokenKind::Keyword(Keyword::TypeOf) => {
-                let expr = self.parse_expr()?;
-                Expr::UnaryExpr(UnaryExpr {
-                    expr,
-                    operator: self.node_with_span(UnOp::TypeOf, start),
-                })
-            }
 
             kind => panic!("Expected token to be a unary operator, but got '{kind}'"),
         };

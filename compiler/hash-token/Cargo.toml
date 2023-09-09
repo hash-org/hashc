@@ -7,9 +7,13 @@ edition = "2021"
 [lib]
 doctest = false
 
+[build-dependencies]
+cc = "1.0.69"
+
 [dependencies]
+num-derive = "0.4.0"
+num-traits = "0.2.16"
 strum_macros = "0.21"
-phf = { version = "0.11", features = ["macros"] }
 
 hash-utils = { path = "../hash-utils" }
 hash-source = {path = "../hash-source" }
