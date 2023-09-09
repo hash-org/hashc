@@ -17,7 +17,7 @@ use crate::{
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::{CtorTerm, DataDefId, DataTy},
     environment::stores::tir_stores,
-    fns::{FnCallTerm, FnDefId, FnTy},
+    fns::{CallTerm, FnDefId, FnTy},
     lits::LitId,
     node::{Node, NodeId, NodeOrigin},
     params::Param,
@@ -68,8 +68,8 @@ pub enum Term {
     Ctor(CtorTerm),
 
     // Functions
-    FnCall(FnCallTerm),
-    FnRef(FnDefId),
+    Call(CallTerm),
+    Fn(FnDefId),
 
     // Loops
     Loop(LoopTerm),
@@ -233,8 +233,8 @@ impl fmt::Display for Term {
             Term::Tuple(tuple_term) => write!(f, "{}", tuple_term),
             Term::Lit(lit) => write!(f, "{}", *lit.value()),
             Term::Ctor(ctor_term) => write!(f, "{}", ctor_term),
-            Term::FnCall(fn_call_term) => write!(f, "{}", fn_call_term),
-            Term::FnRef(fn_def_id) => write!(
+            Term::Call(fn_call_term) => write!(f, "{}", fn_call_term),
+            Term::Fn(fn_def_id) => write!(
                 f,
                 "{}",
                 if fn_def_id.map(|fn_def| fn_def.name.map(|sym| sym.name.is_none())) {

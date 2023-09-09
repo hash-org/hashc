@@ -177,7 +177,7 @@ impl fmt::Display for DeclTerm {
                         match *term_id.value() {
                             // If a function is being declared, print the body, otherwise just
                             // its name.
-                            Term::FnRef(fn_def_id)
+                            Term::Fn(fn_def_id)
                                 if fn_def_id.map(|def| def.name == binding_pat.name) =>
                             {
                                 fn_def_id.to_string()

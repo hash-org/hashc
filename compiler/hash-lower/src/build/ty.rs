@@ -20,7 +20,7 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     data::DataTy,
     environment::env::AccessToEnv,
-    fns::{FnCallTerm, FnDefId},
+    fns::{CallTerm, FnDefId},
     lits::{Lit, LitPat},
     pats::PatId,
     terms::{Term, TermId, TyId},
@@ -37,7 +37,7 @@ use super::BodyBuilder;
 pub enum FnCallTermKind {
     /// A function call, the term doesn't change and should just be
     /// handled as a function call.
-    Call(FnCallTerm),
+    Call(CallTerm),
 
     /// A cast intrinsic operation, we perform a cast from the type of the
     /// first term into the desired second [IrTyId].
@@ -90,11 +90,11 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Function which is used to classify a [FnCallTerm] into a
     /// [FnCallTermKind].
-    pub(crate) fn classify_fn_call_term(&self, term: &FnCallTerm) -> FnCallTermKind {
-        let FnCallTerm { subject, args, .. } = term;
+    pub(crate) fn classify_fn_call_term(&self, term: &CallTerm) -> FnCallTermKind {
+        let CallTerm { subject, args, .. } = term;
 
         match *subject.value() {
-            Term::FnRef(fn_def) => {
+            Term::Fn(fn_def) => {
                 // Check if the fn_def is a `un_op` intrinsic
                 if fn_def == self.intrinsics().un_op() {
                     let (op, subject) =

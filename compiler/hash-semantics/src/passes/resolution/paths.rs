@@ -27,7 +27,7 @@ use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     args::{Arg, ArgsId},
     data::{CtorPat, CtorTerm, DataDefId},
-    fns::{FnCallTerm, FnDefId},
+    fns::{CallTerm, FnDefId},
     mods::{ModDefId, ModMemberValue},
     node::{Node, NodeId, NodeOrigin},
     symbols::SymbolId,
@@ -121,7 +121,7 @@ pub enum TerminalResolvedPathComponent {
     /// A data constructor term.
     CtorTerm(Node<CtorTerm>),
     /// A function call term.
-    FnCall(Node<FnCallTerm>),
+    FnCall(Node<CallTerm>),
     /// A variable bound in the current context.
     Var(SymbolId),
 }
@@ -302,7 +302,7 @@ impl<'tc> ResolutionPass<'tc> {
                         )),
                         args => {
                             let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                                Term::from(Term::FnRef(fn_def_id), component.origin()),
+                                Term::from(Term::Fn(fn_def_id), component.origin()),
                                 args,
                                 component.node_id,
                             )?;

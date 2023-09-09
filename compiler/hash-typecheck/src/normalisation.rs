@@ -15,7 +15,7 @@ use hash_tir::{
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    fns::{FnBody, FnCallTerm, FnDefId},
+    fns::{CallTerm, FnBody, FnDefId},
     holes::Hole,
     lits::{Lit, LitPat},
     node::{Node, NodeId, NodesId},
@@ -232,7 +232,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     pub fn maybe_to_fn_def(&self, atom: Atom) -> Option<FnDefId> {
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::FnRef(fn_def_id) => Some(fn_def_id),
+                Term::Fn(fn_def_id) => Some(fn_def_id),
                 _ => None,
             },
             Atom::FnDef(fn_def_id) => Some(fn_def_id),
@@ -286,7 +286,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         match atom {
             Atom::Term(term) => match *term.value() {
                 // Never has effects
-                Term::Hole(_) | Term::FnRef(_) => Ok(ControlFlow::Break(())),
+                Term::Hole(_) | Term::Fn(_) => Ok(ControlFlow::Break(())),
 
                 // These have effects if their constituents do
                 Term::Lit(_)
@@ -308,7 +308,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 | Term::FnTy(_)
                 | Term::Block(_) => Ok(ControlFlow::Continue(())),
 
-                Term::FnCall(fn_call) => {
+                Term::Call(fn_call) => {
                     // Get its inferred type and check if it is pure
                     match self.try_get_inferred_ty(fn_call.subject) {
                         Some(fn_ty) => {
@@ -721,14 +721,14 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     /// Evaluate a function call.
-    fn eval_fn_call(&self, mut fn_call: Node<FnCallTerm>) -> AtomEvaluation {
+    fn eval_fn_call(&self, mut fn_call: Node<CallTerm>) -> AtomEvaluation {
         let st = eval_state();
 
         fn_call.subject = self.to_term(self.eval_and_record(fn_call.subject.into(), &st)?);
         fn_call.args = st.update_from_evaluation(fn_call.args, self.eval_args(fn_call.args))?;
 
         // Beta-reduce:
-        if let Term::FnRef(fn_def_id) = *fn_call.subject.value() {
+        if let Term::Fn(fn_def_id) = *fn_call.subject.value() {
             let fn_def = fn_def_id.value();
             if (fn_def.ty.pure || matches!(self.mode.get(), NormalisationMode::Full))
                 && self.try_get_inferred_ty(fn_def_id).is_some()
@@ -844,7 +844,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::TypeOf(term) => ctrl_map(self.eval_type_of(term)),
                 Term::Unsafe(unsafe_expr) => ctrl_map(self.eval_unsafe(unsafe_expr)),
                 Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
-                Term::FnCall(fn_call) => {
+                Term::Call(fn_call) => {
                     ctrl_map(self.eval_fn_call(term.origin().with_data(fn_call)))
                 }
                 Term::Cast(cast_term) => ctrl_map(self.eval_cast(cast_term)),
@@ -857,7 +857,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                 // Introduction forms:
                 Term::Ref(_)
-                | Term::FnRef(_)
+                | Term::Fn(_)
                 | Term::Lit(_)
                 | Term::Array(_)
                 | Term::Tuple(_)

@@ -17,7 +17,7 @@ use crate::{
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     environment::env::Env,
-    fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
+    fns::{CallTerm, FnBody, FnDef, FnDefId, FnTy},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     params::{Param, ParamsId},
@@ -118,7 +118,7 @@ impl TraversingUtils {
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
                 Atom::Term(t) => Ok(t),
-                Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::FnRef(fn_def_id), origin)),
+                Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::Fn(fn_def_id), origin)),
                 Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
             },
             ControlFlow::Continue(()) => match *term_id.value() {
@@ -136,17 +136,17 @@ impl TraversingUtils {
                     let ctor_args = self.fmap_args(ctor_term.ctor_args, f)?;
                     Ok(Term::from(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }, origin))
                 }
-                Term::FnCall(fn_call_term) => {
+                Term::Call(fn_call_term) => {
                     let subject = self.fmap_term(fn_call_term.subject, f)?;
                     let args = self.fmap_args(fn_call_term.args, f)?;
                     Ok(Term::from(
-                        FnCallTerm { args, subject, implicit: fn_call_term.implicit },
+                        CallTerm { args, subject, implicit: fn_call_term.implicit },
                         origin,
                     ))
                 }
-                Term::FnRef(fn_def_id) => {
+                Term::Fn(fn_def_id) => {
                     let fn_def_id = self.fmap_fn_def(fn_def_id, f)?;
-                    Ok(Term::from(Term::FnRef(fn_def_id), origin))
+                    Ok(Term::from(Term::Fn(fn_def_id), origin))
                 }
                 Term::Block(block_term) => {
                     let statements = self.fmap_term_list(block_term.statements, f)?;
@@ -485,11 +485,11 @@ impl TraversingUtils {
                     self.visit_args(ctor_term.data_args, f)?;
                     self.visit_args(ctor_term.ctor_args, f)
                 }
-                Term::FnCall(fn_call_term) => {
+                Term::Call(fn_call_term) => {
                     self.visit_term(fn_call_term.subject, f)?;
                     self.visit_args(fn_call_term.args, f)
                 }
-                Term::FnRef(fn_def_id) => self.visit_fn_def(fn_def_id, f),
+                Term::Fn(fn_def_id) => self.visit_fn_def(fn_def_id, f),
                 Term::Block(block_term) => {
                     self.visit_term_list(block_term.statements, f)?;
                     self.visit_term(block_term.return_value, f)

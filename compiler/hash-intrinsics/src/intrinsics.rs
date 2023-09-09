@@ -738,7 +738,7 @@ impl DefinedIntrinsics {
                 "print_fn_directives",
                 FnTy::builder().params(params).return_ty(ret).build(),
                 |_, args| {
-                    if let Term::FnRef(fn_def) = *args[1].value() {
+                    if let Term::Fn(fn_def) = *args[1].value() {
                         attr_store().map_with_default(fn_def.node_id_or_default(), |attrs| {
                             stream_less_writeln!("{:?}", attrs);
                         });

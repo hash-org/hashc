@@ -14,7 +14,7 @@ use hash_tir::{
     args::{Arg, ArgsId},
     data::DataTy,
     environment::env::AccessToEnv,
-    fns::FnCallTerm,
+    fns::CallTerm,
     node::{Node, NodeOrigin},
     params::ParamIndex,
     primitives::primitives,
@@ -136,7 +136,7 @@ impl<'tc> ResolutionPass<'tc> {
             },
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(fn_def_id) => {
-                    Ok(Term::from(Term::FnRef(*fn_def_id), origin))
+                    Ok(Term::from(Term::Fn(*fn_def_id), origin))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
@@ -149,7 +149,7 @@ impl<'tc> ResolutionPass<'tc> {
                     Ok(Term::from(Term::Ctor(**ctor_term), origin))
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
-                    Ok(Term::from(Term::FnCall(**fn_call_term), origin))
+                    Ok(Term::from(Term::Call(**fn_call_term), origin))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     Ok(Ty::from(Ty::Var(*bound_var), origin))
@@ -218,7 +218,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                 match (subject, args) {
                     (Some(subject), Some(args)) => Ok(Term::from(
-                        Term::FnCall(FnCallTerm { subject, args, implicit: true }),
+                        Term::Call(CallTerm { subject, args, implicit: true }),
                         NodeOrigin::Given(node.id()),
                     )),
                     _ => Err(SemanticError::Signal),

@@ -25,7 +25,7 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
     environment::env::AccessToEnv,
-    fns::{FnBody, FnCallTerm, FnDefId},
+    fns::{CallTerm, FnBody, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     node::{Node, NodeOrigin},
     params::ParamIndex,
@@ -345,7 +345,7 @@ impl<'tc> ResolutionPass<'tc> {
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(fn_def_id) => {
                     // Reference to a function definition
-                    Ok(Term::from(Term::FnRef(*fn_def_id), origin))
+                    Ok(Term::from(Term::Fn(*fn_def_id), origin))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(
@@ -360,7 +360,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
                     // Function call
-                    Ok(Term::from(Term::FnCall(**fn_call_term), origin))
+                    Ok(Term::from(Term::Call(**fn_call_term), origin))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Bound variable
@@ -399,7 +399,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                 match (subject, args) {
                     (Some(subject), Some(args)) => Ok(Term::from(
-                        Term::FnCall(FnCallTerm { subject, args, implicit: false }),
+                        Term::Call(CallTerm { subject, args, implicit: false }),
                         NodeOrigin::Given(node.id()),
                     )),
                     _ => Err(SemanticError::Signal),
@@ -888,7 +888,7 @@ impl<'tc> ResolutionPass<'tc> {
         // If all ok, create a fn ref term
         match (params, return_ty, return_value) {
             (Some(_), None | Some(Some(_)), Some(_)) => {
-                Ok(Term::from(Term::FnRef(fn_def_id), NodeOrigin::Given(node_id)))
+                Ok(Term::from(Term::Fn(fn_def_id), NodeOrigin::Given(node_id)))
             }
             _ => Err(SemanticError::Signal),
         }
@@ -1011,7 +1011,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Invoke the intrinsic function
         Ok(Term::from(
-            FnCallTerm {
+            CallTerm {
                 subject: Term::from(intrinsic_fn_def, origin),
                 args: Arg::seq_positional(
                     [typeof_lhs, self.create_term_from_integer_lit(bin_op_num), lhs, rhs],
@@ -1044,7 +1044,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Invoke the intrinsic function
         Ok(Term::from(
-            FnCallTerm {
+            CallTerm {
                 subject: Term::from(intrinsic_fn_def, origin),
                 args: Arg::seq_positional(
                     [typeof_a, self.create_term_from_integer_lit(op_num), a],
