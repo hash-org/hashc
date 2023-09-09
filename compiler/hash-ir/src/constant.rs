@@ -19,7 +19,7 @@ use hash_utils::derive_more::Constructor;
 
 use crate::{
     ir_stores,
-    ty::{IrTyId, Mutability, COMMON_IR_TYS},
+    ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
 
 /// A [Const] represents a constant valuen within the Hash IR. This can
@@ -78,9 +78,17 @@ impl Const {
     }
 
     /// Create a new [Const] from a integer with the given type.
-    pub fn from_int<C: HasDataLayout>(value: u128, ty: IrTyId, ctx: &C) -> Self {
-        let size = IntTy::from(ty.value()).size(ctx.data_layout().pointer_size);
-        Const { ty, kind: ConstKind::Scalar(Scalar::from_uint(value, size)) }
+    pub fn from_scalar_like<C: HasDataLayout>(value: u128, ty: IrTyId, ctx: &C) -> Self {
+        let kind = match ty.value() {
+            // @@FixMe: we're converting from one to another... seems dumb!
+            IrTy::Bool => ConstKind::Scalar(Scalar::from_bool(value != 0)),
+            _ => {
+                let size = IntTy::from(ty.value()).size(ctx.data_layout().pointer_size);
+                ConstKind::Scalar(Scalar::from_uint(value, size))
+            }
+        };
+
+        Const { ty, kind }
     }
 }
 
@@ -209,6 +217,16 @@ impl Scalar {
         Self::try_from_int(i, size).unwrap_or_else(|| {
             panic!("Integer value is too large for the specified size: {}", size.bytes())
         })
+    }
+
+    /// Create a new [Scalar] from a boolean value.
+    #[inline]
+    pub fn from_bool(value: bool) -> Self {
+        if value {
+            Self::TRUE
+        } else {
+            Self::FALSE
+        }
     }
 
     /// Compute the [Size] of the [Scalar].

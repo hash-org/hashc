@@ -347,7 +347,7 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
 
                         // We want to create an a constant from this value
                         // with the type, and then print it.
-                        let value = Const::from_int(value, targets.ty, &self.lc);
+                        let value = Const::from_scalar_like(value, targets.ty, &self.lc);
 
                         pretty_print_const(&value, self.lc, f)?;
                         write!(f, " -> {target:?}")?;
