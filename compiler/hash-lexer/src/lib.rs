@@ -191,7 +191,13 @@ impl<'a> Lexer<'a> {
     /// this is the start of the file.
     fn strip_shebang(&mut self) {
         if self.peek() == '#' && self.peek_second() == '!' {
-            self.eat_while_and_discard(|c| c != '\n');
+            // This is a module level attribute on the first line, so we don't treat
+            // this as a shebang.
+            if self.nth_char(2) == '[' {
+                return;
+            }
+
+            self.eat_until('\n');
         }
     }
 
@@ -812,7 +818,7 @@ impl<'a> Lexer<'a> {
     fn line_comment(&mut self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '/');
         self.skip();
-        self.eat_while_and_discard(|c| c != '\n');
+        self.eat_until('\n')
     }
 
     /// Consume a block comment after the first following `/*a` sequence of
@@ -878,5 +884,11 @@ impl<'a> Lexer<'a> {
         let end = self.offset.get();
 
         self.contents.hunk(ByteRange::new(start, end))
+    }
+
+    fn eat_until(&self, ch: char) {
+        let slice = unsafe { self.as_slice() };
+        let index = slice.find(ch).unwrap_or(slice.len());
+        self.offset.update(|x| x + index);
     }
 }
