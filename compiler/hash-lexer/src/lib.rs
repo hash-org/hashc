@@ -136,16 +136,19 @@ impl<'a> Lexer<'a> {
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
+    #[inline]
     fn peek(&self) -> char {
         self.nth_char(0)
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
+    #[inline]
     fn peek_second(&self) -> char {
         self.nth_char(1)
     }
 
     /// Get the remaining un-lexed contents as a raw string.
+    #[inline]
     unsafe fn as_slice(&self) -> &str {
         let offset = self.offset.get();
 
@@ -165,6 +168,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Moves to the next character.
+    #[inline]
     fn next(&mut self) -> Option<char> {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next()?;
@@ -174,6 +178,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Move to the next character and skip it essentially.
+    #[inline]
     fn skip(&self) {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next().unwrap();
@@ -361,6 +366,7 @@ impl<'a> Lexer<'a> {
     /// Consume an identifier, at this stage keywords are also considered to be
     /// identifiers. The function expects that the first character of the
     /// identifier is consumed when the function is called.
+    #[inline(always)]
     fn ident(&mut self, first: char) -> TokenKind {
         debug_assert!(is_id_start(first));
 
@@ -397,7 +403,7 @@ impl<'a> Lexer<'a> {
 
     /// Attempt to eat an identifier if the next token is one, otherwise don't
     /// do anything
-    fn maybe_eat_identifier(&self) -> Option<Identifier> {
+    fn maybe_eat_ident(&self) -> Option<Identifier> {
         match self.peek() {
             ch if is_id_start(ch) => {
                 self.skip();
@@ -446,7 +452,7 @@ impl<'a> Lexer<'a> {
                     );
                 }
 
-                let suffix = self.maybe_eat_identifier();
+                let suffix = self.maybe_eat_ident();
 
                 // If this specifies a radix, and then also has a suffix which denotes
                 // that this literal is a `float`, then we error since we don't support
@@ -483,7 +489,7 @@ impl<'a> Lexer<'a> {
             // Immediate exponent
             'e' | 'E' => self.eat_float_lit(start),
             _ => {
-                let maybe_suffix = self.maybe_eat_identifier();
+                let maybe_suffix = self.maybe_eat_ident();
 
                 // If the suffix is equal to a float-like one, convert this token into
                 // a `float`...
@@ -504,7 +510,7 @@ impl<'a> Lexer<'a> {
         match self.eat_exponent(start) {
             Ok(_) => {
                 // Get the type ascription if any...
-                let maybe_suffix = self.maybe_eat_identifier();
+                let maybe_suffix = self.maybe_eat_ident();
 
                 // Check that the suffix is correct for the literal
                 let kind = if let Some(suffix) = maybe_suffix {
@@ -864,15 +870,9 @@ impl<'a> Lexer<'a> {
     /// cases we don't want to preserve what the token represents, such as
     /// comments or white-spaces...
     fn eat_while_and_discard(&self, mut condition: impl FnMut(char) -> bool) {
-        let slice = unsafe { self.as_slice() }.chars();
-
-        for ch in slice {
-            if condition(ch) {
-                self.offset.update(|x| x + ch.len_utf8());
-            } else {
-                break;
-            }
-        }
+        let slice = unsafe { self.as_slice() };
+        let index = slice.find(|c| !condition(c)).unwrap_or(slice.len());
+        self.offset.update(|x| x + index);
     }
 
     /// Eat while the condition holds, and produces a slice from where it began
