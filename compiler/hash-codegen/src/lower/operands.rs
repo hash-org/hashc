@@ -1,17 +1,24 @@
 //! Defines the lowering process for Hash IR operands into the
 //! target backend.
 
-use hash_ir::ir;
+use hash_ir::{
+    constant::{AllocId, AllocRange, Const, ConstKind},
+    ir,
+};
 use hash_layout::TyInfo;
 use hash_storage::store::statics::StoreId;
-use hash_target::{abi::AbiRepresentation, alignment::Alignment};
+use hash_target::{
+    abi::{self, AbiRepresentation},
+    alignment::Alignment,
+    size::Size,
+};
 
 use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
 use crate::{
     common::MemFlags,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
-        ty::TypeBuilderMethods, CodeGenObject,
+        statics::StaticMethods, ty::TypeBuilderMethods, CodeGenObject,
     },
 };
 
@@ -185,6 +192,112 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
         }
     }
 
+    /// Constructr an [OperandRef] from an [ir::Const] value.
+    pub fn from_const<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
+        builder: &mut Builder,
+        constant: Const,
+    ) -> Self {
+        let info = builder.layout_of(constant.ty());
+
+        let value = match constant.kind() {
+            ConstKind::Zero => return OperandRef::zst(info),
+            ConstKind::Scalar(value) => {
+                // Ensure that the computer ABI is a scalar.
+                let AbiRepresentation::Scalar(scalar) = info.layout.borrow().abi else {
+                    panic!(
+                        "`from_const` ABI representation of scalar is not a scalar, but `{:?}`",
+                        info.layout.borrow().abi
+                    )
+                };
+
+                // We convert the constant to a backend equivalent scalar
+                // value and then emit it as an immediate operand value.
+                let ty = builder.immediate_backend_ty(info);
+                let value = builder.const_scalar_value(value, scalar, ty);
+                OperandValue::Immediate(value)
+            }
+            ConstKind::Pair { data, .. } => {
+                // Ensure that the computer ABI is a scalar-pair.
+                let AbiRepresentation::Pair(_, _) = info.layout.borrow().abi else {
+                    panic!(
+                        "`from_const` ABI representation of pair is not a pair, but `{:?}`",
+                        info.layout.borrow().abi
+                    )
+                };
+
+                let (ptr, size) = builder.const_str(data);
+                OperandValue::Pair(ptr, size)
+            }
+            ConstKind::Alloc { offset, alloc } => {
+                return Self::from_alloc(builder, info, alloc, offset)
+            }
+        };
+
+        OperandRef { value, info }
+    }
+
+    pub fn from_alloc<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
+        builder: &mut Builder,
+        info: TyInfo,
+        alloc: AllocId,
+        offset: Size,
+    ) -> Self {
+        let alloc_align = alloc.borrow().align();
+        // Ensure that the alignment of the allocation is the same as the
+        // computed alignment of the type.
+        debug_assert_eq!(alloc_align, info.abi_alignment());
+
+        // Read a leaf (or in other words a `Scalar`) from the allocation.
+        let read_scalar = |start, size, abi: abi::Scalar, ty| {
+            let value = alloc.borrow().read_scalar(AllocRange::new(start, size), builder);
+            builder.const_scalar_value(value, abi, ty)
+        };
+
+        match info.layout.borrow().abi {
+            AbiRepresentation::Scalar(a @ abi::Scalar::Initialised { .. }) => {
+                let size = a.size(builder);
+                assert_eq!(size, info.size(), "abi::Scalar size does not match layout size");
+                let val = read_scalar(Size::ZERO, size, a, builder.type_ptr());
+                OperandRef { value: OperandValue::Immediate(val), info }
+            }
+            AbiRepresentation::Pair(
+                a @ abi::Scalar::Initialised { .. },
+                b @ abi::Scalar::Initialised { .. },
+            ) => {
+                let (a_size, b_size) = (a.size(builder), b.size(builder));
+                let b_offset = a_size.align_to(b.align(builder).abi);
+                assert!(b_offset.bytes() > 0);
+
+                let a_val = read_scalar(
+                    Size::ZERO,
+                    a_size,
+                    a,
+                    builder.scalar_pair_element_backend_ty(info, 0, true),
+                );
+
+                let b_val = read_scalar(
+                    b_offset,
+                    b_size,
+                    b,
+                    builder.scalar_pair_element_backend_ty(info, 1, true),
+                );
+
+                OperandRef { value: OperandValue::Pair(a_val, b_val), info }
+            }
+            _ if info.is_zst() => OperandRef::zst(info),
+            // Not a scalar, or pair, or zero-sized type.
+            _ => {
+                let init = builder.const_data_from_alloc(alloc);
+
+                // We need to compute the base address of the constant.
+                let base_addr = builder.static_addr_of(init, alloc_align);
+
+                let value = builder.const_ptr_byte_offset(base_addr, offset);
+                builder.load_operand(PlaceRef::new(value, info))
+            }
+        }
+    }
+
     /// Apply a dereference operation on a [OperandRef], effectively
     /// producing a [PlaceRef].
     pub fn deref<Builder: LayoutMethods<'b>>(self, builder: &Builder) -> PlaceRef<V> {
@@ -268,7 +381,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) -> OperandRef<Builder::Value> {
         match operand {
             ir::Operand::Place(place) => self.codegen_consume_operand(builder, *place),
-            ir::Operand::Const(ref constant) => {
+            // ir::Operand::Const(constant) => OperandRef::from_const(builder, constant),
+            ir::Operand::Const(constant) => {
                 let ty = constant.ty();
                 let info = builder.layout_of(ty);
 
@@ -289,7 +403,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                         // We convert the constant to a backend equivalent scalar
                         // value and then emit it as an immediate operand value.
-                        let value = builder.const_scalar_value(*value, scalar, ty);
+                        let value = builder.constant_scalar_value(*value, scalar, ty);
                         OperandValue::Immediate(value)
                     }
                     ir::Const::Str(interned_str) => {

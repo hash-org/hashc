@@ -396,16 +396,16 @@ impl TryFrom<Scalar> for f64 {
 #[derive(Clone, Debug)]
 pub struct Alloc<Buf = Box<[u8]>> {
     /// The buffer that is being used to store the value.
-    pub buf: Buf,
+    buf: Buf,
 
     /// The alignment of the buffer.
-    pub align: Alignment,
+    align: Alignment,
 
     /// The mutability of the allocation.
     ///
     /// ##Note: this is still not entirely figured out in the language. Perhaps, variables
     /// that are 'static' can be mutable, and everything else is immutable.
-    pub mutability: Mutability,
+    mutability: Mutability,
 }
 
 /// Used for indexing into an [Alloc] by specifying the
@@ -457,7 +457,7 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     }
 
     #[inline]
-    pub fn get_bytes_unchecked(&self, range: AllocRange) -> &[u8] {
+    pub fn read_bytes(&self, range: AllocRange) -> &[u8] {
         &self.buf[range.start.bytes_usize()..range.end().bytes_usize()]
     }
 
@@ -465,11 +465,36 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     ///
     /// @@FixMe: Add some kind of errors for this?
     pub fn read_scalar<C: HasDataLayout>(&self, range: AllocRange, ctx: &C) -> Scalar {
-        let data = self.get_bytes_unchecked(range);
+        let data = self.read_bytes(range);
         let int = read_target_uint(ctx.data_layout().endian, data).unwrap();
 
         // Finally, convert it into a scalar from the integer and size.
         Scalar::from_uint(int, range.size)
+    }
+
+    /// Get the length of the [Alloc].
+    pub fn len(&self) -> usize {
+        self.buf.len()
+    }
+
+    /// Check if the allocation is empty.
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
+    /// Get the size of the [Alloc].
+    pub fn size(&self) -> Size {
+        Size::from_bytes(self.len() as u64)
+    }
+
+    /// Get the alignment of the [Alloc].
+    pub fn align(&self) -> Alignment {
+        self.align
+    }
+
+    /// Get the mutability of the [Alloc].
+    pub fn mutability(&self) -> Mutability {
+        self.mutability
     }
 }
 

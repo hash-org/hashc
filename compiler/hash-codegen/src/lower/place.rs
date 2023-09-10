@@ -43,9 +43,7 @@ pub struct PlaceRef<V> {
 impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     /// Create a new [PlaceRef] from an existant value.
     pub fn new(value: V, info: TyInfo) -> Self {
-        let alignment = info.abi_alignment();
-
-        Self { value, info, alignment, extra: None }
+        Self { value, info, alignment: info.abi_alignment(), extra: None }
     }
 
     /// Create a new [PlaceRef] with a specified [Alignment].

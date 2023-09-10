@@ -18,7 +18,7 @@ use hash_target::{data_layout::HasDataLayout, HasTarget};
 
 use self::{
     constants::ConstValueBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
-    ty::TypeBuilderMethods,
+    statics::StaticMethods, ty::TypeBuilderMethods,
 };
 use crate::backend::CodeGenStorage;
 
@@ -29,6 +29,7 @@ pub mod debug;
 pub mod intrinsics;
 pub mod layout;
 pub mod misc;
+pub mod statics;
 pub mod ty;
 
 /// This trait represents all of the commonly accessed types that a
@@ -88,6 +89,7 @@ pub trait BackendMethods<'b>:
     + LayoutMethods<'b>
     + MiscBuilderMethods<'b>
     + HasCtxMethods<'b>
+    + StaticMethods
     + TypeBuilderMethods<'b>
     + ConstValueBuilderMethods<'b>
 {
@@ -100,6 +102,7 @@ impl<'b, T> BackendMethods<'b> for T where
         + LayoutMethods<'b>
         + MiscBuilderMethods<'b>
         + HasCtxMethods<'b>
+        + StaticMethods
         + TypeBuilderMethods<'b>
         + ConstValueBuilderMethods<'b>
 {

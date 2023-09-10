@@ -18,9 +18,12 @@ use hash_ir::ty::IrTy;
 use hash_storage::store::statics::StoreId;
 use hash_utils::smallvec::{smallvec, SmallVec};
 use inkwell as llvm;
-use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};
+use llvm::{
+    context::AsContextRef,
+    types::{AnyType, AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType},
+};
 use llvm_sys::{
-    core::{LLVMGetTypeKind, LLVMVectorType},
+    core::{LLVMGetTypeKind, LLVMPointerTypeInContext, LLVMVectorType},
     LLVMTypeKind,
 };
 
@@ -115,6 +118,10 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         self.ll_ctx.i64_type().into()
     }
 
+    fn type_ix(&self, bits: u64) -> Self::Type {
+        self.ll_ctx.custom_width_int_type(bits.try_into().unwrap()).as_any_type_enum()
+    }
+
     fn type_f32(&self) -> Self::Type {
         self.ll_ctx.f32_type().into()
     }
@@ -143,6 +150,17 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     fn type_struct(&self, fields: &[Self::Type], packed: bool) -> Self::Type {
         let fields = fields.iter().map(|ty| (*ty).try_into().unwrap()).collect::<Vec<_>>();
         self.ll_ctx.struct_type(&fields, packed).into()
+    }
+
+    fn type_ptr(&self) -> Self::Type {
+        self.type_ptr_ext(AddressSpace::DATA)
+    }
+
+    fn type_ptr_ext(&self, address_space: AddressSpace) -> Self::Type {
+        // @@PatchInkwell: allow for opaque pointers to be created.
+        unsafe {
+            AnyTypeEnum::new(LLVMPointerTypeInContext(self.ll_ctx.as_ctx_ref(), address_space.0))
+        }
     }
 
     fn type_ptr_to(&self, ty: Self::Type) -> Self::Type {

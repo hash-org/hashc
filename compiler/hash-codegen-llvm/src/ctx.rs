@@ -18,7 +18,11 @@ use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::InternedStr;
 use hash_utils::fxhash::FxHashMap;
 use inkwell as llvm;
-use llvm::values::FunctionValue;
+use llvm::{
+    module::Linkage,
+    types::{AnyTypeEnum, BasicTypeEnum},
+    values::FunctionValue,
+};
 
 use crate::translation::ty::TyMemoryRemap;
 
@@ -69,6 +73,10 @@ pub struct CodeGenCtx<'b, 'm> {
     /// strings [InternedStr] that have been created.
     pub(crate) str_consts: RefCell<FxHashMap<InternedStr, llvm::values::GlobalValue<'m>>>,
 
+    /// A map between values, and their corresponding constant global.
+    pub(crate) global_consts:
+        RefCell<FxHashMap<llvm::values::AnyValueEnum<'m>, llvm::values::GlobalValue<'m>>>,
+
     /// A map that stores all of the used intrinsics within the current module
     /// context. These intrinsics are computed as they are required (when
     /// referenced within the source).
@@ -105,6 +113,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
             instances: RefCell::new(FxHashMap::default()),
             ty_remaps: RefCell::new(FxHashMap::default()),
             str_consts: RefCell::new(FxHashMap::default()),
+            global_consts: RefCell::new(FxHashMap::default()),
             intrinsics: RefCell::new(FxHashMap::default()),
         }
     }
@@ -121,10 +130,28 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
         // We add one for the `.` and the rest as anticipation for the
         // symbol counter.
         let mut name = String::with_capacity(prefix.len() + 6);
-        name.push_str(prefix);
-        name.push('.');
+
+        // Avoid generating the `<prefix>.` if it is empty...
+        if !prefix.is_empty() {
+            name.push_str(prefix);
+            name.push('.');
+        }
+
         push_string_encoded_count(symbol_counter as u128, ALPHANUMERIC_BASE, &mut name);
         name
+    }
+
+    /// Declare a private global within the module.
+    pub fn define_private_global(
+        &self,
+        ty: AnyTypeEnum<'m>,
+        name: &str,
+    ) -> llvm::values::GlobalValue<'m> {
+        let ty: BasicTypeEnum = ty.try_into().unwrap();
+        let global = self.module.add_global(ty, None, name);
+        global.set_linkage(Linkage::Private);
+        global.set_unnamed_addr(true);
+        global
     }
 }
 
