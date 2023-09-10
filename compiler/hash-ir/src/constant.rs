@@ -10,11 +10,12 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use hash_source::constant::{read_target_uint, IntConstant, IntConstantValue};
+use hash_source::constant::{read_target_uint, IntConstant, IntConstantValue, InternedStr};
 use hash_storage::{static_single_store, store::statics::StoreId};
 use hash_target::{
     alignment::Alignment, data_layout::HasDataLayout, primitives::IntTy, size::Size,
 };
+use hash_tir::lits::Lit;
 use hash_utils::derive_more::Constructor;
 
 use crate::{
@@ -101,13 +102,13 @@ pub enum ConstKind {
     /// A constant scalar value.
     Scalar(Scalar),
 
-    /// A pair is only used for `slice` types and `str` to represent
-    /// the data pointer, and the length of the slice. It is equivalent
-    /// to the `Abi::Pair` representation.
+    /// A pair is only used to represent `str` constants, which is the interned
+    /// string allocation, and the length. It is equivalent to the `Abi::Pair`
+    /// representation.
     Pair {
         /// The data pointer of the slice. This is represented as just
-        /// being an [AllocId].
-        data: AllocId,
+        /// being an
+        data: InternedStr,
 
         /// The length of the slice.
         len: Scalar,
@@ -124,7 +125,20 @@ pub enum ConstKind {
     },
 }
 
-impl ConstKind {}
+impl ConstKind {
+    /// Create a [ConstKind] from a TIR literal.
+    pub fn from_lit<C: HasDataLayout>(lit: Lit, ctx: &C) -> Self {
+        match lit {
+            Lit::Int(int) => ConstKind::Scalar(Scalar::from(int.value())),
+            Lit::Float(float) => ConstKind::Scalar(Scalar::from(float.value())),
+            Lit::Str(str) => {
+                let data = str.interned_value();
+                ConstKind::Pair { data, len: Scalar::from_usize(data.len() as u64, ctx) }
+            }
+            Lit::Char(ch) => ConstKind::Scalar(Scalar::from(ch.value())),
+        }
+    }
+}
 
 /// A scalar value. [Scalar]s are used to represent all integer, characters, and
 /// floating point values, as well as integers. The largest scalar value is

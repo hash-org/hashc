@@ -875,6 +875,16 @@ impl InternedStr {
             })
         }
     }
+
+    /// Get the length of the interned string.
+    pub fn len(self) -> usize {
+        self.value().len()
+    }
+
+    /// Check if the interned string is empty.
+    pub fn is_empty(self) -> bool {
+        self.value().is_empty()
+    }
 }
 
 impl fmt::Display for InternedStr {
