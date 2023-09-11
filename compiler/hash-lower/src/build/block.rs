@@ -52,6 +52,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         this.control_flow_graph.goto(body_block_end, loop_body, span);
                     }
 
+                    this.reached_terminator = false;
                     next_block.unit()
                 })
             }
