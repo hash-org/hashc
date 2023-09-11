@@ -8,7 +8,6 @@ use hash_tir::{
     args::{ArgsId, PatArgsId},
     atom_info::ItemInAtomInfo,
     context::ContextMember,
-    fns::FnBody,
     holes::Hole,
     mods::ModDefId,
     node::NodeId,
@@ -120,12 +119,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                 let fn_ty = fn_def.ty;
                 let shadowed_sub = self.apply_sub_to_params_and_get_shadowed(fn_ty.params, sub);
                 self.apply_sub_to_term_in_place(fn_ty.return_ty, &shadowed_sub);
-                match fn_def.body {
-                    FnBody::Defined(defined) => {
-                        self.apply_sub_to_term_in_place(defined, &shadowed_sub);
-                    }
-                    FnBody::Intrinsic(_) | FnBody::Axiom => {}
-                }
+                self.apply_sub_to_term_in_place(fn_def.body, &shadowed_sub);
                 ControlFlow::Break(())
             }
             Atom::Pat(_) => ControlFlow::Continue(()),
@@ -171,14 +165,9 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
                     *can_apply = true;
                     return ControlFlow::Break(());
                 }
-                match fn_def.body {
-                    FnBody::Defined(defined) => {
-                        if self.atom_contains_vars(defined.into(), &seen) {
-                            *can_apply = true;
-                            return ControlFlow::Break(());
-                        }
-                    }
-                    FnBody::Intrinsic(_) | FnBody::Axiom => {}
+                if self.atom_contains_vars(fn_def.body.into(), &seen) {
+                    *can_apply = true;
+                    return ControlFlow::Break(());
                 }
                 ControlFlow::Break(())
             }

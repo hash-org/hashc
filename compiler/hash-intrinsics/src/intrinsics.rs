@@ -6,23 +6,23 @@ use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, DefaultPartialStore, PartialStore, SequenceStoreKey};
 use hash_tir::{
     self,
-    building::gen::{
-        data_ty, never_ty, params, params_pos, sym, ty, unit_term, unit_ty, universe_ty,
-    },
+    building::gen::{data_ty, never, params, params_pos, sym, ty, unit_term, unit_ty, Type},
     environment::env::{AccessToEnv, Env},
-    fns::{FnBody, FnDef, FnDefId, FnTy},
-    intrinsics::IntrinsicId,
+    fns::{FnDef, FnDefId, FnTy},
     lits::Lit,
     mods::{ModMember, ModMemberValue},
     node::{HasAstNodeId, Node, NodeOrigin},
     primitives::primitives,
     refs::RefKind,
+    symbols::SymbolId,
     terms::{Term, TermId, Ty},
 };
 use hash_utils::stream_less_writeln;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::utils::{LitTy, PrimitiveUtils};
+
+pub type IntrinsicId = SymbolId;
 
 /// Information about an intrinsic.
 ///
@@ -216,7 +216,7 @@ impl DefinedIntrinsics {
         let op_sym = sym("op");
         let a_sym = sym("a");
         let params = params([
-            (t_sym, universe_ty(), None),
+            (t_sym, Type(), None),
             (op_sym, data_ty(primitives().u8()), None),
             (a_sym, ty(t_sym), None),
         ]);
@@ -322,7 +322,7 @@ impl DefinedIntrinsics {
         let ty = data_ty(primitives().bool());
 
         let params = params([
-            (t_sym, universe_ty(), None),
+            (t_sym, Type(), None),
             (op_sym, data_ty(primitives().u8()), None),
             (a_sym, ty, None),
             (b_sym, ty, None),
@@ -379,7 +379,7 @@ impl DefinedIntrinsics {
         let a_sym = sym("a");
         let b_sym = sym("b");
         let params = params([
-            (t_sym, universe_ty(), None),
+            (t_sym, Type(), None),
             (op_sym, data_ty(primitives().u8()), None),
             (a_sym, ty(t_sym), None),
             (b_sym, ty(t_sym), None),
@@ -540,7 +540,7 @@ impl DefinedIntrinsics {
         let a_sym = sym("a");
         let b_sym = sym("b");
         let params = params([
-            (t_sym, universe_ty(), None),
+            (t_sym, Type(), None),
             (op_sym, data_ty(primitives().u8()), None),
             (a_sym, ty(t_sym), None),
             (b_sym, ty(t_sym), None),
@@ -641,7 +641,7 @@ impl DefinedIntrinsics {
     fn add_prim_type_eq_op(
         implementations: &DefaultPartialStore<IntrinsicId, Intrinsic>,
     ) -> FnDefId {
-        let ty = universe_ty();
+        let ty = Type();
         let bool_ty = data_ty(primitives().bool());
         let bin_op_name = "prim_type_eq".to_string();
 
@@ -679,18 +679,17 @@ impl DefinedIntrinsics {
         };
 
         // Aborting
-        let abort = add(
-            "abort",
-            FnTy::builder().params(params([])).return_ty(never_ty()).build(),
-            |_, _| process::exit(1),
-        );
+        let abort =
+            add("abort", FnTy::builder().params(params([])).return_ty(never()).build(), |_, _| {
+                process::exit(1)
+            });
 
         // Panicking
         let panic = add(
             "panic",
             FnTy::builder()
                 .params(params_pos([data_ty(primitives().str())]))
-                .return_ty(never_ty())
+                .return_ty(never())
                 .build(),
             |_, args| {
                 stream_less_writeln!("{}", args[1]);
@@ -703,7 +702,7 @@ impl DefinedIntrinsics {
             "user_error",
             FnTy::builder()
                 .params(params_pos([data_ty(primitives().str())]))
-                .return_ty(never_ty())
+                .return_ty(never())
                 .build(),
             |_, args| {
                 let err = || Err("`user_error` expects a string literal as argument".to_string());
@@ -721,7 +720,7 @@ impl DefinedIntrinsics {
         let debug_print = {
             let t_sym = sym("T");
             let a_sym = sym("a");
-            let params = params([(t_sym, universe_ty(), None), (a_sym, ty(t_sym), None)]);
+            let params = params([(t_sym, Type(), None), (a_sym, ty(t_sym), None)]);
             let ret = unit_ty();
             add("debug_print", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
                 stream_less_writeln!("{}", args[1]);
@@ -732,7 +731,7 @@ impl DefinedIntrinsics {
         let print_fn_directives = {
             let t_sym = sym("T");
             let a_sym = sym("a");
-            let params = params([(t_sym, universe_ty(), None), (a_sym, ty(t_sym), None)]);
+            let params = params([(t_sym, Type(), None), (a_sym, ty(t_sym), None)]);
             let ret = unit_ty();
             add(
                 "print_fn_directives",
@@ -751,7 +750,7 @@ impl DefinedIntrinsics {
         let eval = {
             let t_sym = sym("T");
             let a_sym = sym("a");
-            let params = params([(t_sym, universe_ty(), None), (a_sym, ty(t_sym), None)]);
+            let params = params([(t_sym, Type(), None), (a_sym, ty(t_sym), None)]);
             let ret = ty(t_sym);
             add("eval", FnTy::builder().params(params).return_ty(ret).build(), |env, args| {
                 let evaluated = env.normalise_term(args[1])?;
@@ -777,7 +776,7 @@ impl DefinedIntrinsics {
         // Size of
         let size_of = {
             let t_sym = sym("T");
-            let params = params([(t_sym, universe_ty(), None)]);
+            let params = params([(t_sym, Type(), None)]);
             let ret = data_ty(primitives().usize());
             add("size_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`size_of` intrinsic evaluation")
@@ -787,7 +786,7 @@ impl DefinedIntrinsics {
         // Align of
         let align_of = {
             let t_sym = sym("T");
-            let params = params([(t_sym, universe_ty(), None)]);
+            let params = params([(t_sym, Type(), None)]);
             let ret = data_ty(primitives().usize());
             add("align_of", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
                 unimplemented!("`align_of` intrinsic evaluation")
@@ -817,11 +816,8 @@ impl DefinedIntrinsics {
             let t_sym = sym("T");
             let a_sym = sym("item");
             let u_sym = sym("U");
-            let params = params([
-                (t_sym, universe_ty(), None),
-                (u_sym, universe_ty(), None),
-                (a_sym, ty(t_sym), None),
-            ]);
+            let params =
+                params([(t_sym, Type(), None), (u_sym, Type(), None), (a_sym, ty(t_sym), None)]);
 
             let ret = ty(u_sym);
             add("transmute", FnTy::builder().params(params).return_ty(ret).build(), |_, args| {
@@ -834,11 +830,8 @@ impl DefinedIntrinsics {
             let t_sym = sym("T");
             let a_sym = sym("item");
             let u_sym = sym("U");
-            let params = params([
-                (t_sym, universe_ty(), None),
-                (u_sym, universe_ty(), None),
-                (a_sym, ty(t_sym), None),
-            ]);
+            let params =
+                params([(t_sym, Type(), None), (u_sym, Type(), None), (a_sym, ty(t_sym), None)]);
 
             let ret = ty(u_sym);
             add("cast", FnTy::builder().params(params).return_ty(ret).build(), |_, _| {
@@ -875,15 +868,11 @@ impl DefinedIntrinsics {
         implementation: IntrinsicImpl,
     ) -> FnDefId {
         let name = name.into();
-        let intrinsic_id = IntrinsicId(sym(name));
+        let intrinsic_id = (sym(name));
 
         // ##GeneratedOrigins: Intrinsics do not have a source location since they are
         // defined in-line in the compiler.
-        let fn_def = Node::create_gen(FnDef {
-            name: intrinsic_id.0,
-            ty: fn_ty,
-            body: FnBody::Intrinsic(intrinsic_id),
-        });
+        let fn_def = Node::create_gen(FnDef { name: intrinsic_id, ty: fn_ty, body: todo!() });
         let intrinsic_impl = Intrinsic { id: intrinsic_id, fn_def, implementation };
         implementations.insert(intrinsic_id, intrinsic_impl);
 

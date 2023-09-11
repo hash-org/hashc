@@ -10,12 +10,12 @@
 
 use errors::TcError;
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
-use hash_intrinsics::intrinsics::{AccessToIntrinsics, IntrinsicAbilities};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
 use hash_source::entry_point::EntryPointState;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
     fns::FnDefId,
+    intrinsics::IntrinsicAbilities,
     terms::TermId,
 };
 use inference::InferenceOps;
@@ -28,9 +28,7 @@ pub mod normalisation;
 pub mod substitution;
 pub mod unification;
 
-pub trait AccessToTypechecking:
-    AccessToEnv + AccessToIntrinsics + AccessToDiagnostics + Sized
-{
+pub trait AccessToTypechecking: AccessToEnv + AccessToDiagnostics + Sized {
     /// Convert a typechecking error to a diagnostic error.
     ///
     /// Provided by the implementer.
@@ -79,16 +77,22 @@ pub struct IntrinsicAbilitiesWrapper<'tc, T: AccessToTypechecking> {
 }
 
 impl<T: AccessToTypechecking> IntrinsicAbilities for IntrinsicAbilitiesWrapper<'_, T> {
-    fn normalise_term(&self, term: TermId) -> Result<TermId, String> {
+    fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String> {
         let norm = self.tc.norm_ops();
 
-        norm.normalise(term.into()).map(|result| norm.to_term(result)).map_err(|e| {
-            self.tc.diagnostics().add_error(self.tc.convert_tc_error(e));
-            "normalisation error".to_string()
-        })
+        norm.potentially_normalise(term.into())
+            .map(|result| result.map(|r| norm.to_term(r)))
+            .map_err(|e| {
+                self.tc.diagnostics().add_error(self.tc.convert_tc_error(e));
+                "normalisation error".to_string()
+            })
     }
 
     fn env(&self) -> &Env {
         self.tc.env()
+    }
+
+    fn resolve_from_prelude(&self, name: impl Into<hash_source::identifier::Identifier>) -> TermId {
+        todo!()
     }
 }

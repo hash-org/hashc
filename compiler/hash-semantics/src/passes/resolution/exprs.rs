@@ -25,7 +25,7 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
     environment::env::AccessToEnv,
-    fns::{CallTerm, FnBody, FnDefId},
+    fns::{CallTerm, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     node::{Node, NodeId, NodeOrigin},
     params::ParamIndex,
@@ -853,7 +853,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                 // Modify the existing fn def for the return value:
                 if let Some(return_value) = return_value {
-                    fn_def_id.borrow_mut().body = FnBody::Defined(return_value);
+                    fn_def_id.borrow_mut().body = return_value;
                 }
 
                 (params, return_ty, return_value, fn_def_id)

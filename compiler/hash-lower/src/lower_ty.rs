@@ -25,7 +25,7 @@ use hash_tir::{
         PrimitiveCtorInfo,
     },
     environment::env::AccessToEnv,
-    fns::{FnBody, FnDef, FnDefId, FnTy},
+    fns::{FnDef, FnDefId, FnTy},
     node::{HasAstNodeId, NodesId},
     primitives::primitives,
     refs::RefTy,
@@ -201,13 +201,7 @@ impl<'ir> BuilderCtx<'ir> {
         // Get the AstNodeId of the function definition, this is used to
         // link this instance to any attributes that might be applied
         // to the function definition.
-        let attr_id = if let FnBody::Defined(_) = body {
-            fn_def.node_id_ensured()
-        } else {
-            // We can't get an AstNodeId for intrinsics, so we just return
-            // the default node.
-            ast::AstNodeId::null()
-        };
+        let attr_id = fn_def.node_id_ensured();
 
         // Check whether this is an intrinsic item, since we need to handle
         // them differently

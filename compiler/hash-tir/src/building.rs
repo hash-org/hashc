@@ -102,8 +102,9 @@ pub mod gen {
         Node::create_gen(DataDef { name, params, ctors: DataDefCtors::Primitive(info) })
     }
 
-    /// Create a flexible universe type.
-    pub fn universe_ty() -> TyId {
+    /// Create a universe type.
+    #[allow(non_snake_case)]
+    pub fn Type() -> TyId {
         Ty::universe(NodeOrigin::Generated)
     }
 
@@ -123,7 +124,7 @@ pub mod gen {
     }
 
     /// Create the empty type.
-    pub fn never_ty() -> TyId {
+    pub fn never() -> TyId {
         Ty::never_ty(NodeOrigin::Generated)
     }
 

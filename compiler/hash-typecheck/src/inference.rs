@@ -21,12 +21,13 @@ use hash_tir::{
     args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
-    building::gen::{data_ty, never_ty},
+    building::gen::{data_ty, never},
     casting::CastTerm,
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    fns::{CallTerm, FnBody, FnDefId, FnTy},
+    fns::{CallTerm, FnDefId, FnTy},
+    intrinsics::{definitions::Intrinsic, IsIntrinsic},
     lits::{Lit, LitId},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
@@ -1008,15 +1009,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // immediate body functions.
             self.infer_params(fn_def.ty.params, || {
                 self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
-                if let FnBody::Defined(fn_body) = fn_def.body {
-                    if let Term::Fn(immediate_body_fn) = *fn_body.value() {
-                        self.infer_fn_def(
-                            immediate_body_fn,
-                            Ty::hole_for(fn_body),
-                            fn_body,
-                            FnInferMode::Header,
-                        )?;
-                    }
+                if let Term::Fn(immediate_body_fn) = *fn_def.body.value() {
+                    self.infer_fn_def(
+                        immediate_body_fn,
+                        Ty::hole_for(fn_def.body),
+                        fn_def.body,
+                        FnInferMode::Header,
+                    )?;
                 }
                 Ok(())
             })?;
@@ -1032,17 +1031,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         let fn_def = fn_def_id.value();
 
-        match fn_def.body {
-            FnBody::Defined(fn_body) => {
-                self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
-                    self.infer_params(fn_def.ty.params, || {
-                        self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
-                        self.infer_term(fn_body, fn_def.ty.return_ty)
-                    })
-                })?;
-            }
-            FnBody::Intrinsic(_) | FnBody::Axiom => {}
-        }
+        self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
+            self.infer_params(fn_def.ty.params, || {
+                self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+                self.infer_term(fn_def.body, fn_def.ty.return_ty)
+            })
+        })?;
 
         let fn_ty_id =
             Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
@@ -1090,7 +1084,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let closest_fn_def_return_ty = closest_fn_def.borrow().ty.return_ty;
                 self.infer_term(return_term.expression, closest_fn_def_return_ty)?;
 
-                let inferred_ty = Ty::expect_is(original_term, never_ty());
+                let inferred_ty = Ty::expect_is(original_term, never());
                 self.check_by_unify(inferred_ty, annotation_ty)?;
                 Ok(())
             }
@@ -1124,7 +1118,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
     ) -> TcResult<()> {
         // Always `never`.
-        self.check_by_unify(never_ty(), annotation_ty)
+        self.check_by_unify(never(), annotation_ty)
     }
 
     /// Infer the type of an unsafe term, and return it.
@@ -1202,7 +1196,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 match *annotation_ty.value() {
                     Ty::Hole(_) => {
                         // If it diverges, we can just infer the return type as `never`.
-                        let block_term_ty = Ty::expect_is(original_term_id, never_ty());
+                        let block_term_ty = Ty::expect_is(original_term_id, never());
                         self.check_by_unify(block_term_ty, annotation_ty)?;
                     }
                     _ => {
@@ -1285,6 +1279,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_cast_term(&self, cast_term: CastTerm, annotation_ty: TyId) -> TcResult<()> {
         self.infer_term(cast_term.subject_term, cast_term.target_ty)?;
         self.check_by_unify(cast_term.target_ty, annotation_ty)?;
+        Ok(())
+    }
+
+    /// Infer an intrinsic term, and return it.
+    pub fn infer_intrinsic(&self, intrinsic: Intrinsic, annotation_ty: TyId) -> TcResult<()> {
+        // ##GeneratedOrigin: intrinsics do not belong to the source code
+        self.check_by_unify(Term::from(intrinsic.ty(), NodeOrigin::Generated), annotation_ty)?;
         Ok(())
     }
 
@@ -1462,7 +1463,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     _ if self.uni_ops().is_uninhabitable(subject_ty_copy)? => {
                         let new_unified_ty = Ty::hole_for(case_data.value);
                         self.infer_term(case_data.value, new_unified_ty)?;
-                        self.check_by_unify(new_unified_ty, never_ty())?;
+                        self.check_by_unify(new_unified_ty, never())?;
                     }
                     Some(_) => {
                         self.infer_term(case_data.value, new_unified_ty)?;
@@ -1556,6 +1557,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Assign(assign_term) => {
                 self.infer_assign_term(&assign_term, annotation_ty, term_id)?
             }
+            Term::Intrinsic(intrinsic) => self.infer_intrinsic(intrinsic, annotation_ty)?,
             Term::Hole(_) => {}
             Ty::TupleTy(tuple_ty) => {
                 self.infer_params(tuple_ty.data, || Ok(()))?;

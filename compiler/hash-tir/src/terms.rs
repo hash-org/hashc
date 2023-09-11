@@ -18,6 +18,7 @@ use crate::{
     data::{CtorTerm, DataDefId, DataTy},
     environment::stores::tir_stores,
     fns::{CallTerm, FnDefId, FnTy},
+    intrinsics::{definitions::Intrinsic, IsIntrinsic},
     lits::LitId,
     node::{Node, NodeId, NodeOrigin},
     params::Param,
@@ -118,6 +119,9 @@ pub enum Term {
 
     /// Holes
     Hole(Hole),
+
+    /// Intrinsics
+    Intrinsic(Intrinsic),
 }
 
 tir_node_single_store!(Term);
@@ -263,6 +267,9 @@ impl fmt::Display for Term {
             }
             Term::Array(array) => {
                 write!(f, "{}", array)
+            }
+            Term::Intrinsic(intrinsic) => {
+                write!(f, "{}", intrinsic)
             }
             Ty::TupleTy(tuple_ty) => write!(f, "{}", tuple_ty),
             Ty::FnTy(fn_ty) => write!(f, "{}", fn_ty),

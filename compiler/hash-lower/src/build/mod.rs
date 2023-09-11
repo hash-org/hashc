@@ -27,7 +27,7 @@ use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, ScopeKind},
     environment::env::{AccessToEnv, Env},
-    fns::{FnBody, FnDef, FnDefId, FnTy},
+    fns::{FnDef, FnDefId, FnTy},
     node::NodesId,
     symbols::SymbolId,
     terms::TermId,
@@ -302,11 +302,6 @@ impl<'ctx> BodyBuilder<'ctx> {
                 // @@Future: deal with parameter attributes that are mutable?
                 this.push_local(param.name, LocalDecl::new_immutable(param.name.ident(), ir_ty));
             });
-
-            // Axioms and Intrinsics are not lowered into IR
-            let FnBody::Defined(body) = body else {
-                panic!("defined function body was expected, but got `{body:?}`")
-            };
 
             this.build_body(body)
         })

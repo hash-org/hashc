@@ -32,6 +32,11 @@ impl Identifier {
     pub fn is_empty(&self) -> bool {
         IDENTIFIER_MAP.get_ident(*self).is_empty()
     }
+
+    /// Get the identifier as a static string.
+    pub fn as_str(&self) -> &'static str {
+        IDENTIFIER_MAP.get_ident(*self)
+    }
 }
 
 impl Display for Identifier {
