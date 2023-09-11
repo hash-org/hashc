@@ -2,10 +2,7 @@
 //! backend builder to emit constants of all primitive types when converting
 //! Hash IR into the target backend.
 
-use hash_ir::{
-    constant::{self, AllocId},
-    ir,
-};
+use hash_ir::ir;
 use hash_source::constant::InternedStr;
 use hash_target::{abi::Scalar, size::Size};
 
@@ -86,26 +83,11 @@ pub trait ConstValueBuilderMethods<'b>: BackendTypes {
     /// Emit a hunk of bytes as a constant value.
     fn const_bytes(&self, bytes: &[u8]) -> Self::Value;
 
-    /// Emit a constant value from a `Const` value. This only deals with
-    /// constant "scalar" values, for string values, there is specific code
-    /// to emit this constant.
-    fn constant_scalar_value(
-        &self,
-        const_value: ir::Const,
-        abi: Scalar,
-        ty: Self::Type,
-    ) -> Self::Value;
-
     /// Emit a constant value from a [`ir::Scalar`] value.
-    fn const_scalar_value(
-        &self,
-        scalar: constant::Scalar,
-        abi: Scalar,
-        ty: Self::Type,
-    ) -> Self::Value;
+    fn const_scalar_value(&self, scalar: ir::Scalar, abi: Scalar, ty: Self::Type) -> Self::Value;
 
     /// Convert an allocated constant value into a [`Self::Value`].
-    fn const_data_from_alloc(&self, alloc: AllocId) -> Self::Value;
+    fn const_data_from_alloc(&self, alloc: ir::AllocId) -> Self::Value;
 
     /// Generate a constant pointer byte offset from the `base` by the
     /// specified `offset`.

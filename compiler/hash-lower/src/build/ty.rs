@@ -10,12 +10,11 @@ use hash_intrinsics::{
     utils::PrimitiveUtils,
 };
 use hash_ir::{
-    ir::{self, Const},
-    ty::{IrTy, IrTyId},
+    ir::{self, Const, ConstKind, Scalar},
+    ty::{IrTy, IrTyId, ToIrTy, COMMON_IR_TYS},
 };
-use hash_source::constant::InternedInt;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
-use hash_target::primitives::IntTy;
+use hash_target::size::Size;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     data::DataTy,
@@ -86,6 +85,15 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// duplicate work.
     pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> IrTyId {
         self.ctx.ty_id_from_tir_ty(ty)
+    }
+
+    pub(super) fn ty_id_from_lit(&self, lit: &Lit) -> IrTyId {
+        match lit {
+            Lit::Int(val) => val.kind().unwrap().to_ir_ty(),
+            Lit::Str(_) => COMMON_IR_TYS.str,
+            Lit::Char(_) => COMMON_IR_TYS.char,
+            Lit::Float(val) => val.kind().unwrap().to_ir_ty(),
+        }
     }
 
     /// Function which is used to classify a [FnCallTerm] into a
@@ -159,18 +167,9 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Convert the [LitPat] into a [Const] and return the value of the constant
     /// as a [u128]. This literal term must be an integral type.
-    pub(crate) fn eval_lit_pat(&self, pat: LitPat) -> (Const, u128) {
-        match *(*pat).value() {
-            Lit::Int(lit) => {
-                let value = lit.interned_value();
-                value.map(|constant| (Const::Int(value), constant.value.as_u128()))
-            }
-            Lit::Char(lit) => {
-                let value = lit.value();
-                (Const::Char(value), u128::from(value))
-            }
-            _ => unreachable!(),
-        }
+    #[inline]
+    pub(crate) fn eval_lit_pat(&self, pat: LitPat) -> Const {
+        self.lit_as_const(pat.0)
     }
 
     /// This will compute the value of a range literal as a [Const] and a
@@ -186,33 +185,42 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn eval_range_lit(
         &self,
         maybe_pat: Option<LitPat>,
-        ty: IrTyId,
+        ty_id: IrTyId,
         at_end: bool,
     ) -> (Const, u128) {
-        match maybe_pat {
-            Some(pat) => self.eval_lit_pat(pat),
-            None => ty.map(|ty| match ty {
-                IrTy::Char if at_end => (Const::Char(std::char::MAX), std::char::MAX as u128),
-                IrTy::Char => (Const::Char(0 as char), 0),
-                IrTy::Int(ty) => {
-                    let ptr_size = self.target().ptr_size();
-                    let size = ty.size(ptr_size);
-                    let value = if at_end { size.signed_int_max() } else { size.signed_int_min() };
+        let scalar = match maybe_pat {
+            Some(lit_pat) => {
+                let constant = self.eval_lit_pat(lit_pat);
+                let ConstKind::Scalar(scalar) = constant.kind else {
+                    panic!("expected scalar constant in `add_cases_to_switch`")
+                };
 
-                    (
-                        Const::Int(InternedInt::create(value.into())),
-                        IntTy::Int(*ty).numeric_max(ptr_size),
-                    )
+                return (constant, scalar.to_bits(scalar.size()).unwrap());
+            }
+            None => ty_id.map(|ty| match ty {
+                IrTy::Char if at_end => Scalar::from(std::char::MAX),
+                IrTy::Char => {
+                    Scalar::from_uint(0u32, Size::from_bytes(std::mem::size_of::<char>() as u64))
+                }
+                IrTy::Int(int_ty) => {
+                    let ptr_size = self.target().ptr_size();
+                    let size = int_ty.size(ptr_size);
+                    let value = if at_end { size.signed_int_max() } else { size.signed_int_min() };
+                    Scalar::from_int(value, size)
                 }
                 IrTy::UInt(ty) => {
                     let ptr_size = self.target().ptr_size();
                     let size = ty.size(ptr_size);
 
                     let value = if at_end { size.unsigned_int_max() } else { 0 };
-                    (Const::Int(InternedInt::create(value.into())), value)
+                    Scalar::from_uint(value, ptr_size)
                 }
                 _ => unreachable!(),
             }),
-        }
+        };
+
+        // Evaluate the bits of the scalar into a u128
+        let bits = scalar.to_bits(scalar.size()).unwrap();
+        (Const::new(ty_id, ConstKind::Scalar(scalar)), bits)
     }
 }

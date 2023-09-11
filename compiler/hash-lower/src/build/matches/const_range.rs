@@ -5,8 +5,8 @@ use std::cmp::Ordering;
 
 use hash_ast::ast;
 use hash_ir::{
-    constant::{self, ConstKind},
-    ir::Const,
+    constant::ConstKind,
+    ir::{self, Const},
     ty::{IrTy, IrTyId},
 };
 use hash_ir_utils::const_utils::ConstUtils;
@@ -22,7 +22,7 @@ use crate::build::BodyBuilder;
 ///
 /// N.B. These [Const]s must be of the same type, and must be integral
 ///      types.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub(super) struct ConstRange {
     /// The lower value of the range.
     pub lo: Const,
@@ -48,29 +48,29 @@ impl ConstRange {
     }
 
     /// Check if a [Const] is within the range.
-    pub fn contains(&self, value: Const, _lc: LayoutComputer<'_>) -> Option<bool> {
+    pub fn contains(&self, value: Const, lc: LayoutComputer<'_>) -> Option<bool> {
         use Ordering::*;
 
         // If the range end is included, the value must be less than
         // or equal to the value.
         Some(
-            matches!(compare_constant_values(self.lo, value)?, Less | Equal)
+            matches!(compare_const_values(&self.lo, &value, lc)?, Less | Equal)
                 && matches!(
-                    (compare_constant_values(self.hi, value)?, self.end),
+                    (compare_const_values(&self.hi, &value, lc)?, self.end),
                     (Less, _) | (Equal, ast::RangeEnd::Included)
                 ),
         )
     }
 
     /// Check if a range overlaps with another range.
-    pub fn overlaps(&self, other: &Self, _lc: LayoutComputer<'_>) -> Option<bool> {
+    pub fn overlaps(&self, other: &Self, lc: LayoutComputer<'_>) -> Option<bool> {
         use Ordering::*;
 
         // self.lo <= other.hi && self.hi >= other.lo
         Some(
-            matches!(compare_constant_values(self.lo, other.hi)?, Less | Equal)
+            matches!(compare_const_values(&self.lo, &other.hi, lc)?, Less | Equal)
                 && matches!(
-                    (compare_constant_values(self.hi, other.lo)?, self.end),
+                    (compare_const_values(&self.hi, &other.lo, lc)?, self.end),
                     (Less, _) | (Equal, ast::RangeEnd::Included)
                 ),
         )
@@ -84,32 +84,9 @@ impl ConstRange {
 ///
 /// ##Note: This will panic if the constants below are larger than 128bits in size. This
 /// is mostly intended for scalars.
-pub fn compare_constant_values(left: Const, right: Const) -> Option<Ordering> {
-    match (left, right) {
-        (Const::Zero(_), Const::Zero(_)) => Some(Ordering::Equal),
-        (Const::Bool(left), Const::Bool(right)) => Some(left.cmp(&right)),
-        (Const::Char(left), Const::Char(right)) => Some(left.cmp(&right)),
-        (Const::Int(left), Const::Int(right)) => {
-            left.map(|left| right.map(|right| left.partial_cmp(right)))
-        }
-        (Const::Float(left), Const::Float(right)) => {
-            left.map(|left| right.map(|right| left.partial_cmp(right)))
-        }
-        (Const::Str(left), Const::Str(right)) => Some(left.cmp(&right)),
-        _ => None,
-    }
-}
-
-/// This performs a shallow [Const] comparison that checks if two constants are
-/// the same. This is only used when checking various properties of [ConstRange]
-/// and shouldn't be used as a general purpose "comparison" function for
-/// constants.
-///
-/// ##Note: This will panic if the constants below are larger than 128bits in size. This
-/// is mostly intended for scalars.
-pub fn _compare_const_values(
-    left: &constant::Const,
-    right: &constant::Const,
+pub fn compare_const_values(
+    left: &ir::Const,
+    right: &ir::Const,
     lc: LayoutComputer<'_>,
 ) -> Option<Ordering> {
     // The type of the constants should be the same...

@@ -12,7 +12,8 @@ pub mod graphviz;
 pub mod pretty;
 
 use std::{
-    fmt::{self, Formatter},
+    fmt,
+    io::{self, Write},
     iter,
     ops::Deref,
 };
@@ -24,30 +25,58 @@ use hash_ir::{
         AggregateKind, AssertKind, Operand, RValue, Statement, StatementKind, Terminator,
         TerminatorKind,
     },
-    ty::{AdtFlags, IrTy, Mutability, VariantIdx},
+    ty::{AdtFlags, IrTy, Mutability, VariantIdx, COMMON_IR_TYS},
 };
 use hash_layout::compute::LayoutComputer;
 use hash_source::constant::IntConstant;
 use hash_storage::store::statics::StoreId;
 use hash_target::{data_layout::HasDataLayout, primitives::FloatTy};
+use hash_utils::derive_more::Constructor;
+
+#[derive(Constructor, Default)]
+struct TempWriter(Vec<u8>);
+
+impl TempWriter {
+    fn into_string(self) -> String {
+        String::from_utf8(self.0).unwrap()
+    }
+}
+
+impl io::Write for TempWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 /// A function to pretty print the [Const] in a human-readable format, this
 /// is used when printing the generated IR.
 pub fn pretty_print_const(
+    f: &mut impl Write,
     constant: &Const,
     lc: LayoutComputer<'_>,
-    f: &mut Formatter<'_>,
-) -> fmt::Result {
+) -> io::Result<()> {
     match (constant.kind(), constant.ty().value()) {
-        (ConstKind::Pair { .. }, IrTy::Ref(inner, _, _)) => match inner.value() {
-            IrTy::Slice(_) => todo!(),
-            IrTy::Str => todo!(),
+        (ConstKind::Pair { data, .. }, IrTy::Ref(inner, _, _)) => match inner.value() {
+            IrTy::Str => write!(f, "{:?}", data.value()),
             _ => Ok(()),
         },
 
-        (ConstKind::Scalar(scalar), ty) => pretty_print_scalar(scalar, &ty, lc, f),
+        (ConstKind::Scalar(scalar), ty) => pretty_print_scalar(f, scalar, &ty, lc),
         (ConstKind::Alloc { .. }, IrTy::Array { .. }) => {
             write!(f, "[{}]", 2)
+        }
+        // We put a `zero` for fndefs.
+        (ConstKind::Zero, IrTy::FnDef { .. }) => {
+            write!(f, "{}", constant.ty())
+        }
+        (ConstKind::Zero, _) => {
+            debug_assert!(constant.ty() == COMMON_IR_TYS.unit);
+            write!(f, "()")
         }
         (_, IrTy::Adt(def)) => {
             let utils = ConstUtils::new(lc, constant);
@@ -67,45 +96,43 @@ pub fn pretty_print_const(
                             write!(f, "::{}", variant_def.name)?;
                         }
 
-                        f.write_str("(")?;
+                        write!(f, "(")?;
                         let mut first = true;
                         for (field, constant) in
                             iter::zip(variant_def.fields.iter(), destructured.fields)
                         {
                             if !first {
-                                f.write_str(", ")?;
+                                write!(f, ", ")?;
                             }
 
                             write!(f, "{}: ", field.name)?;
-                            pretty_print_const(&constant, lc, f)?;
+                            pretty_print_const(f, &constant, lc)?;
 
                             first = false;
                         }
 
-                        f.write_str(")")?;
-                        Ok(())
+                        write!(f, ")")
                     }
                     AdtFlags::TUPLE => {
                         // @@Todo: don't copy this out!
                         let variant_def = def.borrow().variant(VariantIdx::new(0)).clone();
 
-                        f.write_str("(")?;
+                        write!(f, "(")?;
                         let mut first = true;
                         for (field, constant) in
                             iter::zip(variant_def.fields.iter(), destructured.fields)
                         {
                             if !first {
-                                f.write_str(", ")?;
+                                write!(f, ", ")?;
                             }
 
                             write!(f, "{}: ", field.name)?;
-                            pretty_print_const(&constant, lc, f)?;
+                            pretty_print_const(f, &constant, lc)?;
 
                             first = false;
                         }
 
-                        f.write_str(")")?;
-                        Ok(())
+                        write!(f, ")")
                     }
                     AdtFlags::UNION => {
                         unimplemented!("union representations aren't implemented yet")
@@ -116,10 +143,6 @@ pub fn pretty_print_const(
                 Ok(())
             }
         }
-        // We put a `zero` for fndefs.
-        (ConstKind::Zero, IrTy::FnDef { .. }) => {
-            write!(f, "{}", constant.ty())
-        }
         (kind, _) => {
             write!(f, "{kind:?}: {}", constant.ty())
         }
@@ -128,11 +151,11 @@ pub fn pretty_print_const(
 
 /// Pretty printing a [Scalar] value.
 pub fn pretty_print_scalar(
+    f: &mut impl Write,
     scalar: Scalar,
     ty: &IrTy,
     lc: LayoutComputer<'_>,
-    f: &mut Formatter<'_>,
-) -> fmt::Result {
+) -> io::Result<()> {
     match ty {
         IrTy::Bool if scalar == Scalar::FALSE => write!(f, "false"),
         IrTy::Bool if scalar == Scalar::TRUE => write!(f, "true"),
@@ -208,12 +231,14 @@ impl fmt::Display for IrWriter<'_, &Operand> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.item {
             Operand::Place(place) => write!(f, "{}", place),
-            Operand::Const(_constant) => {
-                // if !constant.is_zero() {
-                //     write!(f, "const ")?;
-                // }
-                // pretty_print_const(constant, self.lc, f)
-                todo!()
+            Operand::Const(constant) => {
+                if !constant.is_zero() {
+                    write!(f, "const ")?;
+                }
+
+                let mut buf = TempWriter::default();
+                pretty_print_const(&mut buf, constant, self.lc).unwrap();
+                write!(f, "{}", buf.into_string())
             }
         }
     }
@@ -349,7 +374,10 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
                         // with the type, and then print it.
                         let value = Const::from_scalar_like(value, targets.ty, &self.lc);
 
-                        pretty_print_const(&value, self.lc, f)?;
+                        let mut buf = TempWriter::default();
+                        pretty_print_const(&mut buf, &value, self.lc).unwrap();
+                        write!(f, "{}", buf.into_string())?;
+
                         write!(f, " -> {target:?}")?;
                     }
 

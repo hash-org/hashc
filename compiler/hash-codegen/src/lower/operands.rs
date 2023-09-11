@@ -195,7 +195,7 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
     /// Constructr an [OperandRef] from an [ir::Const] value.
     pub fn from_const<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         builder: &mut Builder,
-        constant: Const,
+        constant: &Const,
     ) -> Self {
         let info = builder.layout_of(constant.ty());
 
@@ -381,39 +381,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) -> OperandRef<Builder::Value> {
         match operand {
             ir::Operand::Place(place) => self.codegen_consume_operand(builder, *place),
-            // ir::Operand::Const(constant) => OperandRef::from_const(builder, constant),
-            ir::Operand::Const(constant) => {
-                let ty = constant.ty();
-                let info = builder.layout_of(ty);
-
-                // @@Refactor: we should move this into its own function so that we can
-                // implement const allocations.
-                let value = match constant {
-                    ir::Const::Zero(_) => return OperandRef::zst(info),
-                    value @ (ir::Const::Bool(_)
-                    | ir::Const::Char(_)
-                    | ir::Const::Int(_)
-                    | ir::Const::Float(_)) => {
-                        let ty = builder.immediate_backend_ty(info);
-                        let abi = info.layout.borrow().abi;
-
-                        let AbiRepresentation::Scalar(scalar) = abi else {
-                            panic!("scalar constant doesn't have a scalar ABI representation")
-                        };
-
-                        // We convert the constant to a backend equivalent scalar
-                        // value and then emit it as an immediate operand value.
-                        let value = builder.constant_scalar_value(*value, scalar, ty);
-                        OperandValue::Immediate(value)
-                    }
-                    ir::Const::Str(interned_str) => {
-                        let (ptr, size) = builder.const_str(*interned_str);
-                        OperandValue::Pair(ptr, size)
-                    }
-                };
-
-                OperandRef { value, info }
-            }
+            ir::Operand::Const(constant) => OperandRef::from_const(builder, constant),
         }
     }
 

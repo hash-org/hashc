@@ -8,7 +8,6 @@ use hash_codegen::{
 };
 use hash_ir::{
     constant::{self, AllocRange},
-    ir::Const,
     ty::COMMON_IR_TYS,
 };
 use hash_source::constant::{InternedStr, Size};
@@ -161,30 +160,6 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         // string since it will just be casted into whatever the type is, this
         // is just needed to store some bytes.
         self.ll_ctx.const_string(bytes, /* null_terminated: */ true).as_any_value_enum()
-    }
-
-    fn constant_scalar_value(
-        &self,
-        const_value: Const,
-        _abi: Scalar,
-        ty: Self::Type,
-    ) -> Self::Value {
-        match const_value {
-            // This is handled at the translation layer, `const_scalar_value` should not be called
-            // on a ZST.
-            Const::Zero(_) => unreachable!("`const_scalar_value` should not be called on a ZST"),
-            Const::Bool(val) => self.const_bool(val),
-            Const::Char(ch) => self.const_u32(ch as u32),
-            Const::Int(int) => {
-                let const_int = int.value();
-
-                // Convert the constant into a u128 and then emit the
-                // correct LLVM constant for it.
-                self.const_uint_big(ty, const_int.value.as_u128())
-            }
-            Const::Float(interned_float) => self.const_float(ty, interned_float.value().as_f64()),
-            Const::Str(str) => self.const_str(str).0,
-        }
     }
 
     fn const_scalar_value(

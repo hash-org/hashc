@@ -33,7 +33,7 @@ use crate::{
 /// results from compile time evaluation back into the type system. Furthermore,
 /// the VM will likely operate on this representation to simplify communication
 /// of values/results
-#[derive(Clone, Copy, Debug, Constructor)]
+#[derive(Clone, Copy, Debug, Constructor, PartialEq, Eq, Hash)]
 pub struct Const {
     /// The type of the constant value.
     ty: IrTyId,
@@ -46,6 +46,12 @@ impl Const {
     /// Create a ZST constant.
     pub fn zero() -> Self {
         Self::new(COMMON_IR_TYS.unit, ConstKind::Zero)
+    }
+
+    /// Create a ZST constant which is of `zero` size with
+    /// a type.
+    pub fn zst(ty: IrTyId) -> Self {
+        Self::new(ty, ConstKind::Zero)
     }
 
     /// Check if the [Const] is a zero value.
@@ -91,10 +97,26 @@ impl Const {
 
         Const { ty, kind }
     }
+
+    /// Create a boolean constant.
+    pub fn bool(value: bool) -> Self {
+        Self::new(COMMON_IR_TYS.bool, ConstKind::Scalar(Scalar::from_bool(value)))
+    }
+
+    /// Create a character constant.
+    pub fn char(value: char) -> Self {
+        Self::new(COMMON_IR_TYS.char, ConstKind::Scalar(Scalar::from(value)))
+    }
+
+    /// Create a new [Const] which represents a `usize`.
+    pub fn usize<C: HasDataLayout>(value: u64, ctx: &C) -> Self {
+        let kind = ConstKind::Scalar(Scalar::from_usize(value, ctx));
+        Self::new(COMMON_IR_TYS.usize, kind)
+    }
 }
 
 /// The kind of constants that can be represented within the Hash IR.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConstKind {
     /// Exotic constant, that has no size, effectively a unit.
     Zero,
@@ -143,7 +165,7 @@ impl ConstKind {
 /// A scalar value. [Scalar]s are used to represent all integer, characters, and
 /// floating point values, as well as integers. The largest scalar value is
 /// 128bits, i.e. a `u128` or `i128`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[repr(packed)]
 pub struct Scalar {
     /// The buffer of the scalar, up to 16bytes.

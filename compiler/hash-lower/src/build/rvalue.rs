@@ -4,10 +4,10 @@
 use hash_ast::ast::AstNodeId;
 use hash_ir::{
     cast::CastKind,
-    ir::{AssertKind, BasicBlock, BinOp, Const, Operand, RValue, UnaryOp},
+    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, Scalar, UnaryOp},
     ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
-use hash_source::constant::{IntConstant, IntTy, InternedInt};
+use hash_source::constant::IntTy;
 use hash_storage::store::statics::StoreId;
 use hash_target::HasTarget;
 use hash_tir::terms::{Term, TermId, Ty};
@@ -35,7 +35,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         match *term.value() {
             Term::Lit(lit) => {
-                let value = self.as_constant(lit).into();
+                let value = self.lit_as_const(lit).into();
                 block.and(value)
             }
             ref fn_call_term @ Term::Call(fn_call) => {
@@ -139,15 +139,13 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Compute the minimum value of an [IrTy] assuming that it is a
     /// signed integer type.
-    fn min_value_of_ty(&self, ty: IrTyId) -> Operand {
-        let value = ty.map(|ty| match ty {
+    fn min_value_of_ty(&self, ty_id: IrTyId) -> Operand {
+        let value = ty_id.map(|ty| match ty {
             IrTy::Int(signed_ty) => {
                 // Create and intern the constant
                 let ptr_size = self.target().ptr_size();
                 let int_ty: IntTy = (*signed_ty).into();
-                let const_int =
-                    InternedInt::from_u128(int_ty.numeric_min(ptr_size), int_ty, ptr_size);
-                Const::Int(const_int)
+                Const::from_scalar_like(int_ty.numeric_min(ptr_size), ty_id, &self.ctx)
             }
             _ => unreachable!(),
         });
@@ -167,7 +165,6 @@ impl<'tcx> BodyBuilder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Operand> {
         let term = operand.value();
-        let span = self.span_of_term(operand);
 
         // If the item is a reference to a function, i.e. the subject of a call, then
         // we emit a constant that refers to the function.
@@ -177,13 +174,13 @@ impl<'tcx> BodyBuilder<'tcx> {
             // If this is a function type, we emit a ZST to represent the operand
             // of the function.
             if ty_id.map(|ty| matches!(ty, IrTy::FnDef { .. })) {
-                return block.and(Operand::Const(Const::Zero(ty_id)));
+                return block.and(Operand::Const(Const::zst(ty_id)));
             }
         }
 
         match Category::of(&term) {
             // Just directly recurse and create the constant.
-            Category::Constant => block.and(self.lower_constant_expr(&term, span).into()),
+            Category::Constant => block.and(self.lower_const_term(operand).into()),
             Category::Place | Category::RValue(_) => {
                 let place = unpack!(block = self.as_place(block, operand, mutability));
                 block.and(place.into())
@@ -252,7 +249,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Check for division or a remainder by zero, and if so emit
                 // an assertion to verify this condition.
                 let int_ty: IntTy = ty.value().into();
-                let uint_ty = int_ty.to_unsigned();
 
                 let assert_kind = if op == BinOp::Div {
                     AssertKind::DivisionByZero { operand: lhs }
@@ -263,7 +259,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Check for division/modulo of zero...
                 let is_zero = self.temp_place(COMMON_IR_TYS.bool);
 
-                let const_val = Const::Int(IntConstant::from_uint(0, uint_ty).into());
+                let const_val = Const::from_scalar_like(0, ty, &self.ctx);
                 let zero_val = Operand::Const(const_val);
 
                 self.control_flow_graph.push_assign(
@@ -280,9 +276,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // check for this and emit code.
                 if int_ty.is_signed() {
                     let sint_ty = int_ty.to_signed();
-
-                    let const_val = Const::Int(IntConstant::from_sint(-1, sint_ty).into());
-                    let negative_one_val = Operand::Const(const_val);
+                    let scalar = Scalar::from_int(-1, sint_ty.size(self.target().ptr_size()));
+                    let const_val: Operand = Const::new(ty, ConstKind::Scalar(scalar)).into();
                     let minimum_value = self.min_value_of_ty(ty);
 
                     let is_negative_one = self.temp_place(COMMON_IR_TYS.bool);
@@ -292,7 +287,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     self.control_flow_graph.push_assign(
                         block,
                         is_negative_one,
-                        RValue::BinaryOp(BinOp::Eq, Box::new((rhs, negative_one_val))),
+                        RValue::BinaryOp(BinOp::Eq, Box::new((rhs, const_val))),
                         origin,
                     );
 

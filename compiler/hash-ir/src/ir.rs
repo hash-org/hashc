@@ -8,12 +8,7 @@ use std::{
 
 use hash_ast::ast::AstNodeId;
 use hash_intrinsics::intrinsics;
-use hash_source::{
-    constant::{IntConstant, InternedFloat, InternedInt, InternedStr},
-    identifier::Identifier,
-    location::Span,
-    SourceId,
-};
+use hash_source::{identifier::Identifier, location::Span, SourceId};
 use hash_storage::{
     static_sequence_store_indirect,
     store::{
@@ -27,103 +22,13 @@ use hash_utils::{
     smallvec::{smallvec, SmallVec},
 };
 
+pub use crate::constant::{AllocId, Const, ConstKind, Scalar};
 use crate::{
     basic_blocks::BasicBlocks,
     cast::CastKind,
     ir_stores,
-    ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, ToIrTy, VariantIdx, COMMON_IR_TYS},
+    ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, VariantIdx, COMMON_IR_TYS},
 };
-
-/// A specified constant value within the Hash IR. These values and their
-/// shape is always known at compile-time.
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum Const {
-    /// Nothing, it has zero size, and is associated with a particular type.
-    Zero(IrTyId),
-
-    /// Boolean constant value.
-    Bool(bool),
-
-    /// Character constant
-    Char(char),
-
-    /// Integer constant that is defined within the program source.
-    Int(InternedInt),
-
-    /// Float constant that is defined within the program source.
-    Float(InternedFloat),
-
-    /// Static strings that are to be put within the resulting binary.
-    ///
-    /// Dynamic strings are represented as the following struct:
-    ///
-    /// ```ignore
-    /// str := struct(data: &raw u8, len: usize);
-    /// ```
-    Str(InternedStr),
-}
-
-impl Const {
-    /// Create a [Const::Zero] with a unit type, the total zero.
-    pub fn zero() -> Self {
-        Self::Zero(COMMON_IR_TYS.unit)
-    }
-
-    /// Check if a [Const] is "switchable", meaning that it can be used
-    /// in a `match` expression and a jump table can be generated rather
-    /// than emitting a equality check for each case.
-    pub fn is_switchable(&self) -> bool {
-        matches!(self, Self::Char(_) | Self::Int(_) | Self::Bool(_))
-    }
-
-    /// Compute the type of the [Const] provided with an IR context.
-    ///
-    /// N.B. Computing the `ty` of a [Const] will always yield a normalised
-    /// type, i.e. a `usize` will be converted into a `u64` on 64-bit
-    /// platforms.
-    pub fn ty(&self) -> IrTyId {
-        match self {
-            Const::Zero(ty) => *ty,
-            Const::Bool(_) => COMMON_IR_TYS.bool,
-            Const::Char(_) => COMMON_IR_TYS.char,
-            Const::Int(value) => value.map(|int| int.normalised_ty().to_ir_ty()),
-            Const::Float(value) => value.map(|float| float.ty().to_ir_ty()),
-            Const::Str(_) => COMMON_IR_TYS.str,
-        }
-    }
-
-    /// Create a new [Const] from a scalar value, with the appropriate
-    /// type.
-    pub fn from_scalar(value: u128, ty: IrTyId) -> Self {
-        ty.map(|ty| match ty {
-            IrTy::Int(int_ty) => {
-                let value = i128::from_be_bytes(value.to_be_bytes()); // @@ByteCast.
-                let interned_value = IntConstant::from_sint(value, *int_ty).into();
-                Self::Int(interned_value)
-            }
-            IrTy::UInt(int_ty) => {
-                let interned_value = IntConstant::from_uint(value, *int_ty).into();
-                Self::Int(interned_value)
-            }
-            IrTy::Bool => Self::Bool(value == (true as u128)),
-            IrTy::Char => unsafe { Self::Char(char::from_u32_unchecked(value as u32)) },
-            _ => unreachable!(),
-        })
-    }
-}
-
-impl fmt::Display for Const {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Zero(_) => write!(f, "()"),
-            Self::Bool(b) => write!(f, "{b}"),
-            Self::Char(c) => write!(f, "'{c}'"),
-            Self::Int(i) => write!(f, "{i}"),
-            Self::Float(flt) => write!(f, "{flt}"),
-            Self::Str(s) => write!(f, "{s:?}"),
-        }
-    }
-}
 
 impl From<Const> for Operand {
     fn from(constant: Const) -> Self {
@@ -657,7 +562,7 @@ impl AggregateKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum Operand {
     /// A constant value.
     Const(Const),
@@ -685,7 +590,7 @@ impl From<Operand> for RValue {
 
 /// The representation of values that occur on the right-hand side of an
 /// assignment.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RValue {
     /// Some value that is being used. Could be a constant or a place.
     Use(Operand),
@@ -778,7 +683,7 @@ impl RValue {
 }
 
 /// A defined statement within the IR
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum StatementKind {
     /// Filler kind when expressions are optimised out or removed for other
     /// reasons.
@@ -802,7 +707,7 @@ pub enum StatementKind {
 }
 
 /// A [Statement] is a intermediate transformation step within a [BasicBlock].
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Statement {
     /// The kind of [Statement] that it is.
     pub kind: StatementKind,
@@ -814,7 +719,7 @@ pub struct Statement {
 }
 
 /// The kind of assert terminator that it is.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum AssertKind {
     /// A Division by zero assertion.
     DivisionByZero { operand: Operand },
@@ -878,7 +783,7 @@ impl AssertKind {
 /// flow. All [BasicBlock]s must be terminated with a
 /// [Terminator] statement that instructs where the program
 /// flow is to go next.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct Terminator {
     /// The kind of [Terminator] that it is.
     pub kind: TerminatorKind,
@@ -1062,7 +967,7 @@ impl ExactSizeIterator for SwitchTargetsIter<'_> {}
 ///
 /// @@Future: does this need an `Intrinsic(...)` variant for substituting
 /// expressions for intrinsic functions?
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum TerminatorKind {
     /// A simple go to block directive.
     Goto(BasicBlock),
@@ -1138,7 +1043,7 @@ impl TerminatorKind {
 ///
 /// N.B. It is an invariant for a [BasicBlock] to not have a terminator
 /// once it has been built.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct BasicBlockData {
     /// The statements that the block has.
     pub statements: Vec<Statement>,
@@ -1500,6 +1405,6 @@ mod size_asserts {
     use super::*;
 
     static_assert_size!(Statement, 64);
-    static_assert_size!(Terminator, 96);
+    static_assert_size!(Terminator, 120);
     static_assert_size!(RValue, 40);
 }

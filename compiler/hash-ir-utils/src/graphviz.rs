@@ -14,7 +14,7 @@ use hash_layout::compute::LayoutComputer;
 use hash_utils::derive_more::Constructor;
 use html_escape::encode_text;
 
-use crate::WriteIr;
+use crate::{pretty_print_const, WriteIr};
 
 /// Used to separate line statements between each declaration within
 /// a particular body graph.
@@ -165,12 +165,11 @@ impl<'ir> IrGraphWriter<'ir> {
                         for (value, target) in targets.iter() {
                             // We want to create an a constant from this value
                             // with the type, and then print it.
-                            let value = Const::from_scalar(value, targets.ty);
+                            let value = Const::from_scalar_like(value, targets.ty, &self.lc);
 
-                            writeln!(
-                                w,
-                                r#"  {prefix}{id:?} -> {prefix}{target:?} [label="{value}"];"#
-                            )?;
+                            writeln!(w, r#"  {prefix}{id:?} -> {prefix}{target:?} [label=""#)?;
+                            pretty_print_const(w, &value, self.lc).unwrap();
+                            writeln!(w, r#""];"#)?;
                         }
 
                         // Add the otherwise case
