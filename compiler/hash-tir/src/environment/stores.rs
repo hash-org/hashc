@@ -15,7 +15,7 @@ use crate::{
     mods::{ModDefStore, ModMembersSeqStore, ModMembersStore},
     params::{ParamsSeqStore, ParamsStore},
     pats::{PatListSeqStore, PatListStore, PatStore},
-    scopes::StackStore,
+    scopes::{BlockStatementsSeqStore, BlockStatementsStore, StackStore},
     symbols::SymbolStore,
     terms::{TermListSeqStore, TermListStore, TermStore},
 };
@@ -50,6 +50,8 @@ stores! {
     term_list_seq: TermListSeqStore,
     match_cases: MatchCasesStore,
     match_cases_seq: MatchCasesSeqStore,
+    block_statements: BlockStatementsStore,
+    block_statements_seq: BlockStatementsSeqStore,
     atom_info: AtomInfoStore,
 }
 

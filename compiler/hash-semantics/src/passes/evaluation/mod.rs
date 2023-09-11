@@ -10,7 +10,7 @@ use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     args::Arg,
     environment::env::AccessToEnv,
-    fns::FnCallTerm,
+    fns::CallTerm,
     node::{Node, NodeId},
     terms::{Term, TermId},
     utils::common::dump_tir,
@@ -54,7 +54,7 @@ impl EvaluationPass<'_> {
                 match def {
                     Some(def) => {
                         let call_term = Term::from(
-                            FnCallTerm {
+                            CallTerm {
                                 subject: Term::from(def, def.origin()),
                                 implicit: false,
                                 args: Node::create_at(Node::<Arg>::empty_seq(), def.origin()),

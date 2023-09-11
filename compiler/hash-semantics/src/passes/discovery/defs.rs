@@ -9,7 +9,7 @@ use hash_storage::store::{
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
 };
 use hash_tir::{
-    context::Decl,
+    context::ContextMember,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
     environment::env::AccessToEnv,
     fns::FnDefId,
@@ -75,7 +75,7 @@ pub(super) enum ItemId {
 /// contain local definitions.
 #[derive(Debug, Copy, Clone, From)]
 enum StackMemberOrModMember {
-    StackMember(Decl),
+    StackMember(ContextMember),
     ModMember(ModMember),
 }
 
@@ -496,14 +496,15 @@ impl<'tc> DiscoveryPass<'tc> {
     /// resolved at a later stage.
     pub(super) fn add_stack_members_in_pat_to_buf(
         node: AstNodeRef<ast::Pat>,
-        buf: &mut SmallVec<[(AstNodeId, Decl); 3]>,
+        buf: &mut SmallVec<[(AstNodeId, ContextMember); 3]>,
     ) {
         let register_spread_pat =
-            |spread: &AstNode<ast::SpreadPat>, buf: &mut SmallVec<[(AstNodeId, Decl); 3]>| {
+            |spread: &AstNode<ast::SpreadPat>,
+             buf: &mut SmallVec<[(AstNodeId, ContextMember); 3]>| {
                 if let Some(name) = &spread.name {
                     buf.push((
                         name.id(),
-                        Decl {
+                        ContextMember {
                             name: SymbolId::from_name(name.ident, NodeOrigin::Given(name.id())),
                             ty: None,
                             value: None,
@@ -516,7 +517,7 @@ impl<'tc> DiscoveryPass<'tc> {
             ast::Pat::Binding(binding) => {
                 buf.push((
                     node.id(),
-                    Decl {
+                    ContextMember {
                         name: SymbolId::from_name(
                             binding.name.ident,
                             NodeOrigin::Given(binding.name.id()),
@@ -569,7 +570,7 @@ impl<'tc> DiscoveryPass<'tc> {
             }
             ast::Pat::Wild(_) => buf.push((
                 node.id(),
-                Decl {
+                ContextMember {
                     name: SymbolId::fresh(NodeOrigin::Given(node.id())),
                     // is_mutable: false,
                     ty: None,
@@ -607,8 +608,10 @@ impl<'tc> DiscoveryPass<'tc> {
                 (Some(declaration_name), ast::Pat::Binding(binding_pat))
                     if declaration_name.borrow().name == Some(binding_pat.name.ident) =>
                 {
-                    found_members
-                        .push((node.id(), Decl { name: declaration_name, ty: None, value: None }))
+                    found_members.push((
+                        node.id(),
+                        ContextMember { name: declaration_name, ty: None, value: None },
+                    ))
                 }
                 _ => Self::add_stack_members_in_pat_to_buf(node, &mut found_members),
             }

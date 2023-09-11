@@ -17,13 +17,13 @@ use crate::{
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::{CtorTerm, DataDefId, DataTy},
     environment::stores::tir_stores,
-    fns::{FnCallTerm, FnDefId, FnTy},
+    fns::{CallTerm, FnDefId, FnTy},
     lits::LitId,
     node::{Node, NodeId, NodeOrigin},
     params::Param,
     primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::{TupleTerm, TupleTy},
     utils::traversing::Atom,
@@ -68,8 +68,8 @@ pub enum Term {
     Ctor(CtorTerm),
 
     // Functions
-    FnCall(FnCallTerm),
-    FnRef(FnDefId),
+    Call(CallTerm),
+    Fn(FnDefId),
 
     // Loops
     Loop(LoopTerm),
@@ -79,8 +79,7 @@ pub enum Term {
     Match(MatchTerm),
     Return(ReturnTerm),
 
-    // Declarations and assignments
-    Decl(DeclTerm),
+    // Assignments
     Assign(AssignTerm),
 
     // Unsafe
@@ -233,8 +232,8 @@ impl fmt::Display for Term {
             Term::Tuple(tuple_term) => write!(f, "{}", tuple_term),
             Term::Lit(lit) => write!(f, "{}", *lit.value()),
             Term::Ctor(ctor_term) => write!(f, "{}", ctor_term),
-            Term::FnCall(fn_call_term) => write!(f, "{}", fn_call_term),
-            Term::FnRef(fn_def_id) => write!(
+            Term::Call(fn_call_term) => write!(f, "{}", fn_call_term),
+            Term::Fn(fn_def_id) => write!(
                 f,
                 "{}",
                 if fn_def_id.map(|fn_def| fn_def.name.map(|sym| sym.name.is_none())) {
@@ -251,9 +250,6 @@ impl fmt::Display for Term {
             }
             Term::Match(match_term) => write!(f, "{}", match_term),
             Term::Return(return_term) => write!(f, "{}", return_term),
-            Term::Decl(decl_stack_member_term) => {
-                write!(f, "{}", decl_stack_member_term)
-            }
             Term::Assign(assign_term) => write!(f, "{}", assign_term),
             Term::Unsafe(unsafe_term) => write!(f, "{}", unsafe_term),
             Term::Access(access_term) => write!(f, "{}", access_term),

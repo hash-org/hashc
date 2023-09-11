@@ -7,7 +7,7 @@ use hash_tir::{
     args::ArgsId,
     context::ScopeKind,
     data::DataDefCtors,
-    fns::{FnCallTerm, FnTy},
+    fns::{CallTerm, FnTy},
     holes::Hole,
     lits::Lit,
     params::ParamsId,
@@ -260,7 +260,7 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         }
     }
 
-    pub fn unify_fn_calls(&self, src: FnCallTerm, target: FnCallTerm) -> TcResult<()> {
+    pub fn unify_fn_calls(&self, src: CallTerm, target: CallTerm) -> TcResult<()> {
         self.unify_terms(src.subject, target.subject)?;
         self.unify_args(src.args, target.args)?;
         Ok(())
@@ -350,13 +350,11 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
             }
             (Term::Ref(_), _) | (_, Term::Ref(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Term::FnCall(c1), Term::FnCall(c2)) => self.unify_fn_calls(c1, c2),
-            (Term::FnCall(_), _) | (_, Term::FnCall(_)) => {
-                self.mismatching_atoms(src_id, target_id)
-            }
+            (Term::Call(c1), Term::Call(c2)) => self.unify_fn_calls(c1, c2),
+            (Term::Call(_), _) | (_, Term::Call(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Term::FnRef(f1), Term::FnRef(f2)) if f1 == f2 => Ok(()),
-            (Term::FnRef(_), _) | (_, Term::FnRef(_)) => self.mismatching_atoms(src_id, target_id),
+            (Term::Fn(f1), Term::Fn(f2)) if f1 == f2 => Ok(()),
+            (Term::Fn(_), _) | (_, Term::Fn(_)) => self.mismatching_atoms(src_id, target_id),
 
             // @@Todo: rest
             _ => self.mismatching_atoms(src_id, target_id),

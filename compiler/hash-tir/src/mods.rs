@@ -5,7 +5,7 @@ use std::fmt::Display;
 use hash_source::{identifier::Identifier, SourceId, SourceMapUtils};
 use hash_storage::{
     get,
-    store::{statics::StoreId, SequenceStore, Store, StoreKey, TrivialSequenceStoreKey},
+    store::{statics::StoreId, Store, StoreKey, TrivialSequenceStoreKey},
 };
 use textwrap::indent;
 use utility_types::omit;

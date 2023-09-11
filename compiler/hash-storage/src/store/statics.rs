@@ -542,17 +542,17 @@ macro_rules! static_sequence_store_direct {
             }
 
             fn map<R>(self, f: impl FnOnce(&Self::ValueRef) -> R) -> R {
-                use $crate::store::Store;
+                use $crate::store::SequenceStore;
                 $store_source.$store_name().map_fast(self.0, |v| f(&v[self.1]))
             }
 
             fn modify<R>(self, f: impl FnOnce(&mut Self::ValueRef) -> R) -> R {
-                use $crate::store::Store;
+                use $crate::store::SequenceStore;
                 $store_source.$store_name().modify_fast(self.0, |v| f(&mut v[self.1]))
             }
 
             fn set(self, value: Self::Value) {
-                use $crate::store::Store;
+                use $crate::store::SequenceStore;
                 $store_source.$store_name().set_at_index(self.0, self.1, value);
             }
         }

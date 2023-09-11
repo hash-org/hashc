@@ -55,12 +55,11 @@ impl Category {
             | Term::LoopControl(..)
             | Term::Block(_)
             | Term::Ctor(_)
-            | Term::FnRef(_)
+            | Term::Fn(_)
             | Term::Match(..)
-            | Term::FnCall(..) => Category::RValue(RValueKind::Into),
+            | Term::Call(..) => Category::RValue(RValueKind::Into),
 
             Term::Tuple(_)
-            | Term::Decl(_)
             | Term::Assign(_)
             | Term::Array(_)
             | Term::Cast(_)

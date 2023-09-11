@@ -26,7 +26,7 @@ use hash_tir::{
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    fns::{FnBody, FnCallTerm, FnDefId, FnTy},
+    fns::{CallTerm, FnBody, FnDefId, FnTy},
     lits::{Lit, LitId},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
@@ -34,7 +34,7 @@ use hash_tir::{
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockStatement, BlockTerm},
     sub::Sub,
     symbols::SymbolId,
     term_as_variant,
@@ -853,7 +853,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer the type of a function call.
     pub fn infer_fn_call_term(
         &self,
-        fn_call_term: &FnCallTerm,
+        fn_call_term: &CallTerm,
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
@@ -868,7 +868,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     if let Ty::FnTy(_) = *fn_ty.return_ty.value() && fn_ty.implicit && !fn_call_term.implicit {
                         let applied_args = Arg::seq_from_params_as_holes(fn_ty.params);
                         let copied_subject = Term::inherited_from(fn_call_term.subject, *fn_call_term.subject.value());
-                        let new_subject = FnCallTerm {
+                        let new_subject = CallTerm {
                             args: applied_args,
                             subject: copied_subject,
                             implicit: fn_ty.implicit,
@@ -946,8 +946,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // @@MissingOrigin
             // Maybe it is better to check this manually?
             let call_term = Node::create_at(
-                Term::FnCall(FnCallTerm {
-                    subject: Node::create_at(Term::FnRef(fn_def_id), NodeOrigin::Generated),
+                Term::Call(CallTerm {
+                    subject: Node::create_at(Term::Fn(fn_def_id), NodeOrigin::Generated),
                     implicit: false,
                     args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
                 }),
@@ -1009,7 +1009,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             self.infer_params(fn_def.ty.params, || {
                 self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let FnBody::Defined(fn_body) = fn_def.body {
-                    if let Term::FnRef(immediate_body_fn) = *fn_body.value() {
+                    if let Term::Fn(immediate_body_fn) = *fn_body.value() {
                         self.infer_fn_def(
                             immediate_body_fn,
                             Ty::hole_for(fn_body),
@@ -1049,6 +1049,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.check_by_unify(fn_ty_id, annotation_ty)?;
 
         self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
+
         Ok(())
     }
 
@@ -1141,11 +1142,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         original_term_id: TermId,
     ) -> TcResult<()> {
         // Forward to the inner term.
-        self.infer_block_term(
-            &loop_term.block,
-            Ty::hole(loop_term.block.origin),
-            original_term_id,
-        )?;
+        self.infer_term(loop_term.inner, Ty::hole(loop_term.inner.origin().inferred()))?;
         let loop_term =
             Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
         self.check_by_unify(loop_term, annotation_ty)?;
@@ -1173,11 +1170,30 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let mut diverges = false;
 
             for statement in block_term.statements.iter() {
-                let statement_ty = Ty::hole_for(statement);
-                self.infer_term(statement, statement_ty)?;
+                let ty_to_check_divergence = match *statement.value() {
+                    BlockStatement::Decl(decl) => {
+                        self.check_ty(decl.ty)?;
+                        if let Some(value) = decl.value {
+                            self.infer_term(value, decl.ty)?;
+                        };
+                        self.infer_pat(decl.bind_pat, decl.ty, decl.value)?;
+
+                        // Check that the binding pattern of the declaration is irrefutable.
+                        let eck = self.exhaustiveness_checker(decl.bind_pat);
+                        eck.is_pat_irrefutable(&[decl.bind_pat], decl.ty, None);
+                        self.append_exhaustiveness_diagnostics(eck);
+
+                        decl.ty
+                    }
+                    BlockStatement::Expr(expr) => {
+                        let statement_ty = Ty::hole_for(expr);
+                        self.infer_term(expr, statement_ty)?;
+                        statement_ty
+                    }
+                };
 
                 // If the statement diverges, we can already exit
-                if self.uni_ops().is_uninhabitable(statement_ty)? {
+                if self.uni_ops().is_uninhabitable(ty_to_check_divergence)? {
                     diverges = true;
                 }
             }
@@ -1191,13 +1207,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     }
                     _ => {
                         // Infer the return value
-                        let return_value_ty = Ty::hole_for(block_term.return_value);
-                        self.infer_term(block_term.return_value, return_value_ty)?;
+                        let return_value_ty = Ty::hole_for(block_term.expr);
+                        self.infer_term(block_term.expr, return_value_ty)?;
                     }
                 }
             } else {
                 // Infer the return value
-                self.infer_term(block_term.return_value, annotation_ty)?;
+                self.infer_term(block_term.expr, annotation_ty)?;
             };
 
             let sub = self.sub_ops().create_sub_from_current_scope();
@@ -1269,28 +1285,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_cast_term(&self, cast_term: CastTerm, annotation_ty: TyId) -> TcResult<()> {
         self.infer_term(cast_term.subject_term, cast_term.target_ty)?;
         self.check_by_unify(cast_term.target_ty, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer a stack declaration term, and return its type.
-    pub fn infer_decl_term(
-        &self,
-        decl_term: &DeclTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        self.check_ty(decl_term.ty)?;
-        if let Some(value) = decl_term.value {
-            self.infer_term(value, decl_term.ty)?;
-        };
-        self.infer_pat(decl_term.bind_pat, decl_term.ty, decl_term.value)?;
-        self.check_by_unify(Ty::unit_ty(original_term_id.origin().inferred()), annotation_ty)?;
-
-        // Check that the binding pattern of the declaration is irrefutable.
-        let eck = self.exhaustiveness_checker(decl_term.bind_pat);
-        eck.is_pat_irrefutable(&[decl_term.bind_pat], decl_term.ty, None);
-        self.append_exhaustiveness_diagnostics(eck);
-
         Ok(())
     }
 
@@ -1528,10 +1522,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Lit(lit_term) => self.infer_lit(lit_term, annotation_ty)?,
             Term::Array(prim_term) => self.infer_array_term(&prim_term, annotation_ty)?,
             Term::Ctor(ctor_term) => self.infer_ctor_term(&ctor_term, annotation_ty, term_id)?,
-            Term::FnCall(fn_call_term) => {
+            Term::Call(fn_call_term) => {
                 self.infer_fn_call_term(&fn_call_term, annotation_ty, term_id)?
             }
-            Term::FnRef(fn_def_id) => {
+            Term::Fn(fn_def_id) => {
                 self.infer_fn_def(fn_def_id, annotation_ty, term_id, FnInferMode::Body)?
             }
             Term::Var(var_term) => self.infer_var(var_term, annotation_ty)?,
@@ -1552,7 +1546,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
             Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
-            Term::Decl(decl_term) => self.infer_decl_term(&decl_term, annotation_ty, term_id)?,
             Term::Access(access_term) => {
                 self.infer_access_term(&access_term, annotation_ty, term_id)?
             }

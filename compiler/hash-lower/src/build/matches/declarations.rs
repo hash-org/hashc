@@ -14,7 +14,7 @@ use hash_tir::{
     data::CtorPat,
     node::NodesId,
     pats::{Pat, PatId},
-    scopes::{BindingPat, DeclTerm},
+    scopes::{BindingPat, Decl},
     symbols::SymbolId,
     terms::TermId,
     tuples::TuplePat,
@@ -45,7 +45,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn lower_declaration(
         &mut self,
         mut block: BasicBlock,
-        decl: &DeclTerm,
+        decl: &Decl,
         decl_origin: AstNodeId,
     ) -> BlockAnd<()> {
         if let Some(value) = &decl.value {

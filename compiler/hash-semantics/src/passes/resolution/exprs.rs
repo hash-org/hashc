@@ -25,14 +25,13 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
     environment::env::AccessToEnv,
-    fns::{FnBody, FnCallTerm, FnDefId},
+    fns::{CallTerm, FnBody, FnDefId},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
-    node::{Node, NodeOrigin},
+    node::{Node, NodeId, NodeOrigin},
     params::ParamIndex,
     primitives::primitives,
     refs::{DerefTerm, RefKind, RefTerm},
-    scopes::{AssignTerm, BlockTerm, DeclTerm, Stack},
-    term_as_variant,
+    scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
     terms::{Term, TermId, Ty, TyOfTerm, UnsafeTerm},
     tuples::TupleTerm,
 };
@@ -139,9 +138,6 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Expr::Macro(invocation) => {
                 self.make_term_from_ast_macro_invocation_expr(node.with_body(invocation))?
             }
-            ast::Expr::Declaration(declaration) => {
-                self.make_term_from_ast_stack_declaration(node.with_body(declaration))?
-            }
             ast::Expr::Ref(ref_expr) => {
                 self.make_term_from_ast_ref_expr(node.with_body(ref_expr))?
             }
@@ -200,6 +196,7 @@ impl<'tc> ResolutionPass<'tc> {
             // No-ops (not supported or handled earlier):
             ast::Expr::TraitDef(_)
             | ast::Expr::MergeDeclaration(_)
+            | ast::Expr::Declaration(_)
             | ast::Expr::ImplDef(_)
             | ast::Expr::TraitImpl(_) => Term::unit(NodeOrigin::Given(node.id())),
 
@@ -340,7 +337,7 @@ impl<'tc> ResolutionPass<'tc> {
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::FnDef(fn_def_id) => {
                     // Reference to a function definition
-                    Ok(Term::from(Term::FnRef(*fn_def_id), origin))
+                    Ok(Term::from(Term::Fn(*fn_def_id), origin))
                 }
                 TerminalResolvedPathComponent::CtorPat(_) => {
                     panic_on_span!(original_node_id.span(), "found CtorPat in value ast path")
@@ -351,7 +348,7 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::FnCall(fn_call_term) => {
                     // Function call
-                    Ok(Term::from(Term::FnCall(**fn_call_term), origin))
+                    Ok(Term::from(Term::Call(**fn_call_term), origin))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Bound variable
@@ -390,7 +387,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                 match (subject, args) {
                     (Some(subject), Some(args)) => Ok(Term::from(
-                        Term::FnCall(FnCallTerm { subject, args, implicit: false }),
+                        Term::Call(CallTerm { subject, args, implicit: false }),
                         NodeOrigin::Given(node.id()),
                     )),
                     _ => Err(SemanticError::Signal),
@@ -436,10 +433,10 @@ impl<'tc> ResolutionPass<'tc> {
     }
 
     /// Make a term from an [`ast::Declaration`] in non-constant scope.
-    fn make_term_from_ast_stack_declaration(
+    fn make_decl_from_ast_declaration(
         &self,
         node: AstNodeRef<ast::Declaration>,
-    ) -> SemanticResult<TermId> {
+    ) -> SemanticResult<Node<Decl>> {
         self.scoping().register_declaration(node);
 
         // Pattern
@@ -462,10 +459,9 @@ impl<'tc> ResolutionPass<'tc> {
         };
 
         match (pat, ty, value) {
-            (Some(pat), Some(ty), Some(value)) => Ok(Term::from(
-                Term::Decl(DeclTerm { bind_pat: pat, ty, value }),
-                NodeOrigin::Given(node.id()),
-            )),
+            (Some(pat), Some(ty), Some(value)) => {
+                Ok(Node::at(Decl { bind_pat: pat, ty, value }, NodeOrigin::Given(node.id())))
+            }
             _ => {
                 // If pat had an error, then we can't make a term, and the
                 // error will have been added already.
@@ -697,54 +693,63 @@ impl<'tc> ResolutionPass<'tc> {
                     self.scoping().add_mod_members(local_mod_def);
                 }
 
-                // Traverse the statements and the end expression
-                let statements = node
+                // Traverse the statements:
+                let mut statements = node
                     .statements
                     .iter()
                     .filter(|statement| !mod_member_ids.contains(&statement.id()))
                     .filter_map(|statement| {
                         if let ast::Expr::Declaration(declaration) = statement.body() {
+                            // Handle declarations using `BlockStatement::Decl`
                             self.scoping().register_declaration(node.with_body(declaration));
+                            let decl =
+                                self.try_or_add_error(self.make_decl_from_ast_declaration(
+                                    statement.with_body(declaration),
+                                ))?;
+                            Some(decl.with_data(BlockStatement::Decl(decl.data)))
+                        } else {
+                            // Everything else is `BlockStatement::Expr`
+                            let expr = self.try_or_add_error(
+                                self.make_term_from_ast_expr(statement.ast_ref()),
+                            )?;
+                            Some(Node::at(BlockStatement::Expr(expr), expr.origin()))
                         }
-                        self.try_or_add_error(self.make_term_from_ast_expr(statement.ast_ref()))
                     })
                     .collect_vec();
 
-                let expr = node.expr.as_ref().and_then(|expr| {
-                    if mod_member_ids.contains(&expr.id()) {
-                        None
-                    } else {
-                        Some({
-                            if let ast::Expr::Declaration(declaration) = expr.body() {
-                                self.scoping().register_declaration(node.with_body(declaration));
-                            }
+                // If an expression is given, use it as the returning expression, and otherwise
+                // use a unit `()` as the returning expression.
+                let total_origin = NodeOrigin::Given(node.id());
+                let empty_expr = || Term::unit(total_origin);
+                let expr = match node.expr.as_ref() {
+                    Some(expr) => {
+                        if mod_member_ids.contains(&expr.id()) {
+                            Some(empty_expr())
+                        } else if let ast::Expr::Declaration(declaration) = expr.body() {
+                            self.try_or_add_error(
+                                self.make_decl_from_ast_declaration(expr.with_body(declaration)),
+                            )
+                            .map(|decl| {
+                                statements.push(decl.with_data(BlockStatement::Decl(decl.data)));
+                                empty_expr()
+                            })
+                        } else {
                             self.try_or_add_error(self.make_term_from_ast_expr(expr.ast_ref()))
-                        })
+                        }
                     }
-                });
+                    None => Some(empty_expr()),
+                };
 
                 // If all ok, create a block term
-                match (
-                    expr,
-                    statements.len()
-                        == (node.statements.len().saturating_sub(mod_member_ids.len())),
-                ) {
-                    (Some(Some(expr)), true) => {
+                match expr {
+                    Some(expr) => {
                         let statements =
-                            Node::create_at(TermId::seq(statements), NodeOrigin::Given(node.id()));
-                        Ok(Term::from(
-                            Term::Block(BlockTerm { statements, return_value: expr, stack_id }),
+                            Node::create_at(Node::seq(statements), NodeOrigin::Given(node.id()));
+                        let result = Term::from(
+                            Term::Block(BlockTerm { statements, expr, stack_id }),
                             NodeOrigin::Given(node.id()),
-                        ))
-                    }
-                    (None, true) => {
-                        let statements =
-                            Node::create_at(TermId::seq(statements), NodeOrigin::Given(node.id()));
-                        let return_value = Term::unit(NodeOrigin::Given(node.id()));
-                        Ok(Term::from(
-                            Term::Block(BlockTerm { statements, return_value, stack_id }),
-                            NodeOrigin::Given(node.id()),
-                        ))
+                        );
+                        Ok(result)
                     }
                     _ => Err(SemanticError::Signal),
                 }
@@ -762,28 +767,8 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::LoopBlock>,
     ) -> SemanticResult<TermId> {
-        let inner = match node.contents.body() {
-            ast::Block::Body(body_block) => {
-                self.make_term_from_ast_body_block(node.contents.with_body(body_block))?
-            }
-            inner => Term::from(
-                BlockTerm {
-                    return_value: self.make_term_from_ast_block(node.contents.with_body(inner))?,
-                    statements: Node::create_at(
-                        TermId::empty_seq(),
-                        NodeOrigin::Given(node.contents.id()),
-                    ),
-                    stack_id: Stack::empty(NodeOrigin::Given(node.contents.id())),
-                },
-                NodeOrigin::Given(node.contents.id()),
-            ),
-        };
-
-        let block = term_as_variant!(self, inner.value(), Block);
-        Ok(Term::from(
-            Term::Loop(LoopTerm { block: inner.value().with_data(block) }),
-            NodeOrigin::Given(node.id()),
-        ))
+        let inner = self.make_term_from_ast_block(node.contents.ast_ref())?;
+        Ok(Term::from(Term::Loop(LoopTerm { inner }), NodeOrigin::Given(node.id())))
     }
 
     /// Make a term from an [`ast::Block`].
@@ -877,7 +862,7 @@ impl<'tc> ResolutionPass<'tc> {
         // If all ok, create a fn ref term
         match (params, return_ty, return_value) {
             (Some(_), None | Some(Some(_)), Some(_)) => {
-                Ok(Term::from(Term::FnRef(fn_def_id), NodeOrigin::Given(node_id)))
+                Ok(Term::from(Term::Fn(fn_def_id), NodeOrigin::Given(node_id)))
             }
             _ => Err(SemanticError::Signal),
         }
@@ -1000,7 +985,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Invoke the intrinsic function
         Ok(Term::from(
-            FnCallTerm {
+            CallTerm {
                 subject: Term::from(intrinsic_fn_def, origin),
                 args: Arg::seq_positional(
                     [typeof_lhs, self.create_term_from_integer_lit(bin_op_num), lhs, rhs],
@@ -1033,7 +1018,7 @@ impl<'tc> ResolutionPass<'tc> {
 
         // Invoke the intrinsic function
         Ok(Term::from(
-            FnCallTerm {
+            CallTerm {
                 subject: Term::from(intrinsic_fn_def, origin),
                 args: Arg::seq_positional(
                     [typeof_a, self.create_term_from_integer_lit(op_num), a],

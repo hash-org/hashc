@@ -17,13 +17,13 @@ use crate::{
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     environment::env::Env,
-    fns::{FnBody, FnCallTerm, FnDef, FnDefId, FnTy},
+    fns::{CallTerm, FnBody, FnDef, FnDefId, FnTy},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId},
     refs::{DerefTerm, RefTerm, RefTy},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockStatement, BlockStatementsId, BlockTerm, Decl},
     terms::{Term, TermId, TermListId, Ty, TyOfTerm, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
 };
@@ -118,7 +118,7 @@ impl TraversingUtils {
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
                 Atom::Term(t) => Ok(t),
-                Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::FnRef(fn_def_id), origin)),
+                Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::Fn(fn_def_id), origin)),
                 Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
             },
             ControlFlow::Continue(()) => match *term_id.value() {
@@ -136,43 +136,30 @@ impl TraversingUtils {
                     let ctor_args = self.fmap_args(ctor_term.ctor_args, f)?;
                     Ok(Term::from(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }, origin))
                 }
-                Term::FnCall(fn_call_term) => {
+                Term::Call(fn_call_term) => {
                     let subject = self.fmap_term(fn_call_term.subject, f)?;
                     let args = self.fmap_args(fn_call_term.args, f)?;
                     Ok(Term::from(
-                        FnCallTerm { args, subject, implicit: fn_call_term.implicit },
+                        CallTerm { args, subject, implicit: fn_call_term.implicit },
                         origin,
                     ))
                 }
-                Term::FnRef(fn_def_id) => {
+                Term::Fn(fn_def_id) => {
                     let fn_def_id = self.fmap_fn_def(fn_def_id, f)?;
-                    Ok(Term::from(Term::FnRef(fn_def_id), origin))
+                    Ok(Term::from(Term::Fn(fn_def_id), origin))
                 }
                 Term::Block(block_term) => {
-                    let statements = self.fmap_term_list(block_term.statements, f)?;
-                    let return_value = self.fmap_term(block_term.return_value, f)?;
+                    let statements = self.fmap_block_statements(block_term.statements, f)?;
+                    let expr = self.fmap_term(block_term.expr, f)?;
                     Ok(Term::from(
-                        BlockTerm { statements, return_value, stack_id: block_term.stack_id },
+                        BlockTerm { statements, stack_id: block_term.stack_id, expr },
                         origin,
                     ))
                 }
                 Term::Var(var_term) => Ok(Term::from(var_term, origin)),
                 Term::Loop(loop_term) => {
-                    let statements = self.fmap_term_list(loop_term.block.statements, f)?;
-                    let return_value = self.fmap_term(loop_term.block.return_value, f)?;
-                    Ok(Term::from(
-                        LoopTerm {
-                            block: Node::at(
-                                BlockTerm {
-                                    statements,
-                                    return_value,
-                                    stack_id: loop_term.block.stack_id,
-                                },
-                                loop_term.block.origin,
-                            ),
-                        },
-                        origin,
-                    ))
+                    let inner = self.fmap_term(loop_term.inner, f)?;
+                    Ok(Term::from(LoopTerm { inner }, origin))
                 }
                 Term::LoopControl(loop_control_term) => Ok(Term::from(loop_control_term, origin)),
                 Term::Match(match_term) => {
@@ -206,13 +193,6 @@ impl TraversingUtils {
                 Term::Return(return_term) => {
                     let expression = self.fmap_term(return_term.expression, f)?;
                     Ok(Term::from(ReturnTerm { expression }, origin))
-                }
-                Term::Decl(decl_stack_member_term) => {
-                    let bind_pat = self.fmap_pat(decl_stack_member_term.bind_pat, f)?;
-                    let ty = self.fmap_term(decl_stack_member_term.ty, f)?;
-                    let value =
-                        decl_stack_member_term.value.map(|v| self.fmap_term(v, f)).transpose()?;
-                    Ok(Term::from(DeclTerm { ty, bind_pat, value }, origin))
                 }
                 Term::Assign(assign_term) => {
                     let subject = self.fmap_term(assign_term.subject, f)?;
@@ -334,6 +314,34 @@ impl TraversingUtils {
         }?;
 
         Ok(result)
+    }
+
+    pub fn fmap_block_statements<E, F: Mapper<E>>(
+        &self,
+        block_statements: BlockStatementsId,
+        f: F,
+    ) -> Result<BlockStatementsId, E> {
+        let mut new_list = Vec::with_capacity(block_statements.len());
+        for statement in block_statements.elements().value() {
+            match *statement {
+                BlockStatement::Decl(decl) => {
+                    let bind_pat = self.fmap_pat(decl.bind_pat, f)?;
+                    let ty = self.fmap_term(decl.ty, f)?;
+                    let value = decl.value.map(|v| self.fmap_term(v, f)).transpose()?;
+                    new_list.push(Node::at(
+                        BlockStatement::Decl(Decl { ty, bind_pat, value }),
+                        statement.origin,
+                    ));
+                }
+                BlockStatement::Expr(expr) => {
+                    new_list.push(Node::at(
+                        BlockStatement::Expr(self.fmap_term(expr, f)?),
+                        statement.origin,
+                    ));
+                }
+            }
+        }
+        Ok(Node::create_at(Node::seq(new_list), block_statements.origin()))
     }
 
     pub fn fmap_term_list<E, F: Mapper<E>>(
@@ -485,20 +493,17 @@ impl TraversingUtils {
                     self.visit_args(ctor_term.data_args, f)?;
                     self.visit_args(ctor_term.ctor_args, f)
                 }
-                Term::FnCall(fn_call_term) => {
+                Term::Call(fn_call_term) => {
                     self.visit_term(fn_call_term.subject, f)?;
                     self.visit_args(fn_call_term.args, f)
                 }
-                Term::FnRef(fn_def_id) => self.visit_fn_def(fn_def_id, f),
+                Term::Fn(fn_def_id) => self.visit_fn_def(fn_def_id, f),
                 Term::Block(block_term) => {
-                    self.visit_term_list(block_term.statements, f)?;
-                    self.visit_term(block_term.return_value, f)
+                    self.visit_block_statements(block_term.statements, f)?;
+                    self.visit_term(block_term.expr, f)
                 }
                 Term::Var(_) => Ok(()),
-                Term::Loop(loop_term) => {
-                    self.visit_term_list(loop_term.block.statements, f)?;
-                    self.visit_term(loop_term.block.return_value, f)
-                }
+                Term::Loop(loop_term) => self.visit_term(loop_term.inner, f),
                 Term::LoopControl(_) => Ok(()),
                 Term::Match(match_term) => {
                     self.visit_term(match_term.subject, f)?;
@@ -509,13 +514,6 @@ impl TraversingUtils {
                     Ok(())
                 }
                 Term::Return(return_term) => self.visit_term(return_term.expression, f),
-                Term::Decl(decl_stack_member_term) => {
-                    self.visit_pat(decl_stack_member_term.bind_pat, f)?;
-                    self.visit_term(decl_stack_member_term.ty, f)?;
-                    let (Some(()) | None) =
-                        decl_stack_member_term.value.map(|v| self.visit_term(v, f)).transpose()?;
-                    Ok(())
-                }
                 Term::Assign(assign_term) => {
                     self.visit_term(assign_term.subject, f)?;
                     self.visit_term(assign_term.value, f)
@@ -607,6 +605,26 @@ impl TraversingUtils {
     ) -> Result<(), E> {
         for term in term_list_id.elements().value() {
             self.visit_term(term, f)?;
+        }
+        Ok(())
+    }
+
+    pub fn visit_block_statements<E, F: Visitor<E>>(
+        &self,
+        block_statements: BlockStatementsId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        for statement in block_statements.elements().value() {
+            match *statement {
+                BlockStatement::Decl(decl) => {
+                    self.visit_pat(decl.bind_pat, f)?;
+                    self.visit_term(decl.ty, f)?;
+                    decl.value.map(|v| self.visit_term(v, f)).transpose()?;
+                }
+                BlockStatement::Expr(expr) => {
+                    self.visit_term(expr, f)?;
+                }
+            }
         }
         Ok(())
     }

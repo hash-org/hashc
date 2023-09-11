@@ -106,7 +106,7 @@ tir_node_single_store!(FnDef);
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]
-pub struct FnCallTerm {
+pub struct CallTerm {
     /// The function being called
     ///
     /// This could be a function definition, a value of a function type, or a
@@ -201,7 +201,7 @@ impl Display for FnDefId {
     }
 }
 
-impl Display for FnCallTerm {
+impl Display for CallTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.subject)?;
 

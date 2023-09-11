@@ -5,7 +5,7 @@ use std::{fmt::Debug, option::Option};
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 
@@ -258,8 +258,11 @@ impl fmt::Display for Param {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}: {}{}",
-            self.name,
+            "{}{}{}",
+            match self.name.value().name {
+                Some(name) => format!("{}: ", name),
+                None => "".to_string(),
+            },
             self.ty,
             if let Some(default) = self.default {
                 format!(" = {}", default)

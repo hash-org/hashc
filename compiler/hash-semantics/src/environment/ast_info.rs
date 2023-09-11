@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 use hash_ast::ast::AstNodeId;
 use hash_tir::{
     args::{ArgId, ArgsSeqId, PatArgId, PatArgsSeqId},
-    context::Decl,
+    context::ContextMember,
     data::{CtorDefId, CtorDefsSeqId, DataDefId},
     fns::FnDefId,
     mods::{ModDefId, ModMemberId, ModMembersSeqId},
@@ -161,7 +161,7 @@ ast_info! {
     fn_defs: AstMap<FnDefId>,
 
     stacks: AstMap<StackId>,
-    stack_members: AstMap<Decl>,
+    stack_members: AstMap<ContextMember>,
 
     terms: AstMap<TermId>,
     tys: AstMap<TyId>,

@@ -7,7 +7,7 @@ use hash_tir::{
     access::AccessTerm,
     args::{ArgsId, PatArgsId},
     atom_info::ItemInAtomInfo,
-    context::Decl,
+    context::ContextMember,
     fns::FnBody,
     holes::Hole,
     mods::ModDefId,
@@ -375,7 +375,7 @@ impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
         let _current_scope_index = self.context().get_current_scope_index();
         match self.context().get_current_scope_ref().get_decl(var) {
             Some(var) => {
-                matches!(var, Decl { value: None, .. })
+                matches!(var, ContextMember { value: None, .. })
             }
             None => {
                 warn!("Not found var {} in current scope", var);

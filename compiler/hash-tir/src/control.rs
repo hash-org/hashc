@@ -4,9 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_ast::ast::MatchOrigin;
-use hash_storage::store::{
-    statics::StoreId, SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
-};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use textwrap::indent;
 
 use super::{
@@ -14,20 +12,17 @@ use super::{
     scopes::StackId,
     terms::Term,
 };
-use crate::{
-    environment::stores::tir_stores, node::Node, scopes::BlockTerm, terms::TermId,
-    tir_node_sequence_store_direct,
-};
+use crate::{environment::stores::tir_stores, terms::TermId, tir_node_sequence_store_direct};
 
 /// A loop term.
 ///
-/// Contains a block.
+/// Contains an inner term which should produce side-effects.
 ///
 /// The type of a loop is `void`, unless it can be proven to never terminate (in
 /// which case it is `never`).
 #[derive(Debug, Clone, Copy)]
 pub struct LoopTerm {
-    pub block: Node<BlockTerm>,
+    pub inner: TermId,
 }
 
 /// A match term.
@@ -106,7 +101,7 @@ pub struct OrPat {
 
 impl fmt::Display for LoopTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "loop {}", &*self.block)
+        write!(f, "loop {}", self.inner)
     }
 }
 

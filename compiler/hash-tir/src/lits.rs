@@ -319,20 +319,27 @@ impl Display for LitPat {
             // and `MAX` for these situations since it is easier for the
             // user to understand the problem.
             Lit::Int(lit) => {
-                let value = lit.value.value();
-                let kind = value.map(|constant| constant.ty());
+                match lit.value {
+                    LitValue::Raw(_) => {
+                        // Defer to display impl for `Lit` below.
+                        write!(f, "{lit}")
+                    }
+                    LitValue::Value(value) => {
+                        let kind = value.map(|constant| constant.ty());
 
-                // ##Hack: we don't use size since it is never invoked because of
-                // integer constant don't store usize values.
-                let dummy_size = Size::ZERO;
-                let value = value.map(|constant| constant.value.as_u128());
+                        // ##Hack: we don't use size since it is never invoked because of
+                        // integer constant don't store usize values.
+                        let dummy_size = Size::ZERO;
+                        let value = value.map(|constant| constant.value.as_u128());
 
-                if kind.numeric_min(dummy_size) == value {
-                    write!(f, "{kind}::MIN")
-                } else if kind.numeric_max(dummy_size) == value {
-                    write!(f, "{kind}::MAX")
-                } else {
-                    write!(f, "{lit}")
+                        if kind.numeric_min(dummy_size) == value {
+                            write!(f, "{kind}::MIN")
+                        } else if kind.numeric_max(dummy_size) == value {
+                            write!(f, "{kind}::MAX")
+                        } else {
+                            write!(f, "{lit}")
+                        }
+                    }
                 }
             }
             Lit::Str(lit) => write!(f, "{lit}"),

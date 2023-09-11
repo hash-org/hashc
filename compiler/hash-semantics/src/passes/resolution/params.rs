@@ -8,7 +8,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     args::{ArgsId, PatArgsId},
-    fns::FnCallTerm,
+    fns::CallTerm,
     node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
@@ -292,7 +292,7 @@ impl<'tc> ResolutionPass<'tc> {
         subject: TermId,
         args: &[AstArgGroup],
         original_node_id: AstNodeId,
-    ) -> SemanticResult<FnCallTerm> {
+    ) -> SemanticResult<CallTerm> {
         debug_assert!(!args.is_empty());
         let mut current_subject = subject;
         for arg_group in args {
@@ -303,7 +303,7 @@ impl<'tc> ResolutionPass<'tc> {
                     // Here we are trying to call a function with term arguments.
                     // Apply the arguments to the current subject and continue.
                     current_subject = Term::from(
-                        Term::FnCall(FnCallTerm {
+                        Term::Call(CallTerm {
                             subject: current_subject,
                             args,
                             implicit: matches!(arg_group, AstArgGroup::ImplicitArgs(_)),
@@ -321,7 +321,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
         }
         match *current_subject.value() {
-            Term::FnCall(call) => Ok(call),
+            Term::Call(call) => Ok(call),
             _ => unreachable!(),
         }
     }

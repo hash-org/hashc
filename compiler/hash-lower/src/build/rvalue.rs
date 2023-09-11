@@ -38,7 +38,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let value = self.as_constant(lit).into();
                 block.and(value)
             }
-            ref fn_call_term @ Term::FnCall(fn_call) => {
+            ref fn_call_term @ Term::Call(fn_call) => {
                 match self.classify_fn_call_term(&fn_call) {
                     FnCallTermKind::BinaryOp(op, lhs, rhs) => {
                         let lhs = unpack!(block = self.as_operand(block, lhs, Mutability::Mutable));
@@ -113,14 +113,13 @@ impl<'tcx> BodyBuilder<'tcx> {
             ref term @ (Term::Array(_)
             | Term::Tuple(_)
             | Term::Ctor(_)
-            | Term::FnRef(_)
+            | Term::Fn(_)
             | Term::Block(_)
             | Term::Var(_)
             | Term::Loop(_)
             | Term::LoopControl(_)
             | Term::Match(_)
             | Term::Return(_)
-            | Term::Decl(_)
             | Term::Assign(_)
             | Term::Unsafe(_)
             | Term::Access(_)
@@ -172,7 +171,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If the item is a reference to a function, i.e. the subject of a call, then
         // we emit a constant that refers to the function.
-        if let Term::FnRef(def_id) = *term {
+        if let Term::Fn(def_id) = *term {
             let ty_id = self.ty_id_from_tir_fn_def(def_id);
 
             // If this is a function type, we emit a ZST to represent the operand

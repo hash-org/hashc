@@ -5,7 +5,7 @@ use std::{fmt::Debug, option::Option};
 
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 

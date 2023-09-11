@@ -23,7 +23,7 @@ use hash_tir::{
     control::{LoopControlTerm, ReturnTerm},
     data::CtorTerm,
     environment::env::AccessToEnv,
-    fns::FnCallTerm,
+    fns::CallTerm,
     node::NodesId,
     params::ParamIndex,
     refs::{self, RefTerm},
@@ -129,7 +129,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     self.constructor_into_dest(destination, block, ctor, adt, span)
                 }
             }
-            Term::FnCall(ref fn_term @ FnCallTerm { subject, args, .. }) => {
+            Term::Call(ref fn_term @ CallTerm { subject, args, .. }) => {
                 match self.classify_fn_call_term(fn_term) {
                     FnCallTermKind::Call(_) => {
                         // Get the type of the function into or to to get the
@@ -282,10 +282,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                 self.control_flow_graph.goto(block, return_block, span);
                 self.control_flow_graph.start_new_block().unit()
             }
-            // For declarations, we have to perform some bookkeeping in regards
-            // to locals..., but this expression should never return any value
-            // so we should just return a unit block here
-            Term::Decl(ref decl) => self.lower_declaration(block, decl, span),
             Term::Assign(assign_term) => {
                 // Deal with the actual assignment
                 block = unpack!(self.lower_assign_term(block, assign_term, span));
@@ -332,7 +328,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Ty::RefTy(_)
             | Ty::Universe
             | Term::Hole(_)
-            | Term::FnRef(_) => block.unit(),
+            | Term::Fn(_) => block.unit(),
         };
 
         block_and
