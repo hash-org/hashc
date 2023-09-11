@@ -10,7 +10,6 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::constant::{FloatConstant, FloatConstantValue, IntConstant, InternedFloat};
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
-    environment::env::AccessToEnv,
     lits::{Lit, LitId},
     terms::Term,
 };
@@ -39,11 +38,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn lower_constant_expr(&mut self, term: &Term, origin: AstNodeId) -> ConstKind {
         match term {
             Term::Lit(lit) => self.as_constant(*lit),
-            _ => panic_on_span!(
-                origin.span(),
-                self.source_map(),
-                "cannot lower non-literal expression into constant"
-            ),
+            _ => panic_on_span!(origin.span(), "cannot lower non-literal expression into constant"),
         }
     }
 

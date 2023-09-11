@@ -8,8 +8,8 @@ use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
     self,
     identifier::{Identifier, IDENTS},
-    location::{ByteRange, Span},
-    Source, SourceId,
+    location::{ByteRange, Span, SpannedSource},
+    SourceId,
 };
 use hash_target::primitives::{FloatTy, IntTy};
 use hash_token::{
@@ -37,7 +37,7 @@ pub struct Lexer<'a> {
     offset: Cell<usize>,
 
     /// The contents that are to be lexed.
-    contents: Source<'a>,
+    contents: SpannedSource<'a>,
 
     /// Representative module index of the current source.
     source_id: SourceId,
@@ -60,7 +60,7 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Create a new [Lexer] from the given string input.
-    pub fn new(contents: Source<'a>, source_id: SourceId) -> Self {
+    pub fn new(contents: SpannedSource<'a>, source_id: SourceId) -> Self {
         Lexer {
             offset: Cell::new(0),
             source_id,

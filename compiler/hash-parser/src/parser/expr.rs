@@ -482,9 +482,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Attempt to add the module via the resolver
         match self.resolver.resolve_import(path) {
-            Ok(resolved_path) => Ok(self.node_with_joined_span(
+            Ok(source) => Ok(self.node_with_joined_span(
                 Expr::Import(ImportExpr {
-                    data: self.node_with_joined_span(Import { path, resolved_path }, start),
+                    data: self.node_with_joined_span(Import { path, source }, start),
                 }),
                 start,
             )),

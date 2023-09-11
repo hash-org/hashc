@@ -209,8 +209,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let LoweringCtx { workspace, ir_storage, settings, .. } = ctx.data();
-        let source_map = &mut workspace.source_map;
+        let LoweringCtx { ir_storage, settings, .. } = ctx.data();
 
         let bodies = &mut ir_storage.bodies;
         let body_data = &ir_storage.ctx;
@@ -220,14 +219,14 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
             // pool.scope(|scope| {
             //     for body in &mut ir_storage.generated_bodies {
             //         scope.spawn(|_| {
-            //             let optimiser = Optimiser::new(body_data, source_map, settings);
+            //             let optimiser = Optimiser::new(body_data, settings);
             //             optimiser.optimise(body);
             //         });
             //     }
             // });
 
             for body in bodies.iter_mut() {
-                let optimiser = Optimiser::new(body_data, source_map, settings);
+                let optimiser = Optimiser::new(body_data, settings);
                 optimiser.optimise(body);
             }
         });
@@ -236,8 +235,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn cleanup(&mut self, _entry_point: SourceId, ctx: &mut Ctx) {
-        let LoweringCtx { workspace, ir_storage, mut stdout, settings, .. } = ctx.data();
-        let source_map = &mut workspace.source_map;
+        let LoweringCtx { ir_storage, mut stdout, settings, .. } = ctx.data();
 
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
@@ -247,14 +245,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
         if settings.lowering_settings.dump_mode == IrDumpMode::Graph {
             graphviz::dump_ir_bodies(&ir_storage.bodies, dump, quiet_prelude, &mut stdout).unwrap();
         } else {
-            pretty::dump_ir_bodies(
-                source_map,
-                &ir_storage.bodies,
-                dump,
-                quiet_prelude,
-                &mut stdout,
-            )
-            .unwrap();
+            pretty::dump_ir_bodies(&ir_storage.bodies, dump, quiet_prelude, &mut stdout).unwrap();
         }
     }
 }

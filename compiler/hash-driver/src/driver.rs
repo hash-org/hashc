@@ -6,13 +6,13 @@ use std::{
     time::Duration,
 };
 
-use hash_ast::node_map::{InteractiveBlock, ModuleEntry};
+use hash_ast::node_map::InteractiveBlock;
 use hash_pipeline::{
-    fs::{read_in_path, resolve_path, PRELUDE},
+    fs::{resolve_path, PRELUDE},
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::CompilerStageKind,
 };
-use hash_reporting::writer::ReportWriter;
+use hash_reporting::reporter::Reporter;
 use hash_source::{ModuleKind, SourceId};
 use hash_utils::{log, stream_writeln, timing::timed};
 
@@ -267,10 +267,7 @@ impl<I: CompilerInterface> Driver<I> {
             if self.compiler.diagnostics().iter().any(|r| r.is_error()) {
                 panic!(
                     "failed to bootstrap compiler: {}",
-                    ReportWriter::new(
-                        self.compiler.diagnostics().to_owned(),
-                        self.compiler.source_map(),
-                    )
+                    Reporter::from_reports(self.compiler.diagnostics().to_owned())
                 );
             }
 
@@ -285,7 +282,7 @@ impl<I: CompilerInterface> Driver<I> {
         let mut stderr = self.compiler.error_stream();
 
         // @@Copying: Ideally, we would not want to copy here!
-        for diagnostic in self.compiler.diagnostics().iter().cloned() {
+        for diagnostic in self.compiler.diagnostics().iter() {
             if diagnostic.is_error() {
                 err_count += 1;
             }
@@ -294,11 +291,7 @@ impl<I: CompilerInterface> Driver<I> {
                 warn_count += 1;
             }
 
-            stream_writeln!(
-                stderr,
-                "{}",
-                ReportWriter::single(diagnostic, self.compiler.source_map())
-            );
+            stream_writeln!(stderr, "{}", diagnostic);
         }
 
         // ##Hack: to prevent the compiler from printing this message when the pipeline
@@ -334,28 +327,9 @@ impl<I: CompilerInterface> Driver<I> {
     /// off the disk, store it within the [Workspace] and invoke
     /// [`Self::run`]
     pub fn run_filename(&mut self, filename: impl AsRef<Path>, kind: ModuleKind) {
-        let contents = read_in_path(&filename);
-
-        if let Err(err) = contents {
-            self.compiler.diagnostics_mut().push(err.into());
-
-            // Since this a fatal error because we couldn't read the file, we
-            // emit the diagnostics (if specified to emit) and terminate.
-            if self.compiler.settings().emit_errors {
-                self.emit_diagnostics();
-            }
-
-            return;
-        };
-
-        // Create the module and run!
-        let module = self.compiler.workspace_mut().add_module(
-            contents.unwrap(),
-            ModuleEntry::new(filename.as_ref().to_path_buf()),
-            kind,
-        );
-
-        self.run(module)
+        // Reserve a module id for the module that we are about to add.
+        let id = self.workspace_mut().add_module(filename.as_ref().to_path_buf(), kind);
+        self.run(id)
     }
 
     /// Run the compiler pipeline on the entry point specified in the settings.
@@ -374,7 +348,8 @@ impl<I: CompilerInterface> Driver<I> {
 
     /// Run the compiler on a interactive line input.
     pub fn run_interactive(&mut self, input: String) {
-        let source = self.compiler.add_interactive_block(input, InteractiveBlock::new());
+        let source =
+            self.compiler.workspace_mut().add_interactive_block(input, InteractiveBlock::new());
         self.run(source)
     }
 }

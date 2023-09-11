@@ -1,6 +1,8 @@
 //! A diagnostic reporter for the Hash compiler.
 //!
 //! Has a fluent API for creating reports in a declarative way.
+use std::fmt;
+
 use crate::report::{Report, ReportKind};
 pub type Reports = Vec<Report>;
 
@@ -51,5 +53,14 @@ impl Reporter {
     /// Consume the [`Reporter`], producing a [`Vec<Report>`].
     pub fn into_reports(self) -> Reports {
         self.reports
+    }
+}
+
+impl fmt::Display for Reporter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for report in &self.reports {
+            write!(f, "{report}")?;
+        }
+        Ok(())
     }
 }

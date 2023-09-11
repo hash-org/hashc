@@ -6,7 +6,6 @@
 
 use hash_ast::ast::{self};
 use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
-use hash_source::ModuleKind;
 use hash_tir::environment::env::AccessToEnv;
 
 use self::scoping::{ContextKind, Scoping};
@@ -81,10 +80,9 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         }
 
         let mod_def_id = self.resolve_ast_module_inner_terms(node)?;
+        let source = self.current_source_info().source_id();
 
-        if let Some(ModuleKind::Prelude) =
-            self.source_map().module_kind_by_id(self.current_source_info().source_id())
-        {
+        if source.is_prelude() {
             let _ = self.prelude_or_unset().set(mod_def_id);
         }
 

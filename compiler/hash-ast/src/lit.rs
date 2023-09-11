@@ -19,12 +19,9 @@
 use std::num;
 
 use hash_reporting::{hash_error_codes::error_codes::HashErrorCode, reporter::Reporter};
-use hash_source::{
-    constant::{
-        BigIntTy, FloatConstant, FloatTy, IntConstant, IntTy, InternedFloat, InternedInt,
-        NormalisedIntTy, SIntTy, Size, UIntTy,
-    },
-    SourceMap,
+use hash_source::constant::{
+    BigIntTy, FloatConstant, FloatTy, IntConstant, IntTy, InternedFloat, InternedInt,
+    NormalisedIntTy, SIntTy, Size, UIntTy,
 };
 pub use hash_token::{FloatLitKind, IntLitKind};
 use num_bigint::BigInt;
@@ -179,7 +176,6 @@ impl IntValue {
 pub fn parse_int_const_from_lit(
     lit: &IntLit,
     annotation: Option<IntTy>,
-    sources: &SourceMap,
     ptr_size: Size,
     allow_big: bool,
 ) -> LitParseResult<IntValue> {
@@ -187,7 +183,7 @@ pub fn parse_int_const_from_lit(
     let base: u32 = lit.base.into();
 
     // We have to cleanup the hunk, remove any underscores
-    let mut hunk = sources.hunk(lit.hunk.span()).to_string();
+    let mut hunk = lit.hunk.span().contents();
     hunk.retain(|c| c != '_');
 
     macro_rules! parse {
@@ -247,12 +243,11 @@ pub fn parse_int_const_from_lit(
 pub fn parse_float_const_from_lit(
     lit: &FloatLit,
     annotation: Option<FloatTy>,
-    sources: &SourceMap,
 ) -> LitParseResult<InternedFloat> {
     let ty = annotation.unwrap_or_default();
 
     // We have to cleanup the hunk, remove any underscores
-    let mut hunk = sources.hunk(lit.hunk.span()).to_string();
+    let mut hunk = lit.hunk.span().contents();
     hunk.retain(|c| c != '_');
 
     macro_rules! parse {

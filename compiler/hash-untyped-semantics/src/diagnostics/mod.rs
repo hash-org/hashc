@@ -51,7 +51,7 @@ pub struct AnalyserDiagnostics {
     pub(crate) store: DiagnosticStore<AnalysisError, AnalysisWarning>,
 }
 
-impl AccessToDiagnosticsMut for SemanticAnalyser<'_> {
+impl AccessToDiagnosticsMut for SemanticAnalyser {
     type Diagnostics = DiagnosticStore<AnalysisError, AnalysisWarning>;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {

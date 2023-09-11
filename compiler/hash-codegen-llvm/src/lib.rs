@@ -37,8 +37,8 @@ use hash_pipeline::{
     settings::CompilerSettings,
     workspace::Workspace,
 };
-use hash_reporting::writer::ReportWriter;
-use hash_source::ModuleId;
+use hash_reporting::report::Report;
+use hash_source::{ModuleId, SourceMapUtils};
 use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::{
     stream_writeln,
@@ -204,11 +204,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             let report =
                 info_report(format!("wrote assembly file to `{}`", asm_path.to_string_lossy()));
 
-            stream_writeln!(
-                self.stdout,
-                "{}",
-                ReportWriter::new(vec![report], &self.workspace.source_map)
-            );
+            stream_writeln!(self.stdout, "{}", report);
         }
 
         self.target_machine
@@ -307,11 +303,7 @@ impl<'b, 'm> LLVMBackend<'b> {
                 let mut stdout = self.stdout.clone();
                 let func = FunctionPrinter::new(body.info.name(), ctx.get_fn(instance));
 
-                stream_writeln!(
-                    stdout,
-                    "{}",
-                    ReportWriter::new(vec![func.into()], &self.workspace.source_map)
-                );
+                stream_writeln!(stdout, "{}", Report::from(func));
             }
         }
     }
@@ -326,11 +318,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
         // object, or if we emit a single module object for the entire program.
         // Currently, we are emitting a single module for the entire program
         // that is being compiled in in the workspace.
-        let entry_point = self
-            .workspace
-            .source_map
-            .entry_point()
-            .expect("expected a defined entry point for executable");
+        let entry_point =
+            SourceMapUtils::entry_point().expect("expected a defined entry point for executable");
 
         let context = LLVMContext::create();
 
@@ -370,7 +359,7 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
 
         time_item(self, "optimise", |this| this.optimise(&module))?;
         time_item(self, "write", |this| {
-            this.write_module(&module, entry_point).map_err(|err| vec![err.into()])
+            this.write_module(&module, entry_point.into()).map_err(|err| vec![err.into()])
         })
     }
 }

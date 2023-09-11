@@ -8,7 +8,6 @@
 
 use hash_ir::{ir::Body, IrCtx};
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
-use hash_source::SourceMap;
 
 // Various passes that are used to optimise the generated IR bodies.
 mod cleanup_locals;
@@ -34,9 +33,6 @@ pub trait IrOptimisationPass {
 pub struct Optimiser<'ir> {
     store: &'ir IrCtx,
 
-    /// The compiler source map.
-    _source_map: &'ir SourceMap,
-
     /// Stores all of the lowering settings that are used to
     /// determine which passes are enabled.
     settings: &'ir CompilerSettings,
@@ -47,14 +43,9 @@ pub struct Optimiser<'ir> {
 }
 
 impl<'ir> Optimiser<'ir> {
-    pub fn new(
-        store: &'ir IrCtx,
-        source_map: &'ir SourceMap,
-        settings: &'ir CompilerSettings,
-    ) -> Self {
+    pub fn new(store: &'ir IrCtx, settings: &'ir CompilerSettings) -> Self {
         Self {
             store,
-            _source_map: source_map,
             settings,
             passes: vec![
                 Box::new(simplify_graph::SimplifyGraphPass),

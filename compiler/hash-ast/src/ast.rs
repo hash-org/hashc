@@ -4,7 +4,6 @@ use std::{
     fmt::Display,
     hash::Hash,
     ops::{Deref, DerefMut},
-    path::PathBuf,
 };
 
 use hash_source::{
@@ -2009,7 +2008,7 @@ define_tree! {
     #[node]
     pub struct Import {
         pub path: InternedStr,
-        pub resolved_path: PathBuf,
+        pub source: SourceId,
     }
 
     /// A variable expression.

@@ -1,8 +1,8 @@
 //! Definitions related to modules.
 
-use std::{fmt::Display, path::Path};
+use std::fmt::Display;
 
-use hash_source::{identifier::Identifier, SourceId};
+use hash_source::{identifier::Identifier, SourceId, SourceMapUtils};
 use hash_storage::{
     get,
     store::{statics::StoreId, Store, StoreKey, TrivialSequenceStoreKey},
@@ -24,9 +24,7 @@ pub enum ModKind {
     /// Defined as a module (`mod` block).
     ModBlock,
     /// Defined as a file module or interactive.
-    ///
-    /// Also contains the path to the file.
-    Source(SourceId, &'static Path),
+    Source(SourceId),
     /// Transparent
     ///
     /// Added by the compiler, used for primitives
@@ -155,15 +153,15 @@ impl Display for ModDef {
             ModKind::ModBlock => {
                 write!(f, "mod [name={}, type=block] {{\n{}}}", self.name, indent(&members, "  "))
             }
-            ModKind::Source(_source_id, source_name) => {
+            ModKind::Source(source) => SourceMapUtils::map(source, |source| {
                 write!(
                     f,
                     "mod [name={}, type=file, src=\"{:?}\"] {{\n{}}}",
                     self.name,
-                    source_name,
+                    source.path(),
                     indent(&members, "  ")
                 )
-            }
+            }),
             ModKind::Transparent => {
                 write!(
                     f,

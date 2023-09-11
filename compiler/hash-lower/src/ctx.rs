@@ -81,13 +81,8 @@ impl<'ir> BuilderCtx<'ir> {
             semantic_storage, workspace, ir_storage, layout_storage, settings, ..
         } = ctx;
 
-        let env = Env::new(
-            &semantic_storage.context,
-            &workspace.node_map,
-            &workspace.source_map,
-            settings.target(),
-            entry,
-        );
+        let env =
+            Env::new(&semantic_storage.context, &workspace.node_map, settings.target(), entry);
 
         let intrinsics = match semantic_storage.intrinsics_or_unset.get() {
             Some(intrinsics) => intrinsics,

@@ -7,9 +7,9 @@ use std::{
     time::Duration,
 };
 
-use hash_ast::node_map::{InteractiveBlock, ModuleEntry, NodeMap};
+use hash_ast::node_map::NodeMap;
 use hash_reporting::report::Report;
-use hash_source::{ModuleKind, SourceId, SourceMap};
+use hash_source::SourceId;
 
 use crate::{
     settings::{CompilerSettings, CompilerStageKind},
@@ -159,17 +159,4 @@ pub trait CompilerInterface {
 
     /// Get a reference to the current [NodeMap].
     fn node_map(&self) -> &NodeMap;
-
-    /// Get a reference to the current [SourceMap].
-    fn source_map(&self) -> &SourceMap;
-
-    /// Add a [ModuleEntry] via the [Workspace].
-    fn add_module(&mut self, contents: String, module: ModuleEntry, kind: ModuleKind) -> SourceId {
-        self.workspace_mut().add_module(contents, module, kind)
-    }
-
-    /// Add a [InteractiveBlock] via the [Workspace].
-    fn add_interactive_block(&mut self, input: String, block: InteractiveBlock) -> SourceId {
-        self.workspace_mut().add_interactive_block(input, block)
-    }
 }

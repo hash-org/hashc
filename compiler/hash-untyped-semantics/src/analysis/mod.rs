@@ -6,7 +6,6 @@ pub(crate) mod params;
 
 use hash_ast::{ast::AstNodeRef, origin::BlockOrigin};
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
-use hash_source::SourceMap;
 use hash_utils::crossbeam_channel::Sender;
 
 use crate::diagnostics::{
@@ -15,7 +14,7 @@ use crate::diagnostics::{
     AnalyserDiagnostics, AnalysisDiagnostic,
 };
 
-pub struct SemanticAnalyser<'s> {
+pub struct SemanticAnalyser {
     /// Whether the current visitor is within a loop construct.
     pub(crate) is_in_loop: bool,
 
@@ -25,9 +24,6 @@ pub struct SemanticAnalyser<'s> {
     /// Whether the analyser is currently checking a literal pattern
     pub(crate) is_in_lit_pat: bool,
 
-    /// A reference to the sources of the current job.
-    pub(crate) source_map: &'s SourceMap,
-
     /// The current scope of the traversal, representing which block the
     /// analyser is walking.
     pub(crate) current_block: BlockOrigin,
@@ -36,15 +32,20 @@ pub struct SemanticAnalyser<'s> {
     pub(crate) diagnostics: AnalyserDiagnostics,
 }
 
-impl<'s> SemanticAnalyser<'s> {
+impl Default for SemanticAnalyser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SemanticAnalyser {
     /// Create a new semantic analyser
-    pub fn new(source_map: &'s SourceMap) -> Self {
+    pub fn new() -> Self {
         Self {
             is_in_loop: false,
             is_in_fn: false,
             is_in_lit_pat: false,
             diagnostics: AnalyserDiagnostics::default(),
-            source_map,
             current_block: BlockOrigin::Root,
         }
     }

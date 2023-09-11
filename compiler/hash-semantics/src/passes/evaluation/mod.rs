@@ -42,7 +42,7 @@ impl EvaluationPass<'_> {
     /// Find the main module definition, if it exists.
     fn find_and_construct_main_call(&self) -> SemanticResult<Option<TermId>> {
         let source_id = self.current_source_info().source_id();
-        let kind = self.source_map().module_kind_by_id(source_id);
+        let kind = source_id.module_kind();
         match kind {
             None | Some(ModuleKind::Normal | ModuleKind::Prelude) => Ok(None),
             Some(ModuleKind::EntryPoint) => {

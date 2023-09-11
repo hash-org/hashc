@@ -5,17 +5,14 @@
 //! given [ModuleEntry]. This can only be known by the [SourceMap] which stores
 //! all of the relevant [SourceId]s and their corresponding sources.
 
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashSet, path::PathBuf};
 
 use hash_ast::{
     ast::OwnsAstNode,
-    node_map::{InteractiveBlock, ModuleEntry, NodeMap},
+    node_map::{InteractiveBlock, NodeMap},
 };
 use hash_ast_utils::dump::{dump_ast, AstDumpMode};
-use hash_source::{ModuleId, ModuleKind, SourceId, SourceMap};
+use hash_source::{ModuleId, ModuleKind, SourceId, SourceMapUtils};
 use hash_target::HasTarget;
 use hash_utils::{
     bitflags::bitflags,
@@ -178,10 +175,6 @@ pub struct Workspace {
     /// Dependency map between sources and modules.
     dependencies: FxHashMap<SourceId, FxHashSet<ModuleId>>,
 
-    /// Stores all of the raw file contents of the interactive blocks and
-    /// modules.
-    pub source_map: SourceMap,
-
     /// Stores all of the generated AST for modules and nodes.
     pub node_map: NodeMap,
 
@@ -211,7 +204,6 @@ impl Workspace {
             name,
             output_directory,
             executable_path,
-            source_map: SourceMap::new(),
             node_map: NodeMap::new(),
             dependencies: FxHashMap::default(),
             code_map: CodeMap::default(),
@@ -261,7 +253,7 @@ impl Workspace {
 
     /// Check whether this [Workspace] will yield an executable.
     pub fn yields_executable(&self, settings: &CompilerSettings) -> bool {
-        settings.stage >= CompilerStageKind::Build && self.source_map.entry_point().is_some()
+        settings.stage >= CompilerStageKind::Build && SourceMapUtils::entry_point().is_some()
     }
 
     /// Get the bitcode path for a particular [ModuleId]. This does not
@@ -270,14 +262,12 @@ impl Workspace {
     /// module that is about to be emitted.
     pub fn module_bitcode_path(&self, module: ModuleId, extension: &'static str) -> PathBuf {
         let mut path = self.output_directory.clone();
-        let module_path = self.source_map.module_path(module);
+        let module_path = SourceMapUtils::map(module, |source| {
+            source.path().file_stem().unwrap().to_str().unwrap().to_string()
+        });
 
         path.push("build");
-        path.push(format!(
-            "{}-{}.{extension}",
-            module_path.file_stem().unwrap().to_str().unwrap(),
-            module.raw()
-        ));
+        path.push(format!("{}-{}.{extension}", module_path, module.raw()));
         path
     }
 
@@ -285,7 +275,7 @@ impl Workspace {
     /// the [InteractiveBlock]. Returns the created [InteractiveId] from
     /// adding it to the source map.
     pub fn add_interactive_block(&mut self, input: String, block: InteractiveBlock) -> SourceId {
-        let id = self.source_map.add_interactive_block(input);
+        let id = SourceMapUtils::add_interactive_block(input);
 
         // Add this source to the node map, and to the stage info
         self.node_map.add_interactive_block(block);
@@ -297,27 +287,14 @@ impl Workspace {
     /// Add a module to the [Workspace] by providing the contents and the
     /// [ModuleEntry]. Returns the created [SourceId] from adding it to the
     /// source map.
-    pub fn add_module(
-        &mut self,
-        contents: String,
-        module: ModuleEntry,
-        kind: ModuleKind,
-    ) -> SourceId {
-        let id = self.source_map.add_module(module.path.to_owned(), contents, kind);
+    pub fn add_module(&mut self, path: PathBuf, kind: ModuleKind) -> SourceId {
+        let id = SourceMapUtils::reserve_module(path, kind);
 
         // Add this source to the node map, and to the stage info
-        self.node_map.add_module(module);
+        // self.node_map.add_module(module);
         self.source_stage_info.add(id, SourceStageInfo::empty());
 
         id
-    }
-
-    /// Get the [SourceId] of the module by the specified [Path].
-    ///
-    /// N.B. This function will never return a [SourceId] for an interactive
-    /// block.
-    pub fn get_id_by_path(&self, path: &Path) -> Option<SourceId> {
-        self.source_map.get_id_by_path(path)
     }
 
     /// Add a module dependency specified by a [SourceId] to a specific source
@@ -337,11 +314,11 @@ impl Workspace {
     ) -> std::io::Result<()> {
         if source.is_interactive() {
             let node = self.node_map.get_interactive_block(source.into()).node().ast_ref();
-            dump_ast(node.into(), mode, character_set, &self.source_map, writer)?;
+            dump_ast(node.into(), mode, character_set, writer)?;
         }
 
         for module in self.node_map.iter_modules() {
-            dump_ast(module.node_ref().into(), mode, character_set, &self.source_map, writer)?;
+            dump_ast(module.node_ref().into(), mode, character_set, writer)?;
         }
 
         Ok(())
