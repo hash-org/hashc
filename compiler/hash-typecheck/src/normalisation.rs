@@ -22,7 +22,7 @@ use hash_tir::{
     params::ParamIndex,
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::DerefTerm,
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockStatement, BlockTerm},
     symbols::SymbolId,
     terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::TupleTerm,
@@ -294,7 +294,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 | Term::Tuple(_)
                 | Term::Var(_)
                 | Term::Match(_)
-                | Term::Decl(_)
                 | Term::Unsafe(_)
                 | Term::Access(_)
                 | Term::Array(_)
@@ -441,11 +440,46 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
             let st = eval_state();
 
             for statement in block_term.statements.iter() {
-                let _ = self.eval_and_record(statement.into(), &st)?;
+                match *statement.value() {
+                    BlockStatement::Decl(mut decl_term) => {
+                        decl_term.value = decl_term
+                            .value
+                            .map(|v| -> Result<_, Signal> {
+                                Ok(self.to_term(self.eval_nested_and_record(v.into(), &st)?))
+                            })
+                            .transpose()?;
+
+                        match decl_term.value {
+                            Some(value) => match self.match_value_and_get_binds(
+                                value,
+                                decl_term.bind_pat,
+                                &mut |name, term_id| {
+                                    self.context().add_untyped_assignment(name, term_id)
+                                },
+                            )? {
+                                MatchResult::Successful => {
+                                    // All good
+                                }
+                                MatchResult::Failed => {
+                                    panic!("Non-exhaustive let-binding: {}", decl_term)
+                                }
+                                MatchResult::Stuck => {
+                                    info!("Stuck evaluating let-binding: {}", decl_term);
+                                }
+                            },
+                            None => {
+                                panic!("Let binding with no value: {}", decl_term)
+                            }
+                        }
+                    }
+                    BlockStatement::Expr(expr) => {
+                        let _ = self.eval_and_record(expr.into(), &st)?;
+                    }
+                }
             }
 
             let sub = self.sub_ops().create_sub_from_current_scope();
-            let result_term = self.eval_and_record(block_term.return_value.into(), &st)?;
+            let result_term = self.eval_and_record(block_term.expr.into(), &st)?;
             let subbed_result_term = self.sub_ops().apply_sub_to_atom(result_term, &sub);
 
             evaluation_to(subbed_result_term)
@@ -643,40 +677,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         panic!("Non-exhaustive match: {}", &match_term)
     }
 
-    /// Evaluate a declaration term.
-    fn eval_decl(&self, mut decl_term: Node<DeclTerm>) -> AtomEvaluation {
-        let st = eval_state();
-        decl_term.value = decl_term
-            .value
-            .map(|v| -> Result<_, Signal> {
-                Ok(self.to_term(self.eval_nested_and_record(v.into(), &st)?))
-            })
-            .transpose()?;
-
-        match decl_term.value {
-            Some(value) => match self.match_value_and_get_binds(
-                value,
-                decl_term.bind_pat,
-                &mut |name, term_id| self.context().add_untyped_assignment(name, term_id),
-            )? {
-                MatchResult::Successful => {
-                    // All good
-                    evaluation_to(Term::unit(decl_term.origin.computed()))
-                }
-                MatchResult::Failed => {
-                    panic!("Non-exhaustive let-binding: {}", &*decl_term)
-                }
-                MatchResult::Stuck => {
-                    info!("Stuck evaluating let-binding: {}", &*decl_term);
-                    evaluation_if(|| Term::from(*decl_term, decl_term.origin.computed()), &st)
-                }
-            },
-            None => {
-                panic!("Let binding with no value: {}", &*decl_term)
-            }
-        }
-    }
-
     /// Evaluate a `return` term.
     fn eval_return(&self, return_term: ReturnTerm) -> Result<!, Signal> {
         let normalised = self.eval(return_term.expression.into())?;
@@ -686,7 +686,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Evaluate a `loop` term.
     fn eval_loop(&self, loop_term: Node<LoopTerm>) -> FullEvaluation<Atom> {
         loop {
-            match self.eval_block(*loop_term.block) {
+            match self.eval(loop_term.inner.into()) {
                 Ok(_) | Err(Signal::Continue) => continue,
                 Err(Signal::Break) => break,
                 Err(e) => return Err(e),
@@ -867,9 +867,6 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 Term::LoopControl(loop_control) => Err(self.eval_loop_control(loop_control)),
                 Term::Assign(assign_term) => {
                     ctrl_map_full(self.eval_assign(term.origin().with_data(assign_term)))
-                }
-                Term::Decl(decl_term) => {
-                    ctrl_map(self.eval_decl(term.origin().with_data(decl_term)))
                 }
                 Term::Return(return_expr) => self.eval_return(return_expr)?,
                 Term::Block(block_term) => ctrl_map(self.eval_block(block_term)),

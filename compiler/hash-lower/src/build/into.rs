@@ -286,10 +286,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                 self.control_flow_graph.goto(block, return_block, span);
                 self.control_flow_graph.start_new_block().unit()
             }
-            // For declarations, we have to perform some bookkeeping in regards
-            // to locals..., but this expression should never return any value
-            // so we should just return a unit block here
-            Term::Decl(ref decl) => self.lower_declaration(block, decl, span),
             Term::Assign(assign_term) => {
                 // Deal with the actual assignment
                 block = unpack!(self.lower_assign_term(block, assign_term, span));

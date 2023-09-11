@@ -18,14 +18,14 @@ use utility_types::omit;
 
 use super::{pats::Pat, terms::Term};
 use crate::{
-    context::Decl,
+    context::ContextMember,
     environment::stores::tir_stores,
     mods::ModDefId,
     node::{Node, NodeOrigin},
     pats::PatId,
     symbols::SymbolId,
-    terms::{TermId, TermListId, TyId},
-    tir_node_single_store,
+    terms::{TermId, TyId},
+    tir_node_sequence_store_direct, tir_node_single_store,
 };
 
 /// A binding pattern, which is essentially a declaration left-hand side.
@@ -76,7 +76,7 @@ impl StackIndices {
 /// Depending on the `bind_pat` used, this can be used to declare a single or
 /// multiple variables.
 #[derive(Debug, Clone, Copy)]
-pub struct DeclTerm {
+pub struct Decl {
     pub bind_pat: PatId,
     pub ty: TyId,
     pub value: Option<TermId>,
@@ -102,7 +102,7 @@ pub struct StackMember {
 /// A stack, which is a list of stack members.
 #[derive(Debug, Clone)]
 pub struct Stack {
-    pub members: Vec<Decl>,
+    pub members: Vec<ContextMember>,
     /// Local module definition containing members that are defined in this
     /// stack.
     pub local_mod_def: Option<ModDefId>,
@@ -122,10 +122,10 @@ pub struct StackMemberId(pub StackId, pub usize);
 
 impl SingleStoreId for StackMemberId {}
 impl StoreId for StackMemberId {
-    type Value = Decl;
-    type ValueRef = Decl;
-    type ValueBorrow = MappedRwLockReadGuard<'static, Decl>;
-    type ValueBorrowMut = MappedRwLockWriteGuard<'static, Decl>;
+    type Value = ContextMember;
+    type ValueRef = ContextMember;
+    type ValueBorrow = MappedRwLockReadGuard<'static, ContextMember>;
+    type ValueBorrowMut = MappedRwLockWriteGuard<'static, ContextMember>;
 
     fn borrow(self) -> Self::ValueBorrow {
         MappedRwLockReadGuard::map(self.0.borrow(), |stack| &stack.members[self.1])
@@ -158,9 +158,20 @@ impl StoreId for StackMemberId {
 #[derive(Debug, Clone, Copy)]
 pub struct BlockTerm {
     pub stack_id: StackId, // The associated stack ID for this block.
-    pub statements: TermListId,
-    pub return_value: TermId,
+    pub statements: BlockStatementsId,
+    pub expr: TermId,
 }
+
+/// A statement in a block.
+///
+/// This is either an expression, or a declaration.
+#[derive(Debug, Clone, Copy)]
+pub enum BlockStatement {
+    Decl(Decl),
+    Expr(TermId),
+}
+
+tir_node_sequence_store_direct!(BlockStatement);
 
 impl fmt::Display for BindingPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -168,7 +179,7 @@ impl fmt::Display for BindingPat {
     }
 }
 
-impl fmt::Display for DeclTerm {
+impl fmt::Display for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self.value {
             Some(term_id) => {
@@ -239,6 +250,34 @@ impl fmt::Display for StackId {
     }
 }
 
+impl fmt::Display for BlockStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BlockStatement::Decl(d) => {
+                write!(f, "{}", d)
+            }
+            BlockStatement::Expr(e) => {
+                write!(f, "{}", e)
+            }
+        }
+    }
+}
+
+impl fmt::Display for BlockStatementId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", *self.value())
+    }
+}
+
+impl fmt::Display for BlockStatementsId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for term in self.iter() {
+            writeln!(f, "{};", term)?;
+        }
+        Ok(())
+    }
+}
+
 impl fmt::Display for BlockTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{{")?;
@@ -251,13 +290,8 @@ impl fmt::Display for BlockTerm {
             write!(f, "{}", indent(&members, "  "))?;
         }
 
-        for term in self.statements.iter() {
-            let term = term.to_string();
-            writeln!(f, "{};", indent(&term, "  "))?;
-        }
-
-        let return_value = (self.return_value).to_string();
-        writeln!(f, "{}", indent(&return_value, "  "))?;
+        write!(f, "{}", indent(&self.statements.to_string(), "  "))?;
+        writeln!(f, "{}", indent(&self.expr.to_string(), "  "))?;
 
         write!(f, "}}")
     }

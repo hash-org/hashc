@@ -60,7 +60,6 @@ impl Category {
             | Term::Call(..) => Category::RValue(RValueKind::Into),
 
             Term::Tuple(_)
-            | Term::Decl(_)
             | Term::Assign(_)
             | Term::Array(_)
             | Term::Cast(_)

@@ -120,7 +120,6 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::LoopControl(_)
             | Term::Match(_)
             | Term::Return(_)
-            | Term::Decl(_)
             | Term::Assign(_)
             | Term::Unsafe(_)
             | Term::Access(_)

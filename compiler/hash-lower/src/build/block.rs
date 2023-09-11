@@ -12,7 +12,8 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     control::{LoopTerm, MatchTerm},
-    scopes::BlockTerm,
+    node::HasAstNodeId,
+    scopes::{BlockStatement, BlockTerm},
     terms::{Term, TermId},
 };
 
@@ -30,7 +31,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         match *block_term.value() {
             Term::Block(ref body) => self.body_block_into_dest(place, block, body),
-            Term::Loop(LoopTerm { block: ref body }) => {
+            Term::Loop(LoopTerm { inner }) => {
                 // Begin the loop block by connecting the previous block
                 // and terminating it with a `goto` instruction to this block
                 let loop_body = self.control_flow_graph.start_new_block();
@@ -43,8 +44,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // always going to be `()`
                     let tmp_place = this.make_tmp_unit();
 
-                    let body_block_end =
-                        unpack!(this.body_block_into_dest(tmp_place, loop_body, body));
+                    let body_block_end = unpack!(this.term_into_dest(tmp_place, loop_body, inner));
 
                     // In the situation that we have the final statement in the loop, this
                     // block should go back to the start of the loop...
@@ -68,7 +68,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         mut block: BasicBlock,
         body: &BlockTerm,
     ) -> BlockAnd<()> {
-        let BlockTerm { stack_id, statements, return_value } = body;
+        let BlockTerm { stack_id, statements, expr } = body;
 
         if self.reached_terminator {
             return block.unit();
@@ -84,11 +84,11 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // We need to handle declarations here specifically, otherwise
                     // in order to not have to create a temporary for the declaration
                     // which doesn't make sense because we are just declaring a local(s)
-                    Term::Decl(decl) => {
-                        let span = this.span_of_term(statement);
+                    BlockStatement::Decl(decl) => {
+                        let span = statement.node_id_or_default();
                         unpack!(block = this.lower_declaration(block, &decl, span));
                     }
-                    _ => {
+                    BlockStatement::Expr(statement) => {
                         // @@Investigate: do we need to deal with the temporary here?
                         unpack!(
                             block = this.term_into_temp(block, statement, Mutability::Immutable)
@@ -100,7 +100,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // If this block has an expression, we need to deal with it since
             // it might change the destination of this block.
             if !this.reached_terminator {
-                unpack!(block = this.term_into_dest(place, block, *return_value));
+                unpack!(block = this.term_into_dest(place, block, *expr));
             }
         });
 

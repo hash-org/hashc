@@ -30,7 +30,7 @@ use crate::{
 
 /// A binding that contains a type and optional value.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Decl {
+pub struct ContextMember {
     pub name: SymbolId,
     pub ty: Option<TyId>,
     pub value: Option<TermId>,
@@ -70,7 +70,7 @@ pub struct Scope {
     /// The kind of the scope.
     pub kind: ScopeKind,
     /// The bindings of the scope
-    pub decls: RefCell<IndexMap<SymbolId, Decl, FxBuildHasher>>,
+    pub decls: RefCell<IndexMap<SymbolId, ContextMember, FxBuildHasher>>,
 }
 
 impl Scope {
@@ -80,19 +80,23 @@ impl Scope {
     }
 
     /// Add a binding to the scope.
-    pub fn add_decl(&self, decl: Decl) {
+    pub fn add_decl(&self, decl: ContextMember) {
         self.decls.borrow_mut().insert(decl.name, decl);
     }
 
     /// Get the decl corresponding to the given symbol.
-    pub fn get_decl(&self, symbol: SymbolId) -> Option<Decl> {
+    pub fn get_decl(&self, symbol: SymbolId) -> Option<ContextMember> {
         self.decls.borrow().get(&symbol).copied()
     }
 
     /// Set an existing decl kind of the given symbol.
     ///
     /// Returns `true` if the decl was found and updated, `false` otherwise.
-    pub fn set_existing_decl(&self, symbol: SymbolId, f: &impl Fn(Decl) -> Decl) -> bool {
+    pub fn set_existing_decl(
+        &self,
+        symbol: SymbolId,
+        f: &impl Fn(ContextMember) -> ContextMember,
+    ) -> bool {
         if let Some(old) = self.get_decl(symbol) {
             self.decls.borrow_mut().insert(symbol, f(old));
             true
@@ -164,25 +168,25 @@ impl Context {
 
     /// Add a new decl to the current scope context.
     pub fn add_decl(&self, name: SymbolId, ty: Option<TyId>, value: Option<TermId>) {
-        self.get_current_scope_ref().add_decl(Decl { name, ty, value })
+        self.get_current_scope_ref().add_decl(ContextMember { name, ty, value })
     }
 
     /// Get a decl from the context, reading all accessible scopes.
-    pub fn try_get_decl(&self, name: SymbolId) -> Option<Decl> {
+    pub fn try_get_decl(&self, name: SymbolId) -> Option<ContextMember> {
         self.scopes.borrow().iter().rev().find_map(|scope| scope.get_decl(name))
     }
 
     /// Get a decl from the context, reading all accessible scopes.
     ///
     /// Panics if the decl doesn't exist.
-    pub fn get_decl(&self, name: SymbolId) -> Decl {
+    pub fn get_decl(&self, name: SymbolId) -> ContextMember {
         self.try_get_decl(name)
             .unwrap_or_else(|| panic!("cannot find a declaration with name {}", name))
     }
 
     /// Modify a decl in the context, with a function that takes the current
     /// decl kind and returns the new decl kind.
-    pub fn modify_decl_with(&self, name: SymbolId, f: impl Fn(Decl) -> Decl) {
+    pub fn modify_decl_with(&self, name: SymbolId, f: impl Fn(ContextMember) -> ContextMember) {
         let _ = self
             .scopes
             .borrow()
@@ -193,7 +197,7 @@ impl Context {
     }
 
     /// Modify a decl in the context.
-    pub fn modify_decl(&self, decl: Decl) {
+    pub fn modify_decl(&self, decl: ContextMember) {
         self.modify_decl_with(decl.name, |_| decl);
     }
 
@@ -254,7 +258,7 @@ impl Context {
     pub fn try_for_decls_of_scope_rev<E>(
         &self,
         scope_index: usize,
-        mut f: impl FnMut(&Decl) -> Result<(), E>,
+        mut f: impl FnMut(&ContextMember) -> Result<(), E>,
     ) -> Result<(), E> {
         self.scopes.borrow()[scope_index]
             .decls
@@ -269,7 +273,7 @@ impl Context {
     pub fn try_for_decls_of_scope<E>(
         &self,
         scope_index: usize,
-        mut f: impl FnMut(&Decl) -> Result<(), E>,
+        mut f: impl FnMut(&ContextMember) -> Result<(), E>,
     ) -> Result<(), E> {
         self.scopes.borrow()[scope_index].decls.borrow().iter().try_for_each(|(_, decl)| f(decl))
     }
@@ -282,7 +286,7 @@ impl Context {
 
     /// Iterate over all the decls in the context for the scope with the
     /// given index (reversed).
-    pub fn for_decls_of_scope_rev(&self, scope_index: usize, mut f: impl FnMut(&Decl)) {
+    pub fn for_decls_of_scope_rev(&self, scope_index: usize, mut f: impl FnMut(&ContextMember)) {
         let _ = self.try_for_decls_of_scope_rev(scope_index, |decl| -> Result<(), Infallible> {
             f(decl);
             Ok(())
@@ -291,7 +295,7 @@ impl Context {
 
     /// Iterate over all the decls in the context for the scope with the
     /// given index.
-    pub fn for_decls_of_scope(&self, scope_index: usize, mut f: impl FnMut(&Decl)) {
+    pub fn for_decls_of_scope(&self, scope_index: usize, mut f: impl FnMut(&ContextMember)) {
         let _ = self.try_for_decls_of_scope(scope_index, |decl| -> Result<(), Infallible> {
             f(decl);
             Ok(())
@@ -340,12 +344,20 @@ impl Context {
 
     /// Add a typing binding to the closest stack scope.
     pub fn add_assignment_to_closest_stack(&self, name: SymbolId, ty: TyId, value: TermId) {
-        self.get_closest_stack_scope_ref().add_decl(Decl { name, ty: Some(ty), value: Some(value) })
+        self.get_closest_stack_scope_ref().add_decl(ContextMember {
+            name,
+            ty: Some(ty),
+            value: Some(value),
+        })
     }
 
     /// Add a typing binding to the closest stack scope.
     pub fn add_typing_to_closest_stack(&self, name: SymbolId, ty: TyId) {
-        self.get_closest_stack_scope_ref().add_decl(Decl { name, ty: Some(ty), value: None })
+        self.get_closest_stack_scope_ref().add_decl(ContextMember {
+            name,
+            ty: Some(ty),
+            value: None,
+        })
     }
 
     /// Add a typing binding.
@@ -361,13 +373,13 @@ impl Context {
     /// Modify the type of an assignment binding.
     pub fn modify_typing(&self, name: SymbolId, new_ty: TyId) {
         let current_value = self.try_get_decl_value(name);
-        self.modify_decl(Decl { name, ty: Some(new_ty), value: current_value })
+        self.modify_decl(ContextMember { name, ty: Some(new_ty), value: current_value })
     }
 
     /// Modify the value of an assignment binding.
     pub fn modify_assignment(&self, name: SymbolId, new_value: TermId) {
         let current_ty = self.try_get_decl_ty(name);
-        self.modify_decl(Decl { name, ty: current_ty, value: Some(new_value) })
+        self.modify_decl(ContextMember { name, ty: current_ty, value: Some(new_value) })
     }
 
     /// Add parameter bindings from the given parameters.
@@ -529,7 +541,7 @@ impl fmt::Display for EqualityJudgement {
     }
 }
 
-impl fmt::Display for Decl {
+impl fmt::Display for ContextMember {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ty_or_unknown = {
             if let Some(ty) = self.ty {

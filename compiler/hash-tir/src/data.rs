@@ -7,7 +7,7 @@ use hash_storage::{
     get,
     store::{
         statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey, TrivialSequenceStoreKey,
+        SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
 use hash_utils::itertools::Itertools;

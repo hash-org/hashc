@@ -34,7 +34,7 @@ use hash_tir::{
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockStatement, BlockTerm},
     sub::Sub,
     symbols::SymbolId,
     term_as_variant,
@@ -1051,6 +1051,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.check_by_unify(fn_ty_id, annotation_ty)?;
 
         self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
+
         Ok(())
     }
 
@@ -1143,11 +1144,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         original_term_id: TermId,
     ) -> TcResult<()> {
         // Forward to the inner term.
-        self.infer_block_term(
-            &loop_term.block,
-            Ty::hole(loop_term.block.origin),
-            original_term_id,
-        )?;
+        self.infer_term(loop_term.inner, Ty::hole(loop_term.inner.origin().inferred()))?;
         let loop_term =
             Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
         self.check_by_unify(loop_term, annotation_ty)?;
@@ -1175,11 +1172,30 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             let mut diverges = false;
 
             for statement in block_term.statements.iter() {
-                let statement_ty = Ty::hole_for(statement);
-                self.infer_term(statement, statement_ty)?;
+                let ty_to_check_divergence = match *statement.value() {
+                    BlockStatement::Decl(decl) => {
+                        self.check_ty(decl.ty)?;
+                        if let Some(value) = decl.value {
+                            self.infer_term(value, decl.ty)?;
+                        };
+                        self.infer_pat(decl.bind_pat, decl.ty, decl.value)?;
+
+                        // Check that the binding pattern of the declaration is irrefutable.
+                        let eck = self.exhaustiveness_checker(decl.bind_pat);
+                        eck.is_pat_irrefutable(&[decl.bind_pat], decl.ty, None);
+                        self.append_exhaustiveness_diagnostics(eck);
+
+                        decl.ty
+                    }
+                    BlockStatement::Expr(expr) => {
+                        let statement_ty = Ty::hole_for(expr);
+                        self.infer_term(expr, statement_ty)?;
+                        statement_ty
+                    }
+                };
 
                 // If the statement diverges, we can already exit
-                if self.uni_ops().is_uninhabitable(statement_ty)? {
+                if self.uni_ops().is_uninhabitable(ty_to_check_divergence)? {
                     diverges = true;
                 }
             }
@@ -1193,13 +1209,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     }
                     _ => {
                         // Infer the return value
-                        let return_value_ty = Ty::hole_for(block_term.return_value);
-                        self.infer_term(block_term.return_value, return_value_ty)?;
+                        let return_value_ty = Ty::hole_for(block_term.expr);
+                        self.infer_term(block_term.expr, return_value_ty)?;
                     }
                 }
             } else {
                 // Infer the return value
-                self.infer_term(block_term.return_value, annotation_ty)?;
+                self.infer_term(block_term.expr, annotation_ty)?;
             };
 
             let sub = self.sub_ops().create_sub_from_current_scope();
@@ -1271,28 +1287,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     pub fn infer_cast_term(&self, cast_term: CastTerm, annotation_ty: TyId) -> TcResult<()> {
         self.infer_term(cast_term.subject_term, cast_term.target_ty)?;
         self.check_by_unify(cast_term.target_ty, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer a stack declaration term, and return its type.
-    pub fn infer_decl_term(
-        &self,
-        decl_term: &DeclTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        self.check_ty(decl_term.ty)?;
-        if let Some(value) = decl_term.value {
-            self.infer_term(value, decl_term.ty)?;
-        };
-        self.infer_pat(decl_term.bind_pat, decl_term.ty, decl_term.value)?;
-        self.check_by_unify(Ty::unit_ty(original_term_id.origin().inferred()), annotation_ty)?;
-
-        // Check that the binding pattern of the declaration is irrefutable.
-        let eck = self.exhaustiveness_checker(decl_term.bind_pat);
-        eck.is_pat_irrefutable(&[decl_term.bind_pat], decl_term.ty, None);
-        self.append_exhaustiveness_diagnostics(eck);
-
         Ok(())
     }
 
@@ -1554,7 +1548,6 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             }
             Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
             Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
-            Term::Decl(decl_term) => self.infer_decl_term(&decl_term, annotation_ty, term_id)?,
             Term::Access(access_term) => {
                 self.infer_access_term(&access_term, annotation_ty, term_id)?
             }

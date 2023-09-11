@@ -23,7 +23,7 @@ use crate::{
     params::Param,
     primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
-    scopes::{AssignTerm, BlockTerm, DeclTerm},
+    scopes::{AssignTerm, BlockTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::{TupleTerm, TupleTy},
     utils::traversing::Atom,
@@ -79,8 +79,7 @@ pub enum Term {
     Match(MatchTerm),
     Return(ReturnTerm),
 
-    // Declarations and assignments
-    Decl(DeclTerm),
+    // Assignments
     Assign(AssignTerm),
 
     // Unsafe
@@ -251,9 +250,6 @@ impl fmt::Display for Term {
             }
             Term::Match(match_term) => write!(f, "{}", match_term),
             Term::Return(return_term) => write!(f, "{}", return_term),
-            Term::Decl(decl_stack_member_term) => {
-                write!(f, "{}", decl_stack_member_term)
-            }
             Term::Assign(assign_term) => write!(f, "{}", assign_term),
             Term::Unsafe(unsafe_term) => write!(f, "{}", unsafe_term),
             Term::Access(access_term) => write!(f, "{}", access_term),
