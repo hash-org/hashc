@@ -5,10 +5,7 @@
 //! the lowering process. This is why this builder is used to `lower` the [Term]
 //! types into the [IrTy] which is then used for the lowering process.
 
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
-    utils::PrimitiveUtils,
-};
+use hash_ast::ast::AstNodeId;
 use hash_ir::{
     ir::{self, Const},
     ty::{IrTy, IrTyId},
@@ -21,7 +18,10 @@ use hash_tir::{
     data::DataTy,
     environment::env::AccessToEnv,
     fns::{CallTerm, FnDefId},
-    intrinsics::definitions::Intrinsic as TirIntrinsic,
+    intrinsics::{
+        definitions::{BinOp, CondBinOp, Intrinsic as TirIntrinsic, ShortCircuitingBoolOp, UnOp},
+        utils::try_use_term_as_integer_lit,
+    },
     lits::{Lit, LitPat},
     pats::PatId,
     terms::{Term, TermId, TyId},
@@ -81,9 +81,9 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(super) fn ty_id_from_tir_intrinsic(
         &mut self,
         intrinsic: TirIntrinsic,
-        originating_term: TermId,
+        originating_node: AstNodeId,
     ) -> IrTyId {
-        self.ctx.ty_id_from_tir_intrinsic(intrinsic, originating_term)
+        self.ctx.ty_id_from_tir_intrinsic(intrinsic, originating_node)
     }
 
     /// Create an function type from the given [FnDefId].
@@ -104,63 +104,84 @@ impl<'tcx> BodyBuilder<'tcx> {
         let CallTerm { subject, args, .. } = term;
 
         match *subject.value() {
-            Term::Fn(fn_def) => {
-                // Check if the fn_def is a `un_op` intrinsic
-                if fn_def == self.intrinsics().un_op() {
-                    let (op, subject) =
-                        (args.at(1).unwrap().borrow().value, args.at(2).unwrap().borrow().value);
+            Term::Intrinsic(intrinsic) => {
+                match intrinsic {
+                    // Handle these intrinsics specially:
+                    TirIntrinsic::Cast => {
+                        let (to_ty, value) = (
+                            args.at(1).unwrap().borrow().value,
+                            args.at(2).unwrap().borrow().value,
+                        );
 
-                    // Parse the operator from the starting term.
-                    let parsed_op =
-                        UnOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
-                            .unwrap();
+                        // Convert the `to_ty` into an IR type and
+                        let ty = self.ty_id_from_tir_ty(to_ty);
 
-                    FnCallTermKind::UnaryOp(parsed_op.into(), subject)
-                } else if fn_def == self.intrinsics().short_circuiting_op() {
-                    let (op, lhs, rhs) = (
-                        args.at(1).unwrap().borrow().value,
-                        args.at(2).unwrap().borrow().value,
-                        args.at(3).unwrap().borrow().value,
-                    );
+                        FnCallTermKind::Cast(value, ty)
+                    }
+                    TirIntrinsic::CondBinOp => {
+                        let (op, lhs, rhs) = (
+                            args.at(1).unwrap().borrow().value,
+                            args.at(2).unwrap().borrow().value,
+                            args.at(3).unwrap().borrow().value,
+                        );
 
-                    let op = ShortCircuitBinOp::try_from(
-                        self.try_use_term_as_integer_lit::<u8>(op).unwrap(),
-                    )
-                    .unwrap();
+                        let op = CondBinOp::try_from(
+                            try_use_term_as_integer_lit::<_, u8>(self.env(), op).unwrap(),
+                        )
+                        .unwrap();
+                        FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
+                    }
+                    TirIntrinsic::ShortCircuitingBoolOp => {
+                        let (op, lhs, rhs) = (
+                            args.at(1).unwrap().borrow().value,
+                            args.at(2).unwrap().borrow().value,
+                            args.at(3).unwrap().borrow().value,
+                        );
 
-                    FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
-                } else if fn_def == self.intrinsics().endo_bin_op() {
-                    let (op, lhs, rhs) = (
-                        args.at(1).unwrap().borrow().value,
-                        args.at(2).unwrap().borrow().value,
-                        args.at(3).unwrap().borrow().value,
-                    );
+                        let op = ShortCircuitingBoolOp::try_from(
+                            try_use_term_as_integer_lit::<_, u8>(self.env(), op).unwrap(),
+                        )
+                        .unwrap();
 
-                    let op =
-                        EndoBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
-                            .unwrap();
-                    FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
-                } else if fn_def == self.intrinsics().bool_bin_op() {
-                    let (op, lhs, rhs) = (
-                        args.at(1).unwrap().borrow().value,
-                        args.at(2).unwrap().borrow().value,
-                        args.at(3).unwrap().borrow().value,
-                    );
+                        FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
+                    }
+                    TirIntrinsic::BinOp => {
+                        let (op, lhs, rhs) = (
+                            args.at(1).unwrap().borrow().value,
+                            args.at(2).unwrap().borrow().value,
+                            args.at(3).unwrap().borrow().value,
+                        );
 
-                    let op =
-                        BoolBinOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
-                            .unwrap();
-                    FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
-                } else if fn_def == self.intrinsics().cast() {
-                    let (to_ty, value) =
-                        (args.at(1).unwrap().borrow().value, args.at(2).unwrap().borrow().value);
+                        let op = BinOp::try_from(
+                            try_use_term_as_integer_lit::<_, u8>(self.env(), op).unwrap(),
+                        )
+                        .unwrap();
+                        FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
+                    }
+                    TirIntrinsic::UnOp => {
+                        let (op, subject) = (
+                            args.at(1).unwrap().borrow().value,
+                            args.at(2).unwrap().borrow().value,
+                        );
 
-                    // Convert the `to_ty` into an IR type and
-                    let ty = self.ty_id_from_tir_ty(to_ty);
+                        // Parse the operator from the starting term.
+                        let parsed_op = UnOp::try_from(
+                            try_use_term_as_integer_lit::<_, u8>(self.env(), op).unwrap(),
+                        )
+                        .unwrap();
 
-                    FnCallTermKind::Cast(value, ty)
-                } else {
-                    FnCallTermKind::Call(*term)
+                        FnCallTermKind::UnaryOp(parsed_op.into(), subject)
+                    }
+                    TirIntrinsic::SizeOf
+                    | TirIntrinsic::AlignOf
+                    | TirIntrinsic::PtrOffset
+                    | TirIntrinsic::Eval
+                    | TirIntrinsic::Transmute
+                    | TirIntrinsic::Abort
+                    | TirIntrinsic::Panic
+                    | TirIntrinsic::UserError
+                    | TirIntrinsic::DebugPrint
+                    | _ => FnCallTermKind::Call(*term),
                 }
             }
             _ => FnCallTermKind::Call(*term),

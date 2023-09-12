@@ -2,7 +2,6 @@
 //! information required to lower all the TIR into IR, among
 //! other operations.
 
-use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{ty::IrTyId, IrCtx};
 use hash_layout::{
     compute::{LayoutComputer, LayoutError},
@@ -48,10 +47,6 @@ pub(crate) struct BuilderCtx<'ir> {
 
     pub settings: &'ir CompilerSettings,
 
-    /// The intrinsic definitions that are needed for
-    /// dealing with intrinsic functions within the TIR.
-    pub intrinsics: &'ir DefinedIntrinsics,
-
     /// The prelude that is used for lowering the TIR.
     pub prelude: ModDefId,
 }
@@ -68,12 +63,6 @@ impl<'ir> AccessToEnv for BuilderCtx<'ir> {
     }
 }
 
-impl<'ir> AccessToIntrinsics for BuilderCtx<'ir> {
-    fn intrinsics(&self) -> &DefinedIntrinsics {
-        self.intrinsics
-    }
-}
-
 impl<'ir> BuilderCtx<'ir> {
     /// Create a new [BuilderCtx] from the given [LoweringCtx].
     pub fn new(entry: &'ir CurrentSourceInfo, ctx: &'ir LoweringCtx<'ir>) -> Self {
@@ -84,17 +73,12 @@ impl<'ir> BuilderCtx<'ir> {
         let env =
             Env::new(&semantic_storage.context, &workspace.node_map, settings.target(), entry);
 
-        let intrinsics = match semantic_storage.intrinsics_or_unset.get() {
-            Some(intrinsics) => intrinsics,
-            None => panic!("Tried to get intrinsics but they are not set yet"),
-        };
-
         let prelude = match semantic_storage.prelude_or_unset.get() {
             Some(prelude) => *prelude,
             None => panic!("Tried to get prelude but it is not set yet"),
         };
 
-        Self { env, lcx: &ir_storage.ctx, settings, layouts: layout_storage, intrinsics, prelude }
+        Self { env, lcx: &ir_storage.ctx, settings, layouts: layout_storage, prelude }
     }
 
     /// Get a [LayoutComputer] which can be used to compute layouts and

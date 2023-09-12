@@ -137,6 +137,10 @@ impl FnDiscoverer<'_> {
                     ModMemberValue::Fn(_) => {
                         // We've already found this one.
                     }
+                    ModMemberValue::Intrinsic(_) => {
+                        // @@Todo: we should probably add all the intrinsic
+                        // functions?
+                    }
                 }
             }
         }

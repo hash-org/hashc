@@ -12,8 +12,11 @@ use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::tir_stores, node::Node, symbols::SymbolId, tir_node_sequence_store_direct,
-    tir_node_single_store,
+    environment::stores::tir_stores,
+    intrinsics::{definitions::Intrinsic, make::IsIntrinsic},
+    node::Node,
+    symbols::SymbolId,
+    tir_node_sequence_store_direct, tir_node_single_store,
 };
 
 /// The kind of a module.
@@ -45,6 +48,8 @@ pub enum ModMemberValue {
     Mod(ModDefId),
     /// A module member that is a function.
     Fn(FnDefId),
+    /// A module member that is an intrinsic.
+    Intrinsic(Intrinsic),
 }
 
 impl Display for ModMemberValue {
@@ -59,23 +64,21 @@ impl Display for ModMemberValue {
             ModMemberValue::Fn(fn_def_id) => {
                 write!(f, "{}", fn_def_id)
             }
+            ModMemberValue::Intrinsic(intrinsic) => {
+                write!(f, "{}", intrinsic)
+            }
         }
     }
 }
 
 impl ModMemberValue {
     /// Get the name of the module member.
-    pub fn name(&self) -> SymbolId {
+    pub fn name(&self) -> Option<Identifier> {
         match self {
-            ModMemberValue::Data(data_def_id) => {
-                get!(*data_def_id, name)
-            }
-            ModMemberValue::Mod(mod_def_id) => {
-                get!(*mod_def_id, name)
-            }
-            ModMemberValue::Fn(fn_def_id) => {
-                get!(*fn_def_id, name)
-            }
+            ModMemberValue::Data(data_def_id) => get!(*data_def_id, name).value().name,
+            ModMemberValue::Mod(mod_def_id) => get!(*mod_def_id, name).value().name,
+            ModMemberValue::Fn(fn_def_id) => get!(*fn_def_id, name).value().name,
+            ModMemberValue::Intrinsic(intrinsic) => Some(intrinsic.name()),
         }
     }
 }

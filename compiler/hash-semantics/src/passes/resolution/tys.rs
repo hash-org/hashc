@@ -4,8 +4,6 @@
 //! correspond to paths into TC-types. It does not handle all types; non-path
 //! types are handled later.
 
-use std::iter::once;
-
 use hash_ast::ast::{self, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::IDENTS;
@@ -148,6 +146,9 @@ impl<'tc> ResolutionPass<'tc> {
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     Ok(Ty::from(Ty::Var(*bound_var), origin))
+                }
+                TerminalResolvedPathComponent::Intrinsic(intrinsic) => {
+                    Ok(Term::from(Term::Intrinsic(*intrinsic), origin))
                 }
             },
         }

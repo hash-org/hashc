@@ -6,6 +6,7 @@ use hash_source::constant::{
 };
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_target::{primitives::BigIntTy, HasTarget};
+use hash_utils::derive_more::From;
 
 use super::{
     definitions::{BoolCtor, Primitive},
@@ -18,7 +19,6 @@ use crate::{
     lits::{CharLit, IntLit, Lit},
     node::{Node, NodeOrigin},
     pats::{Pat, PatId},
-    refs::{RefKind, RefTy},
     terms::{Term, TermId, Ty, TyId},
 };
 
@@ -127,11 +127,6 @@ pub fn bool_pat(value: bool, origin: NodeOrigin) -> PatId {
     )
 }
 
-/// Create a new reference type.
-pub fn new_ref_ty(ty: TyId, kind: RefKind, mutable: bool, origin: NodeOrigin) -> TyId {
-    Ty::from(RefTy { ty, kind, mutable }, origin)
-}
-
 /// Get the given type as a primitive integer type if possible.
 pub fn try_use_ty_as_int_ty(ty: TyId) -> Option<IntTy> {
     match *ty.value() {
@@ -218,17 +213,45 @@ pub fn try_use_ty_as_lit_ty<T: HasTarget>(env: &T, ty: TyId) -> Option<LitTy> {
 }
 
 /// Get the given term as a float literal if possible.
-pub fn create_term_from_float_lit<L: Into<FloatConstantValue>>(lit: L) -> TermId {
+pub fn create_term_from_float_lit<L: Into<FloatConstantValue>>(
+    lit: L,
+    origin: NodeOrigin,
+) -> TermId {
     let lit = Lit::Float(InternedFloat::create(FloatConstant::new(lit.into(), None)).into());
-    // @@MissingOrigin
-    Node::create_gen(Term::Lit(Node::create_gen(lit)))
+    Node::create_at(Term::Lit(Node::create_at(lit, origin)), origin)
+}
+
+/// Helper struct to represent a float value which can be freely converted
+/// between `f32` and `f64`.
+#[derive(Clone, Copy, PartialEq, PartialOrd, From)]
+pub enum Float {
+    F32(f32),
+    F64(f64),
+}
+
+impl From<Float> for f32 {
+    fn from(value: Float) -> Self {
+        match value {
+            Float::F32(value) => value,
+            Float::F64(value) => value as f32,
+        }
+    }
+}
+
+impl From<Float> for f64 {
+    fn from(value: Float) -> Self {
+        match value {
+            Float::F32(value) => value as f64,
+            Float::F64(value) => value,
+        }
+    }
 }
 
 /// Get the given term as a float literal if possible.
-pub fn try_use_term_as_float_lit<L: From<f64>>(term: TermId) -> Option<L> {
+pub fn try_use_term_as_float_lit<L: From<Float>>(term: TermId) -> Option<L> {
     match *term.value() {
         Term::Lit(lit) => match *lit.value() {
-            Lit::Float(i) => i.value().try_into().ok(),
+            Lit::Float(i) => Some(L::from(Float::from(i.value()))),
             _ => None,
         },
         _ => None,
@@ -236,16 +259,18 @@ pub fn try_use_term_as_float_lit<L: From<f64>>(term: TermId) -> Option<L> {
 }
 
 /// Create a term from the given usize integer literal.
-pub fn create_term_from_usize_lit<T: HasTarget>(env: &T, lit: usize) -> TermId {
+pub fn create_term_from_usize_lit<T: HasTarget>(env: &T, lit: usize, origin: NodeOrigin) -> TermId {
     let lit: IntLit = InternedInt::create_usize(lit, env.target().ptr_size()).into();
-    Node::create_gen(Term::Lit(Node::create_gen(Lit::Int(lit))))
+    Node::create_at(Term::Lit(Node::create_at(Lit::Int(lit), origin)), origin)
 }
 
 /// Create a term from the given integer literal.
-pub fn create_term_from_integer_lit<L: Into<IntConstantValue>>(lit: L) -> TermId {
+pub fn create_term_from_integer_lit<L: Into<IntConstantValue>>(
+    lit: L,
+    origin: NodeOrigin,
+) -> TermId {
     let lit = Lit::Int(InternedInt::create(IntConstant::new(lit.into(), None)).into());
-    // @@MissingOrigin
-    Node::create_gen(Term::Lit(Node::create_gen(lit)))
+    Node::create_at(Term::Lit(Node::create_at(lit, origin)), origin)
 }
 
 /// Get the given term as a character literal if possible.
@@ -260,10 +285,9 @@ pub fn try_use_term_as_char_lit(term: TermId) -> Option<char> {
 }
 
 /// Get the given term as a character literal if possible.
-pub fn create_term_from_char_lit(lit: char) -> TermId {
+pub fn create_term_from_char_lit(lit: char, origin: NodeOrigin) -> TermId {
     let val = Lit::Char(CharLit { underlying: ast::CharLit { data: lit } });
-    // @@MissingOrigin
-    Node::create_at(Term::Lit(Node::create_gen(val)), NodeOrigin::Generated)
+    Node::create_at(Term::Lit(Node::create_at(val, origin)), origin)
 }
 
 /// Get the given term as an integer literal if possible.

@@ -1,6 +1,8 @@
 use hash_source::identifier::Identifier;
+use hash_target::HasTarget;
 
 use crate::{
+    context::HasContext,
     data::{CtorDefId, DataDefId},
     environment::env::Env,
     fns::FnTy,
@@ -8,7 +10,7 @@ use crate::{
 };
 
 /// Functionality that is available to invoke from within intrinsics.
-pub trait IntrinsicAbilities {
+pub trait IntrinsicAbilities: HasContext + HasTarget {
     /// Normalise a term fully.
     fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String>;
 
@@ -95,6 +97,28 @@ macro_rules! make_intrinsics {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "Intrinsic::{}", self.name())
             }
+        }
+
+        // ##GeneratedOrigin: Intrinsics do not have a source location.
+        /// All the intrinsics as a tuple.
+        pub fn all_intrinsics_as_mod_members() -> &'static [$crate::node::Node<ModMember>] {
+            use $crate::node::Node;
+            use $crate::mods::ModMemberValue;
+            use std::sync::OnceLock;
+
+            static INTRINSICS_MOD: OnceLock<Vec<Node<ModMember>>> = OnceLock::new();
+            INTRINSICS_MOD.get_or_init(|| {
+                paste! {
+                    vec![
+                        $(
+                            Node::gen(ModMember {
+                                name: sym(stringify!($name)),
+                                value: ModMemberValue::Intrinsic(Intrinsic::[<$name:camel>]),
+                            }),
+                        )*
+                    ]
+                }
+            })
         }
 
         /// Implements `IsIntrinsic` for `Intrinsic` by delegating to each `$name:camel Intrinsic`.
@@ -239,6 +263,29 @@ macro_rules! make_primitives {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "Primitive::{}", self.name())
             }
+        }
+
+
+        // ##GeneratedOrigin: Intrinsics do not have a source location.
+        /// All the primitives as module members.
+        pub fn all_primitives_as_mod_members() -> &'static [$crate::node::Node<ModMember>] {
+            use $crate::node::Node;
+            use $crate::mods::ModMemberValue;
+            use std::sync::OnceLock;
+
+            static PRIMITIVES_MOD: OnceLock<Vec<Node<ModMember>>> = OnceLock::new();
+            PRIMITIVES_MOD.get_or_init(|| {
+                paste! {
+                    vec![
+                        $(
+                            Node::gen(ModMember {
+                                name: sym(stringify!($name)),
+                                value: ModMemberValue::Data([<$name:camel Primitive>].def()),
+                            }),
+                        )*
+                    ]
+                }
+            })
         }
 
         impl IsPrimitiveCtor for PrimitiveCtor {

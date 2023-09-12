@@ -13,7 +13,6 @@ mod ty;
 mod utils;
 
 use hash_attrs::{attr::attr_store, builtin::attrs};
-use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
@@ -196,12 +195,6 @@ impl HasTarget for BodyBuilder<'_> {
 impl<'ctx> AccessToEnv for BodyBuilder<'ctx> {
     fn env(&self) -> &Env {
         &self.ctx.env
-    }
-}
-
-impl<'ctx> AccessToIntrinsics for BodyBuilder<'ctx> {
-    fn intrinsics(&self) -> &DefinedIntrinsics {
-        self.ctx.intrinsics
     }
 }
 

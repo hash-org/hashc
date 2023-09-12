@@ -16,6 +16,7 @@ pub mod gen {
         node::{Node, NodeOrigin},
         params::{Param, ParamsId},
         pats::{Pat, PatId},
+        refs::RefKind,
         symbols::SymbolId,
         terms::{Term, TermId, Ty, TyId},
     };
@@ -121,6 +122,11 @@ pub mod gen {
     /// Create an empty tuple type `()`.
     pub fn unit_ty() -> TyId {
         Ty::unit_ty(NodeOrigin::Generated)
+    }
+
+    /// Create a reference type with the given data.
+    pub fn ref_ty(ty: TyId, kind: RefKind, mutable: bool) -> TyId {
+        Ty::ref_ty(ty, kind, mutable, NodeOrigin::Generated)
     }
 
     /// Create a term by the given data.

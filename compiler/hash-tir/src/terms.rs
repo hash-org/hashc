@@ -18,11 +18,11 @@ use crate::{
     data::{CtorTerm, DataDefId, DataTy},
     environment::stores::tir_stores,
     fns::{CallTerm, FnDefId, FnTy},
-    intrinsics::definitions::{Intrinsic},
+    intrinsics::definitions::Intrinsic,
     lits::LitId,
     node::{Node, NodeId, NodeOrigin},
     params::Param,
-    refs::{DerefTerm, RefTerm, RefTy},
+    refs::{DerefTerm, RefKind, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::{TupleTerm, TupleTy},
@@ -201,6 +201,11 @@ impl Term {
             }),
             origin,
         ))
+    }
+
+    /// Create a new reference type.
+    pub fn ref_ty(ty: TyId, kind: RefKind, mutable: bool, origin: NodeOrigin) -> TyId {
+        Ty::from(RefTy { ty, kind, mutable }, origin)
     }
 
     /// Create a new expected type for typing the given term.

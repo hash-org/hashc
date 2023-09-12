@@ -734,6 +734,10 @@ impl TraversingUtils {
                 self.visit_fn_def(fn_def_id, f)?;
                 Ok(())
             }
+            ModMemberValue::Intrinsic(_) => {
+                // Nothing to do
+                Ok(())
+            }
         }
     }
 

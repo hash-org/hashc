@@ -21,8 +21,9 @@ use hash_storage::{
         SequenceStore, SequenceStoreKey,
     },
 };
-use hash_tir::intrinsics::{
-    definitions::{BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
+use hash_tir::intrinsics::definitions::{
+    BinOp as TirBinOp, CondBinOp as TirCondBinOp,
+    ShortCircuitingBoolOp as TirShortCircuitingBoolOp, UnOp as TirUnOp,
 };
 use hash_utils::{
     graph::dominators::Dominators,
@@ -230,9 +231,9 @@ pub enum UnaryOp {
     Neg,
 }
 
-impl From<UnOp> for UnaryOp {
-    fn from(value: UnOp) -> Self {
-        use UnOp::*;
+impl From<TirUnOp> for UnaryOp {
+    fn from(value: TirUnOp) -> Self {
+        use TirUnOp::*;
         match value {
             BitNot => Self::BitNot,
             Not => Self::Not,
@@ -251,9 +252,9 @@ pub enum LogicalBinOp {
     And,
 }
 
-impl From<ShortCircuitBinOp> for LogicalBinOp {
-    fn from(value: ShortCircuitBinOp) -> Self {
-        use ShortCircuitBinOp::*;
+impl From<TirShortCircuitingBoolOp> for LogicalBinOp {
+    fn from(value: TirShortCircuitingBoolOp) -> Self {
+        use TirShortCircuitingBoolOp::*;
 
         match value {
             And => Self::And,
@@ -372,9 +373,9 @@ impl fmt::Display for BinOp {
     }
 }
 
-impl From<EndoBinOp> for BinOp {
-    fn from(value: EndoBinOp) -> Self {
-        use EndoBinOp::*;
+impl From<TirBinOp> for BinOp {
+    fn from(value: TirBinOp) -> Self {
+        use TirBinOp::*;
 
         match value {
             BitOr => Self::BitOr,
@@ -392,9 +393,9 @@ impl From<EndoBinOp> for BinOp {
     }
 }
 
-impl From<BoolBinOp> for BinOp {
-    fn from(value: BoolBinOp) -> Self {
-        use BoolBinOp::*;
+impl From<TirCondBinOp> for BinOp {
+    fn from(value: TirCondBinOp) -> Self {
+        use TirCondBinOp::*;
 
         match value {
             EqEq => Self::Eq,

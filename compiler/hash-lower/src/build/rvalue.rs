@@ -10,7 +10,10 @@ use hash_ir::{
 use hash_source::constant::{IntConstant, IntTy, InternedInt};
 use hash_storage::store::statics::StoreId;
 use hash_target::HasTarget;
-use hash_tir::terms::{Term, TermId, Ty};
+use hash_tir::{
+    node::HasAstNodeId,
+    terms::{Term, TermId, Ty},
+};
 
 use super::{
     category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
@@ -175,7 +178,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let ty_id = if let Term::Fn(def_id) = *term {
             Some(self.ty_id_from_tir_fn_def(def_id))
         } else if let Term::Intrinsic(intrinsic) = *term {
-            Some(self.ty_id_from_tir_intrinsic(intrinsic, operand))
+            Some(self.ty_id_from_tir_intrinsic(intrinsic, operand.node_id_or_default()))
         } else {
             None
         };

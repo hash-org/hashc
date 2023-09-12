@@ -12,8 +12,9 @@ use errors::TcError;
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
 use hash_source::entry_point::EntryPointState;
-use hash_target::HasTarget;
+use hash_target::{HasTarget, Target};
 use hash_tir::{
+    context::{Context, HasContext},
     environment::env::{AccessToEnv, Env},
     fns::FnDefId,
     intrinsics::make::IntrinsicAbilities,
@@ -75,6 +76,18 @@ pub trait AccessToTypechecking: AccessToEnv + AccessToDiagnostics + Sized {
 
 pub struct IntrinsicAbilitiesWrapper<'tc, T: AccessToTypechecking> {
     tc: &'tc T,
+}
+
+impl<T: AccessToTypechecking> HasContext for IntrinsicAbilitiesWrapper<'_, T> {
+    fn context(&self) -> &Context {
+        self.tc.context()
+    }
+}
+
+impl<T: AccessToTypechecking> HasTarget for IntrinsicAbilitiesWrapper<'_, T> {
+    fn target(&self) -> &Target {
+        self.tc.target()
+    }
 }
 
 impl<T: AccessToTypechecking> IntrinsicAbilities for IntrinsicAbilitiesWrapper<'_, T> {

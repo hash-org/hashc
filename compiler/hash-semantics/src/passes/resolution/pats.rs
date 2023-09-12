@@ -244,6 +244,11 @@ impl ResolutionPass<'_> {
                         location: original_node_id.span(),
                     })
                 }
+                TerminalResolvedPathComponent::Intrinsic(_) => {
+                    Err(SemanticError::CannotUseIntrinsicInPatternPosition {
+                        location: original_node_id.span(),
+                    })
+                }
             },
         }
     }

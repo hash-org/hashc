@@ -62,6 +62,9 @@ pub enum SemanticError {
     /// Cannot use a function in a pattern position.
     CannotUseFunctionInPatternPosition { location: Span },
 
+    /// Cannot use an intrinsic in a pattern position.
+    CannotUseIntrinsicInPatternPosition { location: Span },
+
     /// Cannot use a non-constant item in constant position.
     CannotUseNonConstantItem { location: Span },
 
@@ -252,6 +255,16 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
 
                 error.add_span(*location).add_info(
                     "cannot use this in pattern position as it refers to a function definition",
+                );
+            }
+            SemanticError::CannotUseIntrinsicInPatternPosition { location } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::ValueCannotBeUsedAsType)
+                    .title("cannot use an intrinsic in pattern position");
+
+                error.add_span(*location).add_info(
+                    "cannot use this in pattern position as it refers to a compiler intrinsic",
                 );
             }
             SemanticError::CannotUseNonConstantItem { location } => {

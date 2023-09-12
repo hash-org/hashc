@@ -20,7 +20,6 @@ use hash_tir::{
     args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
-    building::gen::data_ty,
     casting::CastTerm,
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
@@ -28,8 +27,8 @@ use hash_tir::{
     fns::{CallTerm, FnDefId, FnTy},
     intrinsics::{
         definitions::{
-            bool_ty, char_def, f32_def, f64_def, i32_def, list_def, list_ty, never_gen_ty,
-            never_ty, str_def, usize_ty, Intrinsic, Primitive,
+            bool_ty, char_def, f32_def, f64_def, i32_def, list_def, list_ty, never_ty, str_def,
+            usize_ty, Intrinsic, Primitive,
         },
         make::{IsIntrinsic, IsPrimitive},
         utils::{
@@ -529,7 +528,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                                 },
                                 _ => None,
                             })
-                            .unwrap_or_else(|| i32_def())
+                            .unwrap_or_else(i32_def)
                         }
                     }
                 }
@@ -560,7 +559,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             },
                             _ => None,
                         })
-                        .unwrap_or_else(|| f64_def())
+                        .unwrap_or_else(f64_def)
                     }
                 },
             },
@@ -621,8 +620,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
-            let inferred_len_term =
-                create_term_from_usize_lit(self.env(), array_term.elements.len());
+            let inferred_len_term = create_term_from_usize_lit(
+                self.env(),
+                array_term.elements.len(),
+                array_term.elements.origin(),
+            );
 
             if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
                 return Err(TcError::MismatchingArrayLengths {
@@ -1954,6 +1956,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     // Check for entry point
                     self.potentially_flag_fn_as_entry_point(fn_def_id)?;
                 }
+                Ok(())
+            }
+            ModMemberValue::Intrinsic(_) => {
+                // Nothing to do
                 Ok(())
             }
         }

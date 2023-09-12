@@ -1,8 +1,8 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
 
+use hash_ast::ast::AstNodeId;
 use hash_attrs::builtin::attrs;
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_ir::{
     intrinsics::Intrinsic,
     lang_items::LangItem,
@@ -25,11 +25,14 @@ use hash_tir::{
     },
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId, FnTy},
-    intrinsics::{definitions::Intrinsic as TirIntrinsic, IsIntrinsic},
+    intrinsics::{
+        definitions::{bool_def, Intrinsic as TirIntrinsic},
+        make::IsIntrinsic,
+        utils::try_use_term_as_integer_lit,
+    },
     node::{HasAstNodeId, NodesId},
-    primitives::primitives,
     refs::RefTy,
-    terms::{TermId, Ty, TyId},
+    terms::{Ty, TyId},
     tuples::TupleTy,
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
@@ -167,10 +170,10 @@ impl<'ir> BuilderCtx<'ir> {
     pub(crate) fn ty_id_from_tir_intrinsic(
         &self,
         intrinsic: TirIntrinsic,
-        originating_term: TermId,
+        originating_node: AstNodeId,
     ) -> IrTyId {
         self.with_cache(intrinsic, || {
-            let instance = self.create_instance_from_intrinsic(intrinsic, originating_term);
+            let instance = self.create_instance_from_intrinsic(intrinsic, originating_node);
 
             let is_lang = instance.has_attr(attrs::LANG);
             let name = instance.name();
@@ -223,7 +226,7 @@ impl<'ir> BuilderCtx<'ir> {
     fn create_instance_from_intrinsic(
         &self,
         intrinsic: TirIntrinsic,
-        originating_term: TermId,
+        originating_node: AstNodeId,
     ) -> Instance {
         let FnTy { params, return_ty, .. } = intrinsic.ty();
 
@@ -232,9 +235,8 @@ impl<'ir> BuilderCtx<'ir> {
         );
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
 
-        let attr_id = originating_term.node_id_ensured();
         let ident = intrinsic.name();
-        let mut instance = Instance::new(ident, None, params, ret_ty, attr_id);
+        let mut instance = Instance::new(ident, None, params, ret_ty, originating_node);
 
         if Intrinsic::from_str_name(ident.into()).is_some() {
             instance.is_intrinsic = true;
@@ -360,7 +362,7 @@ impl<'ir> BuilderCtx<'ir> {
             DataDefCtors::Defined(ctor_defs) => {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
-                if primitives().bool() == ty.data_def {
+                if bool_def() == ty.data_def {
                     return (COMMON_IR_TYS.bool, true);
                 }
 
@@ -428,7 +430,8 @@ impl<'ir> BuilderCtx<'ir> {
                         self.context().enter_scope(ty.data_def.into(), || {
                             self.context().add_arg_bindings(data_def.params, ty.args);
 
-                            let ty = match length.and_then(|l| self.try_use_term_as_integer_lit(l))
+                            let ty = match length
+                                .and_then(|l| try_use_term_as_integer_lit(self.env(), l))
                             {
                                 Some(length) => {
                                     IrTy::Array { ty: self.ty_id_from_tir_ty(element_ty), length }
