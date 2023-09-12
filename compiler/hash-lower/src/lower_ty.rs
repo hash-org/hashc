@@ -1,7 +1,6 @@
 //! Contains all of the logic that is used by the lowering process
 //! to convert types and [Ty]s into [IrTy]s.
 
-use hash_ast::ast;
 use hash_attrs::builtin::attrs;
 use hash_intrinsics::utils::PrimitiveUtils;
 use hash_ir::{
@@ -26,10 +25,11 @@ use hash_tir::{
     },
     environment::env::AccessToEnv,
     fns::{FnDef, FnDefId, FnTy},
+    intrinsics::{definitions::Intrinsic as TirIntrinsic, IsIntrinsic},
     node::{HasAstNodeId, NodesId},
     primitives::primitives,
     refs::RefTy,
-    terms::{Ty, TyId},
+    terms::{TermId, Ty, TyId},
     tuples::TupleTy,
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
@@ -162,8 +162,39 @@ impl<'ir> BuilderCtx<'ir> {
         IrTy::create(ty)
     }
 
+    /// Create a new [IrTyId] from the given intrinsic whilst
+    /// caching the result.
+    pub(crate) fn ty_id_from_tir_intrinsic(
+        &self,
+        intrinsic: TirIntrinsic,
+        originating_term: TermId,
+    ) -> IrTyId {
+        self.with_cache(intrinsic, || {
+            let instance = self.create_instance_from_intrinsic(intrinsic, originating_term);
+
+            let is_lang = instance.has_attr(attrs::LANG);
+            let name = instance.name();
+
+            // Check if the instance has the `lang` attribute, specifying that it is
+            // the lang-item attribute.
+            let instance = Instance::create(instance);
+            let ty = IrTy::create(IrTy::FnDef { instance });
+
+            if is_lang {
+                let item = LangItem::from_str_name(name.into());
+                self.lcx.lang_items_mut().set(item, instance, ty);
+            }
+
+            // The function is an intrinsic function
+            let item = Intrinsic::from_str_name(name.into()).expect("unknown intrinsic function");
+            self.lcx.intrinsics_mut().set(item, instance, ty);
+
+            (ty, true)
+        })
+    }
+
     /// Create a new [IrTyId] from the given function definition whilst
-    /// caching the result in the
+    /// caching the result.
     pub(crate) fn ty_id_from_tir_fn_def(&self, def: FnDefId) -> IrTyId {
         self.with_cache(def, || {
             let instance = self.create_instance_from_fn_def(def);
@@ -181,30 +212,48 @@ impl<'ir> BuilderCtx<'ir> {
                 self.lcx.lang_items_mut().set(item, instance, ty);
             }
 
-            // Specify here that the function might be an intrinsic function
-            if def.borrow().is_intrinsic() {
-                let item =
-                    Intrinsic::from_str_name(name.into()).expect("unknown intrinsic function");
-                self.lcx.intrinsics_mut().set(item, instance, ty);
-            }
-
             (ty, true)
         })
+    }
+
+    /// Create a [Instance] from a [TirIntrinsic].
+    ///
+    /// Only some of the [TirIntrinsic]s have equivalents in the IR [Intrinsic]
+    /// enum.
+    fn create_instance_from_intrinsic(
+        &self,
+        intrinsic: TirIntrinsic,
+        originating_term: TermId,
+    ) -> Instance {
+        let FnTy { params, return_ty, .. } = intrinsic.ty();
+
+        let params = IrTyListId::seq(
+            params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
+        );
+        let ret_ty = self.ty_id_from_tir_ty(return_ty);
+
+        let attr_id = originating_term.node_id_ensured();
+        let ident = intrinsic.name();
+        let mut instance = Instance::new(ident, None, params, ret_ty, attr_id);
+
+        if Intrinsic::from_str_name(ident.into()).is_some() {
+            instance.is_intrinsic = true;
+        }
+
+        instance
     }
 
     /// Create a [Instance] from a [FnDefId]. This represents the function
     // / instance including the name, types (monomorphised), and attributes
     /// that are associated with the function definition.
     fn create_instance_from_fn_def(&self, fn_def: FnDefId) -> Instance {
-        let FnDef { name, ty, body, .. } = *fn_def.value();
+        let FnDef { name, ty, .. } = *fn_def.value();
 
         // Get the AstNodeId of the function definition, this is used to
         // link this instance to any attributes that might be applied
         // to the function definition.
         let attr_id = fn_def.node_id_ensured();
 
-        // Check whether this is an intrinsic item, since we need to handle
-        // them differently
         let source = fn_def.span().map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
@@ -212,15 +261,9 @@ impl<'ir> BuilderCtx<'ir> {
             params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
         );
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
-
         let ident = name.ident();
-        let mut instance = Instance::new(ident, source, params, ret_ty, attr_id);
 
-        if Intrinsic::from_str_name(ident.into()).is_some() {
-            instance.is_intrinsic = true;
-        }
-
-        instance
+        Instance::new(ident, source, params, ret_ty, attr_id)
     }
 
     /// Convert the [DataTy] into an [`IrTy::Adt`]. The [DataTy] specifies a

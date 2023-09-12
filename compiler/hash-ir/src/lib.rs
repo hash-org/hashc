@@ -28,6 +28,7 @@ use hash_storage::{store::SequenceStoreKey, stores};
 use hash_tir::{
     data::{DataDefId, DataTy},
     fns::FnDefId,
+    intrinsics::definitions::Intrinsic as TirIntrinsic,
     terms::TyId,
 };
 use hash_utils::fxhash::FxHashMap;
@@ -96,6 +97,9 @@ pub enum TyCacheEntry {
 
     /// A function definition that was lowered into a function type instance.
     FnDef(FnDefId),
+
+    /// An intrinsic that was lowered into a function type instance.
+    Intrinsic(TirIntrinsic),
 }
 
 impl From<TyId> for TyCacheEntry {
@@ -117,6 +121,12 @@ impl From<DataTy> for TyCacheEntry {
 impl From<FnDefId> for TyCacheEntry {
     fn from(fn_def: FnDefId) -> Self {
         Self::FnDef(fn_def)
+    }
+}
+
+impl From<TirIntrinsic> for TyCacheEntry {
+    fn from(intrinsic: TirIntrinsic) -> Self {
+        Self::Intrinsic(intrinsic)
     }
 }
 

@@ -21,6 +21,7 @@ use hash_tir::{
     data::DataTy,
     environment::env::AccessToEnv,
     fns::{CallTerm, FnDefId},
+    intrinsics::definitions::Intrinsic as TirIntrinsic,
     lits::{Lit, LitPat},
     pats::PatId,
     terms::{Term, TermId, TyId},
@@ -74,6 +75,15 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// Create an ADT from a defined [DataTy].
     pub(crate) fn ty_id_from_tir_data(&self, data_ty: DataTy) -> IrTyId {
         self.ctx.ty_from_tir_data(data_ty)
+    }
+
+    /// Create an function type from the given [TirIntrinsic].
+    pub(super) fn ty_id_from_tir_intrinsic(
+        &mut self,
+        intrinsic: TirIntrinsic,
+        originating_term: TermId,
+    ) -> IrTyId {
+        self.ctx.ty_id_from_tir_intrinsic(intrinsic, originating_term)
     }
 
     /// Create an function type from the given [FnDefId].

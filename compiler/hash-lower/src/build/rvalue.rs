@@ -114,6 +114,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Tuple(_)
             | Term::Ctor(_)
             | Term::Fn(_)
+            | Term::Intrinsic(_)
             | Term::Block(_)
             | Term::Var(_)
             | Term::Loop(_)
@@ -169,16 +170,20 @@ impl<'tcx> BodyBuilder<'tcx> {
         let term = operand.value();
         let span = self.span_of_term(operand);
 
-        // If the item is a reference to a function, i.e. the subject of a call, then
-        // we emit a constant that refers to the function.
-        if let Term::Fn(def_id) = *term {
-            let ty_id = self.ty_id_from_tir_fn_def(def_id);
+        // If the item is a reference to a function or intrinsic, i.e. the subject of a
+        // call, create a function type for the operand.
+        let ty_id = if let Term::Fn(def_id) = *term {
+            Some(self.ty_id_from_tir_fn_def(def_id))
+        } else if let Term::Intrinsic(intrinsic) = *term {
+            Some(self.ty_id_from_tir_intrinsic(intrinsic, operand))
+        } else {
+            None
+        };
 
-            // If this is a function type, we emit a ZST to represent the operand
-            // of the function.
-            if ty_id.map(|ty| matches!(ty, IrTy::FnDef { .. })) {
-                return block.and(Operand::Const(Const::Zero(ty_id).into()));
-            }
+        // If this is indeed a function type, we emit a ZST to represent the operand
+        // of the function.
+        if let Some(ty_id) = ty_id && ty_id.map(|ty| matches!(ty, IrTy::FnDef { .. })) {
+            return block.and(Operand::Const(Const::Zero(ty_id).into()));
         }
 
         match Category::of(&term) {

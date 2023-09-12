@@ -92,7 +92,10 @@ impl<T: AccessToTypechecking> IntrinsicAbilities for IntrinsicAbilitiesWrapper<'
         self.tc.env()
     }
 
-    fn resolve_from_prelude(&self, name: impl Into<hash_source::identifier::Identifier>) -> TermId {
+    fn resolve_from_prelude(
+        &self,
+        _name: impl Into<hash_source::identifier::Identifier>,
+    ) -> TermId {
         todo!()
     }
 }
