@@ -10,13 +10,12 @@ use hash_tir::{
     intrinsics::definitions::{all_intrinsics_as_mod_members, all_primitives_as_mod_members},
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
     node::Node,
-    utils::AccessToUtils,
 };
 use hash_utils::itertools::Itertools;
 
 use crate::environment::sem_env::AccessToSemEnv;
 
-pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
+pub trait BootstrapOps: AccessToSemEnv {
     /// Bootstrap the typechecker, by constructing primitives and intrinsics,
     /// then creating a module containing all the primitives and the
     /// `Intrinsics` member.

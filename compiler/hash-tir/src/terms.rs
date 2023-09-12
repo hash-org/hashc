@@ -130,6 +130,19 @@ pub type Ty = Term;
 pub type TyId = TermId;
 pub type TyListId = TermListId;
 
+/// Assert that the given term is of the given variant, and return it.
+#[macro_export]
+macro_rules! term_as_variant {
+    ($self:expr, $term:expr, $variant:ident) => {{
+        let term = $term;
+        if let $crate::terms::Term::$variant(term) = *term {
+            term
+        } else {
+            panic!("Expected term {} to be a {}", term, stringify!($variant))
+        }
+    }};
+}
+
 impl Term {
     pub fn is_void(&self) -> bool {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())

@@ -16,7 +16,6 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::env::Env,
     fns::{CallTerm, FnDef, FnDefId, FnTy},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
@@ -88,9 +87,7 @@ pub trait Mapper<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
 /// secondary components such as arguments and parameters.
 impl TraversingUtils {
     /// Create a new `TraversingUtils`.
-    ///
-    /// The `env` parameter is needed for the `utils` macro
-    pub fn new(_: &Env) -> Self {
+    pub fn new() -> Self {
         Self { visited: RefCell::new(HashSet::new()), visit_fns_once: true }
     }
 
@@ -750,5 +747,11 @@ impl TraversingUtils {
             self.visit_mod_member(member, f)?;
         }
         Ok(())
+    }
+}
+
+impl Default for TraversingUtils {
+    fn default() -> Self {
+        Self::new()
     }
 }

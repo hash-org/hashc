@@ -13,10 +13,10 @@ use hash_tir::{
     fns::FnDefId,
     impl_access_to_env,
     node::{HasAstNodeId, NodeId, NodeOrigin},
-    params::{ParamIndex, ParamsId, SomeParamsOrArgsId},
+    params::{utils::ParamError, ParamIndex, ParamsId, SomeParamsOrArgsId},
     pats::PatId,
     terms::{TermId, TyId},
-    utils::{params::ParamError, traversing::Atom},
+    utils::traversing::Atom,
 };
 use hash_utils::derive_more::{Constructor, From};
 

@@ -29,10 +29,7 @@ use hash_tir::{
     symbols::SymbolId,
     terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::TupleTerm,
-    utils::{
-        traversing::{Atom, TraversingUtils},
-        AccessToUtils,
-    },
+    utils::traversing::{Atom, TraversingUtils},
 };
 use hash_utils::{
     derive_more::{Deref, From},
@@ -396,7 +393,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     /// Whether the given atom will produce effects when evaluated.
     pub fn atom_has_effects(&self, atom: Atom) -> Option<bool> {
-        self.atom_has_effects_with_traversing(atom, &self.traversing_utils())
+        self.atom_has_effects_with_traversing(atom, &TraversingUtils::new())
     }
 
     /// Evaluate an atom with the current mode, performing at least a single
@@ -775,7 +772,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Returns `None` if the atom is already normalised.
     fn potentially_eval(&self, atom: Atom) -> AtomEvaluation {
-        let mut traversal = self.traversing_utils();
+        let mut traversal = TraversingUtils::new();
         traversal.set_visit_fns_once(false);
 
         let st = eval_state();

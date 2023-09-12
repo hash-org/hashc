@@ -16,10 +16,7 @@ use hash_tir::{
     sub::Sub,
     symbols::SymbolId,
     terms::{Term, TermId, Ty},
-    utils::{
-        traversing::{Atom, TraversingUtils},
-        AccessToUtils,
-    },
+    utils::traversing::{Atom, TraversingUtils},
 };
 use hash_utils::{derive_more::Deref, log::warn};
 
@@ -34,7 +31,7 @@ pub struct SubstitutionOps<'a, T: AccessToTypechecking> {
 
 impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
     pub fn new(env: &'a T) -> Self {
-        Self { env, traversing_utils: env.traversing_utils() }
+        Self { env, traversing_utils: TraversingUtils::new() }
     }
 
     fn params_contain_vars(

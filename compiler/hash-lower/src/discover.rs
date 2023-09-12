@@ -14,7 +14,7 @@ use hash_tir::{
     mods::{ModDef, ModKind, ModMemberValue},
     node::HasAstNodeId,
     terms::TermId,
-    utils::{traversing::Atom, AccessToUtils},
+    utils::traversing::{Atom, TraversingUtils},
 };
 use hash_utils::{derive_more::Constructor, indexmap::IndexSet};
 
@@ -154,7 +154,7 @@ impl FnDiscoverer<'_> {
     /// *Invariant*: The term must be inferred, i.e.
     /// `self.get_inferred_value(term) = term`
     fn add_all_child_fns(&self, term: TermId, fns: &mut DiscoveredFns) {
-        self.traversing_utils()
+        TraversingUtils::new()
             .visit_term::<!, _>(term, &mut |atom: Atom| match atom {
                 Atom::Term(_) => Ok(ControlFlow::Continue(())),
                 Atom::FnDef(fn_def) => {

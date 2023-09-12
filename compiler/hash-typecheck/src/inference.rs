@@ -38,7 +38,13 @@ use hash_tir::{
     lits::{Lit, LitId},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-    params::{Param, ParamsId},
+    params::{
+        utils::{
+            validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
+            validate_params,
+        },
+        Param, ParamsId,
+    },
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockStatement, BlockTerm},
@@ -47,7 +53,10 @@ use hash_tir::{
     term_as_variant,
     terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
-    utils::{common::dump_tir, traversing::Atom, AccessToUtils},
+    utils::{
+        common::dump_tir,
+        traversing::{Atom, TraversingUtils},
+    },
 };
 use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
@@ -215,8 +224,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_arg_scope: impl FnOnce(ArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
         self.register_new_atom(args, annotation_params);
-        let reordered_args_id =
-            self.param_utils().validate_and_reorder_args_against_params(args, annotation_params)?;
+        let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
         let result = self.infer_some_args(
             reordered_args_id.iter(),
@@ -287,9 +295,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_arg_scope: impl FnOnce(PatArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
         self.register_new_atom(pat_args, annotation_params);
-        let reordered_pat_args_id = self
-            .param_utils()
-            .validate_and_reorder_pat_args_against_params(pat_args, spread, annotation_params)?;
+        let reordered_pat_args_id =
+            validate_and_reorder_pat_args_against_params(pat_args, spread, annotation_params)?;
 
         self.infer_some_args(
             reordered_pat_args_id.iter(),
@@ -336,7 +343,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_param_scope: impl FnOnce() -> TcResult<U>,
     ) -> TcResult<U> {
         // Validate the parameters
-        self.param_utils().validate_params(params)?;
+        validate_params(params)?;
 
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
@@ -666,7 +673,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        self.traversing_utils()
+        TraversingUtils::new()
             .visit_pat::<!, _>(pat, &mut |atom| {
                 Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
             })
@@ -676,7 +683,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        self.traversing_utils()
+        TraversingUtils::new()
             .visit_pat_args::<!, _>(pat_args, &mut |atom| {
                 Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
             })
