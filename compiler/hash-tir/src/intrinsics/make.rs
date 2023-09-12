@@ -52,9 +52,9 @@ pub trait IsPrimitive {
     fn ctors(&self) -> &'static [Self::Ctor];
 }
 
-/// Trait implemented by all primitives.
+/// Trait implemented by all primitive constructors.
 pub trait IsPrimitiveCtor {
-    /// Get the name of the primitive.
+    /// Get the name of the constructor.
     fn name(&self) -> Identifier;
 
     /// Get the [`CtorDefId`] of the constructor.

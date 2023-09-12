@@ -110,6 +110,7 @@ impl<T: AccessToTypechecking> IntrinsicAbilities for IntrinsicAbilitiesWrapper<'
         &self,
         _name: impl Into<hash_source::identifier::Identifier>,
     ) -> TermId {
+        // @@Todo: actually implement this to be able to resolve prelude items
         todo!()
     }
 }
