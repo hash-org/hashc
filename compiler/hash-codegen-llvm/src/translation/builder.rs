@@ -1050,16 +1050,12 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let (destination, destination_align) = destination;
         let (source, source_align) = source;
 
-        // we need to cast the values into pointers...
-        let destination = self.pointer_cast(destination, self.ctx.type_i8p()).into_pointer_value();
-        let source = self.pointer_cast(source, self.ctx.type_i8p()).into_pointer_value();
-
         let value = self
             .builder
             .build_memcpy(
-                destination,
+                destination.into_pointer_value(),
                 destination_align.bytes() as u32,
-                source,
+                source.into_pointer_value(),
                 source_align.bytes() as u32,
                 size,
             )
@@ -1093,16 +1089,12 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let (destination, destination_align) = destination;
         let (source, source_align) = source;
 
-        // we need to cast the values into pointers...
-        let destination = self.pointer_cast(destination, self.ctx.type_i8p()).into_pointer_value();
-        let source = self.pointer_cast(source, self.ctx.type_i8p()).into_pointer_value();
-
         let value = self
             .builder
             .build_memmove(
-                destination,
+                destination.into_pointer_value(),
                 destination_align.bytes() as u32,
-                source,
+                source.into_pointer_value(),
                 source_align.bytes() as u32,
                 size,
             )
@@ -1124,12 +1116,10 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         alignment: Alignment,
         flags: MemFlags,
     ) {
-        let ptr = self.pointer_cast(ptr, self.ctx.type_i8p()).into_pointer_value();
-
         let value = self
             .builder
             .build_memset(
-                ptr,
+                ptr.into_pointer_value(),
                 alignment.bytes() as u32,
                 fill.into_int_value(),
                 size.into_int_value(),

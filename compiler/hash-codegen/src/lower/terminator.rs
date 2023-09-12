@@ -190,10 +190,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         if let Some(intrinsic) = maybe_intrinsic {
             let destination = match return_destination {
                 _ if ret_abi.is_indirect() => args[0],
-                ReturnDestinationKind::Nothing => {
-                    let ty = builder.arg_ty(&ret_abi);
-                    builder.const_undef(builder.type_ptr_to(ty))
-                }
+                ReturnDestinationKind::Nothing => builder.const_undef(builder.type_ptr()),
                 ReturnDestinationKind::IndirectOperand(op, _)
                 | ReturnDestinationKind::Store(op) => op.value,
                 ReturnDestinationKind::DirectOperand(_) => {

@@ -80,23 +80,13 @@ pub trait TypeBuilderMethods<'b>: BackendTypes + LayoutMethods<'b> {
     /// Create a struct type.
     fn type_struct(&self, els: &[Self::Type], packed: bool) -> Self::Type;
 
-    /// Create a `&i8` pointer type.
-    fn type_i8p(&self) -> Self::Type {
-        self.type_ptr_to_ext(self.type_i8(), AddressSpace::DATA)
-    }
-
     /// Create an opaque pointer type.
     fn type_ptr(&self) -> Self::Type;
 
     /// Create an opaque pointer type with a specified [AddressSpace].
     fn type_ptr_ext(&self, address_space: AddressSpace) -> Self::Type;
 
-    /// Create a pointer type to `ty`.
-    fn type_ptr_to(&self, ty: Self::Type) -> Self::Type;
-
-    /// Create a pointer type to `ty` with the given address space.
-    fn type_ptr_to_ext(&self, ty: Self::Type, address_space: AddressSpace) -> Self::Type;
-
+    /// Get the element type of a given type.
     fn element_type(&self, ty: Self::Type) -> Self::Type;
 
     /// Returns the number of elements in `self` if it is a LLVM vector type.

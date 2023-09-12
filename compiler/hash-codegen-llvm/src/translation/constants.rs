@@ -4,12 +4,9 @@ use hash_codegen::{
         abi::{Scalar, ScalarKind},
         data_layout::HasDataLayout,
     },
-    traits::{constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods},
+    traits::{constants::ConstValueBuilderMethods, ty::TypeBuilderMethods},
 };
-use hash_ir::{
-    constant::{self, AllocRange},
-    ty::COMMON_IR_TYS,
-};
+use hash_ir::constant::{self, AllocRange};
 use hash_source::constant::{InternedStr, Size};
 use hash_storage::store::statics::StoreId;
 use inkwell::{
@@ -19,7 +16,6 @@ use inkwell::{
 };
 use llvm_sys::core as llvm;
 
-use super::ty::ExtendedTyBuilderMethods;
 use crate::ctx::CodeGenCtx;
 
 impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
@@ -140,12 +136,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
             (s, global)
         });
 
-        let byte_slice_ty = COMMON_IR_TYS.byte_slice;
-        let ptr = global_str.as_pointer_value().const_cast(
-            self.type_ptr_to(self.layout_of(byte_slice_ty).llvm_ty(self)).into_pointer_type(),
-        );
-
-        (ptr.into(), self.const_usize(str_len as u64))
+        (global_str.as_any_value_enum(), self.const_usize(str_len as u64))
     }
 
     fn const_struct(&self, values: &[Self::Value], packed: bool) -> Self::Value {
@@ -178,12 +169,8 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         // actually a pointer. We have to emit different code based on
         // the type of the refereee.
         if matches!(abi.kind(), ScalarKind::Pointer(_)) {
-            let ptr_ty = self.type_ptr_to(ty);
             unsafe {
-                AnyValueEnum::new(llvm::LLVMConstIntToPtr(
-                    value.as_value_ref(),
-                    ptr_ty.as_type_ref(),
-                ))
+                AnyValueEnum::new(llvm::LLVMConstIntToPtr(value.as_value_ref(), ty.as_type_ref()))
             }
         } else {
             self.const_bitcast(value, ty)

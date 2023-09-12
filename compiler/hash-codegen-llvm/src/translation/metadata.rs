@@ -3,9 +3,7 @@
 
 use hash_codegen::{
     target::{alignment::Alignment, size::Size},
-    traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
-    },
+    traits::constants::ConstValueBuilderMethods,
 };
 use inkwell as llvm;
 use llvm::values::{AnyValueEnum, BasicMetadataValueEnum, InstructionValue};
@@ -46,9 +44,6 @@ impl<'m> LLVMBuilder<'_, '_, 'm> {
             return;
         }
 
-        let size = self.ctx.const_u64(size);
-        let ptr = self.pointer_cast(ptr, self.ctx.type_i8p());
-
-        self.call_intrinsic(intrinsic, &[size, ptr]);
+        self.call_intrinsic(intrinsic, &[self.ctx.const_u64(size), ptr]);
     }
 }

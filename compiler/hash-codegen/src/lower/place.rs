@@ -168,15 +168,11 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     /// onto the [PlaceRef].
     pub fn project_downcast<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         &self,
-        builder: &mut Builder,
+        builder: &Builder,
         variant: VariantIdx,
     ) -> Self {
         let mut downcast = *self;
         downcast.info = self.info.for_variant(builder.layouts(), variant);
-
-        // Cast the downcast value to the appropriate type
-        let variant_ty = builder.backend_ty_from_info(downcast.info);
-        downcast.value = builder.pointer_cast(downcast.value, builder.type_ptr_to(variant_ty));
         downcast
     }
 
@@ -219,7 +215,6 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
             self.info.layout.map(|layout| (layout.abi, layout.shape.offset(field)));
 
         let field_info = self.info.field(builder.layouts(), field);
-
         let field_alignment = self.alignment.restrict_to(field_offset);
 
         let value = match abi {
@@ -239,10 +234,9 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
                 if field_info.is_zst() =>
             {
                 // If this is a zst field, we have to manually offset the pointer.
-                let byte_ptr = builder.pointer_cast(self.value, builder.type_i8p());
                 builder.get_element_pointer(
                     builder.type_i8(),
-                    byte_ptr,
+                    self.value,
                     &[builder.const_usize(field_offset.bytes())],
                 )
             }
@@ -264,14 +258,12 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
             }
         };
 
-        // @@PointerCasts: this can be removed if we use LLVM 15 where it is
-        // not needed to pointer cast.
-        let value = builder
-            .pointer_cast(value, builder.type_ptr_to(builder.backend_ty_from_info(field_info)));
-
-        let extra = if builder.ty_has_hidden_metadata(field_info.ty) { self.extra } else { None };
-
-        PlaceRef { value, extra, info: field_info, alignment: field_alignment }
+        PlaceRef {
+            value,
+            extra: if builder.ty_has_hidden_metadata(field_info.ty) { self.extra } else { None },
+            info: field_info,
+            alignment: field_alignment,
+        }
     }
 
     /// Emit a hint to the code generation backend that this [PlaceRef] is
@@ -372,11 +364,6 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     // have to do record the size of this slice using `extra_value`?
 
                     sub_slice.info = builder.layout_of(projected_ty);
-                    sub_slice.value = builder.pointer_cast(
-                        sub_slice.value,
-                        builder.type_ptr_to(builder.backend_ty_from_info(sub_slice.info)),
-                    );
-
                     sub_slice
                 }
                 ir::PlaceProjection::Deref => {

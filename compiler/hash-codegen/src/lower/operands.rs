@@ -114,8 +114,7 @@ impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
                 // it into the destination.
                 if flags.contains(MemFlags::NON_TEMPORAL) {
                     let ty = builder.backend_ty_from_info(destination.info);
-                    let ptr = builder.pointer_cast(value, builder.type_ptr_to(ty));
-                    let value = builder.load(ty, ptr, source_alignment);
+                    let value = builder.load(ty, value, source_alignment);
 
                     builder.store_with_flags(
                         value,

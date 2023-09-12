@@ -223,7 +223,7 @@ impl<'b, 'm> LLVMBackend<'b> {
         // then we have to define it as such, otherwise, we define it as
         // `int main()`.
         let fn_ty = if ctx.target().entry_point_requires_args {
-            ctx.type_function(&[ctx.type_int(), ctx.type_ptr_to(ctx.type_i8p())], ctx.type_int())
+            ctx.type_function(&[ctx.type_int(), ctx.type_ptr()], ctx.type_int())
         } else {
             ctx.type_function(&[], ctx.type_int())
         };
