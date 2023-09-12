@@ -19,11 +19,9 @@ use build::BodyBuilder;
 use ctx::BuilderCtx;
 use discover::FnDiscoverer;
 use hash_attrs::{attr::attr_store, builtin::attrs};
-use hash_ir::{
-    write::{graphviz, pretty},
-    IrStorage,
-};
-use hash_layout::LayoutCtx;
+use hash_ir::IrStorage;
+use hash_ir_utils::{graphviz, pretty};
+use hash_layout::{compute::LayoutComputer, LayoutStorage};
 use hash_pipeline::{
     interface::{
         CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
@@ -71,11 +69,11 @@ pub struct LoweringCtx<'ir> {
 
     /// Reference to the IR storage that is used to store
     /// the lowered IR, and all metadata about the IR.
-    pub ir_storage: &'ir mut IrStorage,
+    pub icx: &'ir mut IrStorage,
 
     /// Reference to the [LayoutCtx] that is used to store
     /// the layouts of types.
-    pub layout_storage: &'ir LayoutCtx,
+    pub lcx: &'ir LayoutStorage,
 
     /// Reference to the output stream
     pub stdout: CompilerOutputStream,
@@ -139,7 +137,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
                 // is the entry point.
                 if let Some(def) = entry_point.def() && def == func {
                     let instance = body.info.ty().borrow().as_instance();
-                    data.ir_storage.entry_point.set(instance, entry_point.kind().unwrap());
+                    data.icx.entry_point.set(instance, entry_point.kind().unwrap());
                 }
 
                 // add the body to the lowered bodies
@@ -150,7 +148,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // Mark all modules now as lowered, and all generated
         // bodies to the store.
         data.workspace.source_stage_info.set_all(SourceStageInfo::LOWERED);
-        data.ir_storage.add_bodies(lowered_bodies);
+        data.icx.add_bodies(lowered_bodies);
 
         Ok(())
     }
@@ -209,15 +207,15 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let LoweringCtx { ir_storage, settings, .. } = ctx.data();
+        let LoweringCtx { icx, settings, .. } = ctx.data();
 
-        let bodies = &mut ir_storage.bodies;
-        let body_data = &ir_storage.ctx;
+        let bodies = &mut icx.bodies;
+        let body_data = &icx.ctx;
 
         time_item(self, "optimise", |_| {
             // @@Todo: think about making optimisation passes in parallel...
             // pool.scope(|scope| {
-            //     for body in &mut ir_storage.generated_bodies {
+            //     for body in &mut icx.generated_bodies {
             //         scope.spawn(|_| {
             //             let optimiser = Optimiser::new(body_data, settings);
             //             optimiser.optimise(body);
@@ -235,17 +233,19 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn cleanup(&mut self, _entry_point: SourceId, ctx: &mut Ctx) {
-        let LoweringCtx { ir_storage, mut stdout, settings, .. } = ctx.data();
+        let LoweringCtx { icx, mut stdout, settings, lcx, .. } = ctx.data();
 
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
         let dump = settings.lowering_settings.dump;
         let quiet_prelude = settings.prelude_is_quiet;
 
+        let lc = LayoutComputer::new(lcx);
+
         if settings.lowering_settings.dump_mode == IrDumpMode::Graph {
-            graphviz::dump_ir_bodies(&ir_storage.bodies, dump, quiet_prelude, &mut stdout).unwrap();
+            graphviz::dump_ir_bodies(&icx.bodies, dump, quiet_prelude, lc, &mut stdout).unwrap();
         } else {
-            pretty::dump_ir_bodies(&ir_storage.bodies, dump, quiet_prelude, &mut stdout).unwrap();
+            pretty::dump_ir_bodies(&icx.bodies, dump, quiet_prelude, lc, &mut stdout).unwrap();
         }
     }
 }

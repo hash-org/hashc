@@ -338,7 +338,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             ir::RValue::Aggregate(_, _) => {
                 // This is only called if the aggregate value is a ZST, so we just
                 // create a new ZST operand...
-                OperandRef::new_zst(builder, builder.layout_of(self.ty_of_rvalue(rvalue)))
+                OperandRef::zst(builder.layout_of(self.ty_of_rvalue(rvalue)))
             }
             ir::RValue::Len(place) => {
                 let size = self.evaluate_array_len(builder, place);

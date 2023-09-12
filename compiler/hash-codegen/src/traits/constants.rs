@@ -4,7 +4,7 @@
 
 use hash_ir::ir;
 use hash_source::constant::InternedStr;
-use hash_target::abi::Scalar;
+use hash_target::{abi::Scalar, size::Size};
 
 use super::BackendTypes;
 
@@ -77,15 +77,25 @@ pub trait ConstValueBuilderMethods<'b>: BackendTypes {
     /// ```
     fn const_str(&self, s: InternedStr) -> (Self::Value, Self::Value);
 
-    /// Emit a constant value from a `Const` value. This only deals with
-    /// constant "scalar" values, for string values, there is specific code
-    /// to emit this constant.
-    fn const_scalar_value(
-        &self,
-        const_value: ir::Const,
-        abi: Scalar,
-        ty: Self::Type,
-    ) -> Self::Value;
+    /// Emit a constant struct value.
+    fn const_struct(&self, values: &[Self::Value], packed: bool) -> Self::Value;
+
+    /// Emit a hunk of bytes as a constant value.
+    fn const_bytes(&self, bytes: &[u8]) -> Self::Value;
+
+    /// Emit a constant value from a [`ir::Scalar`] value.
+    fn const_scalar_value(&self, scalar: ir::Scalar, abi: Scalar, ty: Self::Type) -> Self::Value;
+
+    /// Convert an allocated constant value into a [`Self::Value`].
+    fn const_data_from_alloc(&self, alloc: ir::AllocId) -> Self::Value;
+
+    /// Generate a constant pointer byte offset from the `base` by the
+    /// specified `offset`.
+    fn const_ptr_byte_offset(&self, base: Self::Value, offset: Size) -> Self::Value;
+
+    /// Perform a constant bitcast on a value to a type, and return the
+    /// newly bitcasted value.
+    fn const_bitcast(&self, val: Self::Value, ty: Self::Type) -> Self::Value;
 
     /// Attempt to convert a constant value into a `u128` value. If
     /// the conversion fails, then [`None`] is returned.

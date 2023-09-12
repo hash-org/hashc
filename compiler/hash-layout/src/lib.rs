@@ -77,7 +77,7 @@ type LayoutCache<'c> = Ref<'c, FxHashMap<IrTyId, LayoutId>>;
 
 /// A store for all of the interned [Layout]s, and a cache for
 /// the [Layout]s that are created from [IrTyId]s.
-pub struct LayoutCtx {
+pub struct LayoutStorage {
     /// Cache for the [Layout]s that are created from [IrTyId]s.
     cache: RefCell<FxHashMap<IrTyId, LayoutId>>,
 
@@ -94,8 +94,8 @@ pub struct LayoutCtx {
     pub(crate) common_layouts: CommonLayouts,
 }
 
-impl LayoutCtx {
-    /// Create a new [LayoutCtx].
+impl LayoutStorage {
+    /// Create a new [LayoutStorage].
     pub fn new(data_layout: TargetDataLayout) -> Self {
         let common_layouts = CommonLayouts::new(&data_layout);
 
@@ -601,5 +601,10 @@ impl LayoutId {
     /// Compute the [Alignments] of a given [LayoutId].
     pub fn alignments(&self) -> Alignments {
         self.borrow().alignment
+    }
+
+    /// Get the offset of a given field index.
+    pub fn offset_of(&self, index: usize) -> Size {
+        self.borrow().shape.offset(index)
     }
 }

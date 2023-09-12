@@ -16,7 +16,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
-use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods, CodeGenObject, Codegen};
+use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods, CodeGenObject};
 
 /// Defines what kind of reference a local has. A [LocalRef::Place]
 /// is a reference to a stack allocation, and a [LocalRef::Operand]
@@ -31,11 +31,11 @@ pub enum LocalRef<V: std::fmt::Debug> {
     Operand(Option<OperandRef<V>>),
 }
 
-impl<'b, V: CodeGenObject> LocalRef<V> {
+impl<V: CodeGenObject> LocalRef<V> {
     /// Create a new [LocalRef::Operand] instance.
-    pub fn new_operand<Builder: Codegen<'b, Value = V>>(builder: &Builder, layout: TyInfo) -> Self {
+    pub fn new_operand(layout: TyInfo) -> Self {
         if layout.is_zst() {
-            LocalRef::Operand(Some(OperandRef::new_zst(builder, layout)))
+            LocalRef::Operand(Some(OperandRef::zst(layout)))
         } else {
             LocalRef::Operand(None)
         }

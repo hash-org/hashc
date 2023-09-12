@@ -155,7 +155,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             // or any information about the return destination.
             if let Some(Intrinsic::Transmute) = maybe_intrinsic {
                 return if let Some(target) = target {
-                    self.codegen_transmute(builder, &fn_args[2], destination);
+                    let src = self.codegen_operand(builder, &fn_args[2]);
+                    let dest = self.codegen_place(builder, destination);
+                    self.codegen_transmute(builder, src, dest);
                     self.codegen_goto_terminator(builder, target, can_merge)
                 } else {
                     builder.unreachable();
@@ -188,10 +190,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         if let Some(intrinsic) = maybe_intrinsic {
             let destination = match return_destination {
                 _ if ret_abi.is_indirect() => args[0],
-                ReturnDestinationKind::Nothing => {
-                    let ty = builder.arg_ty(&ret_abi);
-                    builder.const_undef(builder.type_ptr_to(ty))
-                }
+                ReturnDestinationKind::Nothing => builder.const_undef(builder.type_ptr()),
                 ReturnDestinationKind::IndirectOperand(op, _)
                 | ReturnDestinationKind::Store(op) => op.value,
                 ReturnDestinationKind::DirectOperand(_) => {
@@ -295,6 +294,17 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     let abi_alignment = arg_abi.info.abi_alignment();
                     (arg.immediate_or_scalar_pair(builder), abi_alignment, false)
                 }
+            },
+            OperandValue::Zero => match arg_abi.mode {
+                PassMode::Indirect { on_stack, .. } => {
+                    if on_stack {
+                        panic!("zst `{arg:?}` was passed with abi `{arg_abi:?}`");
+                    }
+
+                    let temp = PlaceRef::new_stack(builder, arg_abi.info);
+                    (temp.value, temp.alignment, true)
+                }
+                mode => panic!("zst wasn't ignored, pass with `{mode:?}`"),
             },
             OperandValue::Ref(value, alignment) => {
                 let abi_alignment = arg_abi.info.abi_alignment();

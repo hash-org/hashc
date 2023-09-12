@@ -21,7 +21,7 @@ use hash_codegen::{
     target::HasTarget,
 };
 use hash_ir::IrStorage;
-use hash_layout::LayoutCtx;
+use hash_layout::LayoutStorage;
 use hash_link::{CompilerLinker, LinkerCtx, LinkerCtxQuery};
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
 use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
@@ -163,13 +163,13 @@ pub struct Compiler {
 
     /// Compiler IR storage. Stores all the IR that is created during the
     /// lowering stage, which is used for later stages during code generation.
-    pub ir_storage: IrStorage,
+    pub icx: IrStorage,
 
     /// Storage for all of the [Layout]s that have been created
     /// for the IR. Additionally, this also stores a cache for
     /// the looking up resultant [Layout]s by the specific IR type
     /// ID.
-    pub layout_storage: LayoutCtx,
+    pub lcx: LayoutStorage,
 }
 
 impl Compiler {
@@ -217,8 +217,8 @@ impl Compiler {
             pool,
             settings,
             semantic_storage: SemanticStorage::new(),
-            ir_storage: IrStorage::new(),
-            layout_storage: LayoutCtx::new(layout_info),
+            icx: IrStorage::new(),
+            lcx: LayoutStorage::new(layout_info),
             codegen_storage: CodeGenStorage::new(),
             expanded_sources: HashSet::new(),
             desugared_modules: HashSet::new(),
@@ -308,7 +308,7 @@ impl AstExpansionCtxQuery for Compiler {
             workspace: &mut self.workspace,
             settings: &self.settings,
             stdout: output_stream,
-            data_layout: &self.layout_storage.data_layout,
+            data_layout: &self.lcx.data_layout,
             pool: &self.pool,
         }
     }
@@ -331,8 +331,8 @@ impl LoweringCtxQuery for Compiler {
             semantic_storage: &self.semantic_storage,
             workspace: &mut self.workspace,
             settings: &self.settings,
-            layout_storage: &self.layout_storage,
-            ir_storage: &mut self.ir_storage,
+            lcx: &self.lcx,
+            icx: &mut self.icx,
             stdout: output_stream,
             _pool: &self.pool,
         }
@@ -346,8 +346,8 @@ impl BackendCtxQuery for Compiler {
         BackendCtx {
             codegen_storage: &self.codegen_storage,
             workspace: &mut self.workspace,
-            ir_storage: &self.ir_storage,
-            layout_storage: &self.layout_storage,
+            icx: &self.icx,
+            lcx: &self.lcx,
             settings: &self.settings,
             stdout: output_stream,
             _pool: &self.pool,

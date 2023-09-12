@@ -13,7 +13,7 @@ use hash_ir::{
     ty::{AdtId, IrTy, IrTyId, Mutability, RefKind, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{constant::InternedInt, identifier::Identifier};
+use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     args::ArgsId,
@@ -22,7 +22,6 @@ use hash_tir::{
     context::Context,
     control::{LoopControlTerm, ReturnTerm},
     data::CtorTerm,
-    environment::env::AccessToEnv,
     fns::CallTerm,
     node::NodesId,
     params::ParamIndex,
@@ -77,7 +76,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Term::Lit(lit) => {
                 // We lower primitive (integrals, strings, etc) literals as constants
-                let constant = self.as_constant(lit);
+                let constant = self.lit_as_const(lit);
                 self.control_flow_graph.push_assign(block, destination, constant.into(), span);
 
                 block.unit()
@@ -118,7 +117,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // ##Hack: check which constructor is being called to determine whether
                     // it is a `true` or `false` value.
                     let constant =
-                        if ctor.ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
+                        if ctor.ctor.1 == 0 { Const::bool(true) } else { Const::bool(false) };
 
                     self.control_flow_graph.push_assign(block, destination, constant.into(), span);
 
@@ -204,8 +203,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // Create the constant that we will assign in the `short_circuiting` block.
                         // let constant =
                         let constant = match op {
-                            LogicalBinOp::And => Const::Bool(false),
-                            LogicalBinOp::Or => Const::Bool(true),
+                            LogicalBinOp::And => Const::bool(false),
+                            LogicalBinOp::Or => Const::bool(true),
                         };
 
                         self.control_flow_graph.push_assign(
@@ -608,16 +607,14 @@ impl<'tcx> BodyBuilder<'tcx> {
         args: &[(Identifier, TermId)],
         origin: AstNodeId,
     ) -> BlockAnd<()> {
-        let ptr_width = self.target().ptr_size();
         let element_ty = ty.borrow().element_ty().unwrap();
         let size = self.ctx.size_of(element_ty).unwrap() * args.len();
-        let const_size = InternedInt::create_usize(size, ptr_width);
-        let size_op = Operand::Const(Const::Int(const_size).into());
+        let size_op = Operand::Const(Const::usize(size as u64, &self.ctx));
 
         // find the `malloc` function which is defined in the prelude
         // and within the `libc` module
         let item = self.lookup_libc_fn("malloc").expect("`malloc` not found");
-        let subject = Operand::Const(Const::Zero(item).into());
+        let subject = Operand::Const(Const::zst(item));
 
         // 1).
         //
@@ -653,7 +650,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // Finally, transmute the SizedPointer into a `&[T]` and assign it to the
         // destination.
         let transmute_fn = self.ctx().intrinsics().get_ty(Intrinsic::Transmute).unwrap();
-        let subject = Operand::Const(Const::Zero(transmute_fn).into());
+        let subject = Operand::Const(Const::zst(transmute_fn));
 
         unpack!(
             block = self.build_fn_call(
@@ -662,8 +659,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 subject,
                 // The first two arguments are the fill-ins for the generic parameters.
                 vec![
-                    Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
-                    Operand::Const(Const::Zero(COMMON_IR_TYS.unit).into()),
+                    Operand::Const(Const::zero()),
+                    Operand::Const(Const::zero()),
                     Operand::Place(sized_ptr)
                 ],
                 origin

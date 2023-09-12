@@ -63,6 +63,12 @@ impl Size {
         self.value
     }
 
+    /// Return the [Size] in bytes as a `usize`.
+    #[inline]
+    pub fn bytes_usize(self) -> usize {
+        self.value.try_into().unwrap()
+    }
+
     /// Convert the [Size] into the number of bits.
     #[inline]
     pub fn bits(self) -> u64 {

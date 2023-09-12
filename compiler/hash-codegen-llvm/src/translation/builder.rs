@@ -32,11 +32,10 @@ use inkwell::{
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
     values::{
         AggregateValueEnum, AnyValue, AnyValueEnum, AsValueRef, BasicMetadataValueEnum, BasicValue,
-        BasicValueEnum, FunctionValue, InstructionValue, IntMathValue, IntValue, PhiValue,
-        UnnamedAddress,
+        BasicValueEnum, FunctionValue, InstructionValue, IntValue, PhiValue, UnnamedAddress,
     },
 };
-use llvm_sys::core::{LLVMBuildExactUDiv, LLVMGetTypeKind};
+use llvm_sys::core as llvm;
 
 use super::{
     abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,
@@ -343,7 +342,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let c_string = CString::new("").unwrap();
 
         let value = unsafe {
-            LLVMBuildExactUDiv(
+            llvm::LLVMBuildExactUDiv(
                 self.builder.as_mut_ptr(),
                 lhs.as_value_ref(),
                 rhs.as_value_ref(),
@@ -425,7 +424,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
         // For some reason there is no function to get the width
         // of a float type, so we have to use raw fn call yet again...
-        let intrinsic = match { unsafe { LLVMGetTypeKind(ty.as_type_ref()) } } {
+        let intrinsic = match { unsafe { llvm::LLVMGetTypeKind(ty.as_type_ref()) } } {
             llvm_sys::LLVMTypeKind::LLVMHalfTypeKind
             | llvm_sys::LLVMTypeKind::LLVMFloatTypeKind => "llvm.pow.f32",
             llvm_sys::LLVMTypeKind::LLVMDoubleTypeKind => "llvm.pow.f64",
@@ -851,21 +850,34 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // If the operand is a zst, we return a `()` value
         place.info.layout.map(|layout| {
             if layout.is_zst() {
-                return OperandRef::new_zst(self, place.info);
+                return OperandRef::zst(place.info);
             }
 
             let value = if layout.is_llvm_immediate() {
-                let const_value = None;
+                let mut const_value = None;
                 let ty = place.info.llvm_ty(self.ctx);
 
                 // Check here if the need to load it in a as global value, i.e.
                 // a constant...
+                //
                 // @@PatchInkwell: need to patch inkwell to be able to check if things are
                 // global variables, and constant.
-                //
-                // if let Some(global) = self.module.get_global(name) {
-                //     ...
-                // }
+                unsafe {
+                    let value = llvm::LLVMIsAGlobalVariable(place.value.as_value_ref());
+
+                    if !value.is_null()
+                        && (llvm::LLVMIsAConstant(value) as llvm_sys::prelude::LLVMBool) == 1
+                    {
+                        let init = llvm::LLVMGetInitializer(value);
+
+                        if !init.is_null() {
+                            let value = AnyValueEnum::new(init);
+                            if self.ty_of_value(value) == ty {
+                                const_value = Some(value);
+                            }
+                        }
+                    }
+                }
 
                 // If this wasn't a global constant value, we'll just load it in
                 // as a normal scalar.
@@ -1038,16 +1050,12 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let (destination, destination_align) = destination;
         let (source, source_align) = source;
 
-        // we need to cast the values into pointers...
-        let destination = self.pointer_cast(destination, self.ctx.type_i8p()).into_pointer_value();
-        let source = self.pointer_cast(source, self.ctx.type_i8p()).into_pointer_value();
-
         let value = self
             .builder
             .build_memcpy(
-                destination,
+                destination.into_pointer_value(),
                 destination_align.bytes() as u32,
-                source,
+                source.into_pointer_value(),
                 source_align.bytes() as u32,
                 size,
             )
@@ -1081,16 +1089,12 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let (destination, destination_align) = destination;
         let (source, source_align) = source;
 
-        // we need to cast the values into pointers...
-        let destination = self.pointer_cast(destination, self.ctx.type_i8p()).into_pointer_value();
-        let source = self.pointer_cast(source, self.ctx.type_i8p()).into_pointer_value();
-
         let value = self
             .builder
             .build_memmove(
-                destination,
+                destination.into_pointer_value(),
                 destination_align.bytes() as u32,
-                source,
+                source.into_pointer_value(),
                 source_align.bytes() as u32,
                 size,
             )
@@ -1112,12 +1116,10 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         alignment: Alignment,
         flags: MemFlags,
     ) {
-        let ptr = self.pointer_cast(ptr, self.ctx.type_i8p()).into_pointer_value();
-
         let value = self
             .builder
             .build_memset(
-                ptr,
+                ptr.into_pointer_value(),
                 alignment.bytes() as u32,
                 fill.into_int_value(),
                 size.into_int_value(),

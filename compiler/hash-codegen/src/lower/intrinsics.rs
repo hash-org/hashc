@@ -2,13 +2,13 @@
 //! code and resolving references to intrinsic function calls.
 
 use hash_abi::ArgAbi;
-use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::InstanceId};
-use hash_storage::store::Store;
-use hash_target::abi::{AbiRepresentation, ScalarKind};
+use hash_ir::{intrinsics::Intrinsic, lang_items::LangItem, ty::InstanceId};
+use hash_layout::TyInfo;
+use hash_target::abi;
 
-use super::{locals::LocalRef, operands::OperandRef, place::PlaceRef, FnBuilder};
+use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
 use crate::{
-    lower::operands::OperandValue,
+    lower::operands::{OperandValue, OperandValueKind},
     traits::{
         builder::BlockBuilderMethods, misc::MiscBuilderMethods, ty::TypeBuilderMethods,
         HasCtxMethods,
@@ -75,85 +75,179 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     pub(super) fn codegen_transmute(
         &mut self,
         builder: &mut Builder,
-        src: &ir::Operand,
-        dest: ir::Place,
+        src: OperandRef<Builder::Value>,
+        dest: PlaceRef<Builder::Value>,
     ) {
-        if let Some(local) = dest.as_local() {
-            match self.locals[local] {
-                LocalRef::Place(place) => self.codegen_transmute_into(builder, src, place),
-                LocalRef::Operand(None) => {
-                    // We might have to perform some adjustments to the layout of the
-                    // destination and source if they mismatch.
-                    let dest_layout = self.compute_place_ty_info(builder, dest);
+        if let Some(value) = self.codegen_transmute_operand(builder, src, dest.info) {
+            value.store(builder, dest);
+            return;
+        }
 
-                    let place = PlaceRef::new_stack(builder, dest_layout);
-                    place.storage_live(builder);
-
-                    self.codegen_transmute_into(builder, src, place);
-                    let op = builder.load_operand(place);
-                    place.storage_dead(builder);
-
-                    self.locals[local] = LocalRef::Operand(Some(op));
-                }
-                LocalRef::Operand(_) => panic!("assigning to operand twice"),
+        match src.value {
+            OperandValue::Ref(_, _) | OperandValue::Zero => {
+                panic!("value was not handled by `codegen_transmute_operand")
             }
-        } else {
-            // Generate the place, and then store the value into it.
-            let place = self.codegen_place(builder, dest);
-            self.codegen_transmute_into(builder, src, place)
+            OperandValue::Immediate(_) | OperandValue::Pair(_, _) => {
+                // Allocate a new slot for the `dest.value`, and then
+                // store the `src.value` into it.
+                src.value
+                    .store(builder, PlaceRef::new_aligned(dest.value, src.info, dest.alignment))
+            }
         }
     }
 
-    /// Helper function that generates code for a `transmute` to store the value
-    /// of `src` into the specified [PlaceRef].
-    fn codegen_transmute_into(
+    /// Emit code for transmuting from a given operand `src`, generating an
+    /// operand value as the destination which will be the result of the
+    /// transmute.
+    fn codegen_transmute_operand(
         &mut self,
         builder: &mut Builder,
-        src: &ir::Operand,
-        dest: PlaceRef<Builder::Value>,
-    ) {
-        let src = self.codegen_operand(builder, src);
-
-        self.ctx.layouts().store().map_many_fast([src.info.layout, dest.info.layout], |layouts| {
-            let (src_layout, dest_layout) = (layouts[0], layouts[1]);
-
-            // Special case for transmuting between pointers and integers.
-            if let (AbiRepresentation::Scalar(src_scalar), AbiRepresentation::Scalar(dest_scalar)) =
-                (src_layout.abi, dest_layout.abi)
-            {
-                let is_src_ptr = matches!(src_scalar.kind(), ScalarKind::Pointer(_));
-                let is_dest_ptr = matches!(dest_scalar.kind(), ScalarKind::Pointer(_));
-
-                if is_src_ptr == is_dest_ptr {
-                    debug_assert_eq!(src_layout.size, dest_layout.size);
-
-                    let src = builder.value_from_immediate(src.immediate_value());
-
-                    // If the source and destination are pointers, we need to cast
-                    // the pointer to the destination type.
-                    let src_as_dst = if is_src_ptr {
-                        builder.pointer_cast(src, builder.backend_ty_from_info(dest.info))
-                    } else {
-                        builder.bit_cast(src, builder.backend_ty_from_info(dest.info))
-                    };
-
-                    // Now store the value into the destination
-                    let value = OperandValue::Immediate(
-                        builder.to_immediate_scalar(src_as_dst, dest_scalar),
-                    );
-                    value.store(builder, dest);
-
-                    return;
-                }
+        src: OperandRef<Builder::Value>,
+        dest: TyInfo,
+    ) -> Option<OperandValue<Builder::Value>> {
+        if src.info.size() != dest.size() || src.info.is_uninhabited() || dest.is_uninhabited() {
+            // So we're trying to cast to an uninhabited type,
+            if !src.info.is_uninhabited() {
+                builder.codegen_abort_intrinsic();
             }
 
-            // Create a pointer cast
-            let ty = builder.backend_ty_from_info(src.info);
-            let cast_ptr = builder.pointer_cast(dest.value, builder.type_ptr_to(ty));
+            // This transmute is UB, we just emit an Poison value so
+            // things relying on it can also be marked as Poison.
+            //
+            // See:
+            //  - https://llvm.org/devmtg/2020-09/slides/Lee-UndefPoison.pdf
+            //  - https://llvm.org/docs/LangRef.html#poison-values
+            return Some(OperandValue::poison(builder, dest));
+        }
 
-            // Store the value into the `cast_ptr` value
-            let alignment = src_layout.alignment.abi.min(dest.alignment);
-            src.value.store(builder, PlaceRef::new_aligned(cast_ptr, src.info, alignment))
-        })
+        let operand_kind = self.op_value_kind(src.info);
+        let cast_kind = self.op_value_kind(dest);
+
+        match src.value {
+            OperandValue::Ref(ptr, align) => {
+                debug_assert_eq!(operand_kind, OperandValueKind::Ref);
+                let fake = PlaceRef::new_aligned(ptr, dest, align);
+                Some(builder.load_operand(fake).value)
+            }
+            OperandValue::Immediate(value) => {
+                let OperandValueKind::Immediate(in_scalar) = operand_kind else {
+                    panic!("found non-immediate operand value for immediate operand");
+                };
+
+                if let OperandValueKind::Immediate(out_scalar) = cast_kind {
+                    // Ensure everything is the same size...
+                    if in_scalar.size(self.ctx) != out_scalar.size(self.ctx) {
+                        return None;
+                    }
+
+                    let op_ty = builder.backend_ty_from_info(src.info);
+                    let cast_ty = builder.backend_ty_from_info(dest);
+
+                    Some(OperandValue::Immediate(self.codegen_transmute_immediate(
+                        builder, value, in_scalar, op_ty, out_scalar, cast_ty,
+                    )))
+                } else {
+                    None
+                }
+            }
+            OperandValue::Pair(value_a, value_b) => {
+                let OperandValueKind::Pair(in_a_scalar, in_b_scalar) = operand_kind else {
+                    panic!("found non-pair operand value for pair operand");
+                };
+
+                if let OperandValueKind::Pair(out_a_scalar, out_b_scalar) = cast_kind {
+                    // Ensure everything is the same size...
+                    if in_a_scalar.size(self.ctx) != out_a_scalar.size(self.ctx)
+                        || in_b_scalar.size(self.ctx) != out_b_scalar.size(self.ctx)
+                    {
+                        return None;
+                    }
+
+                    let in_a_ty = builder.scalar_pair_element_backend_ty(src.info, 0, false);
+                    let in_b_ty = builder.scalar_pair_element_backend_ty(src.info, 1, false);
+                    let out_a_ty = builder.scalar_pair_element_backend_ty(dest, 0, false);
+                    let out_b_ty = builder.scalar_pair_element_backend_ty(dest, 1, false);
+
+                    let value_a = self.codegen_transmute_immediate(
+                        builder,
+                        value_a,
+                        in_a_scalar,
+                        in_a_ty,
+                        out_a_scalar,
+                        out_a_ty,
+                    );
+                    let value_b = self.codegen_transmute_immediate(
+                        builder,
+                        value_b,
+                        in_b_scalar,
+                        in_b_ty,
+                        out_b_scalar,
+                        out_b_ty,
+                    );
+
+                    Some(OperandValue::Pair(value_a, value_b))
+                } else {
+                    None
+                }
+            }
+            OperandValue::Zero => {
+                debug_assert_eq!(operand_kind, OperandValueKind::Zero);
+                match cast_kind {
+                    OperandValueKind::Zero => Some(OperandValue::Zero),
+                    _ => None,
+                }
+            }
+        }
+    }
+
+    /// Emit code for transmuting between two [Scalar] values. Depending on what
+    /// the [ScalarKind]s of the `src` and `dst` is, we emit slightly different
+    /// code.
+    fn codegen_transmute_immediate(
+        &self,
+        builder: &mut Builder,
+        mut value: Builder::Value,
+        from_scalar: abi::Scalar,
+        _from_ty: Builder::Type,
+        to_scalar: abi::Scalar,
+        to_ty: Builder::Type,
+    ) -> Builder::Value {
+        debug_assert_eq!(from_scalar.size(self.ctx), to_scalar.size(self.ctx));
+
+        value = builder.value_from_immediate(value);
+
+        // @@ValidRanges: When scalars are passed by value, there's no metadata
+        // recording their valid ranges. For example, `char`s are passed as just
+        // `i32`, with no way for LLVM to know that they're 0x10FFFF at most.
+        // Thus we assume the range of the input value too, not just the output
+        // range. self.assume_valid_scalar_range(builder, value, from_scalar,
+        // from_ty);
+
+        // We need to generate some additional code based on the `from -> to`
+        use abi::ScalarKind::*;
+
+        match (from_scalar.kind(), to_scalar.kind()) {
+            (Int { .. } | Float { .. }, Int { .. } | Float { .. }) => {
+                builder.bit_cast(value, to_ty)
+            }
+            (Int { .. }, Pointer(_)) => builder.int_to_ptr(value, to_ty),
+            (Pointer(_), Int { .. }) => builder.ptr_to_int(value, to_ty),
+            // cast the float to an int, and then do `int_to_ptr`.
+            (Float { .. }, Pointer(_)) => {
+                let int_imm = builder.bit_cast(value, builder.ctx().type_isize());
+                builder.int_to_ptr(int_imm, to_ty)
+            }
+            // Backwards, convert pointer to int, and then bit cast to a float.
+            (Pointer(_), Float { .. }) => {
+                let int_imm = builder.ptr_to_int(value, builder.ctx().type_isize());
+                builder.bit_cast(int_imm, to_ty)
+            }
+            (Pointer(_), Pointer(_)) => builder.pointer_cast(value, to_ty),
+        };
+
+        // @@ValidRanges: do this!
+        // self.assume_valid_scalar_range(builder, value, to_scalar, to_ty);
+        value = builder.to_immediate_scalar(value, to_scalar);
+        value
     }
 }

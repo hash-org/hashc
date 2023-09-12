@@ -48,7 +48,7 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
     /// evaluation should occur in a separate thread, we a separate VM for
     /// running the specified code.
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let BackendCtx { settings, workspace, ir_storage, .. } = ctx.data();
+        let BackendCtx { settings, workspace, icx: ir_storage, .. } = ctx.data();
 
         // If this workspace produces an executable, then we need to make sure
         // the entry point has been specified.

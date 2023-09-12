@@ -7,10 +7,12 @@
 use std::{
     cmp::Ordering,
     fmt,
+    io::{self, Read},
     ops::{IndexMut, Neg},
 };
 
 use fnv::FnvBuildHasher;
+use hash_target::data_layout::Endian;
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
 pub use hash_target::primitives::*;
@@ -311,6 +313,32 @@ impl fmt::Display for InternedFloat {
 
 // -------------------- Integers --------------------
 
+/// Read a unsigned integer from the given source buffer. This supports buffers
+/// of up to 16 bytes in length, and will automatically convert it into a
+/// `u128`.
+///
+/// If the desired size should be smaller than a `u128` (which) is often the
+/// case, the integer can be "truncated" using [`Size::truncate`].
+pub fn read_target_uint(endian: Endian, mut data: &[u8]) -> io::Result<u128> {
+    // This u128 holds an "any-size uint" (since smaller uints can fits in it)
+    let mut buf = [0u8; std::mem::size_of::<u128>()];
+
+    // So we do not read exactly 16 bytes into the u128, just the "payload".
+    let uint = match endian {
+        Endian::Little => {
+            let _ = data.read(&mut buf)?;
+            u128::from_le_bytes(buf)
+        }
+        Endian::Big => {
+            let _ = data.read(&mut buf[16 - data.len()..])?;
+            u128::from_be_bytes(buf)
+        }
+    };
+
+    debug_assert!(data.is_empty()); // We should have consumed the source buffer.
+    Ok(uint)
+}
+
 /// Value of the [IntConstant], stores between an `u8` to `u128` value,
 /// including signed variants.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Copy)]
@@ -411,6 +439,21 @@ impl IntConstantValue {
     pub fn from_be_bytes(bytes: &mut [u8], signed: bool) -> Self {
         bytes.reverse();
         IntConstantValue::from_le_bytes(bytes, signed)
+    }
+
+    pub fn size(&self) -> Size {
+        match self {
+            I8(_) => Size::from_bytes(1),
+            I16(_) => Size::from_bytes(2),
+            I32(_) => Size::from_bytes(4),
+            I64(_) => Size::from_bytes(8),
+            I128(_) => Size::from_bytes(16),
+            U8(_) => Size::from_bytes(1),
+            U16(_) => Size::from_bytes(2),
+            U32(_) => Size::from_bytes(4),
+            U64(_) => Size::from_bytes(8),
+            U128(_) => Size::from_bytes(16),
+        }
     }
 }
 
@@ -582,6 +625,11 @@ impl IntConstant {
         }
 
         self.to_int_ty()
+    }
+
+    /// Get the size of the constant.
+    pub fn size(&self) -> Size {
+        self.value.size()
     }
 
     /// Check if the [IntConstant] is `signed` by checking if the specified
@@ -839,6 +887,16 @@ impl InternedStr {
                 interned
             })
         }
+    }
+
+    /// Get the length of the interned string.
+    pub fn len(self) -> usize {
+        self.value().len()
+    }
+
+    /// Check if the interned string is empty.
+    pub fn is_empty(self) -> bool {
+        self.value().is_empty()
     }
 }
 

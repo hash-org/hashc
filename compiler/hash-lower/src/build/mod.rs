@@ -17,7 +17,7 @@ use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
-        UnevaluatedConst, START_BLOCK,
+        START_BLOCK,
     },
     ty::{IrTy, Mutability},
 };
@@ -156,12 +156,6 @@ pub(crate) struct BodyBuilder<'tcx> {
     /// Any local declarations that have been made.
     declarations: IndexVec<Local, LocalDecl>,
 
-    /// Constants that will need to be resolved after all IR
-    /// is built.
-    // @@Unused: If we need to resolve constants after TIR, then this field
-    // will be needed, but currently it is not used.
-    _needed_constants: Vec<UnevaluatedConst>,
-
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
     declaration_map: FxHashMap<SymbolId, Local>,
@@ -224,7 +218,6 @@ impl<'ctx> BodyBuilder<'ctx> {
             arg_count,
             control_flow_graph: ControlFlowGraph::new(),
             declarations: IndexVec::new(),
-            _needed_constants: Vec::new(),
             declaration_map: FxHashMap::default(),
             reached_terminator: false,
             loop_block_info: None,

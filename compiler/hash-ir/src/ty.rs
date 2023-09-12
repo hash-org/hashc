@@ -483,6 +483,23 @@ static_single_store!(
     derives = Debug
 );
 
+impl IrTyId {
+    /// Check if the type is an integral.
+    pub fn is_integral(&self) -> bool {
+        self.borrow().is_integral()
+    }
+
+    /// Check if the type is a float.
+    pub fn is_float(&self) -> bool {
+        self.borrow().is_float()
+    }
+
+    /// Check if the type is a signed integer.
+    pub fn is_signed(&self) -> bool {
+        self.borrow().is_signed()
+    }
+}
+
 static_sequence_store_indirect!(
     store = pub IrTyListStore,
     id = pub IrTyListId[IrTyId],
