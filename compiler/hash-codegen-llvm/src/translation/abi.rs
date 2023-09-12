@@ -5,7 +5,10 @@ use hash_codegen::{
         ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
     },
     lower::{operands::OperandValue, place::PlaceRef},
-    target::abi::{AbiRepresentation, ScalarKind},
+    target::{
+        abi::{AbiRepresentation, ScalarKind},
+        data_layout::HasDataLayout,
+    },
     traits::{
         abi::AbiBuilderMethods, builder::BlockBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
     },
@@ -249,7 +252,7 @@ pub trait ExtendedFnAbiMethods<'b, 'm> {
 
     /// Produce an Pointer to the type of this [FnAbi].
     fn ptr_to_llvm_ty(&self, ctx: &CodeGenCtx<'b, 'm>) -> PointerType<'m> {
-        ctx.type_ptr_to(self.llvm_ty(ctx)).into_pointer_type()
+        ctx.type_ptr_ext(ctx.data_layout().instruction_address_space).into_pointer_type()
     }
 
     /// Apply the derived ABI attributes to the given [FunctionValue].
@@ -265,7 +268,7 @@ pub trait ExtendedFnAbiMethods<'b, 'm> {
 
 impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
     fn llvm_ty(&self, ctx: &CodeGenCtx<'b, 'm>) -> AnyTypeEnum<'m> {
-        let arg_count = self.args.len() + if self.ret_abi.mode.is_indirect() { 1 } else { 0 };
+        let arg_count = self.args.len() + (self.ret_abi.mode.is_indirect() as usize);
         let mut arg_tys = Vec::with_capacity(arg_count);
 
         let return_ty = match &self.ret_abi.mode {
@@ -274,8 +277,7 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
             PassMode::Indirect { .. } => {
                 // if the argument is being passed indirectly, then we push th e
                 // type through the argument as a pointer.
-                arg_tys.push(ctx.type_ptr_to(self.ret_abi.get_memory_ty(ctx)));
-
+                arg_tys.push(ctx.type_ptr());
                 ctx.type_void()
             }
         };
@@ -290,11 +292,9 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
                     arg_tys.push(arg.info.scalar_pair_element_llvm_ty(ctx, 0, true));
                     arg_tys.push(arg.info.scalar_pair_element_llvm_ty(ctx, 1, true));
                 }
-                PassMode::Indirect { .. } => {
-                    // if the argument is being passed indirectly, then we push th e
-                    // type through the argument as a pointer.
-                    arg_tys.push(ctx.type_ptr_to(arg.get_memory_ty(ctx)));
-                }
+                // if the argument is being passed indirectly, then we push th e
+                // type through the argument as a pointer.
+                PassMode::Indirect { .. } => arg_tys.push(ctx.type_ptr()),
             }
         }
 

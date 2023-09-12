@@ -22,6 +22,10 @@ impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
     fn is_backend_immediate(&self, info: TyInfo) -> bool {
         info.layout.map(|layout| layout.is_llvm_immediate())
     }
+
+    fn is_backend_scalar_pair(&self, info: TyInfo) -> bool {
+        info.layout.map(|layout| layout.is_llvm_scalar_pair())
+    }
 }
 
 impl HasDataLayout for CodeGenCtx<'_, '_> {
@@ -37,6 +41,10 @@ impl<'b, 'm> LayoutMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
 
     fn is_backend_immediate(&self, ty: TyInfo) -> bool {
         self.ctx.is_backend_immediate(ty)
+    }
+
+    fn is_backend_scalar_pair(&self, ty: TyInfo) -> bool {
+        self.ctx.is_backend_scalar_pair(ty)
     }
 }
 

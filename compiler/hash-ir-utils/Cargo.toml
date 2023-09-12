@@ -1,5 +1,5 @@
 [package]
-name = "hash-lower"
+name = "hash-ir-utils"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
@@ -8,20 +8,12 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-fixedbitset = "0.4.2"
-num-traits = "0.2.15"
+html-escape = "0.2.12"
 
 hash-ast = { path = "../hash-ast" }
-hash-attrs = { path = "../hash-attrs" }
 hash-ir = { path = "../hash-ir" }
-hash-ir-utils = { path = "../hash-ir-utils" }
 hash-layout = { path = "../hash-layout" }
-hash-pipeline = { path = "../hash-pipeline" }
-hash-reporting = { path = "../hash-reporting" }
-hash-semantics = { path = "../hash-semantics" }
 hash-source = { path = "../hash-source" }
 hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }
-hash-tir = { path = "../hash-tir" }
-hash-tree-def = { path = "../hash-tree-def" }
 hash-utils = { path = "../hash-utils" }

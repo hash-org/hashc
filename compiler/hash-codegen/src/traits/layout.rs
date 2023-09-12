@@ -22,4 +22,8 @@ pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
     /// Check whether the [TyInfo] layout can be represented as an
     /// immediate value.
     fn is_backend_immediate(&self, ty: TyInfo) -> bool;
+
+    /// Check whether the [TyInfo] layout can be represented as a
+    /// backend scalar pair.
+    fn is_backend_scalar_pair(&self, ty: TyInfo) -> bool;
 }

@@ -12,20 +12,23 @@ use hash_codegen::{
         alignment::Alignment,
         size::Size,
     },
-    traits::{layout::LayoutMethods, ty::TypeBuilderMethods, HasCtxMethods},
+    traits::{ty::TypeBuilderMethods, HasCtxMethods},
 };
 use hash_ir::ty::IrTy;
 use hash_storage::store::statics::StoreId;
 use hash_utils::smallvec::{smallvec, SmallVec};
 use inkwell as llvm;
-use llvm::types::{AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType};
+use llvm::{
+    context::AsContextRef,
+    types::{AnyType, AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType},
+};
 use llvm_sys::{
-    core::{LLVMGetTypeKind, LLVMVectorType},
+    core::{LLVMGetTypeKind, LLVMPointerTypeInContext, LLVMVectorType},
     LLVMTypeKind,
 };
 
 use super::abi::ExtendedFnAbiMethods;
-use crate::{ctx::CodeGenCtx, misc::AddressSpaceWrapper};
+use crate::ctx::CodeGenCtx;
 
 /// Convert a [BasicTypeEnum] into a [AnyTypeEnum].
 ///
@@ -43,13 +46,6 @@ pub fn convert_basic_ty_to_any(ty: BasicTypeEnum) -> AnyTypeEnum {
 }
 
 impl<'b, 'm> CodeGenCtx<'b, 'm> {
-    /// Create a type that represents the alignment of a particular pointee
-    /// type.
-    pub(crate) fn type_pointee_for_alignment(&self, align: Alignment) -> AnyTypeEnum<'m> {
-        let ity = Integer::approximate_alignment(self, align);
-        self.type_from_integer(ity)
-    }
-
     /// Create a [VectorType] from a [`AbiRepresentation::Vector`].
     pub(crate) fn type_vector(&self, element_ty: AnyTypeEnum<'m>, len: u64) -> AnyTypeEnum<'m> {
         // @@PatchInkwell: we should allow creating a vector type from a
@@ -115,6 +111,10 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         self.ll_ctx.i64_type().into()
     }
 
+    fn type_ix(&self, bits: u64) -> Self::Type {
+        self.ll_ctx.custom_width_int_type(bits.try_into().unwrap()).as_any_type_enum()
+    }
+
     fn type_f32(&self) -> Self::Type {
         self.ll_ctx.f32_type().into()
     }
@@ -145,23 +145,15 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         self.ll_ctx.struct_type(&fields, packed).into()
     }
 
-    fn type_ptr_to(&self, ty: Self::Type) -> Self::Type {
-        let AddressSpaceWrapper(addr) = AddressSpace::DATA.into();
-
-        // Special handling for when it is a function type...
-        if ty.is_function_type() {
-            let ty = ty.into_function_type();
-            ty.ptr_type(addr).into()
-        } else {
-            let ty: BasicTypeEnum = ty.try_into().unwrap();
-            ty.ptr_type(addr).into()
-        }
+    fn type_ptr(&self) -> Self::Type {
+        self.type_ptr_ext(AddressSpace::DATA)
     }
 
-    fn type_ptr_to_ext(&self, ty: Self::Type, address_space: AddressSpace) -> Self::Type {
-        let ty: BasicTypeEnum = ty.try_into().unwrap();
-        let AddressSpaceWrapper(addr) = address_space.into();
-        ty.ptr_type(addr).into()
+    fn type_ptr_ext(&self, address_space: AddressSpace) -> Self::Type {
+        // @@PatchInkwell: allow for opaque pointers to be created.
+        unsafe {
+            AnyTypeEnum::new(LLVMPointerTypeInContext(self.ll_ctx.as_ctx_ref(), address_space.0))
+        }
     }
 
     fn element_type(&self, ty: Self::Type) -> Self::Type {
@@ -290,7 +282,6 @@ pub(crate) trait ExtendedTyBuilderMethods<'m> {
         &self,
         ctx: &CodeGenCtx<'_, 'm>,
         scalar: Scalar,
-        offset: Size,
     ) -> llvm::types::AnyTypeEnum<'m>;
 
     /// Create a type for a [`ScalarKind::Pair`].
@@ -320,12 +311,9 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
         }
 
         match abi {
-            AbiRepresentation::Scalar(scalar) => self.ty.map(|ty| match ty {
-                IrTy::Ref(ty, _, _) => ctx.type_ptr_to(ctx.layout_of(*ty).llvm_ty(ctx)),
-                _ => self.scalar_llvm_type_at(ctx, scalar, Size::ZERO),
-            }),
+            AbiRepresentation::Scalar(scalar) => self.scalar_llvm_type_at(ctx, scalar),
             AbiRepresentation::Vector { elements, kind } => {
-                ctx.type_vector(self.scalar_llvm_type_at(ctx, kind, Size::ZERO), elements)
+                ctx.type_vector(self.scalar_llvm_type_at(ctx, kind), elements)
             }
             AbiRepresentation::Pair(..) => ctx.type_struct(
                 &[
@@ -457,22 +445,11 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
         &self,
         ctx: &CodeGenCtx<'_, 'm>,
         scalar: Scalar,
-        offset: Size,
     ) -> llvm::types::AnyTypeEnum<'m> {
         match scalar.kind() {
             ScalarKind::Int { kind, .. } => ctx.type_from_integer(kind),
             ScalarKind::Float { kind } => ctx.type_from_float(kind),
-            ScalarKind::Pointer(addr) => {
-                let ty = if let Some(info) =
-                    ctx.layouts().compute_layout_info_of_pointee_at(*self, offset)
-                {
-                    ctx.type_pointee_for_alignment(info.alignment)
-                } else {
-                    ctx.type_i8p()
-                };
-
-                ctx.type_ptr_to_ext(ty, addr)
-            }
+            ScalarKind::Pointer(addr) => ctx.type_ptr_ext(addr),
         }
     }
 
@@ -493,15 +470,10 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
         let scalar = if index == 0 { scalar_a } else { scalar_b };
 
         if immediate && scalar.is_bool() {
-            ctx.type_i1()
-        } else {
-            let offset = if index == 0 {
-                Size::ZERO
-            } else {
-                scalar_a.size(ctx).align_to(scalar_b.align(ctx).abi)
-            };
-            self.scalar_llvm_type_at(ctx, scalar, offset)
+            return ctx.type_i1();
         }
+
+        self.scalar_llvm_type_at(ctx, scalar)
     }
 }
 

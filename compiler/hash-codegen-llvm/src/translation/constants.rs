@@ -1,13 +1,21 @@
 //! Implements all of the constant building methods.
 use hash_codegen::{
-    target::{abi::Scalar, data_layout::HasDataLayout},
-    traits::{constants::ConstValueBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods},
+    target::{
+        abi::{Scalar, ScalarKind},
+        data_layout::HasDataLayout,
+    },
+    traits::{constants::ConstValueBuilderMethods, ty::TypeBuilderMethods},
 };
-use hash_ir::{ir::Const, ty::COMMON_IR_TYS};
-use hash_source::constant::InternedStr;
-use inkwell::{module::Linkage, types::BasicTypeEnum, values::AnyValueEnum};
+use hash_ir::constant::{self, AllocRange};
+use hash_source::constant::{InternedStr, Size};
+use hash_storage::store::statics::StoreId;
+use inkwell::{
+    module::Linkage,
+    types::{AsTypeRef, BasicTypeEnum},
+    values::{AnyValue, AnyValueEnum, AsValueRef, BasicValueEnum},
+};
+use llvm_sys::core as llvm;
 
-use super::ty::ExtendedTyBuilderMethods;
 use crate::ctx::CodeGenCtx;
 
 impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
@@ -128,31 +136,77 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
             (s, global)
         });
 
-        let byte_slice_ty = COMMON_IR_TYS.byte_slice;
-        let ptr = global_str.as_pointer_value().const_cast(
-            self.type_ptr_to(self.layout_of(byte_slice_ty).llvm_ty(self)).into_pointer_type(),
-        );
-
-        (ptr.into(), self.const_usize(str_len as u64))
+        (global_str.as_any_value_enum(), self.const_usize(str_len as u64))
     }
 
-    fn const_scalar_value(&self, const_value: Const, _abi: Scalar, ty: Self::Type) -> Self::Value {
-        match const_value {
-            // This is handled at the translation layer, `const_scalar_value` should not be called
-            // on a ZST.
-            Const::Zero(_) => unreachable!("`const_scalar_value` should not be called on a ZST"),
-            Const::Bool(val) => self.const_bool(val),
-            Const::Char(ch) => self.const_u32(ch as u32),
-            Const::Int(int) => {
-                let const_int = int.value();
+    fn const_struct(&self, values: &[Self::Value], packed: bool) -> Self::Value {
+        let values: Vec<BasicValueEnum> = values.iter().map(|v| (*v).try_into().unwrap()).collect();
 
-                // Convert the constant into a u128 and then emit the
-                // correct LLVM constant for it.
-                self.const_uint_big(ty, const_int.value.as_u128())
+        self.ll_ctx.const_struct(&values, packed).as_any_value_enum()
+    }
+
+    fn const_bytes(&self, bytes: &[u8]) -> Self::Value {
+        // ##Hack: we pretend that this is a null terminated string, just to emit
+        // some bytes. Ultimately, it doesn't really matter that it is a constant
+        // string since it will just be casted into whatever the type is, this
+        // is just needed to store some bytes.
+        self.ll_ctx.const_string(bytes, /* null_terminated: */ true).as_any_value_enum()
+    }
+
+    fn const_scalar_value(
+        &self,
+        scalar: constant::Scalar,
+        abi: Scalar,
+        ty: Self::Type,
+    ) -> Self::Value {
+        let size = abi.size(self);
+        let bits = if abi.is_bool() { 1 } else { size.bits() };
+
+        let data = scalar.assert_bits(size);
+        let value = self.const_uint_big(self.type_ix(bits), data);
+
+        // @@Todo: we need to deal with the case that this scalar is
+        // actually a pointer. We have to emit different code based on
+        // the type of the refereee.
+        if matches!(abi.kind(), ScalarKind::Pointer(_)) {
+            unsafe {
+                AnyValueEnum::new(llvm::LLVMConstIntToPtr(value.as_value_ref(), ty.as_type_ref()))
             }
-            Const::Float(interned_float) => self.const_float(ty, interned_float.value().as_f64()),
-            Const::Str(str) => self.const_str(str).0,
+        } else {
+            self.const_bitcast(value, ty)
         }
+    }
+
+    fn const_data_from_alloc(&self, alloc: constant::AllocId) -> Self::Value {
+        alloc.map(|allocation| {
+            let mut values = vec![];
+
+            // For now, we can just emit the `bytes` that are stored
+            // in the allocation. We can do this because the way constant
+            // allocations are constructed is identical to the way that
+            // data layouts are constructed.
+            let alloc_range = AllocRange::new(Size::ZERO, allocation.size());
+            values.push(self.const_bytes(allocation.read_bytes(alloc_range)));
+
+            self.const_struct(&values, false)
+        })
+    }
+
+    fn const_ptr_byte_offset(&self, base: Self::Value, offset: Size) -> Self::Value {
+        let ptr = base.into_pointer_value();
+
+        unsafe {
+            AnyValueEnum::new(llvm::LLVMConstInBoundsGEP2(
+                self.type_i8().as_type_ref(),
+                ptr.as_value_ref(),
+                &mut self.const_usize(offset.bytes()).as_value_ref(),
+                1,
+            ))
+        }
+    }
+
+    fn const_bitcast(&self, val: Self::Value, ty: Self::Type) -> Self::Value {
+        unsafe { AnyValueEnum::new(llvm::LLVMConstBitCast(val.as_value_ref(), ty.as_type_ref())) }
     }
 
     fn const_to_optional_u128(&self, value: Self::Value, sign_extend: bool) -> Option<u128> {
@@ -162,7 +216,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
                 return None;
             }
 
-            // ##Hack: this doesn't properly handle the full range of i128 values, however]
+            // ##Hack: this doesn't properly handle the full range of i128 values, however
             // Inkwell doesn't support arbitrary precision integers, so we can't do much better...
             // unless we @@PatchInkwell
             if sign_extend {

@@ -3,10 +3,7 @@
 
 use hash_codegen::{
     common::{AtomicOrdering, IntComparisonKind, RealComparisonKind},
-    target::{
-        abi::AddressSpace,
-        link::{CodeModel, RelocationModel},
-    },
+    target::link::{CodeModel, RelocationModel},
 };
 use hash_pipeline::settings::OptimisationLevel;
 use inkwell::attributes::Attribute;
@@ -82,14 +79,6 @@ impl From<AtomicOrdering> for AtomicOrderingWrapper {
             AtomicOrdering::AcquireRelease => Self(AcquireRelease),
             AtomicOrdering::SequentiallyConsistent => Self(SequentiallyConsistent),
         }
-    }
-}
-
-pub struct AddressSpaceWrapper(pub inkwell::AddressSpace);
-
-impl From<AddressSpace> for AddressSpaceWrapper {
-    fn from(value: AddressSpace) -> Self {
-        AddressSpaceWrapper(inkwell::AddressSpace::try_from(value.0).unwrap())
     }
 }
 

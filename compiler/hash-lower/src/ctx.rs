@@ -6,7 +6,7 @@ use hash_ir::{ty::IrTyId, IrCtx};
 use hash_layout::{
     compute::{LayoutComputer, LayoutError},
     write::{LayoutWriter, LayoutWriterConfig},
-    LayoutCtx, LayoutId, TyInfo,
+    LayoutId, LayoutStorage, TyInfo,
 };
 use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
 use hash_storage::store::statics::SequenceStoreValue;
@@ -40,7 +40,7 @@ pub(crate) struct BuilderCtx<'ir> {
 
     /// The type layout context stores all relevant information to layouts and
     /// computing them.
-    layouts: &'ir LayoutCtx,
+    layouts: &'ir LayoutStorage,
 
     /// The type storage needed for accessing the types of the traversed terms
     pub env: Env<'ir>,
@@ -67,7 +67,12 @@ impl<'ir> BuilderCtx<'ir> {
     /// Create a new [BuilderCtx] from the given [LoweringCtx].
     pub fn new(entry: &'ir CurrentSourceInfo, ctx: &'ir LoweringCtx<'ir>) -> Self {
         let LoweringCtx {
-            semantic_storage, workspace, ir_storage, layout_storage, settings, ..
+            semantic_storage,
+            workspace,
+            icx: ir_storage,
+            lcx: layout_storage,
+            settings,
+            ..
         } = ctx;
 
         let env =

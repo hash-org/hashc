@@ -13,14 +13,14 @@ use hash_storage::store::{
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
     alignment::{Alignment, Alignments},
-    data_layout::TargetDataLayout,
+    data_layout::{HasDataLayout, TargetDataLayout},
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
-use hash_utils::index_vec::IndexVec;
+use hash_utils::{derive_more::Constructor, index_vec::IndexVec};
 
 use crate::{
-    layout_store, CommonLayouts, FieldLayout, Layout, LayoutCtx, LayoutId, LayoutShape,
+    layout_store, CommonLayouts, FieldLayout, Layout, LayoutId, LayoutShape, LayoutStorage,
     LayoutStore, PointeeInfo, PointerKind, TyInfo, Variants,
 };
 
@@ -109,22 +109,22 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 }
 
 /// A auxiliary context for methods defined on [Layout]
-/// which require access to other [Layout]s and information
-/// generated in the [IrCtx].
-#[derive(Clone, Copy)]
+/// which require access to other [Layout]s.
+#[derive(Clone, Copy, Constructor)]
 pub struct LayoutComputer<'l> {
     /// A reference tot the [LayoutCtx].
-    ctx: &'l LayoutCtx,
+    ctx: &'l LayoutStorage,
+}
+
+impl HasDataLayout for LayoutComputer<'_> {
+    fn data_layout(&self) -> &TargetDataLayout {
+        &self.ctx.data_layout
+    }
 }
 
 impl<'l> LayoutComputer<'l> {
-    /// Create a new [LayoutCtx].
-    pub fn new(ctx: &'l LayoutCtx) -> Self {
-        Self { ctx }
-    }
-
     /// Returns a reference to the [LayoutCtx].
-    pub fn ctx(&self) -> &LayoutCtx {
+    pub fn ctx(&self) -> &LayoutStorage {
         self.ctx
     }
 
@@ -133,16 +133,15 @@ impl<'l> LayoutComputer<'l> {
         layout_store().layouts()
     }
 
-    /// Get a reference to the data layout of the current
-    /// session.
-    pub fn data_layout(&self) -> &TargetDataLayout {
-        &self.ctx.data_layout
-    }
-
     /// Get a reference to the [CommonLayout]s that are available
     /// in the current session.
     pub(crate) fn common_layouts(&self) -> &CommonLayouts {
         &self.ctx.common_layouts
+    }
+
+    /// Compute the [Size] of a [IrTyId].
+    pub fn size_of_ty(&self, ty: IrTyId) -> Result<Size, LayoutError> {
+        Ok(self.layout_of_ty(ty)?.size())
     }
 
     /// This is the entry point of the layout computation engine. From

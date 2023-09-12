@@ -62,7 +62,7 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
         }
 
         // Declare all of the types that might occur within the intrinsic.
-        let ptr = self.type_i8p();
+        let ptr = self.type_ptr();
         let void = self.type_void();
         let bool = self.type_i1();
         let i8 = self.type_i8();

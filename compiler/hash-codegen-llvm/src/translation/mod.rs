@@ -22,6 +22,7 @@ mod intrinsics;
 mod layouts;
 mod metadata;
 mod misc;
+mod statics;
 pub(crate) mod ty;
 
 /// A [Builder] is defined as being a context that is used to implement

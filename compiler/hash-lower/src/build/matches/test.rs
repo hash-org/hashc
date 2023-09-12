@@ -9,12 +9,12 @@ use fixedbitset::FixedBitSet;
 use hash_ast::ast::{self, AstNodeId};
 use hash_ir::{
     ir::{
-        BasicBlock, BinOp, Const, Operand, PlaceProjection, RValue, SwitchTargets, TerminatorKind,
+        BasicBlock, BinOp, Const, ConstKind, Operand, PlaceProjection, RValue, SwitchTargets,
+        TerminatorKind,
     },
     ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::constant::{IntConstant, IntConstantValue, InternedInt};
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     args::PatArgsId,
@@ -31,9 +31,9 @@ use super::{
     candidate::{Candidate, MatchPair},
     const_range::ConstRange,
 };
-use crate::build::{constant::lit_to_const, place::PlaceBuilder, BodyBuilder};
+use crate::build::{place::PlaceBuilder, BodyBuilder};
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 pub(super) enum TestKind {
     /// Test what value an `enum` variant is.
     Switch {
@@ -190,7 +190,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     IrTy::Bool => {
                         // Constify the bool literal
                         let value =
-                            if pat.ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
+                            if pat.ctor.1 == 0 { Const::bool(true) } else { Const::bool(false) };
                         emit_const_test(value, ty_id)
                     }
                     IrTy::Adt(id) => {
@@ -219,8 +219,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 })
             }
             Pat::Lit(lit) => {
-                let value = lit_to_const(*lit);
                 let ty = self.ty_id_from_tir_pat(pair.pat);
+                let value = self.lit_as_const(*lit);
 
                 // If it is not an integral constant, we use an `Eq` test. This will
                 // happen when the constant is either a float or a string.
@@ -322,7 +322,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     unreachable!("switch_int test for constructor pat with non-switchable type");
                 }
 
-                let value = if ctor.1 == 0 { Const::Bool(true) } else { Const::Bool(false) };
+                let value = if ctor.1 == 0 { Const::bool(true) } else { Const::bool(false) };
                 let index = options.get_index_of(&value).unwrap();
 
                 // remove the candidate from the pairs
@@ -333,7 +333,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             // When we are performing a switch over integers, then this informs integer
             // equality, but nothing else, @@Improve: we could use the Pat::Range to rule
             // some things out.
-            (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit)) => {
+            (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit_pat)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
                 if !ty.borrow().is_switchable() {
@@ -343,7 +343,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // @@Todo: when we switch to new patterns, we can look this up without
                 // the additional evaluation. However, we might need to modify the `Eq`
                 // on `ir::Const` to actually check if integer values are equal.
-                let value = self.evaluate_lit_pat(lit).0;
+                let value = self.eval_lit_pat(lit_pat);
                 let index = options.get_index_of(&value).unwrap();
 
                 // remove the candidate from the pairs
@@ -427,18 +427,18 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // Check if the two ranged overlap, and if they don't then the pattern
                 // can only be matched if this test fails
-                if !range.overlaps(&actual_range)? {
+                if !range.overlaps(&actual_range, self.ctx.layout_computer())? {
                     Some(1)
                 } else {
                     None
                 }
             }
             (TestKind::Range { ref range }, Pat::Lit(lit_pat)) => {
-                let (value, _) = self.evaluate_lit_pat(lit_pat);
+                let value = self.eval_lit_pat(lit_pat);
 
                 // If the `value` is not contained in the testing range, so the `value` can be
                 // matched only if the test fails.
-                if let Some(false) = range.contains(value) {
+                if let Some(false) = range.contains(value, self.ctx.layout_computer()) {
                     Some(1)
                 } else {
                     None
@@ -647,7 +647,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         panic!("expected two target blocks for `Eq` test");
                     };
 
-                    let expected = Operand::Const(value.into());
+                    let expected = Operand::Const(value);
                     let actual = place.into();
 
                     self.compare(block, success, fail, BinOp::Eq, expected, actual, span);
@@ -662,8 +662,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let lb_success = self.control_flow_graph.start_new_block();
                 let target_blocks = make_target_blocks(self);
 
-                let lo = Operand::Const(lo.into());
-                let hi = Operand::Const(hi.into());
+                let lo = Operand::Const(lo);
+                let hi = Operand::Const(hi);
                 let val = place.into();
 
                 let [success, fail] = *target_blocks else {
@@ -728,11 +728,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // Now, we generate a temporary for the expected length, and then
                 // compare the two.
-                let const_len = Const::Int(InternedInt::from(IntConstant {
-                    value: IntConstantValue::U64(len),
-                    suffix: None,
-                }));
-                let expected = Operand::Const(const_len.into());
+                let expected = Operand::Const(Const::usize(len, &self.ctx));
 
                 let [success, fail] = *target_blocks else {
                     panic!("expected two target blocks for `Len` test");
@@ -818,9 +814,12 @@ impl<'tcx> BodyBuilder<'tcx> {
         };
 
         match *match_pair.pat.value() {
-            Pat::Lit(term) => {
-                let (constant, value) = self.evaluate_lit_pat(term);
-                options.entry(constant).or_insert(value);
+            Pat::Lit(lit_pat) => {
+                let constant = self.eval_lit_pat(lit_pat);
+                let ConstKind::Scalar(scalar) = constant.kind else {
+                    panic!("expected scalar constant in `add_cases_to_switch`")
+                };
+                options.entry(constant).or_insert(scalar.to_bits(scalar.size()).unwrap());
                 true
             }
             Pat::Range(ref pat) => {
@@ -835,9 +834,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // If the constructor is `1` then we know that it is `true`, this is defined
                 // in: compiler/hash-intrinsics/src/primitives.rs
                 let (constant, value) = if ctor_pat.ctor.1 == 0 {
-                    (Const::Bool(true), 1)
+                    (Const::bool(true), 1)
                 } else {
-                    (Const::Bool(false), 0)
+                    (Const::bool(false), 0)
                 };
 
                 options.entry(constant).or_insert(value);
@@ -863,7 +862,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // Iterate over all of the options and check if the
         // value is contained in the constant range.
         for &value in options.keys() {
-            if const_range.contains(value)? {
+            if const_range.contains(value, self.ctx.layout_computer())? {
                 return Some(false);
             }
         }

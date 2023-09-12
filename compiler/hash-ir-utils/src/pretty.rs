@@ -2,10 +2,11 @@
 
 use std::fmt;
 
+use hash_ir::ir::{BasicBlock, Body, BodySource};
+use hash_layout::compute::LayoutComputer;
 use hash_utils::itertools::Itertools;
 
-use super::WriteIr;
-use crate::ir::{BasicBlock, Body, BodySource};
+use crate::WriteIr;
 
 /// [IrBodyWriter] is used to encapsulate the logic of pretty-printing a
 /// [Body] to a [fmt::Formatter]. The [IrBodyWriter] is uses the standalone
@@ -15,12 +16,16 @@ use crate::ir::{BasicBlock, Body, BodySource};
 pub struct IrBodyWriter<'ir> {
     /// The body that is being printed
     body: &'ir Body,
+
+    /// The layout computer is used to compute the layout of the data
+    /// under the constant.
+    lc: LayoutComputer<'ir>,
 }
 
 impl<'ir> IrBodyWriter<'ir> {
     /// Create a new IR writer for the given body.
-    pub fn new(body: &'ir Body) -> Self {
-        Self { body }
+    pub fn new(body: &'ir Body, lc: LayoutComputer<'ir>) -> Self {
+        Self { body, lc }
     }
 
     /// Function to deal with a [Body] header which is formatted depending on
@@ -134,13 +139,13 @@ impl<'ir> IrBodyWriter<'ir> {
 
         // Write all of the statements within the block
         for statement in &block_data.statements {
-            writeln!(f, "{: <2$}{};", "", statement, 8)?;
+            writeln!(f, "{: <2$}{};", "", statement.with(self.lc), 8)?;
         }
 
         // Write the terminator of the block. If the terminator is
         // not present, this is an invariant but we don't care here.
         if let Some(terminator) = &block_data.terminator {
-            writeln!(f, "{: <2$}{};", "", terminator.with_edges(true), 8)?;
+            writeln!(f, "{: <2$}{};", "", terminator.with_edges(self.lc, true), 8)?;
         }
 
         writeln!(f, "{: <1$}}}", "", 4)
@@ -158,6 +163,7 @@ pub fn dump_ir_bodies(
     bodies: &[Body],
     dump_all: bool,
     prelude_is_quiet: bool,
+    lc: LayoutComputer<'_>,
     writer: &mut impl std::io::Write,
 ) -> std::io::Result<()> {
     for (index, body) in bodies.iter().enumerate() {
@@ -183,7 +189,7 @@ pub fn dump_ir_bodies(
             body.info().source(),
             body.info().name(),
             body.span().fmt_path(),
-            IrBodyWriter::new(body)
+            IrBodyWriter::new(body, lc)
         )?;
     }
 

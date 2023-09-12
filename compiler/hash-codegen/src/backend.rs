@@ -6,7 +6,7 @@
 //! processed [Workspace].
 
 use hash_ir::IrStorage;
-use hash_layout::LayoutCtx;
+use hash_layout::LayoutStorage;
 use hash_pipeline::{
     interface::{CompilerOutputStream, CompilerResult},
     settings::CompilerSettings,
@@ -50,11 +50,11 @@ pub struct BackendCtx<'b> {
 
     /// Reference to the IR storage that is used to store
     /// the lowered IR, and all metadata about the IR.
-    pub ir_storage: &'b IrStorage,
+    pub icx: &'b IrStorage,
 
     /// All of the layout information about the types in the
     /// current session.
-    pub layout_storage: &'b LayoutCtx,
+    pub lcx: &'b LayoutStorage,
 
     /// A reference to the backend settings in the current session.
     pub settings: &'b CompilerSettings,
