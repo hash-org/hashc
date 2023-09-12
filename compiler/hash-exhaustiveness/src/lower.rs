@@ -3,7 +3,6 @@
 use std::mem::size_of;
 
 use hash_ast::ast::RangeEnd;
-use hash_intrinsics::utils::{LitTy, PrimitiveUtils};
 use hash_source::constant::InternedInt;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
@@ -15,6 +14,10 @@ use hash_tir::{
     control::{IfPat, OrPat},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
     environment::env::AccessToEnv,
+    intrinsics::utils::{
+        numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
+        try_use_ty_as_int_ty, try_use_ty_as_lit_ty, LitTy,
+    },
     lits::{CharLit, IntLit, Lit, LitPat, StrLit},
     node::{Node, NodeOrigin, NodesId},
     params::{ParamId, ParamsId},
@@ -167,8 +170,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 let mut prefix = vec![];
                 let mut suffix = vec![];
 
-                let Some(ArrayCtorInfo { element_ty, .. }) = self.try_use_ty_as_array_ty(ty_id)
-                else {
+                let Some(ArrayCtorInfo { element_ty, .. }) = try_use_ty_as_array_ty(ty_id) else {
                     panic!("Expected array type")
                 };
 
@@ -351,8 +353,8 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                     Lit::Int(int) => Constant::from_int(int.interned_value(), ty).data(),
                     _ => unreachable!(),
                 },
-                None if at_end => self.numeric_max_val_of_lit(ty).unwrap(),
-                None => self.numeric_min_val_of_lit(ty).unwrap(),
+                None if at_end => numeric_max_val_of_lit(self.target(), ty).unwrap(),
+                None => numeric_min_val_of_lit(self.target(), ty).unwrap(),
             }
         };
 
@@ -369,7 +371,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             // `ubig` and `ibig` won't appear here since the range will never become
             // a singleton, and in fact the range will never be constructed from a
             // `ubig` or `ibig` type.
-            match self.try_use_ty_as_lit_ty(ty).unwrap() {
+            match try_use_ty_as_lit_ty(self.target(), ty).unwrap() {
                 ty if ty.is_int() => {
                     let (lo, _) = range.boundaries();
                     let bias = range.bias;
@@ -402,7 +404,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
         let bias = range.bias;
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
-        let (lo, hi) = match self.try_use_ty_as_lit_ty(ty).unwrap() {
+        let (lo, hi) = match try_use_ty_as_lit_ty(self.target(), ty).unwrap() {
             LitTy::I8
             | LitTy::U8
             | LitTy::I16
@@ -413,7 +415,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             | LitTy::U64
             | LitTy::U128
             | LitTy::I128 => {
-                let kind = self.try_use_ty_as_int_ty(ty).unwrap();
+                let kind = try_use_ty_as_int_ty(ty).unwrap();
                 let ptr_width = self.target().ptr_size();
 
                 let lo_val = InternedInt::from_u128(lo, kind, ptr_width);

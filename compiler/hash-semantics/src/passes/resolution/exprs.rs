@@ -8,10 +8,6 @@ use std::collections::HashSet;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_attrs::{attr::attr_store, builtin::attrs};
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
-    utils::PrimitiveUtils,
-};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
@@ -26,10 +22,10 @@ use hash_tir::{
     data::DataTy,
     environment::env::AccessToEnv,
     fns::{CallTerm, FnDefId},
+    intrinsics::definitions::{equal_ty, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     node::{Node, NodeId, NodeOrigin},
     params::ParamIndex,
-    primitives::primitives,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
     terms::{Term, TermId, Ty, TyOfTerm, UnsafeTerm},
@@ -978,8 +974,7 @@ impl<'tc> ResolutionPass<'tc> {
                 return Ok(Term::from(CastTerm { subject_term: lhs, target_ty: rhs }, origin));
             }
             ast::BinOp::Merge => {
-                let args = Arg::seq_positional([typeof_lhs, lhs, rhs], origin);
-                return Ok(Ty::from(DataTy { data_def: primitives().equal(), args }, origin));
+                return Ok(equal_ty(typeof_lhs, lhs, rhs, origin));
             }
         };
 

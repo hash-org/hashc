@@ -123,11 +123,6 @@ pub mod gen {
         Ty::unit_ty(NodeOrigin::Generated)
     }
 
-    /// Create the empty type.
-    pub fn never() -> TyId {
-        Ty::never_ty(NodeOrigin::Generated)
-    }
-
     /// Create a term by the given data.
     pub fn term(inner: impl Into<Term>) -> TermId {
         Term::from(inner, NodeOrigin::Generated)

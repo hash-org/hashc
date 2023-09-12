@@ -9,7 +9,6 @@ doctest = false
 
 [dependencies]
 hash-ast = { path = "../hash-ast" }
-hash-intrinsics = { path = "../hash-intrinsics" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
 hash-storage = { path = "../hash-storage" }

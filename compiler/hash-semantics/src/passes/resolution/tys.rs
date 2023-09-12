@@ -14,9 +14,9 @@ use hash_tir::{
     args::{Arg, ArgsId},
     data::DataTy,
     fns::CallTerm,
+    intrinsics::definitions::{array_ty, equal_ty, list_ty},
     node::{Node, NodeOrigin},
     params::ParamIndex,
-    primitives::primitives,
     refs::{RefKind, RefTy},
     terms::{Term, Ty, TyId, TyOfTerm},
 };
@@ -242,24 +242,9 @@ impl<'tc> ResolutionPass<'tc> {
         match node.len.as_ref() {
             Some(len) => {
                 let length_term = self.make_term_from_ast_expr(len.ast_ref())?;
-                Ok(Ty::from(
-                    Ty::DataTy(DataTy {
-                        data_def: primitives().array(),
-                        args: Arg::seq_positional(
-                            [inner_ty, length_term],
-                            NodeOrigin::Given(node.id()),
-                        ),
-                    }),
-                    NodeOrigin::Given(node.id()),
-                ))
+                Ok(array_ty(inner_ty, length_term, NodeOrigin::Given(node.id())))
             }
-            None => Ok(Ty::from(
-                Ty::DataTy(DataTy {
-                    data_def: primitives().list(),
-                    args: Arg::seq_positional(once(inner_ty), NodeOrigin::Given(node.id())),
-                }),
-                NodeOrigin::Given(node.id()),
-            )),
+            None => Ok(list_ty(inner_ty, NodeOrigin::Given(node.id()))),
         }
     }
 
@@ -361,8 +346,7 @@ impl<'tc> ResolutionPass<'tc> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
         let typeof_lhs = Term::from(TyOfTerm { term: lhs }, NodeOrigin::Given(node.id()));
-        let args = Arg::seq_positional(vec![typeof_lhs, lhs, rhs], NodeOrigin::Given(node.id()));
-        Ok(Ty::from(DataTy { data_def: primitives().equal(), args }, NodeOrigin::Given(node.id())))
+        Ok(equal_ty(typeof_lhs, lhs, rhs, NodeOrigin::Given(node.id())))
     }
 
     /// Make a type from the given [`ast::Ty`] and assign it to the node in

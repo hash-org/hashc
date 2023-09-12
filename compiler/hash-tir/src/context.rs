@@ -109,6 +109,11 @@ impl Scope {
     }
 }
 
+/// Trait for types that have a context avaiable to them.
+pub trait HasContext {
+    fn context(&self) -> &Context;
+}
+
 /// Data structure managing the typechecking context.
 ///
 /// The context is a stack of scopes, each scope being a stack in itself.

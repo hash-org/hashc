@@ -3,23 +3,18 @@
 
 use std::iter::once;
 
-use hash_intrinsics::intrinsics::DefinedIntrinsics;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     self,
     building::gen,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
     node::{Node, NodeOrigin},
-    primitives::{primitives, DefinedPrimitives},
     utils::AccessToUtils,
 };
 use hash_utils::itertools::Itertools;
 use once_cell::unsync::OnceCell;
 
 use crate::environment::sem_env::AccessToSemEnv;
-
-pub type DefinedPrimitivesOrUnset = OnceCell<DefinedPrimitives>;
-pub type DefinedIntrinsicsOrUnset = OnceCell<DefinedIntrinsics>;
 
 pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
     /// Bootstrap the typechecker, by constructing primitives and intrinsics,
@@ -40,7 +35,7 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
     }
 
     /// Make a module containing all the intrinsics.
-    fn make_intrinsic_mod(&self, intrinsics: &DefinedIntrinsics) -> ModDefId {
+    fn make_intrinsic_mod(&self) -> ModDefId {
         // ##GeneratedOrigin: Intrinsics do not have a source location.
         Node::create_at(
             ModDef {
@@ -61,7 +56,7 @@ pub trait BootstrapOps: AccessToSemEnv + AccessToUtils {
     }
 
     /// Make a module containing all the primitives and intrinsics.
-    fn make_root_mod(&self, intrinsics_mod: ModDefId) -> ModDefId {
+    fn make_root_mod(&self) -> ModDefId {
         // ##GeneratedOrigin: Primitives do not have a source location.
         Node::create_at(
             ModDef {

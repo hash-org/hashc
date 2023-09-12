@@ -2,7 +2,6 @@
 use std::{cell::Cell, ops::ControlFlow};
 
 use hash_ast::ast::RangeEnd;
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     PartialStore, SequenceStoreKey, TrivialSequenceStoreKey,
@@ -17,7 +16,10 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     fns::{CallTerm, FnDefId},
     holes::Hole,
-    intrinsics::IsIntrinsic,
+    intrinsics::{
+        make::IsIntrinsic,
+        utils::{get_bool_ctor, try_use_term_as_integer_lit},
+    },
     lits::{Lit, LitPat},
     node::{Node, NodeId, NodesId},
     params::ParamIndex,
@@ -549,7 +551,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Assumes that the index is normalised.
     fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
-        self.try_use_term_as_integer_lit::<usize>(index)
+        try_use_term_as_integer_lit::<_, usize>(self.env(), index)
             .map(|idx| elements.elements().at(idx).unwrap().into())
     }
 
@@ -998,7 +1000,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn is_true(&self, atom: Atom) -> bool {
         match atom {
             Atom::Term(term) => match **term.borrow() {
-                Term::Ctor(ctor_term) => ctor_term.ctor == self.get_bool_ctor(true),
+                Term::Ctor(ctor_term) => ctor_term.ctor == get_bool_ctor(true),
                 _ => false,
             },
             Atom::FnDef(_) | Atom::Pat(_) => false,

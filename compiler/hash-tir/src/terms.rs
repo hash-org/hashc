@@ -12,17 +12,16 @@ use hash_utils::derive_more::From;
 use super::{casting::CastTerm, holes::Hole, symbols::SymbolId};
 use crate::{
     access::AccessTerm,
-    args::Arg,
+    args::{Arg, ArgsId},
     arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::{CtorTerm, DataDefId, DataTy},
     environment::stores::tir_stores,
     fns::{CallTerm, FnDefId, FnTy},
-    intrinsics::{definitions::Intrinsic, IsIntrinsic},
+    intrinsics::definitions::{Intrinsic},
     lits::LitId,
     node::{Node, NodeId, NodeOrigin},
     params::Param,
-    primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
@@ -189,6 +188,11 @@ impl Term {
     }
 
     /// Create a new data type with no arguments.
+    pub fn indexed_data_ty(data_def: DataDefId, args: ArgsId, origin: NodeOrigin) -> TyId {
+        Node::create(Node::at(Ty::DataTy(DataTy { data_def, args }), origin))
+    }
+
+    /// Create a new data type with no arguments.
     pub fn data_ty(data_def: DataDefId, origin: NodeOrigin) -> TyId {
         Node::create(Node::at(
             Ty::DataTy(DataTy {
@@ -197,17 +201,6 @@ impl Term {
             }),
             origin,
         ))
-    }
-
-    /// Create the empty type.
-    pub fn never_ty(origin: NodeOrigin) -> TyId {
-        Ty::from(
-            DataTy {
-                args: Node::create_at(Node::<Arg>::empty_seq(), origin),
-                data_def: primitives().never(),
-            },
-            origin,
-        )
     }
 
     /// Create a new expected type for typing the given term.

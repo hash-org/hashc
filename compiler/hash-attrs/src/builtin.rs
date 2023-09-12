@@ -4,7 +4,7 @@ use std::sync::LazyLock;
 
 use hash_ast_utils::attr::AttrTarget;
 use hash_source::identifier::Identifier;
-use hash_tir::{building::gen, primitives::primitives, terms::Ty};
+use hash_tir::building::gen;
 use paste::paste;
 
 use crate::ty::{AttrId, AttrTy, AttrTyMap};
@@ -12,11 +12,14 @@ use crate::ty::{AttrId, AttrTy, AttrTyMap};
 // @@Future: add more complex rules which allow to specify more exotic types,
 // i.e. a list of values.
 macro_rules! make_ty {
-    ($kind: ident) => {
+    ($kind: ident) => {{
         // ##GeneratedOrigin: these attributes are generated, so they do not
         // have an origin.
-        Ty::data_ty(primitives().$kind(), hash_tir::node::NodeOrigin::Generated)
-    };
+        use hash_tir::intrinsics::definitions::*;
+        paste! {
+            [<$kind _gen_ty>]()
+        }
+    }};
 }
 
 macro_rules! define_attr {

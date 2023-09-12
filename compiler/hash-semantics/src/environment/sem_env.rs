@@ -1,5 +1,4 @@
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
-use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_pipeline::settings::CompilerSettings;
 use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
 use hash_source::entry_point::EntryPointState;
@@ -13,10 +12,7 @@ use hash_typecheck::{errors::TcError, AccessToTypechecking};
 use once_cell::unsync::OnceCell;
 
 use super::{analysis_progress::AnalysisProgress, ast_info::AstInfo};
-use crate::{
-    diagnostics::{error::SemanticError, warning::SemanticWarning},
-    ops::bootstrap::DefinedIntrinsicsOrUnset,
-};
+use crate::diagnostics::{error::SemanticError, warning::SemanticWarning};
 
 macro_rules! sem_env {
     ($($(#$hide:ident)? $name:ident: $ty:ident $(<$lt:lifetime> )?),* $(,)?) => {
@@ -78,7 +74,6 @@ sem_env! {
     entry_point: EntryPoint,
     ast_info: AstInfo,
     prelude_or_unset: PreludeOrUnset,
-    intrinsics_or_unset: DefinedIntrinsicsOrUnset,
     root_mod_or_unset: RootModOrUnset,
     analysis_progress: AnalysisProgress,
     settings: CompilerSettings,
@@ -93,15 +88,6 @@ impl<'tc> AccessToSemEnv for SemEnv<'tc> {
 impl<'tc> AccessToEnv for SemEnv<'tc> {
     fn env(&self) -> &Env {
         self.env
-    }
-}
-
-impl<'tc> AccessToIntrinsics for SemEnv<'tc> {
-    fn intrinsics(&self) -> &DefinedIntrinsics {
-        match self.intrinsics_or_unset().get() {
-            Some(intrinsics) => intrinsics,
-            None => panic!("Tried to get intrinsics but they are not set yet"),
-        }
     }
 }
 
@@ -158,12 +144,6 @@ impl<'tc, T> AccessToSemEnv for WithSemEnv<'tc, T> {
 impl<'tc, T> AccessToEnv for WithSemEnv<'tc, T> {
     fn env(&self) -> &Env {
         self.sem_env.env()
-    }
-}
-
-impl<'tc, T> AccessToIntrinsics for WithSemEnv<'tc, T> {
-    fn intrinsics(&self) -> &DefinedIntrinsics {
-        self.sem_env.intrinsics()
     }
 }
 
@@ -241,12 +221,6 @@ macro_rules! impl_access_to_sem_env {
         impl hash_tir::environment::env::AccessToEnv for $ty {
             fn env(&self) -> &hash_tir::environment::env::Env {
                 self.sem_env().env()
-            }
-        }
-
-        impl hash_intrinsics::intrinsics::AccessToIntrinsics for $ty {
-            fn intrinsics(&self) -> &hash_intrinsics::intrinsics::DefinedIntrinsics {
-                self.sem_env().intrinsics()
             }
         }
 

@@ -567,7 +567,6 @@ name = "hash-exhaustiveness"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
- "hash-intrinsics",
  "hash-reporting",
  "hash-source",
  "hash-storage",
@@ -577,28 +576,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-intrinsics"
-version = "0.1.0"
-dependencies = [
- "hash-ast",
- "hash-attrs",
- "hash-source",
- "hash-storage",
- "hash-target",
- "hash-tir",
- "hash-utils",
- "num-bigint",
- "num_enum",
-]
-
-[[package]]
 name = "hash-ir"
 version = "0.1.0"
 dependencies = [
  "fixedbitset",
  "hash-ast",
  "hash-attrs",
- "hash-intrinsics",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -650,7 +633,6 @@ dependencies = [
  "fixedbitset",
  "hash-ast",
  "hash-attrs",
- "hash-intrinsics",
  "hash-ir",
  "hash-layout",
  "hash-pipeline",
@@ -713,7 +695,6 @@ dependencies = [
  "hash-ast",
  "hash-attrs",
  "hash-exhaustiveness",
- "hash-intrinsics",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -821,6 +802,7 @@ dependencies = [
  "hash-target",
  "hash-utils",
  "num-bigint",
+ "num_enum",
  "paste",
  "textwrap",
  "typed-builder",
@@ -854,10 +836,10 @@ dependencies = [
  "hash-ast",
  "hash-attrs",
  "hash-exhaustiveness",
- "hash-intrinsics",
  "hash-reporting",
  "hash-source",
  "hash-storage",
+ "hash-target",
  "hash-tir",
  "hash-tree-def",
  "hash-utils",

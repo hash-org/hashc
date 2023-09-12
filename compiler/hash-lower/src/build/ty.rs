@@ -110,7 +110,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     let (op, subject) =
                         (args.at(1).unwrap().borrow().value, args.at(2).unwrap().borrow().value);
 
-                    // Parse the operator from the starting term as defined in `hash-intrinsics`
+                    // Parse the operator from the starting term.
                     let parsed_op =
                         UnOp::try_from(self.try_use_term_as_integer_lit::<u8>(op).unwrap())
                             .unwrap();

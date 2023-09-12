@@ -1,6 +1,6 @@
 [workspace]
 members = [
-  "compiler/*",
+  "compiler/hash*",
   "tests",
   "tests/testing-internal",
   "tests/testing-macros",

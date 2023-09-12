@@ -13,7 +13,6 @@ html-escape = "0.2.12"
 
 hash-ast = { path = "../hash-ast" }
 hash-attrs = { path = "../hash-attrs" }
-hash-intrinsics = { path = "../hash-intrinsics" }
 hash-source = { path = "../hash-source" }
 hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }

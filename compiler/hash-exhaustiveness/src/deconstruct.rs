@@ -9,10 +9,10 @@ use std::{
     fmt::{self, Debug},
 };
 
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataTy},
+    intrinsics::utils::try_use_ty_as_array_ty,
     node::NodesId,
     pats::PatId,
     terms::{Ty, TyId},
@@ -140,7 +140,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
                 match this_list.kind {
                     ArrayKind::Fixed(_) => panic!("{this_list:?} cannot cover {other_list:?}"),
                     ArrayKind::Var(prefix, suffix) => {
-                        let array_ty = self.try_use_ty_as_array_ty(ctx.ty).unwrap();
+                        let array_ty = try_use_ty_as_array_ty(ctx.ty).unwrap();
 
                         let prefix = pat.fields.fields[..prefix].to_vec();
                         let suffix = pat.fields.fields[this_list.arity() - suffix..].to_vec();

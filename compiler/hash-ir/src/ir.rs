@@ -8,7 +8,6 @@ use std::{
 };
 
 use hash_ast::ast::AstNodeId;
-use hash_intrinsics::intrinsics;
 use hash_source::{
     constant::{IntConstant, InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
@@ -21,6 +20,9 @@ use hash_storage::{
         statics::{SingleStoreValue, StoreId},
         SequenceStore, SequenceStoreKey,
     },
+};
+use hash_tir::intrinsics::{
+    definitions::{BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
 };
 use hash_utils::{
     graph::dominators::Dominators,
@@ -228,9 +230,9 @@ pub enum UnaryOp {
     Neg,
 }
 
-impl From<intrinsics::UnOp> for UnaryOp {
-    fn from(value: intrinsics::UnOp) -> Self {
-        use intrinsics::UnOp::*;
+impl From<UnOp> for UnaryOp {
+    fn from(value: UnOp) -> Self {
+        use UnOp::*;
         match value {
             BitNot => Self::BitNot,
             Not => Self::Not,
@@ -249,9 +251,9 @@ pub enum LogicalBinOp {
     And,
 }
 
-impl From<intrinsics::ShortCircuitBinOp> for LogicalBinOp {
-    fn from(value: intrinsics::ShortCircuitBinOp) -> Self {
-        use intrinsics::ShortCircuitBinOp::*;
+impl From<ShortCircuitBinOp> for LogicalBinOp {
+    fn from(value: ShortCircuitBinOp) -> Self {
+        use ShortCircuitBinOp::*;
 
         match value {
             And => Self::And,
@@ -370,9 +372,9 @@ impl fmt::Display for BinOp {
     }
 }
 
-impl From<intrinsics::EndoBinOp> for BinOp {
-    fn from(value: intrinsics::EndoBinOp) -> Self {
-        use intrinsics::EndoBinOp::*;
+impl From<EndoBinOp> for BinOp {
+    fn from(value: EndoBinOp) -> Self {
+        use EndoBinOp::*;
 
         match value {
             BitOr => Self::BitOr,
@@ -390,9 +392,9 @@ impl From<intrinsics::EndoBinOp> for BinOp {
     }
 }
 
-impl From<intrinsics::BoolBinOp> for BinOp {
-    fn from(value: intrinsics::BoolBinOp) -> Self {
-        use intrinsics::BoolBinOp::*;
+impl From<BoolBinOp> for BinOp {
+    fn from(value: BoolBinOp) -> Self {
+        use BoolBinOp::*;
 
         match value {
             EqEq => Self::Eq,

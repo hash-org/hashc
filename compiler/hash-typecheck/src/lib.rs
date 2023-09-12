@@ -12,10 +12,11 @@ use errors::TcError;
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_reporting::diagnostic::{AccessToDiagnostics, Diagnostics};
 use hash_source::entry_point::EntryPointState;
+use hash_target::HasTarget;
 use hash_tir::{
     environment::env::{AccessToEnv, Env},
     fns::FnDefId,
-    intrinsics::IntrinsicAbilities,
+    intrinsics::make::IntrinsicAbilities,
     terms::TermId,
 };
 use inference::InferenceOps;

@@ -144,6 +144,15 @@ pub enum PrimitiveCtorInfo {
     Array(ArrayCtorInfo),
 }
 
+/// Helper for creating primitive numeric constructor info.
+pub(crate) fn numeric_ctors(bits: u8, signed: bool, float: bool) -> PrimitiveCtorInfo {
+    PrimitiveCtorInfo::Numeric(NumericCtorInfo {
+        bits: if bits == 0 { NumericCtorBits::Unbounded } else { NumericCtorBits::Bounded(bits) },
+        is_signed: signed,
+        is_float: float,
+    })
+}
+
 /// The constructors of a data-type definition.
 ///
 /// These are either a given set of predefined constructors, or a primitive
