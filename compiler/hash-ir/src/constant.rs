@@ -115,6 +115,20 @@ impl Const {
     }
 }
 
+macro_rules! const_from_ty_impl {
+    ($($ty:ident),*) => {
+        $(
+            impl From<$ty> for Const {
+                fn from(value: $ty) -> Self {
+                    Const::new(COMMON_IR_TYS.$ty, ConstKind::Scalar(Scalar::from(value)))
+                }
+            }
+        )*
+    };
+}
+
+const_from_ty_impl!(f32, f64, char);
+
 /// The kind of constants that can be represented within the Hash IR.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConstKind {
@@ -180,6 +194,11 @@ impl Scalar {
     pub const TRUE: Scalar = Scalar { value: 1_u128, size: NonZeroU8::new(1).unwrap() };
     pub const FALSE: Scalar = Scalar { value: 0_u128, size: NonZeroU8::new(1).unwrap() };
 
+    /// Compute the [Size] of the [Scalar].
+    pub fn size(&self) -> Size {
+        Size::from_bytes(self.size.get() as u64)
+    }
+
     /// Create a new [Scalar] from a usize for the target
     /// architecture.
     pub fn from_usize<C: HasDataLayout>(value: u64, ctx: &C) -> Self {
@@ -216,7 +235,7 @@ impl Scalar {
             .unwrap_or_else(|_| panic!("assertion failed: {self:?} fits {target_size:?}"))
     }
 
-    /// Attempt to convert an unisgned integer value into a [Scalar].
+    /// Attempt to convert an un-signed integer value into a [Scalar].
     pub fn try_from_uint(i: impl Into<u128>, size: Size) -> Option<Self> {
         let value = i.into();
 
@@ -265,9 +284,14 @@ impl Scalar {
         }
     }
 
-    /// Compute the [Size] of the [Scalar].
-    pub fn size(&self) -> Size {
-        Size::from_bytes(self.size.get() as u64)
+    /// Convert the [Scalar] into a [f32].
+    pub fn to_f32(&self) -> f32 {
+        f32::try_from(*self).unwrap()
+    }
+
+    /// Convert the [Scalar] into a [f64].
+    pub fn to_f64(&self) -> f64 {
+        f64::try_from(*self).unwrap()
     }
 }
 

@@ -314,7 +314,7 @@ impl fmt::Display for InternedFloat {
 // -------------------- Integers --------------------
 
 /// Read a unsigned integer from the given source buffer. This supports buffers
-/// of up to 16 bytes in length, and will automaitcally convert it into a
+/// of up to 16 bytes in length, and will automatically convert it into a
 /// `u128`.
 ///
 /// If the desired size should be smaller than a `u128` (which) is often the
@@ -439,6 +439,21 @@ impl IntConstantValue {
     pub fn from_be_bytes(bytes: &mut [u8], signed: bool) -> Self {
         bytes.reverse();
         IntConstantValue::from_le_bytes(bytes, signed)
+    }
+
+    pub fn size(&self) -> Size {
+        match self {
+            I8(_) => Size::from_bytes(1),
+            I16(_) => Size::from_bytes(2),
+            I32(_) => Size::from_bytes(4),
+            I64(_) => Size::from_bytes(8),
+            I128(_) => Size::from_bytes(16),
+            U8(_) => Size::from_bytes(1),
+            U16(_) => Size::from_bytes(2),
+            U32(_) => Size::from_bytes(4),
+            U64(_) => Size::from_bytes(8),
+            U128(_) => Size::from_bytes(16),
+        }
     }
 }
 
@@ -614,9 +629,7 @@ impl IntConstant {
 
     /// Get the size of the constant.
     pub fn size(&self) -> Size {
-        // ##Hack: we always get a normalised type, so we don't need to cate
-        // about the size of the constant.
-        self.ty().size(Size::ZERO)
+        self.value.size()
     }
 
     /// Check if the [IntConstant] is `signed` by checking if the specified

@@ -15,7 +15,7 @@ use hash_tir::terms::{Term, TermId, Ty};
 use super::{
     category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
 };
-use crate::build::category::RValueKind;
+use crate::{build::category::RValueKind, optimise::constant_propagations::ConstFolder};
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Construct an [RValue] from the given [ast::Expr].
@@ -205,16 +205,15 @@ impl<'tcx> BodyBuilder<'tcx> {
         lhs: Operand,
         rhs: Operand,
     ) -> BlockAnd<RValue> {
-        // @@ConstFolding: maybe move this into an optimisation pass like
-        // `const-propagate` or something.
-        //
         // try to constant fold the two operands
-        // if let Operand::Const(lhs_value) = lhs &&
-        //    let Operand::Const(rhs_value) = rhs {
-        //     if let Some(folded) = self.try_fold_const_op(op, lhs_value, rhs_value) {
-        //         return block.and(folded.into());
-        //     }
-        // }
+        if let Operand::Const(ref lhs_value) = lhs &&
+           let Operand::Const(ref rhs_value) = rhs {
+            let folder = ConstFolder::new(self.ctx.layout_computer());
+
+            if let Some(folded) = folder.try_fold_bin_op(op, lhs_value, rhs_value) {
+                return block.and(folded.into());
+            }
+        }
 
         let operands = Box::new((lhs, rhs));
 

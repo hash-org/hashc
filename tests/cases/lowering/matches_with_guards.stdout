@@ -26,7 +26,7 @@ main := () -> () {
 
     bb2 {
         _4 = (_1.0);
-        _7 = Eq(const 2_i32, const 0_u32);
+        _7 = Eq(const 2_i32, const 0_i32);
         assert(_7, false, "attempt to take the remainder of `_4` by zero") -> bb5;
     }
 
