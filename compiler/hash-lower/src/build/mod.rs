@@ -172,9 +172,12 @@ pub(crate) struct BodyBuilder<'tcx> {
     /// after a block terminator.
     loop_block_info: Option<LoopBlockInfo>,
 
-    /// If the current [terms::BlockTerm] has reached a terminating statement,
-    /// i.e. a statement that is typed as `!`. Examples of such statements
-    /// are `return`, `break`, `continue`, etc.
+    /// If the lowerer has reached a terminating statement within some block,
+    /// meaning that further statements do not require to be lowered.
+    ///
+    /// A statement that is typed as `!`. Examples of such statements
+    /// are `return`, `break`, `continue`, or expressions that are of type
+    /// `!`.
     reached_terminator: bool,
 
     /// A temporary [Place] that is used to throw away results from expressions
