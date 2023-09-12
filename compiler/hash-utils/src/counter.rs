@@ -23,6 +23,10 @@ macro_rules! counter {
             $method_visibility fn total() -> u32 {
                 $counter_name.load(std::sync::atomic::Ordering::SeqCst)
             }
+
+            $method_visibility fn to_usize(&self) -> usize {
+                self.0 as usize
+            }
         }
 
         impl From<u32> for $name {

@@ -7,6 +7,7 @@ use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLi
 use hash_reporting::diagnostic::AccessToDiagnosticsMut;
 use hash_source::{
     self,
+    constant::LocalStringTable,
     identifier::{Identifier, IDENTS},
     location::{ByteRange, Span, SpannedSource},
     SourceId,
@@ -17,12 +18,22 @@ use hash_token::{
     keyword::ident_is_keyword,
     Base, FloatLitKind, IntLitKind, Token, TokenKind,
 };
-use utils::is_id_start;
 
-use crate::utils::is_id_continue;
+use crate::utils::{is_id_continue, is_id_start};
 
 pub mod error;
 mod utils;
+
+/// Useful information that the lexer collects during the lexing process, and
+/// which is used after the lexer has finished performing AST generation.
+pub struct LexerMetadata {
+    /// Token tree store, essentially a collection of token trees that are
+    /// produced when the lexer encounters bracketed token streams.
+    pub trees: Vec<Vec<Token>>,
+
+    /// Local lexer string table.
+    pub strings: LocalStringTable,
+}
 
 /// Representing the end of stream, or the initial character that is set as
 /// 'prev' in a [Lexer] since there is no character before the start.
@@ -52,7 +63,10 @@ pub struct Lexer<'a> {
 
     /// Token tree store, essentially a collection of token trees that are
     /// produced when the lexer encounters bracketed token streams.
-    token_trees: Vec<Vec<Token>>,
+    trees: Vec<Vec<Token>>,
+
+    /// Local lexer string table.
+    strings: LocalStringTable,
 
     /// The lexer diagnostics store
     diagnostics: LexerDiagnostics,
@@ -67,8 +81,9 @@ impl<'a> Lexer<'a> {
             within_token_tree: Cell::new(false),
             previous_delimiter: Cell::new(None),
             contents,
-            token_trees: vec![],
+            trees: vec![],
             diagnostics: LexerDiagnostics::default(),
+            strings: LocalStringTable::default(),
         }
     }
 
@@ -116,9 +131,10 @@ impl<'a> Lexer<'a> {
         Err(LexerError { message, kind, location: Span { range: span, id: self.source_id } })
     }
 
-    /// Returns a reference to the stored token trees for the current job
-    pub fn into_token_trees(self) -> Vec<Vec<Token>> {
-        self.token_trees
+    /// Convert the [Lexer] into the [LexerMetadata] that has been collected
+    /// during the lexing process.
+    pub fn metadata(self) -> LexerMetadata {
+        LexerMetadata { trees: self.trees, strings: self.strings }
     }
 
     /// Tokenise the given input stream
@@ -133,18 +149,6 @@ impl<'a> Lexer<'a> {
     #[inline(always)]
     fn len_consumed(&self) -> usize {
         self.offset.get()
-    }
-
-    /// Peeks the next symbol from the input stream without consuming it.
-    #[inline]
-    fn peek(&self) -> char {
-        self.nth_char(0)
-    }
-
-    /// Peeks the second symbol from the input stream without consuming it.
-    #[inline]
-    fn peek_second(&self) -> char {
-        self.nth_char(1)
     }
 
     /// Get the remaining un-lexed contents as a raw string.
@@ -167,12 +171,23 @@ impl<'a> Lexer<'a> {
         slice.chars().nth(n).unwrap_or(EOF_CHAR)
     }
 
+    /// Peeks the next symbol from the input stream without consuming it.
+    #[inline]
+    fn peek(&self) -> char {
+        self.nth_char(0)
+    }
+
+    /// Peeks the second symbol from the input stream without consuming it.
+    #[inline]
+    fn peek_second(&self) -> char {
+        self.nth_char(1)
+    }
+
     /// Moves to the next character.
     #[inline]
     fn next(&mut self) -> Option<char> {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next()?;
-
         self.offset.update(|x| x + ch.len_utf8());
         Some(ch)
     }
@@ -182,8 +197,6 @@ impl<'a> Lexer<'a> {
     fn skip(&self) {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next().unwrap();
-
-        // only increment the offset by one if there is a next character
         self.offset.update(|x| x + ch.len_utf8());
     }
 
@@ -286,15 +299,9 @@ impl<'a> Lexer<'a> {
 
             // If the next character is not a digit, then we just stop.
             '-' => TokenKind::Minus,
-
-            // Numeric literal.
             ch @ '0'..='9' => self.number(ch, false),
-
-            // character literal.
             '\'' => self.char(),
-            // String literal.
             '"' => self.string(),
-
             // We have to exit the current tree if we encounter a closing delimiter...
             ch @ (')' | '}' | ']') if self.within_token_tree.get() => {
                 self.previous_delimiter.set(Some(ch));
@@ -350,10 +357,10 @@ impl<'a> Lexer<'a> {
         match self.previous_delimiter.get() {
             Some(delim) if delim == delimiter.right() => {
                 // push this to the token_trees and get the current index to use instead...
-                self.token_trees.push(children_tokens);
+                self.trees.push(children_tokens);
                 self.previous_delimiter.set(None);
 
-                TokenKind::Tree(delimiter, (self.token_trees.len() - 1) as u32)
+                TokenKind::Tree(delimiter, (self.trees.len() - 1) as u32)
             }
             _ => self.emit_error(
                 None,
@@ -580,7 +587,7 @@ impl<'a> Lexer<'a> {
     /// Transform an ordinary character into a well known escape sequence
     /// specified by the escape literal rules. More information about the
     /// escape sequences can be found at [escape sequences](https://hash-org.github.io/lang/basics/intro.html)
-    fn char_from_escape_seq(&mut self) -> LexerResult<char> {
+    fn escaped_char(&mut self) -> LexerResult<char> {
         let c = self.next().unwrap();
 
         // we need to compute the old byte offset by accounting for both the 'u'
@@ -693,20 +700,11 @@ impl<'a> Lexer<'a> {
         // size
         let start = self.offset.get() - 1;
 
-        // check whether the next character is a backslash, as in escaping a char, if
-        // not eat the next char and expect the second character to be a "\'"
-        // char...
-        if self.peek_second() == '\'' && self.peek() != '\\' {
-            let ch = self.next().unwrap();
-            self.skip();
+        // Slow path, we have an escaped character.
+        if self.peek() == '\\' {
+            self.skip(); // eat the backslash
 
-            return TokenKind::CharLit(ch);
-        } else if self.peek() == '\\' {
-            // otherwise, this is an escaped char and hence we eat the '\' and use the next
-            // char as the actual char by escaping it
-            self.skip();
-
-            match self.char_from_escape_seq() {
+            match self.escaped_char() {
                 Ok(ch) => {
                     let next = self.peek();
 
@@ -748,6 +746,10 @@ impl<'a> Lexer<'a> {
                     return TokenKind::Err;
                 }
             };
+        } else if self.peek_second() == '\'' {
+            let ch = self.next().unwrap();
+            self.skip();
+            return TokenKind::CharLit(ch);
         }
 
         // So here we know that this is an invalid character literal, to improve
@@ -784,7 +786,7 @@ impl<'a> Lexer<'a> {
                     closed = true;
                     break;
                 }
-                '\\' => match self.char_from_escape_seq() {
+                '\\' => match self.escaped_char() {
                     Ok(ch) => value.push(ch),
                     Err(err) => {
                         self.add_error(err);
@@ -798,7 +800,7 @@ impl<'a> Lexer<'a> {
         // Report that the literal is unclosed and set the error as being fatal
         if !closed {
             // If we have a windows line ending, we want to use the offset before
-            // the current so we're not highlighing the `\r` as well
+            // the current so we're not highlighting the `\r` as well
             if value.len() >= 2 && &value[(value.len() - 2)..] == "\r\n" {
                 self.offset.set(self.offset.get() - 1);
             }
@@ -810,9 +812,10 @@ impl<'a> Lexer<'a> {
             );
         }
 
-        // Essentially we put the string into the literal map and get an id out which we
-        // use for the actual representation in the token
-        TokenKind::StrLit(value.into())
+        // Avoid interning on a global level until later, we check locally if we've
+        // seen the string, and then push it into our literal map if we haven't...
+        value.shrink_to_fit();
+        TokenKind::StrLit(self.strings.add(value))
     }
 
     /// Consume a line comment after the first following slash, essentially

@@ -10,7 +10,7 @@ mod source;
 use std::{env, ops::AddAssign, time::Duration};
 
 use hash_ast::{ast, node_map::ModuleEntry};
-use hash_lexer::Lexer;
+use hash_lexer::{Lexer, LexerMetadata};
 use hash_pipeline::{
     fs::read_in_path,
     interface::{CompilerInterface, CompilerStage, StageMetrics},
@@ -22,7 +22,10 @@ use hash_reporting::{
     report::Report,
     reporter::Reports,
 };
-use hash_source::{location::SpannedSource, InteractiveId, ModuleId, SourceId, SourceMapUtils};
+use hash_source::{
+    constant::string_table, location::SpannedSource, InteractiveId, ModuleId, SourceId,
+    SourceMapUtils,
+};
 use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
     indexmap::IndexMap,
@@ -278,7 +281,12 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     }
 
-    let trees = lexer.into_token_trees();
+    let LexerMetadata { trees, strings } = lexer.metadata();
+
+    // Send the `strings` keys that the lexer produced to be interned
+    // somewhere else since we're busy!
+    // sender.send(ParserAction::InternStrings { strings: strings.keys }).unwrap();
+    string_table().add_local_table(strings);
 
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.

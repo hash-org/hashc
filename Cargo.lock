@@ -622,6 +622,7 @@ dependencies = [
  "hash-source",
  "hash-target",
  "hash-token",
+ "hash-utils",
  "num-bigint",
  "num-traits",
 ]
@@ -728,7 +729,6 @@ version = "0.1.0"
 dependencies = [
  "bimap",
  "bytecount",
- "fnv",
  "hash-storage",
  "hash-target",
  "hash-utils",
@@ -889,6 +889,7 @@ dependencies = [
  "dashmap",
  "derive_more",
  "fixedbitset",
+ "fnv",
  "fxhash",
  "index_vec",
  "indexmap 1.9.3",

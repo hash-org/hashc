@@ -14,8 +14,10 @@ use crate::ParserAction;
 pub struct ImportResolver<'p> {
     /// The associated [SourceId] with the import resolution.
     source_id: SourceId,
+
     /// Working directory from where the import path resolution occurs.
     root_dir: &'p PathBuf,
+
     /// The parser message queue sender.
     sender: Sender<ParserAction>,
 }
@@ -41,7 +43,6 @@ impl<'p> ImportResolver<'p> {
     /// module, and then proceed to send a [ParserAction::ParseImport]
     /// through the message queue.
     pub(crate) fn resolve_import(&self, path: InternedStr) -> Result<SourceId, ImportError> {
-        // Read the contents of the file
         let resolved_path = resolve_path(path, self.root_dir)?;
 
         // Check if we have already parsed this file
