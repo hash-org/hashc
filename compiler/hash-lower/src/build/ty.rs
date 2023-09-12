@@ -180,8 +180,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     | TirIntrinsic::Abort
                     | TirIntrinsic::Panic
                     | TirIntrinsic::UserError
-                    | TirIntrinsic::DebugPrint
-                    | _ => FnCallTermKind::Call(*term),
+                    | TirIntrinsic::DebugPrint => FnCallTermKind::Call(*term),
                 }
             }
             _ => FnCallTermKind::Call(*term),

@@ -1,3 +1,4 @@
+/// Generation macros for intrinsics and primitives.
 use hash_source::identifier::Identifier;
 use hash_target::HasTarget;
 

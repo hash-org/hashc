@@ -1,3 +1,5 @@
+/// Declaratively defines all the primitives and intrinsics of the language at
+/// the TIR level.
 use std::process;
 
 use hash_source::identifier::Identifier;
@@ -122,7 +124,7 @@ make_intrinsics! {
         Ok(Some(a))
     };
 
-    cast := (T: Type(), U: Type(), a: ty(T)) -> ty(T) => |env| {
+    cast := (T: Type(), U: Type(), a: ty(T)) -> ty(U) => |env| {
         // @@Todo: actually cast
         Ok(None)
     };
@@ -271,7 +273,7 @@ make_intrinsics! {
     };
 
     // Short-circuiting boolean binary operations
-    short_circuiting_bool_op := (op: u8_gen_ty(), a: bool_gen_ty(), b: bool_gen_ty()) -> bool_gen_ty() => |env| {
+    short_circuiting_bool_op := (T: Type(), op: u8_gen_ty(), a: bool_gen_ty(), b: bool_gen_ty()) -> bool_gen_ty() => |env| {
         const INVALID_OP: &str = "Invalid cond-binary operation parameters";
 
         // Parse the operator.

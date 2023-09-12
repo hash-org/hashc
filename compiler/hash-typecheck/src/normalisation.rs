@@ -4,7 +4,7 @@ use std::{cell::Cell, ops::ControlFlow};
 use hash_ast::ast::RangeEnd;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    PartialStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
