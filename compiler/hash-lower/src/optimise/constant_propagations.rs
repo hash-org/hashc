@@ -30,8 +30,8 @@ impl<'ctx> ConstFolder<'ctx> {
         };
 
         let (l_ty, r_ty) = (lhs.ty(), rhs.ty());
-        
-        match l_ty.value() {            
+
+        match l_ty.value() {
             IrTy::Int(_) | IrTy::UInt(_) => {
                 let size = self.lc.size_of_ty(l_ty).ok()?;
                 let l_bits = left.to_bits(size).ok()?;

@@ -365,36 +365,19 @@ pub struct ScalarInt {
     data: Scalar,
 
     /// Whether the integer is signed or not.
-    signed: bool,
+    ty: IntTy,
 }
 
-impl From<ScalarInt> for IntConstant {
-    fn from(scalar: ScalarInt) -> Self {
-        let size = scalar.data.size();
-        macro_rules! make_const {
-            ($kind:ident, $ty:ty) => {
-                IntConstant::new(IntConstantValue::$kind(scalar.data.value as $ty), None)
-            };
-        }
+impl fmt::Display for ScalarInt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let size = self.data.size();
+        let bits = self.data.to_bits(size).unwrap();
 
-        if scalar.signed {
-            match size.bytes() {
-                1 => make_const!(I8, i8),
-                2 => make_const!(I16, i16),
-                4 => make_const!(I32, i32),
-                8 => make_const!(I64, i64),
-                16 => make_const!(I128, i128),
-                _ => panic!("Invalid size for scalar: {}", size.bytes()),
-            }
+        if self.ty.is_signed() {
+            let value = size.sign_extend(bits) as i128;
+            write!(f, "{}_{}", value, self.ty.normalise(size))
         } else {
-            match size.bytes() {
-                1 => make_const!(U8, u8),
-                2 => make_const!(U16, u16),
-                4 => make_const!(U32, u32),
-                8 => make_const!(U64, u64),
-                16 => make_const!(U128, u128),
-                _ => panic!("Invalid size for scalar: {}", size.bytes()),
-            }
+            write!(f, "{}_{}", bits, self.ty.normalise(size))
         }
     }
 }

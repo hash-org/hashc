@@ -28,9 +28,11 @@ use hash_ir::{
     ty::{AdtFlags, IrTy, Mutability, VariantIdx, COMMON_IR_TYS},
 };
 use hash_layout::compute::LayoutComputer;
-use hash_source::constant::IntConstant;
 use hash_storage::store::statics::StoreId;
-use hash_target::{data_layout::HasDataLayout, primitives::FloatTy};
+use hash_target::{
+    data_layout::HasDataLayout,
+    primitives::{FloatTy, IntTy},
+};
 use hash_utils::derive_more::Constructor;
 
 #[derive(Constructor, Default)]
@@ -169,8 +171,7 @@ pub fn pretty_print_scalar(
             write!(f, "{:?}", char::try_from(scalar).unwrap())
         }
         ty @ (IrTy::Int(_) | IrTy::UInt(_)) => {
-            let scalar_int = ScalarInt::new(scalar, matches!(ty, IrTy::Int(_)));
-            write!(f, "{}", IntConstant::from(scalar_int))
+            write!(f, "{}", ScalarInt::new(scalar, IntTy::from(*ty)))
         }
         IrTy::Ref(..) | IrTy::Fn { .. } => {
             let data = scalar.assert_bits(lc.data_layout().pointer_size);
