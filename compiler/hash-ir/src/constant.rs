@@ -208,7 +208,7 @@ impl Scalar {
 
     /// Internal check to ensure that the [Scalar] is not in an invalid state.
     ///
-    /// ##Note: this funciton will check whether the specified `size` of the
+    /// ##Note: this function will check whether the specified `size` of the
     /// scalar is enough to hold the value.
     #[inline(always)]
     fn check(&self) {
@@ -455,9 +455,7 @@ impl AllocRange {
     }
 }
 
-pub trait AllocBuf:
-    Clone + fmt::Debug + Eq + PartialEq + Deref<Target = [u8]> + DerefMut<Target = [u8]>
-{
+pub trait AllocBuf: Clone + fmt::Debug + Deref<Target = [u8]> + DerefMut<Target = [u8]> {
     /// Create a new allocation buffer from the given bytes.
     fn from_bytes<'a>(slice: impl Into<Cow<'a, [u8]>>, align: Alignment) -> Self;
 }
