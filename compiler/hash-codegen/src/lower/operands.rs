@@ -22,6 +22,24 @@ use crate::{
     },
 };
 
+/// Represents the kind of [OperandValue] that is expected for a
+/// type. This includes useful information about the ABI representation
+/// of the type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OperandValueKind {
+    // Zero sized.
+    Zero,
+
+    /// An immediate value, with the given scalar kind.
+    Immediate(abi::Scalar),
+
+    /// A pair of immediate values, with the given scalar kinds.
+    Pair(abi::Scalar, abi::Scalar),
+
+    /// A reference to an actual operand value.
+    Ref,
+}
+
 /// Represents an operand value for the IR. The `V` is a backend
 /// specific value type.
 #[derive(Clone, Copy, Debug)]
@@ -41,6 +59,30 @@ pub enum OperandValue<V: std::fmt::Debug> {
 }
 
 impl<'a, 'b, V: CodeGenObject> OperandValue<V> {
+    /// Generate an [OperandValue] that is considered to be **poisoned**. In
+    /// principle, this means that any operations that is being applied on
+    /// the value itself is then also **poisoned**.
+    ///
+    /// This function will return a poisoned value for the given [OperandValue].
+    pub fn poison<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
+        builder: &Builder,
+        info: TyInfo,
+    ) -> OperandValue<Builder::Value> {
+        if info.is_zst() {
+            OperandValue::Zero
+        } else if builder.is_backend_immediate(info) {
+            let ty = builder.immediate_backend_ty(info);
+            OperandValue::Immediate(builder.const_undef(ty))
+        } else if builder.is_backend_scalar_pair(info) {
+            let a_ty = builder.scalar_pair_element_backend_ty(info, 0, true);
+            let b_ty = builder.scalar_pair_element_backend_ty(info, 1, true);
+            OperandValue::Pair(builder.const_undef(a_ty), builder.const_undef(b_ty))
+        } else {
+            let ptr = builder.ctx().type_ptr();
+            OperandValue::Ref(builder.const_undef(ptr), info.abi_alignment())
+        }
+    }
+
     /// Store the [OperandValue] into the given [PlaceRef] destination.
     pub fn store<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         self,
@@ -450,6 +492,28 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             // We don't deal with locals that refer to a place, and
             // thus they can't be directly referenced.
             LocalRef::Place(_) => None,
+        }
+    }
+
+    /// Compute the [OperandValueKind] from a given layout.
+    pub fn op_value_kind(&self, info: TyInfo) -> OperandValueKind {
+        if info.is_zst() {
+            OperandValueKind::Zero
+        } else if self.ctx.is_backend_immediate(info) {
+            OperandValueKind::Immediate(match info.layout.borrow().abi {
+                AbiRepresentation::Scalar(scalar) => scalar,
+                AbiRepresentation::Vector { kind, .. } => kind,
+                _ => panic!("invalid ABI representation for an immediate value"),
+            })
+        } else if self.ctx.is_backend_scalar_pair(info) {
+            let (a, b) = match info.layout.borrow().abi {
+                AbiRepresentation::Pair(a, b) => (a, b),
+                _ => panic!("invalid ABI representation for a scalar pair"),
+            };
+
+            OperandValueKind::Pair(a, b)
+        } else {
+            OperandValueKind::Ref
         }
     }
 }

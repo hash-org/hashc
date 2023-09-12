@@ -155,7 +155,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             // or any information about the return destination.
             if let Some(Intrinsic::Transmute) = maybe_intrinsic {
                 return if let Some(target) = target {
-                    self.codegen_transmute(builder, &fn_args[2], destination);
+                    let src = self.codegen_operand(builder, &fn_args[2]);
+                    let dest = self.codegen_place(builder, destination);
+                    self.codegen_transmute(builder, src, dest);
                     self.codegen_goto_terminator(builder, target, can_merge)
                 } else {
                     builder.unreachable();
