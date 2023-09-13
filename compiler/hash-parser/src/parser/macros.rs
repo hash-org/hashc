@@ -65,10 +65,10 @@ impl<'s> AstGen<'s> {
 
         let args = match self.peek() {
             Some(token) if token.is_paren_tree() => {
-                self.parse_delim_tree(Delimiter::Paren, None)?;
-                let args =
-                    self.parse_nodes(|g| g.parse_macro_arg(), |g| g.parse_token(TokenKind::Comma));
-                self.consume_frame();
+                let args = self.in_tree(Delimiter::Paren, None, |gen| {
+                    Ok(gen
+                        .parse_nodes(|g| g.parse_macro_arg(), |g| g.parse_token(TokenKind::Comma)))
+                })?;
                 let id = args.id();
 
                 Some(AstNode::with_id(MacroInvocationArgs { args }, id))
@@ -123,14 +123,13 @@ impl<'s> AstGen<'s> {
                     );
                 }
                 Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
-                    self.new_frame(&self.token_trees[tree_index as usize], span);
-
-                    let new_invocations = self.parse_nodes(
-                        |g| g.parse_macro_invocation(),
-                        |g| g.parse_token(TokenKind::Comma),
-                    );
-
-                    self.consume_frame();
+                    let new_invocations =
+                        self.new_frame(&self.token_trees[tree_index as usize], span, |gen| {
+                            gen.parse_nodes(
+                                |g| g.parse_macro_invocation(),
+                                |g| g.parse_token(TokenKind::Comma),
+                            )
+                        });
 
                     // Simply append the new invocations to the list of invocations.
                     invocations.extend(new_invocations.nodes);
@@ -190,13 +189,13 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_module_marco_invocations(
         &mut self,
     ) -> ParseResult<ThinVec<AstNode<MacroInvocation>>> {
-        self.parse_delim_tree(Delimiter::Bracket, None)?;
-        let invocations = self.parse_node_collection(
-            |g| g.parse_macro_invocation(),
-            |g| g.parse_token(TokenKind::Comma),
-        );
+        self.in_tree(Delimiter::Bracket, None, |gen| {
+            let invocations = gen.parse_node_collection(
+                |g| g.parse_macro_invocation(),
+                |g| g.parse_token(TokenKind::Comma),
+            );
 
-        self.consume_frame();
-        Ok(invocations)
+            Ok(invocations)
+        })
     }
 }

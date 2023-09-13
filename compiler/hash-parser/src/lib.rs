@@ -308,7 +308,6 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let action = match id.is_interactive() {
         false => {
             let node = time_item(&mut timings, "gen", |_| gen.parse_module());
-            drop(gen);
             SourceMapUtils::set_module_source(id, contents);
 
             ParserAction::SetModuleNode {
@@ -320,7 +319,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         }
         true => {
             let node = time_item(&mut timings, "gen", |_| gen.parse_expr_from_interactive());
-            drop(gen);
+
             ParserAction::SetInteractiveNode {
                 id: id.into(),
                 node,

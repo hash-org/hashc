@@ -29,52 +29,12 @@ use crate::{
     import_resolver::ImportResolver,
 };
 
-/// Macro that allow for a flag within the [AstGen] logic to
-/// be enabled in the current scope and then disabled after the
-/// statement has finished executing.
-///
-/// Warning: If the inner `statement` has a exit-early language
-/// constructor such as the `?` operator, then the flag will then
-/// not be disabled. It is clear to see that in some situations this
-/// might not be desirable and therefore some custom logic should be
-/// implemented to revert the flag value even on failure.
-#[macro_export]
-macro_rules! enable_flag {
-    ($gen: ident; $flag: ident; $statement: stmt) => {
-        let value = $gen.$flag.get();
-
-        $gen.$flag.set(true);
-        $statement
-        $gen.$flag.set(value);
-    };
-}
-
-/// Macro that allow for a flag within the [AstGen] logic to
-/// be disabled in the current scope and then reverted after the
-/// statement finishes executing.
-///
-/// Warning: If the inner `statement` has a exit-early language
-/// constructor such as the `?` operator, then the flag will then
-/// not be reverted. It is clear to see that in some situations this
-/// might not be desirable and therefore some custom logic should be
-/// implemented to revert the flag value even on failure.
-#[macro_export]
-macro_rules! disable_flag {
-    ($gen: ident; $flag: ident; $statement: stmt) => {
-        let value = $gen.$flag.get();
-
-        $gen.$flag.set(false);
-        $statement
-        $gen.$flag.set(value);
-    };
-}
-
 pub(crate) struct AstGenFrame<'s> {
     /// The current offset of the token stream.
     offset: Cell<usize>,
 
-    /// Number of errors that occurred in this frame.
-    pub(crate) errors: Cell<bool>,
+    /// If an error occurred in this frame.
+    pub(crate) error: Cell<bool>,
 
     /// The span of the current generator, the root generator does not have a
     /// parent span, whereas as child generators might need to use the span
@@ -91,16 +51,7 @@ pub(crate) struct AstGenFrame<'s> {
 
 impl<'s> AstGenFrame<'s> {
     pub fn from_stream(stream: &'s [Token], span: ByteRange) -> Self {
-        Self { offset: Cell::new(0), errors: Cell::new(false), span, stream }
-    }
-
-    fn copy(&self) -> Self {
-        Self {
-            stream: self.stream,
-            span: self.span,
-            offset: Cell::new(self.offset.get()),
-            errors: Cell::new(self.errors.get()),
-        }
+        Self { offset: Cell::new(0), error: Cell::new(false), span, stream }
     }
 
     /// Skip `n` number of tokens.
@@ -110,7 +61,7 @@ impl<'s> AstGenFrame<'s> {
     }
 
     /// Function to check if the token stream has been exhausted based on the
-    /// current offset in the generator.
+    /// current offset in the generator.#
     pub(crate) fn has_token(&self) -> bool {
         let length = self.stream.len();
 
@@ -127,9 +78,6 @@ impl<'s> AstGenFrame<'s> {
 pub struct AstGen<'s> {
     /// The current frame.
     pub(crate) frame: AstGenFrame<'s>,
-
-    /// The stack frames of the generator.
-    stack: ThinVec<AstGenFrame<'s>>,
 
     /// The source that we are currently parsing.
     source: SpannedSource<'s>,
@@ -172,7 +120,6 @@ impl<'s> AstGen<'s> {
             source,
             token_trees,
             frame: AstGenFrame::from_stream(stream, parent_span),
-            stack: thin_vec![],
             resolver,
             diagnostics,
             span_map,
@@ -181,10 +128,23 @@ impl<'s> AstGen<'s> {
 
     /// Create new AST generator from a provided token stream with inherited
     /// module resolver and a provided parent span.
-    pub fn new_frame(&mut self, stream: &'s [Token], parent_span: ByteRange) {
+    pub fn new_frame<T>(
+        &mut self,
+        stream: &'s [Token],
+        parent_span: ByteRange,
+        mut gen: impl FnMut(&mut Self) -> T,
+    ) -> T {
         let new_frame = AstGenFrame::from_stream(stream, parent_span);
-        self.stack.push(self.frame.copy());
-        self.frame = new_frame;
+        let old_frame = std::mem::replace(&mut self.frame, new_frame);
+        let result = gen(self);
+        let child_frame = std::mem::replace(&mut self.frame, old_frame);
+
+        // Ensure that the generator token stream has been exhausted
+        if !child_frame.error.get() && child_frame.has_token() {
+            self.maybe_add_error::<()>(self.expected_eof());
+        }
+
+        result
     }
 
     /// Get the [Span] of the current generator, this asserts that a parent
@@ -384,22 +344,6 @@ impl<'s> AstGen<'s> {
         // move onto the next token
         self.frame.offset.set(self.frame.offset.get() + 1);
         self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), Some(self.current_token().kind))
-    }
-
-    /// This function `consumes` a generator into the patent [AstGen] whilst
-    /// also merging all of the warnings and errors that the `consumed` [AstGen]
-    /// produced. If the `consumed` [AstGen] produced no errors, then we
-    /// check that the stream other the generator has been exhausted.
-    #[inline]
-    pub(crate) fn consume_frame(&mut self) {
-        // Ensure that the generator token stream has been exhausted
-        if !self.frame.errors.get() && self.frame.has_token() {
-            self.maybe_add_error::<()>(self.expected_eof());
-        }
-
-        // We want to restore the previous frame, so we pop the current
-        // frame and then set the current frame to the previous frame.
-        self.frame = self.stack.pop().unwrap();
     }
 
     /// Generate an error representing that the current generator unexpectedly
@@ -639,11 +583,12 @@ impl<'s> AstGen<'s> {
 
     /// Utility function to parse a brace tree as the next token, if a brace
     /// tree isn't present, then an error is generated.
-    pub(crate) fn parse_delim_tree(
+    pub(crate) fn in_tree<T>(
         &mut self,
         delimiter: Delimiter,
         error: Option<ParseErrorKind>,
-    ) -> ParseResult<()> {
+        gen: impl FnMut(&mut Self) -> ParseResult<T>,
+    ) -> ParseResult<T> {
         match self.peek() {
             Some(Token { kind: TokenKind::Tree(inner, tree_index), span })
                 if *inner == delimiter =>
@@ -651,16 +596,14 @@ impl<'s> AstGen<'s> {
                 self.skip_token();
 
                 let tree = self.token_trees.get(*tree_index as usize).unwrap();
-                self.new_frame(tree, *span);
-
-                Ok(())
+                self.new_frame(tree, *span, gen)
             }
             token => self.err_with_location(
                 error.unwrap_or(ParseErrorKind::UnExpected),
                 ExpectedItem::from(delimiter),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_pos(), |tok| tok.span),
-            )?,
+            ),
         }
     }
 

@@ -463,14 +463,11 @@ impl<'s> AstGen<'s> {
     /// `index.hash` file contained within the directory.
     pub(crate) fn parse_import(&mut self) -> ParseResult<AstNode<Expr>> {
         let start = self.current_pos();
-        self.parse_delim_tree(Delimiter::Paren, None)?;
-
-        let (path, span) = match self.next_token().copied() {
-            Some(Token { kind: TokenKind::StrLit(path), span }) => (path, span),
-            _ => self.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), None)?,
-        };
-
-        self.consume_frame();
+        let (path, span) =
+            self.in_tree(Delimiter::Paren, None, |gen| match gen.next_token().copied() {
+                Some(Token { kind: TokenKind::StrLit(path), span }) => Ok((path, span)),
+                _ => gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), None)?,
+            })?;
 
         // Attempt to add the module via the resolver
         match self.resolver.resolve_import(path) {
@@ -524,9 +521,9 @@ impl<'s> AstGen<'s> {
         subject: AstNode<Expr>,
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        self.parse_delim_tree(Delimiter::Paren, None)?;
-        let args = self.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma));
-        self.consume_frame();
+        let args = self.in_tree(Delimiter::Paren, None, |gen| {
+            Ok(gen.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma)))
+        })?;
 
         Ok(self.node_with_joined_span(
             Expr::ConstructorCall(ConstructorCallExpr { subject, args }),
@@ -542,20 +539,9 @@ impl<'s> AstGen<'s> {
         tree: &'s [Token],
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        self.new_frame(tree, span);
-        let start = self.current_pos();
-
         // parse the indexing expression between the square brackets...
-        let index_expr = self.parse_expr_with_precedence(0)?;
-
-        // @@ErrorRecovery: Investigate introducing `Err` variant into expressions...
-        //
-        // since nothing should be after the expression, we can check that no tokens
-        // are left and the generator is empty, otherwise report this as an
-        // unexpected_token
-        self.consume_frame();
-
-        Ok(self.node_with_joined_span(Expr::Index(IndexExpr { subject, index_expr }), start))
+        let index_expr = self.new_frame(tree, span, |gen| gen.parse_expr_with_precedence(0))?;
+        Ok(self.node_with_joined_span(Expr::Index(IndexExpr { subject, index_expr }), span))
     }
 
     /// Parses a unary operator or expression modifier followed by a singular
@@ -810,85 +796,81 @@ impl<'s> AstGen<'s> {
     /// - Singleton tuple : (A,)
     /// - Many membered tuple: (A, B, C) or (A, B, C,)
     pub(crate) fn parse_expr_or_tuple(&mut self) -> ParseResult<AstNode<Expr>> {
-        self.parse_delim_tree(Delimiter::Paren, None)?;
-        let start = self.current_pos();
+        self.in_tree(Delimiter::Paren, None, |gen| {
+            let start = gen.current_pos();
 
-        // Handle the case if it is an empty stream, this means that if it failed to
-        // parse a function in the form of `() => ...` for whatever reason, then it
-        // is trying to parse either a tuple or an expression.
-        // Handle the empty tuple case
-        if self.frame.stream.len() < 2 {
-            let elements = self.nodes_with_span(thin_vec![], start);
-            let data = self.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start);
-            let tuple = self.node_with_joined_span(Expr::Lit(LitExpr { data }), start);
+            // Handle the case if it is an empty stream, this means that if it failed to
+            // parse a function in the form of `() => ...` for whatever reason, then it
+            // is trying to parse either a tuple or an expression.
+            // Handle the empty tuple case
+            if gen.frame.stream.len() < 2 {
+                let elements = gen.nodes_with_span(thin_vec![], start);
+                let data = gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start);
+                let tuple = gen.node_with_joined_span(Expr::Lit(LitExpr { data }), start);
 
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    self.skip_token();
-                    self.consume_frame();
+                match gen.peek() {
+                    Some(token) if token.has_kind(TokenKind::Comma) => {
+                        gen.skip_token();
 
-                    return Ok(tuple);
-                }
-                None => {
-                    self.consume_frame();
-                    return Ok(tuple);
-                }
-                _ => (),
-            };
-        }
-
-        let entry = self.parse_tuple_lit_entry()?;
-
-        // In the special case where this is just an expression that is wrapped within
-        // parentheses, we can check that the 'name' and 'ty' parameters are
-        // set to `None` and that there are no extra tokens that are left within
-        // the token tree...
-        if entry.ty.is_none() && entry.name.is_none() && !self.has_token() {
-            let expr = entry.into_body().value;
-
-            // We want to emit a redundant parentheses warning if it is not a binary-like
-            // expression since it does not affect the precedence...
-            if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
-                self.add_warning(ParseWarning::new(
-                    WarningKind::RedundantParenthesis(expr.body().into()),
-                    self.span(),
-                ));
-            }
-
-            self.consume_frame();
-            return Ok(expr);
-        }
-
-        let mut elements = thin_vec![entry];
-
-        loop {
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    self.skip_token();
-
-                    // Handles the case where this is a trailing comma and no tokens after...
-                    if !self.has_token() {
-                        break;
+                        return Ok(tuple);
                     }
-
-                    elements.push(self.parse_tuple_lit_entry()?)
-                }
-                Some(token) => self.err_with_location(
-                    ParseErrorKind::ExpectedExpr,
-                    ExpectedItem::Comma,
-                    Some(token.kind),
-                    token.span,
-                )?,
-                None => break,
+                    None => {
+                        return Ok(tuple);
+                    }
+                    _ => (),
+                };
             }
-        }
 
-        let span = self.range();
-        self.consume_frame();
+            let entry = gen.parse_tuple_lit_entry()?;
 
-        let elements = self.nodes_with_span(elements, span);
-        let data = self.node_with_span(Lit::Tuple(TupleLit { elements }), span);
-        Ok(self.node_with_span(Expr::Lit(LitExpr { data }), span))
+            // In the special case where this is just an expression that is wrapped within
+            // parentheses, we can check that the 'name' and 'ty' parameters are
+            // set to `None` and that there are no extra tokens that are left within
+            // the token tree...
+            if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
+                let expr = entry.into_body().value;
+
+                // We want to emit a redundant parentheses warning if it is not a binary-like
+                // expression since it does not affect the precedence...
+                if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
+                    gen.add_warning(ParseWarning::new(
+                        WarningKind::RedundantParenthesis(expr.body().into()),
+                        gen.span(),
+                    ));
+                }
+
+                return Ok(expr);
+            }
+
+            let mut elements = thin_vec![entry];
+
+            loop {
+                match gen.peek() {
+                    Some(token) if token.has_kind(TokenKind::Comma) => {
+                        gen.skip_token();
+
+                        // Handles the case where this is a trailing comma and no tokens after...
+                        if !gen.has_token() {
+                            break;
+                        }
+
+                        elements.push(gen.parse_tuple_lit_entry()?)
+                    }
+                    Some(token) => gen.err_with_location(
+                        ParseErrorKind::ExpectedExpr,
+                        ExpectedItem::Comma,
+                        Some(token.kind),
+                        token.span,
+                    )?,
+                    None => break,
+                }
+            }
+
+            let span = gen.range();
+            let elements = gen.nodes_with_span(elements, span);
+            let data = gen.node_with_span(Lit::Tuple(TupleLit { elements }), span);
+            Ok(gen.node_with_span(Expr::Lit(LitExpr { data }), span))
+        })
     }
 
     /// Parse a [FnDef]. Function literals are essentially definitions
@@ -920,21 +902,19 @@ impl<'s> AstGen<'s> {
     /// This function expects that the next token is a [TokenKind::Tree] and
     /// it will consume it producing [Expr]s from it.
     pub(crate) fn parse_exprs_from_braces(&mut self) -> ParseResult<AstNodes<Expr>> {
-        self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
-        let mut exprs = thin_vec![];
+        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::Block), |gen| {
+            let mut exprs = thin_vec![];
 
-        // Continue eating the generator until no more tokens are present
-        //
-        // @@ErrorRecovery: don't bail immediately...
-        while self.has_token() {
-            if let Some((_, expr)) = self.parse_top_level_expr()? {
-                exprs.push(expr);
+            // Continue eating the generator until no more tokens are present
+            //
+            // @@ErrorRecovery: don't bail immediately...
+            while gen.has_token() {
+                if let Some((_, expr)) = gen.parse_top_level_expr()? {
+                    exprs.push(expr);
+                }
             }
-        }
 
-        let span = self.range();
-        self.consume_frame();
-
-        Ok(self.nodes_with_span(exprs, span))
+            Ok(gen.nodes_with_span(exprs, gen.range()))
+        })
     }
 }

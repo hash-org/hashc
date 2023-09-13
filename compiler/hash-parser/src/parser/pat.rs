@@ -84,27 +84,26 @@ impl<'s> AstGen<'s> {
                     self.skip_token();
 
                     let tree = self.token_trees.get(tree_index as usize).unwrap();
-                    self.new_frame(tree, token.span);
-
                     // If we encounter a spread pattern, we keep it separate
                     // to all of the other fields that are specified for the
                     // constructor pattern.
                     let mut spread = None;
 
-                    let fields = self.parse_nodes_with_skips(
-                        |g, pos| {
-                            // If the next token is a dot, then we try to parse a spread pattern
-                            // since this is the only case where a dot can appear in a tuple pattern.
-                            if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
-                                g.parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)?;
-                                Ok(None)
-                            } else {
-                                Ok(Some(g.parse_pat_arg()?))
-                            }
-                        },
-                        |g| g.parse_token(TokenKind::Comma),
-                    );
-                    self.consume_frame();
+                    let fields = self.new_frame(tree, token.span, |gen| {
+                        gen.parse_nodes_with_skips(
+                            |g, pos| {
+                                // If the next token is a dot, then we try to parse a spread pattern
+                                // since this is the only case where a dot can appear in a tuple pattern.
+                                if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
+                                    g.parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)?;
+                                    Ok(None)
+                                } else {
+                                    Ok(Some(g.parse_pat_arg()?))
+                                }
+                            },
+                            |g| g.parse_token(TokenKind::Comma),
+                        )
+                    });
 
                     self.node_with_joined_span(
                         Pat::Constructor(ConstructorPat { subject, fields, spread }),
@@ -319,27 +318,12 @@ impl<'s> AstGen<'s> {
     /// Parse a [ModulePat] which is comprised of a collection of
     /// [ModulePatEntry]s that are comma separated within a brace tree.
     fn parse_module_pat(&mut self, tree: &'s [Token], span: ByteRange) -> ParseResult<ModulePat> {
-        self.new_frame(tree, span);
-        let mut fields = thin_vec![];
+        self.new_frame(tree, span, |gen| {
+            let fields = gen
+                .parse_nodes(|g| g.parse_module_pat_entry(), |g| g.parse_token(TokenKind::Comma));
 
-        while self.has_token() {
-            let start = self.offset();
-
-            match self.parse_module_pat_entry().ok() {
-                Some(pat) => fields.push(pat),
-                None => {
-                    self.frame.offset.set(start);
-                    break;
-                }
-            }
-
-            if self.has_token() {
-                self.parse_token(TokenKind::Comma)?;
-            }
-        }
-        self.consume_frame();
-
-        Ok(ModulePat { fields: self.nodes_with_span(fields, span) })
+            Ok(ModulePat { fields })
+        })
     }
 
     /// Parse a [`Pat::Array`] pattern from the token vector. An array pattern
@@ -350,26 +334,25 @@ impl<'s> AstGen<'s> {
         tree: &'s [Token],
         parent_span: ByteRange,
     ) -> ParseResult<AstNode<Pat>> {
-        self.new_frame(tree, parent_span);
-
         // We keep the spread pattern as a separate part of the array pattern
         // fields, so we must check for it separately.
         let mut spread = None;
 
-        let fields = self.parse_nodes_with_skips(
-            |g, pos| {
-                // Check if we encounter a dot, if so then we try to parse a
-                // spread pattern, if not then we parse a normal pattern.
-                if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
-                    g.parse_spread_pat(&mut spread, pos, PatOrigin::Array)?;
-                    Ok(None)
-                } else {
-                    Ok(Some(g.parse_pat()?))
-                }
-            },
-            |g| g.parse_token(TokenKind::Comma),
-        );
-        self.consume_frame();
+        let fields = self.new_frame(tree, parent_span, |gen| {
+            gen.parse_nodes_with_skips(
+                |g, pos| {
+                    // Check if we encounter a dot, if so then we try to parse a
+                    // spread pattern, if not then we parse a normal pattern.
+                    if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
+                        g.parse_spread_pat(&mut spread, pos, PatOrigin::Array)?;
+                        Ok(None)
+                    } else {
+                        Ok(Some(g.parse_pat()?))
+                    }
+                },
+                |g| g.parse_token(TokenKind::Comma),
+            )
+        });
 
         Ok(self.node_with_span(Pat::Array(ArrayPat { fields, spread }), parent_span))
     }
@@ -402,52 +385,49 @@ impl<'s> AstGen<'s> {
         // perform a slight transformation if the number of parsed patterns is
         // only one. So essentially we handle the case where a pattern is
         // wrapped in parentheses and so we just unwrap it.
-        self.new_frame(tree, parent_span);
+        self.new_frame(tree, parent_span, |gen| {
+            // We track the spread pattern separately because it is not a part of the
+            // tuple pattern fields.
+            let mut spread = None;
 
-        // We track the spread pattern separately because it is not a part of the
-        // tuple pattern fields.
-        let mut spread = None;
+            let mut fields = gen.parse_nodes_with_skips(
+                |g, pos| {
+                    // If the next token is a dot, then we try to parse a spread pattern
+                    // since this is the only case where a dot can appear in a tuple pattern.
+                    if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
+                        g.parse_spread_pat(&mut spread, pos, PatOrigin::Tuple)?;
+                        Ok(None)
+                    } else {
+                        Ok(Some(g.parse_pat_arg()?))
+                    }
+                },
+                |g| g.parse_token(TokenKind::Comma),
+            );
 
-        let mut fields = self.parse_nodes_with_skips(
-            |g, pos| {
-                // If the next token is a dot, then we try to parse a spread pattern
-                // since this is the only case where a dot can appear in a tuple pattern.
-                if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
-                    g.parse_spread_pat(&mut spread, pos, PatOrigin::Tuple)?;
-                    Ok(None)
+            // If there is no associated name with the entry and there is only one entry
+            // then we can be sure that it is only a nested entry.
+            if spread.is_none()
+                && fields.len() == 1
+                && fields[0].name.is_none()
+                && !matches!(gen.current_token().kind, TokenKind::Comma)
+            {
+                // @@Future: we want to check if there were any errors and then
+                // if not we want to possibly emit a warning about redundant parentheses
+                // for this particular pattern
+                let PatArg { pat, macros, .. } = fields.nodes.pop().unwrap().into_body();
+
+                if let Some(macros) = macros {
+                    Ok(AstNode::with_id(
+                        Pat::Macro(PatMacroInvocation { macros, subject: pat }),
+                        fields.id(),
+                    ))
                 } else {
-                    Ok(Some(g.parse_pat_arg()?))
+                    Ok(pat)
                 }
-            },
-            |g| g.parse_token(TokenKind::Comma),
-        );
-
-        // If there is no associated name with the entry and there is only one entry
-        // then we can be sure that it is only a nested entry.
-        if spread.is_none()
-            && fields.len() == 1
-            && fields[0].name.is_none()
-            && !matches!(self.current_token().kind, TokenKind::Comma)
-        {
-            // @@Future: we want to check if there were any errors and then
-            // if not we want to possibly emit a warning about redundant parentheses
-            // for this particular pattern
-            self.consume_frame();
-
-            let PatArg { pat, macros, .. } = fields.nodes.pop().unwrap().into_body();
-
-            if let Some(macros) = macros {
-                Ok(AstNode::with_id(
-                    Pat::Macro(PatMacroInvocation { macros, subject: pat }),
-                    fields.id(),
-                ))
             } else {
-                Ok(pat)
+                Ok(gen.node_with_span(Pat::Tuple(TuplePat { fields, spread }), parent_span))
             }
-        } else {
-            self.consume_frame();
-            Ok(self.node_with_span(Pat::Tuple(TuplePat { fields, spread }), parent_span))
-        }
+        })
     }
 
     /// Parse an pattern argument which might consists of an optional

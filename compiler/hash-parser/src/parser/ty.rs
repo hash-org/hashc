@@ -105,9 +105,8 @@ impl<'s> AstGen<'s> {
 
                 let tree = self.token_trees.get(*tree_index as usize).unwrap();
 
-                self.new_frame(tree, token.span);
-                let expr = self.parse_expr_with_precedence(0)?;
-                self.consume_frame();
+                let expr =
+                    self.new_frame(tree, token.span, |gen| gen.parse_expr_with_precedence(0))?;
 
                 Ty::Expr(ExprTy { expr })
             }
@@ -117,24 +116,24 @@ impl<'s> AstGen<'s> {
                 self.skip_token();
 
                 let tree = self.token_trees.get(*tree_index as usize).unwrap();
-                self.new_frame(tree, token.span);
+                let (inner, len) = self.new_frame(tree, token.span, |gen| {
+                    // @@ErrorRecovery: Investigate introducing `Err` variant into types...
+                    let inner_type = gen.parse_ty()?;
 
-                // @@ErrorRecovery: Investigate introducing `Err` variant into types...
-                let inner_type = self.parse_ty()?;
+                    // Optionally, the user may specify a size for the array type by
+                    // using a `;` followed by an expression that evaluates to a]
+                    // constant integer.
+                    let len = if gen.peek().map(|x| x.kind) == Some(TokenKind::Semi) {
+                        gen.skip_token();
+                        Some(gen.parse_expr()?)
+                    } else {
+                        None
+                    };
 
-                // Optionally, the user may specify a size for the array type by
-                // using a `;` followed by an expression that evaluates to a]
-                // constant integer.
-                let len = if self.peek().map(|x| x.kind) == Some(TokenKind::Semi) {
-                    self.skip_token();
-                    Some(self.parse_expr()?)
-                } else {
-                    None
-                };
+                    Ok((inner_type, len))
+                })?;
 
-                self.consume_frame();
-
-                Ty::Array(ArrayTy { inner: inner_type, len })
+                Ty::Array(ArrayTy { inner, len })
             }
 
             // Tuple or function type
@@ -319,26 +318,27 @@ impl<'s> AstGen<'s> {
     /// [Ty] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
     fn parse_fn_or_tuple_ty(&mut self) -> ParseResult<Ty> {
-        self.parse_delim_tree(Delimiter::Paren, None)?;
+        let (mut params, has_comma) = self.in_tree(Delimiter::Paren, None, |gen| {
+            let params = match gen.peek() {
+                // Handle special case where there is only one comma and no following items...
+                // Special edge case for '(,)' or an empty tuple type...
+                Some(token) if token.has_kind(TokenKind::Comma) && gen.frame.stream.len() == 1 => {
+                    gen.skip_token();
+                    gen.nodes_with_span(thin_vec![], gen.range())
+                }
+                _ => gen.parse_nodes(
+                    |g| g.parse_ty_tuple_or_fn_param(),
+                    |g| g.parse_token(TokenKind::Comma),
+                ),
+            };
 
-        let mut params = match self.peek() {
-            // Handle special case where there is only one comma and no following items...
-            // Special edge case for '(,)' or an empty tuple type...
-            Some(token) if token.has_kind(TokenKind::Comma) && self.frame.stream.len() == 1 => {
-                self.skip_token();
-                self.nodes_with_span(thin_vec![], self.range())
-            }
-            _ => self.parse_nodes(
-                |g| g.parse_ty_tuple_or_fn_param(),
-                |g| g.parse_token(TokenKind::Comma),
-            ),
-        };
+            // Here we check that the token tree has a comma at the end to later determine
+            // if this is a `TupleType`...
+            let gen_has_comma = !gen.frame.stream.is_empty()
+                && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
 
-        // Here we check that the token tree has a comma at the end to later determine
-        // if this is a `TupleType`...
-        let gen_has_comma = !self.frame.stream.is_empty()
-            && self.token_at(self.offset() - 1).has_kind(TokenKind::Comma);
-        self.consume_frame();
+            Ok((params, gen_has_comma))
+        })?;
 
         // If there is an arrow '=>', then this must be a function type
         match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
@@ -350,7 +350,7 @@ impl<'s> AstGen<'s> {
             None => {
                 // If there is only one entry in the params, and the last token in the entry is
                 // not a comma then we can just return the inner type
-                if gen_has_comma && params.len() == 1 && params[0].name.is_none() {
+                if has_comma && params.len() == 1 && params[0].name.is_none() {
                     let field = params.nodes.pop().unwrap().into_body();
                     return Ok(field.ty.unwrap().into_body());
                 }

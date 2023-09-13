@@ -24,13 +24,7 @@ impl<'s> HasDiagnostics for AstGen<'s> {
         &self,
         error: <Self::Diagnostics as hash_reporting::diagnostic::Diagnostics>::Error,
     ) {
-        self.frame.errors.set(true);
+        self.frame.error.set(true);
         self.diagnostics().add_error(error);
-    }
-
-    fn maybe_add_error<T>(&mut self, value: Result<T, <Self::Diagnostics as Diagnostics>::Error>) {
-        if let Err(value) = value {
-            self.add_error(value);
-        }
     }
 }

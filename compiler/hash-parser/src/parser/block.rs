@@ -12,9 +12,9 @@ impl<'s> AstGen<'s> {
     /// Parse a block.
     #[inline]
     pub(crate) fn parse_block(&mut self) -> ParseResult<AstNode<Block>> {
-        self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
-        let block = self.parse_body_block_inner();
-        self.consume_frame();
+        let block = self.in_tree(Delimiter::Brace, Some(ParseErrorKind::Block), |gen| {
+            Ok(gen.parse_body_block_inner())
+        })?;
 
         Ok(self.node_with_span(Block::Body(block), self.current_pos()))
     }
@@ -23,9 +23,9 @@ impl<'s> AstGen<'s> {
     /// [Block].
     #[inline]
     pub(crate) fn parse_body_block(&mut self) -> ParseResult<AstNode<BodyBlock>> {
-        self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
-        let block = self.parse_body_block_inner();
-        self.consume_frame();
+        let block = self.in_tree(Delimiter::Brace, Some(ParseErrorKind::Block), |gen| {
+            Ok(gen.parse_body_block_inner())
+        })?;
 
         Ok(self.node_with_span(block, self.current_pos()))
     }
@@ -129,9 +129,9 @@ impl<'s> AstGen<'s> {
         let start = self.current_pos();
         let subject = self.parse_expr_with_precedence(0)?;
 
-        self.parse_delim_tree(Delimiter::Brace, None)?;
-        let cases = self.parse_nodes(|g| g.parse_match_case(), |g| g.parse_token(TokenKind::Comma));
-        self.consume_frame();
+        let cases = self.in_tree(Delimiter::Brace, None, |gen| {
+            Ok(gen.parse_nodes(|g| g.parse_match_case(), |g| g.parse_token(TokenKind::Comma)))
+        })?;
 
         Ok(self.node_with_joined_span(
             Block::Match(MatchBlock { subject, cases, origin: MatchOrigin::Match }),

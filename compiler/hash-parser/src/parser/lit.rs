@@ -161,30 +161,32 @@ impl<'s> AstGen<'s> {
         tree: &'s [Token],
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        self.new_frame(tree, span);
-        let mut elements = self.nodes_with_joined_span(thin_vec![], span);
+        let elements = self.new_frame(tree, span, |gen| {
+            let mut elements = gen.nodes_with_joined_span(thin_vec![], span);
 
-        while self.has_token() {
-            let expr = self.parse_expr_with_precedence(0)?;
-            elements.nodes.push(expr);
+            while gen.has_token() {
+                let expr = gen.parse_expr_with_precedence(0)?;
+                elements.nodes.push(expr);
 
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    self.skip_token();
+                match gen.peek() {
+                    Some(token) if token.has_kind(TokenKind::Comma) => {
+                        gen.skip_token();
+                    }
+                    Some(token) => {
+                        // if we haven't exhausted the whole token stream, then report this as a
+                        // unexpected token error
+                        return gen.err(
+                            ParseErrorKind::UnExpected,
+                            ExpectedItem::Comma,
+                            Some(token.kind),
+                        );
+                    }
+                    None => break,
                 }
-                Some(token) => {
-                    // if we haven't exhausted the whole token stream, then report this as a
-                    // unexpected token error
-                    return self.err(
-                        ParseErrorKind::UnExpected,
-                        ExpectedItem::Comma,
-                        Some(token.kind),
-                    );
-                }
-                None => break,
             }
-        }
-        self.consume_frame();
+
+            Ok(elements)
+        })?;
 
         let data = self.node_with_span(Lit::Array(ArrayLit { elements }), span);
         Ok(self.node_with_span(Expr::Lit(LitExpr { data }), span))
