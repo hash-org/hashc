@@ -27,7 +27,6 @@ use hash_tir::{
     params::ParamIndex,
     refs::{self, RefTerm},
     scopes::AssignTerm,
-    stores::tir_stores,
     term_as_variant,
     terms::{Term, TermId, Ty, UnsafeTerm},
     tuples::TupleTerm,
@@ -134,7 +133,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     FnCallTermKind::Call(_) => {
                         // Get the type of the function into or to to get the
                         // fn-type so that we can enter the scope.
-                        let ty = tir_stores().atom_info().get_inferred_ty(subject);
+                        let ty = self.ctx.get_inferred_ty(subject);
                         let fn_ty = term_as_variant!(self, ty.value(), FnTy);
 
                         // Try and create the ir_type from a function definition, otherwise

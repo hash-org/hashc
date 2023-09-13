@@ -110,7 +110,7 @@ impl HasSemanticDiagnostics for SemanticEnvImpl<'_> {
 }
 
 impl HasCompilerSettings for SemanticEnvImpl<'_> {
-    fn compiler_settings(&self) -> &CompilerSettings {
+    fn settings(&self) -> &CompilerSettings {
         self.ctx.settings
     }
 }

@@ -15,6 +15,7 @@ use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
+    atom_info::HasAtomInfo,
     context::{Context, HasContext},
     fns::FnDefId,
     intrinsics::make::IntrinsicAbilities,
@@ -36,7 +37,9 @@ pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
     type TcDiagnostics: Diagnostics<Error = Self::ForeignError, Warning = Self::ForeignWarning>;
 }
 
-pub trait TcEnv: HasTcDiagnostics + HasTarget + HasContext + HasCompilerSettings + Sized {
+pub trait TcEnv:
+    HasTcDiagnostics + HasTarget + HasContext + HasAtomInfo + HasCompilerSettings + Sized
+{
     /// Get the entry point of the current compilation, if any.
     fn entry_point(&self) -> &EntryPointState<FnDefId>;
 
@@ -45,7 +48,7 @@ pub trait TcEnv: HasTcDiagnostics + HasTarget + HasContext + HasCompilerSettings
 
     /// Whether the typechecker should monomorphise all pure functions.
     fn should_monomorphise(&self) -> bool {
-        self.compiler_settings().semantic_settings.mono_tir
+        self.settings().semantic_settings.mono_tir
     }
 
     fn infer_ops(&self) -> InferenceOps<Self> {

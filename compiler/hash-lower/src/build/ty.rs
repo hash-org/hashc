@@ -22,7 +22,6 @@ use hash_tir::{
     },
     lits::{Lit, LitPat},
     pats::PatId,
-    stores::tir_stores,
     terms::{Term, TermId, TyId},
 };
 
@@ -61,13 +60,13 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// cache results of lowering a [TermId] into an [IrTyId] to avoid
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> IrTyId {
-        let ty = tir_stores().atom_info().get_inferred_ty(term);
+        let ty = self.ctx.get_inferred_ty(term);
         self.ctx.ty_id_from_tir_ty(ty)
     }
 
     /// Get the [IrTyId] for a give [PatId].
     pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> IrTyId {
-        let ty = tir_stores().atom_info().get_inferred_ty(pat);
+        let ty = self.ctx.get_inferred_ty(pat);
         self.ty_id_from_tir_ty(ty)
     }
 

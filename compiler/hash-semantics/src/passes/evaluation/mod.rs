@@ -66,7 +66,7 @@ impl<E: SemanticEnv> EvaluationPass<'_, E> {
                         // We only care about this error if we're running to
                         // the evaluation stage, or if
                         // we are continuing after lowering
-                        let settings = self.compiler_settings();
+                        let settings = self.settings();
                         if settings.stage > CompilerStageKind::Lower
                             || settings.semantic_settings.eval_tir
                         {
@@ -97,7 +97,7 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
         let term = self.ast_info.terms().get_data_by_node(node.id()).unwrap();
 
         // Potentially dump the TIR and evaluate it depending on flags.
-        if self.compiler_settings().semantic_settings.dump_tir {
+        if self.settings().semantic_settings.dump_tir {
             dump_tir(term);
         }
 
@@ -118,7 +118,7 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
         let main_call_term = self.find_and_construct_main_call(source)?;
 
         // Potentially dump the TIR and evaluate it depending on flags.
-        let settings = self.compiler_settings().semantic_settings();
+        let settings = self.settings().semantic_settings();
 
         if settings.dump_tir {
             dump_tir(mod_def_id);

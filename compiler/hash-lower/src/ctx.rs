@@ -16,10 +16,12 @@ use hash_target::{
 };
 use hash_tir::{
     args::Arg,
+    atom_info::{AtomInfoStore, HasAtomInfo},
     context::{Context, HasContext},
     data::{DataDefId, DataTy},
     mods::ModDefId,
     node::{Node, NodeId},
+    stores::tir_stores,
 };
 use hash_utils::stream_writeln;
 
@@ -63,6 +65,12 @@ impl HasContext for BuilderCtx<'_> {
 impl HasTarget for BuilderCtx<'_> {
     fn target(&self) -> &Target {
         self.settings.target()
+    }
+}
+
+impl HasAtomInfo for BuilderCtx<'_> {
+    fn atom_info(&self) -> &AtomInfoStore {
+        tir_stores().atom_info()
     }
 }
 

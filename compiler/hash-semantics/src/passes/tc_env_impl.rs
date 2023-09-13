@@ -2,7 +2,11 @@ use hash_pipeline::settings::{CompilerSettings, HasCompilerSettings};
 use hash_reporting::diagnostic::HasDiagnostics;
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::{HasTarget, Target};
-use hash_tir::context::{Context, HasContext};
+use hash_tir::{
+    atom_info::{AtomInfoStore, HasAtomInfo},
+    context::{Context, HasContext},
+    stores::tir_stores,
+};
 use hash_typecheck::{HasTcDiagnostics, TcEnv};
 
 use crate::{
@@ -44,14 +48,20 @@ impl<E: SemanticEnv> HasTarget for TcEnvImpl<'_, E> {
 }
 
 impl<E: SemanticEnv> HasCompilerSettings for TcEnvImpl<'_, E> {
-    fn compiler_settings(&self) -> &CompilerSettings {
-        self.env.compiler_settings()
+    fn settings(&self) -> &CompilerSettings {
+        self.env.settings()
     }
 }
 
 impl<E: SemanticEnv> HasContext for TcEnvImpl<'_, E> {
     fn context(&self) -> &Context {
         &self.context
+    }
+}
+
+impl<E: SemanticEnv> HasAtomInfo for TcEnvImpl<'_, E> {
+    fn atom_info(&self) -> &AtomInfoStore {
+        tir_stores().atom_info()
     }
 }
 

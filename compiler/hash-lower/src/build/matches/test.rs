@@ -24,7 +24,6 @@ use hash_tir::{
     node::NodesId,
     params::ParamIndex,
     pats::{Pat, PatId, RangePat, Spread},
-    stores::tir_stores,
 };
 use hash_utils::indexmap::IndexMap;
 
@@ -285,7 +284,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 .map(|(index, item)| (index, item.clone()))?
         };
 
-        let pat_ty = tir_stores().atom_info().get_inferred_ty(pair.pat);
+        let pat_ty = self.ctx.get_inferred_ty(pair.pat);
 
         match (&test.kind, *pair.pat.value()) {
             (TestKind::Switch { adt, .. }, Pat::Ctor(CtorPat { ctor, ctor_pat_args, .. })) => {
