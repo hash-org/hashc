@@ -23,28 +23,20 @@ use hash_utils::{
 use super::ast_utils::AstPass;
 use crate::{
     diagnostics::error::{SemanticError, SemanticResult},
-    environment::{
-        analysis_progress::AnalysisStage,
-        sem_env::{AccessToSemEnv, SemEnv},
-    },
+    env::SemanticEnv,
+    environment::sem_env::{AccessToSemEnv, SemEnv},
     ops::common::CommonOps,
 };
 
 /// The potential fourth pass of analysis, which executes and dumps the TIR, if
 /// the correct compiler flags are set.
 #[derive(Constructor, Deref)]
-pub struct EvaluationPass<'tc> {
+pub struct EvaluationPass<'env, E: SemanticEnv> {
     #[deref]
-    sem_env: &'tc SemEnv<'tc>,
+    env: &'env E,
 }
 
-impl AccessToSemEnv for EvaluationPass<'_> {
-    fn sem_env(&self) -> &SemEnv<'_> {
-        self.sem_env
-    }
-}
-
-impl EvaluationPass<'_> {
+impl<E: SemanticEnv> EvaluationPass<'_, E> {
     /// Find the main module definition, if it exists.
     fn find_and_construct_main_call(&self) -> SemanticResult<Option<TermId>> {
         let source_id = self.current_source_info().source_id();

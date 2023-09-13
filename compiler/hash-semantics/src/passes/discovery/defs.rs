@@ -25,7 +25,7 @@ use hash_utils::{
 };
 
 use super::DiscoveryPass;
-use crate::environment::sem_env::AccessToSemEnv;
+use crate::env::SemanticEnv;
 
 /// The ID of some definition.
 ///
@@ -99,7 +99,7 @@ impl DefDiscoveryState {
     }
 }
 
-impl<'tc> DiscoveryPass<'tc> {
+impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
     /// Run the given closure with the given item as "current", resetting
     /// it at the end. It does not handle definition members.
     ///
@@ -134,24 +134,23 @@ impl<'tc> DiscoveryPass<'tc> {
         f: impl FnOnce() -> T,
     ) -> T {
         let def_id = def_id.into();
-        let ast_info = self.ast_info();
         let node_id = originating_node.id();
 
         // Add the definition to the member context.
         match def_id {
             DefId::Mod(id) => {
                 self.def_state().mod_members.insert(id, vec![]);
-                ast_info.mod_defs().insert(node_id, id);
+                self.ast_info.mod_defs().insert(node_id, id);
             }
             DefId::Data(id) => {
                 self.def_state().data_ctors.insert(id, vec![]);
-                ast_info.data_defs().insert(node_id, id);
+                self.ast_info.data_defs().insert(node_id, id);
             }
             DefId::Stack(id) => {
                 self.def_state().stack_members.insert(id, vec![]);
             }
             DefId::Fn(id) => {
-                ast_info.fn_defs().insert(node_id, id);
+                self.ast_info.fn_defs().insert(node_id, id);
             }
         }
 
@@ -170,22 +169,21 @@ impl<'tc> DiscoveryPass<'tc> {
 
     /// Add the given definition to the AST info of the given node.
     pub(super) fn add_def_to_ast_info<U>(&self, item_id: ItemId, node: AstNodeRef<U>) {
-        let ast_info = self.ast_info();
         match item_id {
             ItemId::Def(def_id) => match def_id {
-                DefId::Mod(id) => ast_info.mod_defs().insert(node.id(), id),
-                DefId::Data(id) => ast_info.data_defs().insert(node.id(), id),
-                DefId::Fn(id) => ast_info.fn_defs().insert(node.id(), id),
-                DefId::Stack(id) => ast_info.stacks().insert(node.id(), id),
+                DefId::Mod(id) => self.ast_info.mod_defs().insert(node.id(), id),
+                DefId::Data(id) => self.ast_info.data_defs().insert(node.id(), id),
+                DefId::Fn(id) => self.ast_info.fn_defs().insert(node.id(), id),
+                DefId::Stack(id) => self.ast_info.stacks().insert(node.id(), id),
             },
-            ItemId::Ty(id) => ast_info.tys().insert(node.id(), id),
+            ItemId::Ty(id) => self.ast_info.tys().insert(node.id(), id),
         };
     }
 
     /// Create or get an existing module definition by `[SourceId]`.
     pub fn create_or_get_module_mod_def(&self, module_id: ModuleId) -> ModDefId {
         let source_node_id = self.node_map().get_module(module_id).node_ref().id();
-        match self.ast_info().mod_defs().get_data_by_node(source_node_id) {
+        match self.ast_info.mod_defs().get_data_by_node(source_node_id) {
             Some(existing) => existing,
             None => {
                 // Create a new module definition.
@@ -217,7 +215,7 @@ impl<'tc> DiscoveryPass<'tc> {
     /// `MemberData` and then using its `MemberId` and `AstNodeId` we add it to
     /// `AstInfo` store, appropriately depending on the definition kind,
     pub(super) fn add_found_members_to_def(&self, def_id: impl Into<DefId>) {
-        let ast_info = self.ast_info();
+        let ast_info = self.ast_info;
         match def_id.into() {
             DefId::Mod(mod_def_id) => {
                 self.def_state().mod_members.modify_fast(mod_def_id, |members| {
@@ -362,16 +360,14 @@ impl<'tc> DiscoveryPass<'tc> {
             _ => return false, // Mod members need values
         };
 
-        let ast_info = self.ast_info();
-
         // Function definitions are not considered module members in stack
         // scope, they are considered closures instead.
         // @@Improvement: We could consider them module members if they do not
         // capture any variables.
 
         // Data definition or nested module in a module
-        ast_info.data_defs().get_data_by_node(def_node_id).is_some()
-            || ast_info.mod_defs().get_data_by_node(def_node_id).is_some()
+        self.ast_info.data_defs().get_data_by_node(def_node_id).is_some()
+            || self.ast_info.mod_defs().get_data_by_node(def_node_id).is_some()
     }
 
     /// Get the module member data for the given definition node id, if it
@@ -381,18 +377,16 @@ impl<'tc> DiscoveryPass<'tc> {
         name: SymbolId,
         def_node_id: AstNodeId,
     ) -> Option<ModMember> {
-        let ast_info = self.ast_info();
-        if let Some(fn_def_id) = ast_info.fn_defs().get_data_by_node(def_node_id) {
+        if let Some(fn_def_id) = self.ast_info.fn_defs().get_data_by_node(def_node_id) {
             // Function definition in a module
             Some(ModMember { name, value: ModMemberValue::Fn(fn_def_id) })
-        } else if let Some(data_def_id) = ast_info.data_defs().get_data_by_node(def_node_id) {
+        } else if let Some(data_def_id) = self.ast_info.data_defs().get_data_by_node(def_node_id) {
             // Data definition in a module
             Some(ModMember { name, value: ModMemberValue::Data(data_def_id) })
         } else {
             // Nested module definition
-            ast_info.mod_defs().get_data_by_node(def_node_id).map(|nested_mod_def_id| ModMember {
-                name,
-                value: ModMemberValue::Mod(nested_mod_def_id),
+            self.ast_info.mod_defs().get_data_by_node(def_node_id).map(|nested_mod_def_id| {
+                ModMember { name, value: ModMemberValue::Mod(nested_mod_def_id) }
             })
 
             // If the above `get_data_by_node` returns `None`, do

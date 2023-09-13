@@ -1,0 +1,22 @@
+use hash_source::entry_point::EntryPointState;
+use hash_tir::{fns::FnDefId, mods::ModDefId};
+use once_cell::sync::OnceCell;
+
+/// Stores some "distinguished" items, namely the prelude and the root modules,
+/// as well as the entry point function.
+///
+/// The prelude is the module that is implicitly imported into every module.
+///
+/// The root is the module that is the entry point of the program.
+///
+/// The entry point is the function that is the entry point of the program
+/// inside the root module.
+///
+/// As this is available in `SemanticStorage`, it is available to all later
+/// compiler stages.
+#[derive(Default)]
+pub struct DistinguishedItems {
+    pub prelude_mod: OnceCell<ModDefId>,
+    pub root_mod: OnceCell<ModDefId>,
+    pub entry_point: EntryPointState<FnDefId>,
+}

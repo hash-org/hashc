@@ -29,7 +29,7 @@ use crate::LoweringCtx;
 /// are needed to lower the TIR into IR. This is only used during the initial
 /// building of the IR, and is not used when optimising the IR or when code
 /// generation is happening.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct BuilderCtx<'ir> {
     /// A reference to the lowering context that is used for
     /// lowering the TIR.
@@ -45,7 +45,7 @@ pub(crate) struct BuilderCtx<'ir> {
     pub prelude: ModDefId,
 
     /// The context
-    pub context: &'ir Context,
+    pub context: Context,
 }
 
 impl HasDataLayout for BuilderCtx<'_> {
@@ -56,7 +56,7 @@ impl HasDataLayout for BuilderCtx<'_> {
 
 impl HasContext for BuilderCtx<'_> {
     fn context(&self) -> &Context {
-        self.context
+        &self.context
     }
 }
 
@@ -78,7 +78,7 @@ impl<'ir> BuilderCtx<'ir> {
             ..
         } = ctx;
 
-        let prelude = match semantic_storage.prelude_or_unset.get() {
+        let prelude = match semantic_storage.distinguished_items.prelude_mod.get() {
             Some(prelude) => *prelude,
             None => panic!("Tried to get prelude but it is not set yet"),
         };
@@ -88,7 +88,7 @@ impl<'ir> BuilderCtx<'ir> {
             settings,
             layouts: layout_storage,
             prelude,
-            context: &semantic_storage.context,
+            context: Context::new(),
         }
     }
 

@@ -7,9 +7,9 @@ use hash_tir::{
 };
 
 use super::DiscoveryPass;
-use crate::environment::sem_env::AccessToSemEnv;
+use crate::env::SemanticEnv;
 
-impl<'tc> DiscoveryPass<'tc> {
+impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
     /// Create a parameter list from the given AST generic parameter list, where
     /// the type of each parameter is a hole.
     pub(super) fn create_hole_params_from<T>(
@@ -33,7 +33,7 @@ impl<'tc> DiscoveryPass<'tc> {
         );
 
         for (i, param) in params.iter().enumerate() {
-            self.ast_info().params().insert(param.id(), ParamId(params_id.elements(), i));
+            self.ast_info.params().insert(param.id(), ParamId(params_id.elements(), i));
         }
 
         params_id

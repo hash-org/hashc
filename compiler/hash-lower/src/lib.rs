@@ -29,9 +29,10 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
-use hash_semantics::SemanticStorage;
+use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::{statics::StoreId, Store};
+use hash_tir::{node::HasAstNodeId, stores::tir_stores};
 use hash_utils::{
     indexmap::IndexMap,
     rayon,
@@ -110,8 +111,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     fn run(&mut self, _entry: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let data = ctx.data();
 
-        let entry_point = &data.semantic_storage.entry_point;
-        let ctx = BuilderCtx::new(&data);
+        let entry_point = &data.semantic_storage.distinguished_items.entry_point;
 
         // Discover all of the bodies that need to be lowered
         let items = time_item(self, "discover", |_| {
@@ -126,6 +126,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             for func in items.into_iter() {
                 let name = func.borrow().name.ident();
 
+                let ctx = BuilderCtx::new(&data);
                 let mut builder = BodyBuilder::new(name, func.into(), ctx);
                 builder.build();
 
@@ -163,9 +164,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // @@Todo: instead of looping through all the data defs, we should
         // instead look at a queue of data defs which should have been constructed
         // earlier.
-        data.semantic_storage.ast_info.data_defs().iter_with(|id, def| {
-            if attr_store().node_has_attr(id, attrs::LAYOUT_OF) {
-                builder.dump_ty_layout(def, data.stdout.clone())
+        tir_stores().data_def().for_each_entry(|data_def| {
+            if let Some(id) = data_def.node_id() && attr_store().node_has_attr(id, attrs::LAYOUT_OF) {
+                builder.dump_ty_layout(data_def, data.stdout.clone())
             }
         })
     }

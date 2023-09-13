@@ -11,18 +11,26 @@ use hash_tir::{
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
     node::Node,
 };
-use hash_utils::itertools::Itertools;
+use hash_utils::{
+    derive_more::{Constructor, Deref},
+    itertools::Itertools,
+};
 
-use crate::environment::sem_env::AccessToSemEnv;
+use crate::env::SemanticEnv;
 
-pub trait BootstrapOps: AccessToSemEnv {
+#[derive(Constructor, Deref)]
+pub struct Bootstrapper<'env, E: SemanticEnv> {
+    env: &'env E,
+}
+
+impl<E: SemanticEnv> Bootstrapper<'_, E> {
     /// Bootstrap the typechecker, by constructing primitives and intrinsics,
     /// then creating a module containing all the primitives and the
     /// `Intrinsics` member.
     ///
     /// Returns the root module.
     fn bootstrap(&self) -> ModDefId {
-        *self.root_mod_or_unset().get_or_init(|| self.make_root_mod())
+        *self.storage().distinguished_items.root_mod.get_or_init(|| self.make_root_mod())
     }
 
     /// Make a module containing all the primitives and intrinsics.
@@ -51,5 +59,3 @@ pub trait BootstrapOps: AccessToSemEnv {
         })
     }
 }
-
-impl<T: AccessToSemEnv> BootstrapOps for T {}

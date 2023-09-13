@@ -19,7 +19,7 @@ use hash_utils::state::HeavyState;
 
 use super::paths::NonTerminalResolvedPathComponent;
 use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
+    diagnostics::definitions::{SemanticError, SemanticResult},
     environment::sem_env::{AccessToSemEnv, SemEnv},
 };
 
