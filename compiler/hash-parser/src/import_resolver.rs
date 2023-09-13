@@ -9,8 +9,8 @@ use hash_utils::crossbeam_channel::Sender;
 use crate::ParserAction;
 
 /// The [ImportResolver] contains internal logic for resolving the path
-/// and contents of a module import, in order to prepare it for lexing
-/// and parsing.
+/// and contents of a module import, and queueing discovered imports through
+/// the parser loop.
 pub struct ImportResolver<'p> {
     /// The associated [SourceId] with the import resolution.
     source_id: SourceId,
@@ -33,7 +33,7 @@ impl<'p> ImportResolver<'p> {
         Self { root_dir, sender, source_id }
     }
 
-    /// Get the [SourceId] associated with the current [ImportResolver]
+    /// Get the [SourceId] associated with the current [ImportResolver].
     pub(crate) fn source(&self) -> SourceId {
         self.source_id
     }

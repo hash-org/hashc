@@ -20,10 +20,9 @@ impl<'s> HasDiagnostics for AstGen<'s> {
         self.diagnostics
     }
 
-    fn add_error(
-        &self,
-        error: <Self::Diagnostics as hash_reporting::diagnostic::Diagnostics>::Error,
-    ) {
+    fn add_error(&self, error: <Self::Diagnostics as Diagnostics>::Error) {
+        // Specify that an error occurred in the current frame, so that the
+        // frame exit handler can avoid emitting an `expected_eof`.
         self.frame.error.set(true);
         self.diagnostics().add_error(error);
     }

@@ -12,7 +12,7 @@ mod operator;
 mod pat;
 mod ty;
 
-use std::cell::Cell;
+use std::{cell::Cell, ops::Deref};
 
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::HasDiagnostics;
@@ -56,12 +56,19 @@ impl<'s> AstGenFrame<'s> {
 
     /// Skip `n` number of tokens.
     #[inline(always)]
-    pub(crate) fn skip(&self, n: usize) {
-        self.offset.set(self.offset.get() + n);
+    pub(crate) fn skip(&self, n: u8) {
+        self.offset.set(self.offset.get() + n as usize);
+    }
+
+    /// Backtrack `n` number of tokens.
+    #[inline(always)]
+    pub(crate) fn backtrack(&self, n: usize) {
+        self.offset.set(self.offset.get() - n);
     }
 
     /// Function to check if the token stream has been exhausted based on the
-    /// current offset in the generator.#
+    /// current offset in the generator.
+    #[inline]
     pub(crate) fn has_token(&self) -> bool {
         let length = self.stream.len();
 
@@ -70,30 +77,131 @@ impl<'s> AstGenFrame<'s> {
             _ => self.offset.get() < self.stream.len(),
         }
     }
+
+    /// Get the current offset of where the stream is at.
+    #[inline(always)]
+    pub(crate) fn offset(&self) -> usize {
+        self.offset.get()
+    }
+
+    /// Get a reference to the token stream.
+    #[inline(always)]
+    pub(crate) fn stream(&self) -> &'s [Token] {
+        self.stream
+    }
+
+    /// Function to peek at the nth token ahead of the current offset.
+    #[inline(always)]
+    pub(crate) fn peek_nth(&self, at: usize) -> Option<&Token> {
+        self.stream.get(self.offset.get() + at)
+    }
+
+    /// Attempt to peek one step token ahead.
+    pub(crate) fn peek(&self) -> Option<&Token> {
+        self.peek_nth(0)
+    }
+
+    /// Peek two tokens ahead.
+    pub(crate) fn peek_second(&self) -> Option<&Token> {
+        self.peek_nth(1)
+    }
+
+    /// Function that skips the next token without explicitly looking up the
+    /// token in the stream and avoiding the additional computation.
+    #[inline(always)]
+    pub(crate) fn skip_token(&self) {
+        self.offset.update(|x| x + 1);
+    }
+
+    /// Function that increases the offset of the next token
+    pub(crate) fn next_token(&self) -> Option<&Token> {
+        let value = self.stream.get(self.offset.get());
+
+        if value.is_some() {
+            self.offset.update::<_>(|x| x + 1);
+        }
+
+        value
+    }
+
+    /// Get the current [Token] in the stream. Panics if the current offset has
+    /// passed the size of the stream, e.g tring to get the current token
+    /// after reaching the end of the stream.
+    pub(crate) fn current_token(&self) -> &Token {
+        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
+        self.stream.get(offset).unwrap()
+    }
+
+    /// Get a [Token] at a specified location in the stream. Panics if the given
+    /// stream  position is out of bounds.
+    #[inline(always)]
+    pub(crate) fn token_at(&self, offset: usize) -> &Token {
+        self.stream.get(offset).unwrap()
+    }
+
+    /// Get the current location from the current token, if there is no token at
+    /// the current offset, then the location of the last token is used.
+    pub(crate) fn current_pos(&self) -> ByteRange {
+        // check that the length of current generator is at least one...
+        if self.stream.is_empty() {
+            return self.span;
+        }
+
+        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
+
+        match self.stream.get(offset) {
+            Some(token) => token.span,
+            None => self.stream.last().unwrap().span,
+        }
+    }
+
+    /// Get the next location of the token, if there is no token after, we use
+    /// the next character offset to determine the location.
+    pub(crate) fn next_pos(&self) -> ByteRange {
+        match self.peek() {
+            Some(token) => token.span,
+            None => {
+                let span = self.current_pos();
+                ByteRange::new(span.end(), span.end() + 1)
+            }
+        }
+    }
+
+    /// Get the [ByteRange] of the [AstGen].
+    pub(crate) fn range(&self) -> ByteRange {
+        self.span
+    }
 }
 
 /// The [AstGen] struct it the primary parser for the Hash compiler. It
 /// will take a token stream and its accompanying token trees and will
 /// convert the stream into an AST.
-pub struct AstGen<'s> {
+pub(crate) struct AstGen<'s> {
     /// The current frame.
     pub(crate) frame: AstGenFrame<'s>,
 
     /// The source that we are currently parsing.
     source: SpannedSource<'s>,
 
-    /// Token trees that were generated from the stream
+    /// Token trees that were generated from the stream.
     token_trees: &'s [Vec<Token>],
 
-    /// Effectively a allocator for node spans...
+    /// Local [AstNodeId] allocator.
     span_map: &'s mut LocalSpanMap,
 
-    /// Instance of an [ImportResolver] to notify the parser of encountered
-    /// imports.
+    /// For resolving and queueing discovered module imports.
     resolver: &'s ImportResolver<'s>,
 
     /// Collected diagnostics for the current [AstGen].
     pub(crate) diagnostics: &'s ParserDiagnostics,
+}
+
+impl<'s> Deref for AstGen<'s> {
+    type Target = AstGenFrame<'s>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.frame
+    }
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -126,6 +234,12 @@ impl<'s> AstGen<'s> {
         }
     }
 
+    /// Get the [Span] of the current generator, this asserts that a parent
+    /// [Span] is present.
+    pub(crate) fn span(&self) -> Span {
+        Span { range: self.range(), id: self.resolver.source() }
+    }
+
     /// Create new AST generator from a provided token stream with inherited
     /// module resolver and a provided parent span.
     pub fn new_frame<T>(
@@ -147,111 +261,10 @@ impl<'s> AstGen<'s> {
         result
     }
 
-    /// Get the [Span] of the current generator, this asserts that a parent
-    /// [Span] is present.
-    pub(crate) fn span(&self) -> Span {
-        Span { range: self.frame.span, id: self.resolver.source() }
-    }
-
-    /// Get the [ByteRange] of the [AstGen].
-    pub(crate) fn range(&self) -> ByteRange {
-        self.frame.span
-    }
-
     /// Function to create a [Span] from a [ByteRange] by using the
     /// provided resolver
     pub(crate) fn make_span(&self, range: ByteRange) -> Span {
         Span { range, id: self.resolver.source() }
-    }
-
-    /// Get the current offset of where the stream is at.
-    #[inline(always)]
-    pub(crate) fn offset(&self) -> usize {
-        self.frame.offset.get()
-    }
-
-    /// Function to peek at the nth token ahead of the current offset.
-    #[inline(always)]
-    pub(crate) fn peek_nth(&self, at: usize) -> Option<&Token> {
-        self.frame.stream.get(self.frame.offset.get() + at)
-    }
-
-    /// Attempt to peek one step token ahead.
-    pub(crate) fn peek(&self) -> Option<&Token> {
-        self.peek_nth(0)
-    }
-
-    /// Peek two tokens ahead.
-    pub(crate) fn peek_second(&self) -> Option<&Token> {
-        self.peek_nth(1)
-    }
-
-    /// Function to check if the token stream has been exhausted based on the
-    /// current offset in the generator.
-    pub(crate) fn has_token(&self) -> bool {
-        self.frame.has_token()
-    }
-
-    /// Function that skips the next token without explicitly looking up the
-    /// token in the stream and avoiding the additional computation.
-    #[inline(always)]
-    pub(crate) fn skip_token(&self) {
-        self.frame.offset.update(|x| x + 1);
-    }
-
-    /// Function that increases the offset of the next token
-    pub(crate) fn next_token(&self) -> Option<&Token> {
-        let value = self.frame.stream.get(self.frame.offset.get());
-
-        if value.is_some() {
-            self.frame.offset.update::<_>(|x| x + 1);
-        }
-
-        value
-    }
-
-    /// Get the current [Token] in the stream. Panics if the current offset has
-    /// passed the size of the stream, e.g tring to get the current token
-    /// after reaching the end of the stream.
-    pub(crate) fn current_token(&self) -> &Token {
-        let offset = if self.frame.offset.get() > 0 { self.frame.offset.get() - 1 } else { 0 };
-
-        self.frame.stream.get(offset).unwrap()
-    }
-
-    /// Get a [Token] at a specified location in the stream. Panics if the given
-    /// stream  position is out of bounds.
-    #[inline(always)]
-    pub(crate) fn token_at(&self, offset: usize) -> &Token {
-        self.frame.stream.get(offset).unwrap()
-    }
-
-    /// Get the current location from the current token, if there is no token at
-    /// the current offset, then the location of the last token is used.
-    pub(crate) fn current_pos(&self) -> ByteRange {
-        // check that the length of current generator is at least one...
-        if self.frame.stream.is_empty() {
-            return self.frame.span;
-        }
-
-        let offset = if self.frame.offset.get() > 0 { self.frame.offset.get() - 1 } else { 0 };
-
-        match self.frame.stream.get(offset) {
-            Some(token) => token.span,
-            None => self.frame.stream.last().unwrap().span,
-        }
-    }
-
-    /// Get the next location of the token, if there is no token after, we use
-    /// the next character offset to determine the location.
-    pub(crate) fn next_pos(&self) -> ByteRange {
-        match self.peek() {
-            Some(token) => token.span,
-            None => {
-                let span = self.current_pos();
-                ByteRange::new(span.end(), span.end() + 1)
-            }
-        }
     }
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
@@ -342,7 +355,7 @@ impl<'s> AstGen<'s> {
     /// read no more tokens.
     pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
         // move onto the next token
-        self.frame.offset.set(self.frame.offset.get() + 1);
+        self.skip_token();
         self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), Some(self.current_token().kind))
     }
 
@@ -624,7 +637,7 @@ impl<'s> AstGen<'s> {
                     Some(Token { kind: TokenKind::Pound, .. }),
                     Some(Token { kind: TokenKind::Exclamation, .. }),
                 ) => {
-                    self.frame.offset.set(self.frame.offset.get() + 2);
+                    self.frame.skip(2);
 
                     match self.parse_module_marco_invocations() {
                         Ok(items) => macros.extend(items),

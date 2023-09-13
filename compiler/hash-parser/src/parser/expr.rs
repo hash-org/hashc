@@ -193,8 +193,7 @@ impl<'s> AstGen<'s> {
             TokenKind::Tree(Delimiter::Brace, _) => {
                 // ##Hack: we need to backtrack a single token so that `parse_block` can be
                 // used.
-                self.frame.offset.set(self.frame.offset.get() - 1);
-
+                self.backtrack(1);
                 let block = self.parse_block()?;
 
                 self.node_with_joined_span(Expr::Block(BlockExpr { data: block }), token.span)
@@ -256,12 +255,11 @@ impl<'s> AstGen<'s> {
                     .is_some();
 
                 if has_arrow {
-                    self.frame.offset.set(self.frame.offset.get() - 2);
+                    self.backtrack(2);
                     is_func = true;
                 }
 
-                // Backtrack one token so that we can re-parse the 'gen'.
-                self.frame.offset.set(self.frame.offset.get() - 1);
+                self.backtrack(1); // Backtrack one token so that we can re-parse the 'gen'.
 
                 match is_func {
                     true => self.parse_fn_def()?,
@@ -372,7 +370,7 @@ impl<'s> AstGen<'s> {
                         break;
                     }
 
-                    self.frame.skip(consumed_tokens as usize);
+                    self.frame.skip(consumed_tokens);
                     let op_span = op_start.join(self.current_pos());
 
                     // if the operator is a non-functional, (e.g. as) we need to perform a different
@@ -617,7 +615,7 @@ impl<'s> AstGen<'s> {
                 Expr::UnaryExpr(UnaryExpr { expr, operator })
             }
             TokenKind::Pound => {
-                self.frame.offset.update(|x| x - 1); // go back a token so we can parse the macro invocation
+                self.backtrack(1); // go back a token so we can parse the macro invocation
                 let macros = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
                 let subject = self.parse_expr()?;
                 Expr::Macro(ExprMacroInvocation { macros, subject })
@@ -705,7 +703,7 @@ impl<'s> AstGen<'s> {
         match self.peek_nth(consumed_tokens as usize) {
             Some(token) if operator.is_some() && token.has_kind(TokenKind::Eq) => {
                 // consume the number of tokens eaten whilst getting the operator...
-                self.frame.skip(1 + consumed_tokens as usize);
+                self.frame.skip(1 + consumed_tokens);
                 let operator = self.node_with_joined_span(operator.unwrap(), start);
 
                 let rhs = self.parse_expr_with_precedence(0)?;
@@ -803,7 +801,7 @@ impl<'s> AstGen<'s> {
             // parse a function in the form of `() => ...` for whatever reason, then it
             // is trying to parse either a tuple or an expression.
             // Handle the empty tuple case
-            if gen.frame.stream.len() < 2 {
+            if gen.stream().len() < 2 {
                 let elements = gen.nodes_with_span(thin_vec![], start);
                 let data = gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start);
                 let tuple = gen.node_with_joined_span(Expr::Lit(LitExpr { data }), start);

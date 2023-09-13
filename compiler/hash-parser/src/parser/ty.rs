@@ -40,7 +40,7 @@ impl<'s> AstGen<'s> {
                     if l_prec < min_prec {
                         break;
                     }
-                    self.frame.skip(consumed_tokens as usize);
+                    self.frame.skip(consumed_tokens);
 
                     // Now recurse and get the `rhs` of the operator.
                     let rhs = self.parse_ty_with_precedence(r_prec)?;
@@ -322,7 +322,7 @@ impl<'s> AstGen<'s> {
             let params = match gen.peek() {
                 // Handle special case where there is only one comma and no following items...
                 // Special edge case for '(,)' or an empty tuple type...
-                Some(token) if token.has_kind(TokenKind::Comma) && gen.frame.stream.len() == 1 => {
+                Some(token) if token.has_kind(TokenKind::Comma) && gen.stream().len() == 1 => {
                     gen.skip_token();
                     gen.nodes_with_span(thin_vec![], gen.range())
                 }
@@ -334,7 +334,7 @@ impl<'s> AstGen<'s> {
 
             // Here we check that the token tree has a comma at the end to later determine
             // if this is a `TupleType`...
-            let gen_has_comma = !gen.frame.stream.is_empty()
+            let gen_has_comma = !gen.stream().is_empty()
                 && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
 
             Ok((params, gen_has_comma))
