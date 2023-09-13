@@ -8,6 +8,7 @@ use hash_typecheck::errors::TcErrorReporter;
 use super::definitions::{SemanticError, SemanticWarning};
 use crate::passes::resolution::scoping::ContextKind;
 
+/// Builds [`Reports`] from semantic errors and warnings.
 pub struct SemanticReporter;
 impl SemanticReporter {
     pub fn make_reports_from_error(error: SemanticError) -> Reports {

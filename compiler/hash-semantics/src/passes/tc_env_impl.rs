@@ -10,6 +10,8 @@ use crate::{
     env::SemanticEnv,
 };
 
+/// This is a wrapper around the semantic environment and some extra
+/// data which implements the [`TcEnv`] trait, giving access to typechecking.
 pub struct TcEnvImpl<'env, E: SemanticEnv> {
     env: &'env E,
     source: SourceId,

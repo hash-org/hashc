@@ -26,6 +26,7 @@ impl<'env, E: SemanticEnv> Analyser<'env, E> {
     /// Visits the source passed in as an argument to [Self::new_in_source]
     pub fn visit_source(&self, source: SourceId) -> SemanticResult<()> {
         // AST info for discovery and resolution passes.
+        // @@Todo: refactor this to have each stage return its own AST info.
         let ast_info = AstInfo::new();
 
         // Discover all definitions in the source.

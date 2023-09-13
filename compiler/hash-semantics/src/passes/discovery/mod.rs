@@ -3,7 +3,6 @@
 
 use hash_ast::{
     ast::{self, AstNodeId},
-    node_map::HasNodeMap,
     visitor::AstVisitor,
 };
 use hash_source::SourceId;
@@ -35,12 +34,6 @@ pub struct DiscoveryPass<'env, E: SemanticEnv> {
 
     /// The AST info for the current analysis session.
     ast_info: &'env AstInfo,
-}
-
-impl<E: SemanticEnv> HasNodeMap for DiscoveryPass<'_, E> {
-    fn node_map(&self) -> &hash_ast::node_map::NodeMap {
-        self.env.node_map()
-    }
 }
 
 impl<E: SemanticEnv> AnalysisPass for DiscoveryPass<'_, E> {

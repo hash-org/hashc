@@ -34,7 +34,6 @@ use crate::{
 pub struct EvaluationPass<'env, E: SemanticEnv> {
     #[deref]
     env: &'env E,
-    // @@Todo: make this redundant by using stage outputs
     ast_info: &'env AstInfo,
 }
 
@@ -89,7 +88,6 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
     }
 
     type PassOutput = ();
-
     fn pass_interactive(
         &self,
         source: SourceId,
