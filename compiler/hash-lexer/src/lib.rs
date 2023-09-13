@@ -4,7 +4,7 @@
 use std::cell::Cell;
 
 use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
-use hash_reporting::diagnostic::AccessToDiagnosticsMut;
+use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::{
     self,
     constant::LocalStringTable,

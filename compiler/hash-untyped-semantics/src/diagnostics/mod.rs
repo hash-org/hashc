@@ -2,7 +2,7 @@
 
 use hash_ast::ast::AstNodeId;
 use hash_reporting::{
-    diagnostic::{AccessToDiagnosticsMut, DiagnosticStore},
+    diagnostic::{DiagnosticStore, HasDiagnosticsMut},
     reporter::Reports,
 };
 use hash_utils::derive_more::From;
@@ -51,7 +51,7 @@ pub struct AnalyserDiagnostics {
     pub(crate) store: DiagnosticStore<AnalysisError, AnalysisWarning>,
 }
 
-impl AccessToDiagnosticsMut for SemanticAnalyser {
+impl HasDiagnosticsMut for SemanticAnalyser {
     type Diagnostics = DiagnosticStore<AnalysisError, AnalysisWarning>;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {

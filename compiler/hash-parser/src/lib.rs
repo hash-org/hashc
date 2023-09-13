@@ -21,7 +21,7 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::{
-    diagnostic::{AccessToDiagnosticsMut, Diagnostics},
+    diagnostic::{DiagnosticsMut, HasDiagnosticsMut},
     report::Report,
     reporter::Reports,
 };
@@ -297,11 +297,9 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(id, source.parent(), sender);
-    let diagnostics = ParserDiagnostics::new();
-
-    // @@Speed: perhaps we could get away with this not being ref-celled?
+    let mut diagnostics = ParserDiagnostics::new();
     let mut spans = LocalSpanMap::new(id);
-    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &diagnostics, &mut spans);
+    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &mut diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.

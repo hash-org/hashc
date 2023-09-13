@@ -5,7 +5,7 @@ mod block;
 pub(crate) mod params;
 
 use hash_ast::{ast::AstNodeRef, origin::BlockOrigin};
-use hash_reporting::diagnostic::AccessToDiagnosticsMut;
+use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_utils::crossbeam_channel::Sender;
 
 use crate::diagnostics::{

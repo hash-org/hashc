@@ -15,7 +15,7 @@ mod ty;
 use std::{cell::Cell, ops::Deref};
 
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::HasDiagnostics;
+use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::location::{ByteRange, Span, SpannedSource};
 use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::{thin_vec, ThinVec};
@@ -193,7 +193,7 @@ pub(crate) struct AstGen<'s> {
     resolver: &'s ImportResolver<'s>,
 
     /// Collected diagnostics for the current [AstGen].
-    pub(crate) diagnostics: &'s ParserDiagnostics,
+    pub(crate) diagnostics: &'s mut ParserDiagnostics,
 }
 
 impl<'s> Deref for AstGen<'s> {
@@ -213,7 +213,7 @@ impl<'s> AstGen<'s> {
         stream: &'s [Token],
         token_trees: &'s [Vec<Token>],
         resolver: &'s ImportResolver,
-        diagnostics: &'s ParserDiagnostics,
+        diagnostics: &'s mut ParserDiagnostics,
         span_map: &'s mut LocalSpanMap,
     ) -> Self {
         // We compute the `parent_span` from the given stream.
