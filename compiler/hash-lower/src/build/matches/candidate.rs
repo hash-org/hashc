@@ -21,15 +21,19 @@ use hash_ir::{
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
 use hash_tir::{
-    args::PatArgsId,
     atom_info::ItemInAtomInfo,
-    control::{IfPat, MatchCase},
-    data::CtorPat,
-    params::ParamIndex,
-    pats::{Pat, PatId, RangePat},
+    nodes::{
+        args::PatArgsId,
+        data::CtorPat,
+        params::ParamIndex,
+        pats::{Pat, PatId, RangePat},
+        symbols::SymbolId,
+        terms::{
+            control::{IfPat, MatchCase},
+            tuples::TuplePat,
+        },
+    },
     scopes::BindingPat,
-    symbols::SymbolId,
-    tuples::TuplePat,
 };
 use hash_utils::{
     itertools::Itertools,

@@ -28,11 +28,10 @@ use std::fmt::{self, Debug};
 
 use hash_source::constant::InternedStr;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store};
-use hash_tir::{
+use hash_tir::nodes::{
     data::{CtorDefId, DataTy},
     node::NodesId,
-    terms::Ty,
-    tuples::TupleTy,
+    terms::{tuples::TupleTy, Ty},
 };
 use hash_utils::smallvec::{smallvec, SmallVec};
 

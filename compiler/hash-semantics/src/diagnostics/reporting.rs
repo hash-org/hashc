@@ -2,7 +2,7 @@ use hash_reporting::{
     hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
 };
-use hash_tir::node::HasAstNodeId;
+use hash_tir::nodes::node::HasAstNodeId;
 use hash_typecheck::errors::TcErrorReporter;
 
 use super::definitions::{SemanticError, SemanticWarning};

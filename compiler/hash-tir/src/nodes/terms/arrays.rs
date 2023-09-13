@@ -3,7 +3,7 @@ use std::fmt::Display;
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 
-use crate::{
+use crate::nodes::{
     node::NodesId,
     pats::{PatId, PatListId, Spread},
     terms::{TermId, TermListId},

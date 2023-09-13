@@ -9,14 +9,18 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::IDENTS;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    args::{Arg, ArgsId},
-    data::DataTy,
-    fns::CallTerm,
     intrinsics::definitions::{array_ty, equal_ty, list_ty},
-    node::{Node, NodeOrigin},
-    params::ParamIndex,
-    refs::{RefKind, RefTy},
-    terms::{Term, Ty, TyId, TyOfTerm},
+    nodes::{
+        args::{Arg, ArgsId},
+        data::DataTy,
+        node::{Node, NodeOrigin},
+        params::ParamIndex,
+        terms::{
+            fns::CallTerm,
+            refs::{RefKind, RefTy},
+            Term, Ty, TyId, TyOfTerm,
+        },
+    },
 };
 
 use super::{

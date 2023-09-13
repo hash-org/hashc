@@ -15,17 +15,21 @@ use hash_utils::{
 };
 
 use crate::{
-    args::{ArgId, ArgsId},
-    data::{CtorDefId, DataDefId},
-    fns::{FnDefId, FnTy},
     intrinsics::definitions::Intrinsic,
-    mods::ModDefId,
-    params::{ParamId, ParamsId},
+    nodes::{
+        args::{ArgId, ArgsId},
+        data::{CtorDefId, DataDefId},
+        mods::ModDefId,
+        params::{ParamId, ParamsId},
+        symbols::SymbolId,
+        terms::{
+            fns::{FnDefId, FnTy},
+            tuples::TupleTy,
+            TermId, TyId,
+        },
+    },
     scopes::StackId,
     sub::Sub,
-    symbols::SymbolId,
-    terms::{TermId, TyId},
-    tuples::TupleTy,
 };
 
 /// A binding that contains a type and optional value.

@@ -16,20 +16,24 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
-    args::ArgsId,
-    arrays::ArrayTerm,
     atom_info::ItemInAtomInfo,
     context::Context,
-    control::{LoopControlTerm, ReturnTerm},
-    data::CtorTerm,
-    fns::CallTerm,
-    node::NodesId,
-    params::ParamIndex,
-    refs::{self, RefTerm},
+    nodes::{
+        args::ArgsId,
+        data::CtorTerm,
+        node::NodesId,
+        params::ParamIndex,
+        terms::{
+            arrays::ArrayTerm,
+            control::{LoopControlTerm, ReturnTerm},
+            fns::CallTerm,
+            refs::{self, RefTerm},
+            tuples::TupleTerm,
+            Term, TermId, Ty, UnsafeTerm,
+        },
+    },
     scopes::AssignTerm,
     term_as_variant,
-    terms::{Term, TermId, Ty, UnsafeTerm},
-    tuples::TupleTerm,
 };
 use hash_utils::itertools::Itertools;
 

@@ -13,13 +13,15 @@ use super::{
     make::IsPrimitiveCtor,
 };
 use crate::{
-    args::{Arg, PatArg},
     context::HasContext,
-    data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, PrimitiveCtorInfo},
-    lits::{CharLit, IntLit, Lit},
-    node::{Node, NodeOrigin},
-    pats::{Pat, PatId},
-    terms::{Term, TermId, Ty, TyId},
+    nodes::{
+        args::{Arg, PatArg},
+        data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, PrimitiveCtorInfo},
+        lits::{CharLit, IntLit, Lit},
+        node::{Node, NodeOrigin},
+        pats::{Pat, PatId},
+        terms::{Term, TermId, Ty, TyId},
+    },
 };
 
 /// Primitive literal types.

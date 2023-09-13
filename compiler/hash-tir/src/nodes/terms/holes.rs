@@ -2,8 +2,7 @@
 
 use core::fmt;
 
-use super::symbols::SymbolId;
-use crate::node::NodeOrigin;
+use crate::nodes::{node::NodeOrigin, symbols::SymbolId};
 
 /// A hole, or in other words a variable which will be resolved as a term later.
 ///

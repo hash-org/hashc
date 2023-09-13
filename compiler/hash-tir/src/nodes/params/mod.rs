@@ -9,21 +9,21 @@ use hash_storage::store::{
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 
-use super::{
-    args::{ArgsId, PatArgsId},
-    terms::TermId,
-};
 use crate::{
-    args::SomeArgsId,
     context::ScopeKind,
-    data::{CtorDefId, DataDefId},
-    fns::{FnDefId, FnTy},
-    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
+    nodes::{
+        args::{ArgsId, PatArgsId, SomeArgsId},
+        data::{CtorDefId, DataDefId},
+        node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
+        symbols::SymbolId,
+        terms::{
+            fns::{FnDefId, FnTy},
+            tuples::TupleTy,
+            TermId, Ty, TyId,
+        },
+    },
     stores::tir_stores,
-    symbols::SymbolId,
-    terms::{Ty, TyId},
     tir_node_sequence_store_direct,
-    tuples::TupleTy,
 };
 
 pub mod utils;

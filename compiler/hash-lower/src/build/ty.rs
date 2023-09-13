@@ -14,15 +14,19 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    data::DataTy,
-    fns::{CallTerm, FnDefId},
     intrinsics::{
         definitions::{BinOp, CondBinOp, Intrinsic as TirIntrinsic, ShortCircuitingBoolOp, UnOp},
         utils::try_use_term_as_integer_lit,
     },
-    lits::{Lit, LitPat},
-    pats::PatId,
-    terms::{Term, TermId, TyId},
+    nodes::{
+        data::DataTy,
+        lits::{Lit, LitPat},
+        pats::PatId,
+        terms::{
+            fns::{CallTerm, FnDefId},
+            Term, TermId, TyId,
+        },
+    },
 };
 
 use super::BodyBuilder;

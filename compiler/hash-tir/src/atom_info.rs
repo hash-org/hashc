@@ -4,15 +4,14 @@ use std::hash::Hash;
 
 use hash_storage::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
-use super::{
+use crate::nodes::{
     args::{ArgsId, PatArgsId},
     params::ParamsId,
     pats::PatId,
-    terms::TermId,
-};
-use crate::{
-    fns::{FnDefId, FnTy},
-    terms::TyId,
+    terms::{
+        fns::{FnDefId, FnTy},
+        TermId, TyId,
+    },
 };
 
 macro_rules! atom_info {

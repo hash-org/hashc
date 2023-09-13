@@ -8,7 +8,7 @@ use std::cell::Cell;
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
-use hash_tir::{
+use hash_tir::nodes::{
     data::DataDefCtors,
     mods::{ModDefId, ModMemberValue},
     node::NodesId,

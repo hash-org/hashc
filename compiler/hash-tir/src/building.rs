@@ -10,15 +10,14 @@ pub mod gen {
     use hash_storage::store::statics::SequenceStoreValue;
     use hash_utils::itertools::Itertools;
 
-    use crate::{
+    use crate::nodes::{
         args::{Arg, ArgsId},
         data::{DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
         node::{Node, NodeOrigin},
         params::{Param, ParamsId},
         pats::{Pat, PatId},
-        refs::RefKind,
         symbols::SymbolId,
-        terms::{Term, TermId, Ty, TyId},
+        terms::{refs::RefKind, Term, TermId, Ty, TyId},
     };
 
     /// Create a symbol with the given name.

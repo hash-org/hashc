@@ -6,13 +6,12 @@ use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey,
 };
-use hash_tir::{
+use hash_tir::nodes::{
     args::{ArgsId, PatArgsId},
-    fns::CallTerm,
     node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},
     pats::Spread,
-    terms::{Term, TermId, Ty},
+    terms::{fns::CallTerm, Term, TermId, Ty},
 };
 
 use super::ResolutionPass;

@@ -9,25 +9,40 @@ use hash_storage::store::{
 };
 use hash_utils::derive_more::From;
 
-use super::{casting::CastTerm, holes::Hole, symbols::SymbolId};
 use crate::{
-    access::AccessTerm,
-    args::{Arg, ArgsId},
-    arrays::{ArrayTerm, IndexTerm},
-    control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    data::{CtorTerm, DataDefId, DataTy},
-    fns::{CallTerm, FnDefId, FnTy},
     intrinsics::definitions::Intrinsic,
-    lits::LitId,
-    node::{Node, NodeId, NodeOrigin},
-    params::Param,
-    refs::{DerefTerm, RefKind, RefTerm, RefTy},
+    nodes::{
+        args::{Arg, ArgsId},
+        data::{CtorTerm, DataDefId, DataTy},
+        lits::LitId,
+        node::{Node, NodeId, NodeOrigin},
+        params::Param,
+        symbols::SymbolId,
+        terms::{
+            access::AccessTerm,
+            arrays::{ArrayTerm, IndexTerm},
+            casting::CastTerm,
+            control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
+            fns::{CallTerm, FnDefId, FnTy},
+            holes::Hole,
+            refs::{DerefTerm, RefKind, RefTerm, RefTy},
+            tuples::{TupleTerm, TupleTy},
+        },
+    },
     scopes::{AssignTerm, BlockTerm},
     stores::tir_stores,
     tir_node_sequence_store_indirect, tir_node_single_store,
-    tuples::{TupleTerm, TupleTy},
     visitor::Atom,
 };
+
+pub mod access;
+pub mod arrays;
+pub mod casting;
+pub mod control;
+pub mod fns;
+pub mod holes;
+pub mod refs;
+pub mod tuples;
 
 /// A term that can contain unsafe operations.
 #[derive(Debug, Clone, Copy)]
@@ -135,7 +150,7 @@ pub type TyListId = TermListId;
 macro_rules! term_as_variant {
     ($self:expr, $term:expr, $variant:ident) => {{
         let term = $term;
-        if let $crate::terms::Term::$variant(term) = *term {
+        if let $crate::nodes::terms::Term::$variant(term) = *term {
             term
         } else {
             panic!("Expected term {} to be a {}", term, stringify!($variant))

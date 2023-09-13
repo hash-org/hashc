@@ -13,7 +13,7 @@ use hash_source::{
 };
 use hash_storage::store::{DefaultPartialStore, PartialStore};
 use hash_target::{abi::Integer, data_layout::HasDataLayout, primitives::IntTy, size::Size};
-use hash_tir::params::ParamIndex;
+use hash_tir::nodes::params::ParamIndex;
 use hash_utils::{derive_more::From, fxhash::FxHashMap, lazy_static::lazy_static};
 
 use crate::{

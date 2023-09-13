@@ -15,12 +15,14 @@ use hash_target::{
     HasTarget, Target,
 };
 use hash_tir::{
-    args::Arg,
     atom_info::{AtomInfoStore, HasAtomInfo},
     context::{Context, HasContext},
-    data::{DataDefId, DataTy},
-    mods::ModDefId,
-    node::{Node, NodeId},
+    nodes::{
+        args::Arg,
+        data::{DataDefId, DataTy},
+        mods::ModDefId,
+        node::{Node, NodeId},
+    },
     stores::tir_stores,
 };
 use hash_utils::stream_writeln;

@@ -9,7 +9,7 @@ use hash_storage::{
 };
 
 use crate::{
-    node::{Node, NodeOrigin},
+    nodes::node::{Node, NodeOrigin},
     stores::tir_stores,
     tir_node_single_store,
 };

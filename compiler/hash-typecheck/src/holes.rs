@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use hash_tir::{context::Context, terms::TermId, utils::traversing::Atom};
+use hash_tir::{context::Context, nodes::terms::TermId, utils::traversing::Atom};
 
 pub struct Problem {
     pub context: Context,

@@ -14,18 +14,16 @@ use hash_utils::itertools::Itertools;
 use textwrap::indent;
 use utility_types::omit;
 
-use super::{
-    args::{ArgsId, PatArgsId},
-    pats::Spread,
-};
 use crate::{
-    args::Arg,
-    node::{Node, NodeId, NodeOrigin, NodesId},
-    params::ParamsId,
-    pats::PatArgsWithSpread,
+    nodes::{
+        args::{Arg, ArgsId, PatArgsId},
+        node::{Node, NodeId, NodeOrigin, NodesId},
+        params::ParamsId,
+        pats::{PatArgsWithSpread, Spread},
+        symbols::SymbolId,
+        terms::{TermId, TyId},
+    },
     stores::tir_stores,
-    symbols::SymbolId,
-    terms::{TermId, TyId},
     tir_node_sequence_store_direct, tir_node_single_store,
 };
 

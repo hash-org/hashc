@@ -14,24 +14,28 @@ use hash_storage::store::{
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
-    access::AccessTerm,
-    args::{Arg, ArgsId},
-    arrays::{ArrayTerm, IndexTerm},
-    casting::CastTerm,
-    control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
-    data::DataTy,
-    fns::CallTerm,
     intrinsics::{
         definitions::{equal_ty, BinOp, CondBinOp, Intrinsic, ShortCircuitingBoolOp, UnOp},
         utils::{bool_term, create_term_from_integer_lit},
     },
-    lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
-    node::{Node, NodeId, NodeOrigin},
-    params::ParamIndex,
-    refs::{DerefTerm, RefKind, RefTerm},
+    nodes::{
+        args::{Arg, ArgsId},
+        data::DataTy,
+        lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
+        node::{Node, NodeId, NodeOrigin},
+        params::ParamIndex,
+        terms::{
+            access::AccessTerm,
+            arrays::{ArrayTerm, IndexTerm},
+            casting::CastTerm,
+            control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
+            fns::CallTerm,
+            refs::{DerefTerm, RefKind, RefTerm},
+            tuples::TupleTerm,
+            Term, TermId, Ty, TyOfTerm, UnsafeTerm,
+        },
+    },
     scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
-    terms::{Term, TermId, Ty, TyOfTerm, UnsafeTerm},
-    tuples::TupleTerm,
 };
 use hash_utils::itertools::Itertools;
 

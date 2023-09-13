@@ -8,11 +8,12 @@ use hash_pipeline::settings::CompilerStageKind;
 use hash_source::{ModuleKind, SourceId};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    args::Arg,
     dump::dump_tir,
-    fns::CallTerm,
-    node::{Node, NodeId},
-    terms::{Term, TermId},
+    nodes::{
+        args::Arg,
+        node::{Node, NodeId},
+        terms::{fns::CallTerm, Term, TermId},
+    },
 };
 use hash_typecheck::{normalisation::NormalisationMode, TcEnv};
 use hash_utils::{

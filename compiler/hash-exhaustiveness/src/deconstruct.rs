@@ -11,11 +11,13 @@ use std::{
 
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
-    data::{CtorDefId, DataTy},
     intrinsics::utils::try_use_ty_as_array_ty,
-    node::NodesId,
-    pats::PatId,
-    terms::{Ty, TyId},
+    nodes::{
+        data::{CtorDefId, DataTy},
+        node::NodesId,
+        pats::PatId,
+        terms::{Ty, TyId},
+    },
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 

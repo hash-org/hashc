@@ -10,21 +10,25 @@ use hash_storage::store::{
 use hash_utils::derive_more::{From, TryInto};
 
 use crate::{
-    access::AccessTerm,
-    args::{Arg, ArgsId, PatArg, PatArgsId, PatOrCapture},
-    arrays::{ArrayPat, ArrayTerm, IndexTerm},
-    casting::CastTerm,
-    control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
-    data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    fns::{CallTerm, FnDef, FnDefId, FnTy},
-    mods::{ModDefId, ModMemberId, ModMemberValue},
-    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-    params::{Param, ParamsId},
-    pats::{Pat, PatId, PatListId},
-    refs::{DerefTerm, RefTerm, RefTy},
+    nodes::{
+        args::{Arg, ArgsId, PatArg, PatArgsId, PatOrCapture},
+        data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
+        mods::{ModDefId, ModMemberId, ModMemberValue},
+        node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
+        params::{Param, ParamsId},
+        pats::{Pat, PatId, PatListId},
+        terms::{
+            access::AccessTerm,
+            arrays::{ArrayPat, ArrayTerm, IndexTerm},
+            casting::CastTerm,
+            control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
+            fns::{CallTerm, FnDef, FnDefId, FnTy},
+            refs::{DerefTerm, RefTerm, RefTy},
+            tuples::{TuplePat, TupleTerm, TupleTy},
+            Term, TermId, TermListId, Ty, TyOfTerm, UnsafeTerm,
+        },
+    },
     scopes::{AssignTerm, BlockStatement, BlockStatementsId, BlockTerm, Decl},
-    terms::{Term, TermId, TermListId, Ty, TyOfTerm, UnsafeTerm},
-    tuples::{TuplePat, TupleTerm, TupleTy},
 };
 
 /// Contains methods to traverse the Hash TIR structure.

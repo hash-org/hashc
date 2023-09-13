@@ -13,15 +13,14 @@ use hash_ir::{
     IrCtx,
 };
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
-use hash_tir::{
+use hash_tir::nodes::{
     args::Arg,
     data::DataTy,
-    fns::FnDefId,
     mods::{ModMember, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId},
     pats::PatId,
     symbols::SymbolId,
-    terms::TermId,
+    terms::{fns::FnDefId, TermId},
 };
 
 use super::BodyBuilder;

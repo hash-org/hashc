@@ -4,7 +4,7 @@
 
 use hash_ast_utils::attr::AttrTarget;
 use hash_source::identifier::Identifier;
-use hash_tir::params::ParamsId;
+use hash_tir::nodes::params::ParamsId;
 use hash_utils::{
     fxhash::FxHashMap,
     index_vec::{define_index_type, IndexVec},

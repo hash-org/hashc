@@ -5,12 +5,9 @@ use hash_ir::{
     ty::{IrTyId, Mutability, VariantIdx},
 };
 use hash_storage::store::statics::StoreId;
-use hash_tir::{
-    access::AccessTerm,
-    arrays::IndexTerm,
+use hash_tir::nodes::{
     params::ParamIndex,
-    refs::DerefTerm,
-    terms::{Term, TermId, Ty},
+    terms::{access::AccessTerm, arrays::IndexTerm, refs::DerefTerm, Term, TermId, Ty},
 };
 
 use super::{unpack, BlockAnd, BlockAndExtend, BodyBuilder};

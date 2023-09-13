@@ -6,11 +6,13 @@ use hash_storage::store::statics::StoreId;
 use typed_builder::TypedBuilder;
 
 use crate::{
-    args::ArgsId,
-    params::ParamsId,
+    nodes::{
+        args::ArgsId,
+        params::ParamsId,
+        symbols::SymbolId,
+        terms::{TermId, Ty, TyId},
+    },
     stores::tir_stores,
-    symbols::SymbolId,
-    terms::{TermId, Ty, TyId},
     tir_node_single_store,
 };
 

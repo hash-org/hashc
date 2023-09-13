@@ -10,12 +10,10 @@ use hash_storage::{
 use textwrap::indent;
 use utility_types::omit;
 
-use super::{data::DataDefId, fns::FnDefId};
 use crate::{
     intrinsics::{definitions::Intrinsic, make::IsIntrinsic},
-    node::Node,
+    nodes::{data::DataDefId, node::Node, symbols::SymbolId, terms::fns::FnDefId},
     stores::tir_stores,
-    symbols::SymbolId,
     tir_node_sequence_store_direct, tir_node_single_store,
 };
 

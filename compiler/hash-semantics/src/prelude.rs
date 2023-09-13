@@ -1,5 +1,8 @@
 use hash_source::entry_point::EntryPointState;
-use hash_tir::{fns::FnDefId, intrinsics::make::make_root_mod, mods::ModDefId};
+use hash_tir::{
+    intrinsics::make::make_root_mod,
+    nodes::{mods::ModDefId, terms::fns::FnDefId},
+};
 use once_cell::sync::OnceCell;
 
 /// Stores some "distinguished" items, namely the prelude and the root modules,

@@ -13,7 +13,7 @@ use hash_ir_utils::const_utils::ConstUtils;
 use hash_layout::compute::LayoutComputer;
 use hash_storage::store::statics::StoreId;
 use hash_target::{data_layout::HasDataLayout, primitives::FloatTy};
-use hash_tir::pats::RangePat;
+use hash_tir::nodes::pats::RangePat;
 
 use crate::build::BodyBuilder;
 

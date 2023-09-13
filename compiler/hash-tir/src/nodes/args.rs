@@ -9,13 +9,15 @@ use hash_storage::store::{
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 
-use super::{params::ParamIndex, pats::PatId};
 use crate::{
-    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-    params::ParamsId,
+    nodes::{
+        node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
+        params::{ParamIndex, ParamsId},
+        pats::PatId,
+        symbols::SymbolId,
+        terms::{Term, TermId},
+    },
     stores::tir_stores,
-    symbols::SymbolId,
-    terms::{Term, TermId},
     tir_node_sequence_store_direct,
 };
 

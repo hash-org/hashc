@@ -10,17 +10,21 @@ use hash_storage::{
 };
 use hash_utils::derive_more::From;
 
-use super::{
-    args::{PatArgsId, PatOrCapture},
-    control::{IfPat, OrPat},
-    data::CtorPat,
-    lits::LitPat,
-    scopes::BindingPat,
-    symbols::SymbolId,
-    tuples::TuplePat,
-};
 use crate::{
-    arrays::ArrayPat, stores::tir_stores, tir_node_sequence_store_indirect, tir_node_single_store,
+    nodes::{
+        args::{PatArgsId, PatOrCapture},
+        data::CtorPat,
+        lits::LitPat,
+        symbols::SymbolId,
+        terms::{
+            arrays::ArrayPat,
+            control::{IfPat, OrPat},
+            tuples::TuplePat,
+        },
+    },
+    scopes::BindingPat,
+    stores::tir_stores,
+    tir_node_sequence_store_indirect, tir_node_single_store,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,

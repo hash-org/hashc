@@ -18,10 +18,14 @@ use hash_ir::{
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{Context, ScopeKind},
-    control::{IfPat, MatchCasesId},
-    node::NodesId,
-    pats::{Pat, PatId},
-    terms::{Term, TermId},
+    nodes::{
+        node::NodesId,
+        pats::{Pat, PatId},
+        terms::{
+            control::{IfPat, MatchCasesId},
+            Term, TermId,
+        },
+    },
 };
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 

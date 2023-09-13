@@ -7,12 +7,15 @@ use hash_ast::ast::MatchOrigin;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use textwrap::indent;
 
-use super::{
-    pats::{PatId, PatListId},
+use crate::{
+    nodes::{
+        pats::{PatId, PatListId},
+        terms::{Term, TermId},
+    },
     scopes::StackId,
-    terms::Term,
+    stores::tir_stores,
+    tir_node_sequence_store_direct,
 };
-use crate::{stores::tir_stores, terms::TermId, tir_node_sequence_store_direct};
 
 /// A loop term.
 ///

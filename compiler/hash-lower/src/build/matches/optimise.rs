@@ -10,7 +10,7 @@ use hash_ir::{
     ty::{IrTy, IrTyId},
 };
 use hash_storage::store::statics::StoreId;
-use hash_tir::pats::{PatId, Spread};
+use hash_tir::nodes::pats::{PatId, Spread};
 use hash_utils::smallvec::SmallVec;
 
 use super::candidate::{Candidate, MatchPair};
