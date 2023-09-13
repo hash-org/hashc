@@ -40,7 +40,10 @@ use super::{
     scoping::{BindingKind, ContextKind},
     ResolutionPass,
 };
-use crate::diagnostics::error::{SemanticError, SemanticResult};
+use crate::{
+    diagnostics::definitions::{SemanticError, SemanticResult},
+    env::SemanticEnv,
+};
 
 /// A path component in the AST.
 ///
@@ -156,7 +159,7 @@ pub enum ResolvedAstPathComponent {
 }
 
 /// This block performs resolution of AST paths.
-impl<'tc> ResolutionPass<'tc> {
+impl<E: SemanticEnv> ResolutionPass<'_, E> {
     /// Resolve a name starting from the given [`ModMemberValue`], or the
     /// current context if no such value is given.
     ///

@@ -10,22 +10,22 @@ use hash_tir::{
     fns::{CallTerm, FnTy},
     holes::Hole,
     lits::Lit,
-    params::ParamsId,
+    params::{utils::validate_params, ParamsId},
     sub::Sub,
     symbols::SymbolId,
     terms::{Term, TermId, Ty, TyId},
-    utils::{traversing::Atom, AccessToUtils},
+    visitor::Atom,
 };
 use hash_utils::derive_more::Deref;
 use once_cell::unsync::OnceCell;
 
 use crate::{
     errors::{TcError, TcResult},
-    AccessToTypechecking,
+    TcEnv,
 };
 
 #[derive(Deref)]
-pub struct UnificationOps<'a, T: AccessToTypechecking> {
+pub struct UnificationOps<'a, T: TcEnv> {
     #[deref]
     env: &'a T,
     add_to_ctx: Cell<bool>,
@@ -33,7 +33,7 @@ pub struct UnificationOps<'a, T: AccessToTypechecking> {
     pat_binds: OnceCell<HashSet<SymbolId>>,
 }
 
-impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
+impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     pub fn new(env: &'tc T) -> Self {
         Self {
             env,
@@ -374,8 +374,8 @@ impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
         in_param_scope: impl FnOnce() -> TcResult<U>,
     ) -> TcResult<U> {
         // Validate the parameters and ensure they are of the same length
-        self.param_utils().validate_params(src_id)?;
-        self.param_utils().validate_params(target_id)?;
+        validate_params(src_id)?;
+        validate_params(target_id)?;
         if src_id.len() != target_id.len() {
             return Err(TcError::WrongParamLength {
                 given_params_id: src_id,

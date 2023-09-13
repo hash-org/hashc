@@ -5,102 +5,54 @@
 
 #![feature(decl_macro, slice_pattern, let_chains, if_let_guard, cell_update, try_blocks)]
 
-use diagnostics::{error::SemanticError, warning::SemanticWarning};
-use environment::{
-    analysis_progress::AnalysisProgress,
-    ast_info::AstInfo,
-    sem_env::{
-        AccessToSemEnv, DiagnosticsStore, EntryPoint, PreludeOrUnset, RootModOrUnset, SemEnv,
-    },
+use diagnostics::{
+    definitions::{SemanticError, SemanticWarning},
+    reporting::SemanticReporter,
 };
+use env::{HasSemanticDiagnostics, SemanticEnv};
+use hash_ast::node_map::{HasNodeMap, NodeMap};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
-    settings::{CompilerSettings, CompilerStageKind},
+    settings::{CompilerSettings, CompilerStageKind, HasCompilerSettings},
     workspace::Workspace,
 };
-use hash_reporting::{diagnostic::Diagnostics, reporter::Reports};
+use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics, HasDiagnostics};
 use hash_source::SourceId;
-use hash_target::HasTarget;
-use hash_tir::{
-    context::Context,
-    environment::{env::Env, source_info::CurrentSourceInfo},
-};
-use once_cell::unsync::OnceCell;
-use ops::common::CommonOps;
+use hash_target::{HasTarget, Target};
+use storage::SemanticStorage;
 
+pub mod current_source;
 pub mod diagnostics;
-pub mod environment;
-pub mod ops;
+pub mod env;
 pub mod passes;
+pub mod prelude;
+pub mod progress;
+pub mod storage;
 
 /// The Hash semantic analysis compiler stage.
 
-/// @@Docs: overview of each analysis pass.
 #[derive(Default)]
 pub struct SemanticAnalysis;
 
 /// The [SemanticAnalysisCtx] represents all of the information that is required
 /// from the compiler state for the semantic analysis stage to operate.
-pub struct SemanticAnalysisCtx<'tc> {
+pub struct SemanticAnalysisCtx<'env> {
     /// The workspace. This is used to retrieve the AST and other
     /// information about the source.
-    pub workspace: &'tc Workspace,
+    pub workspace: &'env Workspace,
 
     /// The semantic storage. This is managed by this crate.
     ///
     /// It contains stores, environments, context, etc. for semantic
     /// analysis and typechecking.
-    pub semantic_storage: &'tc mut SemanticStorage,
+    pub semantic_storage: &'env mut SemanticStorage,
 
     /// The user-given settings to semantic analysis.
-    pub settings: &'tc CompilerSettings,
+    pub settings: &'env CompilerSettings,
 }
 
 pub trait SemanticAnalysisCtxQuery: CompilerInterface {
     fn data(&mut self) -> SemanticAnalysisCtx;
-}
-
-/// Semantic storage is a collection of stores, environments, and other
-/// information that is required for semantic analysis and typechecking.
-///
-/// From it, `Env` and `SemEnv` are constructed as ref-containing structs.
-pub struct SemanticStorage {
-    /// TIR:
-    pub context: Context,
-
-    /// Diagnostics store.
-    pub diagnostics: DiagnosticsStore,
-
-    /// Progress of analysis
-    pub analysis_progress: AnalysisProgress,
-
-    /// AST map to TIR nodes
-    pub ast_info: AstInfo,
-
-    // Bootstrapping:
-    pub prelude_or_unset: PreludeOrUnset,
-    pub root_mod_or_unset: RootModOrUnset,
-    pub entry_point: EntryPoint,
-}
-
-impl SemanticStorage {
-    pub fn new() -> Self {
-        Self {
-            context: Context::new(),
-            diagnostics: DiagnosticsStore::new(),
-            prelude_or_unset: OnceCell::new(),
-            ast_info: AstInfo::new(),
-            entry_point: EntryPoint::new(),
-            root_mod_or_unset: OnceCell::new(),
-            analysis_progress: AnalysisProgress::new(),
-        }
-    }
-}
-
-impl Default for SemanticStorage {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
@@ -109,56 +61,72 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
     }
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let SemanticAnalysisCtx { workspace, semantic_storage, settings } = ctx.data();
-        let current_source_info = CurrentSourceInfo::new(entry_point);
+        // Create the semantic environment
+        let env = SemanticEnvImpl { ctx: ctx.data(), diagnostics: DiagnosticCellStore::new() };
 
-        // Construct the core TIR environment.
-        let env = Env::new(
-            &semantic_storage.context,
-            &workspace.node_map,
-            settings.target(),
-            &current_source_info,
-        );
+        // Visit the sources by first visiting the entry point
+        //
+        // The rest of the sources will be visited by the analyser
+        let analyser = passes::Analyser::new(&env);
+        analyser.try_or_add_error(analyser.visit_source(entry_point));
 
-        // Construct the semantic analysis environment.
-        let sem_env = SemEnv::new(
-            &env,
-            &semantic_storage.diagnostics,
-            &semantic_storage.entry_point,
-            &semantic_storage.ast_info,
-            &semantic_storage.prelude_or_unset,
-            &semantic_storage.root_mod_or_unset,
-            &semantic_storage.analysis_progress,
-            settings,
-        );
-
-        // Visit the sources
-        let visitor = passes::Visitor::new(&sem_env);
-        sem_env.try_or_add_error(visitor.visit_source());
-
-        if visitor.sem_env().diagnostics().has_diagnostics() {
-            let (errors, warnings) = visitor.sem_env().diagnostics().into_diagnostics();
-
-            let mut reports: Reports = Vec::with_capacity(errors.len() + warnings.len());
-
-            if !errors.is_empty() {
-                reports.extend::<Reports>(
-                    visitor.sem_env().with(&SemanticError::Compound { errors }).into(),
-                );
-            }
-
-            if !warnings.is_empty() {
-                reports.extend::<Reports>(
-                    visitor.sem_env().with(&SemanticWarning::Compound { warnings }).into(),
-                );
-            }
-
-            Err(reports)
+        // Handle any diagnostics that were emitted
+        if env.diagnostics().has_diagnostics() {
+            Err(env.diagnostics().into_reports(
+                SemanticReporter::make_reports_from_error,
+                SemanticReporter::make_reports_from_warning,
+            ))
         } else {
-            // Passed!
             Ok(())
         }
     }
 
     fn cleanup(&mut self, _entry_point: SourceId, _stage_data: &mut Ctx) {}
+}
+
+/// The `SemanticEnv` trait can be implemented through access to the
+/// `SemanticAnalysisCtx`, as well as a fresh store for diagnostics.
+pub struct SemanticEnvImpl<'env> {
+    ctx: SemanticAnalysisCtx<'env>,
+    diagnostics: DiagnosticCellStore<SemanticError, SemanticWarning>,
+}
+
+impl HasNodeMap for SemanticEnvImpl<'_> {
+    fn node_map(&self) -> &NodeMap {
+        &self.ctx.workspace.node_map
+    }
+}
+
+impl HasDiagnostics for SemanticEnvImpl<'_> {
+    type Diagnostics = DiagnosticCellStore<SemanticError, SemanticWarning>;
+
+    fn diagnostics(&self) -> &Self::Diagnostics {
+        &self.diagnostics
+    }
+}
+
+impl HasSemanticDiagnostics for SemanticEnvImpl<'_> {
+    type SemanticDiagnostics = DiagnosticCellStore<SemanticError, SemanticWarning>;
+}
+
+impl HasCompilerSettings for SemanticEnvImpl<'_> {
+    fn settings(&self) -> &CompilerSettings {
+        self.ctx.settings
+    }
+}
+
+impl HasTarget for SemanticEnvImpl<'_> {
+    fn target(&self) -> &Target {
+        self.ctx.settings.target()
+    }
+}
+
+impl<'env> SemanticEnv for SemanticEnvImpl<'env> {
+    fn storage(&self) -> &SemanticStorage {
+        self.ctx.semantic_storage
+    }
+
+    fn storage_mut(&mut self) -> &mut SemanticStorage {
+        self.ctx.semantic_storage
+    }
 }

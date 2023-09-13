@@ -7,8 +7,8 @@ use typed_builder::TypedBuilder;
 
 use crate::{
     args::ArgsId,
-    environment::stores::tir_stores,
     params::ParamsId,
+    stores::tir_stores,
     symbols::SymbolId,
     terms::{TermId, Ty, TyId},
     tir_node_single_store,

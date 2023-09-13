@@ -40,7 +40,7 @@ use super::range::{IntRange, SplitIntRange};
 use crate::{
     list::{Array, ArrayKind, SplitVarList},
     storage::DeconstructedCtorId,
-    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// The [DeconstructedCtor] represents the type of constructor that a pattern
@@ -102,7 +102,7 @@ impl DeconstructedCtor {
     }
 }
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Compute the `arity` of this [DeconstructedCtor].
     pub(crate) fn ctor_arity(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> usize {
         match self.get_deconstructed_ctor(ctor) {
@@ -281,7 +281,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 }
 
-impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedCtorId> {
+impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedCtorId, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self.checker.get_deconstructed_ctor(self.item))
     }

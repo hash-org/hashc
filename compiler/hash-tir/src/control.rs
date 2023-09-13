@@ -12,7 +12,7 @@ use super::{
     scopes::StackId,
     terms::Term,
 };
-use crate::{environment::stores::tir_stores, terms::TermId, tir_node_sequence_store_direct};
+use crate::{stores::tir_stores, terms::TermId, tir_node_sequence_store_direct};
 
 /// A loop term.
 ///

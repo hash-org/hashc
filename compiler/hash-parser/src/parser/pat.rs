@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, origin::PatOrigin};
-use hash_reporting::diagnostic::AccessToDiagnostics;
+use hash_reporting::diagnostic::HasDiagnostics;
 use hash_source::{identifier::IDENTS, location::ByteRange};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;

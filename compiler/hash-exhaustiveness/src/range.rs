@@ -39,7 +39,6 @@ use hash_ast::ast::RangeEnd;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::Store;
 use hash_tir::{
-    environment::env::AccessToEnv,
     intrinsics::utils::try_use_ty_as_int_ty,
     pats::{PatId, RangePat},
     terms::TyId,
@@ -47,7 +46,7 @@ use hash_tir::{
 
 use crate::{
     constant::Constant, diagnostics::ExhaustivenessWarning, storage::DeconstructedPatId,
-    ExhaustivenessChecker,
+    ExhaustivenessChecker, ExhaustivenessEnv,
 };
 
 /// The [IntRange] is used as a structure to represent `integral` types like
@@ -245,7 +244,7 @@ impl SplitIntRange {
     }
 }
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Attempt to build a [IntRange] from a provided constant.
     #[inline]
     pub fn make_range_from_constant(&self, constant: Constant) -> IntRange {

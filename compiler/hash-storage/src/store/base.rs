@@ -72,6 +72,14 @@ pub trait Store<Key: StoreKey, Value> {
     /// the store.
     fn internal_data(&self) -> &StoreInternalData<Value>;
 
+    /// Iterate over all keys in the store.
+    fn for_each_entry(&self, f: impl Fn(Key)) {
+        let len = self.internal_data().read().len();
+        for index in 0..len {
+            f(Key::from_index_unchecked(index));
+        }
+    }
+
     /// Create a value inside the store, given its key, returning its key.
     fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
         let mut data = self.internal_data().write();

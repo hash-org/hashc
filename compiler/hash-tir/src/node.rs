@@ -5,7 +5,7 @@
 //! AST node that the TIR node was generated from, if any.
 //!
 //! Nodes normally live in stores, which can be created through the
-//! `crate::environment::stores::tir_node_*` macros.
+//! `crate::stores::tir_node_*` macros.
 use core::fmt;
 
 use hash_ast::ast::AstNodeId;
@@ -55,7 +55,7 @@ pub trait NodeId: HasAstNodeId {
 
 /// A trait implemented by all TIR sequence store node ID wrappers.
 ///
-/// See `crate::environment::stores::tir_node_*_sequence_store` for more
+/// See `crate::stores::tir_node_*_sequence_store` for more
 /// information.
 pub trait NodesId: NodeId {
     type Elements: SequenceStoreId;

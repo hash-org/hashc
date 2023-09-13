@@ -16,7 +16,6 @@ use crate::{
     casting::CastTerm,
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    environment::env::Env,
     fns::{CallTerm, FnDef, FnDefId, FnTy},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
@@ -29,7 +28,7 @@ use crate::{
 };
 
 /// Contains methods to traverse the Hash TIR structure.
-pub struct TraversingUtils {
+pub struct Visitor {
     visited: RefCell<HashSet<Atom>>,
     visit_fns_once: bool,
 }
@@ -76,21 +75,19 @@ impl fmt::Display for Atom {
 ///
 /// This does not return a value, but instead returns a `ControlFlow` to
 /// indicate whether to continue or break the traversal.
-pub trait Visitor<E> = FnMut(Atom) -> Result<ControlFlow<()>, E>;
+pub trait VisitFn<E> = FnMut(Atom) -> Result<ControlFlow<()>, E>;
 
 /// Function to map an atom to another atom.
 ///
 /// This returns a `ControlFlow` to indicate whether to continue by duplicating
 /// the atom canonically or break the traversal with a custom atom.
-pub trait Mapper<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
+pub trait MapFn<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
 
 /// Contains the implementation of `fmap` and `visit` for each atom, as well as
 /// secondary components such as arguments and parameters.
-impl TraversingUtils {
+impl Visitor {
     /// Create a new `TraversingUtils`.
-    ///
-    /// The `env` parameter is needed for the `utils` macro
-    pub fn new(_: &Env) -> Self {
+    pub fn new() -> Self {
         Self { visited: RefCell::new(HashSet::new()), visit_fns_once: true }
     }
 
@@ -98,14 +95,14 @@ impl TraversingUtils {
         self.visit_fns_once = visit_fns_once;
     }
 
-    pub fn fmap_atom_non_preserving<E, F: Mapper<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
+    pub fn fmap_atom_non_preserving<E, F: MapFn<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
         match f(atom)? {
             ControlFlow::Continue(()) => self.fmap_atom(atom, f),
             ControlFlow::Break(atom) => Ok(atom),
         }
     }
 
-    pub fn fmap_atom<E, F: Mapper<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
+    pub fn fmap_atom<E, F: MapFn<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
         match atom {
             Atom::Term(term_id) => Ok(Atom::Term(self.fmap_term(term_id, f)?)),
             Atom::FnDef(fn_def_id) => Ok(Atom::FnDef(self.fmap_fn_def(fn_def_id, f)?)),
@@ -113,7 +110,7 @@ impl TraversingUtils {
         }
     }
 
-    pub fn fmap_term<E, F: Mapper<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
+    pub fn fmap_term<E, F: MapFn<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
         let origin = term_id.origin();
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
@@ -267,7 +264,7 @@ impl TraversingUtils {
         Ok(result)
     }
 
-    pub fn fmap_pat<E, F: Mapper<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
+    pub fn fmap_pat<E, F: MapFn<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
         let origin = pat_id.origin();
         let result = match f(pat_id.into())? {
             ControlFlow::Break(pat) => Ok(PatId::try_from(pat).unwrap()),
@@ -317,7 +314,7 @@ impl TraversingUtils {
         Ok(result)
     }
 
-    pub fn fmap_block_statements<E, F: Mapper<E>>(
+    pub fn fmap_block_statements<E, F: MapFn<E>>(
         &self,
         block_statements: BlockStatementsId,
         f: F,
@@ -345,7 +342,7 @@ impl TraversingUtils {
         Ok(Node::create_at(Node::seq(new_list), block_statements.origin()))
     }
 
-    pub fn fmap_term_list<E, F: Mapper<E>>(
+    pub fn fmap_term_list<E, F: MapFn<E>>(
         &self,
         term_list: TermListId,
         f: F,
@@ -357,11 +354,7 @@ impl TraversingUtils {
         Ok(Node::create_at(TermId::seq(new_list), term_list.origin()))
     }
 
-    pub fn fmap_pat_list<E, F: Mapper<E>>(
-        &self,
-        pat_list: PatListId,
-        f: F,
-    ) -> Result<PatListId, E> {
+    pub fn fmap_pat_list<E, F: MapFn<E>>(&self, pat_list: PatListId, f: F) -> Result<PatListId, E> {
         let mut new_list = Vec::with_capacity(pat_list.len());
         for pat_id in pat_list.elements().value() {
             match pat_id {
@@ -376,7 +369,7 @@ impl TraversingUtils {
         Ok(Node::create_at(PatOrCapture::seq(new_list), pat_list.origin()))
     }
 
-    pub fn fmap_params<E, F: Mapper<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
+    pub fn fmap_params<E, F: MapFn<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
         let new_params = {
             let mut new_params = Vec::with_capacity(params_id.len());
             for param in params_id.elements().value() {
@@ -398,7 +391,7 @@ impl TraversingUtils {
         Ok(new_params)
     }
 
-    pub fn fmap_args<E, F: Mapper<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
+    pub fn fmap_args<E, F: MapFn<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
         let mut new_args = Vec::with_capacity(args_id.len());
         for arg in args_id.elements().value() {
             new_args.push(Node::at(
@@ -410,7 +403,7 @@ impl TraversingUtils {
         Ok(new_args_id)
     }
 
-    pub fn fmap_pat_args<E, F: Mapper<E>>(
+    pub fn fmap_pat_args<E, F: MapFn<E>>(
         &self,
         pat_args_id: PatArgsId,
         f: F,
@@ -437,7 +430,7 @@ impl TraversingUtils {
         Ok(new_pat_args)
     }
 
-    pub fn fmap_fn_def<E, F: Mapper<E>>(&self, fn_def_id: FnDefId, f: F) -> Result<FnDefId, E> {
+    pub fn fmap_fn_def<E, F: MapFn<E>>(&self, fn_def_id: FnDefId, f: F) -> Result<FnDefId, E> {
         if self.visit_fns_once {
             {
                 if self.visited.borrow().contains(&fn_def_id.into()) {
@@ -477,7 +470,7 @@ impl TraversingUtils {
         Ok(new_fn_def)
     }
 
-    pub fn visit_term<E, F: Visitor<E>>(&self, term_id: TermId, f: &mut F) -> Result<(), E> {
+    pub fn visit_term<E, F: VisitFn<E>>(&self, term_id: TermId, f: &mut F) -> Result<(), E> {
         match f(term_id.into())? {
             ControlFlow::Break(_) => Ok(()),
             ControlFlow::Continue(()) => match *term_id.value() {
@@ -540,7 +533,7 @@ impl TraversingUtils {
         }
     }
 
-    pub fn visit_pat<E, F: Visitor<E>>(&self, pat_id: PatId, f: &mut F) -> Result<(), E> {
+    pub fn visit_pat<E, F: VisitFn<E>>(&self, pat_id: PatId, f: &mut F) -> Result<(), E> {
         match f(pat_id.into())? {
             ControlFlow::Break(()) => Ok(()),
             ControlFlow::Continue(()) => match *pat_id.value() {
@@ -560,7 +553,7 @@ impl TraversingUtils {
         }
     }
 
-    pub fn visit_fn_def<E, F: Visitor<E>>(&self, fn_def_id: FnDefId, f: &mut F) -> Result<(), E> {
+    pub fn visit_fn_def<E, F: VisitFn<E>>(&self, fn_def_id: FnDefId, f: &mut F) -> Result<(), E> {
         if self.visit_fns_once {
             {
                 if self.visited.borrow().contains(&fn_def_id.into()) {
@@ -582,7 +575,7 @@ impl TraversingUtils {
         }
     }
 
-    pub fn visit_atom<E, F: Visitor<E>>(&self, atom: Atom, f: &mut F) -> Result<(), E> {
+    pub fn visit_atom<E, F: VisitFn<E>>(&self, atom: Atom, f: &mut F) -> Result<(), E> {
         match atom {
             Atom::Term(term_id) => self.visit_term(term_id, f),
             Atom::FnDef(fn_def_id) => self.visit_fn_def(fn_def_id, f),
@@ -590,7 +583,7 @@ impl TraversingUtils {
         }
     }
 
-    pub fn visit_term_list<E, F: Visitor<E>>(
+    pub fn visit_term_list<E, F: VisitFn<E>>(
         &self,
         term_list_id: TermListId,
         f: &mut F,
@@ -601,7 +594,7 @@ impl TraversingUtils {
         Ok(())
     }
 
-    pub fn visit_block_statements<E, F: Visitor<E>>(
+    pub fn visit_block_statements<E, F: VisitFn<E>>(
         &self,
         block_statements: BlockStatementsId,
         f: &mut F,
@@ -621,7 +614,7 @@ impl TraversingUtils {
         Ok(())
     }
 
-    pub fn visit_pat_list<E, F: Visitor<E>>(
+    pub fn visit_pat_list<E, F: VisitFn<E>>(
         &self,
         pat_list_id: PatListId,
         f: &mut F,
@@ -634,7 +627,7 @@ impl TraversingUtils {
         Ok(())
     }
 
-    pub fn visit_params<E, F: Visitor<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
+    pub fn visit_params<E, F: VisitFn<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
         for param in params_id.elements().value() {
             self.visit_term(param.ty, f)?;
             if let Some(default) = param.default {
@@ -644,7 +637,7 @@ impl TraversingUtils {
         Ok(())
     }
 
-    pub fn visit_pat_args<E, F: Visitor<E>>(
+    pub fn visit_pat_args<E, F: VisitFn<E>>(
         &self,
         pat_args_id: PatArgsId,
         f: &mut F,
@@ -657,14 +650,14 @@ impl TraversingUtils {
         Ok(())
     }
 
-    pub fn visit_args<E, F: Visitor<E>>(&self, args_id: ArgsId, f: &mut F) -> Result<(), E> {
+    pub fn visit_args<E, F: VisitFn<E>>(&self, args_id: ArgsId, f: &mut F) -> Result<(), E> {
         for arg in args_id.elements().value() {
             self.visit_term(arg.value, f)?;
         }
         Ok(())
     }
 
-    pub fn visit_ctor_def<E, F: Visitor<E>>(
+    pub fn visit_ctor_def<E, F: VisitFn<E>>(
         &self,
         ctor_def_id: CtorDefId,
         f: &mut F,
@@ -680,7 +673,7 @@ impl TraversingUtils {
         Ok(())
     }
 
-    pub fn visit_data_def<E, F: Visitor<E>>(
+    pub fn visit_data_def<E, F: VisitFn<E>>(
         &self,
         data_def_id: DataDefId,
         f: &mut F,
@@ -715,7 +708,7 @@ impl TraversingUtils {
         }
     }
 
-    pub fn visit_mod_member<E, F: Visitor<E>>(
+    pub fn visit_mod_member<E, F: VisitFn<E>>(
         &self,
         mod_member_id: ModMemberId,
         f: &mut F,
@@ -741,7 +734,7 @@ impl TraversingUtils {
         }
     }
 
-    pub fn visit_mod_def<E, F: Visitor<E>>(
+    pub fn visit_mod_def<E, F: VisitFn<E>>(
         &self,
         mod_def_id: ModDefId,
         f: &mut F,
@@ -750,5 +743,11 @@ impl TraversingUtils {
             self.visit_mod_member(member, f)?;
         }
         Ok(())
+    }
+}
+
+impl Default for Visitor {
+    fn default() -> Self {
+        Self::new()
     }
 }

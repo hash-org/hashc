@@ -41,9 +41,9 @@ use super::{
     construct::DeconstructedCtor,
     list::{Array, ArrayKind},
 };
-use crate::{storage::DeconstructedCtorId, ExhaustivenessChecker, PatCtx};
+use crate::{storage::DeconstructedCtorId, ExhaustivenessChecker, ExhaustivenessEnv, PatCtx};
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Create a [SplitWildcard] from the current context.
     pub(super) fn split_wildcard_from_pat_ctx(&self, ctx: PatCtx) -> SplitWildcard {
         let make_range = |start, end| {

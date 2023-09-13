@@ -26,13 +26,11 @@ use hash_tir::{
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::DerefTerm,
     scopes::{AssignTerm, BlockStatement, BlockTerm},
+    stores::tir_stores,
     symbols::SymbolId,
     terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::TupleTerm,
-    utils::{
-        traversing::{Atom, TraversingUtils},
-        AccessToUtils,
-    },
+    visitor::{Atom, Visitor},
 };
 use hash_utils::{
     derive_more::{Deref, From},
@@ -42,13 +40,13 @@ use hash_utils::{
 
 use crate::{
     errors::{TcError, TcResult},
-    AccessToTypechecking, IntrinsicAbilitiesWrapper,
+    IntrinsicAbilitiesImpl, TcEnv,
 };
 
 #[derive(Deref)]
-pub struct NormalisationOps<'a, T: AccessToTypechecking> {
+pub struct NormalisationOps<'env, T: TcEnv> {
     #[deref]
-    env: &'a T,
+    env: &'env T,
     mode: Cell<NormalisationMode>,
 }
 
@@ -165,8 +163,8 @@ impl EvalState {
     }
 }
 
-impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
-    pub fn new(env: &'tc T) -> Self {
+impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
+    pub fn new(env: &'env T) -> Self {
         Self { env, mode: Cell::new(NormalisationMode::Weak) }
     }
 
@@ -281,8 +279,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     }
 
     fn atom_has_effects_once(
-        &self,
-        traversing_utils: &TraversingUtils,
+        traversing_utils: &Visitor,
         atom: Atom,
         has_effects: &mut Option<bool>,
     ) -> Result<ControlFlow<()>, !> {
@@ -312,7 +309,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                 Term::Call(fn_call) => {
                     // Get its inferred type and check if it is pure
-                    match self.try_get_inferred_ty(fn_call.subject) {
+                    match tir_stores().atom_info().try_get_inferred_ty(fn_call.subject) {
                         Some(fn_ty) => {
                             match *fn_ty.value() {
                                 Ty::FnTy(fn_ty) => {
@@ -321,7 +318,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                                         // Check its args too
                                         traversing_utils
                                             .visit_args::<!, _>(fn_call.args, &mut |atom| {
-                                                self.atom_has_effects_once(
+                                                Self::atom_has_effects_once(
                                                     traversing_utils,
                                                     atom,
                                                     has_effects,
@@ -368,10 +365,10 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
                 let fn_ty = fn_def_id.value().ty;
                 // Check its params and return type only (no body)
                 traversing_utils.visit_params(fn_ty.params, &mut |atom| {
-                    self.atom_has_effects_once(traversing_utils, atom, has_effects)
+                    Self::atom_has_effects_once(traversing_utils, atom, has_effects)
                 })?;
                 traversing_utils.visit_term(fn_ty.return_ty, &mut |atom| {
-                    self.atom_has_effects_once(traversing_utils, atom, has_effects)
+                    Self::atom_has_effects_once(traversing_utils, atom, has_effects)
                 })?;
                 Ok(ControlFlow::Break(()))
             }
@@ -383,12 +380,12 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     pub fn atom_has_effects_with_traversing(
         &self,
         atom: Atom,
-        traversing_utils: &TraversingUtils,
+        traversing_utils: &Visitor,
     ) -> Option<bool> {
         let mut has_effects = Some(false);
         traversing_utils
             .visit_atom::<!, _>(atom, &mut |atom| {
-                self.atom_has_effects_once(traversing_utils, atom, &mut has_effects)
+                Self::atom_has_effects_once(traversing_utils, atom, &mut has_effects)
             })
             .into_ok();
         has_effects
@@ -396,7 +393,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     /// Whether the given atom will produce effects when evaluated.
     pub fn atom_has_effects(&self, atom: Atom) -> Option<bool> {
-        self.atom_has_effects_with_traversing(atom, &self.traversing_utils())
+        self.atom_has_effects_with_traversing(atom, &Visitor::new())
     }
 
     /// Evaluate an atom with the current mode, performing at least a single
@@ -551,7 +548,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Assumes that the index is normalised.
     fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
-        try_use_term_as_integer_lit::<_, usize>(self.env(), index)
+        try_use_term_as_integer_lit::<_, usize>(self.env, index)
             .map(|idx| elements.elements().at(idx).unwrap().into())
     }
 
@@ -596,7 +593,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     /// Evaluate a `typeof` term.
     fn eval_type_of(&self, type_of_term: TyOfTerm) -> AtomEvaluation {
         // Infer the type of the term:
-        match self.try_get_inferred_ty(type_of_term.term) {
+        match tir_stores().atom_info().try_get_inferred_ty(type_of_term.term) {
             Some(ty) => evaluation_to(ty),
             None => {
                 // Not evaluated yet
@@ -736,7 +733,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         if let Term::Fn(fn_def_id) = subject {
             let fn_def = fn_def_id.value();
             if (fn_def.ty.pure || matches!(self.mode.get(), NormalisationMode::Full))
-                && self.try_get_inferred_ty(fn_def_id).is_some()
+                && tir_stores().atom_info().try_get_inferred_ty(fn_def_id).is_some()
             {
                 return self.context().enter_scope(fn_def_id.into(), || {
                     // Add argument bindings:
@@ -761,7 +758,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                 // Run intrinsic:
                 let result: Option<TermId> = intrinsic
-                    .call(IntrinsicAbilitiesWrapper { tc: self.env }, &args_as_terms)
+                    .call(IntrinsicAbilitiesImpl { tc: self.env }, &args_as_terms)
                     .map_err(TcError::Intrinsic)?;
 
                 evaluation_option::<Atom>(result)
@@ -775,7 +772,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Returns `None` if the atom is already normalised.
     fn potentially_eval(&self, atom: Atom) -> AtomEvaluation {
-        let mut traversal = self.traversing_utils();
+        let mut traversal = Visitor::new();
         traversal.set_visit_fns_once(false);
 
         let st = eval_state();

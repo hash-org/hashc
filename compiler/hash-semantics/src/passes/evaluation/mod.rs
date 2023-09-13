@@ -5,44 +5,43 @@
 
 use hash_ast::ast::{self};
 use hash_pipeline::settings::CompilerStageKind;
-use hash_source::ModuleKind;
+use hash_source::{ModuleKind, SourceId};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     args::Arg,
-    environment::env::AccessToEnv,
+    dump::dump_tir,
     fns::CallTerm,
     node::{Node, NodeId},
     terms::{Term, TermId},
-    utils::common::dump_tir,
 };
-use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
-use hash_utils::{derive_more::Constructor, stream_less_writeln};
+use hash_typecheck::{normalisation::NormalisationMode, TcEnv};
+use hash_utils::{
+    derive_more::{Constructor, Deref},
+    stream_less_writeln,
+};
 
-use super::ast_utils::AstPass;
+use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};
 use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    environment::{
-        analysis_progress::AnalysisStage,
-        sem_env::{AccessToSemEnv, SemEnv},
-    },
-    impl_access_to_sem_env,
-    ops::common::CommonOps,
+    diagnostics::definitions::{SemanticError, SemanticResult},
+    env::SemanticEnv,
+    passes::tc_env_impl::TcEnvImpl,
+    progress::AnalysisStage,
 };
 
 /// The potential fourth pass of analysis, which executes and dumps the TIR, if
 /// the correct compiler flags are set.
-#[derive(Constructor)]
-pub struct EvaluationPass<'tc> {
-    sem_env: &'tc SemEnv<'tc>,
+#[derive(Constructor, Deref)]
+pub struct EvaluationPass<'env, E: SemanticEnv> {
+    #[deref]
+    env: &'env E,
+    ast_info: &'env AstInfo,
 }
 
-impl_access_to_sem_env!(EvaluationPass<'_>);
-
-impl EvaluationPass<'_> {
-    /// Find the main module definition, if it exists.
-    fn find_and_construct_main_call(&self) -> SemanticResult<Option<TermId>> {
-        let source_id = self.current_source_info().source_id();
-        let kind = source_id.module_kind();
+impl<E: SemanticEnv> EvaluationPass<'_, E> {
+    /// Find and construct a term that calls the `main` function, if we are in
+    /// an entry point module.
+    fn find_and_construct_main_call(&self, source: SourceId) -> SemanticResult<Option<TermId>> {
+        let kind = source.module_kind();
         match kind {
             None | Some(ModuleKind::Normal | ModuleKind::Prelude) => Ok(None),
             Some(ModuleKind::EntryPoint) => {
@@ -50,7 +49,7 @@ impl EvaluationPass<'_> {
                 //
                 // This should exist since the module kind was registered
                 // as an entry point during inference.
-                let def = AccessToSemEnv::entry_point(self).def();
+                let def = self.entry_point().def();
                 match def {
                     Some(def) => {
                         let call_term = Term::from(
@@ -67,8 +66,9 @@ impl EvaluationPass<'_> {
                         // We only care about this error if we're running to
                         // the evaluation stage, or if
                         // we are continuing after lowering
-                        if self.settings().stage > CompilerStageKind::Lower
-                            || self.settings().semantic_settings.eval_tir
+                        let settings = self.settings();
+                        if settings.stage > CompilerStageKind::Lower
+                            || settings.semantic_settings.eval_tir
                         {
                             Err(SemanticError::EntryPointNotFound)
                         } else {
@@ -81,12 +81,20 @@ impl EvaluationPass<'_> {
     }
 }
 
-impl<'tc> AstPass for EvaluationPass<'tc> {
+impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
+    type Env = E;
+    fn env(&self) -> &Self::Env {
+        self.env
+    }
+
+    type PassOutput = ();
     fn pass_interactive(
         &self,
+        source: SourceId,
         node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> crate::diagnostics::error::SemanticResult<()> {
-        let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
+    ) -> crate::diagnostics::definitions::SemanticResult<()> {
+        let tc = TcEnvImpl::new(self.env, source);
+        let term = self.ast_info.terms().get_data_by_node(node.id()).unwrap();
 
         // Potentially dump the TIR and evaluate it depending on flags.
         if self.settings().semantic_settings.dump_tir {
@@ -94,7 +102,7 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         }
 
         // Interactive mode is always evaluated.
-        let result = self.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
+        let result = tc.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
         stream_less_writeln!("{}", result);
 
         Ok(())
@@ -102,10 +110,12 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
 
     fn pass_module(
         &self,
+        source: SourceId,
         node: ast::AstNodeRef<ast::Module>,
-    ) -> crate::diagnostics::error::SemanticResult<()> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
-        let main_call_term = self.find_and_construct_main_call()?;
+    ) -> crate::diagnostics::definitions::SemanticResult<()> {
+        let tc = TcEnvImpl::new(self.env, source);
+        let mod_def_id = self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap();
+        let main_call_term = self.find_and_construct_main_call(source)?;
 
         // Potentially dump the TIR and evaluate it depending on flags.
         let settings = self.settings().semantic_settings();
@@ -116,20 +126,19 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
 
         if settings.eval_tir {
             if let Some(term) = main_call_term {
-                let _ =
-                    self.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
+                let _ = tc.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
             }
         }
 
         Ok(())
     }
 
-    fn pre_pass(&self) -> SemanticResult<bool> {
-        if self.get_current_progress() == AnalysisStage::BodyInference {
-            self.set_current_progress(AnalysisStage::PreEvaluation);
-            Ok(true)
+    fn pre_pass(&self, source: SourceId) -> SemanticResult<Option<()>> {
+        if self.get_current_progress(source) == AnalysisStage::BodyInference {
+            self.set_current_progress(source, AnalysisStage::PreEvaluation);
+            Ok(None)
         } else {
-            Ok(false)
+            Ok(Some(()))
         }
     }
 }

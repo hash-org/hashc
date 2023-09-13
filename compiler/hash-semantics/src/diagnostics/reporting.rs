@@ -1,122 +1,44 @@
-//! Error-related data structures for errors that occur during typechecking.
-use hash_exhaustiveness::diagnostics::ExhaustivenessError;
 use hash_reporting::{
     hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
 };
-use hash_source::location::Span;
-use hash_tir::{node::HasAstNodeId, symbols::SymbolId, terms::TermId};
-use hash_typecheck::errors::{TcError, TcErrorReporter};
-use hash_utils::thin_vec::ThinVec;
+use hash_tir::node::HasAstNodeId;
+use hash_typecheck::errors::TcErrorReporter;
 
-use crate::{
-    environment::sem_env::{AccessToSemEnv, WithSemEnv},
-    passes::resolution::scoping::ContextKind,
-};
+use super::definitions::{SemanticError, SemanticWarning};
+use crate::passes::resolution::scoping::ContextKind;
 
-/// An error that occurs during semantic analysis.
-#[derive(Clone, Debug)]
-pub enum SemanticError {
-    /// A series of errors.
-    Compound { errors: ThinVec<SemanticError> },
-
-    /// An error exists, this is just a signal to stop typechecking.
-    Signal,
-
-    /// More type annotations are needed to infer the type of the given term.
-    NeedMoreTypeAnnotationsToInfer { term: TermId },
-
-    /// Traits are not yet supported.
-    TraitsNotSupported { trait_location: Span },
-
-    /// Merge declarations are not yet supported.
-    MergeDeclarationsNotSupported { merge_location: Span },
-
-    /// Module patterns are not yet supported.
-    ModulePatternsNotSupported { location: Span },
-
-    /// Some specified symbol was not found.
-    SymbolNotFound { symbol: SymbolId, location: Span, looking_in: ContextKind },
-
-    /// Cannot use a module in a value position.
-    CannotUseModuleInValuePosition { location: Span },
-
-    /// Cannot use a module in a type position.
-    CannotUseModuleInTypePosition { location: Span },
-
-    /// Cannot use a module in a pattern position.
-    CannotUseModuleInPatternPosition { location: Span },
-
-    /// Cannot use a data type in a value position.
-    CannotUseDataTypeInValuePosition { location: Span },
-
-    /// Cannot use a data type in a pattern position.
-    CannotUseDataTypeInPatternPosition { location: Span },
-
-    /// Cannot use a constructor in a type position.
-    CannotUseConstructorInTypePosition { location: Span },
-
-    /// Cannot use a function in type position.
-    CannotUseFunctionInTypePosition { location: Span },
-
-    /// Cannot use a function in a pattern position.
-    CannotUseFunctionInPatternPosition { location: Span },
-
-    /// Cannot use an intrinsic in a pattern position.
-    CannotUseIntrinsicInPatternPosition { location: Span },
-
-    /// Cannot use a non-constant item in constant position.
-    CannotUseNonConstantItem { location: Span },
-
-    /// Cannot use the subject as a namespace.
-    InvalidNamespaceSubject { location: Span },
-
-    /// Cannot use arguments here.
-    UnexpectedArguments { location: Span },
-
-    /// Type error, forwarded from the typechecker.
-    TypeError { error: TcError },
-
-    /// Error from exhaustiveness checking.
-    ExhaustivenessError { error: ExhaustivenessError },
-
-    /// Type error, forwarded from the typechecker.
-    EnumTypeAnnotationMustBeOfDefiningType { location: Span },
-
-    /// Given data definition is not a singleton.
-    DataDefIsNotSingleton { location: Span },
-
-    /// An entry point was not found in the entry module.
-    EntryPointNotFound,
-}
-
-impl From<TcError> for SemanticError {
-    fn from(value: TcError) -> Self {
-        Self::TypeError { error: value }
+/// Builds [`Reports`] from semantic errors and warnings.
+pub struct SemanticReporter;
+impl SemanticReporter {
+    pub fn make_reports_from_error(error: SemanticError) -> Reports {
+        let mut reporter = Reporter::new();
+        Self::add_error_to_reporter(&error, &mut reporter);
+        reporter.into_reports()
     }
-}
 
-impl From<ExhaustivenessError> for SemanticError {
-    fn from(error: ExhaustivenessError) -> Self {
-        Self::ExhaustivenessError { error }
+    pub fn make_reports_from_warning(warning: SemanticWarning) -> Reports {
+        let mut reporter = Reporter::new();
+        Self::add_warning_to_reporter(&warning, &mut reporter);
+        reporter.into_reports()
     }
-}
 
-pub type SemanticResult<T> = Result<T, SemanticError>;
-
-impl<'tc> From<WithSemEnv<'tc, &SemanticError>> for Reports {
-    fn from(ctx: WithSemEnv<'tc, &SemanticError>) -> Self {
-        let mut builder = Reporter::new();
-        ctx.add_to_reporter(&mut builder);
-        builder.into_reports()
+    fn add_warning_to_reporter(warning: &SemanticWarning, reporter: &mut Reporter) {
+        match warning {
+            SemanticWarning::ExhaustivenessWarning { warning } => {
+                warning.add_to_reports(reporter);
+            }
+            SemanticWarning::Compound { warnings } => {
+                for warning in warnings {
+                    Self::add_warning_to_reporter(warning, reporter);
+                }
+            }
+        }
     }
-}
 
-impl<'tc> WithSemEnv<'tc, &SemanticError> {
-    /// Format the error nicely and add it to the given reporter.
-    fn add_to_reporter(&self, reporter: &mut Reporter) {
+    fn add_error_to_reporter(error: &SemanticError, reporter: &mut Reporter) {
         // @@ErrorReporting: improve error messages and locations
-        match &self.value {
+        match error {
             SemanticError::Signal => {}
             SemanticError::NeedMoreTypeAnnotationsToInfer { term } => {
                 let error = reporter
@@ -132,7 +54,7 @@ impl<'tc> WithSemEnv<'tc, &SemanticError> {
             }
             SemanticError::Compound { errors } => {
                 for error in errors {
-                    self.sem_env().with(error).add_to_reporter(reporter);
+                    Self::add_error_to_reporter(error, reporter);
                 }
             }
             SemanticError::TraitsNotSupported { trait_location } => {

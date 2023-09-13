@@ -306,7 +306,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // get the range and bias of this range pattern from
                 // the `lo`
-                let range_ty = self.ty_id_from_tir_ty(self.get_inferred_ty(pair.pat));
+                let range_ty = self.ty_id_from_tir_ty(self.ctx.get_inferred_ty(pair.pat));
 
                 // The range is the minimum value, maximum value, and the size of
                 // the item that is being compared.

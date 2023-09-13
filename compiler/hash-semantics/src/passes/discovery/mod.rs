@@ -5,67 +5,76 @@ use hash_ast::{
     ast::{self, AstNodeId},
     visitor::AstVisitor,
 };
-use hash_tir::{environment::env::AccessToEnv, node::NodeOrigin, symbols::SymbolId};
-use hash_utils::state::LightState;
+use hash_source::SourceId;
+use hash_tir::{node::NodeOrigin, symbols::SymbolId};
+use hash_utils::{derive_more::Deref, state::LightState};
 
 use self::defs::DefDiscoveryState;
-use super::ast_utils::AstPass;
-use crate::{
-    diagnostics::error::SemanticResult,
-    environment::{
-        analysis_progress::AnalysisStage,
-        sem_env::{AccessToSemEnv, SemEnv},
-    },
-    ops::common::CommonOps,
-};
+use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};
+use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
 pub mod defs;
 pub mod params;
 pub mod visitor;
 
-pub struct DiscoveryPass<'tc> {
-    sem_env: &'tc SemEnv<'tc>,
+#[derive(Deref)]
+pub struct DiscoveryPass<'env, E: SemanticEnv> {
+    #[deref]
+    env: &'env E,
+
     /// The name hint for the current definition.
     name_hint: LightState<Option<SymbolId>>,
+
     /// Keeps track of which definitions have been seen, added, and we are
     /// currently inside.
     def_state: DefDiscoveryState,
+
+    /// The current source being discovered.
+    source: SourceId,
+
+    /// The AST info for the current analysis session.
+    ast_info: &'env AstInfo,
 }
 
-impl AccessToEnv for DiscoveryPass<'_> {
-    fn env(&self) -> &hash_tir::environment::env::Env {
-        self.sem_env.env()
+impl<E: SemanticEnv> AnalysisPass for DiscoveryPass<'_, E> {
+    type Env = E;
+    fn env(&self) -> &Self::Env {
+        self.env
     }
-}
 
-impl<'tc> AccessToSemEnv for DiscoveryPass<'tc> {
-    fn sem_env(&self) -> &'tc SemEnv<'tc> {
-        self.sem_env
-    }
-}
+    type PassOutput = ();
 
-impl<'tc> AstPass for DiscoveryPass<'tc> {
-    fn pass_interactive(&self, node: ast::AstNodeRef<ast::BodyBlock>) -> SemanticResult<()> {
+    fn pass_interactive(
+        &self,
+        _: SourceId,
+        node: ast::AstNodeRef<ast::BodyBlock>,
+    ) -> SemanticResult<()> {
         self.visit_body_block(node)
     }
 
-    fn pass_module(&self, node: ast::AstNodeRef<ast::Module>) -> SemanticResult<()> {
+    fn pass_module(&self, _: SourceId, node: ast::AstNodeRef<ast::Module>) -> SemanticResult<()> {
         self.visit_module(node)
     }
 
-    fn pre_pass(&self) -> SemanticResult<bool> {
-        if self.get_current_progress() == AnalysisStage::None {
-            self.set_current_progress(AnalysisStage::Discovery);
-            Ok(true)
+    fn pre_pass(&self, source_id: SourceId) -> SemanticResult<Option<()>> {
+        if self.get_current_progress(source_id) == AnalysisStage::None {
+            self.set_current_progress(source_id, AnalysisStage::Discovery);
+            Ok(None)
         } else {
-            Ok(false)
+            Ok(Some(()))
         }
     }
 }
 
-impl<'tc> DiscoveryPass<'tc> {
-    pub fn new(sem_env: &'tc SemEnv<'tc>) -> Self {
-        Self { sem_env, name_hint: LightState::new(None), def_state: DefDiscoveryState::new() }
+impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
+    pub fn new(env: &'env E, ast_info: &'env AstInfo, source: SourceId) -> Self {
+        Self {
+            env,
+            name_hint: LightState::new(None),
+            def_state: DefDiscoveryState::new(),
+            ast_info,
+            source,
+        }
     }
 
     /// Get the current definition discovery state

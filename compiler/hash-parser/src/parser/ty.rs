@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::AccessToDiagnostics;
+use hash_reporting::diagnostic::HasDiagnostics;
 use hash_source::identifier::IDENTS;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
@@ -211,7 +211,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         ty: Some(self.node_with_joined_span(ty, span)),
                         // ##Note: this will always be none since the above function
                         // will parse the args and then apply it to us as the subject.
-                        // 
+                        //
                         // So if `#foo U -> T` is present, we parse as `TyMacroInvocation { subject: U -> T, macros: #foo }`
                         macros: None,
                     }, span);

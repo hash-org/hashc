@@ -33,7 +33,7 @@ use hash_pipeline::{
 };
 use hash_reporting::report::Report;
 use hash_semantics::{
-    SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, SemanticStorage,
+    storage::SemanticStorage, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery,
 };
 use hash_source::SourceId;
 use hash_untyped_semantics::{
@@ -216,7 +216,7 @@ impl Compiler {
             diagnostics: Vec::new(),
             pool,
             settings,
-            semantic_storage: SemanticStorage::new(),
+            semantic_storage: SemanticStorage::default(),
             icx: IrStorage::new(),
             lcx: LayoutStorage::new(layout_info),
             codegen_storage: CodeGenStorage::new(),

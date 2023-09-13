@@ -284,7 +284,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 .map(|(index, item)| (index, item.clone()))?
         };
 
-        let pat_ty = self.get_inferred_ty(pair.pat);
+        let pat_ty = self.ctx.get_inferred_ty(pair.pat);
 
         match (&test.kind, *pair.pat.value()) {
             (TestKind::Switch { adt, .. }, Pat::Ctor(CtorPat { ctor, ctor_pat_args, .. })) => {

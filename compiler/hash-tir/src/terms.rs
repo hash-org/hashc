@@ -16,7 +16,6 @@ use crate::{
     arrays::{ArrayTerm, IndexTerm},
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
     data::{CtorTerm, DataDefId, DataTy},
-    environment::stores::tir_stores,
     fns::{CallTerm, FnDefId, FnTy},
     intrinsics::definitions::Intrinsic,
     lits::LitId,
@@ -24,9 +23,10 @@ use crate::{
     params::Param,
     refs::{DerefTerm, RefKind, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm},
+    stores::tir_stores,
     tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::{TupleTerm, TupleTy},
-    utils::traversing::Atom,
+    visitor::Atom,
 };
 
 /// A term that can contain unsafe operations.
@@ -129,6 +129,19 @@ tir_node_sequence_store_indirect!(TermList[TermId]);
 pub type Ty = Term;
 pub type TyId = TermId;
 pub type TyListId = TermListId;
+
+/// Assert that the given term is of the given variant, and return it.
+#[macro_export]
+macro_rules! term_as_variant {
+    ($self:expr, $term:expr, $variant:ident) => {{
+        let term = $term;
+        if let $crate::terms::Term::$variant(term) = *term {
+            term
+        } else {
+            panic!("Expected term {} to be a {}", term, stringify!($variant))
+        }
+    }};
+}
 
 impl Term {
     pub fn is_void(&self) -> bool {

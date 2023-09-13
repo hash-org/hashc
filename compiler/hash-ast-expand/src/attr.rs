@@ -19,9 +19,8 @@ use hash_tir::{
     intrinsics::definitions::Primitive,
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     node::{Node, NodeOrigin},
-    params::ParamIndex,
+    params::{utils::validate_and_reorder_args_against_params, ParamIndex},
     terms::{Term, Ty, TyId},
-    utils::params::ParamUtils,
 };
 
 use crate::{
@@ -33,11 +32,6 @@ use crate::{
 };
 
 impl AstExpander<'_> {
-    /// Make a [ParamUtils].
-    fn param_utils(&self) -> ParamUtils {
-        ParamUtils
-    }
-
     pub fn check_macro_invocations(
         &mut self,
         node: ast::AstNodeRef<ast::MacroInvocations>,
@@ -209,7 +203,7 @@ impl AstExpander<'_> {
             };
 
             if is_valid && let Err(param_err) =
-                self.param_utils().validate_and_reorder_args_against_params(mac_args, attr_ty.params)
+                validate_and_reorder_args_against_params(mac_args, attr_ty.params)
             {
                 self.add_error(ExpansionError::new(
                     param_err.into(),

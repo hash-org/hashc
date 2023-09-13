@@ -17,14 +17,16 @@ use crate::{
     args::SomeArgsId,
     context::ScopeKind,
     data::{CtorDefId, DataDefId},
-    environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
+    stores::tir_stores,
     symbols::SymbolId,
     terms::{Ty, TyId},
     tir_node_sequence_store_direct,
     tuples::TupleTy,
 };
+
+pub mod utils;
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.

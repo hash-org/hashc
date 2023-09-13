@@ -20,19 +20,27 @@ pub enum EntryPointKind {
 
 /// The [EntryPointState] is used to keep track of the declared entry point
 /// of the program, if there is one.
-#[derive(Debug, Clone, Default)]
-pub struct EntryPointState<T: fmt::Debug + Copy> {
+#[derive(Debug, Clone)]
+pub struct EntryPointState<T: Copy> {
     /// This refers to the entry point of the program, the term points
     /// to the function definition within the entry point module.
     item: Cell<Option<(T, EntryPointKind)>>,
 }
 
-impl<T: fmt::Debug + Copy> EntryPointState<T> {
+impl<T: Copy> Default for EntryPointState<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: Copy> EntryPointState<T> {
     /// Create a new [EntryPointState].
     pub fn new() -> Self {
         Self { item: Cell::new(None) }
     }
+}
 
+impl<T: fmt::Debug + Copy> EntryPointState<T> {
     /// Get the name of the entry point, if there is one. This function
     /// will return [`None`] if there is no present entry point.
     pub fn name(&self) -> Option<Identifier> {

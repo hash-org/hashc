@@ -24,6 +24,7 @@ use hash_tir::{
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
+    dump::dump_tir,
     fns::{CallTerm, FnDefId, FnTy},
     intrinsics::{
         definitions::{
@@ -38,7 +39,13 @@ use hash_tir::{
     lits::{Lit, LitId},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-    params::{Param, ParamsId},
+    params::{
+        utils::{
+            validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
+            validate_params,
+        },
+        Param, ParamsId,
+    },
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockStatement, BlockTerm},
@@ -47,7 +54,7 @@ use hash_tir::{
     term_as_variant,
     terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
-    utils::{common::dump_tir, traversing::Atom, AccessToUtils},
+    visitor::{Atom, Visitor},
 };
 use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
@@ -55,7 +62,7 @@ use itertools::Itertools;
 use crate::{
     errors::{TcError, TcResult, WrongTermKind},
     normalisation::NormalisationMode,
-    AccessToTypechecking,
+    TcEnv,
 };
 
 /// The mode in which to infer the type of a function.
@@ -96,29 +103,31 @@ pub struct InferenceWithSub<X, T> {
 }
 
 #[derive(Constructor, Deref)]
-pub struct InferenceOps<'a, T: AccessToTypechecking>(&'a T);
+pub struct InferenceOps<'a, T: TcEnv> {
+    env: &'a T,
+}
 
-impl<T: AccessToTypechecking> InferenceOps<'_, T> {
+impl<T: TcEnv> InferenceOps<'_, T> {
     /// Create a new [ExhaustivenessChecker] so it can be used to check
     /// refutability or exhaustiveness of patterns.
-    fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<'_> {
+    fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<T> {
         let location = subject.span().unwrap();
-        ExhaustivenessChecker::new(location, self.env())
+        ExhaustivenessChecker::new(location, self.env)
     }
 
     /// Merge all of the produced diagnostics into the current diagnostics.
     ///
     /// @@Hack: remove this when we have a better way to send exhaustiveness
     /// jobs and add them to general tc diagnostics.
-    fn append_exhaustiveness_diagnostics(&self, checker: ExhaustivenessChecker<'_>) {
+    fn append_exhaustiveness_diagnostics(&self, checker: ExhaustivenessChecker<T>) {
         let (errors, warnings) = checker.into_diagnostics().into_diagnostics();
 
         for error in errors {
-            self.diagnostics().add_error(self.convert_exhaustiveness_error(error))
+            self.diagnostics().add_error(error.into())
         }
 
         for warning in warnings {
-            self.diagnostics().add_warning(self.convert_exhaustiveness_warning(warning))
+            self.diagnostics().add_warning(warning.into())
         }
     }
 
@@ -215,8 +224,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_arg_scope: impl FnOnce(ArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
         self.register_new_atom(args, annotation_params);
-        let reordered_args_id =
-            self.param_utils().validate_and_reorder_args_against_params(args, annotation_params)?;
+        let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
         let result = self.infer_some_args(
             reordered_args_id.iter(),
@@ -287,9 +295,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_arg_scope: impl FnOnce(PatArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
         self.register_new_atom(pat_args, annotation_params);
-        let reordered_pat_args_id = self
-            .param_utils()
-            .validate_and_reorder_pat_args_against_params(pat_args, spread, annotation_params)?;
+        let reordered_pat_args_id =
+            validate_and_reorder_pat_args_against_params(pat_args, spread, annotation_params)?;
 
         self.infer_some_args(
             reordered_pat_args_id.iter(),
@@ -336,7 +343,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         in_param_scope: impl FnOnce() -> TcResult<U>,
     ) -> TcResult<U> {
         // Validate the parameters
-        self.param_utils().validate_params(params)?;
+        validate_params(params)?;
 
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
@@ -463,7 +470,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 if let Some(int_ty) = try_use_ty_as_int_ty(inferred_ty) {
                     lit.modify(|int| match &mut int.data {
-                        Lit::Int(fl) => fl.bake(self.env(), int_ty),
+                        Lit::Int(fl) => fl.bake(self.target(), int_ty),
                         _ => unreachable!(),
                     })?;
                 }
@@ -621,7 +628,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
             let inferred_len_term = create_term_from_usize_lit(
-                self.env(),
+                self.target(),
                 array_term.elements.len(),
                 array_term.elements.origin(),
             );
@@ -666,7 +673,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        self.traversing_utils()
+        Visitor::new()
             .visit_pat::<!, _>(pat, &mut |atom| {
                 Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
             })
@@ -676,7 +683,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        self.traversing_utils()
+        Visitor::new()
             .visit_pat_args::<!, _>(pat_args, &mut |atom| {
                 Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
             })
@@ -924,7 +931,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let has_entry_point_attr =
             attr_store().node_has_attr(fn_def_id.node_id_or_default(), attrs::ENTRY_POINT);
 
-        let kind = self.current_source_info().source_id().module_kind();
+        let kind = self.current_source().module_kind();
 
         let entry_point = if has_entry_point_attr {
             Some(EntryPointKind::Named(fn_def_name))

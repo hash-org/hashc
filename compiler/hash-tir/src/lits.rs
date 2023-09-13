@@ -13,15 +13,10 @@ use hash_storage::store::statics::StoreId;
 use hash_target::{
     primitives::{FloatTy, IntTy},
     size::Size,
+    HasTarget,
 };
 
-use crate::{
-    environment::{
-        env::{AccessToEnv, Env},
-        stores::tir_stores,
-    },
-    tir_node_single_store,
-};
+use crate::{stores::tir_stores, tir_node_single_store};
 
 #[derive(Copy, Clone, Debug)]
 pub enum LitValue<R, V> {
@@ -96,7 +91,7 @@ impl IntLit {
     /// @@Future: we shouldn't change the literal inplace, we should return a
     /// new literal value, or we should return a new term which is the bigint
     /// term.
-    pub fn bake(&mut self, env: &Env<'_>, int_ty: IntTy) -> LitParseResult<()> {
+    pub fn bake<E: HasTarget>(&mut self, env: &E, int_ty: IntTy) -> LitParseResult<()> {
         if let LitValue::Raw(lit) = self.value {
             let value =
                 parse_int_const_from_lit(&lit, Some(int_ty), env.target().ptr_size(), true)?;

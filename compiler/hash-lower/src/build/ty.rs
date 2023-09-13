@@ -11,11 +11,10 @@ use hash_ir::{
     ty::{IrTy, IrTyId, ToIrTy, COMMON_IR_TYS},
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
-use hash_target::size::Size;
+use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     data::DataTy,
-    environment::env::AccessToEnv,
     fns::{CallTerm, FnDefId},
     intrinsics::{
         definitions::{BinOp, CondBinOp, Intrinsic as TirIntrinsic, ShortCircuitingBoolOp, UnOp},
@@ -61,13 +60,13 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// cache results of lowering a [TermId] into an [IrTyId] to avoid
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> IrTyId {
-        let ty = self.get_inferred_ty(term);
+        let ty = self.ctx.get_inferred_ty(term);
         self.ctx.ty_id_from_tir_ty(ty)
     }
 
     /// Get the [IrTyId] for a give [PatId].
     pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> IrTyId {
-        let ty = self.get_inferred_ty(pat);
+        let ty = self.ctx.get_inferred_ty(pat);
         self.ty_id_from_tir_ty(ty)
     }
 
@@ -134,7 +133,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         );
 
                         let op = CondBinOp::try_from(
-                            try_use_term_as_integer_lit::<_, u8>(self.env(), op).unwrap(),
+                            try_use_term_as_integer_lit::<_, u8>(&self.ctx, op).unwrap(),
                         )
                         .unwrap();
                         FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
@@ -147,7 +146,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         );
 
                         let op = ShortCircuitingBoolOp::try_from(
-                            try_use_term_as_integer_lit::<_, u8>(self.env(), op).unwrap(),
+                            try_use_term_as_integer_lit::<_, u8>(&self.ctx, op).unwrap(),
                         )
                         .unwrap();
 
@@ -161,7 +160,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         );
 
                         let op = BinOp::try_from(
-                            try_use_term_as_integer_lit::<_, u8>(self.env(), op).unwrap(),
+                            try_use_term_as_integer_lit::<_, u8>(&self.ctx, op).unwrap(),
                         )
                         .unwrap();
                         FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
@@ -174,7 +173,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                         // Parse the operator from the starting term.
                         let parsed_op = UnOp::try_from(
-                            try_use_term_as_integer_lit::<_, u8>(self.env(), op).unwrap(),
+                            try_use_term_as_integer_lit::<_, u8>(&self.ctx, op).unwrap(),
                         )
                         .unwrap();
 
@@ -233,13 +232,13 @@ impl<'tcx> BodyBuilder<'tcx> {
                     Scalar::from_uint(0u32, Size::from_bytes(std::mem::size_of::<char>() as u64))
                 }
                 IrTy::Int(int_ty) => {
-                    let ptr_size = self.target().ptr_size();
+                    let ptr_size = self.ctx.target().ptr_size();
                     let size = int_ty.size(ptr_size);
                     let value = if at_end { size.signed_int_max() } else { size.signed_int_min() };
                     Scalar::from_int(value, size)
                 }
                 IrTy::UInt(ty) => {
-                    let ptr_size = self.target().ptr_size();
+                    let ptr_size = self.ctx.target().ptr_size();
                     let size = ty.size(ptr_size);
 
                     let value = if at_end { size.unsigned_int_max() } else { 0 };

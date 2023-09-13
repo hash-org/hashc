@@ -19,10 +19,10 @@ use utility_types::omit;
 use super::{pats::Pat, terms::Term};
 use crate::{
     context::ContextMember,
-    environment::stores::tir_stores,
     mods::ModDefId,
     node::{Node, NodeOrigin},
     pats::PatId,
+    stores::tir_stores,
     symbols::SymbolId,
     terms::{TermId, TyId},
     tir_node_sequence_store_direct, tir_node_single_store,

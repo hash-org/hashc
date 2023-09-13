@@ -9,7 +9,6 @@ use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     data::DataDef,
-    environment::env::AccessToEnv,
     fns::{FnDef, FnTy},
     mods::{ModDef, ModKind, ModMember},
     node::{Node, NodeOrigin},
@@ -25,11 +24,10 @@ use super::{
     DiscoveryPass,
 };
 use crate::{
-    diagnostics::error::SemanticError, environment::sem_env::AccessToSemEnv,
-    passes::ast_utils::AstPass,
+    diagnostics::definitions::SemanticError, env::SemanticEnv, passes::analysis_pass::AnalysisPass,
 };
 
-impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
+impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
     type Error = SemanticError;
     ast_visitor_default_impl!(
         hiding: Declaration,
@@ -146,8 +144,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let source_id = self.current_source_info().source_id();
-        let mod_def_id = self.create_or_get_module_mod_def(source_id.into());
+        let mod_def_id = self.create_or_get_module_mod_def(self.source.into());
 
         // Traverse the module
         self.enter_def(node, mod_def_id, || walk::walk_module(self, node))?;
@@ -458,8 +455,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
 
     type ImportRet = ();
     fn visit_import(&self, node: AstNodeRef<ast::Import>) -> Result<Self::ImportRet, Self::Error> {
-        self.current_source_info()
-            .with_source_id(node.source, || DiscoveryPass::new(self.sem_env()).pass_source())?;
+        DiscoveryPass::new(self.env, self.ast_info, node.source).pass_source(node.source)?;
         Ok(())
     }
 }

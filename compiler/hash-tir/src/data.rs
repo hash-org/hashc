@@ -20,10 +20,10 @@ use super::{
 };
 use crate::{
     args::Arg,
-    environment::stores::tir_stores,
     node::{Node, NodeId, NodeOrigin, NodesId},
     params::ParamsId,
     pats::PatArgsWithSpread,
+    stores::tir_stores,
     symbols::SymbolId,
     terms::{TermId, TyId},
     tir_node_sequence_store_direct, tir_node_single_store,

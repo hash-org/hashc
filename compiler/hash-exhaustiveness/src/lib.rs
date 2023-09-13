@@ -72,11 +72,9 @@ use hash_ast::ast::MatchOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::Span;
 use hash_storage::store::CloneStore;
-use hash_tir::{
-    environment::env::{AccessToEnv, Env},
-    pats::PatId,
-    terms::TyId,
-};
+use hash_target::HasTarget;
+use hash_tir::{pats::PatId, terms::TyId};
+use hash_utils::derive_more::Deref;
 use storage::{
     DeconstructedCtorId, DeconstructedCtorStore, DeconstructedPatId, DeconstructedPatStore,
     ExhaustivenessCtx,
@@ -101,14 +99,11 @@ impl PatCtx {
     }
 }
 
-pub struct ExhaustivenessChecker<'tc> {
+#[derive(Deref)]
+pub struct ExhaustivenessChecker<'env, E> {
     /// The span of the subject that is being checked for exhaustiveness
     /// or usefulness.
     subject_span: Span,
-
-    /// A reference to the TC env in order to lookup various TIR items and have
-    /// access to TC utilities.
-    tcx: &'tc Env<'tc>,
 
     /// The exhaustiveness store keeps track of created de-constructed patterns
     /// and usefulness constructors, basically representations used by
@@ -121,22 +116,23 @@ pub struct ExhaustivenessChecker<'tc> {
     /// Any diagnostics that are generated during the exhaustiveness check are
     /// stored here.
     diagnostics: ExhaustivenessDiagnostics,
+
+    /// The ambient environment for target etc.
+    #[deref]
+    env: &'env E,
 }
 
-impl<'tc> AccessToEnv for ExhaustivenessChecker<'tc> {
-    fn env(&self) -> &Env {
-        self.tcx
-    }
-}
+pub trait ExhaustivenessEnv: HasTarget {}
+impl<T: HasTarget> ExhaustivenessEnv for T {}
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<'env, E: ExhaustivenessEnv> ExhaustivenessChecker<'env, E> {
     /// Create a new checker.
-    pub fn new(subject_span: Span, tcx: &'tc Env<'tc>) -> Self {
+    pub fn new(subject_span: Span, env: &'env E) -> Self {
         Self {
             subject_span,
-            tcx,
             ecx: ExhaustivenessCtx::new(),
             diagnostics: ExhaustivenessDiagnostics::new(),
+            env,
         }
     }
 
@@ -234,28 +230,22 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 /// Wraps a type `T` to provide access to the [ExhaustivenessChecker] that
 /// created it. This is used to print and convert various types and data which
 /// depends on a specific [ExhaustivenessChecker] to be available.
-pub struct ExhaustivenessFmtCtx<'tc, T> {
+pub struct ExhaustivenessFmtCtx<'env, T, E> {
     /// The item that is wrapped.
     pub item: T,
 
     /// The checker to which this item belongs to.
-    pub checker: &'tc ExhaustivenessChecker<'tc>,
+    pub checker: &'env ExhaustivenessChecker<'env, E>,
 }
 
-impl<'tc, T> ExhaustivenessFmtCtx<'tc, T> {
+impl<'env, T, E> ExhaustivenessFmtCtx<'env, T, E> {
     /// Create a new [ExhaustivenessFmtCtx] from the given item and checker.
-    pub fn new(item: T, checker: &'tc ExhaustivenessChecker<'tc>) -> Self {
+    pub fn new(item: T, checker: &'env ExhaustivenessChecker<'env, E>) -> Self {
         Self { item, checker }
     }
 
     /// Create a new [ExhaustivenessFmtCtx] from the given item and checker.
-    pub fn with<U>(&self, item: U) -> ExhaustivenessFmtCtx<'tc, U> {
+    pub fn with<U>(&self, item: U) -> ExhaustivenessFmtCtx<'env, U, E> {
         ExhaustivenessFmtCtx::new(item, self.checker)
-    }
-}
-
-impl<'tc, T> AccessToEnv for ExhaustivenessFmtCtx<'tc, T> {
-    fn env(&self) -> &Env {
-        self.checker.env()
     }
 }

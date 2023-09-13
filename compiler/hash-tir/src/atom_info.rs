@@ -6,13 +6,11 @@ use hash_storage::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
 use super::{
     args::{ArgsId, PatArgsId},
-    environment::env::AccessToEnv,
     params::ParamsId,
     pats::PatId,
     terms::TermId,
 };
 use crate::{
-    environment::stores::tir_stores,
     fns::{FnDefId, FnTy},
     terms::TyId,
 };
@@ -43,19 +41,30 @@ macro_rules! atom_info {
             }
         }
 
+        /// Convenient trait for types that have access to an [`AtomInfoStore`].
+        pub trait HasAtomInfo {
+            fn atom_info(&self) -> &AtomInfoStore;
+        }
+
+        impl HasAtomInfo for AtomInfoStore {
+            fn atom_info(&self) -> &AtomInfoStore {
+                self
+            }
+        }
+
+        $(
+            impl<T: HasAtomInfo> ItemInAtomInfo<$item, $item_ty> for T {
+                fn data(&self) -> &AtomInfoStoreData<$item, $item_ty> {
+                    &self.atom_info().$name
+                }
+            }
+        )*
+
         impl Default for AtomInfoStore {
             fn default() -> Self {
                 Self::new()
             }
         }
-
-        $(
-            impl<T: AccessToEnv> ItemInAtomInfo<$item, $item_ty> for T {
-                fn data(&self) -> &AtomInfoStoreData<$item, $item_ty> {
-                    &tir_stores().atom_info().$name
-                }
-            }
-        )*
     };
 }
 
@@ -112,7 +121,7 @@ pub type AtomInfoStoreData<K, KT> = DefaultPartialStore<K, AtomInfo<K, KT>>;
 
 /// Convenient trait to perform operations on [`AtomInfoStore`] for each key
 /// type.
-pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy>: AccessToEnv {
+pub trait ItemInAtomInfo<Item: Copy + Eq + Hash, ItemTy: Copy> {
     fn data(&self) -> &AtomInfoStoreData<Item, ItemTy>;
 
     /// Create a new atom info with the given value.
