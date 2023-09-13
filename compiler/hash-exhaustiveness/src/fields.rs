@@ -7,10 +7,10 @@
 //! [Fields] with the typechecker context available for reading and creating
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
 
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataTy},
+    intrinsics::utils::try_use_ty_as_array_ty,
     node::NodesId,
     terms::{Ty, TyId},
     tuples::TupleTy,
@@ -112,7 +112,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             }
             DeconstructedCtor::Array(list) => {
                 let arity = list.arity();
-                let array_ty = self.try_use_ty_as_array_ty(ctx.ty).unwrap();
+                let array_ty = try_use_ty_as_array_ty(ctx.ty).unwrap();
                 self.wildcards_from_tys((0..arity).map(|_| array_ty.element_ty))
             }
             DeconstructedCtor::Str(..)

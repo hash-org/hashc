@@ -5,7 +5,6 @@ use std::fmt::Display;
 use hash_storage::store::statics::StoreId;
 use typed_builder::TypedBuilder;
 
-use super::intrinsics::IntrinsicId;
 use crate::{
     args::ArgsId,
     environment::stores::tir_stores,
@@ -54,25 +53,6 @@ pub struct FnTy {
     pub return_ty: TyId,
 }
 
-/// A function body.
-#[derive(Debug, Clone, Copy)]
-pub enum FnBody {
-    /// A function that is defined in Hash.
-    ///
-    /// This is the most common type of function.
-    /// Contains the term of the body.
-    Defined(TermId),
-    /// A function that is defined in Rust.
-    ///
-    /// This is used for intrinsics.
-    Intrinsic(IntrinsicId),
-    /// A function that is an axiom.
-    ///
-    /// This can never be simplified further than an function call on some
-    /// arguments, like constructors.
-    Axiom,
-}
-
 /// A function definition.
 ///
 /// Every function literal `(x) => y` is a function definition. Function
@@ -92,14 +72,7 @@ pub struct FnDef {
     /// The return value of the function.
     ///
     /// This depends on `ty.params` and `ty.conditions`.
-    pub body: FnBody,
-}
-
-impl FnDef {
-    /// Check if the definition has an intrinsic body.
-    pub fn is_intrinsic(&self) -> bool {
-        matches!(self.body, FnBody::Intrinsic(_))
-    }
+    pub body: TermId,
 }
 
 tir_node_single_store!(FnDef);
@@ -185,13 +158,7 @@ impl Display for FnDef {
         } else {
             write!(f, "{}", &self.ty)?;
         };
-        match self.body {
-            FnBody::Defined(term) => write!(f, " => {}", term),
-            FnBody::Intrinsic(intrinsic) => {
-                write!(f, " => intrinsic('{}')", intrinsic.0)
-            }
-            FnBody::Axiom => write!(f, " => axiom"),
-        }
+        write!(f, " => {}", self.body)
     }
 }
 

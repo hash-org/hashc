@@ -4,7 +4,6 @@ use std::{cell::Cell, collections::HashSet, ops::ControlFlow};
 
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_exhaustiveness::ExhaustivenessChecker;
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::diagnostic::{Diagnostics, ErrorState};
 use hash_source::{
     constant::{BigIntTy, FloatTy, IntTy, SIntTy, UIntTy},
@@ -21,18 +20,26 @@ use hash_tir::{
     args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
     arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
-    building::gen::{data_ty, never_ty},
     casting::CastTerm,
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    fns::{CallTerm, FnBody, FnDefId, FnTy},
+    fns::{CallTerm, FnDefId, FnTy},
+    intrinsics::{
+        definitions::{
+            bool_ty, char_def, f32_def, f64_def, i32_def, list_def, list_ty, never_ty, str_def,
+            usize_ty, Intrinsic, Primitive,
+        },
+        make::{IsIntrinsic, IsPrimitive},
+        utils::{
+            bool_term, create_term_from_usize_lit, try_use_ty_as_float_ty, try_use_ty_as_int_ty,
+        },
+    },
     lits::{Lit, LitId},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     params::{Param, ParamsId},
     pats::{Pat, PatId, PatListId, RangePat, Spread},
-    primitives::primitives,
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockStatement, BlockTerm},
     sub::Sub,
@@ -439,7 +446,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     return Ok(());
                 }
 
-                if let Some(float_ty) = self.try_use_ty_as_float_ty(inferred_ty) {
+                if let Some(float_ty) = try_use_ty_as_float_ty(inferred_ty) {
                     lit.modify(|float| match &mut float.data {
                         Lit::Float(fl) => fl.bake(float_ty),
                         _ => unreachable!(),
@@ -454,7 +461,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     return Ok(());
                 }
 
-                if let Some(int_ty) = self.try_use_ty_as_int_ty(inferred_ty) {
+                if let Some(int_ty) = try_use_ty_as_int_ty(inferred_ty) {
                     lit.modify(|int| match &mut int.data {
                         Lit::Int(fl) => fl.bake(self.env(), int_ty),
                         _ => unreachable!(),
@@ -476,26 +483,27 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     match int_lit.kind() {
                         Some(ty) => match ty {
                             IntTy::Int(s_int_ty) => match s_int_ty {
-                                SIntTy::I8 => primitives().i8(),
-                                SIntTy::I16 => primitives().i16(),
-                                SIntTy::I32 => primitives().i32(),
-                                SIntTy::I64 => primitives().i64(),
-                                SIntTy::I128 => primitives().i128(),
-                                SIntTy::ISize => primitives().isize(),
+                                SIntTy::I8 => Primitive::I8,
+                                SIntTy::I16 => Primitive::I16,
+                                SIntTy::I32 => Primitive::I32,
+                                SIntTy::I64 => Primitive::I64,
+                                SIntTy::I128 => Primitive::I128,
+                                SIntTy::ISize => Primitive::Isize,
                             },
                             IntTy::UInt(u_int_ty) => match u_int_ty {
-                                UIntTy::U8 => primitives().u8(),
-                                UIntTy::U16 => primitives().u16(),
-                                UIntTy::U32 => primitives().u32(),
-                                UIntTy::U64 => primitives().u64(),
-                                UIntTy::U128 => primitives().u128(),
-                                UIntTy::USize => primitives().usize(),
+                                UIntTy::U8 => Primitive::U8,
+                                UIntTy::U16 => Primitive::U16,
+                                UIntTy::U32 => Primitive::U32,
+                                UIntTy::U64 => Primitive::U64,
+                                UIntTy::U128 => Primitive::U128,
+                                UIntTy::USize => Primitive::Usize,
                             },
                             IntTy::Big(big_int_ty) => match big_int_ty {
-                                BigIntTy::IBig => primitives().ibig(),
-                                BigIntTy::UBig => primitives().ubig(),
+                                BigIntTy::IBig => Primitive::Ibig,
+                                BigIntTy::UBig => Primitive::Ubig,
                             },
-                        },
+                        }
+                        .def(),
                         None => {
                             (match *annotation_ty.value() {
                                 Ty::DataTy(data_ty) => match data_ty.data_def.value().ctors {
@@ -520,16 +528,16 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                                 },
                                 _ => None,
                             })
-                            .unwrap_or_else(|| primitives().i32())
+                            .unwrap_or_else(i32_def)
                         }
                     }
                 }
-                Lit::Str(_) => primitives().str(),
-                Lit::Char(_) => primitives().char(),
+                Lit::Str(_) => str_def(),
+                Lit::Char(_) => char_def(),
                 Lit::Float(float_lit) => match float_lit.kind() {
                     Some(ty) => match ty {
-                        FloatTy::F32 => primitives().f32(),
-                        FloatTy::F64 => primitives().f64(),
+                        FloatTy::F32 => f32_def(),
+                        FloatTy::F64 => f64_def(),
                     },
                     None => {
                         (match *annotation_ty.value() {
@@ -551,7 +559,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                             },
                             _ => None,
                         })
-                        .unwrap_or_else(|| primitives().f64())
+                        .unwrap_or_else(f64_def)
                     }
                 },
             },
@@ -567,18 +575,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let mismatch = || {
             Err(TcError::MismatchingTypes {
                 expected: annotation_ty,
-                actual: {
-                    Ty::from(
-                        DataTy {
-                            data_def: primitives().list(),
-                            args: Arg::seq_positional(
-                                [Ty::hole(NodeOrigin::Expected)],
-                                NodeOrigin::Expected,
-                            ),
-                        },
-                        NodeOrigin::Expected,
-                    )
-                },
+                actual: list_ty(Ty::hole(NodeOrigin::Expected), NodeOrigin::Expected),
             })
         };
 
@@ -623,7 +620,11 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
-            let inferred_len_term = self.create_term_from_usize_lit(array_term.elements.len());
+            let inferred_len_term = create_term_from_usize_lit(
+                self.env(),
+                array_term.elements.len(),
+                array_term.elements.origin(),
+            );
 
             if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
                 return Err(TcError::MismatchingArrayLengths {
@@ -637,16 +638,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // type
         if let Ty::Hole(_) = *annotation_ty.value() {
             self.check_by_unify(
-                Ty::from(
-                    DataTy {
-                        data_def: primitives().list(),
-                        args: Arg::seq_positional(
-                            [list_annotation_inner_ty],
-                            list_annotation_inner_ty.origin(),
-                        ),
-                    },
-                    NodeOrigin::Expected,
-                ),
+                list_ty(list_annotation_inner_ty, NodeOrigin::Expected),
                 annotation_ty,
             )?
         };
@@ -1008,15 +1000,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             // immediate body functions.
             self.infer_params(fn_def.ty.params, || {
                 self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
-                if let FnBody::Defined(fn_body) = fn_def.body {
-                    if let Term::Fn(immediate_body_fn) = *fn_body.value() {
-                        self.infer_fn_def(
-                            immediate_body_fn,
-                            Ty::hole_for(fn_body),
-                            fn_body,
-                            FnInferMode::Header,
-                        )?;
-                    }
+                if let Term::Fn(immediate_body_fn) = *fn_def.body.value() {
+                    self.infer_fn_def(
+                        immediate_body_fn,
+                        Ty::hole_for(fn_def.body),
+                        fn_def.body,
+                        FnInferMode::Header,
+                    )?;
                 }
                 Ok(())
             })?;
@@ -1032,17 +1022,12 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         let fn_def = fn_def_id.value();
 
-        match fn_def.body {
-            FnBody::Defined(fn_body) => {
-                self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
-                    self.infer_params(fn_def.ty.params, || {
-                        self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
-                        self.infer_term(fn_body, fn_def.ty.return_ty)
-                    })
-                })?;
-            }
-            FnBody::Intrinsic(_) | FnBody::Axiom => {}
-        }
+        self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
+            self.infer_params(fn_def.ty.params, || {
+                self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+                self.infer_term(fn_def.body, fn_def.ty.return_ty)
+            })
+        })?;
 
         let fn_ty_id =
             Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
@@ -1090,7 +1075,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 let closest_fn_def_return_ty = closest_fn_def.borrow().ty.return_ty;
                 self.infer_term(return_term.expression, closest_fn_def_return_ty)?;
 
-                let inferred_ty = Ty::expect_is(original_term, never_ty());
+                let inferred_ty = Ty::expect_is(original_term, never_ty(NodeOrigin::Expected));
                 self.check_by_unify(inferred_ty, annotation_ty)?;
                 Ok(())
             }
@@ -1124,7 +1109,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         annotation_ty: TyId,
     ) -> TcResult<()> {
         // Always `never`.
-        self.check_by_unify(never_ty(), annotation_ty)
+        self.check_by_unify(never_ty(NodeOrigin::Expected), annotation_ty)
     }
 
     /// Infer the type of an unsafe term, and return it.
@@ -1202,7 +1187,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                 match *annotation_ty.value() {
                     Ty::Hole(_) => {
                         // If it diverges, we can just infer the return type as `never`.
-                        let block_term_ty = Ty::expect_is(original_term_id, never_ty());
+                        let block_term_ty =
+                            Ty::expect_is(original_term_id, never_ty(NodeOrigin::Expected));
                         self.check_by_unify(block_term_ty, annotation_ty)?;
                     }
                     _ => {
@@ -1288,6 +1274,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         Ok(())
     }
 
+    /// Infer an intrinsic term, and return it.
+    pub fn infer_intrinsic(&self, intrinsic: Intrinsic, annotation_ty: TyId) -> TcResult<()> {
+        // ##GeneratedOrigin: intrinsics do not belong to the source code
+        self.check_by_unify(Term::from(intrinsic.ty(), NodeOrigin::Generated), annotation_ty)?;
+        Ok(())
+    }
+
     /// Infer an access term.
     pub fn infer_access_term(
         &self,
@@ -1366,10 +1359,8 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.normalise_and_check_ty(subject_ty)?;
 
         // Ensure the index is a usize
-        let index_ty = Ty::expect_is(
-            index_term.index,
-            Ty::data_ty(primitives().usize(), index_term.index.origin().inferred()),
-        );
+        let index_ty =
+            Ty::expect_is(index_term.index, usize_ty(index_term.index.origin().inferred()));
         self.infer_term(index_term.index, index_ty)?;
 
         let wrong_subject_ty = || {
@@ -1462,7 +1453,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     _ if self.uni_ops().is_uninhabitable(subject_ty_copy)? => {
                         let new_unified_ty = Ty::hole_for(case_data.value);
                         self.infer_term(case_data.value, new_unified_ty)?;
-                        self.check_by_unify(new_unified_ty, never_ty())?;
+                        self.check_by_unify(new_unified_ty, never_ty(NodeOrigin::Expected))?;
                     }
                     Some(_) => {
                         self.infer_term(case_data.value, new_unified_ty)?;
@@ -1486,7 +1477,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
         if matches!(*unified_ty.value(), Ty::Hole(_)) {
             if !inhabited.get() {
-                unified_ty = Ty::never_ty(NodeOrigin::Expected);
+                unified_ty = never_ty(NodeOrigin::Expected);
             } else {
                 unified_ty = Ty::unit_ty(NodeOrigin::Expected);
             }
@@ -1556,6 +1547,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             Term::Assign(assign_term) => {
                 self.infer_assign_term(&assign_term, annotation_ty, term_id)?
             }
+            Term::Intrinsic(intrinsic) => self.infer_intrinsic(intrinsic, annotation_ty)?,
             Term::Hole(_) => {}
             Ty::TupleTy(tuple_ty) => {
                 self.infer_params(tuple_ty.data, || Ok(()))?;
@@ -1654,7 +1646,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         self.normalise_and_check_ty(annotation_ty)?;
         // @@Todo: `use_ty_as_array` instead of this manual match:
         let list_annotation_inner_ty = match *annotation_ty.value() {
-            Ty::DataTy(data) if data.data_def == primitives().list() => {
+            Ty::DataTy(data) if data.data_def == list_def() => {
                 // Type is already checked
                 assert!(data.args.len() == 1);
 
@@ -1664,31 +1656,17 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
             _ => {
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
-                    actual: {
-                        Ty::from(
-                            DataTy {
-                                data_def: primitives().list(),
-                                args: Arg::seq_positional(
-                                    [Ty::hole(NodeOrigin::Generated)],
-                                    NodeOrigin::Generated,
-                                ),
-                            },
-                            original_pat_id.origin().inferred(),
-                        )
-                    },
+                    actual: list_ty(
+                        Ty::hole(NodeOrigin::Generated),
+                        original_pat_id.origin().inferred(),
+                    ),
                 });
             }
         };
 
         self.infer_unified_pat_list(list_pat.pats, list_annotation_inner_ty)?;
-        let list_ty = DataTy {
-            data_def: primitives().list(),
-            args: Arg::seq_positional(
-                [list_annotation_inner_ty],
-                list_annotation_inner_ty.origin(),
-            ),
-        };
-        self.check_by_unify(Ty::from(list_ty, annotation_ty.origin()), annotation_ty)?;
+        let list_ty = list_ty(list_annotation_inner_ty, NodeOrigin::Expected);
+        self.check_by_unify(list_ty, annotation_ty)?;
         Ok(())
     }
 
@@ -1829,13 +1807,13 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
     /// Infer an if-pattern
     pub fn infer_if_pat(&self, pat: &IfPat, annotation_ty: TyId) -> TcResult<()> {
         self.infer_pat(pat.pat, annotation_ty, None)?;
-        let expected_condition_ty = Ty::expect_is(pat.condition, data_ty(primitives().bool()));
+        let expected_condition_ty = Ty::expect_is(pat.condition, bool_ty(NodeOrigin::Expected));
         self.infer_term(pat.condition, expected_condition_ty)?;
         if let Term::Var(v) = *pat.condition.value() {
             self.context().add_assignment(
                 v,
                 expected_condition_ty,
-                self.new_bool_term(true, pat.condition.origin().inferred()),
+                bool_term(true, pat.condition.origin().inferred()),
             );
         }
         Ok(())
@@ -1928,7 +1906,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                                 Ty::universe_of(array_ctor_info.element_ty),
                             )?;
                             if let Some(length) = array_ctor_info.length {
-                                self.infer_term(length, data_ty(primitives().usize()))?;
+                                self.infer_term(length, usize_ty(NodeOrigin::Expected))?;
                             }
                             Ok(())
                         }
@@ -1978,6 +1956,10 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
                     // Check for entry point
                     self.potentially_flag_fn_as_entry_point(fn_def_id)?;
                 }
+                Ok(())
+            }
+            ModMemberValue::Intrinsic(_) => {
+                // Nothing to do
                 Ok(())
             }
         }

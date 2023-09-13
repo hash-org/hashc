@@ -17,7 +17,7 @@ use crate::{
     control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     environment::env::Env,
-    fns::{CallTerm, FnBody, FnDef, FnDefId, FnTy},
+    fns::{CallTerm, FnDef, FnDefId, FnTy},
     mods::{ModDefId, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     params::{Param, ParamsId},
@@ -233,6 +233,7 @@ impl TraversingUtils {
                     Ok(Term::from(DerefTerm { subject }, origin))
                 }
                 Term::Hole(hole_term) => Ok(Term::from(hole_term, origin)),
+                Term::Intrinsic(intrinsic) => Ok(Term::from(intrinsic, origin)),
                 Ty::TupleTy(tuple_ty) => {
                     let data = self.fmap_params(tuple_ty.data, f)?;
                     Ok(Ty::from(TupleTy { data }, origin))
@@ -450,32 +451,26 @@ impl TraversingUtils {
             ControlFlow::Break(fn_def_id) => Ok(FnDefId::try_from(fn_def_id).unwrap()),
             ControlFlow::Continue(()) => {
                 let fn_def = fn_def_id.value();
+                let params = self.fmap_params(fn_def.ty.params, f)?;
+                let return_ty = self.fmap_term(fn_def.ty.return_ty, f)?;
+                let body = self.fmap_term(fn_def.body, f)?;
 
-                match fn_def.body {
-                    FnBody::Defined(defined) => {
-                        let params = self.fmap_params(fn_def.ty.params, f)?;
-                        let return_ty = self.fmap_term(fn_def.ty.return_ty, f)?;
-                        let body = FnBody::Defined(self.fmap_term(defined, f)?);
+                let def = Node::create_at(
+                    FnDef {
+                        name: fn_def.name,
+                        ty: FnTy {
+                            params,
+                            return_ty,
+                            implicit: fn_def.ty.implicit,
+                            is_unsafe: fn_def.ty.is_unsafe,
+                            pure: fn_def.ty.pure,
+                        },
+                        body,
+                    },
+                    fn_def.origin,
+                );
 
-                        let def = Node::create_at(
-                            FnDef {
-                                name: fn_def.name,
-                                ty: FnTy {
-                                    params,
-                                    return_ty,
-                                    implicit: fn_def.ty.implicit,
-                                    is_unsafe: fn_def.ty.is_unsafe,
-                                    pure: fn_def.ty.pure,
-                                },
-                                body,
-                            },
-                            fn_def.origin,
-                        );
-
-                        Ok(def)
-                    }
-                    FnBody::Intrinsic(_) | FnBody::Axiom => Ok(fn_def_id),
-                }
+                Ok(def)
             }
         }?;
 
@@ -532,6 +527,7 @@ impl TraversingUtils {
                 Term::Ref(ref_term) => self.visit_term(ref_term.subject, f),
                 Term::Deref(deref_term) => self.visit_term(deref_term.subject, f),
                 Term::Hole(_) => Ok(()),
+                Term::Intrinsic(_) => Ok(()),
                 Ty::TupleTy(tuple_ty) => self.visit_params(tuple_ty.data, f),
                 Ty::FnTy(fn_ty) => {
                     self.visit_params(fn_ty.params, f)?;
@@ -581,11 +577,7 @@ impl TraversingUtils {
                 let fn_ty = fn_def.ty;
                 self.visit_params(fn_ty.params, f)?;
                 self.visit_term(fn_ty.return_ty, f)?;
-
-                match fn_def.body {
-                    FnBody::Defined(defined) => self.visit_term(defined, f),
-                    FnBody::Intrinsic(_) | FnBody::Axiom => Ok(()),
-                }
+                self.visit_term(fn_def.body, f)
             }
         }
     }
@@ -740,6 +732,10 @@ impl TraversingUtils {
             }
             ModMemberValue::Fn(fn_def_id) => {
                 self.visit_fn_def(fn_def_id, f)?;
+                Ok(())
+            }
+            ModMemberValue::Intrinsic(_) => {
+                // Nothing to do
                 Ok(())
             }
         }

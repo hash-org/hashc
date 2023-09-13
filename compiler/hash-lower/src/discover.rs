@@ -10,7 +10,7 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     environment::env::{AccessToEnv, Env},
-    fns::{FnBody, FnDefId},
+    fns::FnDefId,
     mods::{ModDef, ModKind, ModMemberValue},
     node::HasAstNodeId,
     terms::TermId,
@@ -90,21 +90,14 @@ impl FnDiscoverer<'_> {
             return None;
         }
 
-        match def_body {
-            FnBody::Defined(body) => {
-                let is_foreign = attr_store().node_has_attr(def.node_id_ensured(), attrs::FOREIGN);
+        let is_foreign = attr_store().node_has_attr(def.node_id_ensured(), attrs::FOREIGN);
 
-                // Check that the body is marked as "foreign" since
-                // we don't want to lower it.
-                if is_foreign {
-                    None
-                } else {
-                    Some(body)
-                }
-            }
-
-            // Intrinsics and axioms have no effect on the IR lowering
-            FnBody::Intrinsic(_) | FnBody::Axiom => None,
+        // Check that the body is marked as "foreign" since
+        // we don't want to lower it.
+        if is_foreign {
+            None
+        } else {
+            Some(def_body)
         }
     }
 
@@ -143,6 +136,10 @@ impl FnDiscoverer<'_> {
                     }
                     ModMemberValue::Fn(_) => {
                         // We've already found this one.
+                    }
+                    ModMemberValue::Intrinsic(_) => {
+                        // No need to queue intrinsics, they are dealt with as
+                        // they are encountered.
                     }
                 }
             }

@@ -229,6 +229,9 @@ impl<'tc> ResolutionPass<'tc> {
                             found_error = true;
                         }
                     }
+                    ModMemberValue::Intrinsic(_) => {
+                        // Nothing to do
+                    }
                 }
             }
 

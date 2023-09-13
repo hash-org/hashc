@@ -8,10 +8,6 @@ use std::collections::HashSet;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
 use hash_attrs::{attr::attr_store, builtin::attrs};
-use hash_intrinsics::{
-    intrinsics::{AccessToIntrinsics, BoolBinOp, EndoBinOp, ShortCircuitBinOp, UnOp},
-    utils::PrimitiveUtils,
-};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
@@ -25,11 +21,14 @@ use hash_tir::{
     control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
     data::DataTy,
     environment::env::AccessToEnv,
-    fns::{CallTerm, FnBody, FnDefId},
+    fns::CallTerm,
+    intrinsics::{
+        definitions::{equal_ty, BinOp, CondBinOp, Intrinsic, ShortCircuitingBoolOp, UnOp},
+        utils::{bool_term, create_term_from_integer_lit},
+    },
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     node::{Node, NodeId, NodeOrigin},
     params::ParamIndex,
-    primitives::primitives,
     refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
     terms::{Term, TermId, Ty, TyOfTerm, UnsafeTerm},
@@ -354,6 +353,10 @@ impl<'tc> ResolutionPass<'tc> {
                     // Bound variable
                     Ok(Term::from(Term::Var(*bound_var), origin))
                 }
+                TerminalResolvedPathComponent::Intrinsic(intrinsic) => {
+                    // Intrinsic
+                    Ok(Term::from(Term::Intrinsic(*intrinsic), origin))
+                }
             },
         }
     }
@@ -534,9 +537,7 @@ impl<'tc> ResolutionPass<'tc> {
             ast::Lit::Char(char_lit) => Ok(lit_prim!(Char, CharLit, *char_lit)),
             ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, IntLit, *int_lit)),
             ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
-            ast::Lit::Bool(bool_lit) => {
-                Ok(self.sem_env().new_bool_term(bool_lit.data, NodeOrigin::Given(node.id())))
-            }
+            ast::Lit::Bool(bool_lit) => Ok(bool_term(bool_lit.data, NodeOrigin::Given(node.id()))),
             ast::Lit::Tuple(tuple_lit) => {
                 let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
                 Ok(Term::from(Term::Tuple(TupleTerm { data: args }), NodeOrigin::Given(node.id())))
@@ -853,7 +854,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                 // Modify the existing fn def for the return value:
                 if let Some(return_value) = return_value {
-                    fn_def_id.borrow_mut().body = FnBody::Defined(return_value);
+                    fn_def_id.borrow_mut().body = return_value;
                 }
 
                 (params, return_ty, return_value, fn_def_id)
@@ -950,45 +951,42 @@ impl<'tc> ResolutionPass<'tc> {
         let typeof_lhs = Term::from(TyOfTerm { term: lhs }, origin);
 
         // Pick the right intrinsic function and binary operator number
-        let (intrinsic_fn_def, bin_op_num): (FnDefId, u8) = match op {
-            ast::BinOp::EqEq => (self.intrinsics().bool_bin_op(), BoolBinOp::EqEq.into()),
-            ast::BinOp::NotEq => (self.intrinsics().bool_bin_op(), BoolBinOp::NotEq.into()),
-            ast::BinOp::BitOr => (self.intrinsics().endo_bin_op(), EndoBinOp::BitOr.into()),
-            ast::BinOp::Or => {
-                (self.intrinsics().short_circuiting_op(), ShortCircuitBinOp::Or.into())
-            }
-            ast::BinOp::BitAnd => (self.intrinsics().endo_bin_op(), EndoBinOp::BitAnd.into()),
+        let (intrinsic, bin_op_num): (Intrinsic, u8) = match op {
+            ast::BinOp::EqEq => (Intrinsic::CondBinOp, CondBinOp::EqEq.into()),
+            ast::BinOp::NotEq => (Intrinsic::CondBinOp, CondBinOp::NotEq.into()),
+            ast::BinOp::BitOr => (Intrinsic::BinOp, BinOp::BitOr.into()),
+            ast::BinOp::Or => (Intrinsic::ShortCircuitingBoolOp, ShortCircuitingBoolOp::Or.into()),
+            ast::BinOp::BitAnd => (Intrinsic::BinOp, BinOp::BitAnd.into()),
             ast::BinOp::And => {
-                (self.intrinsics().short_circuiting_op(), ShortCircuitBinOp::And.into())
+                (Intrinsic::ShortCircuitingBoolOp, ShortCircuitingBoolOp::And.into())
             }
-            ast::BinOp::BitXor => (self.intrinsics().endo_bin_op(), EndoBinOp::BitXor.into()),
-            ast::BinOp::Exp => (self.intrinsics().endo_bin_op(), EndoBinOp::Exp.into()),
-            ast::BinOp::Gt => (self.intrinsics().bool_bin_op(), BoolBinOp::Gt.into()),
-            ast::BinOp::GtEq => (self.intrinsics().bool_bin_op(), BoolBinOp::GtEq.into()),
-            ast::BinOp::Lt => (self.intrinsics().bool_bin_op(), BoolBinOp::Lt.into()),
-            ast::BinOp::LtEq => (self.intrinsics().bool_bin_op(), BoolBinOp::LtEq.into()),
-            ast::BinOp::Shr => (self.intrinsics().endo_bin_op(), EndoBinOp::Shr.into()),
-            ast::BinOp::Shl => (self.intrinsics().endo_bin_op(), EndoBinOp::Shl.into()),
-            ast::BinOp::Add => (self.intrinsics().endo_bin_op(), EndoBinOp::Add.into()),
-            ast::BinOp::Sub => (self.intrinsics().endo_bin_op(), EndoBinOp::Sub.into()),
-            ast::BinOp::Mul => (self.intrinsics().endo_bin_op(), EndoBinOp::Mul.into()),
-            ast::BinOp::Div => (self.intrinsics().endo_bin_op(), EndoBinOp::Div.into()),
-            ast::BinOp::Mod => (self.intrinsics().endo_bin_op(), EndoBinOp::Mod.into()),
+            ast::BinOp::BitXor => (Intrinsic::BinOp, BinOp::BitXor.into()),
+            ast::BinOp::Exp => (Intrinsic::BinOp, BinOp::Exp.into()),
+            ast::BinOp::Gt => (Intrinsic::CondBinOp, CondBinOp::Gt.into()),
+            ast::BinOp::GtEq => (Intrinsic::CondBinOp, CondBinOp::GtEq.into()),
+            ast::BinOp::Lt => (Intrinsic::CondBinOp, CondBinOp::Lt.into()),
+            ast::BinOp::LtEq => (Intrinsic::CondBinOp, CondBinOp::LtEq.into()),
+            ast::BinOp::Shr => (Intrinsic::BinOp, BinOp::Shr.into()),
+            ast::BinOp::Shl => (Intrinsic::BinOp, BinOp::Shl.into()),
+            ast::BinOp::Add => (Intrinsic::BinOp, BinOp::Add.into()),
+            ast::BinOp::Sub => (Intrinsic::BinOp, BinOp::Sub.into()),
+            ast::BinOp::Mul => (Intrinsic::BinOp, BinOp::Mul.into()),
+            ast::BinOp::Div => (Intrinsic::BinOp, BinOp::Div.into()),
+            ast::BinOp::Mod => (Intrinsic::BinOp, BinOp::Mod.into()),
             ast::BinOp::As => {
                 return Ok(Term::from(CastTerm { subject_term: lhs, target_ty: rhs }, origin));
             }
             ast::BinOp::Merge => {
-                let args = Arg::seq_positional([typeof_lhs, lhs, rhs], origin);
-                return Ok(Ty::from(DataTy { data_def: primitives().equal(), args }, origin));
+                return Ok(equal_ty(typeof_lhs, lhs, rhs, origin));
             }
         };
 
         // Invoke the intrinsic function
         Ok(Term::from(
             CallTerm {
-                subject: Term::from(intrinsic_fn_def, origin),
+                subject: Term::from(intrinsic, origin),
                 args: Arg::seq_positional(
-                    [typeof_lhs, self.create_term_from_integer_lit(bin_op_num), lhs, rhs],
+                    [typeof_lhs, create_term_from_integer_lit(bin_op_num, origin), lhs, rhs],
                     origin,
                 ),
                 implicit: false,
@@ -1006,22 +1004,22 @@ impl<'tc> ResolutionPass<'tc> {
         let origin = NodeOrigin::Given(node.id());
         let typeof_a = Term::from(TyOfTerm { term: a }, origin);
 
-        let (intrinsic_fn_def, op_num): (FnDefId, u8) = match node.operator.body() {
+        let (intrinsic, op_num): (Intrinsic, u8) = match node.operator.body() {
             ast::UnOp::TypeOf => {
                 let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
                 return Ok(Term::from(TyOfTerm { term: inner }, origin));
             }
-            ast::UnOp::BitNot => (self.intrinsics().un_op(), UnOp::BitNot.into()),
-            ast::UnOp::Not => (self.intrinsics().un_op(), UnOp::Not.into()),
-            ast::UnOp::Neg => (self.intrinsics().un_op(), UnOp::Neg.into()),
+            ast::UnOp::BitNot => (Intrinsic::UnOp, UnOp::BitNot.into()),
+            ast::UnOp::Not => (Intrinsic::UnOp, UnOp::Not.into()),
+            ast::UnOp::Neg => (Intrinsic::UnOp, UnOp::Neg.into()),
         };
 
         // Invoke the intrinsic function
         Ok(Term::from(
             CallTerm {
-                subject: Term::from(intrinsic_fn_def, origin),
+                subject: Term::from(intrinsic, origin),
                 args: Arg::seq_positional(
-                    [typeof_a, self.create_term_from_integer_lit(op_num), a],
+                    [typeof_a, create_term_from_integer_lit(op_num, origin), a],
                     NodeOrigin::Given(node.id()),
                 ),
                 implicit: false,

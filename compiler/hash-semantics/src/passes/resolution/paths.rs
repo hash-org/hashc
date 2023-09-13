@@ -28,6 +28,7 @@ use hash_tir::{
     args::{Arg, ArgsId},
     data::{CtorPat, CtorTerm, DataDefId},
     fns::{CallTerm, FnDefId},
+    intrinsics::definitions::Intrinsic,
     mods::{ModDefId, ModMemberValue},
     node::{Node, NodeId, NodeOrigin},
     symbols::SymbolId,
@@ -104,7 +105,10 @@ impl From<NonTerminalResolvedPathComponent> for ModMemberValue {
 
 impl fmt::Display for NonTerminalResolvedPathComponent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", ModMemberValue::from(*self).name())
+        match ModMemberValue::from(*self).name() {
+            Some(name) => write!(f, "{}", name),
+            None => write!(f, "{{unnamed}}"),
+        }
     }
 }
 
@@ -116,6 +120,8 @@ impl fmt::Display for NonTerminalResolvedPathComponent {
 pub enum TerminalResolvedPathComponent {
     /// A function reference.
     FnDef(FnDefId),
+    /// An intrinsic.
+    Intrinsic(Intrinsic),
     /// A data constructor pattern.
     CtorPat(Node<CtorPat>),
     /// A data constructor term.
@@ -134,6 +140,7 @@ impl TerminalResolvedPathComponent {
             TerminalResolvedPathComponent::CtorTerm(c) => c.origin,
             TerminalResolvedPathComponent::FnCall(f) => f.origin,
             TerminalResolvedPathComponent::Var(v) => v.origin(),
+            TerminalResolvedPathComponent::Intrinsic(_) => NodeOrigin::Generated,
         }
     }
 }
@@ -303,6 +310,24 @@ impl<'tc> ResolutionPass<'tc> {
                         args => {
                             let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
                                 Term::from(Term::Fn(fn_def_id), component.origin()),
+                                args,
+                                component.node_id,
+                            )?;
+                            Ok(ResolvedAstPathComponent::Terminal(
+                                TerminalResolvedPathComponent::FnCall(Node::at(
+                                    resultant_term,
+                                    component.origin(),
+                                )),
+                            ))
+                        }
+                    },
+                    ModMemberValue::Intrinsic(intrinsic) => match &component.args[..] {
+                        [] => Ok(ResolvedAstPathComponent::Terminal(
+                            TerminalResolvedPathComponent::Intrinsic(intrinsic),
+                        )),
+                        args => {
+                            let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
+                                Term::from(Term::Intrinsic(intrinsic), component.origin()),
                                 args,
                                 component.node_id,
                             )?;

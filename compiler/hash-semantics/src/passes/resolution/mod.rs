@@ -5,7 +5,6 @@
 //! Any scoping errors are reported here.
 
 use hash_ast::ast::{self};
-use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_tir::environment::env::AccessToEnv;
 
 use self::scoping::{ContextKind, Scoping};
@@ -33,12 +32,6 @@ pub struct ResolutionPass<'tc> {
     sem_env: &'tc SemEnv<'tc>,
     /// Tools for entering scopes and looking up symbols by name in them.
     scoping: Scoping<'tc>,
-}
-
-impl AccessToIntrinsics for ResolutionPass<'_> {
-    fn intrinsics(&self) -> &DefinedIntrinsics {
-        self.sem_env.intrinsics()
-    }
 }
 
 impl AccessToEnv for ResolutionPass<'_> {

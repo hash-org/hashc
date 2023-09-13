@@ -10,7 +10,7 @@ use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     data::DataDef,
     environment::env::AccessToEnv,
-    fns::{FnBody, FnDef, FnTy},
+    fns::{FnDef, FnTy},
     mods::{ModDef, ModKind, ModMember},
     node::{Node, NodeOrigin},
     scopes::Stack,
@@ -261,7 +261,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: FnBody::Defined(Term::hole(NodeOrigin::Given(node.fn_body.id()))),
+                body: Term::hole(NodeOrigin::Given(node.fn_body.id())),
                 ty: FnTy {
                     implicit: false,
                     is_unsafe: false,
@@ -298,7 +298,7 @@ impl<'tc> ast::AstVisitor for DiscoveryPass<'tc> {
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: FnBody::Defined(Term::hole(NodeOrigin::Given(node.ty_fn_body.id()))),
+                body: Term::hole(NodeOrigin::Given(node.ty_fn_body.id())),
                 ty: FnTy {
                     implicit: true,
                     is_unsafe: false,

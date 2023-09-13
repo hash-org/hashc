@@ -1,8 +1,8 @@
 use hash_ast::node_map::NodeMap;
-use hash_target::Target;
+use hash_target::{HasTarget, Target};
 
 use super::source_info::CurrentSourceInfo;
-use crate::context::Context;
+use crate::context::{Context, HasContext};
 
 macro_rules! env {
     ($($name:ident: $ty:ty),* $(,)?) => {
@@ -108,5 +108,17 @@ impl<'tc> Env<'tc> {
     /// [`WithEnv`] value.
     pub fn with<T>(&self, value: T) -> WithEnv<T> {
         WithEnv::new(self, value)
+    }
+}
+
+impl<'tc> HasTarget for Env<'tc> {
+    fn target(&self) -> &Target {
+        self.target
+    }
+}
+
+impl<'tc> HasContext for Env<'tc> {
+    fn context(&self) -> &Context {
+        self.context
     }
 }

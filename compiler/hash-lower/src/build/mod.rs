@@ -13,7 +13,6 @@ mod ty;
 mod utils;
 
 use hash_attrs::{attr::attr_store, builtin::attrs};
-use hash_intrinsics::intrinsics::{AccessToIntrinsics, DefinedIntrinsics};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
@@ -27,7 +26,7 @@ use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, ScopeKind},
     environment::env::{AccessToEnv, Env},
-    fns::{FnBody, FnDef, FnDefId, FnTy},
+    fns::{FnDef, FnDefId, FnTy},
     node::NodesId,
     symbols::SymbolId,
     terms::TermId,
@@ -193,12 +192,6 @@ impl<'ctx> AccessToEnv for BodyBuilder<'ctx> {
     }
 }
 
-impl<'ctx> AccessToIntrinsics for BodyBuilder<'ctx> {
-    fn intrinsics(&self) -> &DefinedIntrinsics {
-        self.ctx.intrinsics
-    }
-}
-
 impl<'ctx> BodyBuilder<'ctx> {
     pub(crate) fn new(name: Identifier, item: BuildItem, ctx: BuilderCtx<'ctx>) -> Self {
         let (arg_count, source) = match item {
@@ -298,11 +291,6 @@ impl<'ctx> BodyBuilder<'ctx> {
                 // @@Future: deal with parameter attributes that are mutable?
                 this.push_local(param.name, LocalDecl::new_immutable(param.name.ident(), ir_ty));
             });
-
-            // Axioms and Intrinsics are not lowered into IR
-            let FnBody::Defined(body) = body else {
-                panic!("defined function body was expected, but got `{body:?}`")
-            };
 
             this.build_body(body)
         })

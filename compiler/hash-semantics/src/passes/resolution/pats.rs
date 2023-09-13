@@ -7,7 +7,6 @@
 use std::iter::empty;
 
 use hash_ast::ast::{self, AstNodeId, AstNodeRef};
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
@@ -15,6 +14,7 @@ use hash_tir::{
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::CtorPat,
+    intrinsics::utils::bool_pat,
     lits::{CharLit, Lit, LitPat, StrLit},
     node::{Node, NodeId, NodeOrigin},
     params::ParamIndex,
@@ -244,6 +244,11 @@ impl ResolutionPass<'_> {
                         location: original_node_id.span(),
                     })
                 }
+                TerminalResolvedPathComponent::Intrinsic(_) => {
+                    Err(SemanticError::CannotUseIntrinsicInPatternPosition {
+                        location: original_node_id.span(),
+                    })
+                }
             },
         }
     }
@@ -272,9 +277,7 @@ impl ResolutionPass<'_> {
                 Pat::Lit(LitPat(Node::create_at(Lit::Int((*int_lit).into()), origin))),
                 origin,
             ),
-            ast::Lit::Bool(bool_lit) => {
-                self.new_bool_pat(bool_lit.data, NodeOrigin::Given(lit_pat.id()))
-            }
+            ast::Lit::Bool(bool_lit) => bool_pat(bool_lit.data, NodeOrigin::Given(lit_pat.id())),
             ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
                 panic!("Found invalid literal in pattern")
             }

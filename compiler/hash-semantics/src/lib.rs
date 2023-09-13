@@ -26,10 +26,7 @@ use hash_tir::{
     environment::{env::Env, source_info::CurrentSourceInfo},
 };
 use once_cell::unsync::OnceCell;
-use ops::{
-    bootstrap::{DefinedIntrinsicsOrUnset, DefinedPrimitivesOrUnset},
-    common::CommonOps,
-};
+use ops::common::CommonOps;
 
 pub mod diagnostics;
 pub mod environment;
@@ -82,8 +79,6 @@ pub struct SemanticStorage {
 
     // Bootstrapping:
     pub prelude_or_unset: PreludeOrUnset,
-    pub primitives_or_unset: DefinedPrimitivesOrUnset,
-    pub intrinsics_or_unset: DefinedIntrinsicsOrUnset,
     pub root_mod_or_unset: RootModOrUnset,
     pub entry_point: EntryPoint,
 }
@@ -95,9 +90,7 @@ impl SemanticStorage {
             diagnostics: DiagnosticsStore::new(),
             prelude_or_unset: OnceCell::new(),
             ast_info: AstInfo::new(),
-            primitives_or_unset: OnceCell::new(),
             entry_point: EntryPoint::new(),
-            intrinsics_or_unset: OnceCell::new(),
             root_mod_or_unset: OnceCell::new(),
             analysis_progress: AnalysisProgress::new(),
         }
@@ -134,7 +127,6 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &semantic_storage.entry_point,
             &semantic_storage.ast_info,
             &semantic_storage.prelude_or_unset,
-            &semantic_storage.intrinsics_or_unset,
             &semantic_storage.root_mod_or_unset,
             &semantic_storage.analysis_progress,
             settings,

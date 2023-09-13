@@ -16,6 +16,7 @@ pub mod gen {
         node::{Node, NodeOrigin},
         params::{Param, ParamsId},
         pats::{Pat, PatId},
+        refs::RefKind,
         symbols::SymbolId,
         terms::{Term, TermId, Ty, TyId},
     };
@@ -102,8 +103,9 @@ pub mod gen {
         Node::create_gen(DataDef { name, params, ctors: DataDefCtors::Primitive(info) })
     }
 
-    /// Create a flexible universe type.
-    pub fn universe_ty() -> TyId {
+    /// Create a universe type.
+    #[allow(non_snake_case)]
+    pub fn Type() -> TyId {
         Ty::universe(NodeOrigin::Generated)
     }
 
@@ -122,9 +124,9 @@ pub mod gen {
         Ty::unit_ty(NodeOrigin::Generated)
     }
 
-    /// Create the empty type.
-    pub fn never_ty() -> TyId {
-        Ty::never_ty(NodeOrigin::Generated)
+    /// Create a reference type with the given data.
+    pub fn ref_ty(ty: TyId, kind: RefKind, mutable: bool) -> TyId {
+        Ty::ref_ty(ty, kind, mutable, NodeOrigin::Generated)
     }
 
     /// Create a term by the given data.

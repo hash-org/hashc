@@ -7,7 +7,6 @@ use std::{
 };
 
 use hash_ast::ast::AstNodeId;
-use hash_intrinsics::intrinsics;
 use hash_source::{identifier::Identifier, location::Span, SourceId};
 use hash_storage::{
     static_sequence_store_indirect,
@@ -15,6 +14,10 @@ use hash_storage::{
         statics::{SingleStoreValue, StoreId},
         SequenceStore, SequenceStoreKey,
     },
+};
+use hash_tir::intrinsics::definitions::{
+    BinOp as TirBinOp, CondBinOp as TirCondBinOp,
+    ShortCircuitingBoolOp as TirShortCircuitingBoolOp, UnOp as TirUnOp,
 };
 use hash_utils::{
     graph::dominators::Dominators,
@@ -62,9 +65,9 @@ pub enum UnaryOp {
     Neg,
 }
 
-impl From<intrinsics::UnOp> for UnaryOp {
-    fn from(value: intrinsics::UnOp) -> Self {
-        use intrinsics::UnOp::*;
+impl From<TirUnOp> for UnaryOp {
+    fn from(value: TirUnOp) -> Self {
+        use TirUnOp::*;
         match value {
             BitNot => Self::BitNot,
             Not => Self::Not,
@@ -83,9 +86,9 @@ pub enum LogicalBinOp {
     And,
 }
 
-impl From<intrinsics::ShortCircuitBinOp> for LogicalBinOp {
-    fn from(value: intrinsics::ShortCircuitBinOp) -> Self {
-        use intrinsics::ShortCircuitBinOp::*;
+impl From<TirShortCircuitingBoolOp> for LogicalBinOp {
+    fn from(value: TirShortCircuitingBoolOp) -> Self {
+        use TirShortCircuitingBoolOp::*;
 
         match value {
             And => Self::And,
@@ -204,9 +207,9 @@ impl fmt::Display for BinOp {
     }
 }
 
-impl From<intrinsics::EndoBinOp> for BinOp {
-    fn from(value: intrinsics::EndoBinOp) -> Self {
-        use intrinsics::EndoBinOp::*;
+impl From<TirBinOp> for BinOp {
+    fn from(value: TirBinOp) -> Self {
+        use TirBinOp::*;
 
         match value {
             BitOr => Self::BitOr,
@@ -224,9 +227,9 @@ impl From<intrinsics::EndoBinOp> for BinOp {
     }
 }
 
-impl From<intrinsics::BoolBinOp> for BinOp {
-    fn from(value: intrinsics::BoolBinOp) -> Self {
-        use intrinsics::BoolBinOp::*;
+impl From<TirCondBinOp> for BinOp {
+    fn from(value: TirCondBinOp) -> Self {
+        use TirCondBinOp::*;
 
         match value {
             EqEq => Self::Eq,

@@ -36,11 +36,11 @@ use std::{
 };
 
 use hash_ast::ast::RangeEnd;
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::Store;
 use hash_tir::{
     environment::env::AccessToEnv,
+    intrinsics::utils::try_use_ty_as_int_ty,
     pats::{PatId, RangePat},
     terms::TyId,
 };
@@ -275,7 +275,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     /// of the integer size, in other words at the position where the
     /// last byte is that identifies the sign.
     pub(crate) fn signed_bias(&self, ty: TyId) -> u128 {
-        if let Some(ty) = self.try_use_ty_as_int_ty(ty) {
+        if let Some(ty) = try_use_ty_as_int_ty(ty) {
             if ty.is_signed() && !ty.is_big() {
                 let size = ty.size(self.target().ptr_size());
                 let bits = size.bits() as u128;

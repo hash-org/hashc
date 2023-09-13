@@ -19,6 +19,7 @@ use crate::{
     data::{CtorDefId, DataDefId},
     environment::env::AccessToEnv,
     fns::{FnDefId, FnTy},
+    intrinsics::definitions::Intrinsic,
     mods::ModDefId,
     params::{ParamId, ParamsId},
     scopes::StackId,
@@ -52,6 +53,8 @@ pub enum ScopeKind {
     Stack(StackId),
     /// A function scope.
     Fn(FnDefId),
+    /// An intrinsic scope.
+    Intrinsic(Intrinsic),
     /// A data definition.
     Data(DataDefId),
     /// A constructor definition.
@@ -104,6 +107,11 @@ impl Scope {
             false
         }
     }
+}
+
+/// Trait for types that have a context avaiable to them.
+pub trait HasContext {
+    fn context(&self) -> &Context;
 }
 
 /// Data structure managing the typechecking context.
@@ -509,6 +517,9 @@ impl Context {
             ScopeKind::Sub => {
                 // No-op
             }
+            ScopeKind::Intrinsic(_) => {
+                // No-op
+            }
         }
     }
 
@@ -573,6 +584,9 @@ impl fmt::Display for ScopeKind {
             ScopeKind::TupleTy(tuple_ty) => write!(f, "tuple ty {}", tuple_ty),
             ScopeKind::Sub => {
                 write!(f, "sub")
+            }
+            ScopeKind::Intrinsic(intrinsic) => {
+                write!(f, "intrinsic {}", intrinsic)
             }
         }
     }

@@ -327,6 +327,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Ty::RefTy(_)
             | Ty::Universe
             | Term::Hole(_)
+            | Term::Intrinsic(_)
             | Term::Fn(_) => block.unit(),
         };
 

@@ -2,10 +2,9 @@
 use std::{cell::Cell, ops::ControlFlow};
 
 use hash_ast::ast::RangeEnd;
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    PartialStore, SequenceStoreKey, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     access::AccessTerm,
@@ -15,8 +14,12 @@ use hash_tir::{
     casting::CastTerm,
     context::ScopeKind,
     control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    fns::{CallTerm, FnBody, FnDefId},
+    fns::{CallTerm, FnDefId},
     holes::Hole,
+    intrinsics::{
+        make::IsIntrinsic,
+        utils::{get_bool_ctor, try_use_term_as_integer_lit},
+    },
     lits::{Lit, LitPat},
     node::{Node, NodeId, NodesId},
     params::ParamIndex,
@@ -286,7 +289,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         match atom {
             Atom::Term(term) => match *term.value() {
                 // Never has effects
-                Term::Hole(_) | Term::Fn(_) => Ok(ControlFlow::Break(())),
+                Term::Intrinsic(_) | Term::Hole(_) | Term::Fn(_) => Ok(ControlFlow::Break(())),
 
                 // These have effects if their constituents do
                 Term::Lit(_)
@@ -548,7 +551,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Assumes that the index is normalised.
     fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
-        self.try_use_term_as_integer_lit::<usize>(index)
+        try_use_term_as_integer_lit::<_, usize>(self.env(), index)
             .map(|idx| elements.elements().at(idx).unwrap().into())
     }
 
@@ -727,63 +730,42 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
         fn_call.subject = self.to_term(self.eval_and_record(fn_call.subject.into(), &st)?);
         fn_call.args = st.update_from_evaluation(fn_call.args, self.eval_args(fn_call.args))?;
 
+        let subject = *fn_call.subject.value();
+
         // Beta-reduce:
-        if let Term::Fn(fn_def_id) = *fn_call.subject.value() {
+        if let Term::Fn(fn_def_id) = subject {
             let fn_def = fn_def_id.value();
             if (fn_def.ty.pure || matches!(self.mode.get(), NormalisationMode::Full))
                 && self.try_get_inferred_ty(fn_def_id).is_some()
             {
-                match fn_def.body {
-                    FnBody::Defined(defined_fn_def) => {
-                        return self.context().enter_scope(fn_def_id.into(), || {
-                            // Add argument bindings:
-                            self.context().add_arg_bindings(fn_def.ty.params, fn_call.args);
+                return self.context().enter_scope(fn_def_id.into(), || {
+                    // Add argument bindings:
+                    self.context().add_arg_bindings(fn_def.ty.params, fn_call.args);
 
-                            // Evaluate result:
-                            match self.eval(defined_fn_def.into()) {
-                                Err(Signal::Return(result)) | Ok(result) => {
-                                    // Substitute remaining bindings:
-                                    let sub = self.sub_ops().create_sub_from_current_scope();
-                                    let result = self.sub_ops().apply_sub_to_atom(result, &sub);
-                                    evaluation_to(result)
-                                }
-                                Err(e) => Err(e),
-                            }
-                        });
-                    }
-
-                    FnBody::Intrinsic(intrinsic_id) => {
-                        return self.context().enter_scope(fn_def_id.into(), || {
-                            let args_as_terms = fn_call
-                                .args
-                                .elements()
-                                .borrow()
-                                .iter()
-                                .map(|arg| arg.value)
-                                .collect_vec();
-
-                            // Run intrinsic:
-                            let result: TermId = self
-                                .intrinsics()
-                                .implementations
-                                .map_fast(intrinsic_id, |intrinsic| {
-                                    let intrinsic = intrinsic.unwrap();
-                                    (intrinsic.implementation)(
-                                        &IntrinsicAbilitiesWrapper { tc: self.env },
-                                        &args_as_terms,
-                                    )
-                                })
-                                .map_err(TcError::Intrinsic)?;
-
+                    // Evaluate result:
+                    match self.eval(fn_def.body.into()) {
+                        Err(Signal::Return(result)) | Ok(result) => {
+                            // Substitute remaining bindings:
+                            let sub = self.sub_ops().create_sub_from_current_scope();
+                            let result = self.sub_ops().apply_sub_to_atom(result, &sub);
                             evaluation_to(result)
-                        });
+                        }
+                        Err(e) => Err(e),
                     }
-
-                    FnBody::Axiom => {
-                        // Nothing further to do
-                    }
-                }
+                });
             }
+        } else if let Term::Intrinsic(intrinsic) = subject {
+            return self.context().enter_scope(intrinsic.into(), || {
+                let args_as_terms =
+                    fn_call.args.elements().borrow().iter().map(|arg| arg.value).collect_vec();
+
+                // Run intrinsic:
+                let result: Option<TermId> = intrinsic
+                    .call(IntrinsicAbilitiesWrapper { tc: self.env }, &args_as_terms)
+                    .map_err(TcError::Intrinsic)?;
+
+                evaluation_option::<Atom>(result)
+            });
         }
 
         evaluation_if(|| Term::from(*fn_call, fn_call.origin.computed()), &st)
@@ -857,6 +839,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
                 // Introduction forms:
                 Term::Ref(_)
+                | Term::Intrinsic(_)
                 | Term::Fn(_)
                 | Term::Lit(_)
                 | Term::Array(_)
@@ -1017,7 +1000,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     fn is_true(&self, atom: Atom) -> bool {
         match atom {
             Atom::Term(term) => match **term.borrow() {
-                Term::Ctor(ctor_term) => ctor_term.ctor == self.get_bool_ctor(true),
+                Term::Ctor(ctor_term) => ctor_term.ctor == get_bool_ctor(true),
                 _ => false,
             },
             Atom::FnDef(_) | Atom::Pat(_) => false,

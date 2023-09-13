@@ -16,10 +16,10 @@ use hash_storage::store::{
 use hash_target::HasTarget;
 use hash_tir::{
     args::Arg,
+    intrinsics::definitions::Primitive,
     lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
     node::{Node, NodeOrigin},
     params::ParamIndex,
-    primitives::primitives,
     terms::{Term, Ty, TyId},
     utils::params::ParamUtils,
 };
@@ -107,19 +107,11 @@ impl AstExpander<'_> {
         };
 
         match *param_ty.value() {
-            Ty::DataTy(data) => match data.data_def {
-                d if d == primitives().i32() => {
-                    maybe_emit_err(matches!(value, AttrValueKind::Int(_)))
-                }
-                d if d == primitives().f64() => {
-                    maybe_emit_err(matches!(value, AttrValueKind::Float(_)))
-                }
-                d if d == primitives().char() => {
-                    maybe_emit_err(matches!(value, AttrValueKind::Char(_)))
-                }
-                d if d == primitives().str() => {
-                    maybe_emit_err(matches!(value, AttrValueKind::Str(_)))
-                }
+            Ty::DataTy(data) => match Primitive::try_from_def(data.data_def) {
+                Some(Primitive::I32) => maybe_emit_err(matches!(value, AttrValueKind::Int(_))),
+                Some(Primitive::F64) => maybe_emit_err(matches!(value, AttrValueKind::Float(_))),
+                Some(Primitive::Char) => maybe_emit_err(matches!(value, AttrValueKind::Char(_))),
+                Some(Primitive::Str) => maybe_emit_err(matches!(value, AttrValueKind::Str(_))),
                 _ => panic!("unexpected attribute parameter type"),
             },
             _ => panic!("unexpected attribute parameter type"),

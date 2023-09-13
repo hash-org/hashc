@@ -90,6 +90,9 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             ModMemberValue::Mod(_) => unreachable!("tried to lookup a module as an item"),
             ModMemberValue::Fn(fn_def) => Some(self.ty_id_from_tir_fn_def(fn_def)),
+            ModMemberValue::Intrinsic(intrinsic) => {
+                Some(self.ty_id_from_tir_intrinsic(intrinsic, member.node_id_or_default()))
+            }
         }
     }
 

@@ -4,11 +4,11 @@
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::RangeEnd;
-use hash_intrinsics::utils::PrimitiveUtils;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use hash_target::size::Size;
 use hash_tir::{
     data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
+    intrinsics::utils::try_use_ty_as_int_ty,
     terms::Ty,
 };
 use hash_utils::smallvec::{smallvec, SmallVec};
@@ -221,7 +221,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
             // we sometimes prefer reporting the list of constructors instead of
             // just `_`.
             let ctor = if !wildcard.matrix_ctors.is_empty()
-                || (ctx.is_top_level && self.try_use_ty_as_int_ty(ctx.ty).is_none())
+                || (ctx.is_top_level && try_use_ty_as_int_ty(ctx.ty).is_none())
             {
                 DeconstructedCtor::Missing
             } else {

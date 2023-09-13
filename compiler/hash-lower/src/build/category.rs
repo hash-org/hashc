@@ -56,6 +56,7 @@ impl Category {
             | Term::Block(_)
             | Term::Ctor(_)
             | Term::Fn(_)
+            | Term::Intrinsic(_)
             | Term::Match(..)
             | Term::Call(..) => Category::RValue(RValueKind::Into),
 
