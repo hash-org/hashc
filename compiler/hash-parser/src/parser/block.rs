@@ -34,14 +34,18 @@ impl<'s> AstGen<'s> {
     /// function will advance the current generator than expecting that the
     /// next token is a brace tree.
     pub(crate) fn parse_body_block_inner(&mut self) -> BodyBlock {
-        // Append the initial statement if there is one.
-        let start = self.current_pos();
-        let mut block = BodyBlock { statements: AstNodes::empty(self.span()), expr: None };
-
         // Just return an empty block if we don't get anything
         if !self.has_token() {
-            return block;
+            return BodyBlock {
+                statements: self.nodes_with_span(thin_vec![], self.range()),
+                expr: None,
+            };
         }
+
+        // Append the initial statement if there is one.
+        let mut block_span = self.current_pos();
+        let mut statements = thin_vec![];
+        let mut block_expr = None;
 
         // firstly check if the first token signals a beginning of a statement, we can
         // tell this by checking for keywords that must begin a statement...
@@ -59,17 +63,16 @@ impl<'s> AstGen<'s> {
             };
 
             if semi || self.peek().is_some() {
-                block.statements.nodes.push(expr)
+                statements.push(expr)
             } else {
                 // update the `statements` span to reflect the true span of the statements
                 // that were parsed
-                let span = self.make_span(start.join(next_location));
-                block.statements.set_span(span);
-                block.expr = Some(expr)
+                block_span = block_span.join(next_location);
+                block_expr = Some(expr);
             }
         }
 
-        block
+        BodyBlock { statements: self.nodes_with_span(statements, block_span), expr: block_expr }
     }
 
     /// Parse a `for` loop block.

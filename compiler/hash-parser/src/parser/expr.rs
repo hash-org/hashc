@@ -131,7 +131,13 @@ impl<'s> AstGen<'s> {
         // Firstly, we have to get the initial part of the expression,
         // and then we can check if there are any additional parts in the
         // forms of either property accesses, indexing or method calls
-        let subject = match token.kind {
+        let (subject, subject_span) = self.track_span(|this| this.parse_expr_component(token))?;
+
+        self.parse_singular_expr(subject, subject_span)
+    }
+
+    fn parse_expr_component(&mut self, token: Token) -> ParseResult<AstNode<Expr>> {
+        Ok(match token.kind {
             kind if kind.is_unary_op() => return self.parse_unary_expr(),
 
             // Handle primitive literals
@@ -298,18 +304,18 @@ impl<'s> AstGen<'s> {
                     token.span,
                 )
             }
-        };
-
-        self.parse_singular_expr(subject)
+        })
     }
 
     /// Parse a [TyFnCall] wrapped within a [TyExpr]. This function tries to
     /// parse `ty_args` by using `parse_ty_args`. If this parsing fails,
     /// it could be that this isn't a type function call, but rather a
     /// simple binary expression which uses the `<` operator.
-    fn maybe_parse_ty_fn_call(&mut self, subject: AstNode<Expr>) -> (AstNode<Expr>, bool) {
-        let span = subject.byte_range();
-
+    fn maybe_parse_ty_fn_call(
+        &mut self,
+        subject: AstNode<Expr>,
+        subject_span: ByteRange,
+    ) -> (AstNode<Expr>, bool) {
         // @@Speed: so here we want to be efficient about type_args, we'll just try to
         // see if the next token atom is a 'Lt' rather than using parse_token_atom
         // because it throws an error essentially and thus allocates a stupid amount
@@ -322,10 +328,10 @@ impl<'s> AstGen<'s> {
                             Expr::Ty(TyExpr {
                                 ty: self.node_with_joined_span(
                                     Ty::TyFnCall(TyFnCall { subject, args }),
-                                    span,
+                                    subject_span,
                                 ),
                             }),
-                            span,
+                            subject_span,
                         ),
                         true,
                     ),
@@ -345,8 +351,7 @@ impl<'s> AstGen<'s> {
         mut min_prec: u8,
     ) -> ParseResult<AstNode<Expr>> {
         // first of all, we want to get the lhs...
-        let mut lhs = self.parse_expr()?;
-        let lhs_span = lhs.byte_range();
+        let (mut lhs, lhs_span) = self.track_span(|this| this.parse_expr())?;
 
         loop {
             let op_start = self.next_pos();
@@ -417,6 +422,7 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_singular_expr(
         &mut self,
         mut subject: AstNode<Expr>,
+        subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         // so here we need to peek to see if this is either a index_access, field access
         // or a function call...
@@ -425,14 +431,14 @@ impl<'s> AstGen<'s> {
                 // Property access or method call
                 TokenKind::Dot => {
                     self.skip_token();
-                    self.parse_property_access(subject)?
+                    self.parse_property_access(subject, subject_span)?
                 }
                 TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) =>
                 {
                     self.offset.update(|offset| offset + 2);
-                    self.parse_ns_access(subject)?
+                    self.parse_ns_access(subject, subject_span)?
                 }
-                TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject) {
+                TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject, subject_span) {
                     (subject, true) => subject,
                     // Essentially break because the type_args failed
                     (subject, false) => return Ok(subject),
@@ -445,11 +451,8 @@ impl<'s> AstGen<'s> {
                     self.parse_array_index(subject, tree, self.current_pos())?
                 }
                 // Function call
-                TokenKind::Tree(Delimiter::Paren, tree_index) => {
-                    self.skip_token();
-
-                    let tree = self.token_trees.get(tree_index as usize).unwrap();
-                    self.parse_constructor_call(subject, tree, self.current_pos())?
+                TokenKind::Tree(Delimiter::Paren, _) => {
+                    self.parse_constructor_call(subject, subject_span)?
                 }
                 _ => break,
             }
@@ -532,15 +535,12 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_constructor_call(
         &mut self,
         subject: AstNode<Expr>,
-        tree: &'s [Token],
-        span: ByteRange,
+        subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        let mut gen = self.from_stream(tree, span);
+        let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
 
         let args = gen.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma));
         self.consume_gen(gen);
-
-        let subject_span = subject.byte_range();
 
         Ok(self.node_with_joined_span(
             Expr::ConstructorCall(ConstructorCallExpr { subject, args }),
@@ -618,12 +618,13 @@ impl<'s> AstGen<'s> {
                 }
             }
             TokenKind::Plus => {
+                let start = self.current_pos();
                 let inner_expr = self.parse_expr()?;
 
                 // Emit a warning for the unnecessary `+` operator
                 self.add_warning(ParseWarning::new(
                     WarningKind::UselessUnaryOperator(inner_expr.body().into()),
-                    inner_expr.span(),
+                    self.make_span(start.join(self.current_pos())),
                 ));
 
                 return Ok(inner_expr);
@@ -701,8 +702,7 @@ impl<'s> AstGen<'s> {
         decl: AstNode<Expr>,
     ) -> ParseResult<AstNode<Expr>> {
         self.parse_token(TokenKind::Eq)?;
-        let value = self.parse_expr_with_precedence(0)?;
-        let decl_span = decl.byte_range();
+        let (value, decl_span) = self.track_span(|this| this.parse_expr_with_precedence(0))?;
 
         Ok(self.node_with_joined_span(
             Expr::MergeDeclaration(MergeDeclaration { decl, value }),
@@ -717,8 +717,9 @@ impl<'s> AstGen<'s> {
     /// should just return the left-hand side.
     #[profiling::function]
     pub(crate) fn parse_expr_with_re_assignment(&mut self) -> ParseResult<(AstNode<Expr>, bool)> {
+        let start = self.current_pos();
         let lhs = self.parse_expr_with_precedence(0)?;
-        let lhs_span = lhs.byte_range();
+        let lhs_span = start.join(self.current_pos());
 
         // Check if we can parse a merge declaration
         if self.parse_token_fast(TokenKind::Tilde).is_some() {
@@ -755,9 +756,9 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_property_access(
         &self,
         subject: AstNode<Expr>,
+        subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
-        let span = subject.byte_range();
 
         if let Some(token) = self.peek() && token.kind.is_numeric() {
             // If the next token kind is a integer with no sign, then we can assume
@@ -782,7 +783,7 @@ impl<'s> AstGen<'s> {
                         property,
                         kind: AccessKind::Property,
                     }),
-                    span,
+                    subject_span,
                 ))
             }
         }
@@ -793,14 +794,17 @@ impl<'s> AstGen<'s> {
                 property: self.parse_named_field(ParseErrorKind::ExpectedPropertyAccess)?,
                 kind: AccessKind::Property,
             }),
-            span,
+            subject_span,
         ))
     }
 
     /// Parse a [AccessExpr] with a `namespace` access kind.
-    pub(crate) fn parse_ns_access(&self, subject: AstNode<Expr>) -> ParseResult<AstNode<Expr>> {
+    pub(crate) fn parse_ns_access(
+        &self,
+        subject: AstNode<Expr>,
+        subject_span: ByteRange,
+    ) -> ParseResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Colon));
-        let span = subject.byte_range();
 
         Ok(self.node_with_joined_span(
             Expr::Access(AccessExpr {
@@ -808,7 +812,7 @@ impl<'s> AstGen<'s> {
                 property: self.parse_named_field(ParseErrorKind::ExpectedName)?,
                 kind: AccessKind::Namespace,
             }),
-            span,
+            subject_span,
         ))
     }
 
@@ -875,7 +879,7 @@ impl<'s> AstGen<'s> {
             return Ok(expr);
         }
 
-        let mut elements = AstNodes::new(thin_vec![entry], gen.span());
+        let mut elements = thin_vec![entry];
 
         loop {
             match gen.peek() {
@@ -887,7 +891,7 @@ impl<'s> AstGen<'s> {
                         break;
                     }
 
-                    elements.nodes.push(gen.parse_tuple_lit_entry()?)
+                    elements.push(gen.parse_tuple_lit_entry()?)
                 }
                 Some(token) => gen.err_with_location(
                     ParseErrorKind::ExpectedExpr,
@@ -901,7 +905,10 @@ impl<'s> AstGen<'s> {
 
         Ok(gen.node_with_joined_span(
             Expr::Lit(LitExpr {
-                data: gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start),
+                data: gen.node_with_joined_span(
+                    Lit::Tuple(TupleLit { elements: self.nodes_with_span(elements, gen.range()) }),
+                    start,
+                ),
             }),
             start,
         ))
@@ -949,9 +956,9 @@ impl<'s> AstGen<'s> {
             }
         }
 
-        let span = gen.span();
+        let span = gen.range();
         self.consume_gen(gen);
 
-        Ok(AstNodes::new(exprs, span))
+        Ok(self.nodes_with_span(exprs, span))
     }
 }

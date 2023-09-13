@@ -7,9 +7,12 @@ mod import_resolver;
 pub mod parser;
 mod source;
 
-use std::{env, ops::AddAssign, time::Duration};
+use std::{cell::RefCell, env, ops::AddAssign, time::Duration};
 
-use hash_ast::{ast, node_map::ModuleEntry};
+use hash_ast::{
+    ast::{self, LocalSpanMap, SpanMap},
+    node_map::ModuleEntry,
+};
 use hash_lexer::{Lexer, LexerMetadata};
 use hash_pipeline::{
     fs::read_in_path,
@@ -124,6 +127,9 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
                         let path = SourceMapUtils::map(id, |source| source.path().to_path_buf());
                         node_map.add_module(ModuleEntry::new(path, node));
                     }
+                    ParserAction::MergeSpans { spans } => scope.spawn(move |_| {
+                        SpanMap::add_local_map(spans);
+                    }),
                     ParserAction::ParseImport { source, sender } => {
                         // ##Note: import de-duplication is already ensured by the
                         // sender. The resolved path of the specified module is looked
@@ -193,7 +199,6 @@ impl AccessToMetrics for ParseTimings {
 }
 
 /// Messages that are passed from parser workers into the general message queue.
-#[derive(Debug)]
 pub enum ParserAction {
     /// A worker has specified that a module should be put in the queue for
     /// lexing and parsing.
@@ -201,6 +206,9 @@ pub enum ParserAction {
 
     /// A unrecoverable error occurred during the parsing or lexing of a module.
     Error { diagnostics: Vec<Report>, timings: ParseTimings },
+
+    /// Update the global `SPAN_MAP` with the specified local span map.
+    MergeSpans { spans: LocalSpanMap },
 
     /// A worker has completed processing an interactive block and now provides
     /// the generated AST.
@@ -283,16 +291,17 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     let LexerMetadata { trees, strings } = lexer.metadata();
 
-    // Send the `strings` keys that the lexer produced to be interned
-    // somewhere else since we're busy!
-    // sender.send(ParserAction::InternStrings { strings: strings.keys }).unwrap();
+    // Update the global string table now!
     string_table().add_local_table(strings);
 
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(id, source.parent(), sender);
     let diagnostics = ParserDiagnostics::new();
-    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &diagnostics);
+
+    // @@Speed: perhaps we could get away with this not being ref-celled?
+    let spans = RefCell::new(LocalSpanMap::new(id));
+    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &diagnostics, &spans);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
@@ -320,5 +329,10 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     };
 
     let sender = resolver.into_sender();
+
+    // Send both the generated module, and the `LocalSpanMap` for updating
+    // the global `SPAN_MAP`.
+    sender.send(ParserAction::MergeSpans { spans: spans.into_inner() }).unwrap();
+
     sender.send(action).unwrap();
 }

@@ -142,7 +142,7 @@ impl From<IntError> for LitParseErrorKind {
         match value.kind() {
             num::IntErrorKind::InvalidDigit => Self::MalformedIntLit,
             num::IntErrorKind::PosOverflow => Self::IntOverflow { base, ty },
-            _ => unreachable!(),
+            err => panic!("unexpected literal error: {err:?}"),
         }
     }
 }

@@ -5,7 +5,7 @@ use hash_ast::ast::{
     MacroKind, Name,
 };
 use hash_token::{delimiter::Delimiter, Token, TokenKind};
-use hash_utils::thin_vec::thin_vec;
+use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use super::AstGen;
 use crate::diagnostics::{
@@ -187,10 +187,12 @@ impl<'s> AstGen<'s> {
     /// tokens before calling this function.
     pub(crate) fn parse_module_marco_invocations(
         &mut self,
-    ) -> ParseResult<AstNodes<MacroInvocation>> {
+    ) -> ParseResult<ThinVec<AstNode<MacroInvocation>>> {
         let mut gen = self.parse_delim_tree(Delimiter::Bracket, None)?;
-        let invocations =
-            gen.parse_nodes(|g| g.parse_macro_invocation(), |g| g.parse_token(TokenKind::Comma));
+        let invocations = gen.parse_node_collection(
+            |g| g.parse_macro_invocation(),
+            |g| g.parse_token(TokenKind::Comma),
+        );
 
         self.consume_gen(gen);
         Ok(invocations)

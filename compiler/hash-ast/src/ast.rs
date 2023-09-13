@@ -3,6 +3,7 @@
 use std::{
     fmt::Display,
     hash::Hash,
+    iter::repeat,
     ops::{Deref, DerefMut},
 };
 
@@ -15,26 +16,28 @@ use hash_source::{
 use hash_token::{Base, FloatLitKind, IntLitKind};
 use hash_tree_def::define_tree;
 use hash_utils::{
-    index_vec::{define_index_type, IndexVec},
-    parking_lot::RwLock,
+    counter,
+    parking_lot::{RwLock, RwLockWriteGuard},
     thin_vec::{thin_vec, ThinVec},
 };
 use once_cell::sync::Lazy;
 use replace_with::replace_with_or_abort;
 
-define_index_type! {
+counter! {
     /// This is the unique identifier for an AST node. This is used to
     /// map spans to nodes, and vice versa. [AstNodeId]s are unique and
     /// they are always increasing as a new nodes are created.
-    pub struct AstNodeId = u32;
-    MAX_INDEX = i32::max_value() as usize;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+    name: AstNodeId,
+    counter_name: AST_COUNTER,
+    visibility: pub,
+    method_visibility:,
+    derives: (Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug),
 }
 
 impl AstNodeId {
     /// Create a null node id.
     pub fn null() -> Self {
-        AstNodeId::new(0)
+        AstNodeId::from(0)
     }
 
     /// Get the [Span] of this [AstNodeId].
@@ -67,15 +70,36 @@ impl Hunk {
 /// to query the [Span] of a node simply by using the [AstNodeId] of the
 /// node.
 
-static SPAN_MAP: Lazy<RwLock<IndexVec<AstNodeId, Span>>> = Lazy::new(|| {
-    let mut map = IndexVec::new();
-
-    // We push a NULL node-id so we can use it as the default
+static SPAN_MAP: Lazy<RwLock<Vec<Span>>> = Lazy::new(|| {
+    // We initialise the map with a NULL node-id so we can use it as the default
     // for items that need a node, but don't have one.
-    map.push(Span::new(ByteRange::new(0, 0), SourceId::default()));
-
-    RwLock::new(map)
+    RwLock::new(vec![Span::new(ByteRange::new(0, 0), SourceId::default())])
 });
+
+/// A local map of [AstNodeId]s to [ByteRange]s. This is used by a parser thread
+/// "Allocate" an [AstNodeId] which will later be synced with the global
+/// [`SPAN_MAP`].
+///
+/// ##Note: This is only used at the parser level in order to reduce contention for allocating
+/// new [AstNodeId]s. This is not used at the AST level.
+pub struct LocalSpanMap {
+    map: Vec<(AstNodeId, ByteRange)>,
+    source: SourceId,
+}
+
+impl LocalSpanMap {
+    /// Create a new [LocalAstMap].
+    pub fn new(source: SourceId) -> Self {
+        Self { map: vec![], source }
+    }
+
+    /// Add a new node to the map.
+    pub fn add(&mut self, range: ByteRange) -> AstNodeId {
+        let id = AstNodeId::new();
+        self.map.push((id, range));
+        id
+    }
+}
 
 /// Utilities for working with the [`SPAN_MAP`].
 pub struct SpanMap;
@@ -83,7 +107,9 @@ pub struct SpanMap;
 impl SpanMap {
     /// Get the span of a node by [AstNodeId].
     pub fn span_of(id: AstNodeId) -> Span {
-        SPAN_MAP.read()[id]
+        let span = SPAN_MAP.read()[id.to_usize()];
+        debug_assert_ne!(span, Span::null(), "span of node {id:?} is null");
+        span
     }
 
     /// Get the [SourceId] of a node by [AstNodeId].
@@ -91,16 +117,53 @@ impl SpanMap {
         SpanMap::span_of(id).id
     }
 
+    fn extend_map(writer: &mut RwLockWriteGuard<Vec<Span>>, id: AstNodeId) {
+        let len = (id.to_usize() + 1).saturating_sub(writer.len());
+        if len > 0 {
+            writer.extend(repeat(Span::null()).take(len));
+        }
+    }
+
     /// Get a mutable reference to the [`SPAN_MAP`]. This is only
     /// internal to the `hash-ast` crate since it creates entries
     /// in the span map when creating new AST nodes.
     fn add_span(span: Span) -> AstNodeId {
-        SPAN_MAP.write().push(span)
+        let mut writer = SPAN_MAP.write();
+
+        // Create the new id, expand the map for capacity and
+        // then write the span into the map.
+        let id = AstNodeId::new();
+        Self::extend_map(&mut writer, id);
+        writer[id.to_usize()] = span;
+
+        id
     }
 
     /// Update the span of a node by [AstNodeId].
     fn update_span(id: AstNodeId, span: Span) {
-        SPAN_MAP.write()[id] = span;
+        SPAN_MAP.write()[id.to_usize()] = span;
+    }
+
+    /// Merge a [LocalSpanMap] into the [`SPAN_MAP`].
+    pub fn add_local_map(local: LocalSpanMap) {
+        // If no nodes were added, don't do anything!
+        if local.map.is_empty() {
+            return;
+        }
+
+        let mut writer = SPAN_MAP.write();
+        let (key, _) = local.map.last().unwrap();
+
+        // Reserve enough space in the global map to fit the local map.
+        //
+        // ##Note: During high loads, we're likely reserving space for all of the
+        // other nodes that are to be added.
+        Self::extend_map(&mut writer, *key);
+
+        // Now we write all of the items into the map.
+        for (id, range) in local.map {
+            writer[id.to_usize()] = Span::new(range, local.source);
+        }
     }
 }
 
@@ -344,6 +407,11 @@ impl<T> AstNodes<T> {
         Self { nodes, id }
     }
 
+    /// Create a new [AstNodes] with an existing [AstNodeId].
+    pub fn with_id(nodes: ThinVec<AstNode<T>>, id: AstNodeId) -> Self {
+        Self { nodes, id }
+    }
+
     /// Function to adjust the span location of [AstNodes] if it is initially
     /// incorrectly offset because there is a 'pre-conditional' token that must
     /// be parsed before parsing the nodes. This token could be something like a
@@ -480,13 +548,6 @@ define_tree! {
     }
 
     impl MacroInvocations {
-        /// Create a new empty [MacroInvocations].
-        pub fn empty(span: Span) -> AstNode<Self> {
-            let contents = Self { invocations: AstNodes::empty(span) };
-            let id = contents.invocations.id;
-            AstNode::with_id(contents, id)
-        }
-
         /// Get the number of invocations that are contained within this node.
         pub fn len(&self) -> usize {
             self.invocations.len()

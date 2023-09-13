@@ -26,11 +26,11 @@ impl<'s> AstGen<'s> {
 
         // Parse the first pattern, but throw away the location information since that
         // will be computed at the end anyway...
-        let mut variants = self.nodes_with_span(thin_vec![], start);
+        let mut variants = thin_vec![];
 
         while self.has_token() {
             let pat = self.parse_pat_with_if()?;
-            variants.nodes.push(pat);
+            variants.push(pat);
 
             // Check if this is going to be another pattern following the current one.
             match self.peek() {
@@ -44,12 +44,11 @@ impl<'s> AstGen<'s> {
         // if the length of patterns is greater than one, we return an 'OR' pattern,
         // otherwise just the first pattern.
         if variants.len() == 1 {
-            Ok(variants.nodes.pop().unwrap())
+            Ok(variants.pop().unwrap())
         } else {
-            let joined = self.make_span(start.join(self.current_pos()));
-            variants.set_span(joined);
-
-            Ok(AstNode::new(Pat::Or(OrPat { variants }), joined))
+            let joined = start.join(self.current_pos());
+            let variants = self.nodes_with_span(variants, joined);
+            Ok(self.node_with_span(Pat::Or(OrPat { variants }), joined))
         }
     }
 
@@ -75,8 +74,8 @@ impl<'s> AstGen<'s> {
     /// pattern operators such as a `|`, if guards or any form of compound
     /// pattern.
     pub(crate) fn parse_singular_pat(&mut self) -> ParseResult<AstNode<Pat>> {
+        let span = self.next_pos();
         let (mut subject, can_continue) = self.parse_pat_component()?;
-        let span = subject.span().range;
 
         while let Some(token) = self.peek() && can_continue {
             subject = match token.kind {
@@ -297,7 +296,7 @@ impl<'s> AstGen<'s> {
     /// syntaxes use different operators as pattern assigners.
     pub(crate) fn parse_module_pat_entry(&mut self) -> ParseResult<AstNode<ModulePatEntry>> {
         let start = self.current_pos();
-        let name = self.parse_name()?;
+        let (name, name_span) = self.track_span(|this| this.parse_name())?;
 
         // if the next token is the correct assigning operator, attempt to parse a
         // pattern here, if not then we copy the parsed ident and make a binding
@@ -305,12 +304,11 @@ impl<'s> AstGen<'s> {
         let pat = match self.parse_token_fast(TokenKind::Keyword(Keyword::As)) {
             Some(_) => self.parse_pat()?,
             None => {
-                let span = name.span();
                 let copy = self.node(*name.body());
 
-                AstNode::new(
+                self.node_with_span(
                     Pat::Binding(BindingPat { name: copy, visibility: None, mutability: None }),
-                    span,
+                    name_span,
                 )
             }
         };

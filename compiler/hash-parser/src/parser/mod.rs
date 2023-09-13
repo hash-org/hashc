@@ -12,7 +12,7 @@ mod operator;
 mod pat;
 mod ty;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::HasDiagnostics;
@@ -93,6 +93,9 @@ pub struct AstGen<'s> {
     /// Token trees that were generated from the stream
     token_trees: &'s [Vec<Token>],
 
+    /// Effectively a allocator for node spans...
+    span_map: &'s RefCell<LocalSpanMap>,
+
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
     pub(crate) resolver: &'s ImportResolver<'s>,
@@ -111,6 +114,7 @@ impl<'s> AstGen<'s> {
         token_trees: &'s [Vec<Token>],
         resolver: &'s ImportResolver,
         diagnostics: &'s ParserDiagnostics,
+        span_map: &'s RefCell<LocalSpanMap>,
     ) -> Self {
         // We compute the `parent_span` from the given stream.
         // If the stream has no tokens, then we assume that the
@@ -128,6 +132,7 @@ impl<'s> AstGen<'s> {
             parent_span,
             resolver,
             diagnostics,
+            span_map,
         }
     }
 
@@ -143,6 +148,7 @@ impl<'s> AstGen<'s> {
             parent_span,
             resolver: self.resolver,
             diagnostics: self.diagnostics,
+            span_map: self.span_map,
         }
     }
 
@@ -150,6 +156,11 @@ impl<'s> AstGen<'s> {
     /// [Span] is present.
     pub(crate) fn span(&self) -> Span {
         Span { range: self.parent_span, id: self.resolver.source() }
+    }
+
+    /// Get the [ByteRange] of the [AstGen].
+    pub(crate) fn range(&self) -> ByteRange {
+        self.parent_span
     }
 
     /// Function to create a [Span] from a [ByteRange] by using the
@@ -256,20 +267,23 @@ impl<'s> AstGen<'s> {
     /// Create a new [AstNode] from the information provided by the [AstGen]
     #[inline(always)]
     pub fn node<T>(&self, inner: T) -> AstNode<T> {
-        AstNode::new(inner, self.make_span(self.current_pos()))
+        let id = self.span_map.borrow_mut().add(self.current_pos());
+        AstNode::with_id(inner, id)
     }
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
     #[inline(always)]
     pub fn node_with_span<T>(&self, inner: T, location: ByteRange) -> AstNode<T> {
-        AstNode::new(inner, self.make_span(location))
+        let id = self.span_map.borrow_mut().add(location);
+        AstNode::with_id(inner, id)
     }
 
     /// Create a new [AstNode] with a span that ranges from the start
     /// [ByteRange] to join with the [ByteRange].
     #[inline(always)]
     pub(crate) fn node_with_joined_span<T>(&self, body: T, start: ByteRange) -> AstNode<T> {
-        AstNode::new(body, self.make_span(start.join(self.current_pos())))
+        let id = self.span_map.borrow_mut().add(start.join(self.current_pos()));
+        AstNode::with_id(body, id)
     }
 
     /// Create [AstNodes] with a span.
@@ -278,7 +292,8 @@ impl<'s> AstGen<'s> {
         nodes: ThinVec<AstNode<T>>,
         location: ByteRange,
     ) -> AstNodes<T> {
-        AstNodes::new(nodes, self.make_span(location))
+        let id = self.span_map.borrow_mut().add(location);
+        AstNodes::with_id(nodes, id)
     }
 
     /// Create [AstNodes] with a span that ranges from the start [ByteRange] to
@@ -288,7 +303,8 @@ impl<'s> AstGen<'s> {
         nodes: ThinVec<AstNode<T>>,
         start: ByteRange,
     ) -> AstNodes<T> {
-        AstNodes::new(nodes, self.make_span(start.join(self.current_pos())))
+        let id = self.span_map.borrow_mut().add(start.join(self.current_pos()));
+        AstNodes::with_id(nodes, id)
     }
 
     /// Create an error without wrapping it in an [Err] variant
@@ -400,22 +416,37 @@ impl<'s> AstGen<'s> {
         }
     }
 
+    /// Record the [ByteRange] that a parse function `f` traversed during
+    /// its execution. This is useful for tracking the span of a node that
+    /// is generated from a parse function.
+    #[inline]
+    pub(crate) fn track_span<T, E>(
+        &mut self,
+        mut f: impl FnMut(&mut Self) -> Result<T, E>,
+    ) -> Result<(T, ByteRange), E> {
+        let start = self.current_pos();
+        let result = f(self)?;
+        let end = self.current_pos();
+
+        Ok((result, start.join(end)))
+    }
+
     /// Function to parse an arbitrary number of 'parsing functions' separated
     /// by a singular 'separator' closure. The function has a behaviour of
     /// allowing trailing separator. This will also parse the function until
     /// the end of the current generator, and therefore it is intended to be
     /// used with a nested generator.
     ///
-    /// **Note**: Call `consume_gen()` in the passed generator in order to
+    /// ##Note: Call `consume_gen()` in the passed generator in order to
     /// merge any generated errors, and to emit a possible `expected_eof` at
     /// the end if applicable.
-    pub(crate) fn parse_nodes<T>(
+    #[inline]
+    pub(crate) fn parse_node_collection<T>(
         &mut self,
         mut item: impl FnMut(&mut Self) -> ParseResult<AstNode<T>>,
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
-    ) -> AstNodes<T> {
-        let start = self.current_pos();
-        let mut args = thin_vec![];
+    ) -> ThinVec<AstNode<T>> {
+        let mut items = thin_vec![];
 
         // flag specifying if the parser has errored but is trying to recover
         // by parsing the next item
@@ -424,7 +455,7 @@ impl<'s> AstGen<'s> {
         while self.has_token() {
             match item(self) {
                 Ok(element) => {
-                    args.push(element);
+                    items.push(element);
                 }
                 // Rather than immediately returning the error here, we will push it into
                 // the current diagnostics store, and then break the loop. If we couldn't
@@ -456,7 +487,23 @@ impl<'s> AstGen<'s> {
             }
         }
 
-        self.nodes_with_joined_span(args, start)
+        items
+    }
+
+    /// Function to parse an arbitrary number of 'parsing functions' separated
+    /// by a singular 'separator' closure. This will just convert the result
+    /// from [`Self::parse_node_collection`] into an [`AstNodes`].
+    ///
+    /// ##Note: call `consume_gen()` on the generator that is used after
+    /// completing the parsing of the nodes.
+    pub(crate) fn parse_nodes<T>(
+        &mut self,
+        item: impl FnMut(&mut Self) -> ParseResult<AstNode<T>>,
+        separator: impl FnMut(&mut Self) -> ParseResult<()>,
+    ) -> AstNodes<T> {
+        let start = self.current_pos();
+        let nodes = self.parse_node_collection(item, separator);
+        self.nodes_with_joined_span(nodes, start)
     }
 
     /// This function behaves identically to [parse_separated_fn] except that it
@@ -473,7 +520,7 @@ impl<'s> AstGen<'s> {
         mut separator: impl FnMut(&mut Self) -> ParseResult<()>,
     ) -> AstNodes<T> {
         let start = self.current_pos();
-        let mut args = thin_vec![];
+        let mut items = thin_vec![];
 
         // flag specifying if the parser has errored but is trying to recover
         // by parsing the next item
@@ -487,7 +534,7 @@ impl<'s> AstGen<'s> {
         while self.has_token() {
             match item(self, index) {
                 Ok(Some(element)) => {
-                    args.push(element);
+                    items.push(element);
                     index += 1;
                 }
                 // In this case, we just continue parsing, and increase
@@ -525,7 +572,7 @@ impl<'s> AstGen<'s> {
             }
         }
 
-        self.nodes_with_joined_span(args, start)
+        self.nodes_with_joined_span(items, start)
     }
 
     /// Function to parse the next [Token] with the specified [TokenKind].
@@ -588,7 +635,7 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_module(&mut self) -> AstNode<Module> {
         let start = self.current_pos();
         let mut contents = thin_vec![];
-        let mut macros = AstNodes::new(thin_vec![], self.make_span(start));
+        let mut macros = thin_vec![];
 
         while self.has_token() {
             // Check if we have a `#!` which represents a top-level
@@ -601,7 +648,7 @@ impl<'s> AstGen<'s> {
                     self.offset.set(self.offset.get() + 2);
 
                     match self.parse_module_marco_invocations() {
-                        Ok(items) => macros.merge(items),
+                        Ok(items) => macros.extend(items),
                         Err(err) => {
                             self.add_error(err);
                             break;
@@ -625,7 +672,10 @@ impl<'s> AstGen<'s> {
         self.node_with_joined_span(
             Module {
                 contents: self.nodes_with_joined_span(contents, start),
-                macros: self.make_macro_invocations(macros),
+                // @@Hack: we put a nonsense span here, but it doesn't seem that
+                // we can do much better or that it even matters since the
+                // top-level span of the macros will never be queries...
+                macros: self.make_macro_invocations(self.nodes_with_joined_span(macros, start)),
             },
             start,
         )

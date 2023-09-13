@@ -26,8 +26,7 @@ impl<'s> AstGen<'s> {
     /// function implements the same precedence algorithm for correctly
     /// forming binary type expressions.
     fn parse_ty_with_precedence(&mut self, min_prec: u8) -> ParseResult<AstNode<Ty>> {
-        let mut lhs = self.parse_singular_ty()?;
-        let lhs_span = lhs.byte_range();
+        let (mut lhs, lhs_span) = self.track_span(|this| this.parse_singular_ty())?;
 
         loop {
             let (op, consumed_tokens) = self.parse_ty_op();
@@ -318,20 +317,17 @@ impl<'s> AstGen<'s> {
     /// parentheses. e.g. `(i32) -> str`
     fn parse_fn_or_tuple_ty(&mut self) -> ParseResult<Ty> {
         let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-        let mut params = AstNodes::empty(gen.span());
-
-        match gen.peek() {
+        let mut params = match gen.peek() {
             // Handle special case where there is only one comma and no following items...
             // Special edge case for '(,)' or an empty tuple type...
             Some(token) if token.has_kind(TokenKind::Comma) && gen.stream.len() == 1 => {
                 gen.skip_token();
+                gen.nodes_with_span(thin_vec![], gen.range())
             }
-            _ => {
-                params = gen.parse_nodes(
-                    |g| g.parse_ty_tuple_or_fn_param(),
-                    |g| g.parse_token(TokenKind::Comma),
-                );
-            }
+            _ => gen.parse_nodes(
+                |g| g.parse_ty_tuple_or_fn_param(),
+                |g| g.parse_token(TokenKind::Comma),
+            ),
         };
 
         // Here we check that the token tree has a comma at the end to later determine
