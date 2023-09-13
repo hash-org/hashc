@@ -16,7 +16,7 @@ use hash_tir::{
     params::{utils::ParamError, ParamIndex, ParamsId, SomeParamsOrArgsId},
     pats::PatId,
     terms::{TermId, TyId},
-    utils::traversing::Atom,
+    visitor::Atom,
 };
 use hash_utils::derive_more::{Constructor, From};
 

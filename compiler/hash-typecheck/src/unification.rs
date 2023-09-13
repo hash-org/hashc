@@ -14,7 +14,7 @@ use hash_tir::{
     sub::Sub,
     symbols::SymbolId,
     terms::{Term, TermId, Ty, TyId},
-    utils::traversing::Atom,
+    visitor::Atom,
 };
 use hash_utils::derive_more::Deref;
 use once_cell::unsync::OnceCell;

@@ -24,6 +24,7 @@ use hash_tir::{
     context::ScopeKind,
     control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
     data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
+    dump::dump_tir,
     fns::{CallTerm, FnDefId, FnTy},
     intrinsics::{
         definitions::{
@@ -53,10 +54,7 @@ use hash_tir::{
     term_as_variant,
     terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::{TuplePat, TupleTerm, TupleTy},
-    utils::{
-        common::dump_tir,
-        traversing::{Atom, TraversingUtils},
-    },
+    visitor::{Atom, Visitor},
 };
 use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
@@ -673,7 +671,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        TraversingUtils::new()
+        Visitor::new()
             .visit_pat::<!, _>(pat, &mut |atom| {
                 Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
             })
@@ -683,7 +681,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
     pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        TraversingUtils::new()
+        Visitor::new()
             .visit_pat_args::<!, _>(pat_args, &mut |atom| {
                 Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
             })

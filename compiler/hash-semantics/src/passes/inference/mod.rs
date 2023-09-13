@@ -5,7 +5,7 @@
 
 use hash_ast::ast;
 use hash_reporting::diagnostic::AccessToDiagnostics;
-use hash_tir::{terms::Ty, utils::traversing::Atom};
+use hash_tir::{terms::Ty, visitor::Atom};
 use hash_typecheck::{
     errors::{TcError, TcResult},
     inference::FnInferMode,

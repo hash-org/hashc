@@ -26,7 +26,7 @@ use crate::{
     scopes::{AssignTerm, BlockTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
     tuples::{TupleTerm, TupleTy},
-    utils::traversing::Atom,
+    visitor::Atom,
 };
 
 /// A term that can contain unsafe operations.

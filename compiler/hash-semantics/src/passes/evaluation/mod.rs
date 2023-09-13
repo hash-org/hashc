@@ -9,11 +9,11 @@ use hash_source::ModuleKind;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     args::Arg,
+    dump::dump_tir,
     environment::env::AccessToEnv,
     fns::CallTerm,
     node::{Node, NodeId},
     terms::{Term, TermId},
-    utils::common::dump_tir,
 };
 use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
 use hash_utils::{derive_more::Constructor, stream_less_writeln};

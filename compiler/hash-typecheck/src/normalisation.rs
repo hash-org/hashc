@@ -29,7 +29,7 @@ use hash_tir::{
     symbols::SymbolId,
     terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
     tuples::TupleTerm,
-    utils::traversing::{Atom, TraversingUtils},
+    visitor::{Atom, Visitor},
 };
 use hash_utils::{
     derive_more::{Deref, From},
@@ -279,7 +279,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     fn atom_has_effects_once(
         &self,
-        traversing_utils: &TraversingUtils,
+        traversing_utils: &Visitor,
         atom: Atom,
         has_effects: &mut Option<bool>,
     ) -> Result<ControlFlow<()>, !> {
@@ -380,7 +380,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     pub fn atom_has_effects_with_traversing(
         &self,
         atom: Atom,
-        traversing_utils: &TraversingUtils,
+        traversing_utils: &Visitor,
     ) -> Option<bool> {
         let mut has_effects = Some(false);
         traversing_utils
@@ -393,7 +393,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
 
     /// Whether the given atom will produce effects when evaluated.
     pub fn atom_has_effects(&self, atom: Atom) -> Option<bool> {
-        self.atom_has_effects_with_traversing(atom, &TraversingUtils::new())
+        self.atom_has_effects_with_traversing(atom, &Visitor::new())
     }
 
     /// Evaluate an atom with the current mode, performing at least a single
@@ -772,7 +772,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Returns `None` if the atom is already normalised.
     fn potentially_eval(&self, atom: Atom) -> AtomEvaluation {
-        let mut traversal = TraversingUtils::new();
+        let mut traversal = Visitor::new();
         traversal.set_visit_fns_once(false);
 
         let st = eval_state();
