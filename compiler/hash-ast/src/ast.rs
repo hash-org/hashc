@@ -76,12 +76,11 @@ static SPAN_MAP: Lazy<RwLock<Vec<Span>>> = Lazy::new(|| {
     RwLock::new(vec![Span::new(ByteRange::new(0, 0), SourceId::default())])
 });
 
-/// A local map of [AstNodeId]s to [ByteRange]s. This is used by a parser thread
-/// "Allocate" an [AstNodeId] which will later be synced with the global
-/// [`SPAN_MAP`].
+/// A thread/job local map of [AstNodeId]s to [ByteRange]s. The [LocalSpanMap]
+/// can be used by a thread to "reserve" [AstNodeId]s for nodes that will be
+/// added to the global [`SPAN_MAP`] later.
 ///
-/// ##Note: This is only used at the parser level in order to reduce contention for allocating
-/// new [AstNodeId]s. This is not used at the AST level.
+/// ##Note: This is only used by the parser in order to reduce contention for [`SPAN_MAP`].
 pub struct LocalSpanMap {
     map: Vec<(AstNodeId, ByteRange)>,
     source: SourceId,
