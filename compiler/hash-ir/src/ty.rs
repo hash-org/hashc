@@ -550,15 +550,18 @@ macro_rules! create_common_ty_table {
 
         impl CommonIrTys {
             pub fn new() -> CommonIrTys {
+                // Create a null-slot and fill in the other ones later.
+                let null_ty = unsafe { IrTyId::from_index_unchecked(0) };
+
                 let table = CommonIrTys {
                     $($name: IrTy::create($value), )*
-                    byte_slice: IrTyId::from_index_unchecked(0),
-                    ptr: IrTyId::from_index_unchecked(0),
-                    raw_ptr: IrTyId::from_index_unchecked(0),
-                    void_ptr: IrTyId::from_index_unchecked(0),
-                    str: IrTyId::from_index_unchecked(0),
-                    ubig: IrTyId::from_index_unchecked(0),
-                    ibig: IrTyId::from_index_unchecked(0),
+                    byte_slice: null_ty,
+                    ptr: null_ty,
+                    raw_ptr: null_ty,
+                    void_ptr: null_ty,
+                    str: null_ty,
+                    ubig: null_ty,
+                    ibig: null_ty,
                 };
 
                 // Create a `unit` type in order to reserve the first index of

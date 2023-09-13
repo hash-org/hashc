@@ -5,7 +5,7 @@ use std::fmt::Display;
 use hash_source::{identifier::Identifier, SourceId, SourceMapUtils};
 use hash_storage::{
     get,
-    store::{statics::StoreId, Store, StoreKey, TrivialSequenceStoreKey},
+    store::{statics::StoreId, TrivialSequenceStoreKey},
 };
 use textwrap::indent;
 use utility_types::omit;
@@ -136,14 +136,6 @@ impl ModDef {
                 None
             }
         })
-    }
-
-    /// Iterate over all modules present in the sources.
-    ///
-    /// *Note*: this will not include modules created while iterating.
-    pub fn iter_all_mods() -> impl Iterator<Item = ModDefId> {
-        let member_count = tir_stores().mod_def().internal_data().read().len();
-        (0..member_count).map(ModDefId::from_index_unchecked)
     }
 }
 
