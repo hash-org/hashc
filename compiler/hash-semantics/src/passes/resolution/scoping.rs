@@ -6,7 +6,6 @@ use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     data::{CtorDefId, DataDefCtors, DataDefId},
-    environment::env::{AccessToEnv, Env},
     fns::FnTy,
     mods::{ModDefId, ModMemberId},
     node::{NodeOrigin, NodesId},
@@ -83,12 +82,6 @@ pub(super) struct Scoping<'tc> {
     ///
     /// Also keeps track of the kind of context we are in.
     bindings_by_name: HeavyState<Vec<(ContextKind, HashMap<Identifier, Binding>)>>,
-}
-
-impl AccessToEnv for Scoping<'_> {
-    fn env(&self) -> &Env {
-        self.sem_env.env()
-    }
 }
 
 impl AccessToSemEnv for Scoping<'_> {

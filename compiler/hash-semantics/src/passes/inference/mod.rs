@@ -4,14 +4,14 @@
 //! Typing errors are reported during this pass.
 
 use hash_ast::ast;
-use hash_reporting::diagnostic::AccessToDiagnostics;
+use hash_reporting::diagnostic::HasDiagnostics;
 use hash_tir::{terms::Ty, visitor::Atom};
 use hash_typecheck::{
     errors::{TcError, TcResult},
     inference::FnInferMode,
-    AccessToTypechecking,
+    TcEnv,
 };
-use hash_utils::derive_more::Constructor;
+use hash_utils::derive_more::{Constructor, Deref};
 
 use super::ast_utils::AstPass;
 use crate::{
@@ -20,18 +20,22 @@ use crate::{
         analysis_progress::AnalysisStage,
         sem_env::{AccessToSemEnv, SemEnv},
     },
-    impl_access_to_sem_env,
     ops::common::CommonOps,
 };
 
 /// The third pass of the typechecker, which infers all remaining terms and
 /// types.
-#[derive(Constructor)]
+#[derive(Constructor, Deref)]
 pub struct InferencePass<'tc> {
+    #[deref]
     sem_env: &'tc SemEnv<'tc>,
 }
 
-impl_access_to_sem_env!(InferencePass<'_>);
+impl AccessToSemEnv for InferencePass<'_> {
+    fn sem_env(&self) -> &SemEnv<'_> {
+        self.sem_env
+    }
+}
 
 impl InferencePass<'_> {
     /// Infer the given subject by the provided closure, or error if it contains

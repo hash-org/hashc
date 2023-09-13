@@ -10,7 +10,6 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     data::DataDefCtors,
-    environment::env::AccessToEnv,
     mods::{ModDefId, ModMemberValue},
     node::NodesId,
     terms::Ty,

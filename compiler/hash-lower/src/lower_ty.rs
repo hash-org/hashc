@@ -19,11 +19,11 @@ use hash_storage::store::{
 };
 use hash_target::size::Size;
 use hash_tir::{
+    context::HasContext,
     data::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
         PrimitiveCtorInfo,
     },
-    environment::env::AccessToEnv,
     fns::{FnDef, FnDefId, FnTy},
     intrinsics::{
         definitions::{bool_def, Intrinsic as TirIntrinsic},
@@ -430,8 +430,7 @@ impl<'ir> BuilderCtx<'ir> {
                         self.context().enter_scope(ty.data_def.into(), || {
                             self.context().add_arg_bindings(data_def.params, ty.args);
 
-                            let ty = match length
-                                .and_then(|l| try_use_term_as_integer_lit(self.env(), l))
+                            let ty = match length.and_then(|l| try_use_term_as_integer_lit(self, l))
                             {
                                 Some(length) => {
                                     IrTy::Array { ty: self.ty_id_from_tir_ty(element_ty), length }

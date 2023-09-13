@@ -39,11 +39,11 @@ use hash_utils::{
 
 use crate::{
     errors::{TcError, TcResult},
-    AccessToTypechecking, IntrinsicAbilitiesWrapper,
+    IntrinsicAbilitiesWrapper, TcEnv,
 };
 
 #[derive(Deref)]
-pub struct NormalisationOps<'a, T: AccessToTypechecking> {
+pub struct NormalisationOps<'a, T: TcEnv> {
     #[deref]
     env: &'a T,
     mode: Cell<NormalisationMode>,
@@ -162,7 +162,7 @@ impl EvalState {
     }
 }
 
-impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
+impl<'tc, T: TcEnv> NormalisationOps<'tc, T> {
     pub fn new(env: &'tc T) -> Self {
         Self { env, mode: Cell::new(NormalisationMode::Weak) }
     }
@@ -548,7 +548,7 @@ impl<'tc, T: AccessToTypechecking> NormalisationOps<'tc, T> {
     ///
     /// Assumes that the index is normalised.
     fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
-        try_use_term_as_integer_lit::<_, usize>(self.env(), index)
+        try_use_term_as_integer_lit::<_, usize>(self.env, index)
             .map(|idx| elements.elements().at(idx).unwrap().into())
     }
 

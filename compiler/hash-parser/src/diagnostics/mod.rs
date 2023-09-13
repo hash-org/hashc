@@ -5,7 +5,7 @@ pub(crate) mod error;
 pub(crate) mod expected;
 pub(crate) mod warning;
 
-use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore};
+use hash_reporting::diagnostic::{DiagnosticCellStore, HasDiagnostics};
 
 use self::{error::ParseError, warning::ParseWarning};
 use crate::parser::AstGen;
@@ -13,7 +13,7 @@ use crate::parser::AstGen;
 /// Shorthand for the parser diagnostics.
 pub type ParserDiagnostics = DiagnosticCellStore<ParseError, ParseWarning>;
 
-impl<'stream, 'resolver> AccessToDiagnostics for AstGen<'stream, 'resolver> {
+impl<'stream, 'resolver> HasDiagnostics for AstGen<'stream, 'resolver> {
     type Diagnostics = ParserDiagnostics;
 
     fn diagnostics(&self) -> &Self::Diagnostics {

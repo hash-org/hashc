@@ -32,7 +32,6 @@ use hash_pipeline::{
 use hash_semantics::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::statics::StoreId;
-use hash_tir::environment::source_info::CurrentSourceInfo;
 use hash_utils::{
     indexmap::IndexMap,
     rayon,
@@ -108,16 +107,15 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     /// are lowered and the result is saved on the [IrStorage].
     /// Additionally, this module is responsible for performing
     /// optimisations on the IR (if specified via the [CompilerSettings]).
-    fn run(&mut self, entry: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
+    fn run(&mut self, _entry: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let data = ctx.data();
 
         let entry_point = &data.semantic_storage.entry_point;
-        let source_info = CurrentSourceInfo::new(entry);
-        let ctx = BuilderCtx::new(&source_info, &data);
+        let ctx = BuilderCtx::new(&data);
 
         // Discover all of the bodies that need to be lowered
         let items = time_item(self, "discover", |_| {
-            let discoverer = FnDiscoverer::new(&ctx, &data.workspace.source_stage_info);
+            let discoverer = FnDiscoverer::new(&data.workspace.source_stage_info);
             discoverer.discover_fns()
         });
 
@@ -153,10 +151,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         Ok(())
     }
 
-    fn cleanup(&mut self, entry: SourceId, ctx: &mut Ctx) {
+    fn cleanup(&mut self, _entry: SourceId, ctx: &mut Ctx) {
         let data = ctx.data();
-        let info = CurrentSourceInfo::new(entry);
-        let builder = BuilderCtx::new(&info, &data);
+        let builder = BuilderCtx::new(&data);
 
         // Iterate over all of the ADTs that have a registered `AstNodeId`
         // in the `AstInfo`. If the ADT contains a `#layout_of` attribute,

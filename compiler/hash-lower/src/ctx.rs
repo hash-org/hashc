@@ -12,15 +12,12 @@ use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings}
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_target::{
     data_layout::{HasDataLayout, TargetDataLayout},
-    HasTarget,
+    HasTarget, Target,
 };
 use hash_tir::{
     args::Arg,
+    context::{Context, HasContext},
     data::{DataDefId, DataTy},
-    environment::{
-        env::{AccessToEnv, Env},
-        source_info::CurrentSourceInfo,
-    },
     mods::ModDefId,
     node::{Node, NodeId},
 };
@@ -42,13 +39,13 @@ pub(crate) struct BuilderCtx<'ir> {
     /// computing them.
     layouts: &'ir LayoutStorage,
 
-    /// The type storage needed for accessing the types of the traversed terms
-    pub env: Env<'ir>,
-
     pub settings: &'ir CompilerSettings,
 
     /// The prelude that is used for lowering the TIR.
     pub prelude: ModDefId,
+
+    /// The context
+    pub context: &'ir Context,
 }
 
 impl HasDataLayout for BuilderCtx<'_> {
@@ -57,33 +54,42 @@ impl HasDataLayout for BuilderCtx<'_> {
     }
 }
 
-impl<'ir> AccessToEnv for BuilderCtx<'ir> {
-    fn env(&self) -> &Env {
-        &self.env
+impl HasContext for BuilderCtx<'_> {
+    fn context(&self) -> &Context {
+        self.context
+    }
+}
+
+impl HasTarget for BuilderCtx<'_> {
+    fn target(&self) -> &Target {
+        self.settings.target()
     }
 }
 
 impl<'ir> BuilderCtx<'ir> {
     /// Create a new [BuilderCtx] from the given [LoweringCtx].
-    pub fn new(entry: &'ir CurrentSourceInfo, ctx: &'ir LoweringCtx<'ir>) -> Self {
+    pub fn new(ctx: &'ir LoweringCtx<'ir>) -> Self {
         let LoweringCtx {
             semantic_storage,
-            workspace,
+            workspace: _,
             icx: ir_storage,
             lcx: layout_storage,
             settings,
             ..
         } = ctx;
 
-        let env =
-            Env::new(&semantic_storage.context, &workspace.node_map, settings.target(), entry);
-
         let prelude = match semantic_storage.prelude_or_unset.get() {
             Some(prelude) => *prelude,
             None => panic!("Tried to get prelude but it is not set yet"),
         };
 
-        Self { env, lcx: &ir_storage.ctx, settings, layouts: layout_storage, prelude }
+        Self {
+            lcx: &ir_storage.ctx,
+            settings,
+            layouts: layout_storage,
+            prelude,
+            context: &semantic_storage.context,
+        }
     }
 
     /// Get a [LayoutComputer] which can be used to compute layouts and

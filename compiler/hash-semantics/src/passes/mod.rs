@@ -1,5 +1,3 @@
-use hash_tir::environment::env::{AccessToEnv, Env};
-
 use self::{
     ast_utils::AstPass, discovery::DiscoveryPass, evaluation::EvaluationPass,
     inference::InferencePass, resolution::ResolutionPass,
@@ -17,12 +15,6 @@ pub mod resolution;
 /// order on the AST.
 pub struct Visitor<'tc> {
     sem_env: &'tc SemEnv<'tc>,
-}
-
-impl AccessToEnv for Visitor<'_> {
-    fn env(&self) -> &Env {
-        self.sem_env.env()
-    }
 }
 
 impl AccessToSemEnv for Visitor<'_> {

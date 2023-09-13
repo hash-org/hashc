@@ -1,17 +1,22 @@
+use hash_ast::node_map::{HasNodeMap, NodeMap};
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_pipeline::settings::CompilerSettings;
-use hash_reporting::diagnostic::{AccessToDiagnostics, DiagnosticCellStore, Diagnostics};
+use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics, HasDiagnostics};
 use hash_source::entry_point::EntryPointState;
-// @@Docs
+use hash_target::{HasTarget, Target};
 use hash_tir::{
-    environment::env::{AccessToEnv, Env},
+    atom_info::{AtomInfoStore, HasAtomInfo},
+    context::{Context, HasContext},
     fns::FnDefId,
     mods::ModDefId,
+    stores::tir_stores,
 };
-use hash_typecheck::{errors::TcError, AccessToTypechecking};
+use hash_typecheck::{errors::TcError, TcEnv};
 use once_cell::unsync::OnceCell;
 
-use super::{analysis_progress::AnalysisProgress, ast_info::AstInfo};
+use super::{
+    analysis_progress::AnalysisProgress, ast_info::AstInfo, source_info::CurrentSourceInfo,
+};
 use crate::diagnostics::{error::SemanticError, warning::SemanticWarning};
 
 macro_rules! sem_env {
@@ -30,7 +35,7 @@ macro_rules! sem_env {
 
         /// Trait to be implemented for things that want to have access to the
         /// TC environment.
-        pub trait AccessToSemEnv: AccessToEnv {
+        pub trait AccessToSemEnv {
             fn sem_env(&self) -> &SemEnv;
 
             $(
@@ -69,7 +74,6 @@ pub type EntryPoint = EntryPointState<FnDefId>;
 
 // All the members of the semantic analysis environment.
 sem_env! {
-    #hide env: Env<'tc>,
     diagnostics: DiagnosticsStore,
     entry_point: EntryPoint,
     ast_info: AstInfo,
@@ -77,6 +81,9 @@ sem_env! {
     root_mod_or_unset: RootModOrUnset,
     analysis_progress: AnalysisProgress,
     settings: CompilerSettings,
+    context: Context,
+    node_map: NodeMap,
+    current_source_info: CurrentSourceInfo,
 }
 
 impl<'tc> AccessToSemEnv for SemEnv<'tc> {
@@ -85,20 +92,39 @@ impl<'tc> AccessToSemEnv for SemEnv<'tc> {
     }
 }
 
-impl<'tc> AccessToEnv for SemEnv<'tc> {
-    fn env(&self) -> &Env {
-        self.env
-    }
-}
-
-impl<'tc> AccessToDiagnostics for SemEnv<'tc> {
+impl<'tc> HasDiagnostics for SemEnv<'tc> {
     type Diagnostics = DiagnosticCellStore<SemanticError, SemanticWarning>;
     fn diagnostics(&self) -> &Self::Diagnostics {
         self.diagnostics
     }
 }
 
-impl<'tc> AccessToTypechecking for SemEnv<'tc> {
+impl<'tc> HasNodeMap for SemEnv<'tc> {
+    fn node_map(&self) -> &hash_ast::node_map::NodeMap {
+        self.node_map
+    }
+}
+
+impl HasAtomInfo for SemEnv<'_> {
+    fn atom_info(&self) -> &AtomInfoStore {
+        // @@Todo: remove this from the TIR stores
+        tir_stores().atom_info()
+    }
+}
+
+impl HasContext for SemEnv<'_> {
+    fn context(&self) -> &Context {
+        self.context
+    }
+}
+
+impl HasTarget for SemEnv<'_> {
+    fn target(&self) -> &Target {
+        self.settings.target()
+    }
+}
+
+impl<'tc> TcEnv for SemEnv<'tc> {
     fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
     }
@@ -106,14 +132,14 @@ impl<'tc> AccessToTypechecking for SemEnv<'tc> {
     fn convert_exhaustiveness_error(
         &self,
         error: ExhaustivenessError,
-    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Error {
+    ) -> <<Self as HasDiagnostics>::Diagnostics as Diagnostics>::Error {
         error.into()
     }
 
     fn convert_exhaustiveness_warning(
         &self,
         warning: ExhaustivenessWarning,
-    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Warning {
+    ) -> <<Self as HasDiagnostics>::Diagnostics as Diagnostics>::Warning {
         warning.into()
     }
 
@@ -123,6 +149,10 @@ impl<'tc> AccessToTypechecking for SemEnv<'tc> {
 
     fn should_monomorphise(&self) -> bool {
         self.settings.semantic_settings.mono_tir
+    }
+
+    fn current_source(&self) -> hash_source::SourceId {
+        self.current_source_info.source_id()
     }
 }
 
@@ -141,20 +171,33 @@ impl<'tc, T> AccessToSemEnv for WithSemEnv<'tc, T> {
     }
 }
 
-impl<'tc, T> AccessToEnv for WithSemEnv<'tc, T> {
-    fn env(&self) -> &Env {
-        self.sem_env.env()
-    }
-}
-
-impl<'tc, T> AccessToDiagnostics for WithSemEnv<'tc, T> {
+impl<'tc, T> HasDiagnostics for WithSemEnv<'tc, T> {
     type Diagnostics = DiagnosticsStore;
     fn diagnostics(&self) -> &Self::Diagnostics {
         AccessToSemEnv::diagnostics(self)
     }
 }
 
-impl<'tc, T> AccessToTypechecking for WithSemEnv<'tc, T> {
+impl<T> HasAtomInfo for WithSemEnv<'_, T> {
+    fn atom_info(&self) -> &AtomInfoStore {
+        // @@Todo: remove this from the TIR stores
+        tir_stores().atom_info()
+    }
+}
+
+impl<T> HasContext for WithSemEnv<'_, T> {
+    fn context(&self) -> &Context {
+        self.sem_env.context
+    }
+}
+
+impl<T> HasTarget for WithSemEnv<'_, T> {
+    fn target(&self) -> &Target {
+        self.sem_env.settings.target()
+    }
+}
+
+impl<'tc, T> TcEnv for WithSemEnv<'tc, T> {
     fn convert_tc_error(&self, error: TcError) -> <Self::Diagnostics as Diagnostics>::Error {
         error.into()
     }
@@ -162,14 +205,14 @@ impl<'tc, T> AccessToTypechecking for WithSemEnv<'tc, T> {
     fn convert_exhaustiveness_error(
         &self,
         error: ExhaustivenessError,
-    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Error {
+    ) -> <<Self as HasDiagnostics>::Diagnostics as Diagnostics>::Error {
         error.into()
     }
 
     fn convert_exhaustiveness_warning(
         &self,
         warning: ExhaustivenessWarning,
-    ) -> <<Self as AccessToDiagnostics>::Diagnostics as Diagnostics>::Warning {
+    ) -> <<Self as HasDiagnostics>::Diagnostics as Diagnostics>::Warning {
         warning.into()
     }
 
@@ -179,6 +222,10 @@ impl<'tc, T> AccessToTypechecking for WithSemEnv<'tc, T> {
 
     fn should_monomorphise(&self) -> bool {
         self.sem_env.should_monomorphise()
+    }
+
+    fn current_source(&self) -> hash_source::SourceId {
+        self.sem_env.current_source_info.source_id()
     }
 }
 
@@ -218,13 +265,7 @@ macro_rules! impl_access_to_sem_env {
             }
         }
 
-        impl hash_tir::environment::env::AccessToEnv for $ty {
-            fn env(&self) -> &hash_tir::environment::env::Env {
-                self.sem_env().env()
-            }
-        }
-
-        impl hash_reporting::diagnostic::AccessToDiagnostics for $ty {
+        impl hash_reporting::diagnostic::HasDiagnostics for $ty {
             type Diagnostics = hash_reporting::diagnostic::DiagnosticCellStore<
                 $crate::diagnostics::error::SemanticError,
                 $crate::diagnostics::warning::SemanticWarning,
@@ -235,7 +276,7 @@ macro_rules! impl_access_to_sem_env {
             }
         }
 
-        impl hash_typecheck::AccessToTypechecking for $ty {
+        impl hash_typecheck::TcEnv for $ty {
             fn convert_tc_error(
                 &self,
                 error: hash_typecheck::errors::TcError,

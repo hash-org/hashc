@@ -24,8 +24,7 @@ use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
-    context::{Context, ScopeKind},
-    environment::env::{AccessToEnv, Env},
+    context::{Context, HasContext, ScopeKind},
     fns::{FnDef, FnDefId, FnTy},
     node::NodesId,
     symbols::SymbolId,
@@ -186,9 +185,9 @@ impl HasTarget for BodyBuilder<'_> {
     }
 }
 
-impl<'ctx> AccessToEnv for BodyBuilder<'ctx> {
-    fn env(&self) -> &Env {
-        &self.ctx.env
+impl HasContext for BodyBuilder<'_> {
+    fn context(&self) -> &Context {
+        self.ctx.context()
     }
 }
 

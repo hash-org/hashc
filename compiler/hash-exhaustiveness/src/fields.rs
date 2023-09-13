@@ -20,7 +20,7 @@ use hash_utils::itertools::Itertools;
 use super::construct::DeconstructedCtor;
 use crate::{
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessEnv, PatCtx,
 };
 
 /// Representation of the `fields` that are stored by
@@ -60,7 +60,7 @@ impl FromIterator<DeconstructedPatId> for Fields {
     }
 }
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Create [Fields] from an [Iterator] of [Ty]s.
     pub fn wildcards_from_tys(&self, tys: impl IntoIterator<Item = TyId>) -> Fields {
         Fields::from_iter(tys.into_iter().map(|ty| {

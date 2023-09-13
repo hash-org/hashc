@@ -12,9 +12,9 @@ use utility_types::omit;
 
 use super::{data::DataDefId, fns::FnDefId};
 use crate::{
-    environment::stores::tir_stores,
     intrinsics::{definitions::Intrinsic, make::IsIntrinsic},
     node::Node,
+    stores::tir_stores,
     symbols::SymbolId,
     tir_node_sequence_store_direct, tir_node_single_store,
 };

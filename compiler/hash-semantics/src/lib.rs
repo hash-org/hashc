@@ -12,6 +12,7 @@ use environment::{
     sem_env::{
         AccessToSemEnv, DiagnosticsStore, EntryPoint, PreludeOrUnset, RootModOrUnset, SemEnv,
     },
+    source_info::CurrentSourceInfo,
 };
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
@@ -20,11 +21,7 @@ use hash_pipeline::{
 };
 use hash_reporting::{diagnostic::Diagnostics, reporter::Reports};
 use hash_source::SourceId;
-use hash_target::HasTarget;
-use hash_tir::{
-    context::Context,
-    environment::{env::Env, source_info::CurrentSourceInfo},
-};
+use hash_tir::context::Context;
 use once_cell::unsync::OnceCell;
 use ops::common::CommonOps;
 
@@ -112,17 +109,8 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
         let SemanticAnalysisCtx { workspace, semantic_storage, settings } = ctx.data();
         let current_source_info = CurrentSourceInfo::new(entry_point);
 
-        // Construct the core TIR environment.
-        let env = Env::new(
-            &semantic_storage.context,
-            &workspace.node_map,
-            settings.target(),
-            &current_source_info,
-        );
-
         // Construct the semantic analysis environment.
         let sem_env = SemEnv::new(
-            &env,
             &semantic_storage.diagnostics,
             &semantic_storage.entry_point,
             &semantic_storage.ast_info,
@@ -130,6 +118,9 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
             &semantic_storage.root_mod_or_unset,
             &semantic_storage.analysis_progress,
             settings,
+            &semantic_storage.context,
+            &workspace.node_map,
+            &current_source_info,
         );
 
         // Visit the sources

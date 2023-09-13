@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 
 use hash_utils::smallvec::SmallVec;
 
-use crate::{environment::env::WithEnv, symbols::SymbolId, terms::TermId};
+use crate::{symbols::SymbolId, terms::TermId};
 
 /// An entry in a substitution.
 ///
@@ -108,10 +108,10 @@ impl Default for Sub {
     }
 }
 
-impl Display for WithEnv<'_, &Sub> {
+impl Display for Sub {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
-        for (i, (from, to)) in self.value.iter().enumerate() {
+        for (i, (from, to)) in self.iter().enumerate() {
             if i > 0 {
                 write!(f, ", ")?;
             }

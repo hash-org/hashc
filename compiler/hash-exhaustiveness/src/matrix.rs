@@ -9,7 +9,7 @@ use std::fmt;
 use super::stack::PatStack;
 use crate::{
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A 2D matrix which is used to represent the
@@ -43,7 +43,7 @@ impl Matrix {
     }
 }
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Pushes a new row to the matrix. If the row starts with an or-pattern,
     /// this recursively expands it.
     pub(crate) fn push_matrix_row(&self, matrix: &mut Matrix, row: PatStack) {
@@ -94,7 +94,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
 /// | false | [_]               |
 /// | _     | [_, _, ...tail]   |
 /// ```
-impl fmt::Debug for ExhaustivenessFmtCtx<'_, Matrix> {
+impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, Matrix, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f)?;
 

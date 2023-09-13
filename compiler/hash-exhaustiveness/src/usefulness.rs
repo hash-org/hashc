@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessEnv, PatCtx,
 };
 
 /// Collection of patterns that were `witnessed` when traversing
@@ -141,7 +141,7 @@ pub(crate) struct UsefulnessReport {
     pub(crate) non_exhaustiveness_witnesses: Vec<PatId>,
 }
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Constructs a partial witness for a pattern given a list of
     /// patterns expanded by the specialisation step.
     ///

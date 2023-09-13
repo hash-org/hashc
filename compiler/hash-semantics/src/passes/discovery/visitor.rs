@@ -9,7 +9,6 @@ use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     data::DataDef,
-    environment::env::AccessToEnv,
     fns::{FnDef, FnTy},
     mods::{ModDef, ModKind, ModMember},
     node::{Node, NodeOrigin},

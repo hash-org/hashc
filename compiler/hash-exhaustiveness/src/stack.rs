@@ -10,7 +10,7 @@ use hash_utils::smallvec::{smallvec, SmallVec};
 
 use crate::{
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A row of a [super::matrix::Matrix]. Rows of len 1 are very common, which is
@@ -53,7 +53,7 @@ impl PatStack {
     }
 }
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Recursively expand the first pattern into its sub-patterns. Only useful
     /// if the pattern is an or-pattern.
     ///
@@ -96,7 +96,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 }
 
-impl fmt::Debug for ExhaustivenessFmtCtx<'_, PatStack> {
+impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, PatStack, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "|")?;
 

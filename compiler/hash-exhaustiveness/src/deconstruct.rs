@@ -23,7 +23,7 @@ use super::{construct::DeconstructedCtor, fields::Fields};
 use crate::{
     list::ArrayKind,
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, ExhaustivenessFmtCtx, PatCtx,
+    ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A [DeconstructedPat] is a representation of a [DeconstructedCtor] that is
@@ -82,7 +82,7 @@ impl DeconstructedPat {
     }
 }
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Create a `match-all` [DeconstructedPat] and infer [Fields] as
     /// from the provided type in the context, this is only to be used
     /// when creating `match-all` wildcard patterns.
@@ -183,7 +183,7 @@ impl<'tc> ExhaustivenessChecker<'tc> {
     }
 }
 
-impl fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId> {
+impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let pat_store = self.checker.deconstructed_pat_store();
         let ctor_store = self.checker.ctor_store();

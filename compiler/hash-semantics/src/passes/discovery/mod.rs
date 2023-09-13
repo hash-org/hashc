@@ -5,8 +5,8 @@ use hash_ast::{
     ast::{self, AstNodeId},
     visitor::AstVisitor,
 };
-use hash_tir::{environment::env::AccessToEnv, node::NodeOrigin, symbols::SymbolId};
-use hash_utils::state::LightState;
+use hash_tir::{node::NodeOrigin, symbols::SymbolId};
+use hash_utils::{derive_more::Deref, state::LightState};
 
 use self::defs::DefDiscoveryState;
 use super::ast_utils::AstPass;
@@ -23,19 +23,15 @@ pub mod defs;
 pub mod params;
 pub mod visitor;
 
+#[derive(Deref)]
 pub struct DiscoveryPass<'tc> {
+    #[deref]
     sem_env: &'tc SemEnv<'tc>,
     /// The name hint for the current definition.
     name_hint: LightState<Option<SymbolId>>,
     /// Keeps track of which definitions have been seen, added, and we are
     /// currently inside.
     def_state: DefDiscoveryState,
-}
-
-impl AccessToEnv for DiscoveryPass<'_> {
-    fn env(&self) -> &hash_tir::environment::env::Env {
-        self.sem_env.env()
-    }
 }
 
 impl<'tc> AccessToSemEnv for DiscoveryPass<'tc> {

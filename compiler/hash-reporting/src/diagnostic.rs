@@ -219,7 +219,7 @@ impl<E, W> DiagnosticsMut for DiagnosticStore<E, W> {
 /// Convenience trait to allow access to the diagnostics
 ///
 /// API follows the [Diagnostics] trait.
-pub trait AccessToDiagnostics {
+pub trait HasDiagnostics {
     type Diagnostics: Diagnostics;
 
     fn diagnostics(&self) -> &Self::Diagnostics;

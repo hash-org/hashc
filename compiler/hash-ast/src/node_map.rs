@@ -118,6 +118,18 @@ pub struct NodeMap {
     interactive_blocks: IndexVec<InteractiveId, InteractiveBlock>,
 }
 
+/// Convenience trait for types that have mutable access to a [NodeMap].
+pub trait HasNodeMapMut: HasNodeMap {
+    /// Get a mutable reference to the [NodeMap].
+    fn node_map_mut(&mut self) -> &mut NodeMap;
+}
+
+/// Convenience trait for types that have access to a [NodeMap].
+pub trait HasNodeMap {
+    /// Get a reference to the [NodeMap].
+    fn node_map(&self) -> &NodeMap;
+}
+
 impl NodeMap {
     /// Create a new [NodeMap]
     pub fn new() -> Self {

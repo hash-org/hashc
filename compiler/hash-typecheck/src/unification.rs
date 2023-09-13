@@ -21,11 +21,11 @@ use once_cell::unsync::OnceCell;
 
 use crate::{
     errors::{TcError, TcResult},
-    AccessToTypechecking,
+    TcEnv,
 };
 
 #[derive(Deref)]
-pub struct UnificationOps<'a, T: AccessToTypechecking> {
+pub struct UnificationOps<'a, T: TcEnv> {
     #[deref]
     env: &'a T,
     add_to_ctx: Cell<bool>,
@@ -33,7 +33,7 @@ pub struct UnificationOps<'a, T: AccessToTypechecking> {
     pat_binds: OnceCell<HashSet<SymbolId>>,
 }
 
-impl<'tc, T: AccessToTypechecking> UnificationOps<'tc, T> {
+impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     pub fn new(env: &'tc T) -> Self {
         Self {
             env,

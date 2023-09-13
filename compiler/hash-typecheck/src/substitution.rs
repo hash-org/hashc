@@ -20,16 +20,16 @@ use hash_tir::{
 };
 use hash_utils::{derive_more::Deref, log::warn};
 
-use crate::AccessToTypechecking;
+use crate::TcEnv;
 
 #[derive(Deref)]
-pub struct SubstitutionOps<'a, T: AccessToTypechecking> {
+pub struct SubstitutionOps<'a, T: TcEnv> {
     #[deref]
     env: &'a T,
     traversing_utils: Visitor,
 }
 
-impl<'a, T: AccessToTypechecking> SubstitutionOps<'a, T> {
+impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
     pub fn new(env: &'a T) -> Self {
         Self { env, traversing_utils: Visitor::new() }
     }

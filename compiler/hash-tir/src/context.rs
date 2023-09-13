@@ -17,7 +17,6 @@ use hash_utils::{
 use crate::{
     args::{ArgId, ArgsId},
     data::{CtorDefId, DataDefId},
-    environment::env::AccessToEnv,
     fns::{FnDefId, FnTy},
     intrinsics::definitions::Intrinsic,
     mods::ModDefId,
@@ -161,7 +160,7 @@ impl Context {
     /// scope, with a mutable `self` that implements [`AccessToEnv`].
     ///
     /// The scope is exited after the function has been run.
-    pub fn enter_scope_mut<T, This: AccessToEnv>(
+    pub fn enter_scope_mut<T, This: HasContext>(
         this: &mut This,
         kind: ScopeKind,
         f: impl FnOnce(&mut This) -> T,
@@ -476,7 +475,7 @@ impl Context {
     /// Entering a resolved scope will add all the members of the scope to the
     /// context at once, so that you don't have to add them manually as you
     /// find them.
-    pub fn enter_resolved_scope_mut<T, This: AccessToEnv>(
+    pub fn enter_resolved_scope_mut<T, This: HasContext>(
         this: &mut This,
         kind: ScopeKind,
         f: impl FnOnce(&mut This) -> T,

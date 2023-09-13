@@ -15,7 +15,7 @@ mod ty;
 use std::cell::Cell;
 
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::AccessToDiagnostics;
+use hash_reporting::diagnostic::HasDiagnostics;
 use hash_source::location::{ByteRange, Span, SpannedSource};
 use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::{thin_vec, ThinVec};

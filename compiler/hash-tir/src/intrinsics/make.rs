@@ -5,7 +5,6 @@ use hash_target::HasTarget;
 use crate::{
     context::HasContext,
     data::{CtorDefId, DataDefId},
-    environment::env::Env,
     fns::FnTy,
     terms::TermId,
 };
@@ -17,9 +16,6 @@ pub trait IntrinsicAbilities: HasContext + HasTarget {
 
     /// Resolve a term from the prelude.
     fn resolve_from_prelude(&self, name: impl Into<Identifier>) -> TermId;
-
-    /// Get the current environment.
-    fn env(&self) -> &Env;
 }
 
 /// Trait implemented by all intrinsics.

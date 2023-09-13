@@ -11,7 +11,6 @@ use hash_storage::store::{
 use hash_tir::{
     context::ContextMember,
     data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
-    environment::env::AccessToEnv,
     fns::FnDefId,
     mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
     node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},

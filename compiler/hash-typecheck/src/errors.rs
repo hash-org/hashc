@@ -9,16 +9,14 @@ use hash_reporting::{
 use hash_source::location::Span;
 use hash_storage::store::SequenceStoreKey;
 use hash_tir::{
-    environment::env::Env,
     fns::FnDefId,
-    impl_access_to_env,
     node::{HasAstNodeId, NodeId, NodeOrigin},
     params::{utils::ParamError, ParamIndex, ParamsId, SomeParamsOrArgsId},
     pats::PatId,
     terms::{TermId, TyId},
     visitor::Atom,
 };
-use hash_utils::derive_more::{Constructor, From};
+use hash_utils::derive_more::From;
 
 /// A kind of wrong term usage.
 #[derive(Clone, Debug)]
@@ -121,21 +119,16 @@ impl IntoCompound for TcError {
 
 pub type TcResult<T> = Result<T, TcError>;
 
-#[derive(Constructor)]
-pub struct TcErrorReporter<'env> {
-    env: &'env Env<'env>,
-}
+pub struct TcErrorReporter;
 
-impl_access_to_env!(TcErrorReporter<'env>);
-
-impl fmt::Display for TcErrorReporter<'_> {
+impl fmt::Display for TcErrorReporter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let reports = Self::format_error(&TcError::Signal);
         write!(f, "{}", Reporter::from_reports(reports))
     }
 }
 
-impl<'tc> TcErrorReporter<'tc> {
+impl TcErrorReporter {
     /// Format the error nicely and return it as a set of reports.
     pub fn format_error(error: &TcError) -> Reports {
         let mut builder = Reporter::new();

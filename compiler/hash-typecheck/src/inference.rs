@@ -62,7 +62,7 @@ use itertools::Itertools;
 use crate::{
     errors::{TcError, TcResult, WrongTermKind},
     normalisation::NormalisationMode,
-    AccessToTypechecking,
+    TcEnv,
 };
 
 /// The mode in which to infer the type of a function.
@@ -103,21 +103,23 @@ pub struct InferenceWithSub<X, T> {
 }
 
 #[derive(Constructor, Deref)]
-pub struct InferenceOps<'a, T: AccessToTypechecking>(&'a T);
+pub struct InferenceOps<'a, T: TcEnv> {
+    env: &'a T,
+}
 
-impl<T: AccessToTypechecking> InferenceOps<'_, T> {
+impl<T: TcEnv> InferenceOps<'_, T> {
     /// Create a new [ExhaustivenessChecker] so it can be used to check
     /// refutability or exhaustiveness of patterns.
-    fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<'_> {
+    fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<T> {
         let location = subject.span().unwrap();
-        ExhaustivenessChecker::new(location, self.env())
+        ExhaustivenessChecker::new(location, self.env)
     }
 
     /// Merge all of the produced diagnostics into the current diagnostics.
     ///
     /// @@Hack: remove this when we have a better way to send exhaustiveness
     /// jobs and add them to general tc diagnostics.
-    fn append_exhaustiveness_diagnostics(&self, checker: ExhaustivenessChecker<'_>) {
+    fn append_exhaustiveness_diagnostics(&self, checker: ExhaustivenessChecker<T>) {
         let (errors, warnings) = checker.into_diagnostics().into_diagnostics();
 
         for error in errors {
@@ -468,7 +470,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
 
                 if let Some(int_ty) = try_use_ty_as_int_ty(inferred_ty) {
                     lit.modify(|int| match &mut int.data {
-                        Lit::Int(fl) => fl.bake(self.env(), int_ty),
+                        Lit::Int(fl) => fl.bake(self.target(), int_ty),
                         _ => unreachable!(),
                     })?;
                 }
@@ -626,7 +628,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         // Ensure the array lengths match if given
         if let Some(len) = list_len {
             let inferred_len_term = create_term_from_usize_lit(
-                self.env(),
+                self.target(),
                 array_term.elements.len(),
                 array_term.elements.origin(),
             );
@@ -929,7 +931,7 @@ impl<T: AccessToTypechecking> InferenceOps<'_, T> {
         let has_entry_point_attr =
             attr_store().node_has_attr(fn_def_id.node_id_or_default(), attrs::ENTRY_POINT);
 
-        let kind = self.current_source_info().source_id().module_kind();
+        let kind = self.current_source().module_kind();
 
         let entry_point = if has_entry_point_attr {
             Some(EntryPointKind::Named(fn_def_name))

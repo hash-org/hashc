@@ -5,7 +5,6 @@
 //! Any scoping errors are reported here.
 
 use hash_ast::ast::{self};
-use hash_tir::environment::env::AccessToEnv;
 
 use self::scoping::{ContextKind, Scoping};
 use super::ast_utils::AstPass;
@@ -32,12 +31,6 @@ pub struct ResolutionPass<'tc> {
     sem_env: &'tc SemEnv<'tc>,
     /// Tools for entering scopes and looking up symbols by name in them.
     scoping: Scoping<'tc>,
-}
-
-impl AccessToEnv for ResolutionPass<'_> {
-    fn env(&self) -> &hash_tir::environment::env::Env {
-        self.sem_env.env()
-    }
 }
 
 impl AccessToSemEnv for ResolutionPass<'_> {

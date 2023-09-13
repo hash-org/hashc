@@ -8,12 +8,12 @@ use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, Store, TrivialSequenceStoreKey,
 };
+use hash_target::HasTarget;
 use hash_tir::{
     args::{PatArg, PatArgsId, PatOrCapture},
     arrays::ArrayPat,
     control::{IfPat, OrPat},
     data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
-    environment::env::AccessToEnv,
     intrinsics::utils::{
         numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
         try_use_ty_as_int_ty, try_use_ty_as_lit_ty, LitTy,
@@ -72,7 +72,7 @@ pub struct FieldPat {
     pub(crate) pat: PatId,
 }
 
-impl<'tc> ExhaustivenessChecker<'tc> {
+impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
     /// Performs a lowering operation on all of the specified branches.
     ///
     /// This takes in the `term` which is the type of the subject.

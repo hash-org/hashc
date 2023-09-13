@@ -20,8 +20,7 @@ use super::{
     tuples::TuplePat,
 };
 use crate::{
-    arrays::ArrayPat, environment::stores::tir_stores, tir_node_sequence_store_indirect,
-    tir_node_single_store,
+    arrays::ArrayPat, stores::tir_stores, tir_node_sequence_store_indirect, tir_node_single_store,
 };
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,

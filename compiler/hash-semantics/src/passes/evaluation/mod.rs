@@ -10,13 +10,15 @@ use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     args::Arg,
     dump::dump_tir,
-    environment::env::AccessToEnv,
     fns::CallTerm,
     node::{Node, NodeId},
     terms::{Term, TermId},
 };
-use hash_typecheck::{normalisation::NormalisationMode, AccessToTypechecking};
-use hash_utils::{derive_more::Constructor, stream_less_writeln};
+use hash_typecheck::{normalisation::NormalisationMode, TcEnv};
+use hash_utils::{
+    derive_more::{Constructor, Deref},
+    stream_less_writeln,
+};
 
 use super::ast_utils::AstPass;
 use crate::{
@@ -25,18 +27,22 @@ use crate::{
         analysis_progress::AnalysisStage,
         sem_env::{AccessToSemEnv, SemEnv},
     },
-    impl_access_to_sem_env,
     ops::common::CommonOps,
 };
 
 /// The potential fourth pass of analysis, which executes and dumps the TIR, if
 /// the correct compiler flags are set.
-#[derive(Constructor)]
+#[derive(Constructor, Deref)]
 pub struct EvaluationPass<'tc> {
+    #[deref]
     sem_env: &'tc SemEnv<'tc>,
 }
 
-impl_access_to_sem_env!(EvaluationPass<'_>);
+impl AccessToSemEnv for EvaluationPass<'_> {
+    fn sem_env(&self) -> &SemEnv<'_> {
+        self.sem_env
+    }
+}
 
 impl EvaluationPass<'_> {
     /// Find the main module definition, if it exists.
