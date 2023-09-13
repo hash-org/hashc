@@ -41,6 +41,8 @@ impl<'tc> AccessToSemEnv for DiscoveryPass<'tc> {
 }
 
 impl<'tc> AstPass for DiscoveryPass<'tc> {
+    type PassOutput = ();
+
     fn pass_interactive(&self, node: ast::AstNodeRef<ast::BodyBlock>) -> SemanticResult<()> {
         self.visit_body_block(node)
     }
@@ -49,12 +51,12 @@ impl<'tc> AstPass for DiscoveryPass<'tc> {
         self.visit_module(node)
     }
 
-    fn pre_pass(&self) -> SemanticResult<bool> {
+    fn pre_pass(&self) -> SemanticResult<Option<()>> {
         if self.get_current_progress() == AnalysisStage::None {
             self.set_current_progress(AnalysisStage::Discovery);
-            Ok(true)
+            Ok(None)
         } else {
-            Ok(false)
+            Ok(Some(()))
         }
     }
 }

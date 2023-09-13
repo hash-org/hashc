@@ -67,6 +67,8 @@ impl InferencePass<'_> {
 }
 
 impl<'tc> AstPass for InferencePass<'tc> {
+    type PassOutput = ();
+
     fn pass_interactive(
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
@@ -111,15 +113,15 @@ impl<'tc> AstPass for InferencePass<'tc> {
         Ok(())
     }
 
-    fn pre_pass(&self) -> SemanticResult<bool> {
+    fn pre_pass(&self) -> SemanticResult<Option<()>> {
         if self.get_current_progress() == AnalysisStage::Resolution {
             self.set_current_progress(AnalysisStage::HeaderInference);
-            Ok(true)
+            Ok(None)
         } else if self.get_current_progress() == AnalysisStage::HeaderInference {
             self.set_current_progress(AnalysisStage::BodyInference);
-            Ok(true)
+            Ok(None)
         } else {
-            Ok(false)
+            Ok(Some(()))
         }
     }
 }

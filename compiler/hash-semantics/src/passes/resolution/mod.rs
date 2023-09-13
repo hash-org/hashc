@@ -40,6 +40,8 @@ impl AccessToSemEnv for ResolutionPass<'_> {
 }
 
 impl<'tc> AstPass for ResolutionPass<'tc> {
+    type PassOutput = ();
+
     fn pass_interactive(&self, node: ast::AstNodeRef<ast::BodyBlock>) -> SemanticResult<()> {
         let root_mod = self.bootstrap();
         self.scoping().add_scope(ContextKind::Environment);
@@ -75,12 +77,12 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
         Ok(())
     }
 
-    fn pre_pass(&self) -> SemanticResult<bool> {
+    fn pre_pass(&self) -> SemanticResult<Option<()>> {
         if self.get_current_progress() < AnalysisStage::Resolution {
             self.set_current_progress(AnalysisStage::Resolution);
-            Ok(true)
+            Ok(None)
         } else {
-            Ok(false)
+            Ok(Some(()))
         }
     }
 }

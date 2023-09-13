@@ -88,6 +88,8 @@ impl EvaluationPass<'_> {
 }
 
 impl<'tc> AstPass for EvaluationPass<'tc> {
+    type PassOutput = ();
+
     fn pass_interactive(
         &self,
         node: ast::AstNodeRef<ast::BodyBlock>,
@@ -130,12 +132,12 @@ impl<'tc> AstPass for EvaluationPass<'tc> {
         Ok(())
     }
 
-    fn pre_pass(&self) -> SemanticResult<bool> {
+    fn pre_pass(&self) -> SemanticResult<Option<()>> {
         if self.get_current_progress() == AnalysisStage::BodyInference {
             self.set_current_progress(AnalysisStage::PreEvaluation);
-            Ok(true)
+            Ok(None)
         } else {
-            Ok(false)
+            Ok(Some(()))
         }
     }
 }
