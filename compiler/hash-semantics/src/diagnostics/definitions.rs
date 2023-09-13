@@ -5,9 +5,7 @@ use hash_tir::{symbols::SymbolId, terms::TermId};
 use hash_typecheck::errors::TcError;
 use hash_utils::thin_vec::ThinVec;
 
-// use crate::passes::resolution::scoping::ContextKind;
-// @@nocheckin
-pub type ContextKind = ();
+use crate::passes::resolution::scoping::ContextKind;
 
 pub type SemanticResult<T> = Result<T, SemanticError>;
 

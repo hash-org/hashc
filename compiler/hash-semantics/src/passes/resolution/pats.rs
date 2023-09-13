@@ -33,11 +33,11 @@ use super::{
     ResolutionPass,
 };
 use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    environment::sem_env::AccessToSemEnv,
+    diagnostics::definitions::{SemanticError, SemanticResult},
+    env::SemanticEnv,
 };
 
-impl ResolutionPass<'_> {
+impl<E: SemanticEnv> ResolutionPass<'_, E> {
     /// Make TC pattern arguments from the given set of AST pattern arguments.
     pub(super) fn make_pat_args_from_ast_pat_args(
         &self,
@@ -313,7 +313,7 @@ impl ResolutionPass<'_> {
         node: AstNodeRef<ast::Pat>,
     ) -> SemanticResult<PatId> {
         // Maybe it has already been made:
-        if let Some(pat_id) = self.ast_info().pats().get_data_by_node(node.id()) {
+        if let Some(pat_id) = self.ast_info.pats().get_data_by_node(node.id()) {
             return Ok(pat_id);
         }
         let origin = NodeOrigin::Given(node.id());
@@ -385,7 +385,7 @@ impl ResolutionPass<'_> {
             }
         };
 
-        self.ast_info().pats().insert(node.id(), pat_id);
+        self.ast_info.pats().insert(node.id(), pat_id);
         Ok(pat_id)
     }
 }

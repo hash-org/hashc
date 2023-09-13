@@ -11,7 +11,7 @@ use hash_tir::{node::NodeOrigin, symbols::SymbolId};
 use hash_utils::{derive_more::Deref, state::LightState};
 
 use self::defs::DefDiscoveryState;
-use super::{ast_info::AstInfo, ast_utils::AstPass};
+use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};
 use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
 pub mod defs;
@@ -43,7 +43,7 @@ impl<E: SemanticEnv> HasNodeMap for DiscoveryPass<'_, E> {
     }
 }
 
-impl<E: SemanticEnv> AstPass for DiscoveryPass<'_, E> {
+impl<E: SemanticEnv> AnalysisPass for DiscoveryPass<'_, E> {
     type Env = E;
     fn env(&self) -> &Self::Env {
         self.env

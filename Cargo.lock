@@ -850,6 +850,7 @@ dependencies = [
  "hash-ast",
  "hash-attrs",
  "hash-exhaustiveness",
+ "hash-pipeline",
  "hash-reporting",
  "hash-source",
  "hash-storage",

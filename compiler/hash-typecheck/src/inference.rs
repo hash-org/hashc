@@ -49,6 +49,7 @@ use hash_tir::{
     pats::{Pat, PatId, PatListId, RangePat, Spread},
     refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockStatement, BlockTerm},
+    stores::tir_stores,
     sub::Sub,
     symbols::SymbolId,
     term_as_variant,
@@ -123,11 +124,11 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         let (errors, warnings) = checker.into_diagnostics().into_diagnostics();
 
         for error in errors {
-            self.diagnostics().add_error(self.convert_exhaustiveness_error(error))
+            self.diagnostics().add_error(error.into())
         }
 
         for warning in warnings {
-            self.diagnostics().add_warning(self.convert_exhaustiveness_warning(warning))
+            self.diagnostics().add_warning(warning.into())
         }
     }
 
@@ -223,7 +224,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         annotation_params: ParamsId,
         in_arg_scope: impl FnOnce(ArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
-        self.register_new_atom(args, annotation_params);
+        tir_stores().atom_info().register_new_atom(args, annotation_params);
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
         let result = self.infer_some_args(
@@ -294,7 +295,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         annotation_params: ParamsId,
         in_arg_scope: impl FnOnce(PatArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
-        self.register_new_atom(pat_args, annotation_params);
+        tir_stores().atom_info().register_new_atom(pat_args, annotation_params);
         let reordered_pat_args_id =
             validate_and_reorder_pat_args_against_params(pat_args, spread, annotation_params)?;
 
@@ -992,7 +993,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         fn_mode: FnInferMode,
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;
-        if let Some(fn_ty) = self.try_get_inferred_ty(fn_def_id) {
+        if let Some(fn_ty) = tir_stores().atom_info().try_get_inferred_ty(fn_def_id) {
             let expected =
                 Ty::expect_is(original_term_id, Ty::from(fn_ty, fn_def_id.origin().inferred()));
             self.check_by_unify(expected, annotation_ty)?;
@@ -1020,12 +1021,12 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             return Ok(());
         }
 
-        if self.atom_is_registered(fn_def_id) {
+        if tir_stores().atom_info().atom_is_registered(fn_def_id) {
             // Recursive call
             return Ok(());
         }
 
-        self.register_new_atom(fn_def_id, fn_def.ty);
+        tir_stores().atom_info().register_new_atom(fn_def_id, fn_def.ty);
 
         let fn_def = fn_def_id.value();
 
@@ -1040,7 +1041,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
         self.check_by_unify(fn_ty_id, annotation_ty)?;
 
-        self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
+        tir_stores().atom_info().register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
 
         Ok(())
     }
@@ -1510,7 +1511,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
     /// To create a hole when this is not possible, use
     /// [`InferOps::infer_term_of_term_or_hole`].
     pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
-        self.register_new_atom(term_id, annotation_ty);
+        tir_stores().atom_info().register_new_atom(term_id, annotation_ty);
         let expects_ty = |ty: TyId| self.check_by_unify(ty, Ty::universe(NodeOrigin::Expected));
 
         match *term_id.value() {
@@ -1587,7 +1588,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         };
 
         self.check_ty(annotation_ty)?;
-        self.register_atom_inference(term_id, term_id, annotation_ty);
+        tir_stores().atom_info().register_atom_inference(term_id, term_id, annotation_ty);
 
         // Potentially evaluate the term.
         self.potentially_run_expr(term_id, annotation_ty)?;
@@ -1833,7 +1834,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         annotation_ty: TyId,
         binds_to: Option<TermId>,
     ) -> TcResult<()> {
-        self.register_new_atom(pat_id, annotation_ty);
+        tir_stores().atom_info().register_new_atom(pat_id, annotation_ty);
 
         match *pat_id.value() {
             Pat::Binding(var) => {
@@ -1862,7 +1863,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             Pat::If(if_pat) => self.infer_if_pat(&if_pat, annotation_ty)?,
         };
 
-        self.register_atom_inference(pat_id, pat_id, annotation_ty);
+        tir_stores().atom_info().register_atom_inference(pat_id, pat_id, annotation_ty);
         Ok(())
     }
 

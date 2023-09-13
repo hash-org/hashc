@@ -13,14 +13,14 @@ use env::{HasSemanticDiagnostics, SemanticEnv};
 use hash_ast::node_map::{HasNodeMap, NodeMap};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
-    settings::{CompilerSettings, CompilerStageKind},
+    settings::{CompilerSettings, CompilerStageKind, HasCompilerSettings},
     workspace::Workspace,
 };
 use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics, HasDiagnostics};
 use hash_source::SourceId;
+use hash_target::{HasTarget, Target};
 use storage::SemanticStorage;
 
-pub mod bootstrap;
 pub mod current_source;
 pub mod diagnostics;
 pub mod env;
@@ -109,7 +109,19 @@ impl HasSemanticDiagnostics for SemanticEnvImpl<'_> {
     type SemanticDiagnostics = DiagnosticCellStore<SemanticError, SemanticWarning>;
 }
 
-impl SemanticEnv for SemanticEnvImpl<'_> {
+impl HasCompilerSettings for SemanticEnvImpl<'_> {
+    fn compiler_settings(&self) -> &CompilerSettings {
+        self.ctx.settings
+    }
+}
+
+impl HasTarget for SemanticEnvImpl<'_> {
+    fn target(&self) -> &Target {
+        self.ctx.settings.target()
+    }
+}
+
+impl<'env> SemanticEnv for SemanticEnvImpl<'env> {
     fn storage(&self) -> &SemanticStorage {
         self.ctx.semantic_storage
     }

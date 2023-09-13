@@ -45,10 +45,9 @@ use super::{
     ResolutionPass,
 };
 use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    environment::sem_env::AccessToSemEnv,
-    ops::common::CommonOps,
-    passes::ast_utils::AstPass,
+    diagnostics::definitions::{SemanticError, SemanticResult},
+    env::SemanticEnv,
+    passes::analysis_pass::AnalysisPass,
 };
 
 pub enum AstParams<'ast> {
@@ -58,7 +57,7 @@ pub enum AstParams<'ast> {
 
 /// This block converts AST nodes of different kinds into [`AstPath`]s, in order
 /// to later resolve them into terms.
-impl<'tc> ResolutionPass<'tc> {
+impl<E: SemanticEnv> ResolutionPass<'_, E> {
     /// Make TC arguments from the given set of AST tuple arguments.
     pub(super) fn make_args_from_ast_tuple_lit_args(
         &self,
@@ -185,9 +184,7 @@ impl<'tc> ResolutionPass<'tc> {
 
             ast::Expr::Import(import_expr) => {
                 let source_id = import_expr.data.source;
-                self.current_source_info().with_source_id(source_id, || {
-                    ResolutionPass::new(self.sem_env()).pass_source()
-                })?;
+                ResolutionPass::new(self.env, self.ast_info).pass_source(source_id)?;
                 Term::unit(NodeOrigin::Given(node.id()))
             }
 
@@ -212,7 +209,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
         };
 
-        self.ast_info().terms().insert(node.id(), term_id);
+        self.ast_info.terms().insert(node.id(), term_id);
         Ok(term_id)
     }
 
@@ -677,7 +674,7 @@ impl<'tc> ResolutionPass<'tc> {
 
                     // Get the ids of the local mod members
                     mod_member_ids.extend(local_mod_members.iter().map(|member_id| {
-                        self.ast_info().mod_members().get_node_by_data(member_id).unwrap()
+                        self.ast_info.mod_members().get_node_by_data(member_id).unwrap()
                     }));
 
                     // Resolve them
@@ -812,7 +809,7 @@ impl<'tc> ResolutionPass<'tc> {
         node_id: AstNodeId,
     ) -> SemanticResult<TermId> {
         // Function should already be discovered
-        let fn_def_id = self.ast_info().fn_defs().get_data_by_node(node_id).unwrap();
+        let fn_def_id = self.ast_info.fn_defs().get_data_by_node(node_id).unwrap();
 
         // Whether the function has been marked as pure by a directive
         let is_pure_by_directive = attr_store().node_has_attr(node_id, attrs::PURE);

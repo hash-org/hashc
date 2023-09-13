@@ -6,7 +6,7 @@ use hash_source::SourceId;
 
 use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
-pub trait AstPass {
+pub trait AnalysisPass {
     type Env: SemanticEnv;
     fn env(&self) -> &Self::Env;
 

@@ -1,5 +1,10 @@
 use hash_ast::node_map::HasNodeMap;
+use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
+use hash_source::entry_point::EntryPointState;
+use hash_target::HasTarget;
+use hash_tir::{fns::FnDefId, mods::ModDefId};
+use once_cell::sync::OnceCell;
 
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticResult, SemanticWarning},
@@ -10,9 +15,23 @@ pub trait HasSemanticDiagnostics: HasDiagnostics<Diagnostics = Self::SemanticDia
     type SemanticDiagnostics: Diagnostics<Error = SemanticError, Warning = SemanticWarning>;
 }
 
-pub trait SemanticEnv: HasNodeMap + HasSemanticDiagnostics {
+pub trait SemanticEnv:
+    HasNodeMap + HasSemanticDiagnostics + HasCompilerSettings + HasTarget
+{
     fn storage(&self) -> &SemanticStorage;
     fn storage_mut(&mut self) -> &mut SemanticStorage;
+
+    fn prelude_mod(&self) -> &OnceCell<ModDefId> {
+        &self.storage().distinguished_items.prelude_mod
+    }
+
+    fn entry_point(&self) -> &EntryPointState<FnDefId> {
+        &self.storage().distinguished_items.entry_point
+    }
+
+    fn root_mod(&self) -> ModDefId {
+        self.storage().distinguished_items.root_mod()
+    }
 
     /// If the result is an error, add it to the diagnostics and return `None`.
     fn try_or_add_error<T>(&self, result: SemanticResult<T>) -> Option<T> {

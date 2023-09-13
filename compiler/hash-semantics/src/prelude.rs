@@ -1,5 +1,5 @@
 use hash_source::entry_point::EntryPointState;
-use hash_tir::{fns::FnDefId, mods::ModDefId};
+use hash_tir::{fns::FnDefId, intrinsics::make::make_root_mod, mods::ModDefId};
 use once_cell::sync::OnceCell;
 
 /// Stores some "distinguished" items, namely the prelude and the root modules,
@@ -16,7 +16,13 @@ use once_cell::sync::OnceCell;
 /// compiler stages.
 #[derive(Default)]
 pub struct DistinguishedItems {
+    root_mod: OnceCell<ModDefId>,
     pub prelude_mod: OnceCell<ModDefId>,
-    pub root_mod: OnceCell<ModDefId>,
     pub entry_point: EntryPointState<FnDefId>,
+}
+
+impl DistinguishedItems {
+    pub fn root_mod(&self) -> ModDefId {
+        *self.root_mod.get_or_init(make_root_mod)
+    }
 }

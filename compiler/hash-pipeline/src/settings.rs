@@ -258,6 +258,12 @@ impl HasTarget for CompilerSettings {
     }
 }
 
+/// Trait that is implemented by all items that have access to the
+/// [`CompilerSettings`].
+pub trait HasCompilerSettings {
+    fn compiler_settings(&self) -> &CompilerSettings;
+}
+
 impl Default for CompilerSettings {
     fn default() -> Self {
         Self {

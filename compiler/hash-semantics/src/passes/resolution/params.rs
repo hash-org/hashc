@@ -17,9 +17,8 @@ use hash_tir::{
 
 use super::ResolutionPass;
 use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    environment::sem_env::AccessToSemEnv,
-    ops::common::CommonOps,
+    diagnostics::definitions::{SemanticError, SemanticResult},
+    env::SemanticEnv,
 };
 
 /// An argument group in the AST.
@@ -88,7 +87,7 @@ impl From<ResolvedArgs> for SomeParamsOrArgsId {
     }
 }
 
-impl<'tc> ResolutionPass<'tc> {
+impl<E: SemanticEnv> ResolutionPass<'_, E> {
     /// Resolve the given AST ty-arg parameter into [`ParamId`].
     /// Same assumptions as [`Self::resolve_param_from_ast_param`].
     fn resolve_param_from_ast_ty_param(
@@ -106,7 +105,7 @@ impl<'tc> ResolutionPass<'tc> {
         );
 
         // Get the existing param id from the AST info store:
-        let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+        let param_id = self.ast_info.params().get_data_by_node(ast_param.id()).unwrap();
 
         match resolved_ty {
             Some(resolved_ty) => {
@@ -153,7 +152,7 @@ impl<'tc> ResolutionPass<'tc> {
         );
 
         // Get the existing param id from the AST info store:
-        let param_id = self.ast_info().params().get_data_by_node(ast_param.id()).unwrap();
+        let param_id = self.ast_info.params().get_data_by_node(ast_param.id()).unwrap();
         match (resolved_ty, default_value) {
             (Some(resolved_ty), Some(resolved_default_value)) => {
                 let mut param = param_id.borrow_mut();

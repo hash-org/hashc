@@ -17,13 +17,12 @@ use hash_tir::{
 
 use super::{scoping::ContextKind, ResolutionPass};
 use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    environment::sem_env::AccessToSemEnv,
-    ops::common::CommonOps,
-    passes::ast_utils::AstPass,
+    diagnostics::definitions::{SemanticError, SemanticResult},
+    env::SemanticEnv,
+    passes::analysis_pass::AnalysisPass,
 };
 
-impl<'tc> ResolutionPass<'tc> {
+impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
     /// Resolve the inner terms of the given [`ast::ModDef`].
     ///
     /// Returns a void term to assign to the mod def.
@@ -31,7 +30,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::ModDef>,
     ) -> SemanticResult<ModDefId> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        let mod_def_id = self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap();
         self.resolve_mod_def_inner_terms(mod_def_id, node.block.members())?;
         Ok(mod_def_id)
     }
@@ -41,7 +40,7 @@ impl<'tc> ResolutionPass<'tc> {
         &self,
         node: AstNodeRef<ast::Module>,
     ) -> SemanticResult<ModDefId> {
-        let mod_def_id = self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap();
+        let mod_def_id = self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap();
         self.resolve_mod_def_inner_terms(mod_def_id, node.contents.ast_ref_iter())?;
         Ok(mod_def_id)
     }
@@ -55,7 +54,7 @@ impl<'tc> ResolutionPass<'tc> {
         originating_node: ast::AstNodeRef<ast::Expr>,
     ) -> SemanticResult<()> {
         let data_def_id =
-            self.ast_info().data_defs().get_data_by_node(originating_node.id()).unwrap();
+            self.ast_info.data_defs().get_data_by_node(originating_node.id()).unwrap();
         self.scoping().enter_scope(ContextKind::Environment, || {
             let found_error = &Cell::new(false);
             let attempt = |err| {
@@ -213,9 +212,8 @@ impl<'tc> ResolutionPass<'tc> {
                             ast::Expr::Import(import_expr) => {
                                 // If it's an import, resolve the source
                                 let source_id = import_expr.data.source;
-                                self.current_source_info().with_source_id(source_id, || {
-                                    ResolutionPass::new(self.sem_env()).pass_source()
-                                })?;
+                                ResolutionPass::new(self.env, self.ast_info)
+                                    .pass_source(source_id)?
                             }
                             _ => {}
                         }

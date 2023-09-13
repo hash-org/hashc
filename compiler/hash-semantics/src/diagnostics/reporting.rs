@@ -6,6 +6,7 @@ use hash_tir::node::HasAstNodeId;
 use hash_typecheck::errors::TcErrorReporter;
 
 use super::definitions::{SemanticError, SemanticWarning};
+use crate::passes::resolution::scoping::ContextKind;
 
 pub struct SemanticReporter;
 impl SemanticReporter {
@@ -72,13 +73,11 @@ impl SemanticReporter {
                 error.add_span(*merge_location).add_help("cannot use merge declarations yet");
             }
             SemanticError::SymbolNotFound { symbol, location, looking_in } => {
-                let def_name = "".to_string();
-                // let def_name = format!("{}", looking_in);
+                let def_name = format!("{}", looking_in);
                 let search_name = *symbol;
                 let noun = match looking_in {
-                  () => ""
-                    // ContextKind::Access(_, _) => "member",
-                    // ContextKind::Environment => "name",
+                    ContextKind::Access(_, _) => "member",
+                    ContextKind::Environment => "name",
                 };
                 let error = reporter
                     .error()
@@ -89,13 +88,13 @@ impl SemanticReporter {
                     format!("tried to look for {noun} `{search_name}` in {def_name}",),
                 );
 
-                // if let ContextKind::Access(_, def) = looking_in {
-                //     if let Some(location) = def.span() {
-                //         error.add_span(location).add_info(format!(
-                //             "{def_name} is defined here, and has no member
-                // `{search_name}`",         ));
-                //     }
-                // }
+                if let ContextKind::Access(_, def) = looking_in {
+                    if let Some(location) = def.span() {
+                        error.add_span(location).add_info(format!(
+                            "{def_name} is defined here, and has no member `{search_name}`",
+                        ));
+                    }
+                }
             }
             SemanticError::CannotUseModuleInValuePosition { location } => {
                 let error = reporter

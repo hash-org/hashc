@@ -1,11 +1,19 @@
+use std::iter::once;
+
 /// Generation macros for intrinsics and primitives.
 use hash_source::identifier::Identifier;
+use hash_storage::store::statics::SequenceStoreValue;
 use hash_target::HasTarget;
+use hash_utils::itertools::Itertools;
 
+use super::definitions::{all_intrinsics_as_mod_members, all_primitives_as_mod_members};
 use crate::{
+    building::gen,
     context::HasContext,
     data::{CtorDefId, DataDefId},
     fns::FnTy,
+    mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
+    node::Node,
     terms::TermId,
 };
 
@@ -55,6 +63,32 @@ pub trait IsPrimitiveCtor {
 
     /// Get the [`CtorDefId`] of the constructor.
     fn def(&self) -> CtorDefId;
+}
+
+/// Make a module containing all the primitives and intrinsics.
+pub fn make_root_mod() -> ModDefId {
+    // ##GeneratedOrigin: Primitives do not have a source location.
+    let intrinsics_sym = gen::sym("Intrinsics");
+    Node::create_gen(ModDef {
+        name: gen::sym("Root"),
+        kind: ModKind::Transparent,
+        members: Node::create_gen(Node::<ModMember>::seq(
+            all_primitives_as_mod_members()
+                .iter()
+                .copied()
+                .chain(once(Node::gen(ModMember {
+                    name: intrinsics_sym,
+                    value: ModMemberValue::Mod(Node::create_gen(ModDef {
+                        name: intrinsics_sym,
+                        kind: ModKind::Transparent,
+                        members: Node::create_gen(Node::<ModMember>::seq(
+                            all_intrinsics_as_mod_members().iter().copied(),
+                        )),
+                    })),
+                })))
+                .collect_vec(),
+        )),
+    })
 }
 
 /// Generate intrinsics for the compiler.

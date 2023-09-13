@@ -24,7 +24,7 @@ use super::{
     DiscoveryPass,
 };
 use crate::{
-    diagnostics::definitions::SemanticError, env::SemanticEnv, passes::ast_utils::AstPass,
+    diagnostics::definitions::SemanticError, env::SemanticEnv, passes::analysis_pass::AnalysisPass,
 };
 
 impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {

@@ -1,16 +1,19 @@
 use hash_source::SourceId;
 use hash_utils::derive_more::{Constructor, Deref};
 
-use self::{ast_info::AstInfo, ast_utils::AstPass, discovery::DiscoveryPass};
+use self::{
+    analysis_pass::AnalysisPass, ast_info::AstInfo, discovery::DiscoveryPass,
+    evaluation::EvaluationPass, inference::InferencePass, resolution::ResolutionPass,
+};
 use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv};
 
+pub mod analysis_pass;
 pub mod ast_info;
-pub mod ast_utils;
 pub mod discovery;
-// @@nocheckin
-// pub mod evaluation;
-// pub mod inference;
-// pub mod resolution;
+pub mod evaluation;
+pub mod inference;
+pub mod resolution;
+pub mod tc_env_impl;
 
 /// The base semantic analysis visitor, which runs each analysis pass in
 /// order on the AST.
@@ -28,18 +31,18 @@ impl<'env, E: SemanticEnv> Analyser<'env, E> {
         // Discover all definitions in the source.
         DiscoveryPass::new(self.env, &ast_info, source).pass_source(source)?;
 
-        // // Resolve all symbols in the source and create TIR terms.
-        // ResolutionPass::new(self.sem_env).pass_source()?;
+        // Resolve all symbols in the source and create TIR terms.
+        ResolutionPass::new(self.env, &ast_info).pass_source(source)?;
 
-        // // Infer all types in the source.
-        // //
-        // // This needs to be run twice, once to infer the headers of the
-        // // definitions, and once to infer their bodies.
-        // InferencePass::new(self.sem_env).pass_source()?;
-        // InferencePass::new(self.sem_env).pass_source()?;
+        // Infer all types in the source.
+        //
+        // This needs to be run twice, once to infer the headers of the
+        // definitions, and once to infer their bodies.
+        InferencePass::new(self.env, &ast_info).pass_source(source)?;
+        InferencePass::new(self.env, &ast_info).pass_source(source)?;
 
-        // // Potentially evaluate terms
-        // EvaluationPass::new(self.sem_env).pass_source()?;
+        // Potentially evaluate terms
+        EvaluationPass::new(self.env, &ast_info).pass_source(source)?;
 
         Ok(())
     }

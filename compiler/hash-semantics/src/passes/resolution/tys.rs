@@ -28,12 +28,11 @@ use super::{
     ResolutionPass,
 };
 use crate::{
-    diagnostics::error::{SemanticError, SemanticResult},
-    environment::sem_env::AccessToSemEnv,
-    ops::common::CommonOps,
+    diagnostics::definitions::{SemanticError, SemanticResult},
+    env::SemanticEnv,
 };
 
-impl<'tc> ResolutionPass<'tc> {
+impl<E: SemanticEnv> ResolutionPass<'_, E> {
     /// Make TC arguments from the given set of AST type arguments.
     pub(super) fn make_args_from_ast_ty_args(
         &self,
@@ -377,7 +376,7 @@ impl<'tc> ResolutionPass<'tc> {
             }
         };
 
-        self.ast_info().tys().insert(node.id(), ty_id);
+        self.ast_info.tys().insert(node.id(), ty_id);
         Ok(ty_id)
     }
 }

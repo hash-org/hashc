@@ -4,7 +4,7 @@
 //! Typing errors are reported during this pass.
 
 use hash_ast::ast;
-use hash_reporting::diagnostic::HasDiagnostics;
+use hash_source::SourceId;
 use hash_tir::{terms::Ty, visitor::Atom};
 use hash_typecheck::{
     errors::{TcError, TcResult},
@@ -13,35 +13,24 @@ use hash_typecheck::{
 };
 use hash_utils::derive_more::{Constructor, Deref};
 
-use super::ast_utils::AstPass;
-use crate::{
-    diagnostics::error::SemanticResult,
-    environment::{
-        analysis_progress::AnalysisStage,
-        sem_env::{AccessToSemEnv, SemEnv},
-    },
-    ops::common::CommonOps,
-};
+use super::{analysis_pass::AnalysisPass, ast_info::AstInfo, tc_env_impl::TcEnvImpl};
+use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
 /// The third pass of the typechecker, which infers all remaining terms and
 /// types.
 #[derive(Constructor, Deref)]
-pub struct InferencePass<'tc> {
+pub struct InferencePass<'env, E: SemanticEnv> {
     #[deref]
-    sem_env: &'tc SemEnv<'tc>,
+    env: &'env E,
+    ast_info: &'env AstInfo,
 }
 
-impl AccessToSemEnv for InferencePass<'_> {
-    fn sem_env(&self) -> &SemEnv<'_> {
-        self.sem_env
-    }
-}
-
-impl InferencePass<'_> {
+impl<E: SemanticEnv> InferencePass<'_, E> {
     /// Infer the given subject by the provided closure, or error if it contains
     /// holes.
     fn infer_fully<T: Copy>(
         &self,
+        source: SourceId,
         orig_subject: T,
         infer_subject: impl Fn(T) -> TcResult<T>,
         subject_has_holes: impl Fn(T) -> Option<Atom>,
@@ -55,51 +44,62 @@ impl InferencePass<'_> {
 
         // If we have holes, error
         if let Some(subject) = subject && let Some(hole) = subject_has_holes(subject)
-            && self.get_current_progress() == AnalysisStage::BodyInference
+            && self.get_current_progress(source) == AnalysisStage::BodyInference
         {
-            self.add_error(self.convert_tc_error(TcError::NeedMoreTypeAnnotationsToInfer {
+            self.add_error(TcError::NeedMoreTypeAnnotationsToInfer {
                 atom: hole,
-            }));
+            }.into());
         }
 
         Ok(subject.unwrap_or(orig_subject))
     }
 }
 
-impl<'tc> AstPass for InferencePass<'tc> {
-    type PassOutput = ();
+impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
+    type Env = E;
+    fn env(&self) -> &Self::Env {
+        self.env
+    }
 
+    type PassOutput = ();
     fn pass_interactive(
         &self,
+        source: SourceId,
+
         node: ast::AstNodeRef<ast::BodyBlock>,
-    ) -> crate::diagnostics::error::SemanticResult<()> {
+    ) -> crate::diagnostics::definitions::SemanticResult<()> {
+        let tc = TcEnvImpl::new(self.env, source);
         // Infer the expression
-        let term = self.ast_info().terms().get_data_by_node(node.id()).unwrap();
+        let term = self.ast_info.terms().get_data_by_node(node.id()).unwrap();
         let (term, _) = self.infer_fully(
+            source,
             (term, Ty::hole_for(term)),
             |(term_id, ty_id)| {
-                self.infer_ops().infer_term(term_id, ty_id)?;
+                tc.infer_ops().infer_term(term_id, ty_id)?;
                 Ok((term_id, ty_id))
             },
             |(term_id, ty_id)| {
-                self.sub_ops().atom_has_holes(term_id).or(self.sub_ops().atom_has_holes(ty_id))
+                tc.sub_ops().atom_has_holes(term_id).or(tc.sub_ops().atom_has_holes(ty_id))
             },
         )?;
-        self.ast_info().terms().insert(node.id(), term);
+        self.ast_info.terms().insert(node.id(), term);
         Ok(())
     }
 
     fn pass_module(
         &self,
+        source: SourceId,
         node: ast::AstNodeRef<ast::Module>,
-    ) -> crate::diagnostics::error::SemanticResult<()> {
+    ) -> crate::diagnostics::definitions::SemanticResult<()> {
+        let tc = TcEnvImpl::new(self.env, source);
         // Infer the whole module
         let _ = self.infer_fully(
-            self.ast_info().mod_defs().get_data_by_node(node.id()).unwrap(),
+            source,
+            self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap(),
             |mod_def_id| {
-                self.infer_ops().infer_mod_def(
+                tc.infer_ops().infer_mod_def(
                     mod_def_id,
-                    match self.get_current_progress() {
+                    match self.get_current_progress(source) {
                         AnalysisStage::HeaderInference => FnInferMode::Header,
                         AnalysisStage::BodyInference => FnInferMode::Body,
                         _ => unreachable!(),
@@ -107,18 +107,18 @@ impl<'tc> AstPass for InferencePass<'tc> {
                 )?;
                 Ok(mod_def_id)
             },
-            |mod_def_id| self.sub_ops().mod_def_has_holes(mod_def_id),
+            |mod_def_id| tc.sub_ops().mod_def_has_holes(mod_def_id),
         )?;
         // Mod def is already registered in the ast info
         Ok(())
     }
 
-    fn pre_pass(&self) -> SemanticResult<Option<()>> {
-        if self.get_current_progress() == AnalysisStage::Resolution {
-            self.set_current_progress(AnalysisStage::HeaderInference);
+    fn pre_pass(&self, source: SourceId) -> SemanticResult<Option<()>> {
+        if self.get_current_progress(source) == AnalysisStage::Resolution {
+            self.set_current_progress(source, AnalysisStage::HeaderInference);
             Ok(None)
-        } else if self.get_current_progress() == AnalysisStage::HeaderInference {
-            self.set_current_progress(AnalysisStage::BodyInference);
+        } else if self.get_current_progress(source) == AnalysisStage::HeaderInference {
+            self.set_current_progress(source, AnalysisStage::BodyInference);
             Ok(None)
         } else {
             Ok(Some(()))

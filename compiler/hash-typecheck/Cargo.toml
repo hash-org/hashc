@@ -16,6 +16,7 @@ hash-ast = { path = "../hash-ast" }
 hash-attrs = { path = "../hash-attrs" }
 hash-exhaustiveness = { path = "../hash-exhaustiveness" }
 hash-reporting = { path = "../hash-reporting" }
+hash-pipeline = { path = "../hash-pipeline" }
 hash-source = { path = "../hash-source" }
 hash-target = { path = "../hash-target" }
 hash-storage = { path = "../hash-storage" }

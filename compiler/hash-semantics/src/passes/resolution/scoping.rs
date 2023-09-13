@@ -15,12 +15,13 @@ use hash_tir::{
     term_as_variant,
     tuples::TupleTy,
 };
-use hash_utils::state::HeavyState;
+use hash_utils::{derive_more::Deref, state::HeavyState};
 
 use super::paths::NonTerminalResolvedPathComponent;
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticResult},
-    environment::sem_env::{AccessToSemEnv, SemEnv},
+    env::SemanticEnv,
+    passes::ast_info::AstInfo,
 };
 
 /// The kind of context we are in.
@@ -75,8 +76,12 @@ pub type Binding = (SymbolId, BindingKind);
 /// [`crate::ops::context::ContextOps`] to enter scopes, but also
 /// keeps track of identifier names so that names can be matched to the correct
 /// symbols when creating `Var` terms.
-pub(super) struct Scoping<'tc> {
-    sem_env: &'tc SemEnv<'tc>,
+#[derive(Deref)]
+pub(super) struct Scoping<'env, E: SemanticEnv> {
+    #[deref]
+    env: &'env E,
+    ast_info: &'env AstInfo,
+
     /// Stores a list of contexts we are in, mirroring `ContextStore` but with
     /// identifiers so that we can resolve them to bindings.
     ///
@@ -84,15 +89,9 @@ pub(super) struct Scoping<'tc> {
     bindings_by_name: HeavyState<Vec<(ContextKind, HashMap<Identifier, Binding>)>>,
 }
 
-impl AccessToSemEnv for Scoping<'_> {
-    fn sem_env(&self) -> &SemEnv<'_> {
-        self.sem_env
-    }
-}
-
-impl<'tc> Scoping<'tc> {
-    pub(super) fn new(sem_env: &'tc SemEnv<'tc>) -> Self {
-        Self { sem_env, bindings_by_name: HeavyState::new(Vec::new()) }
+impl<'env, E: SemanticEnv + 'env> Scoping<'env, E> {
+    pub(super) fn new(env: &'env E, ast_info: &'env AstInfo) -> Self {
+        Self { env, bindings_by_name: HeavyState::new(Vec::new()), ast_info }
     }
 
     /// Find a binding by name, returning the symbol of the binding.
@@ -265,7 +264,7 @@ impl<'tc> Scoping<'tc> {
             ($spread:expr) => {
                 if let Some(name) = &$spread.name {
                     if let Some(member_id) =
-                        self.ast_info().stack_members().get_data_by_node(name.ast_ref().id())
+                        self.ast_info.stack_members().get_data_by_node(name.ast_ref().id())
                     {
                         f(member_id.name);
                     }
@@ -275,8 +274,7 @@ impl<'tc> Scoping<'tc> {
 
         match node.body() {
             ast::Pat::Binding(_) => {
-                if let Some(member_id) = self.ast_info().stack_members().get_data_by_node(node.id())
-                {
+                if let Some(member_id) = self.ast_info.stack_members().get_data_by_node(node.id()) {
                     f(member_id.name);
                 }
             }
@@ -314,8 +312,7 @@ impl<'tc> Scoping<'tc> {
             }
             ast::Pat::If(if_pat) => self.for_each_stack_member_of_pat(if_pat.pat.ast_ref(), f),
             ast::Pat::Wild(_) => {
-                if let Some(member_id) = self.ast_info().stack_members().get_data_by_node(node.id())
-                {
+                if let Some(member_id) = self.ast_info.stack_members().get_data_by_node(node.id()) {
                     f(member_id.name);
                 }
             }
@@ -331,7 +328,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::BodyBlock>,
         f: impl FnOnce(StackId) -> T,
     ) -> Option<T> {
-        self.ast_info()
+        self.ast_info
             .stacks()
             .get_data_by_node(node.id())
             .map(|stack_id| self.enter_scope(ContextKind::Environment, || f(stack_id)))
@@ -343,7 +340,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::TyFnTy>,
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
-        let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
+        let fn_ty_id = self.ast_info.tys().get_data_by_node(node.id()).unwrap();
         let fn_ty = term_as_variant!(self, fn_ty_id.value(), FnTy);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
@@ -354,7 +351,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::FnTy>,
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
-        let fn_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
+        let fn_ty_id = self.ast_info.tys().get_data_by_node(node.id()).unwrap();
         let fn_ty = term_as_variant!(self, fn_ty_id.value(), FnTy);
         self.enter_scope(ContextKind::Environment, || f(fn_ty))
     }
@@ -365,7 +362,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::TupleTy>,
         f: impl FnOnce(TupleTy) -> T,
     ) -> T {
-        let tuple_ty_id = self.ast_info().tys().get_data_by_node(node.id()).unwrap();
+        let tuple_ty_id = self.ast_info.tys().get_data_by_node(node.id()).unwrap();
         let tuple_ty = term_as_variant!(self, tuple_ty_id.value(), TupleTy);
         self.enter_scope(ContextKind::Environment, || f(tuple_ty))
     }
@@ -387,7 +384,7 @@ impl<'tc> Scoping<'tc> {
         node: ast::AstNodeRef<ast::MatchCase>,
         f: impl FnOnce(StackId) -> T,
     ) -> T {
-        let stack_id = self.ast_info().stacks().get_data_by_node(node.id()).unwrap();
+        let stack_id = self.ast_info.stacks().get_data_by_node(node.id()).unwrap();
         // Each match case has its own scope, so we need to enter it, and add all the
         // pattern bindings to the context.
         self.enter_scope(ContextKind::Environment, || {

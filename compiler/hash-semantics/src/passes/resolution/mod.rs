@@ -5,17 +5,12 @@
 //! Any scoping errors are reported here.
 
 use hash_ast::ast::{self};
+use hash_source::SourceId;
+use hash_utils::derive_more::Deref;
 
 use self::scoping::{ContextKind, Scoping};
-use super::ast_utils::AstPass;
-use crate::{
-    diagnostics::error::SemanticResult,
-    environment::{
-        analysis_progress::AnalysisStage,
-        sem_env::{AccessToSemEnv, SemEnv},
-    },
-    ops::{bootstrap::BootstrapOps, common::CommonOps},
-};
+use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};
+use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
 pub mod defs;
 pub mod exprs;
@@ -27,59 +22,69 @@ pub mod tys;
 
 /// The second pass of the typechecker, which resolves all symbols to their
 /// referenced bindings.
-pub struct ResolutionPass<'tc> {
-    sem_env: &'tc SemEnv<'tc>,
+#[derive(Deref)]
+pub struct ResolutionPass<'env, E: SemanticEnv> {
+    #[deref]
+    env: &'env E,
     /// Tools for entering scopes and looking up symbols by name in them.
-    scoping: Scoping<'tc>,
+    scoping: Scoping<'env, E>,
+    /// AST info from discovery pass.
+    ast_info: &'env AstInfo,
 }
 
-impl AccessToSemEnv for ResolutionPass<'_> {
-    fn sem_env(&self) -> &SemEnv<'_> {
-        self.sem_env
+impl<E: SemanticEnv> AnalysisPass for ResolutionPass<'_, E> {
+    type Env = E;
+    fn env(&self) -> &Self::Env {
+        self.env
     }
-}
 
-impl<'tc> AstPass for ResolutionPass<'tc> {
     type PassOutput = ();
 
-    fn pass_interactive(&self, node: ast::AstNodeRef<ast::BodyBlock>) -> SemanticResult<()> {
-        let root_mod = self.bootstrap();
+    fn pass_interactive(
+        &self,
+        _source: SourceId,
+        node: ast::AstNodeRef<ast::BodyBlock>,
+    ) -> SemanticResult<()> {
+        let root_mod = self.root_mod();
         self.scoping().add_scope(ContextKind::Environment);
         self.scoping().add_mod_members(root_mod);
 
         // If the prelude is set, add its members to the root module.
-        if let Some(prelude) = self.prelude_or_unset().get() {
+        if let Some(prelude) = self.prelude_mod().get() {
             self.scoping().add_mod_members(*prelude);
         }
 
         let term_id = self.make_term_from_ast_body_block(node)?;
-        self.ast_info().terms().insert(node.id(), term_id);
+        self.ast_info.terms().insert(node.id(), term_id);
         Ok(())
     }
 
-    fn pass_module(&self, node: ast::AstNodeRef<ast::Module>) -> SemanticResult<()> {
-        let root_mod = self.bootstrap();
+    fn pass_module(
+        &self,
+        source: SourceId,
+        node: ast::AstNodeRef<ast::Module>,
+    ) -> SemanticResult<()> {
+        let root_mod = self.root_mod();
         self.scoping().add_scope(ContextKind::Environment);
         self.scoping().add_mod_members(root_mod);
 
         // If the prelude is set, add its members to the root module.
-        if let Some(prelude) = self.prelude_or_unset().get() {
+        if let Some(prelude) = self.prelude_mod().get() {
             self.scoping().add_mod_members(*prelude);
         }
 
         let mod_def_id = self.resolve_ast_module_inner_terms(node)?;
-        let source = self.current_source_info().source_id();
 
         if source.is_prelude() {
-            let _ = self.prelude_or_unset().set(mod_def_id);
+            self.prelude_mod().set(mod_def_id).expect("Tried to set prelude twice");
         }
 
         Ok(())
     }
 
-    fn pre_pass(&self) -> SemanticResult<Option<()>> {
-        if self.get_current_progress() < AnalysisStage::Resolution {
-            self.set_current_progress(AnalysisStage::Resolution);
+    fn pre_pass(&self, source: SourceId) -> SemanticResult<Option<()>> {
+        if self.get_current_progress(source) < AnalysisStage::Resolution {
+            self.set_current_progress(source, AnalysisStage::Resolution);
             Ok(None)
         } else {
             Ok(Some(()))
@@ -87,13 +92,13 @@ impl<'tc> AstPass for ResolutionPass<'tc> {
     }
 }
 
-impl<'tc> ResolutionPass<'tc> {
-    pub(crate) fn new(sem_env: &'tc SemEnv<'tc>) -> Self {
-        Self { sem_env, scoping: Scoping::new(sem_env) }
+impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
+    pub(crate) fn new(env: &'env E, ast_info: &'env AstInfo) -> Self {
+        Self { env, scoping: Scoping::new(env, ast_info), ast_info }
     }
 
     /// Get access to the current scoping state and operations.
-    fn scoping(&self) -> &Scoping {
+    fn scoping(&self) -> &Scoping<E> {
         &self.scoping
     }
 }
