@@ -65,10 +65,10 @@ impl<'s> AstGen<'s> {
 
         let args = match self.peek() {
             Some(token) if token.is_paren_tree() => {
-                let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
+                self.parse_delim_tree(Delimiter::Paren, None)?;
                 let args =
-                    gen.parse_nodes(|g| g.parse_macro_arg(), |g| g.parse_token(TokenKind::Comma));
-                self.consume_gen(gen);
+                    self.parse_nodes(|g| g.parse_macro_arg(), |g| g.parse_token(TokenKind::Comma));
+                self.consume_frame();
                 let id = args.id();
 
                 Some(AstNode::with_id(MacroInvocationArgs { args }, id))
@@ -123,13 +123,14 @@ impl<'s> AstGen<'s> {
                     );
                 }
                 Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
-                    let mut gen = self.from_stream(&self.token_trees[tree_index as usize], span);
-                    let new_invocations = gen.parse_nodes(
+                    self.new_frame(&self.token_trees[tree_index as usize], span);
+
+                    let new_invocations = self.parse_nodes(
                         |g| g.parse_macro_invocation(),
                         |g| g.parse_token(TokenKind::Comma),
                     );
 
-                    self.consume_gen(gen);
+                    self.consume_frame();
 
                     // Simply append the new invocations to the list of invocations.
                     invocations.extend(new_invocations.nodes);
@@ -152,7 +153,8 @@ impl<'s> AstGen<'s> {
         // ##Hack: avoid making another id and allocating another span for
         // just a wrapper for the children. Ideally, this problem could be
         // fixed if we had `OptionalChildren!` in tree-def.
-        Ok(self.make_macro_invocations(self.nodes_with_joined_span(invocations, start)))
+        let macros = self.nodes_with_joined_span(invocations, start);
+        Ok(self.make_macro_invocations(macros))
     }
 
     pub(crate) fn make_macro_invocations(
@@ -188,13 +190,13 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_module_marco_invocations(
         &mut self,
     ) -> ParseResult<ThinVec<AstNode<MacroInvocation>>> {
-        let mut gen = self.parse_delim_tree(Delimiter::Bracket, None)?;
-        let invocations = gen.parse_node_collection(
+        self.parse_delim_tree(Delimiter::Bracket, None)?;
+        let invocations = self.parse_node_collection(
             |g| g.parse_macro_invocation(),
             |g| g.parse_token(TokenKind::Comma),
         );
 
-        self.consume_gen(gen);
+        self.consume_frame();
         Ok(invocations)
     }
 }

@@ -37,12 +37,11 @@ impl<'s> AstGen<'s> {
         let def_kind = TyParamOrigin::Enum;
         let ty_params = self.parse_optional_ty_params(def_kind)?;
 
-        let mut gen = self
-            .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
+        self.parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
 
         let entries =
-            gen.parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
-        self.consume_gen(gen);
+            self.parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
+        self.consume_frame();
 
         Ok(EnumDef { ty_params, entries })
     }
@@ -81,10 +80,10 @@ impl<'s> AstGen<'s> {
             _ => None,
         };
 
-        let mut gen = self.parse_delim_tree(Delimiter::Paren, err_ctx)?;
+        self.parse_delim_tree(Delimiter::Paren, err_ctx)?;
         let params =
-            gen.parse_nodes(|g| g.parse_param(origin), |g| g.parse_token(TokenKind::Comma));
-        self.consume_gen(gen);
+            self.parse_nodes(|g| g.parse_param(origin), |g| g.parse_token(TokenKind::Comma));
+        self.consume_frame();
         Ok(self.make_params(params, origin))
     }
 

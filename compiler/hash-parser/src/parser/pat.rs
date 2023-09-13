@@ -84,14 +84,14 @@ impl<'s> AstGen<'s> {
                     self.skip_token();
 
                     let tree = self.token_trees.get(tree_index as usize).unwrap();
-                    let mut gen = self.from_stream(tree, token.span);
+                    self.new_frame(tree, token.span);
 
                     // If we encounter a spread pattern, we keep it separate
                     // to all of the other fields that are specified for the
                     // constructor pattern.
                     let mut spread = None;
 
-                    let fields = gen.parse_nodes_with_skips(
+                    let fields = self.parse_nodes_with_skips(
                         |g, pos| {
                             // If the next token is a dot, then we try to parse a spread pattern
                             // since this is the only case where a dot can appear in a tuple pattern.
@@ -104,7 +104,7 @@ impl<'s> AstGen<'s> {
                         },
                         |g| g.parse_token(TokenKind::Comma),
                     );
-                    self.consume_gen(gen);
+                    self.consume_frame();
 
                     self.node_with_joined_span(
                         Pat::Constructor(ConstructorPat { subject, fields, spread }),
@@ -115,10 +115,10 @@ impl<'s> AstGen<'s> {
                 // denotes with a name.
                 TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) =>
                 {
-                    self.offset.update(|offset| offset + 2);
-
+                    self.frame.skip(2);
+                    let property = self.parse_name()?;
                     self.node_with_joined_span(
-                        Pat::Access(AccessPat { subject, property: self.parse_name()? }),
+                        Pat::Access(AccessPat { subject, property }),
                         span,
                     )
                 }
@@ -258,7 +258,7 @@ impl<'s> AstGen<'s> {
             match self.parse_token_fast(TokenKind::Dot) {
                 Some(_) => {}
                 None => {
-                    self.offset.set(offset);
+                    self.frame.offset.set(offset);
                     return None;
                 }
             }
@@ -279,7 +279,7 @@ impl<'s> AstGen<'s> {
                 Some(hi) => Some(RangePat { lo, hi: Some(hi), end }),
                 None => {
                     // Reset the token offset to the beginning
-                    self.offset.set(offset);
+                    self.frame.offset.set(offset);
                     None
                 }
             }
@@ -319,25 +319,25 @@ impl<'s> AstGen<'s> {
     /// Parse a [ModulePat] which is comprised of a collection of
     /// [ModulePatEntry]s that are comma separated within a brace tree.
     fn parse_module_pat(&mut self, tree: &'s [Token], span: ByteRange) -> ParseResult<ModulePat> {
-        let mut gen = self.from_stream(tree, span);
+        self.new_frame(tree, span);
         let mut fields = thin_vec![];
 
-        while gen.has_token() {
-            let start = gen.offset();
+        while self.has_token() {
+            let start = self.offset();
 
-            match gen.parse_module_pat_entry().ok() {
+            match self.parse_module_pat_entry().ok() {
                 Some(pat) => fields.push(pat),
                 None => {
-                    gen.offset.set(start);
+                    self.frame.offset.set(start);
                     break;
                 }
             }
 
-            if gen.has_token() {
-                gen.parse_token(TokenKind::Comma)?;
+            if self.has_token() {
+                self.parse_token(TokenKind::Comma)?;
             }
         }
-        self.consume_gen(gen);
+        self.consume_frame();
 
         Ok(ModulePat { fields: self.nodes_with_span(fields, span) })
     }
@@ -350,13 +350,13 @@ impl<'s> AstGen<'s> {
         tree: &'s [Token],
         parent_span: ByteRange,
     ) -> ParseResult<AstNode<Pat>> {
-        let mut gen = self.from_stream(tree, parent_span);
+        self.new_frame(tree, parent_span);
 
         // We keep the spread pattern as a separate part of the array pattern
         // fields, so we must check for it separately.
         let mut spread = None;
 
-        let fields = gen.parse_nodes_with_skips(
+        let fields = self.parse_nodes_with_skips(
             |g, pos| {
                 // Check if we encounter a dot, if so then we try to parse a
                 // spread pattern, if not then we parse a normal pattern.
@@ -369,7 +369,7 @@ impl<'s> AstGen<'s> {
             },
             |g| g.parse_token(TokenKind::Comma),
         );
-        self.consume_gen(gen);
+        self.consume_frame();
 
         Ok(self.node_with_span(Pat::Array(ArrayPat { fields, spread }), parent_span))
     }
@@ -390,13 +390,11 @@ impl<'s> AstGen<'s> {
         // if it is an empty tuple pattern...
         if let Some(token) = tree.get(0) {
             if token.has_kind(TokenKind::Comma) {
-                return Ok(self.node_with_span(
-                    Pat::Tuple(TuplePat {
-                        fields: self.nodes_with_span(thin_vec![], parent_span),
-                        spread: None,
-                    }),
-                    parent_span,
-                ));
+                let fields = self.nodes_with_span(thin_vec![], parent_span);
+
+                return Ok(
+                    self.node_with_span(Pat::Tuple(TuplePat { fields, spread: None }), parent_span)
+                );
             }
         }
 
@@ -404,13 +402,13 @@ impl<'s> AstGen<'s> {
         // perform a slight transformation if the number of parsed patterns is
         // only one. So essentially we handle the case where a pattern is
         // wrapped in parentheses and so we just unwrap it.
-        let mut gen = self.from_stream(tree, parent_span);
+        self.new_frame(tree, parent_span);
 
         // We track the spread pattern separately because it is not a part of the
         // tuple pattern fields.
         let mut spread = None;
 
-        let mut fields = gen.parse_nodes_with_skips(
+        let mut fields = self.parse_nodes_with_skips(
             |g, pos| {
                 // If the next token is a dot, then we try to parse a spread pattern
                 // since this is the only case where a dot can appear in a tuple pattern.
@@ -429,12 +427,12 @@ impl<'s> AstGen<'s> {
         if spread.is_none()
             && fields.len() == 1
             && fields[0].name.is_none()
-            && !matches!(gen.current_token().kind, TokenKind::Comma)
+            && !matches!(self.current_token().kind, TokenKind::Comma)
         {
             // @@Future: we want to check if there were any errors and then
             // if not we want to possibly emit a warning about redundant parentheses
             // for this particular pattern
-            self.consume_gen(gen);
+            self.consume_frame();
 
             let PatArg { pat, macros, .. } = fields.nodes.pop().unwrap().into_body();
 
@@ -447,7 +445,7 @@ impl<'s> AstGen<'s> {
                 Ok(pat)
             }
         } else {
-            self.consume_gen(gen);
+            self.consume_frame();
             Ok(self.node_with_span(Pat::Tuple(TuplePat { fields, spread }), parent_span))
         }
     }
@@ -532,7 +530,7 @@ impl<'s> AstGen<'s> {
     /// might be part of a constructor or any other form of pattern. This
     /// function also accounts for visibility or mutability modifiers on the
     /// binding pattern.
-    fn parse_binding_pat(&self) -> ParseResult<Pat> {
+    fn parse_binding_pat(&mut self) -> ParseResult<Pat> {
         let visibility = self.peek_resultant_fn(|g| g.parse_visibility());
 
         // Parse a mutability modifier if any
@@ -546,7 +544,7 @@ impl<'s> AstGen<'s> {
     }
 
     /// Parse a [Visibility] modifier, either being a `pub` or `priv`.
-    fn parse_visibility(&self) -> ParseResult<AstNode<Visibility>> {
+    fn parse_visibility(&mut self) -> ParseResult<AstNode<Visibility>> {
         match self.next_token() {
             Some(Token { kind: TokenKind::Keyword(Keyword::Pub), span }) => {
                 Ok(self.node_with_span(Visibility::Public, *span))

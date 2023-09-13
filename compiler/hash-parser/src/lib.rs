@@ -7,7 +7,7 @@ mod import_resolver;
 pub mod parser;
 mod source;
 
-use std::{cell::RefCell, env, ops::AddAssign, time::Duration};
+use std::{env, ops::AddAssign, time::Duration};
 
 use hash_ast::{
     ast::{self, LocalSpanMap, SpanMap},
@@ -300,14 +300,15 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let diagnostics = ParserDiagnostics::new();
 
     // @@Speed: perhaps we could get away with this not being ref-celled?
-    let spans = RefCell::new(LocalSpanMap::new(id));
-    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &diagnostics, &spans);
+    let mut spans = LocalSpanMap::new(id);
+    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
     let action = match id.is_interactive() {
         false => {
             let node = time_item(&mut timings, "gen", |_| gen.parse_module());
+            drop(gen);
             SourceMapUtils::set_module_source(id, contents);
 
             ParserAction::SetModuleNode {
@@ -319,6 +320,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         }
         true => {
             let node = time_item(&mut timings, "gen", |_| gen.parse_expr_from_interactive());
+            drop(gen);
             ParserAction::SetInteractiveNode {
                 id: id.into(),
                 node,
@@ -332,7 +334,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Send both the generated module, and the `LocalSpanMap` for updating
     // the global `SPAN_MAP`.
-    sender.send(ParserAction::MergeSpans { spans: spans.into_inner() }).unwrap();
+    sender.send(ParserAction::MergeSpans { spans }).unwrap();
 
     sender.send(action).unwrap();
 }

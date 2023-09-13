@@ -14,7 +14,7 @@ use crate::diagnostics::{
 impl<'s> AstGen<'s> {
     /// Parse a primitive literal, which means it can be either a `char`,
     /// `integer`, `float` or a `string`.
-    pub(crate) fn parse_primitive_lit(&self) -> ParseResult<AstNode<Lit>> {
+    pub(crate) fn parse_primitive_lit(&mut self) -> ParseResult<AstNode<Lit>> {
         let token = self.current_token();
 
         Ok(self.node_with_span(
@@ -37,42 +37,41 @@ impl<'s> AstGen<'s> {
 
     /// Function to parse a primitive numeric lit with the option of negating
     /// the value immediately.
-    pub(crate) fn parse_numeric_lit(&self) -> ParseResult<AstNode<Lit>> {
+    pub(crate) fn parse_numeric_lit(&mut self) -> ParseResult<AstNode<Lit>> {
         let token = self.current_token();
 
-        Ok(self.node_with_span(
-            match token.kind {
-                TokenKind::Int(base, kind) => {
-                    // don't include the length of the prefix in the span
-                    let span = if let IntLitKind::Suffixed(suffix) = kind {
-                        ByteRange::new(
-                            token.span.start(),
-                            token.span.end() - Identifier::from(suffix).len(),
-                        )
-                    } else {
-                        token.span
-                    };
+        let lit = match token.kind {
+            TokenKind::Int(base, kind) => {
+                // don't include the length of the prefix in the span
+                let span = if let IntLitKind::Suffixed(suffix) = kind {
+                    ByteRange::new(
+                        token.span.start(),
+                        token.span.end() - Identifier::from(suffix).len(),
+                    )
+                } else {
+                    token.span
+                };
 
-                    let hunk = Hunk::create(self.make_span(span));
-                    Lit::Int(IntLit { hunk, base, kind })
-                }
-                TokenKind::Float(kind) => {
-                    let span = if let FloatLitKind::Suffixed(suffix) = kind {
-                        ByteRange::new(
-                            token.span.start(),
-                            token.span.end() - Identifier::from(suffix).len(),
-                        )
-                    } else {
-                        token.span
-                    };
+                let hunk = Hunk::create(self.make_span(span));
+                Lit::Int(IntLit { hunk, base, kind })
+            }
+            TokenKind::Float(kind) => {
+                let span = if let FloatLitKind::Suffixed(suffix) = kind {
+                    ByteRange::new(
+                        token.span.start(),
+                        token.span.end() - Identifier::from(suffix).len(),
+                    )
+                } else {
+                    token.span
+                };
 
-                    let hunk = Hunk::create(self.make_span(span));
-                    Lit::Float(FloatLit { hunk, kind })
-                }
-                _ => panic!("expected numeric token in parse_numeric_lit()"),
-            },
-            token.span,
-        ))
+                let hunk = Hunk::create(self.make_span(span));
+                Lit::Float(FloatLit { hunk, kind })
+            }
+            _ => panic!("expected numeric token in parse_numeric_lit()"),
+        };
+
+        Ok(self.node_with_span(lit, token.span))
     }
 
     /// Function to parse a [TupleLitEntry] with a name or parse a parenthesised
@@ -93,17 +92,17 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Eq, .. })
                     if self.peek_second().map_or(false, |t| t.has_kind(TokenKind::Eq)) =>
                 {
-                    self.offset.set(offset);
+                    self.frame.offset.set(offset);
                     None
                 }
                 Some(Token { kind: TokenKind::Colon, .. })
                     if self.peek_second().map_or(false, |t| t.has_kind(TokenKind::Colon)) =>
                 {
-                    self.offset.set(offset);
+                    self.frame.offset.set(offset);
                     None
                 }
                 Some(Token { kind, .. }) if !matches!(kind, TokenKind::Colon | TokenKind::Eq) => {
-                    self.offset.set(offset);
+                    self.frame.offset.set(offset);
                     None
                 }
                 Some(_) => {
@@ -138,7 +137,7 @@ impl<'s> AstGen<'s> {
                     ))
                 }
                 None => {
-                    self.offset.set(offset);
+                    self.frame.offset.set(offset);
                     None
                 }
             }
@@ -158,25 +157,25 @@ impl<'s> AstGen<'s> {
 
     /// Parse an list literal from a given token tree.
     pub(crate) fn parse_array_lit(
-        &self,
+        &mut self,
         tree: &'s [Token],
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        let mut gen = self.from_stream(tree, span);
+        self.new_frame(tree, span);
         let mut elements = self.nodes_with_joined_span(thin_vec![], span);
 
-        while gen.has_token() {
-            let expr = gen.parse_expr_with_precedence(0)?;
+        while self.has_token() {
+            let expr = self.parse_expr_with_precedence(0)?;
             elements.nodes.push(expr);
 
-            match gen.peek() {
+            match self.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => {
-                    gen.skip_token();
+                    self.skip_token();
                 }
                 Some(token) => {
                     // if we haven't exhausted the whole token stream, then report this as a
                     // unexpected token error
-                    return gen.err(
+                    return self.err(
                         ParseErrorKind::UnExpected,
                         ExpectedItem::Comma,
                         Some(token.kind),
@@ -185,12 +184,9 @@ impl<'s> AstGen<'s> {
                 None => break,
             }
         }
+        self.consume_frame();
 
-        Ok(gen.node_with_span(
-            Expr::Lit(LitExpr {
-                data: gen.node_with_span(Lit::Array(ArrayLit { elements }), span),
-            }),
-            span,
-        ))
+        let data = self.node_with_span(Lit::Array(ArrayLit { elements }), span);
+        Ok(self.node_with_span(Expr::Lit(LitExpr { data }), span))
     }
 }

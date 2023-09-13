@@ -12,9 +12,9 @@ impl<'s> AstGen<'s> {
     /// Parse a block.
     #[inline]
     pub(crate) fn parse_block(&mut self) -> ParseResult<AstNode<Block>> {
-        let mut gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
-
-        let block = gen.parse_body_block_inner();
+        self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
+        let block = self.parse_body_block_inner();
+        self.consume_frame();
 
         Ok(self.node_with_span(Block::Body(block), self.current_pos()))
     }
@@ -23,9 +23,9 @@ impl<'s> AstGen<'s> {
     /// [Block].
     #[inline]
     pub(crate) fn parse_body_block(&mut self) -> ParseResult<AstNode<BodyBlock>> {
-        let mut gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
-
-        let block = gen.parse_body_block_inner();
+        self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
+        let block = self.parse_body_block_inner();
+        self.consume_frame();
 
         Ok(self.node_with_span(block, self.current_pos()))
     }
@@ -129,9 +129,9 @@ impl<'s> AstGen<'s> {
         let start = self.current_pos();
         let subject = self.parse_expr_with_precedence(0)?;
 
-        let mut gen = self.parse_delim_tree(Delimiter::Brace, None)?;
-        let cases = gen.parse_nodes(|g| g.parse_match_case(), |g| g.parse_token(TokenKind::Comma));
-        self.consume_gen(gen);
+        self.parse_delim_tree(Delimiter::Brace, None)?;
+        let cases = self.parse_nodes(|g| g.parse_match_case(), |g| g.parse_token(TokenKind::Comma));
+        self.consume_frame();
 
         Ok(self.node_with_joined_span(
             Block::Match(MatchBlock { subject, cases, origin: MatchOrigin::Match }),
@@ -180,11 +180,9 @@ impl<'s> AstGen<'s> {
             };
         }
 
+        let clauses = self.nodes_with_span(clauses, start.join(if_span));
         Ok(self.node_with_joined_span(
-            Block::If(IfBlock {
-                clauses: self.nodes_with_span(clauses, start.join(if_span)),
-                otherwise: otherwise_clause,
-            }),
+            Block::If(IfBlock { clauses, otherwise: otherwise_clause }),
             start,
         ))
     }
