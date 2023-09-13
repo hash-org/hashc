@@ -24,7 +24,6 @@ pub mod bootstrap;
 pub mod current_source;
 pub mod diagnostics;
 pub mod env;
-pub mod environment;
 pub mod passes;
 pub mod prelude;
 pub mod progress;

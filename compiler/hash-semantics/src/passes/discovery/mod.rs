@@ -11,11 +11,8 @@ use hash_tir::{node::NodeOrigin, symbols::SymbolId};
 use hash_utils::{derive_more::Deref, state::LightState};
 
 use self::defs::DefDiscoveryState;
-use super::ast_utils::AstPass;
-use crate::{
-    diagnostics::definitions::SemanticResult, env::SemanticEnv, environment::ast_info::AstInfo,
-    progress::AnalysisStage,
-};
+use super::{ast_info::AstInfo, ast_utils::AstPass};
+use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
 pub mod defs;
 pub mod params;

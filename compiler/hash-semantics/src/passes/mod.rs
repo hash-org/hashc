@@ -1,11 +1,10 @@
 use hash_source::SourceId;
 use hash_utils::derive_more::{Constructor, Deref};
 
-use self::{ast_utils::AstPass, discovery::DiscoveryPass};
-use crate::{
-    diagnostics::definitions::SemanticResult, env::SemanticEnv, environment::ast_info::AstInfo,
-};
+use self::{ast_info::AstInfo, ast_utils::AstPass, discovery::DiscoveryPass};
+use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv};
 
+pub mod ast_info;
 pub mod ast_utils;
 pub mod discovery;
 // @@nocheckin
