@@ -1,0 +1,7 @@
+error[0024]: cannot use an intrinsic in pattern position
+ --> $DIR/intrinsics_in_pats.hash:5:5
+4 |     match 1 {
+5 |       Intrinsics::user_error => {}
+  |       ^^^^^^^^^^^^^^^^^^^^^^ 
+6 |     }
+  = info: cannot use this in pattern position as it refers to a compiler intrinsic

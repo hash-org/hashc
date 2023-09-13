@@ -183,12 +183,12 @@ impl<'tcx> BodyBuilder<'tcx> {
                     TirIntrinsic::SizeOf
                     | TirIntrinsic::AlignOf
                     | TirIntrinsic::PtrOffset
-                    | TirIntrinsic::Eval
                     | TirIntrinsic::Transmute
                     | TirIntrinsic::Abort
-                    | TirIntrinsic::Panic
-                    | TirIntrinsic::UserError
-                    | TirIntrinsic::DebugPrint => FnCallTermKind::Call(*term),
+                    | TirIntrinsic::Panic => FnCallTermKind::Call(*term),
+                    TirIntrinsic::Eval | TirIntrinsic::UserError | TirIntrinsic::DebugPrint => {
+                        panic!("Found unexpected intrinsic {} which should have been evaluated during TC", intrinsic)
+                    }
                 }
             }
             _ => FnCallTermKind::Call(*term),

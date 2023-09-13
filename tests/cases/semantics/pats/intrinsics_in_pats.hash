@@ -1,0 +1,7 @@
+// run=fail, stage=typecheck
+
+main := () => {
+  match 1 {
+    Intrinsics::user_error => {}
+  }
+}

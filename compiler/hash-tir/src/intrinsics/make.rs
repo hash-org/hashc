@@ -96,7 +96,7 @@ macro_rules! make_intrinsics {
 
         impl std::fmt::Display for Intrinsic {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "Intrinsic::{}", self.name())
+                write!(f, "{}", self.name())
             }
         }
 
@@ -262,7 +262,7 @@ macro_rules! make_primitives {
 
         impl std::fmt::Display for Primitive {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "Primitive::{}", self.name())
+                write!(f, "{}", self.name())
             }
         }
 

@@ -138,8 +138,8 @@ impl FnDiscoverer<'_> {
                         // We've already found this one.
                     }
                     ModMemberValue::Intrinsic(_) => {
-                        // @@Todo: we should probably add all the intrinsic
-                        // functions?
+                        // No need to queue intrinsics, they are dealt with as
+                        // they are encountered.
                     }
                 }
             }
