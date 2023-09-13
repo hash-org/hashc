@@ -13,7 +13,7 @@ use crate::diagnostics::{
     warning::{ParseWarning, WarningKind},
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a top level [Expr] that are optionally terminated with a
     /// semi-colon.
     #[profiling::function]
@@ -532,7 +532,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_constructor_call(
         &mut self,
         subject: AstNode<Expr>,
-        tree: &'stream [Token],
+        tree: &'s [Token],
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);
@@ -553,7 +553,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_array_index(
         &mut self,
         subject: AstNode<Expr>,
-        tree: &'stream [Token],
+        tree: &'s [Token],
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);

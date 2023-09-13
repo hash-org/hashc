@@ -11,7 +11,7 @@ use crate::diagnostics::{
     expected::ExpectedItem,
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a primitive literal, which means it can be either a `char`,
     /// `integer`, `float` or a `string`.
     pub(crate) fn parse_primitive_lit(&self) -> ParseResult<AstNode<Lit>> {
@@ -159,7 +159,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an list literal from a given token tree.
     pub(crate) fn parse_array_lit(
         &self,
-        tree: &'stream [Token],
+        tree: &'s [Token],
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         let mut gen = self.from_stream(tree, span);

@@ -9,7 +9,7 @@ use crate::{
     parser::TyParamOrigin,
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Construct the [Params] from the parsed [`AstNodes<Param>`]. This is
     /// just a utility function to wrap the nodes in the [Params] struct.
     pub fn make_params(&self, params: AstNodes<Param>, origin: ParamOrigin) -> AstNode<Params> {

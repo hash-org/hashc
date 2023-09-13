@@ -8,7 +8,7 @@ use hash_utils::thin_vec::thin_vec;
 use super::{AstGen, ParseResult};
 use crate::diagnostics::error::ParseErrorKind;
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a block.
     #[inline]
     pub(crate) fn parse_block(&mut self) -> ParseResult<AstNode<Block>> {

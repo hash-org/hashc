@@ -12,7 +12,7 @@ use crate::diagnostics::{
     expected::ExpectedItem,
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a compound [Pat]. A compound [Pat] means that this could
     /// be a pattern that might be a combination of multiple patterns.
     /// Additionally, compound patterns are allowed to have `if-guard`
@@ -320,11 +320,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a [ModulePat] which is comprised of a collection of
     /// [ModulePatEntry]s that are comma separated within a brace tree.
-    fn parse_module_pat(
-        &mut self,
-        tree: &'stream [Token],
-        span: ByteRange,
-    ) -> ParseResult<ModulePat> {
+    fn parse_module_pat(&mut self, tree: &'s [Token], span: ByteRange) -> ParseResult<ModulePat> {
         let mut gen = self.from_stream(tree, span);
         let mut fields = thin_vec![];
 
@@ -353,7 +349,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// `[x, 1, ..]`
     pub(crate) fn parse_array_pat(
         &mut self,
-        tree: &'stream [Token],
+        tree: &'s [Token],
         parent_span: ByteRange,
     ) -> ParseResult<AstNode<Pat>> {
         let mut gen = self.from_stream(tree, parent_span);
@@ -389,7 +385,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// a pattern wrapped within parentheses.
     pub(crate) fn parse_tuple_pat(
         &mut self,
-        tree: &'stream [Token],
+        tree: &'s [Token],
         parent_span: ByteRange,
     ) -> ParseResult<AstNode<Pat>> {
         // check here if the tree length is 1, and the first token is the comma to check

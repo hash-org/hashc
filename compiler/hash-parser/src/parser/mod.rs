@@ -72,7 +72,7 @@ macro_rules! disable_flag {
 /// The [AstGen] struct it the primary parser for the Hash compiler. It
 /// will take a token stream and its accompanying token trees and will
 /// convert the stream into an AST.
-pub struct AstGen<'stream, 'resolver> {
+pub struct AstGen<'s> {
     /// Current token stream offset.
     offset: Cell<usize>,
 
@@ -85,34 +85,34 @@ pub struct AstGen<'stream, 'resolver> {
     /// report it as an expected expression.
     parent_span: ByteRange,
 
-    source: SpannedSource<'stream>,
+    source: SpannedSource<'s>,
 
     /// The token stream
-    stream: &'stream [Token],
+    stream: &'s [Token],
 
     /// Token trees that were generated from the stream
-    token_trees: &'stream [Vec<Token>],
+    token_trees: &'s [Vec<Token>],
 
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
-    pub(crate) resolver: &'resolver ImportResolver<'resolver>,
+    pub(crate) resolver: &'s ImportResolver<'s>,
 
-    /// Collected diagnostics for the current [AstGen]
-    pub(crate) diagnostics: &'stream ParserDiagnostics,
+    /// Collected diagnostics for the current [AstGen].
+    pub(crate) diagnostics: &'s ParserDiagnostics,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
 /// language components.
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Create new AST generator from a token stream.
     pub fn new(
-        source: SpannedSource<'stream>,
-        stream: &'stream [Token],
-        token_trees: &'stream [Vec<Token>],
-        resolver: &'resolver ImportResolver,
-        diagnostics: &'stream ParserDiagnostics,
+        source: SpannedSource<'s>,
+        stream: &'s [Token],
+        token_trees: &'s [Vec<Token>],
+        resolver: &'s ImportResolver,
+        diagnostics: &'s ParserDiagnostics,
     ) -> Self {
-        // We compute the `parent_span` from the given strem.
+        // We compute the `parent_span` from the given stream.
         // If the stream has no tokens, then we assume that the
         // byte range is empty.
         let parent_span = match (stream.first(), stream.last()) {
@@ -134,7 +134,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create new AST generator from a provided token stream with inherited
     /// module resolver and a provided parent span.
     #[must_use]
-    pub fn from_stream(&self, stream: &'stream [Token], parent_span: ByteRange) -> Self {
+    pub fn from_stream(&self, stream: &'s [Token], parent_span: ByteRange) -> AstGen<'s> {
         Self {
             source: self.source,
             stream,
@@ -345,7 +345,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// produced. If the `consumed` [AstGen] produced no errors, then we
     /// check that the stream other the generator has been exhausted.
     #[inline]
-    pub(crate) fn consume_gen(&mut self, mut other: AstGen<'stream, 'resolver>) {
+    pub(crate) fn consume_gen(&mut self, mut other: Self) {
         // Ensure that the generator token stream has been exhausted
         if !other.has_errors() && other.has_token() {
             other.maybe_add_error::<()>(other.expected_eof());

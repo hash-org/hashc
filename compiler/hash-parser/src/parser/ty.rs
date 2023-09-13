@@ -13,7 +13,7 @@ use crate::diagnostics::{
     warning::{ParseWarning, WarningKind},
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a [Ty]. This includes all forms of a [Ty]. This function
     /// does not deal with any kind of [Ty] annotation or [TyFnDef]
     /// syntax.

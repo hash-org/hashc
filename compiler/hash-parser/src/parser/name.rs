@@ -10,7 +10,7 @@ use crate::diagnostics::{
     expected::ExpectedItem,
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a singular [Name] from the current token stream.
     #[inline]
     pub fn parse_name(&self) -> ParseResult<AstNode<Name>> {

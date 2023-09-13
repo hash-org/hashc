@@ -13,7 +13,7 @@ use crate::parser::AstGen;
 /// Shorthand for the parser diagnostics.
 pub type ParserDiagnostics = DiagnosticCellStore<ParseError, ParseWarning>;
 
-impl<'stream, 'resolver> HasDiagnostics for AstGen<'stream, 'resolver> {
+impl<'s> HasDiagnostics for AstGen<'s> {
     type Diagnostics = ParserDiagnostics;
 
     fn diagnostics(&self) -> &Self::Diagnostics {
