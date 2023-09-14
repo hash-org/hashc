@@ -1,0 +1,12 @@
+error[0080]: variable `a` is bound more than once in the same pattern
+ --> $DIR/duplicate_binds.hash:7:12
+6 |       match k {
+7 |          (a, a) => {}
+  |              ^ used in a pattern more than once
+8 |       }
+
+ --> $DIR/duplicate_binds.hash:7:9
+6 |       match k {
+7 |          (a, a) => {}
+  |           ^ first binding of variable
+8 |       }

@@ -1,0 +1,10 @@
+// run=fail, stage=typecheck
+
+
+main := () => {
+    k := (1, 2);
+
+    match k {
+        (mut a, b) | (a, b) => {}
+    }
+}

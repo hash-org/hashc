@@ -1,0 +1,12 @@
+error[0079]: variable `a` is bound inconsistently across or-patterns
+ --> $DIR/different_binds.hash:8:14
+7 |       match k {
+8 |           (mut a, b) | (a, b) => {}
+  |                ^ first binding of variable
+9 |       }
+
+ --> $DIR/different_binds.hash:8:23
+7 |       match k {
+8 |           (mut a, b) | (a, b) => {}
+  |                         ^ bound differently
+9 |       }

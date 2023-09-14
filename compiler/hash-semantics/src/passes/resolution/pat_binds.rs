@@ -229,6 +229,17 @@ impl PatBinds {
             }
         }
 
+        // Also check backwards... but don't compare the binds if they do
+        // exist since we've already checked them.
+        for (name, bind) in other.iter() {
+            if self.binds.get(name).is_none() {
+                errors.push(SemanticError::MissingPatBind {
+                    offending: self.root.span(),
+                    missing: *bind,
+                });
+            }
+        }
+
         if errors.is_empty() {
             Ok(())
         } else {
@@ -342,7 +353,7 @@ impl<'env, T: SemanticEnv> PatBindsChecker<'env, T> {
 
             // Now we check the two binds...
             if let Err(err) = first_binds.compare(&other_binds) {
-                self.errors.push(err)
+                self.errors.push(err);
             }
         }
 
