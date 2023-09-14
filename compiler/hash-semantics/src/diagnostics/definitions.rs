@@ -5,7 +5,7 @@ use hash_tir::{symbols::SymbolId, terms::TermId};
 use hash_typecheck::errors::TcError;
 use hash_utils::thin_vec::ThinVec;
 
-use crate::passes::resolution::scoping::ContextKind;
+use crate::passes::resolution::{pat_binds::Bind, scoping::ContextKind};
 
 pub type SemanticResult<T> = Result<T, SemanticError>;
 
@@ -83,6 +83,50 @@ pub enum SemanticError {
 
     /// An entry point was not found in the entry module.
     EntryPointNotFound,
+
+    /// When a bind within a pattern is duplicated, e.g.
+    /// ```
+    /// match (1, 2) {
+    ///     (a, a) => {}
+    /// }
+    /// ```
+    DuplicateBindInPat {
+        /// The secondary mention of the bind.
+        offending: Bind,
+
+        /// The bind that was originally specified
+        original: Bind,
+    },
+
+    /// Within an `or` pattern, where there is a discrepancy between the
+    /// declared bounds within two patterns. For example:
+    /// ```
+    /// match 2 {
+    ///     a | b => {}
+    /// }
+    /// ```
+    MissingPatBind {
+        /// The span of the pattern that is missing the bind.
+        offending: Span,
+
+        /// The bind that is missing from the alternative.
+        missing: Bind,
+    },
+
+    /// When an alternative pattern contains bindings that are
+    /// declared inconsistently, e.g.
+    /// ```
+    /// match (1, 2) {
+    ///   (mut t, a) | (t, a)
+    /// }
+    /// ```
+    MismatchingPatBind {
+        /// The offending binding that is mismatched.
+        offending: Bind,
+
+        /// The original binding that was specified in the alternative.
+        original: Bind,
+    },
 }
 
 impl From<TcError> for SemanticError {

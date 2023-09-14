@@ -239,7 +239,7 @@ impl SemanticReporter {
             SemanticError::ModulePatternsNotSupported { location } => {
                 let error = reporter
                     .error()
-                    .code(HashErrorCode::MissingPatternBounds)
+                    .code(HashErrorCode::MissingPatBind)
                     .title("module patterns are not supported yet");
 
                 error
@@ -257,6 +257,39 @@ impl SemanticReporter {
                 );
             }
             SemanticError::ExhaustivenessError { error } => error.add_to_reports(reporter),
+            SemanticError::DuplicateBindInPat { offending, original } => {
+                reporter
+                    .error()
+                    .code(HashErrorCode::DuplicateBindInPat)
+                    .title(format!(
+                        "variable `{}` is bound more than once in the same pattern",
+                        original.name()
+                    ))
+                    .add_labelled_span(offending.span(), "used in a pattern more than once")
+                    .add_labelled_span(original.span(), "first binding of variable");
+            }
+            SemanticError::MissingPatBind { offending, missing } => {
+                reporter
+                    .error()
+                    .code(HashErrorCode::MissingPatBind)
+                    .title(format!("variable `{}` is not bound in all patterns", missing.name()))
+                    .add_labelled_span(
+                        *offending,
+                        format!("pattern doesn't bind `{}`", missing.name()),
+                    )
+                    .add_labelled_span(missing.span(), "variable not in all patterns");
+            }
+            SemanticError::MismatchingPatBind { original, offending } => {
+                reporter
+                    .error()
+                    .code(HashErrorCode::MismatchingPatBind)
+                    .title(format!(
+                        "variable `{}` is bound inconsistently across or-patterns",
+                        original.name()
+                    ))
+                    .add_labelled_span(original.span(), "first binding of variable")
+                    .add_labelled_span(offending.span(), "bound differently");
+            }
         }
     }
 }
