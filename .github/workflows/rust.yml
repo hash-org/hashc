@@ -30,12 +30,6 @@ jobs:
           version: "15.0.6"
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
 
-      # Install GPerf and allow the script to be executed.
-      - name: Install GPerf
-        run: |
-          sudo apt-get install -y gperf
-          sudo chmod +x compiler/hash-token/keywords/generate.sh
-
       - name: Install Rust nightly
         run: |
           rustup toolchain install nightly

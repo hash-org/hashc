@@ -1,15 +1,13 @@
 //! Hash Compiler token keyword definitions.
-use core::ffi::c_size_t;
-use std::{ffi::c_char, fmt};
+use std::fmt;
 
 use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
+use phf::phf_map;
 use strum_macros::AsRefStr;
 
 /// Enum Variants for keywords.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, AsRefStr, FromPrimitive)]
 #[strum(serialize_all = "snake_case")]
-#[repr(u8)]
 pub enum Keyword {
     For,
     While,
@@ -44,34 +42,37 @@ impl fmt::Display for Keyword {
     }
 }
 
-#[repr(C)]
-struct Kw {
-    keyword: *const c_char,
-    num: u8,
-}
+/// A static map of keywords to their enum variants using a
+/// perfect hashing function to quickly lookup the keyword.
+static KEYWORDS: phf::Map<&'static str, Keyword> = phf_map! {
+    "for" => Keyword::For,
+    "while" => Keyword::While,
+    "loop" => Keyword::Loop,
+    "if" => Keyword::If,
+    "else" => Keyword::Else,
+    "match" => Keyword::Match,
+    "as" => Keyword::As,
+    "in" => Keyword::In,
+    "trait" => Keyword::Trait,
+    "enum" => Keyword::Enum,
+    "struct" => Keyword::Struct,
+    "continue" => Keyword::Continue,
+    "break" => Keyword::Break,
+    "return" => Keyword::Return,
+    "import" => Keyword::Import,
+    "raw" => Keyword::Raw,
+    "false" => Keyword::False,
+    "true" => Keyword::True,
+    "unsafe" => Keyword::Unsafe,
+    "pub" => Keyword::Pub,
+    "priv" => Keyword::Priv,
+    "mut" => Keyword::Mut,
+    "mod" => Keyword::Mod,
+    "impl" => Keyword::Impl,
+    "type" => Keyword::Type,
+};
 
-extern "C" {
-    fn is_hash_keyword(str: *const c_char, len: c_size_t) -> *mut Kw;
-}
-
-pub fn ident_is_keyword(str: &str) -> Option<Keyword> {
-    // If the length of string is greater than 8, not a keyword.
-    if str.len() > 8 {
-        return None;
-    }
-
-    // Create a stack buffer of 9bytes, and copy the buffer
-    let mut buf = [0u8; 9];
-    buf[..str.len()].copy_from_slice(str.as_bytes());
-
-    let kw = unsafe {
-        // convert str into c str
-        is_hash_keyword(buf.as_ptr() as *const i8, str.len())
-    };
-
-    if kw.is_null() {
-        None
-    } else {
-        Keyword::from_u8(unsafe { (*kw).num })
-    }
+#[inline(always)]
+pub fn ident_is_keyword(s: &str) -> Option<Keyword> {
+    KEYWORDS.get(s).copied()
 }
