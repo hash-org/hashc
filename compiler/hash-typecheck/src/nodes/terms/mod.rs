@@ -11,7 +11,11 @@ use crate::{
     checker::Checker,
     env::TcEnv,
     inference::FnInferMode,
-    operations::{normalisation::NormalisationResult, Operations},
+    operations::{
+        checking::{checked, CheckResult},
+        normalisation::NormaliseResult,
+        Operations,
+    },
 };
 
 impl<E: TcEnv> Operations<TermId> for Checker<'_, E> {
@@ -24,7 +28,7 @@ impl<E: TcEnv> Operations<TermId> for Checker<'_, E> {
         term_id: &mut TermId,
         annotation_ty: Self::TyNode,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> CheckResult {
         let term_id = *term_id;
         self.register_new_atom(term_id, annotation_ty);
         let inference = self.infer_ops();
@@ -117,7 +121,7 @@ impl<E: TcEnv> Operations<TermId> for Checker<'_, E> {
         inference.potentially_run_expr(term_id, annotation_ty)?;
         inference.potentially_dump_tir(term_id);
 
-        Ok(())
+        checked()
     }
 
     fn normalise(
@@ -125,7 +129,7 @@ impl<E: TcEnv> Operations<TermId> for Checker<'_, E> {
         _ctx: &mut hash_tir::context::Context,
         _item: &mut TermId,
         _: Self::Node,
-    ) -> NormalisationResult<()> {
+    ) -> NormaliseResult<()> {
         todo!()
     }
 

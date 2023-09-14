@@ -369,6 +369,12 @@ impl<E: IntoCompound> ErrorState<E> {
     }
 }
 
+impl<E: IntoCompound> IntoCompound for Box<E> {
+    fn into_compound(items: Vec<Self>) -> Self {
+        Box::new(E::into_compound(items.into_iter().map(|item| *item).collect()))
+    }
+}
+
 impl<E> Default for ErrorState<E> {
     fn default() -> Self {
         Self::new()

@@ -1,8 +1,9 @@
+pub mod checking;
 pub mod normalisation;
 
 use hash_tir::{context::Context, sub::Sub, tir::NodeId};
 
-use self::normalisation::NormalisationResult;
+use self::{checking::CheckResult, normalisation::NormaliseResult};
 use crate::errors::TcResult;
 
 pub trait Operations<X> {
@@ -15,14 +16,14 @@ pub trait Operations<X> {
         item: &mut X,
         item_ty: Self::TyNode,
         item_node: Self::Node,
-    ) -> TcResult<()>;
+    ) -> CheckResult;
 
     fn normalise(
         &self,
         ctx: &mut Context,
         item: &mut X,
         item_node: Self::Node,
-    ) -> NormalisationResult<()>;
+    ) -> NormaliseResult<()>;
 
     fn unify(
         &self,

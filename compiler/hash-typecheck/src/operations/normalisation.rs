@@ -18,7 +18,7 @@ pub enum NormalisationMode {
 
 /// A signal which can be emitted during normalisation.
 #[derive(Debug, Clone, From)]
-pub enum Signal {
+pub enum NormaliseSignal {
     Break,
     Continue,
     Return(Atom),
@@ -26,15 +26,15 @@ pub enum Signal {
 }
 
 /// The result of a normalisation operation.
-pub type NormalisationResult<T> = Result<Option<T>, Signal>;
+pub type NormaliseResult<T> = Result<Option<T>, NormaliseSignal>;
 
 /// Signals that the atom is already normalised.
-pub fn already_normalised<T>() -> NormalisationResult<T> {
+pub fn already_normalised<T>() -> NormaliseResult<T> {
     Ok(None)
 }
 
 /// Signals that the normalisation is stuck.
-pub fn stuck_normalising<T>() -> NormalisationResult<T> {
+pub fn stuck_normalising<T>() -> NormaliseResult<T> {
     Ok(None)
 }
 
@@ -42,7 +42,7 @@ pub fn stuck_normalising<T>() -> NormalisationResult<T> {
 pub fn normalised_if<T, I: Into<T>>(
     atom: impl FnOnce() -> I,
     state: &NormalisationState,
-) -> NormalisationResult<T> {
+) -> NormaliseResult<T> {
     if state.has_normalised() {
         Ok(Some(atom().into()))
     } else {
@@ -51,12 +51,12 @@ pub fn normalised_if<T, I: Into<T>>(
 }
 
 /// Signals that the normalisation produced the given atom.
-pub fn normalised_to<T>(atom: impl Into<T>) -> NormalisationResult<T> {
+pub fn normalised_to<T>(atom: impl Into<T>) -> NormaliseResult<T> {
     Ok(Some(atom.into()))
 }
 
 /// Signals that the normalisation produced the given atom, if it is not `None`.
-pub fn normalised_option<T>(atom: Option<impl Into<T>>) -> NormalisationResult<T> {
+pub fn normalised_option<T>(atom: Option<impl Into<T>>) -> NormaliseResult<T> {
     match atom {
         Some(eval) => normalised_to(eval),
         None => already_normalised(),
@@ -67,12 +67,12 @@ pub fn normalised_option<T>(atom: Option<impl Into<T>>) -> NormalisationResult<T
 ///
 /// Control-flow normalisation results are used when traversing nested
 /// structures, to know whether to continue or break.
-pub fn ctrl_map<T>(t: NormalisationResult<T>) -> NormalisationResult<ControlFlow<T>> {
+pub fn ctrl_map<T>(t: NormaliseResult<T>) -> NormaliseResult<ControlFlow<T>> {
     Ok(t?.map(|t| ControlFlow::Break(t)))
 }
 
 /// Create a control-flow normalisation result to continue deeper.
-pub fn ctrl_continue<T>() -> NormalisationResult<ControlFlow<T>> {
+pub fn ctrl_continue<T>() -> NormaliseResult<ControlFlow<T>> {
     Ok(Some(ControlFlow::Continue(())))
 }
 
@@ -102,8 +102,8 @@ impl NormalisationState {
     pub fn update_from_result<T>(
         &self,
         previous: T,
-        result: NormalisationResult<T>,
-    ) -> Result<T, Signal> {
+        result: NormaliseResult<T>,
+    ) -> Result<T, NormaliseSignal> {
         if let Ok(Some(new)) = result {
             self.set_normalised();
             Ok(new)
