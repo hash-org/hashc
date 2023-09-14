@@ -63,7 +63,7 @@ pub struct CompilerSettings {
     /// The number of workers that the compiler pipeline should have access to.
     /// This value is used to determine the thread pool size that is then shared
     /// across arbitrary stages within the compiler.
-    #[arg(long, default_value_t = 2)]
+    #[arg(long, default_value_t = num_cpus::get())]
     pub worker_count: usize,
 
     /// Whether the compiler should skip bootstrapping the prelude, this

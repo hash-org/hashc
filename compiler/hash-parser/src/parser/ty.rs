@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::HasDiagnostics;
+use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::identifier::IDENTS;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
@@ -13,7 +13,7 @@ use crate::diagnostics::{
     warning::{ParseWarning, WarningKind},
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a [Ty]. This includes all forms of a [Ty]. This function
     /// does not deal with any kind of [Ty] annotation or [TyFnDef]
     /// syntax.
@@ -26,8 +26,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// function implements the same precedence algorithm for correctly
     /// forming binary type expressions.
     fn parse_ty_with_precedence(&mut self, min_prec: u8) -> ParseResult<AstNode<Ty>> {
-        let mut lhs = self.parse_singular_ty()?;
-        let lhs_span = lhs.byte_range();
+        let (mut lhs, lhs_span) = self.track_span(|this| this.parse_singular_ty())?;
 
         loop {
             let (op, consumed_tokens) = self.parse_ty_op();
@@ -41,8 +40,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     if l_prec < min_prec {
                         break;
                     }
-
-                    self.offset.update(|x| x + consumed_tokens as usize);
+                    self.frame.skip(consumed_tokens);
 
                     // Now recurse and get the `rhs` of the operator.
                     let rhs = self.parse_ty_with_precedence(r_prec)?;
@@ -106,9 +104,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
 
                 let tree = self.token_trees.get(*tree_index as usize).unwrap();
-                let mut gen = self.from_stream(tree, token.span);
-                let expr = gen.parse_expr_with_precedence(0)?;
-                self.consume_gen(gen);
+
+                let expr =
+                    self.new_frame(tree, token.span, |gen| gen.parse_expr_with_precedence(0))?;
 
                 Ty::Expr(ExprTy { expr })
             }
@@ -118,24 +116,24 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
 
                 let tree = self.token_trees.get(*tree_index as usize).unwrap();
-                let mut gen = self.from_stream(tree, token.span);
+                let (inner, len) = self.new_frame(tree, token.span, |gen| {
+                    // @@ErrorRecovery: Investigate introducing `Err` variant into types...
+                    let inner_type = gen.parse_ty()?;
 
-                // @@ErrorRecovery: Investigate introducing `Err` variant into types...
-                let inner_type = gen.parse_ty()?;
+                    // Optionally, the user may specify a size for the array type by
+                    // using a `;` followed by an expression that evaluates to a]
+                    // constant integer.
+                    let len = if gen.peek().map(|x| x.kind) == Some(TokenKind::Semi) {
+                        gen.skip_token();
+                        Some(gen.parse_expr()?)
+                    } else {
+                        None
+                    };
 
-                // Optionally, the user may specify a size for the array type by
-                // using a `;` followed by an expression that evaluates to a]
-                // constant integer.
-                let len = if gen.peek().map(|x| x.kind) == Some(TokenKind::Semi) {
-                    gen.skip_token();
-                    Some(gen.parse_expr()?)
-                } else {
-                    None
-                };
+                    Ok((inner_type, len))
+                })?;
 
-                self.consume_gen(gen);
-
-                Ty::Array(ArrayTy { inner: inner_type, len })
+                Ty::Array(ArrayTy { inner, len })
             }
 
             // Tuple or function type
@@ -192,9 +190,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 TokenKind::Lt => {
                     self.skip_token();
 
+                    let ty = self.node_with_joined_span(ty, span);
                     Ty::TyFnCall(TyFnCall {
                         subject: self.node_with_joined_span(
-                            Expr::Ty(TyExpr { ty: self.node_with_joined_span(ty, span) }),
+                            Expr::Ty(TyExpr { ty }),
                             span,
                         ),
                         args: self.parse_ty_args(true)?,
@@ -202,13 +201,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 // Function syntax which allow to express `U -> T` whilst implying `(U -> T)`
                 TokenKind::Minus if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Gt)) => {
-                    self.offset.update(|offset| offset + 2);
+                    self.frame.skip(2);
                     let return_ty = self.parse_ty()?;
 
+                    let ty = self.node_with_joined_span(ty, span);
                     let param = self.node_with_span(Param {
                         name: None,
                         default: None,
-                        ty: Some(self.node_with_joined_span(ty, span)),
+                        ty: Some(ty),
                         // ##Note: this will always be none since the above function
                         // will parse the args and then apply it to us as the subject.
                         //
@@ -216,14 +216,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         macros: None,
                     }, span);
 
+                    let params = self.nodes_with_span(thin_vec![param], span);
                     Ty::Fn(FnTy {
-                        params: self.make_params(self.nodes_with_span(thin_vec![param], span), ParamOrigin::Fn),
+                        params: self.make_params(params, ParamOrigin::Fn),
                         return_ty,
                     })
                 }
 
                 TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) => {
-                    self.offset.update(|offset| offset + 2);
+                    self.frame.skip(2);
 
                     Ty::Access(AccessTy {
                         subject: self.node_with_joined_span(ty, span),
@@ -317,28 +318,27 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// [Ty] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
     fn parse_fn_or_tuple_ty(&mut self) -> ParseResult<Ty> {
-        let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-        let mut params = AstNodes::empty(gen.span());
-
-        match gen.peek() {
-            // Handle special case where there is only one comma and no following items...
-            // Special edge case for '(,)' or an empty tuple type...
-            Some(token) if token.has_kind(TokenKind::Comma) && gen.stream.len() == 1 => {
-                gen.skip_token();
-            }
-            _ => {
-                params = gen.parse_nodes(
+        let (mut params, has_comma) = self.in_tree(Delimiter::Paren, None, |gen| {
+            let params = match gen.peek() {
+                // Handle special case where there is only one comma and no following items...
+                // Special edge case for '(,)' or an empty tuple type...
+                Some(token) if token.has_kind(TokenKind::Comma) && gen.stream().len() == 1 => {
+                    gen.skip_token();
+                    gen.nodes_with_span(thin_vec![], gen.range())
+                }
+                _ => gen.parse_nodes(
                     |g| g.parse_ty_tuple_or_fn_param(),
                     |g| g.parse_token(TokenKind::Comma),
-                );
-            }
-        };
+                ),
+            };
 
-        // Here we check that the token tree has a comma at the end to later determine
-        // if this is a `TupleType`...
-        let gen_has_comma =
-            !gen.stream.is_empty() && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
-        self.consume_gen(gen);
+            // Here we check that the token tree has a comma at the end to later determine
+            // if this is a `TupleType`...
+            let gen_has_comma = !gen.stream().is_empty()
+                && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
+
+            Ok((params, gen_has_comma))
+        })?;
 
         // If there is an arrow '=>', then this must be a function type
         match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
@@ -350,7 +350,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => {
                 // If there is only one entry in the params, and the last token in the entry is
                 // not a comma then we can just return the inner type
-                if gen_has_comma && params.len() == 1 && params[0].name.is_none() {
+                if has_comma && params.len() == 1 && params[0].name.is_none() {
                     let field = params.nodes.pop().unwrap().into_body();
                     return Ok(field.ty.unwrap().into_body());
                 }
@@ -424,7 +424,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.make_span(span),
             ));
 
-            return Ok(self.make_ty_params(self.nodes_with_span(params, span), origin));
+            let params = self.nodes_with_span(params, span);
+            return Ok(self.make_ty_params(params, origin));
         }
 
         loop {
@@ -453,7 +454,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        Ok(self.make_ty_params(self.nodes_with_joined_span(params, start_span), origin))
+        let params = self.nodes_with_joined_span(params, start_span);
+        Ok(self.make_ty_params(params, origin))
     }
 
     /// Parse a [TyParam] which can consist of an optional name, and a type.

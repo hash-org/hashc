@@ -5,7 +5,7 @@ use hash_ast::ast::{
     MacroKind, Name,
 };
 use hash_token::{delimiter::Delimiter, Token, TokenKind};
-use hash_utils::thin_vec::thin_vec;
+use hash_utils::thin_vec::{thin_vec, ThinVec};
 
 use super::AstGen;
 use crate::diagnostics::{
@@ -13,7 +13,7 @@ use crate::diagnostics::{
     expected::ExpectedItem,
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a macro prefix character, which depending on [MacroKind] is either
     /// a `#` or a `@`.
     ///
@@ -65,10 +65,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let args = match self.peek() {
             Some(token) if token.is_paren_tree() => {
-                let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-                let args =
-                    gen.parse_nodes(|g| g.parse_macro_arg(), |g| g.parse_token(TokenKind::Comma));
-                self.consume_gen(gen);
+                let args = self.in_tree(Delimiter::Paren, None, |gen| {
+                    Ok(gen
+                        .parse_nodes(|g| g.parse_macro_arg(), |g| g.parse_token(TokenKind::Comma)))
+                })?;
                 let id = args.id();
 
                 Some(AstNode::with_id(MacroInvocationArgs { args }, id))
@@ -123,13 +123,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     );
                 }
                 Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
-                    let mut gen = self.from_stream(&self.token_trees[tree_index as usize], span);
-                    let new_invocations = gen.parse_nodes(
-                        |g| g.parse_macro_invocation(),
-                        |g| g.parse_token(TokenKind::Comma),
-                    );
-
-                    self.consume_gen(gen);
+                    let new_invocations =
+                        self.new_frame(&self.token_trees[tree_index as usize], span, |gen| {
+                            gen.parse_nodes(
+                                |g| g.parse_macro_invocation(),
+                                |g| g.parse_token(TokenKind::Comma),
+                            )
+                        });
 
                     // Simply append the new invocations to the list of invocations.
                     invocations.extend(new_invocations.nodes);
@@ -152,7 +152,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // ##Hack: avoid making another id and allocating another span for
         // just a wrapper for the children. Ideally, this problem could be
         // fixed if we had `OptionalChildren!` in tree-def.
-        Ok(self.make_macro_invocations(self.nodes_with_joined_span(invocations, start)))
+        let macros = self.nodes_with_joined_span(invocations, start);
+        Ok(self.make_macro_invocations(macros))
     }
 
     pub(crate) fn make_macro_invocations(
@@ -187,12 +188,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// tokens before calling this function.
     pub(crate) fn parse_module_marco_invocations(
         &mut self,
-    ) -> ParseResult<AstNodes<MacroInvocation>> {
-        let mut gen = self.parse_delim_tree(Delimiter::Bracket, None)?;
-        let invocations =
-            gen.parse_nodes(|g| g.parse_macro_invocation(), |g| g.parse_token(TokenKind::Comma));
+    ) -> ParseResult<ThinVec<AstNode<MacroInvocation>>> {
+        self.in_tree(Delimiter::Bracket, None, |gen| {
+            let invocations = gen.parse_node_collection(
+                |g| g.parse_macro_invocation(),
+                |g| g.parse_token(TokenKind::Comma),
+            );
 
-        self.consume_gen(gen);
-        Ok(invocations)
+            Ok(invocations)
+        })
     }
 }

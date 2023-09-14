@@ -10,17 +10,17 @@ use crate::diagnostics::{
     expected::ExpectedItem,
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a singular [Name] from the current token stream.
     #[inline]
-    pub fn parse_name(&self) -> ParseResult<AstNode<Name>> {
+    pub fn parse_name(&mut self) -> ParseResult<AstNode<Name>> {
         self.parse_name_with_error(ParseErrorKind::ExpectedName)
     }
 
     /// Parse a singular [Name] from the current token stream. The function
     /// disallows a [Name] to be the special binding `_`.
     #[inline]
-    pub fn parse_name_with_error(&self, err: ParseErrorKind) -> ParseResult<AstNode<Name>> {
+    pub fn parse_name_with_error(&mut self, err: ParseErrorKind) -> ParseResult<AstNode<Name>> {
         match self.next_token() {
             Some(Token { kind: TokenKind::Ident(ident), span }) if *ident != IDENTS.underscore => {
                 Ok(self.node_with_span(Name { ident: *ident }, *span))
@@ -38,7 +38,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// as a named field. This function does not parse the
     /// [PropertyKind::NumericField] variant.
     #[inline]
-    pub fn parse_named_field(&self, err: ParseErrorKind) -> ParseResult<AstNode<PropertyKind>> {
+    pub fn parse_named_field(&mut self, err: ParseErrorKind) -> ParseResult<AstNode<PropertyKind>> {
         match self.next_token() {
             Some(Token { kind: TokenKind::Ident(ident), span }) if *ident != IDENTS.underscore => {
                 Ok(self.node_with_span(PropertyKind::NamedField(*ident), *span))

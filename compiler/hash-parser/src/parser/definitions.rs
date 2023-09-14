@@ -9,7 +9,7 @@ use crate::{
     parser::TyParamOrigin,
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Construct the [Params] from the parsed [`AstNodes<Param>`]. This is
     /// just a utility function to wrap the nodes in the [Params] struct.
     pub fn make_params(&self, params: AstNodes<Param>, origin: ParamOrigin) -> AstNode<Params> {
@@ -37,12 +37,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let def_kind = TyParamOrigin::Enum;
         let ty_params = self.parse_optional_ty_params(def_kind)?;
 
-        let mut gen = self
-            .parse_delim_tree(Delimiter::Paren, Some(ParseErrorKind::TypeDefinition(def_kind)))?;
-
-        let entries =
-            gen.parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma));
-        self.consume_gen(gen);
+        let entries = self.in_tree(
+            Delimiter::Paren,
+            Some(ParseErrorKind::TypeDefinition(def_kind)),
+            |gen| {
+                Ok(gen
+                    .parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma)))
+            },
+        )?;
 
         Ok(EnumDef { ty_params, entries })
     }
@@ -81,10 +83,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        let mut gen = self.parse_delim_tree(Delimiter::Paren, err_ctx)?;
-        let params =
-            gen.parse_nodes(|g| g.parse_param(origin), |g| g.parse_token(TokenKind::Comma));
-        self.consume_gen(gen);
+        let params = self.in_tree(Delimiter::Paren, err_ctx, |gen| {
+            Ok(gen.parse_nodes(|g| g.parse_param(origin), |g| g.parse_token(TokenKind::Comma)))
+        })?;
         Ok(self.make_params(params, origin))
     }
 

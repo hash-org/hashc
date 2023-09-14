@@ -23,7 +23,7 @@ use crate::{
     ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
 };
 
-/// A [Const] represents a constant valuen within the Hash IR. This can
+/// A [Const] represents a constant value within the Hash IR. This can
 /// be anything that can be represented as a constant, including ABI scalars,
 /// ADTs, slices, and arrays. This representation is intended to be used
 /// throughout the compiler from TIR, IR and potentially the VM as well.

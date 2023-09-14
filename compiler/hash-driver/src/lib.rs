@@ -197,7 +197,7 @@ impl Compiler {
         // queue can run within a worker and any other jobs can run inside another
         // worker or workers.
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(settings.worker_count + 1)
+            .num_threads(std::cmp::max(settings.worker_count, 2))
             .thread_name(|id| format!("compiler-worker-{id}"))
             .build()
             .unwrap();

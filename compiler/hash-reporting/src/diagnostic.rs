@@ -259,10 +259,11 @@ pub trait HasDiagnostics {
     }
 }
 
-/// Convenience trait to allow access to the diagnostics
+/// Convenience trait to allow access to the diagnostics in a
+/// mutable context.
 ///
 /// API follows the [DiagnosticsMut] trait.
-pub trait AccessToDiagnosticsMut {
+pub trait HasDiagnosticsMut {
     type Diagnostics: DiagnosticsMut;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics;

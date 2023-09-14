@@ -9,7 +9,7 @@ use crate::diagnostics::{
     expected::ExpectedItem,
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// This function is used to pickup 'glued' operator tokens to form more
     /// complex binary operators that might be made up of multiple tokens.
     /// The function will peek ahead (2 tokens at most since all binary

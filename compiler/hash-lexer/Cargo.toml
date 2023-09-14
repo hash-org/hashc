@@ -15,3 +15,11 @@ hash-reporting = {path = "../hash-reporting" }
 hash-source = {path = "../hash-source" }
 hash-token = {path = "../hash-token" }
 hash-target = {path = "../hash-target" }
+hash-utils = {path = "../hash-utils" }
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "bench"
+harness = false

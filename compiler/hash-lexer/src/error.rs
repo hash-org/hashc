@@ -3,7 +3,7 @@
 use std::{cell::Cell, fmt::Display};
 
 use hash_reporting::{
-    diagnostic::{AccessToDiagnosticsMut, DiagnosticStore},
+    diagnostic::{DiagnosticStore, HasDiagnosticsMut},
     report::{Report, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
@@ -150,7 +150,7 @@ pub struct LexerDiagnostics {
     pub(crate) has_fatal_error: Cell<bool>,
 }
 
-impl AccessToDiagnosticsMut for Lexer<'_> {
+impl HasDiagnosticsMut for Lexer<'_> {
     type Diagnostics = DiagnosticStore<LexerError, ()>;
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {
