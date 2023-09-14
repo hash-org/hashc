@@ -15,7 +15,7 @@ use hash_tir::{
 };
 use hash_utils::{derive_more::Deref, log::warn};
 
-use crate::TcEnv;
+use crate::env::TcEnv;
 
 #[derive(Deref)]
 pub struct SubstitutionOps<'a, T: TcEnv> {

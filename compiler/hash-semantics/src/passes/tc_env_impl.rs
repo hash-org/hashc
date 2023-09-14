@@ -7,7 +7,7 @@ use hash_tir::{
     context::{Context, HasContext},
     stores::tir_stores,
 };
-use hash_typecheck::{HasTcDiagnostics, TcEnv};
+use hash_typecheck::env::{HasTcDiagnostics, TcEnv};
 
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticWarning},

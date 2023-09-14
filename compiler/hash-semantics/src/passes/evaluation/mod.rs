@@ -11,7 +11,7 @@ use hash_tir::{
     dump::dump_tir,
     tir::{Arg, CallTerm, Node, NodeId, Term, TermId},
 };
-use hash_typecheck::{normalisation::NormalisationMode, TcEnv};
+use hash_typecheck::{env::TcEnv, operations::normalisation::NormalisationMode};
 use hash_utils::{
     derive_more::{Constructor, Deref},
     stream_less_writeln,

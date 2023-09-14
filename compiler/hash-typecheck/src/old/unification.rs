@@ -16,8 +16,8 @@ use hash_utils::derive_more::Deref;
 use once_cell::unsync::OnceCell;
 
 use crate::{
+    env::TcEnv,
     errors::{TcError, TcResult},
-    TcEnv,
 };
 
 #[derive(Deref)]
