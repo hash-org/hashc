@@ -5,11 +5,7 @@
 use hash_ir::ir;
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
-use hash_tir::{
-    lits::LitId,
-    node::HasAstNodeId,
-    terms::{Term, TermId},
-};
+use hash_tir::tir::{HasAstNodeId, LitId, Term, TermId};
 
 use super::BodyBuilder;
 

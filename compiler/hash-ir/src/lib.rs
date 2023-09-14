@@ -28,10 +28,8 @@ use constant::Allocations;
 use hash_source::entry_point::EntryPointState;
 use hash_storage::{store::SequenceStoreKey, stores};
 use hash_tir::{
-    data::{DataDefId, DataTy},
-    fns::FnDefId,
     intrinsics::definitions::Intrinsic as TirIntrinsic,
-    terms::TyId,
+    tir::{DataDefId, DataTy, FnDefId, TyId},
 };
 use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;

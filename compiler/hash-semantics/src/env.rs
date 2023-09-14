@@ -3,7 +3,7 @@ use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_source::entry_point::EntryPointState;
 use hash_target::HasTarget;
-use hash_tir::{fns::FnDefId, mods::ModDefId};
+use hash_tir::tir::{FnDefId, ModDefId};
 use once_cell::sync::OnceCell;
 
 use crate::{

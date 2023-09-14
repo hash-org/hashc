@@ -20,20 +20,16 @@ use hash_storage::store::{
 use hash_target::size::Size;
 use hash_tir::{
     context::HasContext,
-    data::{
-        ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo,
-        PrimitiveCtorInfo,
-    },
-    fns::{FnDef, FnDefId, FnTy},
     intrinsics::{
         definitions::{bool_def, Intrinsic as TirIntrinsic},
         make::IsIntrinsic,
         utils::try_use_term_as_integer_lit,
     },
-    node::{HasAstNodeId, NodesId},
-    refs::RefTy,
-    terms::{Ty, TyId},
-    tuples::TupleTy,
+    tir::{
+        ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, FnDef, FnDefId, FnTy,
+        HasAstNodeId, NodesId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo, RefTy, TupleTy,
+        Ty, TyId,
+    },
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
@@ -126,9 +122,9 @@ impl<'ir> BuilderCtx<'ir> {
                 let ty = self.ty_id_from_tir_ty(ty);
                 let mutability = if mutable { Mutability::Mutable } else { Mutability::Immutable };
                 let ref_kind = match kind {
-                    hash_tir::refs::RefKind::Rc => ty::RefKind::Rc,
-                    hash_tir::refs::RefKind::Raw => ty::RefKind::Raw,
-                    hash_tir::refs::RefKind::Local => ty::RefKind::Normal,
+                    hash_tir::tir::RefKind::Rc => ty::RefKind::Rc,
+                    hash_tir::tir::RefKind::Raw => ty::RefKind::Raw,
+                    hash_tir::tir::RefKind::Local => ty::RefKind::Normal,
                 };
 
                 IrTy::Ref(ty, mutability, ref_kind)

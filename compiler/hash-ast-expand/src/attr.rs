@@ -15,12 +15,11 @@ use hash_storage::store::{
 };
 use hash_target::HasTarget;
 use hash_tir::{
-    args::Arg,
     intrinsics::definitions::Primitive,
-    lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
-    node::{Node, NodeOrigin},
-    params::{utils::validate_and_reorder_args_against_params, ParamIndex},
-    terms::{Term, Ty, TyId},
+    tir::{
+        validate_and_reorder_args_against_params, Arg, CharLit, FloatLit, IntLit, Lit, Node,
+        NodeOrigin, ParamIndex, StrLit, Term, Ty, TyId,
+    },
 };
 
 use crate::{

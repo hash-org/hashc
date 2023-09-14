@@ -9,15 +9,8 @@ use hash_ir::{
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
-    arrays::ArrayPat,
-    control::{IfPat, OrPat},
-    data::CtorPat,
-    node::NodesId,
-    pats::{Pat, PatId},
     scopes::{BindingPat, Decl},
-    symbols::SymbolId,
-    terms::TermId,
-    tuples::TuplePat,
+    tir::{ArrayPat, CtorPat, IfPat, NodesId, OrPat, Pat, PatId, SymbolId, TermId, TuplePat},
 };
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};

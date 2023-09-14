@@ -4,7 +4,7 @@ use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
     ty::{IrTyId, Mutability},
 };
-use hash_tir::terms::TermId;
+use hash_tir::tir::TermId;
 
 use super::{BlockAnd, BodyBuilder};
 use crate::build::{unpack, BlockAndExtend};

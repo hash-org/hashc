@@ -8,12 +8,7 @@ use std::cell::Cell;
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
-use hash_tir::{
-    data::DataDefCtors,
-    mods::{ModDefId, ModMemberValue},
-    node::NodesId,
-    terms::Ty,
-};
+use hash_tir::tir::{DataDefCtors, ModDefId, ModMemberValue, NodesId, Ty};
 
 use super::{scoping::ContextKind, ResolutionPass};
 use crate::{

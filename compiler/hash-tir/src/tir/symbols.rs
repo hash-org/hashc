@@ -9,8 +9,8 @@ use hash_storage::{
 };
 
 use crate::{
-    node::{Node, NodeOrigin},
     stores::tir_stores,
+    tir::{Node, NodeOrigin},
     tir_node_single_store,
 };
 

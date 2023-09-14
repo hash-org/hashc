@@ -16,15 +16,10 @@ use hash_utils::parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
 use utility_types::omit;
 
-use super::{pats::Pat, terms::Term};
 use crate::{
     context::ContextMember,
-    mods::ModDefId,
-    node::{Node, NodeOrigin},
-    pats::PatId,
     stores::tir_stores,
-    symbols::SymbolId,
-    terms::{TermId, TyId},
+    tir::{ModDefId, Node, NodeOrigin, Pat, PatId, SymbolId, Term, TermId, TyId},
     tir_node_sequence_store_direct, tir_node_single_store,
 };
 

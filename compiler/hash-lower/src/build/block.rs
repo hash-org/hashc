@@ -11,10 +11,8 @@ use hash_ir::{
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
-    control::{LoopTerm, MatchTerm},
-    node::HasAstNodeId,
     scopes::{BlockStatement, BlockTerm},
-    terms::{Term, TermId},
+    tir::{HasAstNodeId, LoopTerm, MatchTerm, Term, TermId},
 };
 
 use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};

@@ -16,20 +16,14 @@ use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
-    args::ArgsId,
-    arrays::ArrayTerm,
     atom_info::ItemInAtomInfo,
     context::Context,
-    control::{LoopControlTerm, ReturnTerm},
-    data::CtorTerm,
-    fns::CallTerm,
-    node::NodesId,
-    params::ParamIndex,
-    refs::{self, RefTerm},
     scopes::AssignTerm,
     term_as_variant,
-    terms::{Term, TermId, Ty, UnsafeTerm},
-    tuples::TupleTerm,
+    tir::{
+        self, ArgsId, ArrayTerm, CallTerm, CtorTerm, LoopControlTerm, NodesId, ParamIndex, RefTerm,
+        ReturnTerm, Term, TermId, TupleTerm, Ty, UnsafeTerm,
+    },
 };
 use hash_utils::itertools::Itertools;
 
@@ -300,9 +294,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // the type of the expression, and where the expression comes
                 // from.
                 let kind = match kind {
-                    refs::RefKind::Local => RefKind::Normal,
-                    refs::RefKind::Raw => RefKind::Raw,
-                    refs::RefKind::Rc => RefKind::Rc,
+                    tir::RefKind::Local => RefKind::Normal,
+                    tir::RefKind::Raw => RefKind::Raw,
+                    tir::RefKind::Rc => RefKind::Rc,
                 };
 
                 let place = unpack!(block = self.as_place(block, subject, mutability));

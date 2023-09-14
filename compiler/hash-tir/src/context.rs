@@ -15,17 +15,13 @@ use hash_utils::{
 };
 
 use crate::{
-    args::{ArgId, ArgsId},
-    data::{CtorDefId, DataDefId},
-    fns::{FnDefId, FnTy},
     intrinsics::definitions::Intrinsic,
-    mods::ModDefId,
-    params::{ParamId, ParamsId},
     scopes::StackId,
     sub::Sub,
-    symbols::SymbolId,
-    terms::{TermId, TyId},
-    tuples::TupleTy,
+    tir::{
+        ArgId, ArgsId, CtorDefId, DataDefId, FnDefId, FnTy, ModDefId, ParamId, ParamsId, SymbolId,
+        TermId, TupleTy, TyId,
+    },
 };
 
 /// A binding that contains a type and optional value.

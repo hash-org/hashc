@@ -4,16 +4,7 @@ use std::hash::Hash;
 
 use hash_storage::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
-use super::{
-    args::{ArgsId, PatArgsId},
-    params::ParamsId,
-    pats::PatId,
-    terms::TermId,
-};
-use crate::{
-    fns::{FnDefId, FnTy},
-    terms::TyId,
-};
+use crate::tir::{ArgsId, FnDefId, FnTy, ParamsId, PatArgsId, PatId, TermId, TyId};
 
 macro_rules! atom_info {
     ($($name:ident: <$item:ident, $item_ty:ty>),* $(,)?) => {

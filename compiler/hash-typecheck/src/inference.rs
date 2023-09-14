@@ -16,16 +16,9 @@ use hash_storage::store::{
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
-    access::AccessTerm,
-    args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
-    arrays::{ArrayPat, ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
-    casting::CastTerm,
     context::ScopeKind,
-    control::{IfPat, LoopControlTerm, LoopTerm, MatchTerm, OrPat, ReturnTerm},
-    data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
     dump::dump_tir,
-    fns::{CallTerm, FnDefId, FnTy},
     intrinsics::{
         definitions::{
             bool_ty, char_def, f32_def, f64_def, i32_def, list_def, list_ty, never_ty, str_def,
@@ -36,24 +29,19 @@ use hash_tir::{
             bool_term, create_term_from_usize_lit, try_use_ty_as_float_ty, try_use_ty_as_int_ty,
         },
     },
-    lits::{Lit, LitId},
-    mods::{ModDefId, ModMemberId, ModMemberValue},
-    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-    params::{
-        utils::{
-            validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
-            validate_params,
-        },
-        Param, ParamsId,
-    },
-    pats::{Pat, PatId, PatListId, RangePat, Spread},
-    refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockStatement, BlockTerm},
     sub::Sub,
-    symbols::SymbolId,
     term_as_variant,
-    terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
-    tuples::{TuplePat, TupleTerm, TupleTy},
+    tir::{
+        validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
+        validate_params, AccessTerm, Arg, ArgId, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm,
+        CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDefId, FnTy,
+        HasAstNodeId, IfPat, IndexTerm, Lit, LitId, LoopControlTerm, LoopTerm, MatchTerm, ModDefId,
+        ModMemberId, ModMemberValue, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId,
+        Pat, PatArgsId, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm,
+        RefTy, ReturnTerm, Spread, SymbolId, Term, TermId, TermListId, TuplePat, TupleTerm,
+        TupleTy, Ty, TyId, TyOfTerm, UnsafeTerm,
+    },
     visitor::{Atom, Visitor},
 };
 use hash_utils::derive_more::{Constructor, Deref};

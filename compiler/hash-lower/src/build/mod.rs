@@ -25,10 +25,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, HasContext, ScopeKind},
-    fns::{FnDef, FnDefId, FnTy},
-    node::NodesId,
-    symbols::SymbolId,
-    terms::TermId,
+    tir::{FnDef, FnDefId, FnTy, NodesId, SymbolId, TermId},
 };
 use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
 

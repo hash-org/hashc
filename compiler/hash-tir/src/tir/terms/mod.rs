@@ -9,25 +9,34 @@ use hash_storage::store::{
 };
 use hash_utils::derive_more::From;
 
-use super::{casting::CastTerm, holes::Hole, symbols::SymbolId};
 use crate::{
-    access::AccessTerm,
-    args::{Arg, ArgsId},
-    arrays::{ArrayTerm, IndexTerm},
-    control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    data::{CtorTerm, DataDefId, DataTy},
-    fns::{CallTerm, FnDefId, FnTy},
     intrinsics::definitions::Intrinsic,
-    lits::LitId,
-    node::{Node, NodeId, NodeOrigin},
-    params::Param,
-    refs::{DerefTerm, RefKind, RefTerm, RefTy},
     scopes::{AssignTerm, BlockTerm},
     stores::tir_stores,
+    tir::{
+        Arg, ArgsId, CtorTerm, DataDefId, DataTy, LitId, Node, NodeId, NodeOrigin, Param, SymbolId,
+    },
     tir_node_sequence_store_indirect, tir_node_single_store,
-    tuples::{TupleTerm, TupleTy},
     visitor::Atom,
 };
+
+pub mod access;
+pub mod arrays;
+pub mod casting;
+pub mod control;
+pub mod fns;
+pub mod holes;
+pub mod refs;
+pub mod tuples;
+
+pub use access::*;
+pub use arrays::*;
+pub use casting::*;
+pub use control::*;
+pub use fns::*;
+pub use holes::*;
+pub use refs::*;
+pub use tuples::*;
 
 /// A term that can contain unsafe operations.
 #[derive(Debug, Clone, Copy)]
@@ -135,7 +144,7 @@ pub type TyListId = TermListId;
 macro_rules! term_as_variant {
     ($self:expr, $term:expr, $variant:ident) => {{
         let term = $term;
-        if let $crate::terms::Term::$variant(term) = *term {
+        if let $crate::tir::Term::$variant(term) = *term {
             term
         } else {
             panic!("Expected term {} to be a {}", term, stringify!($variant))

@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use crate::terms::{TermId, TyId};
+use crate::tir::{TermId, TyId};
 
 // @@Todo: explanations about semantics
 

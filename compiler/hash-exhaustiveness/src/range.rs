@@ -40,8 +40,7 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_storage::store::Store;
 use hash_tir::{
     intrinsics::utils::try_use_ty_as_int_ty,
-    pats::{PatId, RangePat},
-    terms::TyId,
+    tir::{PatId, RangePat, TyId},
 };
 
 use crate::{

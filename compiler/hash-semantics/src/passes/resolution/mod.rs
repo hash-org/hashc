@@ -4,7 +4,7 @@
 //!
 //! Any scoping errors are reported here.
 
-use hash_ast::ast::{self};
+use hash_ast::ast;
 use hash_source::SourceId;
 use hash_utils::derive_more::Deref;
 

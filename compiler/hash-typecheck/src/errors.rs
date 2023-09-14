@@ -9,11 +9,10 @@ use hash_reporting::{
 use hash_source::location::Span;
 use hash_storage::store::SequenceStoreKey;
 use hash_tir::{
-    fns::FnDefId,
-    node::{HasAstNodeId, NodeId, NodeOrigin},
-    params::{utils::ParamError, ParamIndex, ParamsId, SomeParamsOrArgsId},
-    pats::PatId,
-    terms::{TermId, TyId},
+    tir::{
+        FnDefId, HasAstNodeId, NodeId, NodeOrigin, ParamError, ParamIndex, ParamsId, PatId,
+        SomeParamsOrArgsId, TermId, TyId,
+    },
     visitor::Atom,
 };
 use hash_utils::derive_more::From;

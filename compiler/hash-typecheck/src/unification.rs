@@ -4,16 +4,12 @@ use std::{cell::Cell, collections::HashSet};
 
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    args::ArgsId,
     context::ScopeKind,
-    data::DataDefCtors,
-    fns::{CallTerm, FnTy},
-    holes::Hole,
-    lits::Lit,
-    params::{utils::validate_params, ParamsId},
     sub::Sub,
-    symbols::SymbolId,
-    terms::{Term, TermId, Ty, TyId},
+    tir::{
+        validate_params, ArgsId, CallTerm, DataDefCtors, FnTy, Hole, Lit, ParamsId, SymbolId, Term,
+        TermId, Ty, TyId,
+    },
     visitor::Atom,
 };
 use hash_utils::derive_more::Deref;

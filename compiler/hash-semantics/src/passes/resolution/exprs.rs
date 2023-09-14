@@ -14,24 +14,17 @@ use hash_storage::store::{
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
-    access::AccessTerm,
-    args::{Arg, ArgsId},
-    arrays::{ArrayTerm, IndexTerm},
-    casting::CastTerm,
-    control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
-    data::DataTy,
-    fns::CallTerm,
     intrinsics::{
         definitions::{equal_ty, BinOp, CondBinOp, Intrinsic, ShortCircuitingBoolOp, UnOp},
         utils::{bool_term, create_term_from_integer_lit},
     },
-    lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
-    node::{Node, NodeId, NodeOrigin},
-    params::ParamIndex,
-    refs::{DerefTerm, RefKind, RefTerm},
     scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
-    terms::{Term, TermId, Ty, TyOfTerm, UnsafeTerm},
-    tuples::TupleTerm,
+    tir::{
+        AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, CharLit, DataTy, DerefTerm,
+        FloatLit, IndexTerm, IntLit, Lit, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node,
+        NodeId, NodeOrigin, ParamIndex, RefKind, RefTerm, ReturnTerm, StrLit, Term, TermId,
+        TupleTerm, Ty, TyOfTerm, UnsafeTerm,
+    },
 };
 use hash_utils::itertools::Itertools;
 

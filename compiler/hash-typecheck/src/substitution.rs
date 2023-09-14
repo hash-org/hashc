@@ -4,18 +4,13 @@ use std::{collections::HashSet, ops::ControlFlow};
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
-    access::AccessTerm,
-    args::{ArgsId, PatArgsId},
     atom_info::ItemInAtomInfo,
     context::ContextMember,
-    holes::Hole,
-    mods::ModDefId,
-    node::NodeId,
-    params::{ParamId, ParamIndex, ParamsId},
-    pats::Pat,
     sub::Sub,
-    symbols::SymbolId,
-    terms::{Term, TermId, Ty},
+    tir::{
+        AccessTerm, ArgsId, Hole, ModDefId, NodeId, ParamId, ParamIndex, ParamsId, Pat, PatArgsId,
+        SymbolId, Term, TermId, Ty,
+    },
     visitor::{Atom, Visitor},
 };
 use hash_utils::{derive_more::Deref, log::warn};

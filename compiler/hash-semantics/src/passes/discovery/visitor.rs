@@ -8,14 +8,11 @@ use hash_ast::{
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    data::DataDef,
-    fns::{FnDef, FnTy},
-    mods::{ModDef, ModKind, ModMember},
-    node::{Node, NodeOrigin},
     scopes::Stack,
-    symbols::SymbolId,
-    terms::{Term, Ty},
-    tuples::TupleTy,
+    tir::{
+        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId, Term,
+        TupleTy, Ty,
+    },
 };
 use hash_utils::itertools::Itertools;
 

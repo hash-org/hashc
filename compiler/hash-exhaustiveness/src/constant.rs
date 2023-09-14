@@ -3,7 +3,7 @@
 //! used within the exhaustiveness sub-system to represent these values within
 //! a single data type.
 use hash_source::constant::InternedInt;
-use hash_tir::terms::TyId;
+use hash_tir::tir::TyId;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Constant {

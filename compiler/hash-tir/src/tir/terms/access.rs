@@ -4,7 +4,7 @@ use core::fmt;
 
 use hash_ast::ast;
 
-use super::{params::ParamIndex, terms::TermId};
+use crate::tir::{ParamIndex, TermId};
 
 /// Term to access a nested value.
 #[derive(Debug, Clone, Copy)]

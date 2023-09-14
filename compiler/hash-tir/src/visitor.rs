@@ -10,21 +10,15 @@ use hash_storage::store::{
 use hash_utils::derive_more::{From, TryInto};
 
 use crate::{
-    access::AccessTerm,
-    args::{Arg, ArgsId, PatArg, PatArgsId, PatOrCapture},
-    arrays::{ArrayPat, ArrayTerm, IndexTerm},
-    casting::CastTerm,
-    control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
-    data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-    fns::{CallTerm, FnDef, FnDefId, FnTy},
-    mods::{ModDefId, ModMemberId, ModMemberValue},
-    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-    params::{Param, ParamsId},
-    pats::{Pat, PatId, PatListId},
-    refs::{DerefTerm, RefTerm, RefTy},
     scopes::{AssignTerm, BlockStatement, BlockStatementsId, BlockTerm, Decl},
-    terms::{Term, TermId, TermListId, Ty, TyOfTerm, UnsafeTerm},
-    tuples::{TuplePat, TupleTerm, TupleTy},
+    tir::{
+        AccessTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat,
+        CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId,
+        IfPat, IndexTerm, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
+        Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
+        PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
+        TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyOfTerm, UnsafeTerm,
+    },
 };
 
 /// Contains methods to traverse the Hash TIR structure.

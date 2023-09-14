@@ -1,31 +1,19 @@
-//! Contains type definitions that the rest of the storage and the general
-//! typechecker use.
+//! The TIR is the Typed Intermediate Representation.
+//!
+//! It is the next tree structure that represents the program after the AST.
+//! It is used to perform semantic analysis and type checking. After this
+//! stage, the TIR is lowered into the IR, which continues on down the
+//! pipeline.
 #![feature(let_chains, decl_macro, trait_alias)]
 #![recursion_limit = "128"]
 
-pub mod access;
-pub mod args;
-pub mod arrays;
 pub mod atom_info;
 pub mod building;
-pub mod casting;
 pub mod context;
-pub mod control;
-pub mod data;
 pub mod dump;
-pub mod fns;
-pub mod holes;
 pub mod intrinsics;
-pub mod lits;
-pub mod mods;
-pub mod node;
-pub mod params;
-pub mod pats;
-pub mod refs;
 pub mod scopes;
 pub mod stores;
 pub mod sub;
-pub mod symbols;
-pub mod terms;
-pub mod tuples;
+pub mod tir;
 pub mod visitor;

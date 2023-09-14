@@ -13,8 +13,6 @@ use crate::{
         args, indexed_enum_def, params, primitive_with_params, ref_ty, sym, term, ty, unit_term,
         Type,
     },
-    data::{numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, PrimitiveCtorInfo},
-    fns::FnTy,
     intrinsics::{
         make::{IntrinsicAbilities, IsIntrinsic, IsPrimitive},
         utils::{
@@ -23,12 +21,11 @@ use crate::{
             try_use_term_as_integer_lit, try_use_ty_as_lit_ty, LitTy,
         },
     },
-    lits::Lit,
     make_intrinsics, make_primitives,
-    mods::ModMember,
-    node::{NodeId, NodeOrigin},
-    refs::RefKind,
-    terms::{Term, TermId, TyId},
+    tir::{
+        numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, FnTy, Lit, ModMember, NodeId,
+        NodeOrigin, PrimitiveCtorInfo, RefKind, Term, TermId, TyId,
+    },
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]

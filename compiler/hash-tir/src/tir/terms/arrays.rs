@@ -3,11 +3,7 @@ use std::fmt::Display;
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 
-use crate::{
-    node::NodesId,
-    pats::{PatId, PatListId, Spread},
-    terms::{TermId, TermListId},
-};
+use crate::tir::{NodesId, PatId, PatListId, Spread, TermId, TermListId};
 
 /// A term that is used as an index into an array.
 #[derive(Debug, Clone, Copy)]

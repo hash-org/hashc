@@ -1,7 +1,7 @@
 //! Defines a category of AST expressions which can be used to determine how to
 //! lower them throughout the lowering stage.
 
-use hash_tir::terms::{Term, Ty};
+use hash_tir::tir::{Term, Ty};
 
 /// A [Category] represents what category [ast::Expr]s belong to
 /// when they are being lowered. Depending on the category, we

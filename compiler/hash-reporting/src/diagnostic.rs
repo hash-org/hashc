@@ -2,11 +2,7 @@
 //! adding errors and warnings into an abstract diagnostic store that
 //! some stage within the compiler can implement.
 
-use std::{
-    cell::RefCell,
-    fmt::{self},
-    mem::take,
-};
+use std::{cell::RefCell, fmt, mem::take};
 
 use hash_utils::thin_vec::ThinVec;
 

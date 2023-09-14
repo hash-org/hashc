@@ -10,23 +10,17 @@ use hash_storage::store::{
 };
 use hash_target::HasTarget;
 use hash_tir::{
-    args::{PatArg, PatArgsId, PatOrCapture},
-    arrays::ArrayPat,
-    control::{IfPat, OrPat},
-    data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
     intrinsics::utils::{
         numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
         try_use_ty_as_int_ty, try_use_ty_as_lit_ty, LitTy,
     },
-    lits::{CharLit, IntLit, Lit, LitPat, StrLit},
-    node::{Node, NodeOrigin, NodesId},
-    params::{ParamId, ParamsId},
-    pats::{Pat, PatId, RangePat, Spread},
     scopes::BindingPat,
-    symbols::SymbolId,
     term_as_variant,
-    terms::{Ty, TyId},
-    tuples::{TuplePat, TupleTy},
+    tir::{
+        ArrayCtorInfo, ArrayPat, CharLit, CtorDefId, CtorPat, DataTy, IfPat, IntLit, Lit, LitPat,
+        Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId, Pat, PatArg, PatArgsId, PatId,
+        PatOrCapture, RangePat, Spread, StrLit, SymbolId, TuplePat, TupleTy, Ty, TyId,
+    },
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 

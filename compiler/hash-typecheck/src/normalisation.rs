@@ -7,29 +7,20 @@ use hash_storage::store::{
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
-    access::AccessTerm,
-    args::{Arg, ArgsId, PatArgsId, PatOrCapture},
-    arrays::{ArrayTerm, IndexTerm},
     atom_info::ItemInAtomInfo,
-    casting::CastTerm,
     context::ScopeKind,
-    control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-    fns::{CallTerm, FnDefId},
-    holes::Hole,
     intrinsics::{
         make::IsIntrinsic,
         utils::{get_bool_ctor, try_use_term_as_integer_lit},
     },
-    lits::{Lit, LitPat},
-    node::{Node, NodeId, NodesId},
-    params::ParamIndex,
-    pats::{Pat, PatId, PatListId, RangePat, Spread},
-    refs::DerefTerm,
     scopes::{AssignTerm, BlockStatement, BlockTerm},
     stores::tir_stores,
-    symbols::SymbolId,
-    terms::{Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm},
-    tuples::TupleTerm,
+    tir::{
+        AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, DerefTerm, FnDefId, Hole,
+        IndexTerm, Lit, LitPat, LoopControlTerm, LoopTerm, MatchTerm, Node, NodeId, NodesId,
+        ParamIndex, Pat, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, ReturnTerm, Spread,
+        SymbolId, Term, TermId, TermListId, TupleTerm, Ty, TyId, TyOfTerm, UnsafeTerm,
+    },
     visitor::{Atom, Visitor},
 };
 use hash_utils::{

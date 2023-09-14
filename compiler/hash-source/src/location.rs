@@ -156,7 +156,7 @@ impl Span {
     }
 }
 
-/// Represents a position within a source using a `row` and `column`  
+/// Represents a position within a source using a `row` and `column`
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct RowCol {
     /// The row number, indexing starts from `0`, but when printed, one is

@@ -5,15 +5,12 @@ use hash_ast::ast::{self, AstNodeId};
 use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    data::{CtorDefId, DataDefCtors, DataDefId},
-    fns::FnTy,
-    mods::{ModDefId, ModMemberId},
-    node::{NodeOrigin, NodesId},
-    params::ParamId,
     scopes::StackId,
-    symbols::SymbolId,
     term_as_variant,
-    tuples::TupleTy,
+    tir::{
+        CtorDefId, DataDefCtors, DataDefId, FnTy, ModDefId, ModMemberId, NodeOrigin, NodesId,
+        ParamId, SymbolId, TupleTy,
+    },
 };
 use hash_utils::{derive_more::Deref, state::HeavyState};
 

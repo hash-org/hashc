@@ -10,18 +10,13 @@ use hash_ast::ast::{self, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
-    args::{PatArg, PatArgsId, PatOrCapture},
-    arrays::ArrayPat,
-    control::{IfPat, OrPat},
-    data::CtorPat,
     intrinsics::utils::bool_pat,
-    lits::{CharLit, Lit, LitPat, StrLit},
-    node::{Node, NodeId, NodeOrigin},
-    params::ParamIndex,
-    pats::{Pat, PatId, PatListId, RangePat, Spread},
     scopes::BindingPat,
-    symbols::SymbolId,
-    tuples::TuplePat,
+    tir::{
+        ArrayPat, CharLit, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin, OrPat,
+        ParamIndex, Pat, PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, Spread,
+        StrLit, SymbolId, TuplePat,
+    },
 };
 
 use super::{

@@ -7,9 +7,8 @@ use hash_ast::ast::RangeEnd;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
 use hash_target::size::Size;
 use hash_tir::{
-    data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
     intrinsics::utils::try_use_ty_as_int_ty,
-    terms::Ty,
+    tir::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo, Ty},
 };
 use hash_utils::smallvec::{smallvec, SmallVec};
 

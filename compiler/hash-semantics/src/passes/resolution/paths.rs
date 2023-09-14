@@ -25,14 +25,11 @@ use hash_ast::ast::{self, AstNodeId};
 use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
-    args::{Arg, ArgsId},
-    data::{CtorPat, CtorTerm, DataDefId},
-    fns::{CallTerm, FnDefId},
     intrinsics::definitions::Intrinsic,
-    mods::{ModDefId, ModMemberValue},
-    node::{Node, NodeId, NodeOrigin},
-    symbols::SymbolId,
-    terms::Term,
+    tir::{
+        Arg, ArgsId, CallTerm, CtorPat, CtorTerm, DataDefId, FnDefId, ModDefId, ModMemberValue,
+        Node, NodeId, NodeOrigin, SymbolId, Term,
+    },
 };
 
 use super::{

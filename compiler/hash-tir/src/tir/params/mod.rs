@@ -9,24 +9,19 @@ use hash_storage::store::{
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 
-use super::{
-    args::{ArgsId, PatArgsId},
-    terms::TermId,
-};
 use crate::{
-    args::SomeArgsId,
     context::ScopeKind,
-    data::{CtorDefId, DataDefId},
-    fns::{FnDefId, FnTy},
-    node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
     stores::tir_stores,
-    symbols::SymbolId,
-    terms::{Ty, TyId},
+    tir::{
+        ArgsId, CtorDefId, DataDefId, FnDefId, FnTy, HasAstNodeId, Node, NodeId, NodeOrigin,
+        NodesId, PatArgsId, SomeArgsId, SymbolId, TermId, TupleTy, Ty, TyId,
+    },
     tir_node_sequence_store_direct,
-    tuples::TupleTy,
 };
 
 pub mod utils;
+
+pub use utils::*;
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.

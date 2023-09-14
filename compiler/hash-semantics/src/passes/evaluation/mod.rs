@@ -3,16 +3,13 @@
 //!
 //! Typing errors are reported during this pass.
 
-use hash_ast::ast::{self};
+use hash_ast::ast;
 use hash_pipeline::settings::CompilerStageKind;
 use hash_source::{ModuleKind, SourceId};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    args::Arg,
     dump::dump_tir,
-    fns::CallTerm,
-    node::{Node, NodeId},
-    terms::{Term, TermId},
+    tir::{Arg, CallTerm, Node, NodeId, Term, TermId},
 };
 use hash_typecheck::{normalisation::NormalisationMode, TcEnv};
 use hash_utils::{

@@ -9,11 +9,8 @@
 
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
-    data::{CtorDefId, DataDefCtors, DataTy},
     intrinsics::utils::try_use_ty_as_array_ty,
-    node::NodesId,
-    terms::{Ty, TyId},
-    tuples::TupleTy,
+    tir::{CtorDefId, DataDefCtors, DataTy, NodesId, TupleTy, Ty, TyId},
 };
 use hash_utils::itertools::Itertools;
 

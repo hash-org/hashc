@@ -2,15 +2,12 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use hash_ast::ast::AstNodeId;
 use hash_tir::{
-    args::{ArgId, ArgsSeqId, PatArgId, PatArgsSeqId},
     context::ContextMember,
-    data::{CtorDefId, CtorDefsSeqId, DataDefId},
-    fns::FnDefId,
-    mods::{ModDefId, ModMemberId, ModMembersSeqId},
-    params::{ParamId, ParamsSeqId},
-    pats::PatId,
     scopes::StackId,
-    terms::{TermId, TyId},
+    tir::{
+        ArgId, ArgsSeqId, CtorDefId, CtorDefsSeqId, DataDefId, FnDefId, ModDefId, ModMemberId,
+        ModMembersSeqId, ParamId, ParamsSeqId, PatArgId, PatArgsSeqId, PatId, TermId, TyId,
+    },
 };
 use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
 

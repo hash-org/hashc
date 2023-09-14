@@ -1,5 +1,5 @@
 /// Various utility functions for working with intrinsics and primitives.
-use hash_ast::ast::{self};
+use hash_ast::ast;
 use hash_source::constant::{
     FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy,
     InternedFloat, InternedInt, SIntTy, UIntTy,
@@ -13,13 +13,11 @@ use super::{
     make::IsPrimitiveCtor,
 };
 use crate::{
-    args::{Arg, PatArg},
     context::HasContext,
-    data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, PrimitiveCtorInfo},
-    lits::{CharLit, IntLit, Lit},
-    node::{Node, NodeOrigin},
-    pats::{Pat, PatId},
-    terms::{Term, TermId, Ty, TyId},
+    tir::{
+        Arg, ArrayCtorInfo, CharLit, CtorDefId, CtorPat, CtorTerm, DataDefCtors, IntLit, Lit, Node,
+        NodeOrigin, Pat, PatArg, PatId, PrimitiveCtorInfo, Term, TermId, Ty, TyId,
+    },
 };
 
 /// Primitive literal types.

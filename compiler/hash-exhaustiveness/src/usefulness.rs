@@ -8,7 +8,7 @@
 use std::iter::once;
 
 use hash_storage::store::Store;
-use hash_tir::{pats::PatId, terms::TyId};
+use hash_tir::tir::{PatId, TyId};
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 
 use super::{
@@ -113,7 +113,7 @@ pub(crate) struct MatchArm {
     /// Whether the arm has an `if-guard`.
     pub(crate) has_guard: bool,
 
-    /// The corresponding [hash_tir::pats::Pat] with this
+    /// The corresponding [hash_tir::tir::Pat] with this
     /// match arm.
     pub(crate) id: PatId,
 }

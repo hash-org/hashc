@@ -2,11 +2,7 @@
 
 use std::fmt::Display;
 
-use super::{
-    args::PatArgsId,
-    pats::{PatArgsWithSpread, Spread},
-};
-use crate::{args::ArgsId, params::ParamsId};
+use crate::tir::{ArgsId, ParamsId, PatArgsId, PatArgsWithSpread, Spread};
 
 /// A tuple type.
 ///
