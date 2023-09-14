@@ -24,7 +24,7 @@ use hash_storage::{
     static_sequence_store_indirect, static_single_store,
     store::{
         statics::{SingleStoreValue, StoreId},
-        SequenceStore, StoreKey,
+        SequenceStore,
     },
 };
 use hash_target::{
@@ -270,7 +270,7 @@ pub enum IrTy {
 
 impl IrTy {
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
-    pub fn tuple(tys: &[IrTyId]) -> IrTyId {
+    pub fn tuple(tys: &[IrTyId]) -> IrTy {
         let variants = index_vec![AdtVariant {
             name: 0usize.into(),
             fields: tys
@@ -281,8 +281,11 @@ impl IrTy {
                 .collect(),
         }];
         let adt = Adt::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
-        let ty = Self::Adt(Adt::create(adt));
-        IrTy::create(ty)
+        Self::Adt(Adt::create(adt))
+    }
+
+    pub fn make_tuple(tys: &[IrTyId]) -> IrTyId {
+        IrTy::create(IrTy::tuple(tys))
     }
 
     /// Create a reference type to the provided [IrTy].
@@ -525,70 +528,17 @@ macro_rules! create_common_ty_table {
         /// using the associated [IrTyId]s of this map.
         pub struct CommonIrTys {
             $(pub $name: IrTyId, )*
-
-            /// A slice of bytes, i.e. `[u8]`.
-            pub byte_slice: IrTyId,
-
-            /// A string, i.e. `&str`.
-            pub str: IrTyId,
-
-            /// A general pointer to bytes, i.e. `&u8`.
-            pub ptr: IrTyId,
-
-            /// A general pointer to bytes, i.e. `&raw u8`.
-            pub raw_ptr: IrTyId,
-
-            /// A void pointer, i.e. `&()`.
-            pub void_ptr: IrTyId,
-
-            /// The big unsigned integer type.
-            pub ubig: IrTyId,
-
-            /// The big signed integer type.
-            pub ibig: IrTyId,
         }
 
         impl CommonIrTys {
             pub fn new() -> CommonIrTys {
-                // Create a null-slot and fill in the other ones later.
-                let null_ty = unsafe { IrTyId::from_index_unchecked(0) };
-
-                let table = CommonIrTys {
-                    $($name: IrTy::create($value), )*
-                    byte_slice: null_ty,
-                    ptr: null_ty,
-                    raw_ptr: null_ty,
-                    void_ptr: null_ty,
-                    str: null_ty,
-                    ubig: null_ty,
-                    ibig: null_ty,
-                };
-
                 // Create a `unit` type in order to reserve the first index of
                 // the ADT for a `()` type.
                 let _ = IrTy::tuple(&[]);
-
-                // @@Hack: find a way to nicely create this within the `create_common_ty_table!`,
-                // however this would require somehow referencing entries within the table before
-                // they are defined...
-                let byte_slice = IrTy::create(IrTy::Slice(table.u8));
-                let ptr = IrTy::create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Normal));
-                let raw_ptr = IrTy::create(IrTy::Ref(table.u8, Mutability::Immutable, RefKind::Raw));
-                let void_ptr = IrTy::create(IrTy::Ref(table.unit, Mutability::Immutable, RefKind::Raw));
-                let str = IrTy::create(IrTy::Ref(table.unsized_str, Mutability::Immutable, RefKind::Normal));
-
-                let ubig =  IrTy::create(IrTy::Slice(table.u64));
-                let ibig = IrTy::tuple(&[table.bool, table.ubig]);
+                $(let $name = IrTy::create($value); )*
 
                 CommonIrTys {
-                    byte_slice,
-                    ptr,
-                    raw_ptr,
-                    void_ptr,
-                    str,
-                    ubig,
-                    ibig,
-                    ..table
+                    $($name,)*
                 }
             }
         }
@@ -608,14 +558,6 @@ create_common_ty_table!(
     bool: IrTy::Bool,
     char: IrTy::Char,
     never: IrTy::Never,
-
-    // ------------------------------------------
-    // Unsized string refers to the inner type of a `str`.
-    //
-    // @@Temporary This is only  temporary until str/[T] type semantics and rules are decided and
-    // implemented.
-    // ------------------------------------------
-    unsized_str: IrTy::Str,
 
     // ------------------------------------------
     // Floating point types
@@ -647,6 +589,22 @@ create_common_ty_table!(
     // ------------------------------------------
     usize: IrTy::UInt(UIntTy::USize),
     unit: IrTy::Adt(AdtId::UNIT),
+
+    // ------------------------------------------
+    // BigInts
+    // ------------------------------------------
+    ubig: IrTy::Slice(u64),
+    ibig: IrTy::tuple(&[bool, ubig]),
+
+    // ------------------------------------------
+    // Pointer types
+    // ------------------------------------------
+    byte_slice: IrTy::Slice(u8),
+    ptr: IrTy::Ref(u8, Mutability::Immutable, RefKind::Normal),
+    raw_ptr: IrTy::Ref(u8, Mutability::Immutable, RefKind::Raw),
+    void_ptr: IrTy::Ref(unit, Mutability::Immutable, RefKind::Raw),
+    unsized_str: IrTy::Str,
+    str: IrTy::Ref(unsized_str, Mutability::Immutable, RefKind::Normal),
 );
 
 lazy_static::lazy_static!(
