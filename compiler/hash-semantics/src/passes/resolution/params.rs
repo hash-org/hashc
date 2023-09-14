@@ -6,7 +6,7 @@ use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey,
 };
-use hash_tir::nodes::{
+use hash_tir::tir::{
     args::{ArgsId, PatArgsId},
     node::{Node, NodeOrigin},
     params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},

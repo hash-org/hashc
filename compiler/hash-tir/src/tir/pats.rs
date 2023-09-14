@@ -11,7 +11,9 @@ use hash_storage::{
 use hash_utils::derive_more::From;
 
 use crate::{
-    nodes::{
+    scopes::BindingPat,
+    stores::tir_stores,
+    tir::{
         args::{PatArgsId, PatOrCapture},
         data::CtorPat,
         lits::LitPat,
@@ -22,8 +24,6 @@ use crate::{
             tuples::TuplePat,
         },
     },
-    scopes::BindingPat,
-    stores::tir_stores,
     tir_node_sequence_store_indirect, tir_node_single_store,
 };
 

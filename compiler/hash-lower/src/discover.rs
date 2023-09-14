@@ -9,12 +9,12 @@ use hash_pipeline::workspace::StageInfo;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    nodes::{
+    stores::tir_stores,
+    tir::{
         mods::{ModDef, ModKind, ModMemberValue},
         node::HasAstNodeId,
         terms::{fns::FnDefId, TermId},
     },
-    stores::tir_stores,
     visitor::{Atom, Visitor},
 };
 use hash_utils::{derive_more::Constructor, indexmap::IndexSet};

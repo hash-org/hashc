@@ -14,7 +14,9 @@ use hash_tir::{
         numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
         try_use_ty_as_int_ty, try_use_ty_as_lit_ty, LitTy,
     },
-    nodes::{
+    scopes::BindingPat,
+    term_as_variant,
+    tir::{
         args::{PatArg, PatArgsId, PatOrCapture},
         data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
         lits::{CharLit, IntLit, Lit, LitPat, StrLit},
@@ -29,8 +31,6 @@ use hash_tir::{
             Ty, TyId,
         },
     },
-    scopes::BindingPat,
-    term_as_variant,
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 

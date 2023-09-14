@@ -10,7 +10,7 @@ use super::definitions::{all_intrinsics_as_mod_members, all_primitives_as_mod_me
 use crate::{
     building::gen,
     context::HasContext,
-    nodes::{
+    tir::{
         data::{CtorDefId, DataDefId},
         mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberValue},
         node::Node,
@@ -133,9 +133,9 @@ macro_rules! make_intrinsics {
 
         // ##GeneratedOrigin: Intrinsics do not have a source location.
         /// All the intrinsics as a tuple.
-        pub fn all_intrinsics_as_mod_members() -> &'static [$crate::nodes::node::Node<ModMember>] {
-            use $crate::nodes::node::Node;
-            use $crate::nodes::mods::ModMemberValue;
+        pub fn all_intrinsics_as_mod_members() -> &'static [$crate::tir::node::Node<ModMember>] {
+            use $crate::tir::node::Node;
+            use $crate::tir::mods::ModMemberValue;
             use std::sync::OnceLock;
 
             static INTRINSICS_MOD: OnceLock<Vec<Node<ModMember>>> = OnceLock::new();
@@ -300,9 +300,9 @@ macro_rules! make_primitives {
 
         // ##GeneratedOrigin: Intrinsics do not have a source location.
         /// All the primitives as module members.
-        pub fn all_primitives_as_mod_members() -> &'static [$crate::nodes::node::Node<ModMember>] {
-            use $crate::nodes::node::Node;
-            use $crate::nodes::mods::ModMemberValue;
+        pub fn all_primitives_as_mod_members() -> &'static [$crate::tir::node::Node<ModMember>] {
+            use $crate::tir::node::Node;
+            use $crate::tir::mods::ModMemberValue;
             use std::sync::OnceLock;
 
             static PRIMITIVES_MOD: OnceLock<Vec<Node<ModMember>>> = OnceLock::new();
@@ -397,10 +397,10 @@ macro_rules! make_primitives {
                     #[allow(non_snake_case)]
                     pub fn [<$name:snake _ty>](
                         $($($param_name: TermId),*,)?
-                        origin: $crate::nodes::node::NodeOrigin,
+                        origin: $crate::tir::node::NodeOrigin,
                     ) -> TyId {
-                        use $crate::nodes::terms::Ty;
-                        use $crate::nodes::args::Arg;
+                        use $crate::tir::terms::Ty;
+                        use $crate::tir::args::Arg;
                         Ty::indexed_data_ty(
                             [<$name:camel Primitive>].def(),
                             Arg::seq_positional([$($($param_name,)*)?], origin),
@@ -414,8 +414,8 @@ macro_rules! make_primitives {
                     pub fn [<$name:snake _gen_ty>](
                         $($($param_name: TermId),*)?
                     ) -> TyId {
-                        use $crate::nodes::terms::Ty;
-                        use $crate::nodes::args::Arg;
+                        use $crate::tir::terms::Ty;
+                        use $crate::tir::args::Arg;
                         Ty::indexed_data_ty(
                             [<$name:camel Primitive>].def(),
                             Arg::seq_positional([$($($param_name,)*)?], NodeOrigin::Generated),
@@ -429,10 +429,10 @@ macro_rules! make_primitives {
                     #[allow(non_snake_case)]
                     pub fn [<$name:snake _ty>](
                         $($($prim_param_name: TermId),*,)?
-                        origin: $crate::nodes::node::NodeOrigin,
+                        origin: $crate::tir::node::NodeOrigin,
                     ) -> TyId {
-                        use $crate::nodes::terms::Ty;
-                        use $crate::nodes::args::Arg;
+                        use $crate::tir::terms::Ty;
+                        use $crate::tir::args::Arg;
                         Ty::indexed_data_ty(
                             [<$name:camel Primitive>].def(),
                             Arg::seq_positional([$($($prim_param_name,)*)?], origin),
@@ -446,8 +446,8 @@ macro_rules! make_primitives {
                     pub fn [<$name:snake _gen_ty>](
                         $($($prim_param_name: TermId),*)?
                     ) -> TyId {
-                        use $crate::nodes::terms::Ty;
-                        use $crate::nodes::args::Arg;
+                        use $crate::tir::terms::Ty;
+                        use $crate::tir::args::Arg;
                         Ty::indexed_data_ty(
                             [<$name:camel Primitive>].def(),
                             Arg::seq_positional([$($($prim_param_name,)*)?], NodeOrigin::Generated),

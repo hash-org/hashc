@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use crate::nodes::{
+use crate::tir::{
     args::{ArgsId, PatArgsId},
     params::ParamsId,
     pats::{PatArgsWithSpread, Spread},

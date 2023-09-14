@@ -5,7 +5,7 @@ use hash_ir::{
     ty::{IrTyId, Mutability, VariantIdx},
 };
 use hash_storage::store::statics::StoreId;
-use hash_tir::nodes::{
+use hash_tir::tir::{
     params::ParamIndex,
     terms::{access::AccessTerm, arrays::IndexTerm, refs::DerefTerm, Term, TermId, Ty},
 };

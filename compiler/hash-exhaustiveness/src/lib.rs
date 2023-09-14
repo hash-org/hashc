@@ -73,7 +73,7 @@ use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::Span;
 use hash_storage::store::CloneStore;
 use hash_target::HasTarget;
-use hash_tir::nodes::{pats::PatId, terms::TyId};
+use hash_tir::tir::{pats::PatId, terms::TyId};
 use hash_utils::derive_more::Deref;
 use storage::{
     DeconstructedCtorId, DeconstructedCtorStore, DeconstructedPatId, DeconstructedPatStore,

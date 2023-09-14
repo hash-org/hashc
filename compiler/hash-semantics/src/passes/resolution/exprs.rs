@@ -18,7 +18,8 @@ use hash_tir::{
         definitions::{equal_ty, BinOp, CondBinOp, Intrinsic, ShortCircuitingBoolOp, UnOp},
         utils::{bool_term, create_term_from_integer_lit},
     },
-    nodes::{
+    scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
+    tir::{
         args::{Arg, ArgsId},
         data::DataTy,
         lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
@@ -35,7 +36,6 @@ use hash_tir::{
             Term, TermId, Ty, TyOfTerm, UnsafeTerm,
         },
     },
-    scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
 };
 use hash_utils::itertools::Itertools;
 

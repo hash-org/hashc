@@ -10,7 +10,7 @@
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{
     intrinsics::utils::try_use_ty_as_array_ty,
-    nodes::{
+    tir::{
         data::{CtorDefId, DataDefCtors, DataTy},
         node::NodesId,
         terms::{tuples::TupleTy, Ty, TyId},

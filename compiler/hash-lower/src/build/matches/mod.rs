@@ -18,7 +18,7 @@ use hash_ir::{
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{Context, ScopeKind},
-    nodes::{
+    tir::{
         node::NodesId,
         pats::{Pat, PatId},
         terms::{

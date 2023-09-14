@@ -26,7 +26,7 @@ use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     intrinsics::definitions::Intrinsic,
-    nodes::{
+    tir::{
         args::{Arg, ArgsId},
         data::{CtorPat, CtorTerm, DataDefId},
         mods::{ModDefId, ModMemberValue},

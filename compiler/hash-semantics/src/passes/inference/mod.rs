@@ -5,7 +5,7 @@
 
 use hash_ast::ast;
 use hash_source::SourceId;
-use hash_tir::{nodes::terms::Ty, visitor::Atom};
+use hash_tir::{tir::terms::Ty, visitor::Atom};
 use hash_typecheck::{
     errors::{TcError, TcResult},
     inference::FnInferMode,

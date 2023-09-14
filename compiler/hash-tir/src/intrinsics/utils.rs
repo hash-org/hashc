@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     context::HasContext,
-    nodes::{
+    tir::{
         args::{Arg, PatArg},
         data::{ArrayCtorInfo, CtorDefId, CtorPat, CtorTerm, DataDefCtors, PrimitiveCtorInfo},
         lits::{CharLit, IntLit, Lit},

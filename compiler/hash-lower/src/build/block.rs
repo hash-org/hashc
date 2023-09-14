@@ -11,14 +11,14 @@ use hash_ir::{
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
-    nodes::{
+    scopes::{BlockStatement, BlockTerm},
+    tir::{
         node::HasAstNodeId,
         terms::{
             control::{LoopTerm, MatchTerm},
             Term, TermId,
         },
     },
-    scopes::{BlockStatement, BlockTerm},
 };
 
 use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};

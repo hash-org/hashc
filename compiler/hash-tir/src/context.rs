@@ -16,7 +16,9 @@ use hash_utils::{
 
 use crate::{
     intrinsics::definitions::Intrinsic,
-    nodes::{
+    scopes::StackId,
+    sub::Sub,
+    tir::{
         args::{ArgId, ArgsId},
         data::{CtorDefId, DataDefId},
         mods::ModDefId,
@@ -28,8 +30,6 @@ use crate::{
             TermId, TyId,
         },
     },
-    scopes::StackId,
-    sub::Sub,
 };
 
 /// A binding that contains a type and optional value.

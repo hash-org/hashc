@@ -5,7 +5,9 @@ use hash_ast::ast::{self, AstNodeId};
 use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    nodes::{
+    scopes::StackId,
+    term_as_variant,
+    tir::{
         data::{CtorDefId, DataDefCtors, DataDefId},
         mods::{ModDefId, ModMemberId},
         node::{NodeOrigin, NodesId},
@@ -13,8 +15,6 @@ use hash_tir::{
         symbols::SymbolId,
         terms::{fns::FnTy, tuples::TupleTy},
     },
-    scopes::StackId,
-    term_as_variant,
 };
 use hash_utils::{derive_more::Deref, state::HeavyState};
 

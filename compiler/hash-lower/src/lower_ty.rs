@@ -25,7 +25,7 @@ use hash_tir::{
         make::IsIntrinsic,
         utils::try_use_term_as_integer_lit,
     },
-    nodes::{
+    tir::{
         data::{
             ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits,
             NumericCtorInfo, PrimitiveCtorInfo,
@@ -130,9 +130,9 @@ impl<'ir> BuilderCtx<'ir> {
                 let ty = self.ty_id_from_tir_ty(ty);
                 let mutability = if mutable { Mutability::Mutable } else { Mutability::Immutable };
                 let ref_kind = match kind {
-                    hash_tir::nodes::terms::refs::RefKind::Rc => ty::RefKind::Rc,
-                    hash_tir::nodes::terms::refs::RefKind::Raw => ty::RefKind::Raw,
-                    hash_tir::nodes::terms::refs::RefKind::Local => ty::RefKind::Normal,
+                    hash_tir::tir::terms::refs::RefKind::Rc => ty::RefKind::Rc,
+                    hash_tir::tir::terms::refs::RefKind::Raw => ty::RefKind::Raw,
+                    hash_tir::tir::terms::refs::RefKind::Local => ty::RefKind::Normal,
                 };
 
                 IrTy::Ref(ty, mutability, ref_kind)

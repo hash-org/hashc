@@ -10,7 +10,7 @@ use hash_ir::{
 use hash_source::constant::IntTy;
 use hash_storage::store::statics::StoreId;
 use hash_target::HasTarget;
-use hash_tir::nodes::{
+use hash_tir::tir::{
     node::HasAstNodeId,
     terms::{Term, TermId, Ty},
 };

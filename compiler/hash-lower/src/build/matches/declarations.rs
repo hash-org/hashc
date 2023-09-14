@@ -9,7 +9,8 @@ use hash_ir::{
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
-    nodes::{
+    scopes::{BindingPat, Decl},
+    tir::{
         data::CtorPat,
         node::NodesId,
         pats::{Pat, PatId},
@@ -21,7 +22,6 @@ use hash_tir::{
             TermId,
         },
     },
-    scopes::{BindingPat, Decl},
 };
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};

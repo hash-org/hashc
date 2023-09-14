@@ -5,7 +5,8 @@ use std::{cell::Cell, collections::HashSet};
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     context::ScopeKind,
-    nodes::{
+    sub::Sub,
+    tir::{
         args::ArgsId,
         data::DataDefCtors,
         lits::Lit,
@@ -17,7 +18,6 @@ use hash_tir::{
             Term, TermId, Ty, TyId,
         },
     },
-    sub::Sub,
     visitor::Atom,
 };
 use hash_utils::derive_more::Deref;

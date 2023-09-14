@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 use hash_storage::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
-use crate::nodes::{
+use crate::tir::{
     args::{ArgsId, PatArgsId},
     params::ParamsId,
     pats::PatId,

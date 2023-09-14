@@ -6,7 +6,8 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::ContextMember,
-    nodes::{
+    sub::Sub,
+    tir::{
         args::{ArgsId, PatArgsId},
         mods::ModDefId,
         node::NodeId,
@@ -15,7 +16,6 @@ use hash_tir::{
         symbols::SymbolId,
         terms::{access::AccessTerm, holes::Hole, Term, TermId, Ty},
     },
-    sub::Sub,
     visitor::{Atom, Visitor},
 };
 use hash_utils::{derive_more::Deref, log::warn};

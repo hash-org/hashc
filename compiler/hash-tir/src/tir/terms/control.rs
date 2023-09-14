@@ -8,12 +8,12 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceSto
 use textwrap::indent;
 
 use crate::{
-    nodes::{
+    scopes::StackId,
+    stores::tir_stores,
+    tir::{
         pats::{PatId, PatListId},
         terms::{Term, TermId},
     },
-    scopes::StackId,
-    stores::tir_stores,
     tir_node_sequence_store_direct,
 };
 

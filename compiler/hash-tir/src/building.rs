@@ -10,7 +10,7 @@ pub mod gen {
     use hash_storage::store::statics::SequenceStoreValue;
     use hash_utils::itertools::Itertools;
 
-    use crate::nodes::{
+    use crate::tir::{
         args::{Arg, ArgsId},
         data::{DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
         node::{Node, NodeOrigin},

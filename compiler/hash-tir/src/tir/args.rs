@@ -10,14 +10,14 @@ use hash_storage::store::{
 use hash_utils::{derive_more::From, itertools::Itertools};
 
 use crate::{
-    nodes::{
+    stores::tir_stores,
+    tir::{
         node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
         params::{ParamIndex, ParamsId},
         pats::PatId,
         symbols::SymbolId,
         terms::{Term, TermId},
     },
-    stores::tir_stores,
     tir_node_sequence_store_direct,
 };
 

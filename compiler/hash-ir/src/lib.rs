@@ -29,7 +29,7 @@ use hash_source::entry_point::EntryPointState;
 use hash_storage::{store::SequenceStoreKey, stores};
 use hash_tir::{
     intrinsics::definitions::Intrinsic as TirIntrinsic,
-    nodes::{
+    tir::{
         data::{DataDefId, DataTy},
         terms::{fns::FnDefId, TyId},
     },

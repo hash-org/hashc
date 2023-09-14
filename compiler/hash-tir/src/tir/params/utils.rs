@@ -12,7 +12,7 @@ use hash_storage::store::{
 };
 use hash_utils::{pluralise, printing::SequenceDisplay};
 
-use crate::nodes::{
+use crate::tir::{
     args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
     node::{HasAstNodeId, Node, NodeId, NodesId},
     params::{ParamId, ParamIndex, ParamsId},

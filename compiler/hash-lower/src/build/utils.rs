@@ -13,7 +13,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
-use hash_tir::nodes::{
+use hash_tir::tir::{
     args::Arg,
     data::DataTy,
     mods::{ModMember, ModMemberValue},

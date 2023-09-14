@@ -7,7 +7,8 @@ use hash_storage::stores;
 
 use crate::{
     atom_info::AtomInfoStore,
-    nodes::{
+    scopes::{BlockStatementsSeqStore, BlockStatementsStore, StackStore},
+    tir::{
         args::{ArgsSeqStore, ArgsStore, PatArgsSeqStore, PatArgsStore},
         data::{CtorDefsSeqStore, CtorDefsStore, DataDefStore},
         lits::LitStore,
@@ -21,7 +22,6 @@ use crate::{
             TermListSeqStore, TermListStore, TermStore,
         },
     },
-    scopes::{BlockStatementsSeqStore, BlockStatementsStore, StackStore},
 };
 
 // All the stores that contain definitions for the typechecker.
@@ -118,9 +118,9 @@ macro_rules! tir_debug_name_of_store_id {
 #[macro_export]
 macro_rules! impl_nodes_id {
     ($id:ty, $id_seq:ty) => {
-        impl $crate::nodes::node::NodesId for $id {
+        impl $crate::tir::node::NodesId for $id {
             type Elements = $id_seq;
-            fn elements_node(&self) -> $crate::nodes::node::Node<Self::Elements> {
+            fn elements_node(&self) -> $crate::tir::node::Node<Self::Elements> {
                 use hash_storage::store::statics::StoreId;
                 self.value()
             }
@@ -132,14 +132,14 @@ macro_rules! impl_nodes_id {
 #[macro_export]
 macro_rules! impl_node_id {
     ($id:ty) => {
-        impl $crate::nodes::node::NodeId for $id {
-            fn origin(self) -> $crate::nodes::node::NodeOrigin {
+        impl $crate::tir::node::NodeId for $id {
+            fn origin(self) -> $crate::tir::node::NodeOrigin {
                 use hash_storage::store::statics::StoreId;
                 self.borrow().origin
             }
         }
 
-        impl $crate::nodes::node::HasAstNodeId for $id {
+        impl $crate::tir::node::HasAstNodeId for $id {
             fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
                 use hash_storage::store::statics::StoreId;
                 self.value().node_id()
@@ -186,7 +186,7 @@ macro_rules! tir_node_single_store {
         hash_storage::static_single_store!(
             store = $store_vis $store,
             id = $id_vis $id,
-            value = $crate::nodes::node::Node<$value>,
+            value = $crate::tir::node::Node<$value>,
             store_name = $store_name,
             store_source = tir_stores()
         );
@@ -256,7 +256,7 @@ macro_rules! tir_node_sequence_store_direct {
         hash_storage::static_sequence_store_direct!(
             store = $store_vis $seq_store,
             id = $id_vis $id_seq[$el_id],
-            value = $crate::nodes::node::Node<$value>,
+            value = $crate::tir::node::Node<$value>,
             store_name = $seq_store_name,
             store_source = tir_stores()
         );
@@ -270,7 +270,7 @@ macro_rules! tir_node_sequence_store_direct {
             type ElementKey = $el_id;
 
             fn to_index_and_len(self) -> (usize, usize) {
-                use $crate::nodes::node::NodesId;
+                use $crate::tir::node::NodesId;
                 self.elements().to_index_and_len()
             }
 
@@ -359,7 +359,7 @@ macro_rules! tir_node_sequence_store_indirect {
             type ElementKey = $el_id;
 
             fn to_index_and_len(self) -> (usize, usize) {
-                use $crate::nodes::node::NodesId;
+                use $crate::tir::node::NodesId;
                 self.elements().to_index_and_len()
             }
 

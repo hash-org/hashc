@@ -3,7 +3,8 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 use hash_ast::ast::AstNodeId;
 use hash_tir::{
     context::ContextMember,
-    nodes::{
+    scopes::StackId,
+    tir::{
         args::{ArgId, ArgsSeqId, PatArgId, PatArgsSeqId},
         data::{CtorDefId, CtorDefsSeqId, DataDefId},
         mods::{ModDefId, ModMemberId, ModMembersSeqId},
@@ -11,7 +12,6 @@ use hash_tir::{
         pats::PatId,
         terms::{fns::FnDefId, TermId, TyId},
     },
-    scopes::StackId,
 };
 use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
 

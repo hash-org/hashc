@@ -8,7 +8,8 @@ use hash_ast::{
 use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
-    nodes::{
+    scopes::Stack,
+    tir::{
         data::DataDef,
         mods::{ModDef, ModKind, ModMember},
         node::{Node, NodeOrigin},
@@ -19,7 +20,6 @@ use hash_tir::{
             Term, Ty,
         },
     },
-    scopes::Stack,
 };
 use hash_utils::itertools::Itertools;
 

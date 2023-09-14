@@ -9,7 +9,7 @@ use hash_source::{ModuleKind, SourceId};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     dump::dump_tir,
-    nodes::{
+    tir::{
         args::Arg,
         node::{Node, NodeId},
         terms::{fns::CallTerm, Term, TermId},

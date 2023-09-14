@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 
 use hash_utils::smallvec::SmallVec;
 
-use crate::nodes::{symbols::SymbolId, terms::TermId};
+use crate::tir::{symbols::SymbolId, terms::TermId};
 
 /// An entry in a substitution.
 ///

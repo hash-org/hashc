@@ -22,7 +22,8 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    nodes::{
+    scopes::BindingPat,
+    tir::{
         args::PatArgsId,
         data::CtorPat,
         params::ParamIndex,
@@ -33,7 +34,6 @@ use hash_tir::{
             tuples::TuplePat,
         },
     },
-    scopes::BindingPat,
 };
 use hash_utils::{
     itertools::Itertools,

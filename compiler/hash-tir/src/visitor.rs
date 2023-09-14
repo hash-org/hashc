@@ -10,7 +10,8 @@ use hash_storage::store::{
 use hash_utils::derive_more::{From, TryInto};
 
 use crate::{
-    nodes::{
+    scopes::{AssignTerm, BlockStatement, BlockStatementsId, BlockTerm, Decl},
+    tir::{
         args::{Arg, ArgsId, PatArg, PatArgsId, PatOrCapture},
         data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
         mods::{ModDefId, ModMemberId, ModMemberValue},
@@ -28,7 +29,6 @@ use crate::{
             Term, TermId, TermListId, Ty, TyOfTerm, UnsafeTerm,
         },
     },
-    scopes::{AssignTerm, BlockStatement, BlockStatementsId, BlockTerm, Decl},
 };
 
 /// Contains methods to traverse the Hash TIR structure.

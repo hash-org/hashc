@@ -18,7 +18,9 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::Context,
-    nodes::{
+    scopes::AssignTerm,
+    term_as_variant,
+    tir::{
         args::ArgsId,
         data::CtorTerm,
         node::NodesId,
@@ -32,8 +34,6 @@ use hash_tir::{
             Term, TermId, Ty, UnsafeTerm,
         },
     },
-    scopes::AssignTerm,
-    term_as_variant,
 };
 use hash_utils::itertools::Itertools;
 

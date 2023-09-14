@@ -10,7 +10,7 @@ use hash_source::identifier::IDENTS;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     intrinsics::definitions::{array_ty, equal_ty, list_ty},
-    nodes::{
+    tir::{
         args::{Arg, ArgsId},
         data::DataTy,
         node::{Node, NodeOrigin},

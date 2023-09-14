@@ -11,7 +11,8 @@ use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
     intrinsics::utils::bool_pat,
-    nodes::{
+    scopes::BindingPat,
+    tir::{
         args::{PatArg, PatArgsId, PatOrCapture},
         data::CtorPat,
         lits::{CharLit, Lit, LitPat, StrLit},
@@ -25,7 +26,6 @@ use hash_tir::{
             tuples::TuplePat,
         },
     },
-    scopes::BindingPat,
 };
 
 use super::{

@@ -13,7 +13,9 @@ use hash_tir::{
         make::IsIntrinsic,
         utils::{get_bool_ctor, try_use_term_as_integer_lit},
     },
-    nodes::{
+    scopes::{AssignTerm, BlockStatement, BlockTerm},
+    stores::tir_stores,
+    tir::{
         args::{Arg, ArgsId, PatArgsId, PatOrCapture},
         lits::{Lit, LitPat},
         node::{Node, NodeId, NodesId},
@@ -32,8 +34,6 @@ use hash_tir::{
             Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm,
         },
     },
-    scopes::{AssignTerm, BlockStatement, BlockTerm},
-    stores::tir_stores,
     visitor::{Atom, Visitor},
 };
 use hash_utils::{

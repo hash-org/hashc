@@ -11,7 +11,9 @@ use hash_utils::derive_more::From;
 
 use crate::{
     intrinsics::definitions::Intrinsic,
-    nodes::{
+    scopes::{AssignTerm, BlockTerm},
+    stores::tir_stores,
+    tir::{
         args::{Arg, ArgsId},
         data::{CtorTerm, DataDefId, DataTy},
         lits::LitId,
@@ -29,8 +31,6 @@ use crate::{
             tuples::{TupleTerm, TupleTy},
         },
     },
-    scopes::{AssignTerm, BlockTerm},
-    stores::tir_stores,
     tir_node_sequence_store_indirect, tir_node_single_store,
     visitor::Atom,
 };
@@ -150,7 +150,7 @@ pub type TyListId = TermListId;
 macro_rules! term_as_variant {
     ($self:expr, $term:expr, $variant:ident) => {{
         let term = $term;
-        if let $crate::nodes::terms::Term::$variant(term) = *term {
+        if let $crate::tir::terms::Term::$variant(term) = *term {
             term
         } else {
             panic!("Expected term {} to be a {}", term, stringify!($variant))

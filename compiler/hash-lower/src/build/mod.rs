@@ -25,7 +25,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, HasContext, ScopeKind},
-    nodes::{
+    tir::{
         node::NodesId,
         symbols::SymbolId,
         terms::{

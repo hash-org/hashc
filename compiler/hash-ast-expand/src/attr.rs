@@ -16,7 +16,7 @@ use hash_storage::store::{
 use hash_target::HasTarget;
 use hash_tir::{
     intrinsics::definitions::Primitive,
-    nodes::{
+    tir::{
         args::Arg,
         lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
         node::{Node, NodeOrigin},

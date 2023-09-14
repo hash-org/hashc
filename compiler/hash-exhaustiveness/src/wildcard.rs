@@ -8,7 +8,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequ
 use hash_target::size::Size;
 use hash_tir::{
     intrinsics::utils::try_use_ty_as_int_ty,
-    nodes::{
+    tir::{
         data::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo},
         terms::Ty,
     },

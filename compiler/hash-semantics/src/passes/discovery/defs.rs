@@ -10,14 +10,14 @@ use hash_storage::store::{
 };
 use hash_tir::{
     context::ContextMember,
-    nodes::{
+    scopes::StackId,
+    tir::{
         data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
         mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
         node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
         symbols::SymbolId,
         terms::{fns::FnDefId, TyId},
     },
-    scopes::StackId,
 };
 use hash_utils::{
     derive_more::From,

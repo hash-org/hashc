@@ -5,7 +5,7 @@
 use hash_ir::ir;
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
-use hash_tir::nodes::{
+use hash_tir::tir::{
     lits::LitId,
     node::HasAstNodeId,
     terms::{Term, TermId},

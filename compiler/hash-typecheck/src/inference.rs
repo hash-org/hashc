@@ -29,7 +29,10 @@ use hash_tir::{
             bool_term, create_term_from_usize_lit, try_use_ty_as_float_ty, try_use_ty_as_int_ty,
         },
     },
-    nodes::{
+    scopes::{AssignTerm, BlockStatement, BlockTerm},
+    sub::Sub,
+    term_as_variant,
+    tir::{
         args::{Arg, ArgId, ArgsId, PatArgsId, PatOrCapture},
         data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
         lits::{Lit, LitId},
@@ -55,9 +58,6 @@ use hash_tir::{
             Term, TermId, TermListId, Ty, TyId, TyOfTerm, UnsafeTerm,
         },
     },
-    scopes::{AssignTerm, BlockStatement, BlockTerm},
-    sub::Sub,
-    term_as_variant,
     visitor::{Atom, Visitor},
 };
 use hash_utils::derive_more::{Constructor, Deref};

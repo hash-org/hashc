@@ -15,7 +15,8 @@ use textwrap::indent;
 use utility_types::omit;
 
 use crate::{
-    nodes::{
+    stores::tir_stores,
+    tir::{
         args::{Arg, ArgsId, PatArgsId},
         node::{Node, NodeId, NodeOrigin, NodesId},
         params::ParamsId,
@@ -23,7 +24,6 @@ use crate::{
         symbols::SymbolId,
         terms::{TermId, TyId},
     },
-    stores::tir_stores,
     tir_node_sequence_store_direct, tir_node_single_store,
 };
 

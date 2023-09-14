@@ -9,7 +9,7 @@ use hash_reporting::{
 use hash_source::location::Span;
 use hash_storage::store::SequenceStoreKey;
 use hash_tir::{
-    nodes::{
+    tir::{
         node::{HasAstNodeId, NodeId, NodeOrigin},
         params::{utils::ParamError, ParamIndex, ParamsId, SomeParamsOrArgsId},
         pats::PatId,

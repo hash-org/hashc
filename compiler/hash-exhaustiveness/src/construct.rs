@@ -28,7 +28,7 @@ use std::fmt::{self, Debug};
 
 use hash_source::constant::InternedStr;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store};
-use hash_tir::nodes::{
+use hash_tir::tir::{
     data::{CtorDefId, DataTy},
     node::NodesId,
     terms::{tuples::TupleTy, Ty},

@@ -18,7 +18,7 @@ use hash_tir::{
         definitions::{BinOp, CondBinOp, Intrinsic as TirIntrinsic, ShortCircuitingBoolOp, UnOp},
         utils::try_use_term_as_integer_lit,
     },
-    nodes::{
+    tir::{
         data::DataTy,
         lits::{Lit, LitPat},
         pats::PatId,

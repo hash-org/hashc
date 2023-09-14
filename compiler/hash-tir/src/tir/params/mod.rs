@@ -11,7 +11,8 @@ use hash_utils::{derive_more::From, itertools::Itertools};
 
 use crate::{
     context::ScopeKind,
-    nodes::{
+    stores::tir_stores,
+    tir::{
         args::{ArgsId, PatArgsId, SomeArgsId},
         data::{CtorDefId, DataDefId},
         node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
@@ -22,7 +23,6 @@ use crate::{
             TermId, Ty, TyId,
         },
     },
-    stores::tir_stores,
     tir_node_sequence_store_direct,
 };
 
