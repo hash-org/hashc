@@ -50,3 +50,8 @@ pub trait TcEnv:
         normalisation::NormalisationOps::new(self)
     }
 }
+
+pub trait HasTcEnv {
+    type Env: TcEnv;
+    fn env(&self) -> &Self::Env;
+}

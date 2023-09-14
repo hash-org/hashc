@@ -2,13 +2,29 @@ use std::cell::Cell;
 
 use hash_utils::derive_more::From;
 
-use crate::errors::TcError;
+use super::unification::UnifySignal;
+use crate::errors::{TcError, TcResult};
 
 /// A signal which can be emitted during checking.
 #[derive(Debug, Clone, From)]
 pub enum CheckSignal {
     Stuck,
-    Error(TcError),
+    Error(Box<TcError>),
+}
+
+impl From<UnifySignal> for CheckSignal {
+    fn from(signal: UnifySignal) -> Self {
+        match signal {
+            UnifySignal::Stuck => Self::Stuck,
+            UnifySignal::Error(e) => Self::Error(e),
+        }
+    }
+}
+
+impl From<TcError> for CheckSignal {
+    fn from(error: TcError) -> Self {
+        Self::Error(Box::new(error))
+    }
 }
 
 /// The result of a checking operation.
@@ -68,7 +84,7 @@ impl CheckState {
     }
 
     /// Add the result of a checking operation to the state.
-    pub fn then(&self, result: CheckResult) -> Result<(), TcError> {
+    pub fn then(&self, result: CheckResult) -> TcResult<()> {
         match result {
             Ok(has_checked) => {
                 let current = self.has_checked.get();
@@ -80,7 +96,7 @@ impl CheckState {
                     self.is_stuck.set(true);
                     Ok(())
                 }
-                CheckSignal::Error(e) => Err(e),
+                CheckSignal::Error(e) => Err(*e),
             },
         }
     }

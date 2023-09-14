@@ -49,7 +49,11 @@ use itertools::Itertools;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    operations::{checking::CheckSignal, normalisation::NormalisationMode, Operations},
+    operations::{
+        checking::{CheckSignal, CheckState},
+        normalisation::NormalisationMode,
+        Operations,
+    },
 };
 
 /// The mode in which to infer the type of a function.
@@ -1466,18 +1470,14 @@ impl<T: TcEnv> InferenceOps<'_, T> {
     /// Infer a concrete type for a given term.
     pub fn infer_term(&self, mut term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
         let original_term_id = term_id;
-        match self.checker().check(
+        let state = CheckState::new();
+        state.then(self.checker().check(
             &mut Context::new(),
             &mut term_id,
             annotation_ty,
             original_term_id,
-        ) {
-            Ok(_) => Ok(()),
-            Err(e) => match e {
-                CheckSignal::Stuck => Ok(()),
-                CheckSignal::Error(e) => Err(e),
-            },
-        }
+        ))?;
+        Ok(())
     }
 
     /// Infer a range pattern.

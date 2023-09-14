@@ -1,12 +1,13 @@
 pub mod checking;
 pub mod normalisation;
+pub mod unification;
 
 use hash_tir::{context::Context, sub::Sub, tir::NodeId};
 
 use self::{checking::CheckResult, normalisation::NormaliseResult};
-use crate::errors::TcResult;
+use crate::{env::HasTcEnv, errors::TcResult};
 
-pub trait Operations<X> {
+pub trait Operations<X>: HasTcEnv {
     type TyNode: NodeId;
     type Node: NodeId;
 
