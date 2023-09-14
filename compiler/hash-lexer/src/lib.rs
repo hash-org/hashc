@@ -14,9 +14,8 @@ use hash_source::{
 };
 use hash_target::primitives::{FloatTy, IntTy};
 use hash_token::{
-    delimiter::{Delimiter, DelimiterVariant},
-    keyword::ident_is_keyword,
-    Base, FloatLitKind, IntLitKind, Token, TokenKind,
+    delimiter::Delimiter, keyword::ident_is_keyword, Base, FloatLitKind, IntLitKind, Token,
+    TokenKind,
 };
 
 use crate::utils::{is_id_continue, is_id_start};
@@ -307,9 +306,9 @@ impl<'a> Lexer<'a> {
                 self.previous_delimiter.set(Some(ch));
                 return None;
             }
-            ')' => TokenKind::Delimiter(Delimiter::Paren, DelimiterVariant::Right),
-            '}' => TokenKind::Delimiter(Delimiter::Brace, DelimiterVariant::Right),
-            ']' => TokenKind::Delimiter(Delimiter::Bracket, DelimiterVariant::Right),
+            ')' => TokenKind::RightDelim(Delimiter::Paren),
+            '}' => TokenKind::RightDelim(Delimiter::Brace),
+            ']' => TokenKind::RightDelim(Delimiter::Bracket),
             // We didn't get a hit on the right token...
             ch => TokenKind::Unexpected(ch),
         };

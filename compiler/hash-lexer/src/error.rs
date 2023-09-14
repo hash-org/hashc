@@ -112,7 +112,7 @@ impl From<LexerError> for Reports {
             LexerErrorKind::InvalidCharacterLit(char) => format!("invalid character literal `{char}`, character literals may only contain one codepoint"),
             LexerErrorKind::Unexpected(char) => format!("encountered unexpected character `{char}`"),
             LexerErrorKind::Expected(token) => format!("expected token `{token}`"),
-            LexerErrorKind::Unclosed(delim) => format!("encountered unclosed delimiter `{}`, add a `{delim}` after the inner expression", delim.left()),
+            LexerErrorKind::Unclosed(delim) => format!("encountered unclosed delimiter `{}`, add a `{}` after the inner expression", delim.left(), delim.right()),
             LexerErrorKind::UnsupportedFloatBaseLiteral(base) => format!("{base} float literal is not supported"),
             LexerErrorKind::InvalidLitSuffix(kind, suffix) => {
                     let suffix_note = match kind {

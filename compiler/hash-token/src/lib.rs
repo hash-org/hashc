@@ -1,13 +1,11 @@
 //! Hash Compiler token definitions that are used by the lexer when lexing
 //! the input sources.
-#![feature(c_size_t, strict_provenance)]
-
 pub mod delimiter;
 pub mod keyword;
 
 use std::fmt;
 
-use delimiter::{Delimiter, DelimiterVariant};
+use delimiter::Delimiter;
 use hash_source::{
     constant::{FloatTy, IntTy, InternedStr},
     identifier::Identifier,
@@ -302,8 +300,11 @@ pub enum TokenKind {
     /// Keyword
     Keyword(Keyword),
 
-    /// Delimiters `(`, `{`, `[` and right hand-side variants
-    Delimiter(Delimiter, DelimiterVariant),
+    /// Delimiters `(`, `{`, `[`, doesn't include `<`.
+    LeftDelim(Delimiter),
+
+    /// Delimiters `)`, `}`, `]`, doesn't include `>`.
+    RightDelim(Delimiter),
 
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not
     /// within string literal.
@@ -360,13 +361,8 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Int(_, _) => write!(f, "float"),
             TokenKind::Float(_) => write!(f, "integer"),
             TokenKind::CharLit(ch) => write!(f, "'{ch}'"),
-            TokenKind::Delimiter(delim, variant) => {
-                if *variant == DelimiterVariant::Left {
-                    write!(f, "{}", delim.left())
-                } else {
-                    write!(f, "{}", delim.right())
-                }
-            }
+            TokenKind::LeftDelim(delim) => write!(f, "{}", delim.left()),
+            TokenKind::RightDelim(delim) => write!(f, "{}", delim.right()),
             TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
             TokenKind::StrLit(str) => {
                 write!(f, "\"{}\"", *str)

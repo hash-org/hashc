@@ -159,7 +159,7 @@ impl From<TokenKind> for ExpectedItem {
             TokenKind::Colon => ExpectedItem::Colon,
             TokenKind::Comma => ExpectedItem::Comma,
             TokenKind::Ident(_) => ExpectedItem::Ident,
-            TokenKind::Tree(delim, _) | TokenKind::Delimiter(delim, _) => delim.into(),
+            TokenKind::Tree(delim, _) | TokenKind::RightDelim(delim) => delim.into(),
             _ => unreachable!("unexpected token kind when deriving expected item: {:?}", value),
         }
     }
