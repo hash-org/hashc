@@ -10,18 +10,7 @@ use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     scopes::{BindingPat, Decl},
-    tir::{
-        data::CtorPat,
-        node::NodesId,
-        pats::{Pat, PatId},
-        symbols::SymbolId,
-        terms::{
-            arrays::ArrayPat,
-            control::{IfPat, OrPat},
-            tuples::TuplePat,
-            TermId,
-        },
-    },
+    tir::{ArrayPat, CtorPat, IfPat, NodesId, OrPat, Pat, PatId, SymbolId, TermId, TuplePat},
 };
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};

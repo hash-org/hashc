@@ -10,10 +10,7 @@ use textwrap::indent;
 use crate::{
     scopes::StackId,
     stores::tir_stores,
-    tir::{
-        pats::{PatId, PatListId},
-        terms::{Term, TermId},
-    },
+    tir::{PatId, PatListId, Term, TermId},
     tir_node_sequence_store_direct,
 };
 

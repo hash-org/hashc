@@ -10,10 +10,7 @@ use hash_ir::{
 use hash_source::constant::IntTy;
 use hash_storage::store::statics::StoreId;
 use hash_target::HasTarget;
-use hash_tir::tir::{
-    node::HasAstNodeId,
-    terms::{Term, TermId, Ty},
-};
+use hash_tir::tir::{HasAstNodeId, Term, TermId, Ty};
 
 use super::{
     category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,

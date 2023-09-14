@@ -18,14 +18,7 @@ use hash_ir::{
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{Context, ScopeKind},
-    tir::{
-        node::NodesId,
-        pats::{Pat, PatId},
-        terms::{
-            control::{IfPat, MatchCasesId},
-            Term, TermId,
-        },
-    },
+    tir::{IfPat, MatchCasesId, NodesId, Pat, PatId, Term, TermId},
 };
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 

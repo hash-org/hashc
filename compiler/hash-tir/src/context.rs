@@ -19,16 +19,8 @@ use crate::{
     scopes::StackId,
     sub::Sub,
     tir::{
-        args::{ArgId, ArgsId},
-        data::{CtorDefId, DataDefId},
-        mods::ModDefId,
-        params::{ParamId, ParamsId},
-        symbols::SymbolId,
-        terms::{
-            fns::{FnDefId, FnTy},
-            tuples::TupleTy,
-            TermId, TyId,
-        },
+        ArgId, ArgsId, CtorDefId, DataDefId, FnDefId, FnTy, ModDefId, ParamId, ParamsId, SymbolId,
+        TermId, TupleTy, TyId,
     },
 };
 

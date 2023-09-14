@@ -1,10 +1,7 @@
 //! Utilities for creating parameters and arguments during discovery.
 use hash_ast::ast::{self, AstNodeId};
 use hash_storage::store::statics::SequenceStoreValue;
-use hash_tir::tir::{
-    node::{Node, NodeOrigin, NodesId},
-    params::{Param, ParamId, ParamIndex, ParamsId},
-};
+use hash_tir::tir::{Node, NodeOrigin, NodesId, Param, ParamId, ParamIndex, ParamsId};
 
 use super::DiscoveryPass;
 use crate::env::SemanticEnv;

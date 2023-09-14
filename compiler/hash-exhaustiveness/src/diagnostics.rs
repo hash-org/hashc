@@ -7,7 +7,7 @@ use hash_reporting::{
     reporter::Reporter,
 };
 use hash_source::location::Span;
-use hash_tir::tir::{lits::LitPat, node::HasAstNodeId, pats::PatId};
+use hash_tir::tir::{HasAstNodeId, LitPat, PatId};
 use hash_utils::{
     itertools::Itertools,
     pluralise,

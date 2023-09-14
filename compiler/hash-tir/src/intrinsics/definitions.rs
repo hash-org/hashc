@@ -23,11 +23,8 @@ use crate::{
     },
     make_intrinsics, make_primitives,
     tir::{
-        data::{numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, PrimitiveCtorInfo},
-        lits::Lit,
-        mods::ModMember,
-        node::{NodeId, NodeOrigin},
-        terms::{fns::FnTy, refs::RefKind, Term, TermId, TyId},
+        numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, FnTy, Lit, ModMember, NodeId,
+        NodeOrigin, PrimitiveCtorInfo, RefKind, Term, TermId, TyId,
     },
 };
 

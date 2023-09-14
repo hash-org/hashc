@@ -66,7 +66,7 @@ impl<E: SemanticEnv> HasAtomInfo for TcEnvImpl<'_, E> {
 }
 
 impl<E: SemanticEnv> TcEnv for TcEnvImpl<'_, E> {
-    fn entry_point(&self) -> &EntryPointState<hash_tir::tir::terms::fns::FnDefId> {
+    fn entry_point(&self) -> &EntryPointState<hash_tir::tir::FnDefId> {
         self.env.entry_point()
     }
 

@@ -14,13 +14,8 @@ use hash_ir::{
 };
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::tir::{
-    args::Arg,
-    data::DataTy,
-    mods::{ModMember, ModMemberValue},
-    node::{HasAstNodeId, Node, NodeId},
-    pats::PatId,
-    symbols::SymbolId,
-    terms::{fns::FnDefId, TermId},
+    Arg, DataTy, FnDefId, HasAstNodeId, ModMember, ModMemberValue, Node, NodeId, PatId, SymbolId,
+    TermId,
 };
 
 use super::BodyBuilder;

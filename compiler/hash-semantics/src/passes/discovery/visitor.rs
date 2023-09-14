@@ -10,15 +10,8 @@ use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     scopes::Stack,
     tir::{
-        data::DataDef,
-        mods::{ModDef, ModKind, ModMember},
-        node::{Node, NodeOrigin},
-        symbols::SymbolId,
-        terms::{
-            fns::{FnDef, FnTy},
-            tuples::TupleTy,
-            Term, Ty,
-        },
+        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId, Term,
+        TupleTy, Ty,
     },
 };
 use hash_utils::itertools::Itertools;

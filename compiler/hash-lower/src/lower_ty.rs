@@ -26,17 +26,9 @@ use hash_tir::{
         utils::try_use_term_as_integer_lit,
     },
     tir::{
-        data::{
-            ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, NumericCtorBits,
-            NumericCtorInfo, PrimitiveCtorInfo,
-        },
-        node::{HasAstNodeId, NodesId},
-        terms::{
-            fns::{FnDef, FnDefId, FnTy},
-            refs::RefTy,
-            tuples::TupleTy,
-            Ty, TyId,
-        },
+        ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, FnDef, FnDefId, FnTy,
+        HasAstNodeId, NodesId, NumericCtorBits, NumericCtorInfo, PrimitiveCtorInfo, RefTy, TupleTy,
+        Ty, TyId,
     },
 };
 use hash_utils::{index_vec::index_vec, itertools::Itertools};
@@ -130,9 +122,9 @@ impl<'ir> BuilderCtx<'ir> {
                 let ty = self.ty_id_from_tir_ty(ty);
                 let mutability = if mutable { Mutability::Mutable } else { Mutability::Immutable };
                 let ref_kind = match kind {
-                    hash_tir::tir::terms::refs::RefKind::Rc => ty::RefKind::Rc,
-                    hash_tir::tir::terms::refs::RefKind::Raw => ty::RefKind::Raw,
-                    hash_tir::tir::terms::refs::RefKind::Local => ty::RefKind::Normal,
+                    hash_tir::tir::RefKind::Rc => ty::RefKind::Rc,
+                    hash_tir::tir::RefKind::Raw => ty::RefKind::Raw,
+                    hash_tir::tir::RefKind::Local => ty::RefKind::Normal,
                 };
 
                 IrTy::Ref(ty, mutability, ref_kind)

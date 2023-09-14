@@ -11,13 +11,8 @@ pub mod gen {
     use hash_utils::itertools::Itertools;
 
     use crate::tir::{
-        args::{Arg, ArgsId},
-        data::{DataDef, DataDefCtors, DataDefId, PrimitiveCtorInfo},
-        node::{Node, NodeOrigin},
-        params::{Param, ParamsId},
-        pats::{Pat, PatId},
-        symbols::SymbolId,
-        terms::{refs::RefKind, Term, TermId, Ty, TyId},
+        Arg, ArgsId, DataDef, DataDefCtors, DataDefId, Node, NodeOrigin, Param, ParamsId, Pat,
+        PatId, PrimitiveCtorInfo, RefKind, SymbolId, Term, TermId, Ty, TyId,
     };
 
     /// Create a symbol with the given name.

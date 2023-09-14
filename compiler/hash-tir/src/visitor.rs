@@ -12,22 +12,12 @@ use hash_utils::derive_more::{From, TryInto};
 use crate::{
     scopes::{AssignTerm, BlockStatement, BlockStatementsId, BlockTerm, Decl},
     tir::{
-        args::{Arg, ArgsId, PatArg, PatArgsId, PatOrCapture},
-        data::{CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, PrimitiveCtorInfo},
-        mods::{ModDefId, ModMemberId, ModMemberValue},
-        node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-        params::{Param, ParamsId},
-        pats::{Pat, PatId, PatListId},
-        terms::{
-            access::AccessTerm,
-            arrays::{ArrayPat, ArrayTerm, IndexTerm},
-            casting::CastTerm,
-            control::{IfPat, LoopTerm, MatchCase, MatchTerm, OrPat, ReturnTerm},
-            fns::{CallTerm, FnDef, FnDefId, FnTy},
-            refs::{DerefTerm, RefTerm, RefTy},
-            tuples::{TuplePat, TupleTerm, TupleTy},
-            Term, TermId, TermListId, Ty, TyOfTerm, UnsafeTerm,
-        },
+        AccessTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat,
+        CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId,
+        IfPat, IndexTerm, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
+        Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
+        PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
+        TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyOfTerm, UnsafeTerm,
     },
 };
 

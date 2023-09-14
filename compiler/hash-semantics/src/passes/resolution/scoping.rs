@@ -8,12 +8,8 @@ use hash_tir::{
     scopes::StackId,
     term_as_variant,
     tir::{
-        data::{CtorDefId, DataDefCtors, DataDefId},
-        mods::{ModDefId, ModMemberId},
-        node::{NodeOrigin, NodesId},
-        params::ParamId,
-        symbols::SymbolId,
-        terms::{fns::FnTy, tuples::TupleTy},
+        CtorDefId, DataDefCtors, DataDefId, FnTy, ModDefId, ModMemberId, NodeOrigin, NodesId,
+        ParamId, SymbolId, TupleTy,
     },
 };
 use hash_utils::{derive_more::Deref, state::HeavyState};

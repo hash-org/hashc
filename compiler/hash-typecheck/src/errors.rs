@@ -10,10 +10,8 @@ use hash_source::location::Span;
 use hash_storage::store::SequenceStoreKey;
 use hash_tir::{
     tir::{
-        node::{HasAstNodeId, NodeId, NodeOrigin},
-        params::{utils::ParamError, ParamIndex, ParamsId, SomeParamsOrArgsId},
-        pats::PatId,
-        terms::{fns::FnDefId, TermId, TyId},
+        FnDefId, HasAstNodeId, NodeId, NodeOrigin, ParamError, ParamIndex, ParamsId, PatId,
+        SomeParamsOrArgsId, TermId, TyId,
     },
     visitor::Atom,
 };

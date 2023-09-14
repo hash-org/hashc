@@ -13,20 +13,15 @@ use crate::{
     context::ScopeKind,
     stores::tir_stores,
     tir::{
-        args::{ArgsId, PatArgsId, SomeArgsId},
-        data::{CtorDefId, DataDefId},
-        node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-        symbols::SymbolId,
-        terms::{
-            fns::{FnDefId, FnTy},
-            tuples::TupleTy,
-            TermId, Ty, TyId,
-        },
+        ArgsId, CtorDefId, DataDefId, FnDefId, FnTy, HasAstNodeId, Node, NodeId, NodeOrigin,
+        NodesId, PatArgsId, SomeArgsId, SymbolId, TermId, TupleTy, Ty, TyId,
     },
     tir_node_sequence_store_direct,
 };
 
 pub mod utils;
+
+pub use utils::*;
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.

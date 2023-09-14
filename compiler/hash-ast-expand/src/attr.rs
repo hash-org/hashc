@@ -17,11 +17,8 @@ use hash_target::HasTarget;
 use hash_tir::{
     intrinsics::definitions::Primitive,
     tir::{
-        args::Arg,
-        lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
-        node::{Node, NodeOrigin},
-        params::{utils::validate_and_reorder_args_against_params, ParamIndex},
-        terms::{Term, Ty, TyId},
+        validate_and_reorder_args_against_params, Arg, CharLit, FloatLit, IntLit, Lit, Node,
+        NodeOrigin, ParamIndex, StrLit, Term, Ty, TyId,
     },
 };
 

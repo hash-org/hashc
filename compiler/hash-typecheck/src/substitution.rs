@@ -8,13 +8,8 @@ use hash_tir::{
     context::ContextMember,
     sub::Sub,
     tir::{
-        args::{ArgsId, PatArgsId},
-        mods::ModDefId,
-        node::NodeId,
-        params::{ParamId, ParamIndex, ParamsId},
-        pats::Pat,
-        symbols::SymbolId,
-        terms::{access::AccessTerm, holes::Hole, Term, TermId, Ty},
+        AccessTerm, ArgsId, Hole, ModDefId, NodeId, ParamId, ParamIndex, ParamsId, Pat, PatArgsId,
+        SymbolId, Term, TermId, Ty,
     },
     visitor::{Atom, Visitor},
 };

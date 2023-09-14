@@ -19,13 +19,7 @@ use utility_types::omit;
 use crate::{
     context::ContextMember,
     stores::tir_stores,
-    tir::{
-        mods::ModDefId,
-        node::{Node, NodeOrigin},
-        pats::{Pat, PatId},
-        symbols::SymbolId,
-        terms::{Term, TermId, TyId},
-    },
+    tir::{ModDefId, Node, NodeOrigin, Pat, PatId, SymbolId, Term, TermId, TyId},
     tir_node_sequence_store_direct, tir_node_single_store,
 };
 

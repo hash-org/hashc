@@ -10,7 +10,7 @@ use hash_storage::{
 
 use crate::{
     stores::tir_stores,
-    tir::node::{Node, NodeOrigin},
+    tir::{Node, NodeOrigin},
     tir_node_single_store,
 };
 

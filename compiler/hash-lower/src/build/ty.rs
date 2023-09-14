@@ -18,15 +18,7 @@ use hash_tir::{
         definitions::{BinOp, CondBinOp, Intrinsic as TirIntrinsic, ShortCircuitingBoolOp, UnOp},
         utils::try_use_term_as_integer_lit,
     },
-    tir::{
-        data::DataTy,
-        lits::{Lit, LitPat},
-        pats::PatId,
-        terms::{
-            fns::{CallTerm, FnDefId},
-            Term, TermId, TyId,
-        },
-    },
+    tir::{CallTerm, DataTy, FnDefId, Lit, LitPat, PatId, Term, TermId, TyId},
 };
 
 use super::BodyBuilder;

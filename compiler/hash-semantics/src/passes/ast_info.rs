@@ -5,12 +5,8 @@ use hash_tir::{
     context::ContextMember,
     scopes::StackId,
     tir::{
-        args::{ArgId, ArgsSeqId, PatArgId, PatArgsSeqId},
-        data::{CtorDefId, CtorDefsSeqId, DataDefId},
-        mods::{ModDefId, ModMemberId, ModMembersSeqId},
-        params::{ParamId, ParamsSeqId},
-        pats::PatId,
-        terms::{fns::FnDefId, TermId, TyId},
+        ArgId, ArgsSeqId, CtorDefId, CtorDefsSeqId, DataDefId, FnDefId, ModDefId, ModMemberId,
+        ModMembersSeqId, ParamId, ParamsSeqId, PatArgId, PatArgsSeqId, PatId, TermId, TyId,
     },
 };
 use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};

@@ -21,18 +21,8 @@ use hash_tir::{
     scopes::AssignTerm,
     term_as_variant,
     tir::{
-        args::ArgsId,
-        data::CtorTerm,
-        node::NodesId,
-        params::ParamIndex,
-        terms::{
-            arrays::ArrayTerm,
-            control::{LoopControlTerm, ReturnTerm},
-            fns::CallTerm,
-            refs::{self, RefTerm},
-            tuples::TupleTerm,
-            Term, TermId, Ty, UnsafeTerm,
-        },
+        self, ArgsId, ArrayTerm, CallTerm, CtorTerm, LoopControlTerm, NodesId, ParamIndex, RefTerm,
+        ReturnTerm, Term, TermId, TupleTerm, Ty, UnsafeTerm,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -304,9 +294,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // the type of the expression, and where the expression comes
                 // from.
                 let kind = match kind {
-                    refs::RefKind::Local => RefKind::Normal,
-                    refs::RefKind::Raw => RefKind::Raw,
-                    refs::RefKind::Rc => RefKind::Rc,
+                    tir::RefKind::Local => RefKind::Normal,
+                    tir::RefKind::Raw => RefKind::Raw,
+                    tir::RefKind::Rc => RefKind::Rc,
                 };
 
                 let place = unpack!(block = self.as_place(block, subject, mutability));

@@ -20,21 +20,10 @@ use hash_tir::{
     },
     scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
     tir::{
-        args::{Arg, ArgsId},
-        data::DataTy,
-        lits::{CharLit, FloatLit, IntLit, Lit, StrLit},
-        node::{Node, NodeId, NodeOrigin},
-        params::ParamIndex,
-        terms::{
-            access::AccessTerm,
-            arrays::{ArrayTerm, IndexTerm},
-            casting::CastTerm,
-            control::{LoopControlTerm, LoopTerm, MatchCase, MatchTerm, ReturnTerm},
-            fns::CallTerm,
-            refs::{DerefTerm, RefKind, RefTerm},
-            tuples::TupleTerm,
-            Term, TermId, Ty, TyOfTerm, UnsafeTerm,
-        },
+        AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, CharLit, DataTy, DerefTerm,
+        FloatLit, IndexTerm, IntLit, Lit, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node,
+        NodeId, NodeOrigin, ParamIndex, RefKind, RefTerm, ReturnTerm, StrLit, Term, TermId,
+        TupleTerm, Ty, TyOfTerm, UnsafeTerm,
     },
 };
 use hash_utils::itertools::Itertools;

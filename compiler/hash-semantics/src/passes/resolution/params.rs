@@ -7,11 +7,8 @@ use hash_storage::store::{
     SequenceStoreKey,
 };
 use hash_tir::tir::{
-    args::{ArgsId, PatArgsId},
-    node::{Node, NodeOrigin},
-    params::{Param, ParamId, ParamsId, SomeParamsOrArgsId},
-    pats::Spread,
-    terms::{fns::CallTerm, Term, TermId, Ty},
+    ArgsId, CallTerm, Node, NodeOrigin, Param, ParamId, ParamsId, PatArgsId, SomeParamsOrArgsId,
+    Spread, Term, TermId, Ty,
 };
 
 use super::ResolutionPass;

@@ -10,11 +10,7 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     stores::tir_stores,
-    tir::{
-        mods::{ModDef, ModKind, ModMemberValue},
-        node::HasAstNodeId,
-        terms::{fns::FnDefId, TermId},
-    },
+    tir::{FnDefId, HasAstNodeId, ModDef, ModKind, ModMemberValue, TermId},
     visitor::{Atom, Visitor},
 };
 use hash_utils::{derive_more::Constructor, indexmap::IndexSet};

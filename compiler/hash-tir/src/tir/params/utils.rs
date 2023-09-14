@@ -13,10 +13,8 @@ use hash_storage::store::{
 use hash_utils::{pluralise, printing::SequenceDisplay};
 
 use crate::tir::{
-    args::{Arg, ArgId, ArgsId, PatArg, PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId},
-    node::{HasAstNodeId, Node, NodeId, NodesId},
-    params::{ParamId, ParamIndex, ParamsId},
-    pats::Spread,
+    Arg, ArgId, ArgsId, HasAstNodeId, Node, NodeId, NodesId, ParamId, ParamIndex, ParamsId, PatArg,
+    PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId, Spread,
 };
 
 /// An error that can occur when checking [Param]s against [Args].

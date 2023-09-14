@@ -13,17 +13,7 @@ use hash_utils::derive_more::From;
 use crate::{
     scopes::BindingPat,
     stores::tir_stores,
-    tir::{
-        args::{PatArgsId, PatOrCapture},
-        data::CtorPat,
-        lits::LitPat,
-        symbols::SymbolId,
-        terms::{
-            arrays::ArrayPat,
-            control::{IfPat, OrPat},
-            tuples::TuplePat,
-        },
-    },
+    tir::{ArrayPat, CtorPat, IfPat, LitPat, OrPat, PatArgsId, PatOrCapture, SymbolId, TuplePat},
     tir_node_sequence_store_indirect, tir_node_single_store,
 };
 

@@ -13,7 +13,7 @@ use utility_types::omit;
 use crate::{
     intrinsics::{definitions::Intrinsic, make::IsIntrinsic},
     stores::tir_stores,
-    tir::{data::DataDefId, node::Node, symbols::SymbolId, terms::fns::FnDefId},
+    tir::{DataDefId, FnDefId, Node, SymbolId},
     tir_node_sequence_store_direct, tir_node_single_store,
 };
 

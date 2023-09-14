@@ -17,12 +17,8 @@ use utility_types::omit;
 use crate::{
     stores::tir_stores,
     tir::{
-        args::{Arg, ArgsId, PatArgsId},
-        node::{Node, NodeId, NodeOrigin, NodesId},
-        params::ParamsId,
-        pats::{PatArgsWithSpread, Spread},
-        symbols::SymbolId,
-        terms::{TermId, TyId},
+        Arg, ArgsId, Node, NodeId, NodeOrigin, NodesId, ParamsId, PatArgsId, PatArgsWithSpread,
+        Spread, SymbolId, TermId, TyId,
     },
     tir_node_sequence_store_direct, tir_node_single_store,
 };

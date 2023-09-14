@@ -18,12 +18,7 @@ use hash_tir::{
     atom_info::{AtomInfoStore, HasAtomInfo},
     context::{Context, HasContext},
     stores::tir_stores,
-    tir::{
-        args::Arg,
-        data::{DataDefId, DataTy},
-        mods::ModDefId,
-        node::{Node, NodeId},
-    },
+    tir::{Arg, DataDefId, DataTy, ModDefId, Node, NodeId},
 };
 use hash_utils::stream_writeln;
 

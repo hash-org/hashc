@@ -13,18 +13,9 @@ use hash_tir::{
     intrinsics::utils::bool_pat,
     scopes::BindingPat,
     tir::{
-        args::{PatArg, PatArgsId, PatOrCapture},
-        data::CtorPat,
-        lits::{CharLit, Lit, LitPat, StrLit},
-        node::{Node, NodeId, NodeOrigin},
-        params::ParamIndex,
-        pats::{Pat, PatId, PatListId, RangePat, Spread},
-        symbols::SymbolId,
-        terms::{
-            arrays::ArrayPat,
-            control::{IfPat, OrPat},
-            tuples::TuplePat,
-        },
+        ArrayPat, CharLit, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin, OrPat,
+        ParamIndex, Pat, PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, Spread,
+        StrLit, SymbolId, TuplePat,
     },
 };
 

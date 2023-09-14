@@ -14,22 +14,7 @@ use crate::{
     scopes::{AssignTerm, BlockTerm},
     stores::tir_stores,
     tir::{
-        args::{Arg, ArgsId},
-        data::{CtorTerm, DataDefId, DataTy},
-        lits::LitId,
-        node::{Node, NodeId, NodeOrigin},
-        params::Param,
-        symbols::SymbolId,
-        terms::{
-            access::AccessTerm,
-            arrays::{ArrayTerm, IndexTerm},
-            casting::CastTerm,
-            control::{LoopControlTerm, LoopTerm, MatchTerm, ReturnTerm},
-            fns::{CallTerm, FnDefId, FnTy},
-            holes::Hole,
-            refs::{DerefTerm, RefKind, RefTerm, RefTy},
-            tuples::{TupleTerm, TupleTy},
-        },
+        Arg, ArgsId, CtorTerm, DataDefId, DataTy, LitId, Node, NodeId, NodeOrigin, Param, SymbolId,
     },
     tir_node_sequence_store_indirect, tir_node_single_store,
     visitor::Atom,
@@ -43,6 +28,15 @@ pub mod fns;
 pub mod holes;
 pub mod refs;
 pub mod tuples;
+
+pub use access::*;
+pub use arrays::*;
+pub use casting::*;
+pub use control::*;
+pub use fns::*;
+pub use holes::*;
+pub use refs::*;
+pub use tuples::*;
 
 /// A term that can contain unsafe operations.
 #[derive(Debug, Clone, Copy)]
@@ -150,7 +144,7 @@ pub type TyListId = TermListId;
 macro_rules! term_as_variant {
     ($self:expr, $term:expr, $variant:ident) => {{
         let term = $term;
-        if let $crate::tir::terms::Term::$variant(term) = *term {
+        if let $crate::tir::Term::$variant(term) = *term {
             term
         } else {
             panic!("Expected term {} to be a {}", term, stringify!($variant))

@@ -12,11 +12,8 @@ use hash_utils::{derive_more::From, itertools::Itertools};
 use crate::{
     stores::tir_stores,
     tir::{
-        node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-        params::{ParamIndex, ParamsId},
-        pats::PatId,
-        symbols::SymbolId,
-        terms::{Term, TermId},
+        HasAstNodeId, Node, NodeId, NodeOrigin, NodesId, ParamIndex, ParamsId, PatId, SymbolId,
+        Term, TermId,
     },
     tir_node_sequence_store_direct,
 };

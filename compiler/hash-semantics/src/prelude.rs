@@ -1,7 +1,7 @@
 use hash_source::entry_point::EntryPointState;
 use hash_tir::{
     intrinsics::make::make_root_mod,
-    tir::{mods::ModDefId, terms::fns::FnDefId},
+    tir::{FnDefId, ModDefId},
 };
 use once_cell::sync::OnceCell;
 

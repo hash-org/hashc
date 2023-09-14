@@ -12,13 +12,7 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     scopes::{BlockStatement, BlockTerm},
-    tir::{
-        node::HasAstNodeId,
-        terms::{
-            control::{LoopTerm, MatchTerm},
-            Term, TermId,
-        },
-    },
+    tir::{HasAstNodeId, LoopTerm, MatchTerm, Term, TermId},
 };
 
 use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};

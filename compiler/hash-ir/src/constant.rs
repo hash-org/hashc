@@ -15,7 +15,7 @@ use hash_storage::{static_single_store, store::statics::StoreId};
 use hash_target::{
     alignment::Alignment, data_layout::HasDataLayout, primitives::IntTy, size::Size,
 };
-use hash_tir::tir::lits::Lit;
+use hash_tir::tir::Lit;
 use hash_utils::derive_more::Constructor;
 
 use crate::{

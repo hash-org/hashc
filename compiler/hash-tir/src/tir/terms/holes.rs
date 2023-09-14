@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use crate::tir::{node::NodeOrigin, symbols::SymbolId};
+use crate::tir::{NodeOrigin, SymbolId};
 
 /// A hole, or in other words a variable which will be resolved as a term later.
 ///

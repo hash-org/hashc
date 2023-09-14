@@ -12,11 +12,9 @@ use hash_tir::{
     context::ContextMember,
     scopes::StackId,
     tir::{
-        data::{CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId},
-        mods::{ModDef, ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue},
-        node::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId},
-        symbols::SymbolId,
-        terms::{fns::FnDefId, TyId},
+        CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId, FnDefId, HasAstNodeId, ModDef,
+        ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue, Node, NodeId, NodeOrigin,
+        NodesId, SymbolId, TyId,
     },
 };
 use hash_utils::{

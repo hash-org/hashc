@@ -29,10 +29,7 @@ use hash_source::entry_point::EntryPointState;
 use hash_storage::{store::SequenceStoreKey, stores};
 use hash_tir::{
     intrinsics::definitions::Intrinsic as TirIntrinsic,
-    tir::{
-        data::{DataDefId, DataTy},
-        terms::{fns::FnDefId, TyId},
-    },
+    tir::{DataDefId, DataTy, FnDefId, TyId},
 };
 use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;

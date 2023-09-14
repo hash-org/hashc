@@ -18,14 +18,7 @@ use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{
-        args::PatArgsId,
-        data::CtorPat,
-        node::NodesId,
-        params::ParamIndex,
-        pats::{Pat, PatId, RangePat, Spread},
-        terms::control::IfPat,
-    },
+    tir::{CtorPat, IfPat, NodesId, ParamIndex, Pat, PatArgsId, PatId, RangePat, Spread},
 };
 use hash_utils::indexmap::IndexMap;
 

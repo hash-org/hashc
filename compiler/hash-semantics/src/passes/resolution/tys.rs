@@ -11,15 +11,8 @@ use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     intrinsics::definitions::{array_ty, equal_ty, list_ty},
     tir::{
-        args::{Arg, ArgsId},
-        data::DataTy,
-        node::{Node, NodeOrigin},
-        params::ParamIndex,
-        terms::{
-            fns::CallTerm,
-            refs::{RefKind, RefTy},
-            Term, Ty, TyId, TyOfTerm,
-        },
+        Arg, ArgsId, CallTerm, DataTy, Node, NodeOrigin, ParamIndex, RefKind, RefTy, Term, Ty,
+        TyId, TyOfTerm,
     },
 };
 

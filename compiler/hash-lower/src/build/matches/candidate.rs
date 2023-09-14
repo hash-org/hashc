@@ -24,15 +24,7 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     scopes::BindingPat,
     tir::{
-        args::PatArgsId,
-        data::CtorPat,
-        params::ParamIndex,
-        pats::{Pat, PatId, RangePat},
-        symbols::SymbolId,
-        terms::{
-            control::{IfPat, MatchCase},
-            tuples::TuplePat,
-        },
+        CtorPat, IfPat, MatchCase, ParamIndex, Pat, PatArgsId, PatId, RangePat, SymbolId, TuplePat,
     },
 };
 use hash_utils::{

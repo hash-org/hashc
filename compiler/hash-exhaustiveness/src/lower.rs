@@ -17,19 +17,9 @@ use hash_tir::{
     scopes::BindingPat,
     term_as_variant,
     tir::{
-        args::{PatArg, PatArgsId, PatOrCapture},
-        data::{ArrayCtorInfo, CtorDefId, CtorPat, DataTy},
-        lits::{CharLit, IntLit, Lit, LitPat, StrLit},
-        node::{Node, NodeOrigin, NodesId},
-        params::{ParamId, ParamsId},
-        pats::{Pat, PatId, RangePat, Spread},
-        symbols::SymbolId,
-        terms::{
-            arrays::ArrayPat,
-            control::{IfPat, OrPat},
-            tuples::{TuplePat, TupleTy},
-            Ty, TyId,
-        },
+        ArrayCtorInfo, ArrayPat, CharLit, CtorDefId, CtorPat, DataTy, IfPat, IntLit, Lit, LitPat,
+        Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId, Pat, PatArg, PatArgsId, PatId,
+        PatOrCapture, RangePat, Spread, StrLit, SymbolId, TuplePat, TupleTy, Ty, TyId,
     },
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};

@@ -32,7 +32,7 @@ use hash_pipeline::{
 use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::{statics::StoreId, Store};
-use hash_tir::{stores::tir_stores, tir::node::HasAstNodeId};
+use hash_tir::{stores::tir_stores, tir::HasAstNodeId};
 use hash_utils::{
     indexmap::IndexMap,
     rayon,

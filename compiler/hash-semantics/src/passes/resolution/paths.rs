@@ -27,15 +27,8 @@ use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     intrinsics::definitions::Intrinsic,
     tir::{
-        args::{Arg, ArgsId},
-        data::{CtorPat, CtorTerm, DataDefId},
-        mods::{ModDefId, ModMemberValue},
-        node::{Node, NodeId, NodeOrigin},
-        symbols::SymbolId,
-        terms::{
-            fns::{CallTerm, FnDefId},
-            Term,
-        },
+        Arg, ArgsId, CallTerm, CtorPat, CtorTerm, DataDefId, FnDefId, ModDefId, ModMemberValue,
+        Node, NodeId, NodeOrigin, SymbolId, Term,
     },
 };
 

@@ -6,7 +6,7 @@ use hash_ast::{
     visitor::AstVisitor,
 };
 use hash_source::SourceId;
-use hash_tir::tir::{node::NodeOrigin, symbols::SymbolId};
+use hash_tir::tir::{NodeOrigin, SymbolId};
 use hash_utils::{derive_more::Deref, state::LightState};
 
 use self::defs::DefDiscoveryState;

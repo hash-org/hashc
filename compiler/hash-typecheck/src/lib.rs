@@ -18,7 +18,7 @@ use hash_tir::{
     atom_info::HasAtomInfo,
     context::{Context, HasContext},
     intrinsics::make::IntrinsicAbilities,
-    tir::terms::{fns::FnDefId, TermId},
+    tir::{FnDefId, TermId},
 };
 use inference::InferenceOps;
 use substitution::SubstitutionOps;

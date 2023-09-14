@@ -7,16 +7,8 @@ use hash_tir::{
     context::ScopeKind,
     sub::Sub,
     tir::{
-        args::ArgsId,
-        data::DataDefCtors,
-        lits::Lit,
-        params::{utils::validate_params, ParamsId},
-        symbols::SymbolId,
-        terms::{
-            fns::{CallTerm, FnTy},
-            holes::Hole,
-            Term, TermId, Ty, TyId,
-        },
+        validate_params, ArgsId, CallTerm, DataDefCtors, FnTy, Hole, Lit, ParamsId, SymbolId, Term,
+        TermId, Ty, TyId,
     },
     visitor::Atom,
 };
