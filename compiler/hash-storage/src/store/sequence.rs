@@ -33,8 +33,11 @@ pub trait SequenceStoreKey: Copy + Eq {
 
     /// Create a key from an index and a length.
     ///
-    /// This should generally not be used in client code.
-    fn from_index_and_len_unchecked(index: usize, len: usize) -> Self;
+    /// # Safety
+    /// - This will create a [SequenceStoreKey] without checking the boundaries
+    ///   in the [SequenceStore].
+    /// - This should generally not be used in client code.
+    unsafe fn from_index_and_len_unchecked(index: usize, len: usize) -> Self;
 
     /// Turn the key into an index range `0..len`.
     ///
@@ -63,7 +66,7 @@ pub trait SequenceStoreKey: Copy + Eq {
 
     /// Get an empty key.
     fn empty() -> Self {
-        Self::from_index_and_len_unchecked(0, 0)
+        unsafe { Self::from_index_and_len_unchecked(0, 0) }
     }
 }
 
@@ -111,7 +114,7 @@ macro_rules! new_sequence_store_key_indirect {
                 (self.index.try_into().unwrap(), self.len.try_into().unwrap())
             }
 
-            fn from_index_and_len_unchecked(index: usize, len: usize) -> Self {
+            unsafe fn from_index_and_len_unchecked(index: usize, len: usize) -> Self {
                 Self { index: index.try_into().unwrap(), len: len.try_into().unwrap() }
             }
         }
@@ -175,7 +178,7 @@ macro_rules! new_sequence_store_key_direct {
                 (self.index.try_into().unwrap(), self.len.try_into().unwrap())
             }
 
-            fn from_index_and_len_unchecked(index: usize, len: usize) -> Self {
+            unsafe fn from_index_and_len_unchecked(index: usize, len: usize) -> Self {
                 Self { index: index.try_into().unwrap(), len: len.try_into().unwrap() }
             }
         }
@@ -212,13 +215,13 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         let mut data = self.internal_data().write();
         let starting_index = data.len();
         data.extend_from_slice(values);
-        Key::from_index_and_len_unchecked(starting_index, values.len())
+        unsafe { Key::from_index_and_len_unchecked(starting_index, values.len()) }
     }
 
     /// Create an empty sequence of values inside the store, returning its key.
     fn create_empty(&self) -> Key {
         let starting_index = self.internal_data().read().len();
-        Key::from_index_and_len_unchecked(starting_index, 0)
+        unsafe { Key::from_index_and_len_unchecked(starting_index, 0) }
     }
 
     /// Create a sequence of values inside the store from an iterator-like
@@ -231,7 +234,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
         let mut data = self.internal_data().write();
         let starting_index = data.len();
         data.extend(values);
-        Key::from_index_and_len_unchecked(starting_index, data.len() - starting_index)
+        unsafe { Key::from_index_and_len_unchecked(starting_index, data.len() - starting_index) }
     }
 
     /// Create a sequence of values inside the store from an iterator-like
@@ -267,23 +270,15 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// Panics if the index is out of bounds for the given key.
     fn get_at_index(&self, key: Key, index: usize) -> Value {
         let (starting_index, len) = key.to_index_and_len();
-        assert!(index < len);
-        self.internal_data().read().get(starting_index + index).unwrap().clone()
-    }
+        debug_assert!(index < len);
 
-    /// Get the value at the given index in the value sequence corresponding to
-    /// the given key.
-    ///
-    /// Panics if the index is out of bounds for the given key.
-    fn try_get_at_index(&self, key: Key, index: usize) -> Option<Value> {
-        let (starting_index, _) = key.to_index_and_len();
-        self.internal_data().read().get(starting_index + index).cloned()
+        unsafe { self.internal_data().read().get_unchecked(starting_index + index).clone() }
     }
 
     /// Get the value sequence for the given key as an owned vector.
     fn get_vec(&self, key: Key) -> Vec<Value> {
         let (index, len) = key.to_index_and_len();
-        self.internal_data().read().get(index..index + len).unwrap().to_vec()
+        self.internal_data().read()[index..index + len].to_vec()
     }
 
     /// Set the value at the given index in the value sequence corresponding to
@@ -292,9 +287,10 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     /// Panics if the index is out of bounds for the given key.
     fn set_at_index(&self, key: Key, index: usize, new_value: Value) -> Value {
         let (starting_index, len) = key.to_index_and_len();
-        assert!(index < len);
+        debug_assert!(index < len);
+
         let mut data = self.internal_data().write();
-        let value_ref = data.get_mut(starting_index + index).unwrap();
+        let value_ref = unsafe { data.get_unchecked_mut(starting_index + index) };
         let old_value = value_ref.clone();
         *value_ref = new_value;
         old_value
@@ -307,7 +303,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     fn set_from_slice_cloned(&self, key: Key, new_value_sequence: &[Value]) {
         assert!(key.len() == new_value_sequence.len());
         let mut data = self.internal_data().write();
-        let value_slice_ref = data.get_mut(key.to_index_range()).unwrap();
+        let value_slice_ref = unsafe { data.get_unchecked_mut(key.to_index_range()) };
         value_slice_ref.clone_from_slice(new_value_sequence);
     }
 
@@ -320,7 +316,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     fn map_fast<T>(&self, key: Key, f: impl FnOnce(&[Value]) -> T) -> T {
         let data = self.internal_data().read();
         let (index, len) = key.to_index_and_len();
-        let value = data.get(index..index + len).unwrap();
+        let value = unsafe { data.get_unchecked(index..index + len) };
         f(value)
     }
 
@@ -329,7 +325,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     fn borrow_mut(&self, key: Key) -> SequenceStoreBorrowMutHandle<'_, [Value]> {
         let (index, len) = key.to_index_and_len();
         let data = self.internal_data().write();
-        RwLockWriteGuard::map(data, |d| d.get_mut(index..index + len).unwrap())
+        RwLockWriteGuard::map(data, |d| unsafe { d.get_unchecked_mut(index..index + len) })
     }
 
     /// Borrow a value sequence, given a key. Returns an appropriate handle
@@ -337,7 +333,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     fn borrow(&self, key: Key) -> SequenceStoreBorrowHandle<'_, [Value]> {
         let (index, len) = key.to_index_and_len();
         let data = self.internal_data().read();
-        RwLockReadGuard::map(data, |d| d.get(index..index + len).unwrap())
+        RwLockReadGuard::map(data, |d| unsafe { d.get_unchecked(index..index + len) })
     }
 
     /// Get a value sequence by a key, and map it to another value given its
@@ -359,7 +355,7 @@ pub trait SequenceStore<Key: SequenceStoreKey, Value: Clone> {
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut [Value]) -> T) -> T {
         let mut data = self.internal_data().write();
         let (index, len) = key.to_index_and_len();
-        let value = data.get_mut(index..index + len).unwrap();
+        let value = unsafe { data.get_unchecked_mut(index..index + len) };
         f(value)
     }
 
@@ -385,7 +381,7 @@ pub trait SequenceStoreCopy<Key: SequenceStoreKey, Value: Copy>: SequenceStore<K
         assert!(key.len() == new_value_sequence.len());
         let mut data = self.internal_data().write();
         let (index, len) = key.to_index_and_len();
-        let value_slice_ref = data.get_mut(index..index + len).unwrap();
+        let value_slice_ref = unsafe { data.get_unchecked_mut(index..index + len) };
         value_slice_ref.copy_from_slice(new_value_sequence);
     }
 
@@ -427,9 +423,11 @@ impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
 {
     type Iter<'s> = impl Iterator<Item = Value> + 's where T: 's, Key: 's;
     fn iter(&self, key: Key) -> Self::Iter<'_> {
-        key.to_index_range().map(move |index| {
-            self.internal_data().read().get(key.entry_index() + index).unwrap().clone()
-        })
+        unsafe {
+            key.to_index_range().map(move |index| {
+                self.internal_data().read().get_unchecked(key.entry_index() + index).clone()
+            })
+        }
     }
 }
 
@@ -466,7 +464,7 @@ where
         let (key, index) = element_id.into();
         let (starting_index, _) = key.to_index_and_len();
         let data = self.internal_data().read();
-        RwLockReadGuard::map(data, |d| d.get(starting_index + index).unwrap())
+        RwLockReadGuard::map(data, |d| unsafe { d.get_unchecked(starting_index + index) })
     }
 
     fn borrow_element_mut(
@@ -476,7 +474,7 @@ where
         let (key, index) = element_id.into();
         let (starting_index, _) = key.to_index_and_len();
         let data = self.internal_data().write();
-        RwLockWriteGuard::map(data, |d| d.get_mut(starting_index + index).unwrap())
+        RwLockWriteGuard::map(data, |d| unsafe { d.get_unchecked_mut(starting_index + index) })
     }
 }
 

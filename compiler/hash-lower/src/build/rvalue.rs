@@ -229,7 +229,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             if op.is_checkable() && is_integral {
                 // Create a new tuple that contains the result of the operation
-                let ty = IrTy::tuple(&[ty, COMMON_IR_TYS.bool]);
+                let ty = IrTy::make_tuple(&[ty, COMMON_IR_TYS.bool]);
 
                 let temp = self.temp_place(ty);
                 let rvalue = RValue::CheckedBinaryOp(op, operands);

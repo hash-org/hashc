@@ -6,11 +6,11 @@ use std::ops::ControlFlow;
 
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, Store, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     stores::tir_stores,
-    tir::{FnDefId, HasAstNodeId, ModDef, ModKind, ModMemberValue, TermId},
+    tir::{FnDefId, HasAstNodeId, ModKind, ModMemberValue, TermId},
     visitor::{Atom, Visitor},
 };
 use hash_utils::{derive_more::Constructor, indexmap::IndexSet};
@@ -91,18 +91,18 @@ impl FnDiscoverer<'_> {
     pub fn discover_fns(&self) -> DiscoveredFns {
         let mut fns = DiscoveredFns::new();
 
-        for mod_def_id in ModDef::iter_all_mods() {
+        tir_stores().mod_def().for_each_entry(|def| {
             // Check if we can skip this module as it may of already been queued before
             // during some other pipeline run.
             //
             // @@Incomplete: mod-blocks that are already lowered won't be caught by
             // the queue-deduplication.
-            match mod_def_id.borrow().kind {
+            match def.borrow().kind {
                 ModKind::Source(id) if !self.stage_info.get(id).is_lowered() => {}
-                _ => continue,
+                _ => return,
             };
 
-            for member in mod_def_id.borrow().members.iter() {
+            for member in def.borrow().members.iter() {
                 match member.borrow().value {
                     ModMemberValue::Mod(_) => {
                         // Will be handled later in the loop
@@ -128,7 +128,7 @@ impl FnDiscoverer<'_> {
                     }
                 }
             }
-        }
+        });
 
         fns
     }
