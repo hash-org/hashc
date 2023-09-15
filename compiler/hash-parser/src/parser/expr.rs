@@ -400,9 +400,8 @@ impl<'s> AstGen<'s> {
                     self.skip_token();
                     self.parse_property_access(subject, subject_span)?
                 }
-                TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) =>
-                {
-                    self.frame.skip(2);
+                TokenKind::Access => {
+                    self.skip_token();
                     self.parse_ns_access(subject, subject_span)?
                 }
                 TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject, subject_span) {
@@ -751,7 +750,7 @@ impl<'s> AstGen<'s> {
         subject: AstNode<Expr>,
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Colon));
+        debug_assert!(self.current_token().has_kind(TokenKind::Access));
 
         let property = self.parse_named_field(ParseErrorKind::ExpectedName)?;
         Ok(self.node_with_joined_span(

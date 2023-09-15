@@ -95,9 +95,7 @@ impl<'s> AstGen<'s> {
                     self.set_pos(offset);
                     None
                 }
-                Some(Token { kind: TokenKind::Colon, .. })
-                    if self.peek_second().map_or(false, |t| t.has_kind(TokenKind::Colon)) =>
-                {
+                Some(Token { kind: TokenKind::Access, .. }) => {
                     self.set_pos(offset);
                     None
                 }

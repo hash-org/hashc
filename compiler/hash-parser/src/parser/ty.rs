@@ -223,8 +223,8 @@ impl<'s> AstGen<'s> {
                     })
                 }
 
-                TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) => {
-                    self.frame.skip(2);
+                TokenKind::Access => {
+                    self.skip_token();
 
                     Ty::Access(AccessTy {
                         subject: self.node_with_joined_span(ty, span),
@@ -459,7 +459,7 @@ impl<'s> AstGen<'s> {
     }
 
     /// Parse a [TyParam] which can consist of an optional name, and a type.
-    /// This is only inteded for parameters that appear in function and tuple
+    /// This is only intended for parameters that appear in function and tuple
     /// types. The other more broad function [`Self::parse_ty_param()`]  is for
     /// parsing type parameters with default values too,
     fn parse_ty_tuple_or_fn_param(&mut self) -> ParseResult<AstNode<Param>> {
@@ -471,13 +471,9 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Ident(_), .. }),
                 Some(Token { kind: TokenKind::Colon, .. }),
             ) => {
-                if matches!(self.peek_nth(2), Some(Token { kind: TokenKind::Colon, .. })) {
-                    (None, Some(self.parse_ty()?))
-                } else {
-                    let ident = self.parse_name()?;
-                    self.skip_token(); // :
-                    (Some(ident), Some(self.parse_ty()?))
-                }
+                let ident = self.parse_name()?;
+                self.skip_token(); // :
+                (Some(ident), Some(self.parse_ty()?))
             }
             _ => (None, Some(self.parse_ty()?)),
         };
@@ -486,7 +482,7 @@ impl<'s> AstGen<'s> {
     }
 
     /// Parse a [TyParam] which consists the name of the parameter, optional
-    /// type annoation and an optional "default" value for the parameter.
+    /// type annotation and an optional "default" value for the parameter.
     fn parse_ty_param(&mut self) -> ParseResult<AstNode<TyParam>> {
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
         let start = self.current_pos();

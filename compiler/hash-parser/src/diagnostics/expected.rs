@@ -75,14 +75,17 @@ bitflags! {
         /// Fat arrow.
         const FatArrow = 1 << 22;
 
+        /// An access `::`.
+        const Access = 1 << 23;
+
         /// A `pub` keyword
-        const PubKw = 1 << 23;
+        const PubKw = 1 << 24;
 
         /// A `priv` keyword
-        const PrivKw = 1 << 24;
+        const PrivKw = 1 << 25;
 
         /// A `mut` keyword
-        const MutKw = 1 << 25;
+        const MutKw = 1 << 26;
 
         const Visibility = Self::PubKw.bits()
                          | Self::PrivKw.bits();
@@ -144,6 +147,7 @@ impl fmt::Display for ExpectedItem {
                 ExpectedItem::RightBracket => toks.push("]"),
                 ExpectedItem::ThinArrow => toks.push("->"),
                 ExpectedItem::FatArrow => toks.push("=>"),
+                ExpectedItem::Access => toks.push("::"),
                 _ => unreachable!(),
             }
         }
@@ -169,6 +173,7 @@ impl From<TokenKind> for ExpectedItem {
             TokenKind::Ident(_) => ExpectedItem::Ident,
             TokenKind::ThinArrow => ExpectedItem::ThinArrow,
             TokenKind::FatArrow => ExpectedItem::FatArrow,
+            TokenKind::Access => ExpectedItem::Access,
             TokenKind::Tree(delim, _) | TokenKind::RightDelim(delim) => delim.into(),
             _ => unreachable!("unexpected token kind when deriving expected item: {:?}", value),
         }
