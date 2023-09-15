@@ -115,7 +115,7 @@ impl<'s> AstGen<'s> {
         let start = self.current_pos();
 
         let pat = self.parse_pat()?;
-        self.parse_arrow()?;
+        self.parse_token(TokenKind::FatArrow)?;
         let expr = self.parse_expr_with_precedence(0)?;
 
         Ok(self.node_with_joined_span(MatchCase { pat, expr, macros }, start))

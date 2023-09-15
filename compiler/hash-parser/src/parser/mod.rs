@@ -145,7 +145,7 @@ impl<'s> AstGenFrame<'s> {
         if self.stream.is_empty() {
             return self.span;
         }
-        
+
         self.current_token().span
     }
 

@@ -65,14 +65,6 @@ pub enum ParseErrorKind {
     /// Expected an expression.
     ExpectedExpr,
 
-    /// Expected a '=>' at the current location. This error can occur in a
-    /// number of places; including but not limited to: after type
-    /// arguments, lambda definition, trait bound annotation, etc.
-    ExpectedArrow,
-
-    /// Specific error when expecting an arrow after the function definition
-    ExpectedFnArrow,
-
     /// Expected a function body at the current location.
     ExpectedFnBody,
 
@@ -165,10 +157,6 @@ impl From<ParseError> for Reports {
             ParseErrorKind::ExpectedExpr => "expected an expression".to_string(),
             ParseErrorKind::ExpectedName => "expected a name here".to_string(),
             ParseErrorKind::ExpectedMacroInvocation => "expected a macro invocation".to_string(),
-            ParseErrorKind::ExpectedArrow => "expected an arrow `=>` ".to_string(),
-            ParseErrorKind::ExpectedFnArrow => {
-                "expected an arrow `->` after type arguments denoting a function type".to_string()
-            }
             ParseErrorKind::ExpectedFnBody => "expected a function body".to_string(),
             ParseErrorKind::ExpectedType => "expected a type annotation".to_string(),
             ParseErrorKind::ExpectedPropertyAccess => {

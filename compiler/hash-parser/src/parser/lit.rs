@@ -20,8 +20,8 @@ impl<'s> AstGen<'s> {
         Ok(self.node_with_span(
             match token.kind {
                 TokenKind::Int(_, _) | TokenKind::Float(_) => return self.parse_numeric_lit(),
-                TokenKind::CharLit(value) => Lit::Char(CharLit { data: value }),
-                TokenKind::StrLit(value) => Lit::Str(StrLit { data: value }),
+                TokenKind::Char(value) => Lit::Char(CharLit { data: value }),
+                TokenKind::Str(value) => Lit::Str(StrLit { data: value }),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit { data: false }),
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit { data: true }),
                 _ => self.err_with_location(

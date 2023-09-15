@@ -230,38 +230,18 @@ impl<'s> AstGen<'s> {
 
             // Either tuple, function, or nested expression
             TokenKind::Tree(Delimiter::Paren, _) => {
-                let mut is_func = false;
-
                 // Now here we have to look ahead after the token_tree to see if there is an
                 // arrow.
-                //
-                // @@Speed: avoid using parse_token_atom() because we don't care about error
-                // messages We just want to purely look if there are is a
-                // combination of symbols following which make up an '=>'.
-                let has_arrow = self
-                    .peek_resultant_fn(|g| -> Result<(), ()> {
-                        match g.peek() {
-                            Some(token)
-                                if token.has_kind(TokenKind::Minus)
-                                    || token.has_kind(TokenKind::Eq) =>
-                            {
-                                g.skip_token();
-                                g.parse_token_fast(TokenKind::Gt).ok_or(())?;
-                                Ok(())
-                            }
-                            _ => Err(()),
-                        }
-                    })
-                    .is_some();
+                let has_arrow = self.parse_token_fast(TokenKind::FatArrow).is_some()
+                    || self.parse_token_fast(TokenKind::ThinArrow).is_some();
 
                 if has_arrow {
-                    self.backtrack(2);
-                    is_func = true;
+                    self.backtrack(1);
                 }
 
                 self.backtrack(1); // Backtrack one token so that we can re-parse the 'gen'.
 
-                match is_func {
+                match has_arrow {
                     true => self.parse_fn_def()?,
                     false => self.parse_expr_or_tuple()?,
                 }
@@ -463,7 +443,7 @@ impl<'s> AstGen<'s> {
         let start = self.current_pos();
         let (path, span) =
             self.in_tree(Delimiter::Paren, None, |gen| match gen.next_token().copied() {
-                Some(Token { kind: TokenKind::StrLit(path), span }) => Ok((path, span)),
+                Some(Token { kind: TokenKind::Str(path), span }) => Ok((path, span)),
                 _ => gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), None)?,
             })?;
 
@@ -880,12 +860,12 @@ impl<'s> AstGen<'s> {
         let start = self.current_pos();
 
         // check if there is a return type
-        let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
+        let return_ty = match self.peek_resultant_fn(|g| g.parse_token(TokenKind::ThinArrow)) {
             Some(_) => Some(self.parse_ty()?),
             _ => None,
         };
 
-        self.parse_arrow()?;
+        self.parse_token(TokenKind::FatArrow)?;
 
         let fn_body = match self.peek() {
             Some(_) => self.parse_expr_with_precedence(0)?,

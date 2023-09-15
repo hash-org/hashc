@@ -55,11 +55,11 @@ impl std::fmt::Display for Token {
             TokenKind::Ident(ident) => {
                 write!(f, "Ident ({})", String::from(*ident))
             }
-            TokenKind::StrLit(lit) => {
+            TokenKind::Str(lit) => {
                 write!(f, "String (\"{}\")", String::from(*lit))
             }
             // We want to print the actual character, instead of a potential escape code
-            TokenKind::CharLit(ch) => {
+            TokenKind::Char(ch) => {
                 write!(f, "Char ('{ch}')")
             }
             kind => write!(f, "{kind:?}"),
@@ -113,8 +113,8 @@ impl TokenKind {
                 | TokenKind::Keyword(Keyword::True)
                 | TokenKind::Int(_, _)
                 | TokenKind::Float(_)
-                | TokenKind::CharLit(_)
-                | TokenKind::StrLit(_)
+                | TokenKind::Char(_)
+                | TokenKind::Str(_)
         )
     }
 
@@ -263,10 +263,8 @@ pub enum TokenKind {
     Semi,
     /// '#'
     Pound,
-
     /// `@`
     At,
-
     /// '$'
     Dollar,
     /// ','
@@ -275,15 +273,19 @@ pub enum TokenKind {
     Quote,
     /// "'"
     SingleQuote,
+    /// A thin arrow `->`
+    ThinArrow,
+    /// A fat arrow `=>`
+    FatArrow,
     /// Integer Literal
     Int(Base, IntLitKind),
     /// Float literal
     Float(FloatLitKind),
-    /// Character literal
-    CharLit(char),
-    /// StrLiteral,
-    StrLit(InternedStr),
-    /// Identifier
+    /// Character literal.
+    Char(char),
+    /// String literal.
+    Str(InternedStr),
+    /// Identifier.
     Ident(Identifier),
 
     /// Tree - The index is set as a `u32` since it isn't going
@@ -322,8 +324,8 @@ impl TokenKind {
     pub fn as_error_string(&self) -> String {
         match self {
             TokenKind::Unexpected(atom) => format!("an unknown character `{atom}`"),
-            TokenKind::CharLit(ch) => format!("`{ch}`"),
-            TokenKind::StrLit(str) => format!("the string `{}`", *str),
+            TokenKind::Char(ch) => format!("`{ch}`"),
+            TokenKind::Str(str) => format!("the string `{}`", *str),
             TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
             TokenKind::Ident(ident) => format!("the identifier `{}`", *ident),
             kind => format!("a `{kind}`"),
@@ -356,15 +358,17 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Dollar => write!(f, "$"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
+            TokenKind::ThinArrow => write!(f, "->"),
+            TokenKind::FatArrow => write!(f, "=>"),
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::Unexpected(atom) => write!(f, "{atom}"),
             TokenKind::Int(_, _) => write!(f, "float"),
             TokenKind::Float(_) => write!(f, "integer"),
-            TokenKind::CharLit(ch) => write!(f, "'{ch}'"),
+            TokenKind::Char(ch) => write!(f, "'{ch}'"),
             TokenKind::LeftDelim(delim) => write!(f, "{}", delim.left()),
             TokenKind::RightDelim(delim) => write!(f, "{}", delim.right()),
             TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
-            TokenKind::StrLit(str) => {
+            TokenKind::Str(str) => {
                 write!(f, "\"{}\"", *str)
             }
             TokenKind::Keyword(kwd) => kwd.fmt(f),

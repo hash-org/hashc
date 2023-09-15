@@ -151,14 +151,14 @@ impl<'s> AstGen<'s> {
         let params = self.parse_ty_params(TyParamOrigin::TyFn)?;
 
         // see if we need to add a return ty...
-        let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
+        let return_ty = match self.peek_resultant_fn(|g| g.parse_token(TokenKind::ThinArrow)) {
             Some(_) => Some(self.parse_ty()?),
             None => None,
         };
 
         // Now that we parse the bound, we're expecting a fat-arrow and then some
         // expression
-        self.parse_arrow()?;
+        self.parse_token(TokenKind::FatArrow)?;
         let ty_fn_body = self.parse_expr_with_precedence(0)?;
 
         Ok(TyFnDef { params, return_ty, ty_fn_body })

@@ -10,7 +10,7 @@ use hash_reporting::{
 use hash_source::{identifier::Identifier, location::Span};
 use hash_token::{delimiter::Delimiter, Base, TokenKind};
 
-use crate::{Lexer, v2::LexerV2};
+use crate::{v2::LexerV2, Lexer};
 
 /// Auxiliary data type to provide more information about the
 /// numerical literal kind that was encountered. This is used
@@ -169,7 +169,6 @@ impl Lexer<'_> {
         self.diagnostics.store.errors.drain(..).flat_map(Reports::from).collect()
     }
 }
-
 
 impl HasDiagnosticsMut for LexerV2<'_> {
     type Diagnostics = DiagnosticStore<LexerError, ()>;

@@ -200,8 +200,8 @@ impl<'s> AstGen<'s> {
                     })
                 }
                 // Function syntax which allow to express `U -> T` whilst implying `(U -> T)`
-                TokenKind::Minus if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Gt)) => {
-                    self.frame.skip(2);
+                TokenKind::ThinArrow => {
+                    self.skip_token();
                     let return_ty = self.parse_ty()?;
 
                     let ty = self.node_with_joined_span(ty, span);
@@ -341,7 +341,7 @@ impl<'s> AstGen<'s> {
         })?;
 
         // If there is an arrow '=>', then this must be a function type
-        match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
+        match self.peek_resultant_fn(|g| g.parse_token(TokenKind::ThinArrow)) {
             Some(_) => {
                 let params = self.make_params(params, ParamOrigin::Tuple);
                 // Parse the return type here, and then give the function name
@@ -370,7 +370,7 @@ impl<'s> AstGen<'s> {
         let params = self.parse_ty_params(TyParamOrigin::TyFn)?;
 
         // Now pass the return type
-        self.parse_thin_arrow()?;
+        self.parse_token(TokenKind::ThinArrow)?;
         let return_ty = self.parse_ty()?;
 
         Ok(Ty::TyFn(TyFnTy { params, return_ty }))

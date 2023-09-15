@@ -267,7 +267,6 @@ impl<'a> Lexer<'a> {
         let token_kind = match self.next()? {
             // One-symbol tokens
             '~' => TokenKind::Tilde,
-            '=' => TokenKind::Eq,
             '!' => TokenKind::Exclamation,
             '+' => TokenKind::Plus,
             '*' => TokenKind::Star,
@@ -284,21 +283,27 @@ impl<'a> Lexer<'a> {
             '#' => TokenKind::Pound,
             '$' => TokenKind::Dollar,
             '?' => TokenKind::Question,
-
+            '=' => match self.peek() {
+                '>' => {
+                    self.skip();
+                    TokenKind::FatArrow
+                }
+                _ => TokenKind::Eq,
+            },
+            '-' => match self.peek() {
+                '>' => {
+                    self.skip();
+                    TokenKind::ThinArrow
+                }
+                ch if ch.is_ascii_digit() => self.number(self.peek(), true),
+                _ => TokenKind::Minus,
+            },
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary
             // number of tokens and closed by a following delimiter...
             ch @ ('(' | '{' | '[') => self.eat_token_tree(Delimiter::from_left(ch).unwrap()),
-
             // Identifier (this should be checked after other variant that can
             // start as identifier).
             ch if is_id_start(ch) => self.ident(ch),
-
-            // Negated numeric literal, immediately negate it rather than
-            // deferring the transformation...
-            '-' if self.peek().is_ascii_digit() => self.number(self.peek(), true),
-
-            // If the next character is not a digit, then we just stop.
-            '-' => TokenKind::Minus,
             ch @ '0'..='9' => self.number(ch, false),
             '\'' => self.char(),
             '"' => self.string(),
@@ -731,7 +736,7 @@ impl<'a> Lexer<'a> {
 
                     self.skip(); // eat the ending part of the character literal `'`
 
-                    return TokenKind::CharLit(ch);
+                    return TokenKind::Char(ch);
                 }
                 Err(err) => {
                     // Add the error to the diagnostics, and then try to recover by seeing if we can
@@ -749,7 +754,7 @@ impl<'a> Lexer<'a> {
         } else if self.peek_second() == '\'' {
             let ch = self.next().unwrap();
             self.skip();
-            return TokenKind::CharLit(ch);
+            return TokenKind::Char(ch);
         }
 
         // So here we know that this is an invalid character literal, to improve
@@ -815,7 +820,7 @@ impl<'a> Lexer<'a> {
         // Avoid interning on a global level until later, we check locally if we've
         // seen the string, and then push it into our literal map if we haven't...
         value.shrink_to_fit();
-        TokenKind::StrLit(self.strings.add(value))
+        TokenKind::Str(self.strings.add(value))
     }
 
     /// Consume a line comment after the first following slash, essentially

@@ -69,19 +69,25 @@ bitflags! {
         /// Right bracket
         const RightBracket = 1 << 20;
 
+        /// Thin arrow.
+        const ThinArrow = 1 << 21;
+
+        /// Fat arrow.
+        const FatArrow = 1 << 22;
+
         /// A `pub` keyword
-        const PubKw = 1 << 21;
+        const PubKw = 1 << 23;
 
         /// A `priv` keyword
-        const PrivKw = 1 << 22;
+        const PrivKw = 1 << 24;
 
         /// A `mut` keyword
-        const MutKw = 1 << 23;
+        const MutKw = 1 << 25;
 
         const Visibility = Self::PubKw.bits()
                          | Self::PrivKw.bits();
 
-        /// Convient grouping of `operator`.
+        /// Convenient grouping of `operator`.
         ///
         /// @@Incomplete: add all token operators.
         const Op = Self::Minus.bits()
@@ -90,7 +96,7 @@ bitflags! {
                  | Self::Gt.bits()
                  | Self::Amp.bits();
 
-        /// Convient left-wise delimiter mask.
+        /// Convenient left-wise delimiter mask.
         const DelimLeft = Self::LeftParen.bits()
                         | Self::LeftBrace.bits()
                         | Self::LeftBracket.bits()
@@ -136,6 +142,8 @@ impl fmt::Display for ExpectedItem {
                 ExpectedItem::RightBrace => toks.push("}"),
                 ExpectedItem::LeftBracket => toks.push("["),
                 ExpectedItem::RightBracket => toks.push("]"),
+                ExpectedItem::ThinArrow => toks.push("->"),
+                ExpectedItem::FatArrow => toks.push("=>"),
                 _ => unreachable!(),
             }
         }
@@ -159,6 +167,8 @@ impl From<TokenKind> for ExpectedItem {
             TokenKind::Colon => ExpectedItem::Colon,
             TokenKind::Comma => ExpectedItem::Comma,
             TokenKind::Ident(_) => ExpectedItem::Ident,
+            TokenKind::ThinArrow => ExpectedItem::ThinArrow,
+            TokenKind::FatArrow => ExpectedItem::FatArrow,
             TokenKind::Tree(delim, _) | TokenKind::RightDelim(delim) => delim.into(),
             _ => unreachable!("unexpected token kind when deriving expected item: {:?}", value),
         }
