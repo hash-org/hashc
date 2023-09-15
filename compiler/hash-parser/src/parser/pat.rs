@@ -257,7 +257,7 @@ impl<'s> AstGen<'s> {
             match self.parse_token_fast(TokenKind::Dot) {
                 Some(_) => {}
                 None => {
-                    self.frame.offset.set(offset);
+                    self.set_pos(offset);
                     return None;
                 }
             }
@@ -278,7 +278,7 @@ impl<'s> AstGen<'s> {
                 Some(hi) => Some(RangePat { lo, hi: Some(hi), end }),
                 None => {
                     // Reset the token offset to the beginning
-                    self.frame.offset.set(offset);
+                    self.set_pos(offset);
                     None
                 }
             }

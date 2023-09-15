@@ -92,17 +92,17 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Eq, .. })
                     if self.peek_second().map_or(false, |t| t.has_kind(TokenKind::Eq)) =>
                 {
-                    self.frame.offset.set(offset);
+                    self.set_pos(offset);
                     None
                 }
                 Some(Token { kind: TokenKind::Colon, .. })
                     if self.peek_second().map_or(false, |t| t.has_kind(TokenKind::Colon)) =>
                 {
-                    self.frame.offset.set(offset);
+                    self.set_pos(offset);
                     None
                 }
                 Some(Token { kind, .. }) if !matches!(kind, TokenKind::Colon | TokenKind::Eq) => {
-                    self.frame.offset.set(offset);
+                    self.set_pos(offset);
                     None
                 }
                 Some(_) => {
@@ -137,7 +137,7 @@ impl<'s> AstGen<'s> {
                     ))
                 }
                 None => {
-                    self.frame.offset.set(offset);
+                    self.set_pos(offset);
                     None
                 }
             }

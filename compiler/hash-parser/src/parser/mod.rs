@@ -66,6 +66,12 @@ impl<'s> AstGenFrame<'s> {
         self.offset.set(self.offset.get() - n);
     }
 
+    /// Set the position of the offset.
+    #[inline(always)]
+    pub(crate) fn set_pos(&self, pos: usize) {
+        self.offset.set(pos);
+    }
+
     /// Function to check if the token stream has been exhausted based on the
     /// current offset in the generator.
     #[inline]
@@ -139,13 +145,8 @@ impl<'s> AstGenFrame<'s> {
         if self.stream.is_empty() {
             return self.span;
         }
-
-        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
-
-        match self.stream.get(offset) {
-            Some(token) => token.span,
-            None => self.stream.last().unwrap().span,
-        }
+        
+        self.current_token().span
     }
 
     /// Get the next location of the token, if there is no token after, we use
@@ -373,7 +374,7 @@ impl<'s> AstGen<'s> {
         match parse_fn(self) {
             Ok(result) => Some(result),
             Err(_) => {
-                self.frame.offset.set(start);
+                self.set_pos(start);
                 None
             }
         }
@@ -394,7 +395,7 @@ impl<'s> AstGen<'s> {
         match parse_fn(self) {
             Ok(result) => Some(result),
             Err(_) => {
-                self.frame.offset.set(start);
+                self.set_pos(start);
                 None
             }
         }
