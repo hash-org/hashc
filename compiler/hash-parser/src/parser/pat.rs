@@ -92,10 +92,8 @@ impl<'s> AstGen<'s> {
                     let fields = self.new_frame(tree, token.span, |gen| {
                         gen.parse_nodes_with_skips(
                             |g, pos| {
-                                // If the next token is a dot, then we try to parse a spread pattern
-                                // since this is the only case where a dot can appear in a tuple pattern.
-                                if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
-                                    g.parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)?;
+                                // If the next token is an ellipsis, then we try to parse a spread pattern.
+                                if g.try_parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)? {
                                     Ok(None)
                                 } else {
                                     Ok(Some(g.parse_pat_arg()?))
@@ -184,18 +182,20 @@ impl<'s> AstGen<'s> {
                 Pat::Lit(LitPat { data: self.parse_primitive_lit()? })
             }
             // Potentially a range pattern
-            token @ Token { kind: TokenKind::Dot, .. } => match self.maybe_parse_range_pat(None) {
-                Some(pat) => {
-                    has_range_pat = true;
-                    Pat::Range(pat)
+            token @ Token { kind: TokenKind::Range | TokenKind::RangeExclusive, .. } => {
+                match self.maybe_parse_range_pat(None) {
+                    Some(pat) => {
+                        has_range_pat = true;
+                        Pat::Range(pat)
+                    }
+                    None => self.err_with_location(
+                        ParseErrorKind::ExpectedPat,
+                        ExpectedItem::Pat,
+                        Some(token.kind),
+                        token.span,
+                    )?,
                 }
-                None => self.err_with_location(
-                    ParseErrorKind::ExpectedPat,
-                    ExpectedItem::Pat,
-                    Some(token.kind),
-                    token.span,
-                )?,
-            },
+            }
 
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
@@ -232,7 +232,7 @@ impl<'s> AstGen<'s> {
         // for error-reporting to defer this until later
         let (pat, can_continue) = if let Pat::Lit(LitPat { data: lit }) = &pat && !has_range_pat {
             match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Dot) => {
+                Some(Token { kind: TokenKind::Range | TokenKind::RangeExclusive, ..}) => {
                     match self.maybe_parse_range_pat(Some(lit.clone())) {
                         Some(pat) => (Pat::Range(pat), false),
                         None => (pat, true),
@@ -247,30 +247,22 @@ impl<'s> AstGen<'s> {
         Ok((self.node_with_joined_span(pat, start), can_continue))
     }
 
-    /// Attempt to parse a range-pattern, if it fails then the
-    /// function returns [None]
+    /// Attempt to parse a [RangePat] whilst providing the `lo` component of the
+    /// range pattern. The `lo` component is the left hand-side of the range. If
+    /// it is not provided, then the [RangePat] does not include a `lo`
+    /// component.
     fn maybe_parse_range_pat(&mut self, lo: Option<AstNode<Lit>>) -> Option<RangePat> {
         let offset = self.offset();
 
-        // Parse the two dots...
-        for _ in 0..2 {
-            match self.parse_token_fast(TokenKind::Dot) {
-                Some(_) => {}
-                None => {
-                    self.set_pos(offset);
-                    return None;
-                }
-            }
-        }
-
-        // Now parse the range end specifier...
-        let end = match self.parse_token_fast(TokenKind::Lt) {
-            Some(_) => RangeEnd::Excluded,
-            _ => RangeEnd::Included,
+        let end = match self.peek() {
+            Some(Token { kind: TokenKind::Range, .. }) => RangeEnd::Included,
+            Some(Token { kind: TokenKind::RangeExclusive, .. }) => RangeEnd::Excluded,
+            _ => return None,
         };
+        self.skip_token();
 
         // Now parse the `hi` part of the range
-        if matches!(self.peek(), Some(token) if token.kind.is_lit()) {
+        if matches!(self.peek(), Some(token) if token.kind.is_range_lit()) {
             self.skip_token();
 
             // @@ErrorReporting: just push the error but don't fail...
@@ -295,6 +287,18 @@ impl<'s> AstGen<'s> {
     /// syntaxes use different operators as pattern assigners.
     pub(crate) fn parse_module_pat_entry(&mut self) -> ParseResult<AstNode<ModulePatEntry>> {
         let start = self.current_pos();
+
+        // ##ErrorReporting: handle the case where the user tries to specify
+        // an ellipsis in a module pattern entry, this is not allowed.
+        if self.peek_kind() == Some(TokenKind::Ellipsis) {
+            return self.err_with_location(
+                ParseErrorKind::DisallowedSpreadPat { origin: PatOrigin::Mod },
+                ExpectedItem::Ident,
+                None,
+                self.next_pos(),
+            );
+        }
+
         let (name, name_span) = self.track_span(|this| this.parse_name())?;
 
         // if the next token is the correct assigning operator, attempt to parse a
@@ -341,10 +345,8 @@ impl<'s> AstGen<'s> {
         let fields = self.new_frame(tree, parent_span, |gen| {
             gen.parse_nodes_with_skips(
                 |g, pos| {
-                    // Check if we encounter a dot, if so then we try to parse a
-                    // spread pattern, if not then we parse a normal pattern.
-                    if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
-                        g.parse_spread_pat(&mut spread, pos, PatOrigin::Array)?;
+                    // If the next token is an ellipsis, then we try to parse a spread pattern.
+                    if g.try_parse_spread_pat(&mut spread, pos, PatOrigin::Array)? {
                         Ok(None)
                     } else {
                         Ok(Some(g.parse_pat()?))
@@ -392,10 +394,8 @@ impl<'s> AstGen<'s> {
 
             let mut fields = gen.parse_nodes_with_skips(
                 |g, pos| {
-                    // If the next token is a dot, then we try to parse a spread pattern
-                    // since this is the only case where a dot can appear in a tuple pattern.
-                    if matches!(g.peek(), Some(token) if token.has_kind(TokenKind::Dot)) {
-                        g.parse_spread_pat(&mut spread, pos, PatOrigin::Tuple)?;
+                    // If the next token is an ellipsis, then we try to parse a spread pattern.
+                    if g.try_parse_spread_pat(&mut spread, pos, PatOrigin::Tuple)? {
                         Ok(None)
                     } else {
                         Ok(Some(g.parse_pat_arg()?))
@@ -465,24 +465,38 @@ impl<'s> AstGen<'s> {
     /// So the spread operator can only appear within either `list`, `tuple`
     /// patterns at the moment which means that any other location will mark
     /// it as `invalid` in the current implementation.
-    pub(crate) fn parse_spread_pat(
+    pub(crate) fn try_parse_spread_pat(
         &mut self,
         spread: &mut Option<AstNode<SpreadPat>>,
         position: usize,
         origin: PatOrigin,
-    ) -> ParseResult<()> {
-        let start = self.next_pos();
-
-        for k in 0..3 {
-            self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
-                self.make_err(
-                    ParseErrorKind::MalformedSpreadPattern(3 - k),
+    ) -> ParseResult<bool> {
+        // Give some nice feedback to user about how many `.`s we expected
+        match self.next_kind() {
+            Some(TokenKind::Ellipsis) => {}
+            Some(TokenKind::Range) => {
+                return self.err_with_location(
+                    ParseErrorKind::MalformedSpreadPat(1),
                     ExpectedItem::Dot,
                     None,
-                    Some(self.next_pos()),
+                    self.next_pos(),
                 )
-            })?;
-        }
+            }
+            Some(TokenKind::Dot) => {
+                return self.err_with_location(
+                    ParseErrorKind::MalformedSpreadPat(2),
+                    ExpectedItem::Range,
+                    None,
+                    self.next_pos(),
+                )
+            }
+            _ => {
+                self.backtrack(1);
+                return Ok(false);
+            }
+        };
+
+        let start = self.current_pos();
 
         // Try and see if there is a identifier that is followed by the spread to try
         // and bind the capture to a variable
@@ -503,7 +517,7 @@ impl<'s> AstGen<'s> {
             *spread = Some(self.node_with_span(SpreadPat { name, position }, span));
         }
 
-        Ok(())
+        Ok(true)
     }
 
     /// Function to parse a [BindingPat] without considering whether it
@@ -556,18 +570,11 @@ impl<'s> AstGen<'s> {
     }
 
     fn peek_pat(&self) -> bool {
-        let peek_lit = || match self.peek() {
-            Some(token) if token.kind.is_lit() => {
-                self.skip(1);
-                true
+        macro_rules! peek_colon(
+            () => {
+                matches!(self.peek(), Some(Token { kind: TokenKind::Colon, .. }))
             }
-            _ => false,
-        };
-
-        // ##Hack: If this evaluates to false, we set the offset that we parsed
-        // to the initial one. It is expected that we return immediately after
-        // this function call.
-        let is_colon = || matches!(self.peek(), Some(token) if token.has_kind(TokenKind::Colon));
+        );
 
         // Perform the initial pattern component lookahead
         match self.peek() {
@@ -575,72 +582,68 @@ impl<'s> AstGen<'s> {
             Some(token) if token.kind.is_range_lit() => {
                 self.skip_token();
 
-                // If we peek, there is a dot, and we can check that there
-                // is also a lit at the end, then we can conclude that this could
-                // be a pattern
-                let range_tokens = [
-                    self.peek().map_or(false, |t| t.kind == TokenKind::Dot),
-                    self.peek_second().map_or(false, |t| t.kind == TokenKind::Dot),
-                    self.peek_nth(2).map_or(false, |t| t.kind == TokenKind::Lt),
-                ];
+                match self.peek() {
+                    Some(Token { kind: TokenKind::Range | TokenKind::RangeExclusive, .. }) => {
+                        self.skip_token();
 
-                // @@Ugly: remove this, and replace with `Ellipsis` tokens
-                match range_tokens {
-                    // No initial dot, so it could just be a literal
-                    [false, _, _] => {
-                        return is_colon();
+                        // Now we need to check that there is a literal after this range token
+                        if matches!(self.peek(), Some(token) if token.kind.is_range_lit()) {
+                            self.skip_token();
+                            peek_colon!()
+                        } else {
+                            false
+                        }
                     }
-                    // `..`
-                    [true, true, false] => self.skip(2),
-                    // `..<`
-                    [true, true, true] => self.skip(3),
-                    _ => return false,
-                };
-
-                // Now we need to check that there is a literal after this range token
-                if peek_lit() {
-                    return is_colon();
-                } else {
-                    return false;
+                    Some(Token { kind: TokenKind::Colon, .. }) => true,
+                    _ => false,
                 }
             }
-            // Other general literals...
-            Some(token) if token.kind.is_lit() => self.skip_token(),
-            // Namespace, List, Tuple, etc.
-            Some(Token { kind: TokenKind::Tree(_, _), .. }) => self.skip_token(),
-            // Identifier or constructor pattern
-            Some(Token { kind: TokenKind::Ident(_), .. }) => self.skip_token(),
+            // Other general literal patterns.
+            Some(token) if token.kind.is_lit() => {
+                self.skip_token();
+                peek_colon!()
+            }
+            // Module, Array, Tuple patterns.
+            Some(Token { kind: TokenKind::Tree(_, _), .. }) => {
+                self.skip_token();
+                peek_colon!()
+            }
+            // Identifier or constructor pattern.
+            Some(Token { kind: TokenKind::Ident(_), .. }) => {
+                self.skip_token();
+
+                // Continue looking ahead to see if we're applying an access pr a construction
+                // on the pattern
+                while let Some(token) = self.peek() {
+                    match token.kind {
+                        // Handle the `constructor` pattern case
+                        TokenKind::Tree(Delimiter::Paren, _) => self.skip_token(),
+                        // Handle the `access` pattern case. We're looking for the next
+                        // three tokens to be `::Ident`
+                        TokenKind::Access => {
+                            self.skip_token();
+
+                            if matches!(self.peek(), Some(Token { kind: TokenKind::Ident(_), .. }))
+                            {
+                                self.skip_token();
+                            } else {
+                                return false;
+                            }
+                        }
+                        _ => break,
+                    }
+                }
+
+                peek_colon!()
+            }
             // This is the case for a bind that has a visibility modifier at the beginning. In
             // this scenario, it can be followed by a `mut` modifier and then a identifier or
             // just an identifier.
             Some(Token {
                 kind: TokenKind::Keyword(Keyword::Priv | Keyword::Pub | Keyword::Mut),
                 ..
-            }) => return true,
-            _ => return false,
-        };
-
-        // Continue looking ahead to see if we're applying an access pr a construction
-        // on the pattern
-        while let Some(token) = self.peek() {
-            match token.kind {
-                // Handle the `constructor` pattern case
-                TokenKind::Tree(Delimiter::Paren, _) => self.skip_token(),
-                // Handle the `access` pattern case. We're looking for the next
-                // three tokens to be `::Ident`
-                TokenKind::Access => {
-                    self.skip_token();
-
-                    if matches!(self.peek(), Some(Token { kind: TokenKind::Ident(_), .. })) {
-                        self.skip_token();
-                    } else {
-                        break;
-                    }
-                }
-                _ => break,
-            }
+            }) => true,
+            _ => false,
         }
-
-        is_colon()
     }
 }

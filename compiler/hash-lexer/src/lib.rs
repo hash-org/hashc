@@ -200,6 +200,11 @@ impl<'a> Lexer<'a> {
         self.offset.update(|x| x + ch.len_utf8());
     }
 
+    #[inline]
+    fn skip_ascii(&self) {
+        self.offset.update(|x| x + 1);
+    }
+
     /// Checks if there is nothing more to consume.
     fn is_eof(&self) -> bool {
         self.contents.0.len() == self.len_consumed()
@@ -259,10 +264,26 @@ impl<'a> Lexer<'a> {
             '&' => TokenKind::Amp,
             ';' => TokenKind::Semi,
             ',' => TokenKind::Comma,
-            '.' => TokenKind::Dot,
             '#' => TokenKind::Pound,
             '$' => TokenKind::Dollar,
             '?' => TokenKind::Question,
+            '.' => match self.peek() {
+                '.' => {
+                    self.skip_ascii();
+                    match self.peek() {
+                        '.' => {
+                            self.skip();
+                            TokenKind::Ellipsis
+                        }
+                        '<' => {
+                            self.skip();
+                            TokenKind::RangeExclusive
+                        }
+                        _ => TokenKind::Range,
+                    }
+                }
+                _ => TokenKind::Dot,
+            },
             ':' => match self.peek() {
                 ':' => {
                     self.skip();

@@ -112,6 +112,11 @@ impl<'s> AstGenFrame<'s> {
         self.peek_nth(1)
     }
 
+    /// Peek the [TokenKind]
+    pub(crate) fn peek_kind(&self) -> Option<TokenKind> {
+        self.peek().map(|t| t.kind)
+    }
+
     /// Function that skips the next token without explicitly looking up the
     /// token in the stream and avoiding the additional computation.
     #[inline(always)]
@@ -128,6 +133,11 @@ impl<'s> AstGenFrame<'s> {
         }
 
         value
+    }
+
+    /// Get the [TokenKind] of the next token.
+    pub(crate) fn next_kind(&self) -> Option<TokenKind> {
+        self.next_token().map(|t| t.kind)
     }
 
     /// Get the current [Token] in the stream. Panics if the current offset has

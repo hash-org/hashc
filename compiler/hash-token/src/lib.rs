@@ -280,8 +280,14 @@ pub enum TokenKind {
     ThinArrow,
     /// A fat arrow `=>`
     FatArrow,
-    /// A namespace access `::`
+    /// An access `::`
     Access,
+    /// An ellipsis `...`
+    Ellipsis,
+    /// An inclusive range `..`
+    Range,
+    /// An exclusive range `..<`
+    RangeExclusive,
     /// Integer Literal
     Int(Base, IntLitKind),
     /// Float literal
@@ -366,6 +372,9 @@ impl std::fmt::Display for TokenKind {
             TokenKind::ThinArrow => write!(f, "->"),
             TokenKind::FatArrow => write!(f, "=>"),
             TokenKind::Access => write!(f, "::"),
+            TokenKind::Ellipsis => write!(f, "..."),
+            TokenKind::Range => write!(f, ".."),
+            TokenKind::RangeExclusive => write!(f, "..<"),
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::Unexpected(atom) => write!(f, "{atom}"),
             TokenKind::Int(_, _) => write!(f, "float"),

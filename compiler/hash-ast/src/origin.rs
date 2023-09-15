@@ -62,7 +62,7 @@ pub enum PatOrigin {
     /// This is primarily used for checking if a collection of patterns (within
     /// a constructor or tuple) don't introduce ambiguous pattern orders when
     /// both named and un-named fields are used.
-    NamedField,
+    Arg,
 
     /// The parent pattern is a constructor, i.e `Some(x)`
     Constructor,
@@ -71,7 +71,7 @@ pub enum PatOrigin {
     Array,
 
     /// The parent pattern is a namespace, i.e `{ alloc, core }`
-    Namespace,
+    Mod,
 }
 
 impl PatOrigin {
@@ -80,10 +80,10 @@ impl PatOrigin {
     fn to_str(self) -> &'static str {
         match self {
             PatOrigin::Tuple => "tuple",
-            PatOrigin::NamedField => "named field",
+            PatOrigin::Arg => "named field",
             PatOrigin::Constructor => "constructor",
             PatOrigin::Array => "array",
-            PatOrigin::Namespace => "namespace",
+            PatOrigin::Mod => "namespace",
         }
     }
 }

@@ -196,6 +196,11 @@ impl<'a> LexerV2<'a> {
         self.offset.update(|x| x + ch.len_utf8());
     }
 
+    #[inline]
+    fn skip_ascii(&self) {
+        self.offset.update(|x| x + 1);
+    }
+
     /// Checks if there is nothing more to consume.
     fn is_eof(&self) -> bool {
         self.contents.0.len() == self.len_consumed()
@@ -225,8 +230,7 @@ impl<'a> LexerV2<'a> {
                     '*' => self.block_comment(),
                     '/' => self.line_comment(),
                     _ => {
-                        self.skip();
-
+                        self.skip_ascii();
                         let offset = self.offset.get();
 
                         // ##Hack: since we already compare if the first item is a slash, we'll just
@@ -255,27 +259,43 @@ impl<'a> LexerV2<'a> {
             '&' => TokenKind::Amp,
             ';' => TokenKind::Semi,
             ',' => TokenKind::Comma,
-            '.' => TokenKind::Dot,
             '#' => TokenKind::Pound,
             '$' => TokenKind::Dollar,
             '?' => TokenKind::Question,
+            '.' => match self.peek() {
+                '.' => {
+                    self.skip_ascii();
+                    match self.peek() {
+                        '.' => {
+                            self.skip_ascii();
+                            TokenKind::Ellipsis
+                        }
+                        '<' => {
+                            self.skip_ascii();
+                            TokenKind::RangeExclusive
+                        }
+                        _ => TokenKind::Range,
+                    }
+                }
+                _ => TokenKind::Dot,
+            },
             ':' => match self.peek() {
                 ':' => {
-                    self.skip();
+                    self.skip_ascii();
                     TokenKind::Access
                 }
                 _ => TokenKind::Colon,
             },
             '=' => match self.peek() {
                 '>' => {
-                    self.skip();
+                    self.skip_ascii();
                     TokenKind::FatArrow
                 }
                 _ => TokenKind::Eq,
             },
             '-' => match self.peek() {
                 '>' => {
-                    self.skip();
+                    self.skip_ascii();
                     TokenKind::ThinArrow
                 }
                 ch if ch.is_ascii_digit() => self.number(self.peek(), true),
@@ -447,7 +467,7 @@ impl<'a> LexerV2<'a> {
 
             // if this does have a radix then we need to handle the radix
             if let Some(radix) = maybe_radix {
-                self.skip(); // accounting for the radix
+                self.skip_ascii(); // accounting for the radix
                 let chars = self.eat_decimal_digits(radix).to_string();
 
                 // If we didn't get any characters, this means that
@@ -491,7 +511,7 @@ impl<'a> LexerV2<'a> {
             // Admittedly, this is a slight ambiguity in the language syntax, but
             // there isn't currently a clear way to resolve this ambiguity.
             '.' if !is_id_start(self.peek_second()) && self.peek_second() != '.' => {
-                self.skip();
+                self.skip_ascii();
                 self.eat_decimal_digits(10);
                 self.eat_float_lit(start)
             }
@@ -552,11 +572,11 @@ impl<'a> LexerV2<'a> {
             return Ok(());
         }
 
-        self.skip(); // consume the exponent
+        self.skip_ascii(); // consume the exponent
 
         // Check if there is a sign before the digits start in the exponent...
         if self.peek() == '-' {
-            self.skip();
+            self.skip_ascii();
         };
 
         // Check that there is at least on digit in the exponent
@@ -611,7 +631,7 @@ impl<'a> LexerV2<'a> {
                     );
                 }
 
-                self.skip(); // Eat the '{' beginning part of the scape sequence
+                self.skip_ascii(); // Eat the '{' beginning part of the scape sequence
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
                 let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
@@ -623,7 +643,7 @@ impl<'a> LexerV2<'a> {
                         ByteRange::new(self.offset.get(), self.offset.get() + 1),
                     );
                 }
-                self.skip(); // Eat the '}' ending part of the scape sequence
+                self.skip_ascii(); // Eat the '}' ending part of the scape sequence
 
                 if chars.len() > 6 {
                     return self.error(
@@ -704,7 +724,7 @@ impl<'a> LexerV2<'a> {
 
         // Slow path, we have an escaped character.
         if self.peek() == '\\' {
-            self.skip(); // eat the backslash
+            self.skip_ascii(); // eat the backslash
 
             match self.escaped_char() {
                 Ok(ch) => {
@@ -731,8 +751,7 @@ impl<'a> LexerV2<'a> {
                         );
                     }
 
-                    self.skip(); // eat the ending part of the character literal `'`
-
+                    self.skip_ascii(); // eat the ending part of the character literal `'`
                     return TokenKind::Char(ch);
                 }
                 Err(err) => {
@@ -744,13 +763,12 @@ impl<'a> LexerV2<'a> {
                         self.diagnostics.has_fatal_error.set(true);
                     }
                     self.skip(); // Recover...
-
                     return TokenKind::Err;
                 }
             };
         } else if self.peek_second() == '\'' {
             let ch = self.next().unwrap();
-            self.skip();
+            self.skip_ascii();
             return TokenKind::Char(ch);
         }
 
@@ -828,7 +846,6 @@ impl<'a> LexerV2<'a> {
     /// some kind of documentation generator tool
     fn line_comment(&mut self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '/');
-        self.skip();
         self.eat_until('\n')
     }
 
@@ -841,7 +858,7 @@ impl<'a> LexerV2<'a> {
     /// some kind of documentation generator tool
     fn block_comment(&mut self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '*');
-        self.skip();
+        self.skip_ascii();
 
         // since we aren't as dumb as C++, we want to count the depth of block comments
         // and account for nested ones, we keep track of it whilst consuming the
@@ -851,11 +868,11 @@ impl<'a> LexerV2<'a> {
         while let Some(c) = self.next() {
             match c {
                 '/' if self.peek() == '*' => {
-                    self.skip();
+                    self.skip_ascii();
                     depth += 1;
                 }
                 '*' if self.peek() == '/' => {
-                    self.skip();
+                    self.skip_ascii();
                     depth -= 1;
 
                     // we finally reached the end of the block comment, if any subsequent '*/'

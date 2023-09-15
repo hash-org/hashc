@@ -95,7 +95,21 @@ pub enum ParseErrorKind {
 
     /// Malformed spread pattern (if for any reason there is a problem with
     /// parsing the spread operator)
-    MalformedSpreadPattern(u8),
+    MalformedSpreadPat(u8),
+
+    /// When a spread pattern is featured in a compound pattern which
+    /// does not accept spread patterns.
+    DisallowedSpreadPat {
+        /// Where the use of the pattern originated from.
+        origin: PatOrigin,
+    },
+
+    /// When multiple spread patterns `...` are present within a list, tuple
+    /// or constructor pattern.
+    MultipleSpreadPats {
+        /// Where the use of the pattern originated from.
+        origin: PatOrigin,
+    },
 
     /// Expected a literal token, mainly originating from range pattern parsing
     ExpectedLit,
@@ -107,13 +121,6 @@ pub enum ParseErrorKind {
     ///
     /// - numeric fields attempt to access a field which is larger than [usize].
     InvalidPropertyAccess,
-
-    /// When multiple spread patterns `...` are present within a list, tuple
-    /// or constructor pattern.
-    MultipleSpreadPats {
-        /// Where the use of the pattern originated from
-        origin: PatOrigin,
-    },
 
     /// When an attempt is made to write an expression which would evaluate to a
     /// negative literal, i.e. `- 1`, `- /* boo! */ 2`, etc.
@@ -170,10 +177,15 @@ impl From<ParseError> for Reports {
             ParseErrorKind::Namespace => {
                 "expected identifier after a name access qualifier `::`".to_string()
             }
-            ParseErrorKind::MalformedSpreadPattern(dots) => {
+            ParseErrorKind::MalformedSpreadPat(dots) => {
                 format!(
                     "malformed spread pattern, expected {dots} more `.` to complete the pattern"
                 )
+            }
+            ParseErrorKind::DisallowedSpreadPat { origin } => {
+                span_label = "cannot specify a `...` here".to_string();
+
+                format!("spread patterns `...` cannot be used in a {origin} pattern",)
             }
             ParseErrorKind::ExpectedLit => "expected literal".to_string(),
             ParseErrorKind::DisallowedSuffix(suffix) => {
