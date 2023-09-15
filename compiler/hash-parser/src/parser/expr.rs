@@ -325,57 +325,57 @@ impl<'s> AstGen<'s> {
 
         loop {
             let op_start = self.next_pos();
+            let offset = self.offset();
             // this doesn't consider operators that have an 'eq' variant because that is
             // handled at the statement level, since it isn't really a binary
             // operator...
-            let (op, consumed_tokens) = self.parse_binary_operator();
+            let (Some(op), consumed_tokens) = self.parse_binary_operator() else {
+                break;
+            };
 
-            // We want to break if it's an operator and it is wanting to re-assign
-            if op.is_some_and(|op| op.is_re_assignable())
-                && matches!(self.peek_nth(consumed_tokens as usize), Some(token) if token.has_kind(TokenKind::Eq))
-            {
+            // check if we have higher precedence than the lhs expression...
+            let (l_prec, r_prec) = op.infix_binding_power();
+
+            if l_prec < min_prec {
                 break;
             }
 
-            match op {
-                // check if the operator here is re-assignable, as in '+=', '/=', if so then we need
-                // to stop parsing onwards because this might be an assignable
-                // expression... Only perform this check if know prior that the
-                // expression is not made of compounded components.
-                Some(op) => {
-                    // check if we have higher precedence than the lhs expression...
-                    let (l_prec, r_prec) = op.infix_binding_power();
+            // Now skip the consumed tokens...
+            self.skip(consumed_tokens);
 
-                    if l_prec < min_prec {
-                        break;
-                    }
-
-                    self.frame.skip(consumed_tokens);
-                    let op_span = op_start.join(self.current_pos());
-
-                    // if the operator is a non-functional, (e.g. as) we need to perform a different
-                    // conversion where we transform the AstNode into a
-                    // different
-                    if op == BinOp::As {
-                        let ty = self.parse_ty()?;
-                        lhs = self
-                            .node_with_joined_span(Expr::Cast(CastExpr { expr: lhs, ty }), op_span);
-
-                        // since we don't descend, we still need to update the precedence to
-                        // being `r_prec`.
-                        min_prec = r_prec;
-                    } else {
-                        let rhs = self.parse_expr_with_precedence(r_prec)?;
-
-                        //v transform the operator into an `BinaryExpr`
-                        let operator = self.node_with_span(op, op_span);
-                        lhs = self.node_with_joined_span(
-                            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }),
-                            lhs_span,
-                        );
-                    }
+            // check if the operator here is re-assignable, as in '+=', '/=', if so then we
+            // need to stop parsing onwards because this might be an assignable
+            // expression... Only perform this check if know prior that the
+            // expression is not made of compounded components.
+            if op.is_re_assignable() {
+                // Check if the next token is a '='
+                if self.parse_token_fast(TokenKind::Eq).is_some() {
+                    self.set_pos(offset);
+                    break;
                 }
-                _ => break,
+            }
+
+            let op_span = op_start.join(self.current_pos());
+
+            // if the operator is a non-functional, (e.g. as) we need to perform a different
+            // conversion where we transform the AstNode into a
+            // different
+            if op == BinOp::As {
+                let ty = self.parse_ty()?;
+                lhs = self.node_with_joined_span(Expr::Cast(CastExpr { expr: lhs, ty }), op_span);
+
+                // since we don't descend, we still need to update the precedence to
+                // being `r_prec`.
+                min_prec = r_prec;
+            } else {
+                let rhs = self.parse_expr_with_precedence(r_prec)?;
+
+                //v transform the operator into an `BinaryExpr`
+                let operator = self.node_with_span(op, op_span);
+                lhs = self.node_with_joined_span(
+                    Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }),
+                    lhs_span,
+                );
             }
         }
 
@@ -666,9 +666,7 @@ impl<'s> AstGen<'s> {
     /// should just return the left-hand side.
     #[profiling::function]
     pub(crate) fn parse_expr_with_re_assignment(&mut self) -> ParseResult<(AstNode<Expr>, bool)> {
-        let start = self.current_pos();
-        let lhs = self.parse_expr_with_precedence(0)?;
-        let lhs_span = start.join(self.current_pos());
+        let (lhs, lhs_span) = self.track_span(|g| g.parse_expr_with_precedence(0))?;
 
         // Check if we can parse a merge declaration
         if self.parse_token_fast(TokenKind::Tilde).is_some() {
@@ -676,15 +674,18 @@ impl<'s> AstGen<'s> {
         }
 
         let start = self.current_pos();
-        let (operator, consumed_tokens) = self.parse_binary_operator();
+        let (Some(operator), consumed_tokens) = self.parse_binary_operator() else {
+            return Ok((lhs, false));
+        };
 
-        // Look at the token after the consumed tokens and see if it's an equal sign
-        match self.peek_nth(consumed_tokens as usize) {
-            Some(token) if operator.is_some() && token.has_kind(TokenKind::Eq) => {
-                // consume the number of tokens eaten whilst getting the operator...
-                self.frame.skip(1 + consumed_tokens);
-                let operator = self.node_with_joined_span(operator.unwrap(), start);
+        let offset = self.offset();
+        self.skip(consumed_tokens);
 
+        match self.peek() {
+            Some(Token { kind: TokenKind::Eq, .. }) => {
+                self.skip(1);
+
+                let operator = self.node_with_joined_span(operator, start);
                 let rhs = self.parse_expr_with_precedence(0)?;
 
                 // Now we need to transform the re-assignment operator into a function call
@@ -696,7 +697,10 @@ impl<'s> AstGen<'s> {
                     false,
                 ))
             }
-            _ => Ok((lhs, false)),
+            _ => {
+                self.set_pos(offset);
+                Ok((lhs, false))
+            }
         }
     }
 
