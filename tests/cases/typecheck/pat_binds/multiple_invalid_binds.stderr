@@ -1,0 +1,51 @@
+error[0081]: variable `m` is not bound in all patterns
+  --> $DIR/multiple_invalid_binds.hash:10:15
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |                 ^^^^^^ pattern doesn't bind `m`
+11 |   }
+
+  --> $DIR/multiple_invalid_binds.hash:10:10
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |            ^ variable not in all patterns
+11 |   }
+
+error[0081]: variable `c` is not bound in all patterns
+  --> $DIR/multiple_invalid_binds.hash:10:15
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |                 ^^^^^^ pattern doesn't bind `c`
+11 |   }
+
+  --> $DIR/multiple_invalid_binds.hash:10:7
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |         ^ variable not in all patterns
+11 |   }
+
+error[0081]: variable `d` is not bound in all patterns
+  --> $DIR/multiple_invalid_binds.hash:10:6
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |        ^^^^^^ pattern doesn't bind `d`
+11 |   }
+
+  --> $DIR/multiple_invalid_binds.hash:10:16
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |                  ^ variable not in all patterns
+11 |   }
+
+error[0081]: variable `k` is not bound in all patterns
+  --> $DIR/multiple_invalid_binds.hash:10:6
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |        ^^^^^^ pattern doesn't bind `k`
+11 |   }
+
+  --> $DIR/multiple_invalid_binds.hash:10:19
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |                     ^ variable not in all patterns
+11 |   }

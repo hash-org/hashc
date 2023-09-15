@@ -4,4 +4,11 @@ main := () => {
     // ~ERROR: variable `c` not declared in all patterns
     // ~ERROR: variable `d` not declared in all patterns
     (c | d) := 2;    
+
+    k := (1, 2)
+
+    match k {
+        (a, b) | (t, a) => {}
+        (2, 3) | (a, b) => {}
+    }
 }

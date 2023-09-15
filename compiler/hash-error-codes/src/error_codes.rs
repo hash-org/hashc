@@ -53,8 +53,9 @@ error_codes! {
     UnsupportedTraits = 57,
 
     // Pattern errors
-    IdentifierBoundMultipleTimes = 80,
-    MissingPatternBounds = 81,
+    MismatchingPatBind = 79,
+    DuplicateBindInPat = 80,
+    MissingPatBind = 81,
     RefutablePat = 82,
     NonExhaustiveMatch = 83,
     InvalidRangePatBoundaries = 84,

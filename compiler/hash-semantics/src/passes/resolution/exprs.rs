@@ -432,7 +432,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         self.scoping().register_declaration(node);
 
         // Pattern
-        let pat = self.try_or_add_error(self.make_pat_from_ast_pat(node.pat.ast_ref()));
+        let pat =
+            self.try_or_add_error(self.make_pat_from_ast_pat_and_check_binds(node.pat.ast_ref()));
 
         // Inner expression:
         let value = match node.value.as_ref() {
@@ -620,8 +621,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     .iter()
                     .filter_map(|case| {
                         self.scoping().enter_match_case(case.ast_ref(), |stack_id| {
-                            let bind_pat = self
-                                .try_or_add_error(self.make_pat_from_ast_pat(case.pat.ast_ref()));
+                            let bind_pat = self.try_or_add_error(
+                                self.make_pat_from_ast_pat_and_check_binds(case.pat.ast_ref()),
+                            );
                             let value = self.try_or_add_error(
                                 self.make_term_from_ast_expr(case.expr.ast_ref()),
                             );
