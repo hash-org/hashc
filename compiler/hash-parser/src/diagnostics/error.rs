@@ -200,7 +200,7 @@ impl From<ParseError> for Reports {
                 format!("spread patterns `...` can only be used once in a {origin} pattern")
             }
             ParseErrorKind::UnsupportedExprInPat { value } => {
-                help_notes.push(help!("consider writting the literal as `-{}`", *value));
+                help_notes.push(help!("consider writing the literal as `-{}`", *value));
 
                 "negative numerical literals must be written as a single numerical value"
                     .to_string()
