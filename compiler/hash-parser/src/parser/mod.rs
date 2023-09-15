@@ -132,13 +132,6 @@ impl<'s> AstGenFrame<'s> {
         self.stream.get(offset).unwrap()
     }
 
-    /// Get a [Token] at a specified location in the stream. Panics if the given
-    /// stream  position is out of bounds.
-    #[inline(always)]
-    pub(crate) fn token_at(&self, offset: usize) -> &Token {
-        self.stream.get(offset).unwrap()
-    }
-
     /// Get the current location from the current token, if there is no token at
     /// the current offset, then the location of the last token is used.
     pub(crate) fn current_pos(&self) -> ByteRange {

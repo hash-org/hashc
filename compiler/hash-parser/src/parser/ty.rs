@@ -334,8 +334,8 @@ impl<'s> AstGen<'s> {
 
             // Here we check that the token tree has a comma at the end to later determine
             // if this is a `TupleType`...
-            let gen_has_comma = !gen.stream().is_empty()
-                && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
+            let gen_has_comma =
+                !gen.stream().is_empty() && gen.current_token().has_kind(TokenKind::Comma);
 
             Ok((params, gen_has_comma))
         })?;
