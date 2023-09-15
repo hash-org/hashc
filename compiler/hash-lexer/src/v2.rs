@@ -1,9 +1,6 @@
 //! Hash Compiler Lexer crate.
-#![feature(cell_update, let_chains, if_let_guard)]
-
 use std::cell::Cell;
 
-use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
 use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::{
     self,
@@ -18,21 +15,29 @@ use hash_token::{
     TokenKind,
 };
 
-use crate::utils::{is_id_continue, is_id_start};
+use crate::{
+    error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind},
+    utils::{is_id_continue, is_id_start},
+};
 
-pub mod error;
-mod utils;
-pub mod v2;
+#[derive(Clone, Copy)]
+struct TreeInfo {
+    start: usize,
+
+    delimiter: Delimiter,
+}
 
 /// Useful information that the lexer collects during the lexing process, and
 /// which is used after the lexer has finished performing AST generation.
 pub struct LexerMetadata {
     /// Token tree store, essentially a collection of token trees that are
     /// produced when the lexer encounters bracketed token streams.
-    pub trees: Vec<Vec<Token>>,
+    pub tokens: Vec<Token>,
 
     /// Local lexer string table.
     pub strings: LocalStringTable,
+
+    pub diagnostics: LexerDiagnostics,
 }
 
 /// Representing the end of stream, or the initial character that is set as
@@ -43,7 +48,7 @@ const EOF_CHAR: char = '\0';
 /// into the AST. The [Lexer] has methods that can parse various token types
 /// from the source, transform the entire contents into a vector of tokens and
 /// some useful lexing utilities.
-pub struct Lexer<'a> {
+pub struct LexerV2<'a> {
     /// Location of the lexer in the current stream.
     offset: Cell<usize>,
 
@@ -53,35 +58,28 @@ pub struct Lexer<'a> {
     /// Representative module index of the current source.
     source_id: SourceId,
 
-    /// Representing the last character the lexer encountered. This is only set
-    /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a
-    /// check on if the token tree was closed up.
-    previous_delimiter: Cell<Option<char>>,
-
-    /// If the current token position is within a token tree
-    within_token_tree: Cell<bool>,
-
-    /// Token tree store, essentially a collection of token trees that are
-    /// produced when the lexer encounters bracketed token streams.
-    trees: Vec<Vec<Token>>,
+    tree: Cell<Option<TreeInfo>>,
 
     /// Local lexer string table.
     strings: LocalStringTable,
 
+    /// The tokens that the lexer produced.
+    tokens: Vec<Token>,
+
     /// The lexer diagnostics store
-    diagnostics: LexerDiagnostics,
+    pub(crate) diagnostics: LexerDiagnostics,
 }
 
-impl<'a> Lexer<'a> {
+impl<'a> LexerV2<'a> {
     /// Create a new [Lexer] from the given string input.
     pub fn new(contents: SpannedSource<'a>, source_id: SourceId) -> Self {
-        Lexer {
+        Self {
             offset: Cell::new(0),
             source_id,
-            within_token_tree: Cell::new(false),
-            previous_delimiter: Cell::new(None),
+            tree: Cell::new(None),
             contents,
-            trees: vec![],
+            // @@Explain the 3/16
+            tokens: Vec::with_capacity(contents.0.len() * 3 / 16),
             diagnostics: LexerDiagnostics::default(),
             strings: LocalStringTable::default(),
         }
@@ -131,18 +129,16 @@ impl<'a> Lexer<'a> {
         Err(LexerError { message, kind, location: Span { range: span, id: self.source_id } })
     }
 
-    /// Convert the [Lexer] into the [LexerMetadata] that has been collected
-    /// during the lexing process.
-    pub fn metadata(self) -> LexerMetadata {
-        LexerMetadata { trees: self.trees, strings: self.strings }
-    }
-
     /// Tokenise the given input stream
-    pub fn tokenise(&mut self) -> Vec<Token> {
+    pub fn tokenise(mut self) -> LexerMetadata {
         // Avoid shebang at the start of the source...
         self.strip_shebang();
 
-        std::iter::from_fn(|| self.advance_token()).collect::<Vec<_>>()
+        while let Some(token) = self.advance_token() {
+            self.tokens.push(token);
+        }
+
+        LexerMetadata { tokens: self.tokens, diagnostics: self.diagnostics, strings: self.strings }
     }
 
     /// Returns amount of already consumed symbols.
@@ -287,7 +283,21 @@ impl<'a> Lexer<'a> {
 
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary
             // number of tokens and closed by a following delimiter...
-            ch @ ('(' | '{' | '[') => self.eat_token_tree(Delimiter::from_left(ch).unwrap()),
+            ch @ ('(' | '{' | '[') => {
+                self.tokens.push(Token::new(
+                    TokenKind::Tree(Delimiter::from_left(ch).unwrap(), 0),
+                    ByteRange::new(offset, self.len_consumed()),
+                ));
+
+                let _ = self.eat_token_tree(Delimiter::from_left(ch).unwrap());
+                
+                if self.diagnostics.has_fatal_error.get() {
+                    return None;
+                }
+
+                // Immediately try to index the next token...
+                return self.advance_token();
+            }
 
             // Identifier (this should be checked after other variant that can
             // start as identifier).
@@ -303,8 +313,10 @@ impl<'a> Lexer<'a> {
             '\'' => self.char(),
             '"' => self.string(),
             // We have to exit the current tree if we encounter a closing delimiter...
-            ch @ (')' | '}' | ']') if self.within_token_tree.get() => {
-                self.previous_delimiter.set(Some(ch));
+            ch @ (')' | '}' | ']') if let Some(mut info) = self.tree.get() => {
+                info.delimiter = Delimiter::from_right(ch).unwrap();
+                self.tree.set(Some(info));
+
                 return None;
             }
             ')' => TokenKind::RightDelim(Delimiter::Paren),
@@ -330,37 +342,35 @@ impl<'a> Lexer<'a> {
     /// behaviour is desired and avoids performing complex delimiter depth
     /// analysis later on.
     fn eat_token_tree(&mut self, delimiter: Delimiter) -> TokenKind {
-        let mut children_tokens = vec![];
         let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
         // we need to reset self.prev here as it might be polluted with previous token
         // trees
-        self.previous_delimiter.set(None);
-        let prev_in_token_tree = self.within_token_tree.replace(true);
+        let tree = Cell::new(Some(TreeInfo { start: self.tokens.len(), delimiter }));
+        self.tree.swap(&tree);
 
-        while !self.is_eof() {
-            // `None` here doesn't just mean EOF, it could also be that
-            // the next token failed to be parsed.
-            match self.advance_token() {
-                Some(token) => children_tokens.push(token),
-                None => break,
-            };
+        // `None` here doesn't just mean EOF, it could also be that
+        // the next token failed to be parsed.
+        while !self.is_eof() && let Some(token) = self.advance_token() {
+            self.tokens.push(token);
         }
-
-        self.within_token_tree.replace(prev_in_token_tree);
 
         // If there is a fatal error, then we need to abort
         if self.diagnostics.has_fatal_error.get() {
             return TokenKind::Err;
         }
 
-        match self.previous_delimiter.get() {
-            Some(delim) if delim == delimiter.right() => {
+        match self.tree.get() {
+            Some(ct) if ct.delimiter == delimiter => {
                 // push this to the token_trees and get the current index to use instead...
-                self.trees.push(children_tokens);
-                self.previous_delimiter.set(None);
-
-                TokenKind::Tree(delimiter, (self.trees.len() - 1) as u32)
+                self.tree.swap(&tree);
+                self.tokens[ct.start - 1] = Token::new(
+                    TokenKind::Tree(delimiter, (self.tokens.len() - ct.start) as u32),
+                    ByteRange::new(ct.start, self.len_consumed())
+                );
+            
+                // This token will be yeeted.
+                TokenKind::RightDelim(delimiter)
             }
             _ => self.emit_error(
                 None,

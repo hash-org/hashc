@@ -10,7 +10,7 @@ use hash_reporting::{
 use hash_source::{identifier::Identifier, location::Span};
 use hash_token::{delimiter::Delimiter, Base, TokenKind};
 
-use crate::Lexer;
+use crate::{Lexer, v2::LexerV2};
 
 /// Auxiliary data type to provide more information about the
 /// numerical literal kind that was encountered. This is used
@@ -143,11 +143,17 @@ impl From<LexerError> for Reports {
 #[derive(Default)]
 pub struct LexerDiagnostics {
     /// Inner stored diagnostics from the lexer.
-    store: DiagnosticStore<LexerError, ()>,
+    pub store: DiagnosticStore<LexerError, ()>,
 
     /// Whether the [Lexer] encountered a fatal error and
     /// must abort on the next token advance
     pub(crate) has_fatal_error: Cell<bool>,
+}
+
+impl LexerDiagnostics {
+    pub fn into_reports(&mut self) -> Vec<Report> {
+        self.store.errors.drain(..).flat_map(Reports::from).collect()
+    }
 }
 
 impl HasDiagnosticsMut for Lexer<'_> {
@@ -159,6 +165,21 @@ impl HasDiagnosticsMut for Lexer<'_> {
 }
 
 impl Lexer<'_> {
+    pub fn into_reports(&mut self) -> Vec<Report> {
+        self.diagnostics.store.errors.drain(..).flat_map(Reports::from).collect()
+    }
+}
+
+
+impl HasDiagnosticsMut for LexerV2<'_> {
+    type Diagnostics = DiagnosticStore<LexerError, ()>;
+
+    fn diagnostics(&mut self) -> &mut Self::Diagnostics {
+        &mut self.diagnostics.store
+    }
+}
+
+impl LexerV2<'_> {
     pub fn into_reports(&mut self) -> Vec<Report> {
         self.diagnostics.store.errors.drain(..).flat_map(Reports::from).collect()
     }

@@ -13,7 +13,7 @@ use hash_ast::{
     ast::{self, LocalSpanMap, SpanMap},
     node_map::ModuleEntry,
 };
-use hash_lexer::{Lexer, LexerMetadata};
+use hash_lexer::{v2::LexerV2, Lexer, LexerMetadata};
 use hash_pipeline::{
     fs::read_in_path,
     interface::{CompilerInterface, CompilerStage, StageMetrics},
@@ -23,7 +23,7 @@ use hash_pipeline::{
 use hash_reporting::{
     diagnostic::{DiagnosticsMut, HasDiagnosticsMut},
     report::Report,
-    reporter::Reports,
+    reporter::{Reports, Reporter},
 };
 use hash_source::{
     constant::string_table, location::SpannedSource, InteractiveId, ModuleId, SourceId,
@@ -61,6 +61,7 @@ impl Parser {
         // perhaps there should be a "light" metrics mode, and a more verbose
         // one.
         self.metrics.entry("read").or_default().add_assign(metrics.read);
+        self.metrics.entry("v2").or_default().add_assign(metrics.v2);
         self.metrics.entry("tokenise").or_default().add_assign(metrics.tokenise);
         self.metrics.entry("gen").or_default().add_assign(metrics.gen);
     }
@@ -172,14 +173,17 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
 
 /// A collection of timings for the parser stage. The stage records
 /// the amount of time it takes to lex and parse a module, or an
-/// interactive block. This infomation is later recorded, and can
+/// interactive block. This information is later recorded, and can
 /// then be grouped together and displayed with other stages.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ParseTimings {
     /// The amount of time the lexer took to tokenise the source.
     tokenise: Duration,
 
-    /// The amound of time the parser took to generate AST for the
+    /// The amount of time the lexer took to tokenise the source.
+    v2: Duration,
+
+    /// The amount of time the parser took to generate AST for the
     /// source.
     gen: Duration,
 
@@ -191,6 +195,7 @@ impl AccessToMetrics for ParseTimings {
     fn add_metric(&mut self, name: &'static str, time: Duration) {
         match name {
             "tokenise" => self.tokenise = time,
+            "v2" => self.v2 = time,
             "gen" => self.gen = time,
             "read" => self.read = time,
             _ => unreachable!(),
@@ -272,6 +277,20 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     };
 
     let spanned = SpannedSource::from_string(contents.as_str());
+
+    // Lex the contents of the module or interactive block
+    let _ = time_item(&mut timings, "v2", |_| {
+        let mut data = LexerV2::new(spanned, id).tokenise();
+        if data.diagnostics.store.has_errors() {
+            println!("{}", Reporter::from_reports(data.diagnostics.into_reports()));
+        } else {
+            if !source.id().is_prelude() {
+                for token in data.tokens {
+                    println!("{:?}", token.kind);
+                }
+            }
+        }
+    });
 
     // Lex the contents of the module or interactive block
     let mut lexer = Lexer::new(spanned, id);
