@@ -158,7 +158,9 @@ impl<'s> AstGen<'s> {
                 ..
             } => self.parse_binding_pat()?,
 
-            // Literal patterns
+            // We emit an error saying that we don't support expressions in patterns
+            // since the AST doesn't support it. Negative literals must be written with
+            // no spaces between the `-` and the literal itself.
             token
                 if token.has_kind(TokenKind::Minus)
                     && matches!(self.peek_second(), Some(token) if token.kind.is_numeric()) =>
@@ -166,9 +168,6 @@ impl<'s> AstGen<'s> {
                 // Just to get the error reporting to highlight the entire literal.
                 self.skip_token();
 
-                // We emit an error saying that we don't support expressions in patterns
-                // since the AST doesn't support it. Negative literals must be written with
-                // no spaces between the `-` and the literal itself.
                 return self.err_with_location(
                     ParseErrorKind::UnsupportedExprInPat {
                         value: self.source.hunk(self.next_pos()).to_string(),
@@ -179,6 +178,7 @@ impl<'s> AstGen<'s> {
                 );
             }
 
+            // Literals
             token if token.kind.is_lit() => {
                 self.skip_token();
                 Pat::Lit(LitPat { data: self.parse_primitive_lit()? })
@@ -545,88 +545,87 @@ impl<'s> AstGen<'s> {
     /// singular pattern from the current position in the token stream. This is
     /// essentially a dry-run of [Self::parse_singular_pat] since it doesn't
     /// create any kind of patterns whilst traversing the token tree.
+    ///
+    /// @@Ugly: simplify or remove this!
     pub(crate) fn begins_pat(&self) -> bool {
-        let check_lit = |offset| match self.peek_nth(offset) {
-            Some(token) if token.has_kind(TokenKind::Minus) => match self.peek_nth(offset + 1) {
-                Some(token) if token.kind.is_numeric() => 2,
-                _ => 0,
-            },
-            Some(token) if token.kind.is_lit() => 1,
-            _ => 0,
+        let start = self.offset();
+        let result = self.peek_pat();
+        self.set_pos(start);
+
+        result
+    }
+
+    fn peek_pat(&self) -> bool {
+        let peek_lit = || match self.peek() {
+            Some(token) if token.kind.is_lit() => {
+                self.skip(1);
+                true
+            }
+            _ => false,
         };
 
-        // Firstly, we might need to deal with literals and range patterns
-        let count = check_lit(0);
-
-        if count != 0 {
-            // If we peek, there is a dot, and we can check that there
-            // is also a lit at the end, then we can conclude that this could
-            // be a pattern
-            let range_tokens = [
-                self.peek_nth(count).map_or(false, |t| t.kind == TokenKind::Dot),
-                self.peek_nth(count + 1).map_or(false, |t| t.kind == TokenKind::Dot),
-                self.peek_nth(count + 2).map_or(false, |t| t.kind == TokenKind::Lt),
-            ];
-
-            let count = match range_tokens {
-                // No initial dot, so it could just be a literal
-                [false, _, _] => {
-                    return matches!(self.peek_nth(count), Some(token) if token.has_kind(TokenKind::Colon))
-                }
-                // `..`
-                [true, true, false] => count + 2,
-                // `..<`
-                [true, true, true] => count + 3,
-                _ => return false,
-            };
-
-            // Now we need to check that there is a literal after this range token
-            let offset = check_lit(count);
-            if offset != 0 {
-                return matches!(self.peek_nth(offset + count), Some(token) if token.has_kind(TokenKind::Colon));
-            } else {
-                return false;
-            }
-        }
+        // ##Hack: If this evaluates to false, we set the offset that we parsed
+        // to the initial one. It is expected that we return immediately after
+        // this function call.
+        let is_colon = || matches!(self.peek(), Some(token) if token.has_kind(TokenKind::Colon));
 
         // Perform the initial pattern component lookahead
-        let mut n_lookahead = match self.peek() {
+        match self.peek() {
+            // Literals
+            Some(token) if token.kind.is_range_lit() => {
+                self.skip_token();
+
+                // If we peek, there is a dot, and we can check that there
+                // is also a lit at the end, then we can conclude that this could
+                // be a pattern
+                let range_tokens = [
+                    self.peek().map_or(false, |t| t.kind == TokenKind::Dot),
+                    self.peek_second().map_or(false, |t| t.kind == TokenKind::Dot),
+                    self.peek_nth(2).map_or(false, |t| t.kind == TokenKind::Lt),
+                ];
+
+                // @@Ugly: remove this, and replace with `Ellipsis` tokens
+                match range_tokens {
+                    // No initial dot, so it could just be a literal
+                    [false, _, _] => {
+                        return is_colon();
+                    }
+                    // `..`
+                    [true, true, false] => self.skip(2),
+                    // `..<`
+                    [true, true, true] => self.skip(3),
+                    _ => return false,
+                };
+
+                // Now we need to check that there is a literal after this range token
+                if peek_lit() {
+                    return is_colon();
+                } else {
+                    return false;
+                }
+            }
+            // Other general literals...
+            Some(token) if token.kind.is_lit() => self.skip_token(),
             // Namespace, List, Tuple, etc.
-            Some(Token { kind: TokenKind::Tree(_, _), .. }) => 1,
+            Some(Token { kind: TokenKind::Tree(_, _), .. }) => self.skip_token(),
             // Identifier or constructor pattern
-            Some(Token { kind: TokenKind::Ident(_), .. }) => 1,
+            Some(Token { kind: TokenKind::Ident(_), .. }) => self.skip_token(),
             // This is the case for a bind that has a visibility modifier at the beginning. In
             // this scenario, it can be followed by a `mut` modifier and then a identifier or
             // just an identifier.
-            Some(Token { kind: TokenKind::Keyword(Keyword::Priv | Keyword::Pub), .. }) => {
-                match self.peek_second() {
-                    Some(Token { kind: TokenKind::Ident(_), .. }) => 2,
-                    Some(Token { kind: TokenKind::Keyword(Keyword::Mut), .. }) => {
-                        match self.peek_nth(2) {
-                            Some(Token { kind: TokenKind::Ident(_), .. }) => 3,
-                            _ => return false,
-                        }
-                    }
-                    _ => return false,
-                }
-            }
-            // This case covers the scenario where there is just a mutability modifier
-            // in front of the name binding
-            Some(Token { kind: TokenKind::Keyword(Keyword::Mut), .. }) => {
-                match self.peek_second() {
-                    Some(Token { kind: TokenKind::Ident(_), .. }) => 2,
-                    _ => return false,
-                }
-            }
+            Some(Token {
+                kind: TokenKind::Keyword(Keyword::Priv | Keyword::Pub | Keyword::Mut),
+                ..
+            }) => return true,
             _ => return false,
         };
 
         // Continue looking ahead to see if we're applying an access pr a construction
         // on the pattern
-        while let Some(token) = self.peek_nth(n_lookahead) {
+        while let Some(token) = self.peek() {
             match token.kind {
                 // Handle the `constructor` pattern case
-                TokenKind::Tree(Delimiter::Paren, _) => n_lookahead += 1,
+                TokenKind::Tree(Delimiter::Paren, _) => self.skip_token(),
                 // Handle the `access` pattern case. We're looking for the next
                 // three tokens to be `::Ident`
                 TokenKind::Access => {
@@ -642,6 +641,6 @@ impl<'s> AstGen<'s> {
             }
         }
 
-        matches!(self.peek_nth(n_lookahead), Some(token) if token.has_kind(TokenKind::Colon))
+        is_colon()
     }
 }

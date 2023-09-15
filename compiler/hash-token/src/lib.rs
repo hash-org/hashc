@@ -85,11 +85,6 @@ impl TokenKind {
         )
     }
 
-    /// Check whether a token is a numeric prefix, either being `+` or `-`
-    pub fn is_numeric_prefix(&self) -> bool {
-        matches!(self, TokenKind::Plus | TokenKind::Minus)
-    }
-
     /// Check if the current token can begin a pattern
     /// Checks if the [TokenKind] must begin a block, as in the specified
     /// keywords that follow a specific syntax, and must be statements.
@@ -104,8 +99,8 @@ impl TokenKind {
         )
     }
 
-    /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int',
-    /// 'float' or a 'string'
+    /// Check if the [TokenKind] is a primitive literal, which is either: a
+    /// 'char', 'int', 'float' or a 'string'
     pub fn is_lit(&self) -> bool {
         matches!(
             self,
@@ -119,8 +114,16 @@ impl TokenKind {
     }
 
     /// Check if the [TokenKind] is a numeric literal
+    #[inline]
     pub fn is_numeric(&self) -> bool {
         matches!(self, TokenKind::Int(_, _) | TokenKind::Float(_))
+    }
+
+    /// Check if the [TokenKind] is a `range` like literal, i.e.
+    /// it can feature within a range.
+    #[inline]
+    pub fn is_range_lit(&self) -> bool {
+        matches!(self, TokenKind::Int(_, _) | TokenKind::Float(_) | TokenKind::Char(_))
     }
 }
 
