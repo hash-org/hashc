@@ -342,6 +342,11 @@ impl TokenKind {
             kind => format!("a `{kind}`"),
         }
     }
+
+    /// Check if the [TokenKind] is a tree.
+    pub fn is_tree(&self) -> bool {
+        matches!(self, TokenKind::Tree(_, _))
+    }
 }
 
 impl std::fmt::Display for TokenKind {

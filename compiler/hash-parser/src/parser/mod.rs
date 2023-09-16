@@ -60,12 +60,6 @@ impl<'s> AstGenFrame<'s> {
         self.offset.set(self.offset.get() + n as usize);
     }
 
-    /// Backtrack `n` number of tokens.
-    #[inline(always)]
-    pub(crate) fn backtrack(&self, n: usize) {
-        self.offset.set(self.offset.get() - n);
-    }
-
     /// Set the position of the offset.
     #[inline(always)]
     pub(crate) fn set_pos(&self, pos: usize) {
@@ -98,7 +92,7 @@ impl<'s> AstGenFrame<'s> {
 
     /// Function to peek at the nth token ahead of the current offset.
     #[inline(always)]
-    pub(crate) fn peek_nth(&self, at: usize) -> Option<&Token> {
+    fn peek_nth(&self, at: usize) -> Option<&Token> {
         self.stream.get(self.offset.get() + at)
     }
 
@@ -112,19 +106,29 @@ impl<'s> AstGenFrame<'s> {
         self.peek_nth(1)
     }
 
-    /// Peek the [TokenKind]
+    /// Peek the [TokenKind].
     pub(crate) fn peek_kind(&self) -> Option<TokenKind> {
         self.peek().map(|t| t.kind)
     }
 
-    /// Function that skips the next token without explicitly looking up the
-    /// token in the stream and avoiding the additional computation.
+    /// Skip a token whilst ensuring that token order is maintained.
+    ///
+    /// ##Note: This should be used when it is unclear if a token is atomic
+    /// or not.
     #[inline(always)]
-    pub(crate) fn skip_token(&self) {
+    pub fn skip_token(&self) {
         self.offset.update(|x| x + 1);
     }
 
-    /// Function that increases the offset of the next token
+    /// Skip to the next token.
+    ///
+    /// ##Note: Use this when the token is known to be atomic.
+    #[inline(always)]
+    pub(crate) fn skip_fast(&self) {
+        self.offset.update(|x| x + 1);
+    }
+
+    /// Get the next token.
     pub(crate) fn next_token(&self) -> Option<&Token> {
         let value = self.stream.get(self.offset.get());
 
@@ -135,14 +139,10 @@ impl<'s> AstGenFrame<'s> {
         value
     }
 
-    /// Get the [TokenKind] of the next token.
-    pub(crate) fn next_kind(&self) -> Option<TokenKind> {
-        self.next_token().map(|t| t.kind)
-    }
-
-    /// Get the current [Token] in the stream. Panics if the current offset has
-    /// passed the size of the stream, e.g tring to get the current token
-    /// after reaching the end of the stream.
+    /// Get the current [Token] in the stream.
+    ///
+    /// Panics if the current offset has passed the size of the stream, e.g
+    /// tring to get the current token after reaching the end of the stream.
     pub(crate) fn current_token(&self) -> &Token {
         let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
         self.stream.get(offset).unwrap()
@@ -159,8 +159,10 @@ impl<'s> AstGenFrame<'s> {
         self.current_token().span
     }
 
-    /// Get the next location of the token, if there is no token after, we use
-    /// the next character offset to determine the location.
+    /// Get the [ByteRange] of the next [Token].
+    ///
+    /// If there is no next [Token], we use the next character offset to
+    /// determine the location.
     pub(crate) fn next_pos(&self) -> ByteRange {
         match self.peek() {
             Some(token) => token.span,
@@ -252,13 +254,13 @@ impl<'s> AstGen<'s> {
         parent_span: ByteRange,
         mut gen: impl FnMut(&mut Self) -> T,
     ) -> T {
-        let new_frame = AstGenFrame::from_stream(stream, parent_span);
+        let mut new_frame = AstGenFrame::from_stream(stream, parent_span);
         let old_frame = std::mem::replace(&mut self.frame, new_frame);
         let result = gen(self);
-        let child_frame = std::mem::replace(&mut self.frame, old_frame);
+        new_frame = std::mem::replace(&mut self.frame, old_frame);
 
         // Ensure that the generator token stream has been exhausted
-        if !child_frame.error.get() && child_frame.has_token() {
+        if !new_frame.error.get() && new_frame.has_token() {
             self.maybe_add_error::<()>(self.expected_eof());
         }
 
@@ -571,10 +573,14 @@ impl<'s> AstGen<'s> {
     }
 
     /// Function to parse the next [Token] with the specified [TokenKind].
+    ///
+    /// ##Note: Don't use `parse_token()` to parse a tree token.
     pub(crate) fn parse_token(&self, atom: TokenKind) -> ParseResult<()> {
+        debug_assert!(!atom.is_tree());
+
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
-                self.skip_token();
+                self.skip_fast(); // non-tree
                 Ok(())
             }
             token => self.err_with_location(
@@ -587,11 +593,15 @@ impl<'s> AstGen<'s> {
     }
 
     /// Function to parse a token atom optionally. If the appropriate token atom
-    /// is present we advance the token count, if not then just return None
+    /// is present we advance the token count, if not then just return [None].
+    ///
+    /// ##Note: Don't use `parse_token_fast()` to parse a tree token.
     pub(crate) fn parse_token_fast(&self, kind: TokenKind) -> Option<()> {
+        debug_assert!(!kind.is_tree());
+
         match self.peek() {
             Some(token) if token.has_kind(kind) => {
-                self.skip_token();
+                self.skip_fast(); // token, non-tree
                 Some(())
             }
             _ => None,
@@ -641,7 +651,8 @@ impl<'s> AstGen<'s> {
                     Some(Token { kind: TokenKind::Pound, .. }),
                     Some(Token { kind: TokenKind::Exclamation, .. }),
                 ) => {
-                    self.frame.skip(2);
+                    self.skip_fast(); // `#`
+                    self.skip_fast(); // `!`
 
                     match self.parse_module_marco_invocations() {
                         Ok(items) => macros.extend(items),

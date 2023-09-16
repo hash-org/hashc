@@ -159,19 +159,16 @@ impl<'s> AstGen<'s> {
 
             // Now check if there is another branch after the else or if, and loop
             // onwards...
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Else)) => {
-                    self.skip_token();
+            match self.peek_kind() {
+                Some(TokenKind::Keyword(Keyword::Else)) => {
+                    self.skip_fast(); // `else`
 
-                    match self.peek() {
-                        Some(token) if token.has_kind(TokenKind::Keyword(Keyword::If)) => {
-                            // skip trying to convert just an 'else' branch since this is another
-                            // if-branch
-                            self.skip_token();
-                            continue;
-                        }
-                        _ => (),
-                    };
+                    // skip trying to convert just an 'else' branch since this is another
+                    // if-branch
+                    if let Some(TokenKind::Keyword(Keyword::If)) = self.peek_kind() {
+                        self.skip_fast(); // `if`
+                        continue;
+                    }
 
                     otherwise_clause = Some(self.parse_block()?);
                     break;

@@ -40,7 +40,7 @@ impl<'s> AstGen<'s> {
                     if l_prec < min_prec {
                         break;
                     }
-                    self.frame.skip(consumed_tokens);
+                    self.skip(consumed_tokens);
 
                     // Now recurse and get the `rhs` of the operator.
                     let rhs = self.parse_ty_with_precedence(r_prec)?;
@@ -78,7 +78,7 @@ impl<'s> AstGen<'s> {
         // Parse the initial part of the type
         let mut ty = match &token.kind {
             TokenKind::Amp => {
-                self.skip_token();
+                self.skip_fast(); // `&`
 
                 // Check if this is a raw ref
                 let kind = self
@@ -93,38 +93,31 @@ impl<'s> AstGen<'s> {
                 Ty::Ref(RefTy { inner: self.parse_ty()?, kind, mutability })
             }
             TokenKind::Ident(id) => {
-                self.skip_token();
+                self.skip_fast(); // `ident`
 
                 let name = self.node_with_span(Name { ident: *id }, span);
                 Ty::Named(NamedTy { name })
             }
 
             // Expression in the type.
-            TokenKind::Tree(Delimiter::Brace, tree_index) => {
-                self.skip_token();
-
-                let tree = self.token_trees.get(*tree_index as usize).unwrap();
-
-                let expr =
-                    self.new_frame(tree, token.span, |gen| gen.parse_expr_with_precedence(0))?;
-
-                Ty::Expr(ExprTy { expr })
+            TokenKind::Tree(Delimiter::Brace, _) => {
+                self.in_tree(Delimiter::Brace, None, |gen| {
+                    let expr = gen.parse_expr_with_precedence(0)?;
+                    Ok(Ty::Expr(ExprTy { expr }))
+                })?
             }
 
             // Array type
-            TokenKind::Tree(Delimiter::Bracket, tree_index) => {
-                self.skip_token();
-
-                let tree = self.token_trees.get(*tree_index as usize).unwrap();
-                let (inner, len) = self.new_frame(tree, token.span, |gen| {
+            TokenKind::Tree(Delimiter::Bracket, _) => {
+                let (inner, len) = self.in_tree(Delimiter::Bracket, None, |gen| {
                     // @@ErrorRecovery: Investigate introducing `Err` variant into types...
                     let inner_type = gen.parse_ty()?;
 
                     // Optionally, the user may specify a size for the array type by
                     // using a `;` followed by an expression that evaluates to a]
                     // constant integer.
-                    let len = if gen.peek().map(|x| x.kind) == Some(TokenKind::Semi) {
-                        gen.skip_token();
+                    let len = if gen.peek_kind() == Some(TokenKind::Semi) {
+                        gen.skip_fast(); // ';'
                         Some(gen.parse_expr()?)
                     } else {
                         None
@@ -144,7 +137,7 @@ impl<'s> AstGen<'s> {
 
             // Special syntax for the never type `!`
             TokenKind::Exclamation => {
-                self.skip_token();
+                self.skip_fast(); // `!`
 
                 Ty::Named(NamedTy {
                     name: self.node_with_span(Name { ident: IDENTS.never }, token.span),
@@ -162,7 +155,7 @@ impl<'s> AstGen<'s> {
             // Type function, which is a collection of arguments enclosed in `<...>` and then
             // followed by a return type
             TokenKind::Lt => {
-                self.skip_token();
+                self.skip_fast(); // `<`
 
                 multi_ty_components = false;
                 self.parse_ty_fn()?
@@ -188,7 +181,7 @@ impl<'s> AstGen<'s> {
         while multi_ty_components && let Some(token) = self.peek() {
             ty = match token.kind {
                 TokenKind::Lt => {
-                    self.skip_token();
+                    self.skip_fast(); // `<`
 
                     let ty = self.node_with_joined_span(ty, span);
                     Ty::TyFnCall(TyFnCall {
@@ -201,7 +194,7 @@ impl<'s> AstGen<'s> {
                 }
                 // Function syntax which allow to express `U -> T` whilst implying `(U -> T)`
                 TokenKind::ThinArrow => {
-                    self.skip_token();
+                    self.skip_fast(); // `->`
                     let return_ty = self.parse_ty()?;
 
                     let ty = self.node_with_joined_span(ty, span);
@@ -224,7 +217,7 @@ impl<'s> AstGen<'s> {
                 }
 
                 TokenKind::Access => {
-                    self.skip_token();
+                    self.skip_fast(); // `::`
 
                     Ty::Access(AccessTy {
                         subject: self.node_with_joined_span(ty, span),
@@ -254,7 +247,7 @@ impl<'s> AstGen<'s> {
 
         // Shortcut, if we get no arguments, then we can avoid looping:
         // if matches!(self.peek(), Some(Token { kind: TokenKind::Gt, .. })) {
-        //     self.skip_token();
+        //     self.skip_fast();
         //     return Ok(self.nodes_with_span(ty_args, start));
         // }
 
@@ -262,24 +255,24 @@ impl<'s> AstGen<'s> {
             ty_args.push(self.parse_ty_arg()?);
 
             // Now consider if the bound is closing or continuing with a comma...
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    self.skip_token();
+            match self.peek_kind() {
+                Some(TokenKind::Comma) => {
+                    self.skip_fast(); // `,`
 
                     // Handle for the trailing comma case.
-                    if matches!(self.peek(), Some(Token { kind: TokenKind::Gt, .. })) {
-                        self.skip_token(); // We reached the end.
+                    if matches!(self.peek_kind(), Some(TokenKind::Gt)) {
+                        self.skip_fast(); // `>`
                         break;
                     }
                 }
-                Some(token) if token.has_kind(TokenKind::Gt) => {
-                    self.skip_token();
+                Some(TokenKind::Gt) => {
+                    self.skip_fast(); // `>`
                     break;
                 }
-                Some(token) => self.err(
+                Some(kind) => self.err(
                     ParseErrorKind::UnExpected,
                     ExpectedItem::Comma | ExpectedItem::Gt,
-                    Some(token.kind),
+                    Some(kind),
                 )?,
                 None => self.unexpected_eof()?,
             }
@@ -303,7 +296,7 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Eq, .. }),
             ) => {
                 let ident = self.parse_name()?;
-                self.skip_token(); // =
+                self.skip_fast(); // =
 
                 (Some(ident), self.parse_ty()?)
             }
@@ -319,11 +312,11 @@ impl<'s> AstGen<'s> {
     /// parentheses. e.g. `(i32) -> str`
     fn parse_fn_or_tuple_ty(&mut self) -> ParseResult<Ty> {
         let (mut params, has_comma) = self.in_tree(Delimiter::Paren, None, |gen| {
-            let params = match gen.peek() {
+            let params = match gen.peek_kind() {
                 // Handle special case where there is only one comma and no following items...
                 // Special edge case for '(,)' or an empty tuple type...
-                Some(token) if token.has_kind(TokenKind::Comma) && gen.stream().len() == 1 => {
-                    gen.skip_token();
+                Some(TokenKind::Comma) if gen.stream().len() == 1 => {
+                    gen.skip_fast(); // `,`
                     gen.nodes_with_span(thin_vec![], gen.range())
                 }
                 _ => gen.parse_nodes(
@@ -383,9 +376,9 @@ impl<'s> AstGen<'s> {
         &mut self,
         def_kind: TyParamOrigin,
     ) -> ParseResult<Option<AstNode<TyParams>>> {
-        match self.peek() {
-            Some(tok) if tok.has_kind(TokenKind::Lt) => {
-                self.skip_token();
+        match self.peek_kind() {
+            Some(TokenKind::Lt) => {
+                self.skip_fast(); // `<`
                 Ok(Some(self.parse_ty_params(def_kind)?))
             }
             _ => Ok(None),
@@ -414,8 +407,8 @@ impl<'s> AstGen<'s> {
         let mut params = thin_vec![];
 
         // Shortcut, if we get no arguments, then we can avoid looping:
-        if matches!(self.peek(), Some(Token { kind: TokenKind::Gt, .. })) {
-            self.skip_token();
+        if matches!(self.peek_kind(), Some(TokenKind::Gt)) {
+            self.skip_fast(); // `>`
 
             // Emit a warning here if there were no params
             let span = start_span.join(self.current_pos());
@@ -433,16 +426,16 @@ impl<'s> AstGen<'s> {
 
             match self.peek() {
                 Some(Token { kind: TokenKind::Comma, .. }) => {
-                    self.skip_token(); // Progress onto the next param.
+                    self.skip_fast(); // `,`
 
                     // Handle for the trailing comma case.
-                    if matches!(self.peek(), Some(Token { kind: TokenKind::Gt, .. })) {
-                        self.skip_token(); // We reached the end.
+                    if matches!(self.peek_kind(), Some(TokenKind::Gt)) {
+                        self.skip_fast(); // `>`
                         break;
                     }
                 }
                 Some(Token { kind: TokenKind::Gt, .. }) => {
-                    self.skip_token(); // We reached the end.
+                    self.skip_fast(); // `>`
                     break;
                 }
                 token => self.err_with_location(
@@ -472,7 +465,7 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Colon, .. }),
             ) => {
                 let ident = self.parse_name()?;
-                self.skip_token(); // :
+                self.skip_fast(); // `:`
                 (Some(ident), Some(self.parse_ty()?))
             }
             _ => (None, Some(self.parse_ty()?)),
@@ -500,9 +493,9 @@ impl<'s> AstGen<'s> {
         })?);
 
         // Try and parse the name and type
-        let ty = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Colon) => {
-                self.skip_token();
+        let ty = match self.peek_kind() {
+            Some(TokenKind::Colon) => {
+                self.skip_fast(); // `:`
 
                 // Now try and parse a type if the next token permits it...
                 match self.peek() {

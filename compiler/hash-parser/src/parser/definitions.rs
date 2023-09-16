@@ -102,9 +102,9 @@ impl<'s> AstGen<'s> {
             let name = Some(self.parse_name()?);
 
             // Parse an optional type annotation...
-            let ty = match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Colon) => {
-                    self.skip_token();
+            let ty = match self.peek_kind() {
+                Some(TokenKind::Colon) => {
+                    self.skip_fast(); // `:`
                     Some(self.parse_ty()?)
                 }
                 _ => None,
@@ -115,11 +115,11 @@ impl<'s> AstGen<'s> {
             match self.peek_second() {
                 Some(token) if token.has_kind(TokenKind::Colon) => {
                     let name = Some(self.parse_name()?);
-                    self.skip_token();
+                    self.skip_fast(); // `:`
 
                     // Now try and parse a type if the next token permits it...
-                    let ty = match self.peek() {
-                        Some(token) if matches!(token.kind, TokenKind::Eq) => None,
+                    let ty = match self.peek_kind() {
+                        Some(TokenKind::Eq) => None,
                         _ => Some(self.parse_ty()?),
                     };
 
@@ -131,9 +131,9 @@ impl<'s> AstGen<'s> {
 
         // If `name` and or `type` is followed by an `=`. we disallow default values
         // for un-named fields.
-        let default = match self.peek() {
-            Some(token) if name.is_some() && token.has_kind(TokenKind::Eq) => {
-                self.skip_token();
+        let default = match self.peek_kind() {
+            Some(TokenKind::Eq) if name.is_some() => {
+                self.skip_fast(); // `=`
                 Some(self.parse_expr_with_precedence(0)?)
             }
             _ => None,
