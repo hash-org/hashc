@@ -325,7 +325,7 @@ impl<'s> AstGen<'s> {
 
             // Here we check that the token tree has a comma at the end to later determine
             // if this is a `TupleTy`...
-            let gen_has_comma = !gen.is_empty() && gen.prev_token().has_kind(TokenKind::Comma);
+            let gen_has_comma = !gen.is_empty() && gen.previous_token().has_kind(TokenKind::Comma);
             Ok((params, gen_has_comma))
         })?;
 
@@ -406,7 +406,7 @@ impl<'s> AstGen<'s> {
             self.skip_fast(); // `>`
 
             // Emit a warning here if there were no params
-            let span = start_span.join(self.prev_pos());
+            let span = start_span.join(self.previous_pos());
             self.add_warning(ParseWarning::new(
                 WarningKind::UselessTyParams { origin },
                 self.make_span(span),

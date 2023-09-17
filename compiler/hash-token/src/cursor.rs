@@ -86,19 +86,19 @@ impl<'t> TokenCursor<'t> {
 
     /// Get the previous token.
     #[inline(always)]
-    pub fn previous(&self) -> &Token {
+    pub fn previous_token(&self) -> &Token {
         self.stream.get(self.pos.get().wrapping_sub(1)).unwrap()
     }
 
     /// Get the current token.
     #[inline(always)]
-    pub fn current(&self) -> &Token {
+    pub fn current_token(&self) -> &Token {
         self.stream.get(self.pos.get()).unwrap()
     }
 
     /// Get the next token.
     #[inline(always)]
-    pub fn next(&self) -> Option<&Token> {
+    pub fn next_token(&self) -> Option<&Token> {
         // Look at the current token, and check if we need
         // skip over a tree...
         let value = self.stream.get(self.pos.get())?;
@@ -213,7 +213,7 @@ impl<'t> TokenCursor<'t> {
     }
 
     /// Get the [ByteRange] of the [TokenStream].
-    pub fn span(&self) -> ByteRange {
+    pub fn range(&self) -> ByteRange {
         self.span
     }
 }

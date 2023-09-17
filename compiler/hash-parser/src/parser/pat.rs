@@ -375,7 +375,7 @@ impl<'s> AstGen<'s> {
         if spread.is_none()
             && fields.len() == 1
             && fields[0].name.is_none()
-            && !matches!(self.prev_token().kind, TokenKind::Comma)
+            && !matches!(self.previous_token().kind, TokenKind::Comma)
         {
             // @@Future: we want to check if there were any errors and then
             // if not we want to possibly emit a warning about redundant parentheses
@@ -469,7 +469,7 @@ impl<'s> AstGen<'s> {
         // Try and see if there is a identifier that is followed by the spread to try
         // and bind the capture to a variable
         let name = self.peek_resultant_fn(|g| g.parse_name());
-        let span = start.join(self.prev_pos());
+        let span = start.join(self.previous_pos());
 
         // If the spread pattern is already present, then we need to
         // report this as an error since, a spread pattern can only appear

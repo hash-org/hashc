@@ -108,7 +108,7 @@ impl<'s> AstGen<'s> {
         }
 
         // Emit trailing semis diagnostic
-        let span = self.make_span(tok.span.join(self.prev_pos()));
+        let span = self.make_span(tok.span.join(self.previous_pos()));
         self.add_warning(ParseWarning::new(WarningKind::TrailingSemis(span.len()), span));
     }
 
@@ -814,7 +814,7 @@ impl<'s> AstGen<'s> {
                 if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
                     gen.add_warning(ParseWarning::new(
                         WarningKind::RedundantParenthesis(expr.body().into()),
-                        gen.span(),
+                        gen.make_span(gen.range()),
                     ));
                 }
 

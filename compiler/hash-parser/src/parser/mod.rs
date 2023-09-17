@@ -12,13 +12,16 @@ mod operator;
 mod pat;
 mod ty;
 
-use std::{cell::Cell, ops::Deref};
+use std::cell::Cell;
 
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::location::{ByteRange, Span, SpannedSource};
 use hash_token::{cursor::TokenCursor, delimiter::Delimiter, Token, TokenKind};
-use hash_utils::thin_vec::{thin_vec, ThinVec};
+use hash_utils::{
+    derive_more::Deref,
+    thin_vec::{thin_vec, ThinVec},
+};
 
 use crate::{
     diagnostics::{
@@ -29,8 +32,10 @@ use crate::{
     import_resolver::ImportResolver,
 };
 
+#[derive(Deref)]
 pub(crate) struct AstGenFrame<'s> {
     /// The token cursor.
+    #[deref]
     cursor: TokenCursor<'s>,
 
     /// If an error occurred in this frame.
@@ -40,23 +45,6 @@ pub(crate) struct AstGenFrame<'s> {
 impl<'s> AstGenFrame<'s> {
     pub fn from_stream(stream: &'s [Token], span: ByteRange) -> Self {
         Self { error: Cell::new(false), cursor: TokenCursor::new(stream, span) }
-    }
-
-    /// Get the token stream.
-    fn stream(&self) -> &'s [Token] {
-        self.cursor.stream()
-    }
-
-    /// Get the current length of the frame.
-    #[inline(always)]
-    pub(crate) fn len(&self) -> usize {
-        self.cursor.len()
-    }
-
-    /// Check if the current generator is empty.
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {
-        self.cursor.is_empty()
     }
 
     /// Skip `n` number of tokens.
@@ -71,72 +59,6 @@ impl<'s> AstGenFrame<'s> {
         unsafe { self.cursor.set_pos(pos) }
     }
 
-    /// Function to check if the token stream has been exhausted based on the
-    /// current offset in the generator.
-    #[inline]
-    pub(crate) fn has_token(&self) -> bool {
-        self.cursor.has_token()
-    }
-
-    /// Get the current offset of where the stream is at.
-    #[inline(always)]
-    pub(crate) fn position(&self) -> usize {
-        self.cursor.position()
-    }
-
-    /// Attempt to peek one step token ahead.
-    pub(crate) fn peek(&self) -> Option<&Token> {
-        self.cursor.peek()
-    }
-
-    /// Peek two tokens ahead.
-    pub(crate) fn peek_second(&self) -> Option<&Token> {
-        self.cursor.peek_second()
-    }
-
-    /// Peek the [TokenKind].
-    pub(crate) fn peek_kind(&self) -> Option<TokenKind> {
-        self.cursor.peek_kind()
-    }
-
-    /// Skip a token whilst ensuring that token order is maintained.
-    ///
-    /// ##Note: This should be used when it is unclear if a token is atomic
-    /// or not.
-    #[inline(always)]
-    pub fn skip_token(&self) {
-        self.cursor.skip_token()
-    }
-
-    /// Skip to the next token.
-    ///
-    /// ##Note: Use this when the token is known to be atomic.
-    #[inline(always)]
-    pub(crate) fn skip_fast(&self) {
-        self.cursor.skip_fast()
-    }
-
-    /// Get the next token.
-    pub(crate) fn next_token(&self) -> Option<&Token> {
-        self.cursor.next()
-    }
-
-    /// Get the current [Token] in the stream.
-    ///
-    /// Panics if the current offset has passed the size of the stream, e.g
-    /// trying to get the current token after reaching the end of the stream.
-    pub(crate) fn current_token(&self) -> &Token {
-        self.cursor.current()
-    }
-
-    pub(crate) fn prev_token(&self) -> &Token {
-        self.cursor.previous()
-    }
-
-    pub(crate) fn prev_pos(&self) -> ByteRange {
-        self.cursor.previous_pos()
-    }
-
     /// Get the current location from the current token, if there is no token at
     /// the current offset, then the location of the last token is used.
     pub(crate) fn current_pos(&self) -> ByteRange {
@@ -144,7 +66,7 @@ impl<'s> AstGenFrame<'s> {
         // is beyond the length of the stream, then we use the last token's
         // location.
         if self.cursor.is_empty() || self.position() >= self.len() {
-            return self.cursor.span();
+            return self.cursor.range();
         }
 
         self.current_token().span
@@ -158,23 +80,20 @@ impl<'s> AstGenFrame<'s> {
         match self.peek() {
             Some(token) => token.span,
             None => {
-                let span = self.prev_pos();
+                let span = self.previous_pos();
                 ByteRange::new(span.end(), span.end() + 1)
             }
         }
-    }
-
-    /// Get the [ByteRange] of the [AstGen].
-    pub(crate) fn range(&self) -> ByteRange {
-        self.cursor.span()
     }
 }
 
 /// The [AstGen] struct it the primary parser for the Hash compiler. It
 /// will take a token stream and its accompanying token trees and will
 /// convert the stream into an AST.
+#[derive(Deref)]
 pub(crate) struct AstGen<'s> {
     /// The current frame.
+    #[deref]
     pub(crate) frame: AstGenFrame<'s>,
 
     /// The source that we are currently parsing.
@@ -188,14 +107,6 @@ pub(crate) struct AstGen<'s> {
 
     /// Collected diagnostics for the current [AstGen].
     pub(crate) diagnostics: &'s mut ParserDiagnostics,
-}
-
-impl<'s> Deref for AstGen<'s> {
-    type Target = AstGenFrame<'s>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.frame
-    }
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -224,12 +135,6 @@ impl<'s> AstGen<'s> {
             diagnostics,
             span_map,
         }
-    }
-
-    /// Get the [Span] of the current generator, this asserts that a parent
-    /// [Span] is present.
-    pub(crate) fn span(&self) -> Span {
-        Span { range: self.range(), id: self.resolver.source() }
     }
 
     /// Create new AST generator from a provided token stream with inherited
@@ -282,7 +187,7 @@ impl<'s> AstGen<'s> {
         // We get the previous token, before the current since we want to
         // know the span up to the current token, not including it.
 
-        let id = self.span_map.add(start.join(self.prev_pos()));
+        let id = self.span_map.add(start.join(self.previous_pos()));
         AstNode::with_id(body, id)
     }
 
@@ -303,7 +208,7 @@ impl<'s> AstGen<'s> {
         nodes: ThinVec<AstNode<T>>,
         start: ByteRange,
     ) -> AstNodes<T> {
-        let id = self.span_map.add(start.join(self.prev_pos()));
+        let id = self.span_map.add(start.join(self.previous_pos()));
         AstNodes::with_id(nodes, id)
     }
 
@@ -412,7 +317,7 @@ impl<'s> AstGen<'s> {
     ) -> Result<(T, ByteRange), E> {
         let start = self.current_pos();
         let result = f(self)?;
-        let end = self.prev_pos();
+        let end = self.previous_pos();
 
         Ok((result, start.join(end)))
     }
