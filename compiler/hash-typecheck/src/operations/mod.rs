@@ -2,14 +2,14 @@ pub mod checking;
 pub mod normalisation;
 pub mod unification;
 
-use hash_tir::{context::Context, sub::Sub, tir::NodeId};
+use hash_tir::{context::Context, sub::Sub};
 
-use self::{checking::CheckResult, normalisation::NormaliseResult};
-use crate::{env::HasTcEnv, errors::TcResult};
+use self::{checking::CheckResult, normalisation::NormaliseResult, unification::UnifyResult};
+use crate::env::HasTcEnv;
 
 pub trait Operations<X>: HasTcEnv {
-    type TyNode: NodeId;
-    type Node: NodeId;
+    type TyNode;
+    type Node;
 
     fn check(
         &self,
@@ -33,7 +33,7 @@ pub trait Operations<X>: HasTcEnv {
         target: &mut X,
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> TcResult<()>;
+    ) -> UnifyResult;
 
-    fn substitute(&self, sub: &Sub, target: &mut X) -> TcResult<()>;
+    fn substitute(&self, sub: &Sub, target: &mut X);
 }

@@ -17,7 +17,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::{Context, ScopeKind},
+    context::ScopeKind,
     dump::dump_tir,
     intrinsics::{
         definitions::{
@@ -49,11 +49,7 @@ use itertools::Itertools;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    operations::{
-        checking::{CheckSignal, CheckState},
-        normalisation::NormalisationMode,
-        Operations,
-    },
+    operations::normalisation::NormalisationMode,
 };
 
 /// The mode in which to infer the type of a function.
@@ -1468,15 +1464,90 @@ impl<T: TcEnv> InferenceOps<'_, T> {
     }
 
     /// Infer a concrete type for a given term.
-    pub fn infer_term(&self, mut term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
-        let original_term_id = term_id;
-        let state = CheckState::new();
-        state.then(self.checker().check(
-            &mut Context::new(),
-            &mut term_id,
-            annotation_ty,
-            original_term_id,
-        ))?;
+    pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
+        self.register_new_atom(term_id, annotation_ty);
+        let expects_ty = |ty: TyId| self.check_by_unify(ty, Ty::universe(NodeOrigin::Expected));
+
+        match *term_id.value() {
+            Term::Tuple(tuple_term) => {
+                self.infer_tuple_term(&tuple_term, annotation_ty, term_id)?
+            }
+            Term::Lit(lit_term) => self.infer_lit(lit_term, annotation_ty)?,
+            Term::Array(prim_term) => self.infer_array_term(&prim_term, annotation_ty)?,
+            Term::Ctor(ctor_term) => self.infer_ctor_term(&ctor_term, annotation_ty, term_id)?,
+            Term::Call(fn_call_term) => {
+                self.infer_fn_call_term(&fn_call_term, annotation_ty, term_id)?
+            }
+            Term::Fn(fn_def_id) => {
+                self.infer_fn_def(fn_def_id, annotation_ty, term_id, FnInferMode::Body)?
+            }
+            Term::Var(var_term) => self.infer_var(var_term, annotation_ty)?,
+            Term::Return(return_term) => {
+                self.infer_return_term(&return_term, annotation_ty, term_id)?
+            }
+            Term::Deref(deref_term) => self.infer_deref_term(&deref_term, annotation_ty)?,
+            Term::LoopControl(loop_control_term) => {
+                self.infer_loop_control_term(&loop_control_term, annotation_ty)?
+            }
+            Term::Unsafe(unsafe_term) => self.infer_unsafe_term(&unsafe_term, annotation_ty)?,
+            Term::Loop(loop_term) => self.infer_loop_term(&loop_term, annotation_ty, term_id)?,
+            Term::Block(block_term) => {
+                self.infer_block_term(&block_term, annotation_ty, term_id)?
+            }
+            Term::TypeOf(ty_of_term) => {
+                self.infer_ty_of_term(ty_of_term, annotation_ty, term_id)?
+            }
+            Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
+            Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
+            Term::Access(access_term) => {
+                self.infer_access_term(&access_term, annotation_ty, term_id)?
+            }
+            Term::Index(index_term) => {
+                self.infer_index_term(&index_term, annotation_ty, term_id)?
+            }
+            Term::Match(match_term) => self.infer_match_term(&match_term, annotation_ty)?,
+            Term::Assign(assign_term) => {
+                self.infer_assign_term(&assign_term, annotation_ty, term_id)?
+            }
+            Term::Intrinsic(intrinsic) => self.infer_intrinsic(intrinsic, annotation_ty)?,
+            Term::Hole(_) => {}
+            Ty::TupleTy(tuple_ty) => {
+                self.infer_params(tuple_ty.data, || Ok(()))?;
+                expects_ty(annotation_ty)?;
+            }
+            Ty::FnTy(fn_ty) => {
+                self.infer_params(fn_ty.params, || {
+                    self.infer_term(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
+                })?;
+                expects_ty(annotation_ty)?;
+            }
+            Ty::RefTy(ref_ty) => {
+                // Infer the inner type
+                self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
+                expects_ty(annotation_ty)?;
+            }
+            Ty::DataTy(mut data_ty) => {
+                let data_def = data_ty.data_def.value();
+                let copied_params = self.sub_ops().copy_params(data_def.params);
+                self.infer_args(data_ty.args, copied_params, |inferred_data_ty_args| {
+                    data_ty.args = inferred_data_ty_args;
+                    term_id.set(term_id.value().with_data(data_ty.into()));
+                    Ok(())
+                })?;
+                expects_ty(annotation_ty)?;
+            }
+            Ty::Universe => {
+                expects_ty(annotation_ty)?;
+            }
+        };
+
+        self.check_ty(annotation_ty)?;
+        self.register_atom_inference(term_id, term_id, annotation_ty);
+
+        // Potentially evaluate the term.
+        self.potentially_run_expr(term_id, annotation_ty)?;
+        self.potentially_dump_tir(term_id);
+
         Ok(())
     }
 
