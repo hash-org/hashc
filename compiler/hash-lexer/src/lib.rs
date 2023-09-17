@@ -3,7 +3,6 @@
 
 use std::cell::Cell;
 
-use error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind};
 use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::{
     self,
@@ -18,21 +17,34 @@ use hash_token::{
     TokenKind,
 };
 
-use crate::utils::{is_id_continue, is_id_start};
+use crate::{
+    error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind},
+    utils::{is_id_continue, is_id_start},
+};
 
 pub mod error;
 mod utils;
-pub mod v2;
+
+#[derive(Clone, Copy, Debug)]
+struct TreeInfo {
+    /// An index into the stream of tokens, pointing to where the tree begins.
+    start: usize,
+
+    /// The kind of [Delimiter] that the tree is.
+    delimiter: Option<Delimiter>,
+}
 
 /// Useful information that the lexer collects during the lexing process, and
 /// which is used after the lexer has finished performing AST generation.
 pub struct LexerMetadata {
     /// Token tree store, essentially a collection of token trees that are
     /// produced when the lexer encounters bracketed token streams.
-    pub trees: Vec<Vec<Token>>,
+    pub tokens: Vec<Token>,
 
     /// Local lexer string table.
     pub strings: LocalStringTable,
+
+    pub diagnostics: LexerDiagnostics,
 }
 
 /// Representing the end of stream, or the initial character that is set as
@@ -53,20 +65,13 @@ pub struct Lexer<'a> {
     /// Representative module index of the current source.
     source_id: SourceId,
 
-    /// Representing the last character the lexer encountered. This is only set
-    /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a
-    /// check on if the token tree was closed up.
-    previous_delimiter: Cell<Option<char>>,
-
-    /// If the current token position is within a token tree
-    within_token_tree: Cell<bool>,
-
-    /// Token tree store, essentially a collection of token trees that are
-    /// produced when the lexer encounters bracketed token streams.
-    trees: Vec<Vec<Token>>,
+    tree: Cell<Option<TreeInfo>>,
 
     /// Local lexer string table.
     strings: LocalStringTable,
+
+    /// The tokens that the lexer produced.
+    tokens: Vec<Token>,
 
     /// The lexer diagnostics store
     diagnostics: LexerDiagnostics,
@@ -75,13 +80,13 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     /// Create a new [Lexer] from the given string input.
     pub fn new(contents: SpannedSource<'a>, source_id: SourceId) -> Self {
-        Lexer {
+        Self {
             offset: Cell::new(0),
             source_id,
-            within_token_tree: Cell::new(false),
-            previous_delimiter: Cell::new(None),
+            tree: Cell::new(None),
             contents,
-            trees: vec![],
+            // @@Explain the 3/16
+            tokens: Vec::with_capacity(contents.0.len() * 3 / 16),
             diagnostics: LexerDiagnostics::default(),
             strings: LocalStringTable::default(),
         }
@@ -131,18 +136,16 @@ impl<'a> Lexer<'a> {
         Err(LexerError { message, kind, location: Span { range: span, id: self.source_id } })
     }
 
-    /// Convert the [Lexer] into the [LexerMetadata] that has been collected
-    /// during the lexing process.
-    pub fn metadata(self) -> LexerMetadata {
-        LexerMetadata { trees: self.trees, strings: self.strings }
-    }
-
     /// Tokenise the given input stream
-    pub fn tokenise(&mut self) -> Vec<Token> {
+    pub fn tokenise(mut self) -> LexerMetadata {
         // Avoid shebang at the start of the source...
         self.strip_shebang();
 
-        std::iter::from_fn(|| self.advance_token()).collect::<Vec<_>>()
+        while let Some(token) = self.advance_token() {
+            self.tokens.push(token);
+        }
+
+        LexerMetadata { tokens: self.tokens, diagnostics: self.diagnostics, strings: self.strings }
     }
 
     /// Returns amount of already consumed symbols.
@@ -234,8 +237,7 @@ impl<'a> Lexer<'a> {
                     '*' => self.block_comment(),
                     '/' => self.line_comment(),
                     _ => {
-                        self.skip();
-
+                        self.skip_ascii();
                         let offset = self.offset.get();
 
                         // ##Hack: since we already compare if the first item is a slash, we'll just
@@ -272,11 +274,11 @@ impl<'a> Lexer<'a> {
                     self.skip_ascii();
                     match self.peek() {
                         '.' => {
-                            self.skip();
+                            self.skip_ascii();
                             TokenKind::Ellipsis
                         }
                         '<' => {
-                            self.skip();
+                            self.skip_ascii();
                             TokenKind::RangeExclusive
                         }
                         _ => TokenKind::Range,
@@ -286,21 +288,21 @@ impl<'a> Lexer<'a> {
             },
             ':' => match self.peek() {
                 ':' => {
-                    self.skip();
+                    self.skip_ascii();
                     TokenKind::Access
                 }
                 _ => TokenKind::Colon,
             },
             '=' => match self.peek() {
                 '>' => {
-                    self.skip();
+                    self.skip_ascii();
                     TokenKind::FatArrow
                 }
                 _ => TokenKind::Eq,
             },
             '-' => match self.peek() {
                 '>' => {
-                    self.skip();
+                    self.skip_ascii();
                     TokenKind::ThinArrow
                 }
                 ch if ch.is_ascii_digit() => self.number(self.peek(), true),
@@ -308,7 +310,22 @@ impl<'a> Lexer<'a> {
             },
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary
             // number of tokens and closed by a following delimiter...
-            ch @ ('(' | '{' | '[') => self.eat_token_tree(Delimiter::from_left(ch).unwrap()),
+            ch @ ('(' | '{' | '[') => {
+                let delimiter = Delimiter::from_left(ch).unwrap();
+                self.tokens.push(Token::new(
+                    TokenKind::Tree(delimiter, 0),
+                    ByteRange::new(offset, self.len_consumed()),
+                ));
+
+                let _ = self.eat_token_tree(delimiter);
+
+                if self.diagnostics.has_fatal_error.get() {
+                    return None;
+                }
+
+                // Immediately try to index the next token...
+                return self.advance_token();
+            }
             // Identifier (this should be checked after other variant that can
             // start as identifier).
             ch if is_id_start(ch) => self.ident(ch),
@@ -316,8 +333,10 @@ impl<'a> Lexer<'a> {
             '\'' => self.char(),
             '"' => self.string(),
             // We have to exit the current tree if we encounter a closing delimiter...
-            ch @ (')' | '}' | ']') if self.within_token_tree.get() => {
-                self.previous_delimiter.set(Some(ch));
+            ch @ (')' | '}' | ']') if let Some(mut info) = self.tree.get() => {
+                info.delimiter = Some(Delimiter::from_right(ch).unwrap());
+                self.tree.set(Some(info));
+
                 return None;
             }
             ')' => TokenKind::RightDelim(Delimiter::Paren),
@@ -343,43 +362,57 @@ impl<'a> Lexer<'a> {
     /// behaviour is desired and avoids performing complex delimiter depth
     /// analysis later on.
     fn eat_token_tree(&mut self, delimiter: Delimiter) -> TokenKind {
-        let mut children_tokens = vec![];
-        let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
+        let tree_byte_offset = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
         // we need to reset self.prev here as it might be polluted with previous token
         // trees
-        self.previous_delimiter.set(None);
-        let prev_in_token_tree = self.within_token_tree.replace(true);
+        let tree = Cell::new(Some(TreeInfo { start: self.tokens.len(), delimiter: None }));
+        self.tree.swap(&tree);
 
+        // `None` here doesn't just mean EOF, it could also be that
+        // the next token failed to be parsed.
         while !self.is_eof() {
-            // `None` here doesn't just mean EOF, it could also be that
-            // the next token failed to be parsed.
             match self.advance_token() {
-                Some(token) => children_tokens.push(token),
+                Some(token) => self.tokens.push(token),
                 None => break,
-            };
+            }
         }
 
-        self.within_token_tree.replace(prev_in_token_tree);
+        // ##Note: Now that we have done parsing the inner tree (with or without error),
+        // we want to put the `old` tree value back into `self.tree`, and
+        // retrieve the one that we were working with. Beyond this point,
+        // everyone should refer to `tree`, not `self.tree` since this is now
+        // the old one.
+        self.tree.swap(&tree);
 
         // If there is a fatal error, then we need to abort
         if self.diagnostics.has_fatal_error.get() {
             return TokenKind::Err;
         }
 
-        match self.previous_delimiter.get() {
-            Some(delim) if delim == delimiter.right() => {
-                // push this to the token_trees and get the current index to use instead...
-                self.trees.push(children_tokens);
-                self.previous_delimiter.set(None);
+        match tree.get() {
+            Some(TreeInfo { delimiter: Some(d), start, .. }) if d == delimiter => {
+                // Update the tree token with the length of the tree.
+                self.tokens[start - 1] = Token::new(
+                    TokenKind::Tree(delimiter, (self.tokens.len() - start) as u32),
+                    ByteRange::new(tree_byte_offset, self.len_consumed()),
+                );
 
-                TokenKind::Tree(delimiter, (self.trees.len() - 1) as u32)
+                // ##Hack: This token won't be put into the token stream, it's just
+                // a dummy token to denote the end of the tree.
+                TokenKind::RightDelim(delimiter)
             }
-            _ => self.emit_error(
-                None,
-                LexerErrorKind::Unclosed(delimiter),
-                ByteRange::new(start, start + 1),
-            ),
+            _ => {
+                // backtrack a single token, so that if other trees exist, they can
+                // still be properly handled.
+                self.offset.set(self.offset.get() - 1);
+
+                self.emit_error(
+                    None,
+                    LexerErrorKind::Unclosed(delimiter),
+                    ByteRange::new(tree_byte_offset, tree_byte_offset + 1),
+                )
+            }
         }
     }
 
@@ -411,7 +444,7 @@ impl<'a> Lexer<'a> {
                         None,
                         LexerErrorKind::InvalidLitSuffix(NumericLitKind::Integer, suffix),
                         ByteRange::new(self.offset.get(), self.offset.get()),
-                    )
+                    );
                 }
             }
         } else {
@@ -458,7 +491,7 @@ impl<'a> Lexer<'a> {
 
             // if this does have a radix then we need to handle the radix
             if let Some(radix) = maybe_radix {
-                self.skip(); // accounting for the radix
+                self.skip_ascii(); // accounting for the radix
                 let chars = self.eat_decimal_digits(radix).to_string();
 
                 // If we didn't get any characters, this means that
@@ -502,7 +535,7 @@ impl<'a> Lexer<'a> {
             // Admittedly, this is a slight ambiguity in the language syntax, but
             // there isn't currently a clear way to resolve this ambiguity.
             '.' if !is_id_start(self.peek_second()) && self.peek_second() != '.' => {
-                self.skip();
+                self.skip_ascii();
                 self.eat_decimal_digits(10);
                 self.eat_float_lit(start)
             }
@@ -541,7 +574,7 @@ impl<'a> Lexer<'a> {
                                 None,
                                 LexerErrorKind::InvalidLitSuffix(NumericLitKind::Float, suffix),
                                 ByteRange::new(start, self.offset.get()),
-                            )
+                            );
                         }
                     }
                 } else {
@@ -563,11 +596,11 @@ impl<'a> Lexer<'a> {
             return Ok(());
         }
 
-        self.skip(); // consume the exponent
+        self.skip_ascii(); // consume the exponent
 
         // Check if there is a sign before the digits start in the exponent...
         if self.peek() == '-' {
-            self.skip();
+            self.skip_ascii();
         };
 
         // Check that there is at least on digit in the exponent
@@ -622,7 +655,7 @@ impl<'a> Lexer<'a> {
                     );
                 }
 
-                self.skip(); // Eat the '{' beginning part of the scape sequence
+                self.skip_ascii(); // Eat the '{' beginning part of the scape sequence
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
                 let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
@@ -634,7 +667,7 @@ impl<'a> Lexer<'a> {
                         ByteRange::new(self.offset.get(), self.offset.get() + 1),
                     );
                 }
-                self.skip(); // Eat the '}' ending part of the scape sequence
+                self.skip_ascii(); // Eat the '}' ending part of the scape sequence
 
                 if chars.len() > 6 {
                     return self.error(
@@ -715,7 +748,7 @@ impl<'a> Lexer<'a> {
 
         // Slow path, we have an escaped character.
         if self.peek() == '\\' {
-            self.skip(); // eat the backslash
+            self.skip_ascii(); // eat the backslash
 
             match self.escaped_char() {
                 Ok(ch) => {
@@ -742,8 +775,7 @@ impl<'a> Lexer<'a> {
                         );
                     }
 
-                    self.skip(); // eat the ending part of the character literal `'`
-
+                    self.skip_ascii(); // eat the ending part of the character literal `'`
                     return TokenKind::Char(ch);
                 }
                 Err(err) => {
@@ -755,13 +787,12 @@ impl<'a> Lexer<'a> {
                         self.diagnostics.has_fatal_error.set(true);
                     }
                     self.skip(); // Recover...
-
                     return TokenKind::Err;
                 }
             };
         } else if self.peek_second() == '\'' {
             let ch = self.next().unwrap();
-            self.skip();
+            self.skip_ascii();
             return TokenKind::Char(ch);
         }
 
@@ -839,7 +870,6 @@ impl<'a> Lexer<'a> {
     /// some kind of documentation generator tool
     fn line_comment(&mut self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '/');
-        self.skip();
         self.eat_until('\n')
     }
 
@@ -852,7 +882,7 @@ impl<'a> Lexer<'a> {
     /// some kind of documentation generator tool
     fn block_comment(&mut self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '*');
-        self.skip();
+        self.skip_ascii();
 
         // since we aren't as dumb as C++, we want to count the depth of block comments
         // and account for nested ones, we keep track of it whilst consuming the
@@ -862,11 +892,11 @@ impl<'a> Lexer<'a> {
         while let Some(c) = self.next() {
             match c {
                 '/' if self.peek() == '*' => {
-                    self.skip();
+                    self.skip_ascii();
                     depth += 1;
                 }
                 '*' if self.peek() == '/' => {
-                    self.skip();
+                    self.skip_ascii();
                     depth -= 1;
 
                     // we finally reached the end of the block comment, if any subsequent '*/'

@@ -134,7 +134,7 @@ impl<'s> AstGen<'s> {
     /// [Pat] can be parsed. The `can_continue` flag is set to `false` if this
     /// produces a [Pat::Range].
     fn parse_pat_component(&mut self) -> ParseResult<(AstNode<Pat>, bool)> {
-        let start = self.next_pos();
+        let start = self.current_pos();
         let mut has_range_pat = false;
 
         let token = *self.peek().ok_or_else(|| {
@@ -175,10 +175,7 @@ impl<'s> AstGen<'s> {
             }
 
             // Literals
-            token if token.kind.is_lit() => {
-                self.skip_fast(); // literal
-                Pat::Lit(LitPat { data: self.parse_primitive_lit()? })
-            }
+            token if token.kind.is_lit() => Pat::Lit(LitPat { data: self.parse_primitive_lit() }),
             // Potentially a range pattern
             token @ Token { kind: TokenKind::Range | TokenKind::RangeExclusive, .. } => {
                 match self.maybe_parse_range_pat(None) {
@@ -244,8 +241,6 @@ impl<'s> AstGen<'s> {
     /// it is not provided, then the [RangePat] does not include a `lo`
     /// component.
     fn maybe_parse_range_pat(&mut self, lo: Option<AstNode<Lit>>) -> Option<RangePat> {
-        let offset = self.offset();
-
         let end = match self.peek_kind() {
             Some(TokenKind::Range) => RangeEnd::Included,
             Some(TokenKind::RangeExclusive) => RangeEnd::Excluded,
@@ -255,17 +250,7 @@ impl<'s> AstGen<'s> {
 
         // Now parse the `hi` part of the range
         if matches!(self.peek_kind(), Some(kind) if kind.is_range_lit()) {
-            self.skip_fast(); // literal
-
-            // @@ErrorReporting: just push the error but don't fail...
-            match self.peek_resultant_fn(|t| t.parse_primitive_lit()) {
-                Some(hi) => Some(RangePat { lo, hi: Some(hi), end }),
-                None => {
-                    // Reset the token offset to the beginning
-                    self.set_pos(offset);
-                    None
-                }
-            }
+            Some(RangePat { lo, hi: Some(self.parse_primitive_lit()), end })
         } else {
             // This means that the range is open-ended, so we just return
             // the `lo` part of the range.
@@ -276,7 +261,7 @@ impl<'s> AstGen<'s> {
     /// Parse a [ModulePatEntry]. The [ModulePatEntry] refers to
     /// destructuring either a struct or a namespace to extract fields,
     /// exported members. The function takes in a token atom because both
-    /// syntaxes use different operators as pattern assigners.
+    /// syntax's use different operators as pattern assigners.
     pub(crate) fn parse_module_pat_entry(&mut self) -> ParseResult<AstNode<ModulePatEntry>> {
         let start = self.current_pos();
 
@@ -390,7 +375,7 @@ impl<'s> AstGen<'s> {
         if spread.is_none()
             && fields.len() == 1
             && fields[0].name.is_none()
-            && !matches!(self.current_token().kind, TokenKind::Comma)
+            && !matches!(self.prev_token().kind, TokenKind::Comma)
         {
             // @@Future: we want to check if there were any errors and then
             // if not we want to possibly emit a warning about redundant parentheses
@@ -451,6 +436,8 @@ impl<'s> AstGen<'s> {
         position: usize,
         origin: PatOrigin,
     ) -> ParseResult<bool> {
+        let start = self.current_pos();
+
         // Give some nice feedback to user about how many `.`s we expected
         match self.peek_kind() {
             Some(TokenKind::Ellipsis) => {
@@ -479,12 +466,10 @@ impl<'s> AstGen<'s> {
             }
         };
 
-        let start = self.current_pos();
-
         // Try and see if there is a identifier that is followed by the spread to try
         // and bind the capture to a variable
         let name = self.peek_resultant_fn(|g| g.parse_name());
-        let span = start.join(self.current_pos());
+        let span = start.join(self.prev_pos());
 
         // If the spread pattern is already present, then we need to
         // report this as an error since, a spread pattern can only appear
@@ -545,7 +530,7 @@ impl<'s> AstGen<'s> {
     ///
     /// @@Ugly: simplify or remove this!
     pub(crate) fn begins_pat(&self) -> bool {
-        let start = self.offset();
+        let start = self.position();
         let result = self.peek_pat();
         self.set_pos(start);
 

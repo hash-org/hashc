@@ -13,18 +13,14 @@ use hash_ast::{
     ast::{self, LocalSpanMap, SpanMap},
     node_map::ModuleEntry,
 };
-use hash_lexer::{v2::LexerV2, Lexer, LexerMetadata};
+use hash_lexer::{Lexer, LexerMetadata};
 use hash_pipeline::{
     fs::read_in_path,
     interface::{CompilerInterface, CompilerStage, StageMetrics},
     settings::CompilerStageKind,
     workspace::Workspace,
 };
-use hash_reporting::{
-    diagnostic::{DiagnosticsMut, HasDiagnosticsMut},
-    report::Report,
-    reporter::{Reports, Reporter},
-};
+use hash_reporting::{diagnostic::DiagnosticsMut, report::Report, reporter::Reports};
 use hash_source::{
     constant::string_table, location::SpannedSource, InteractiveId, ModuleId, SourceId,
     SourceMapUtils,
@@ -61,7 +57,6 @@ impl Parser {
         // perhaps there should be a "light" metrics mode, and a more verbose
         // one.
         self.metrics.entry("read").or_default().add_assign(metrics.read);
-        self.metrics.entry("v2").or_default().add_assign(metrics.v2);
         self.metrics.entry("tokenise").or_default().add_assign(metrics.tokenise);
         self.metrics.entry("gen").or_default().add_assign(metrics.gen);
     }
@@ -82,17 +77,6 @@ pub trait ParserCtxQuery: CompilerInterface {
 }
 
 impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
-    /// Return the [CompilerStageKind] of the parser.
-    fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::Parse
-    }
-
-    fn metrics(&self) -> StageMetrics {
-        StageMetrics {
-            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
-        }
-    }
-
     /// Entry point of the parser. Initialises a job from the specified
     /// `entry_point`.
     fn run(
@@ -169,6 +153,17 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
             ctx.workspace().print_sources(entry_point, mode, set, &mut stdout).unwrap();
         }
     }
+
+    fn metrics(&self) -> StageMetrics {
+        StageMetrics {
+            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
+        }
+    }
+
+    /// Return the [CompilerStageKind] of the parser.
+    fn kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Parse
+    }
 }
 
 /// A collection of timings for the parser stage. The stage records
@@ -179,9 +174,6 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
 pub struct ParseTimings {
     /// The amount of time the lexer took to tokenise the source.
     tokenise: Duration,
-
-    /// The amount of time the lexer took to tokenise the source.
-    v2: Duration,
 
     /// The amount of time the parser took to generate AST for the
     /// source.
@@ -195,7 +187,6 @@ impl AccessToMetrics for ParseTimings {
     fn add_metric(&mut self, name: &'static str, time: Duration) {
         match name {
             "tokenise" => self.tokenise = time,
-            "v2" => self.v2 = time,
             "gen" => self.gen = time,
             "read" => self.read = time,
             _ => unreachable!(),
@@ -279,26 +270,14 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let spanned = SpannedSource::from_string(contents.as_str());
 
     // Lex the contents of the module or interactive block
-    let _ = time_item(&mut timings, "v2", |_| {
-        let mut data = LexerV2::new(spanned, id).tokenise();
-        if data.diagnostics.store.has_errors() {
-            println!("{}", Reporter::from_reports(data.diagnostics.into_reports()));
-        } else {
-            if !source.id().is_prelude() {
-                for token in data.tokens {
-                    println!("{:?}", token.kind);
-                }
-            }
-        }
-    });
-
-    // Lex the contents of the module or interactive block
-    let mut lexer = Lexer::new(spanned, id);
-    let tokens = time_item(&mut timings, "tokenise", |_| lexer.tokenise());
+    let LexerMetadata { tokens, mut diagnostics, strings } =
+        time_item(&mut timings, "tokenise", |_| Lexer::new(spanned, id).tokenise());
 
     // Check if the lexer has errors...
-    if lexer.has_errors() {
-        sender.send(ParserAction::Error { diagnostics: lexer.into_reports(), timings }).unwrap();
+    if diagnostics.has_errors() {
+        sender
+            .send(ParserAction::Error { diagnostics: diagnostics.into_reports(), timings })
+            .unwrap();
 
         // We need to finally put the sources into the source map.
         if id.is_module() {
@@ -308,8 +287,6 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     }
 
-    let LexerMetadata { trees, strings } = lexer.metadata();
-
     // Update the global string table now!
     string_table().add_local_table(strings);
 
@@ -318,7 +295,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let resolver = ImportResolver::new(id, source.parent(), sender);
     let mut diagnostics = ParserDiagnostics::new();
     let mut spans = LocalSpanMap::new(id);
-    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &mut diagnostics, &mut spans);
+    let mut gen = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.

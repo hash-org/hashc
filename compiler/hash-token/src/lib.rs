@@ -1,5 +1,6 @@
 //! Hash Compiler token definitions that are used by the lexer when lexing
 //! the input sources.
+pub mod cursor;
 pub mod delimiter;
 pub mod keyword;
 

@@ -18,12 +18,12 @@ pub struct ByteRange(u32, u32);
 
 impl ByteRange {
     /// Create a [ByteRange] by providing a start and end byte position.
-    pub const fn new(start: usize, end: usize) -> Self {
-        debug_assert!(end >= start, "invalid span. start > end");
+    pub fn new(start: usize, end: usize) -> Self {
+        debug_assert!(end >= start, "invalid span. start > end. start={} end={}", start, end);
         ByteRange(start as u32, end as u32)
     }
 
-    /// This function is used to join a [ByteRange] to another [ByteRange]ange].
+    /// This function is used to join a [ByteRange] to another [ByteRange].
     /// The assumption is made that the left hand-side [ByteRange] ends before
     /// the start of the right hand side [ByteRange]. If that is the case, then
     /// a new location is created with start position of the `self`, and the

@@ -13,31 +13,34 @@ use crate::diagnostics::{
 impl<'s> AstGen<'s> {
     /// Parse a primitive literal, which means it can be either a `char`,
     /// `integer`, `float` or a `string`.
-    pub(crate) fn parse_primitive_lit(&mut self) -> ParseResult<AstNode<Lit>> {
+    pub(crate) fn parse_primitive_lit(&mut self) -> AstNode<Lit> {
         let token = self.current_token();
+        debug_assert!(token.kind.is_lit());
 
-        Ok(self.node_with_span(
+        // `parse_numeric_literal()` will skip itself.
+        if !token.kind.is_numeric() {
+            self.skip_fast();
+        }
+
+        self.node_with_span(
             match token.kind {
                 TokenKind::Int(_, _) | TokenKind::Float(_) => return self.parse_numeric_lit(),
                 TokenKind::Char(value) => Lit::Char(CharLit { data: value }),
                 TokenKind::Str(value) => Lit::Str(StrLit { data: value }),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit { data: false }),
                 TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit { data: true }),
-                _ => self.err_with_location(
-                    ParseErrorKind::ExpectedLit,
-                    ExpectedItem::empty(),
-                    Some(token.kind),
-                    token.span,
-                )?,
+                _ => unreachable!(),
             },
             token.span,
-        ))
+        )
     }
 
     /// Function to parse a primitive numeric lit with the option of negating
     /// the value immediately.
-    pub(crate) fn parse_numeric_lit(&mut self) -> ParseResult<AstNode<Lit>> {
+    pub(crate) fn parse_numeric_lit(&mut self) -> AstNode<Lit> {
         let token = self.current_token();
+        debug_assert!(token.kind.is_numeric());
+        self.skip_fast(); // `float` or `int`
 
         let lit = match token.kind {
             TokenKind::Int(base, kind) => {
@@ -70,7 +73,7 @@ impl<'s> AstGen<'s> {
             _ => panic!("expected numeric token in parse_numeric_lit()"),
         };
 
-        Ok(self.node_with_span(lit, token.span))
+        self.node_with_span(lit, token.span)
     }
 
     /// Function to parse a [TupleLitEntry] with a name or parse a parenthesised
@@ -80,7 +83,7 @@ impl<'s> AstGen<'s> {
     /// tuple entry with an associated name and type.
     pub(crate) fn parse_tuple_lit_entry(&mut self) -> ParseResult<AstNode<TupleLitEntry>> {
         let start = self.next_pos();
-        let offset = self.offset();
+        let offset = self.position();
 
         // Determine if this might have a tuple field name and optional type
         let entry = if let Some(name) = self.peek_resultant_fn(|g| g.parse_name()) {

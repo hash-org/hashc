@@ -10,7 +10,7 @@ use hash_reporting::{
 use hash_source::{identifier::Identifier, location::Span};
 use hash_token::{delimiter::Delimiter, Base, TokenKind};
 
-use crate::{v2::LexerV2, Lexer};
+use crate::Lexer;
 
 /// Auxiliary data type to provide more information about the
 /// numerical literal kind that was encountered. This is used
@@ -115,17 +115,17 @@ impl From<LexerError> for Reports {
             LexerErrorKind::Unclosed(delim) => format!("encountered unclosed delimiter `{}`, add a `{}` after the inner expression", delim.left(), delim.right()),
             LexerErrorKind::UnsupportedFloatBaseLiteral(base) => format!("{base} float literal is not supported"),
             LexerErrorKind::InvalidLitSuffix(kind, suffix) => {
-                    let suffix_note = match kind {
-                        NumericLitKind::Integer => format!("{kind} suffix must be `u32`, `i64`, etc"),
-                        NumericLitKind::Float => format!("{kind} suffix must be `f32` or `f64`"),
-                    };
+                let suffix_note = match kind {
+                    NumericLitKind::Integer => format!("{kind} suffix must be `u32`, `i64`, etc"),
+                    NumericLitKind::Float => format!("{kind} suffix must be `f32` or `f64`"),
+                };
 
-                    // push a note about what kind of suffix is expected
-                    help_notes
-                        .push(ReportElement::Note(ReportNote::new(ReportNoteKind::Info, suffix_note)));
+                // push a note about what kind of suffix is expected
+                help_notes
+                    .push(ReportElement::Note(ReportNote::new(ReportNoteKind::Info, suffix_note)));
 
-                    format!("invalid suffix `{suffix}` for {kind} literal")
-                }
+                format!("invalid suffix `{suffix}` for {kind} literal")
+            }
         };
 
         if let Some(additional_info) = err.message {
@@ -151,6 +151,12 @@ pub struct LexerDiagnostics {
 }
 
 impl LexerDiagnostics {
+    /// Check if the lexer has encountered an error.
+    pub fn has_errors(&self) -> bool {
+        self.has_fatal_error.get() || !self.store.errors.is_empty()
+    }
+
+    /// Convert all of the collected [LexerDiagnostics] into [Report]s.
     pub fn into_reports(&mut self) -> Vec<Report> {
         self.store.errors.drain(..).flat_map(Reports::from).collect()
     }
@@ -161,25 +167,5 @@ impl HasDiagnosticsMut for Lexer<'_> {
 
     fn diagnostics(&mut self) -> &mut Self::Diagnostics {
         &mut self.diagnostics.store
-    }
-}
-
-impl Lexer<'_> {
-    pub fn into_reports(&mut self) -> Vec<Report> {
-        self.diagnostics.store.errors.drain(..).flat_map(Reports::from).collect()
-    }
-}
-
-impl HasDiagnosticsMut for LexerV2<'_> {
-    type Diagnostics = DiagnosticStore<LexerError, ()>;
-
-    fn diagnostics(&mut self) -> &mut Self::Diagnostics {
-        &mut self.diagnostics.store
-    }
-}
-
-impl LexerV2<'_> {
-    pub fn into_reports(&mut self) -> Vec<Report> {
-        self.diagnostics.store.errors.drain(..).flat_map(Reports::from).collect()
     }
 }

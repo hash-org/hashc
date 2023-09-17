@@ -36,22 +36,22 @@ impl<'s> AstGen<'s> {
         if let Some(macros) = self.parse_macro_invocations(MacroKind::Ast)? {
             let top_level_expr = self.parse_top_level_expr()?;
 
-            if let Some((_, subject)) = top_level_expr {
+            return if let Some((_, subject)) = top_level_expr {
                 let expr = self.node_with_joined_span(
                     Expr::Macro(ExprMacroInvocation { macros, subject }),
                     start,
                 );
 
                 let semi = maybe_eat_semi(self);
-                return Ok(Some((semi, expr)));
+                Ok(Some((semi, expr)))
             } else {
-                return self.err_with_location(
+                self.err_with_location(
                     ParseErrorKind::ExpectedExpr,
                     ExpectedItem::empty(),
                     None,
                     self.current_pos(),
-                );
-            }
+                )
+            };
         }
 
         // So here we want to check that the next token(s) could make up a singular
@@ -69,7 +69,6 @@ impl<'s> AstGen<'s> {
 
         // Handle trailing semi-colons...
         if let Some(TokenKind::Semi) = self.peek_kind() {
-            self.skip_fast(); // `;`
             self.eat_trailing_semis();
 
             return Ok(None);
@@ -109,7 +108,7 @@ impl<'s> AstGen<'s> {
         }
 
         // Emit trailing semis diagnostic
-        let span = self.make_span(tok.span.join(self.current_pos()));
+        let span = self.make_span(tok.span.join(self.prev_pos()));
         self.add_warning(ParseWarning::new(WarningKind::TrailingSemis(span.len()), span));
     }
 
@@ -143,8 +142,7 @@ impl<'s> AstGen<'s> {
 
             // Handle primitive literals
             kind if kind.is_lit() => {
-                self.skip_fast(); // literal
-                let data = self.parse_primitive_lit()?;
+                let data = self.parse_primitive_lit();
                 self.node_with_span(Expr::Lit(LitExpr { data }), token.span)
             }
             TokenKind::Ident(ident) => {
@@ -153,22 +151,18 @@ impl<'s> AstGen<'s> {
                 self.node_with_span(Expr::Variable(VariableExpr { name }), token.span)
             }
             TokenKind::Lt => {
-                self.skip_fast(); // `<`
                 let def = self.parse_ty_fn_def()?;
                 self.node_with_joined_span(Expr::TyFnDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Struct) => {
-                self.skip_fast(); // `struct`
                 let def = self.parse_struct_def()?;
                 self.node_with_joined_span(Expr::StructDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Enum) => {
-                self.skip_fast(); // `enum`
                 let def = self.parse_enum_def()?;
                 self.node_with_joined_span(Expr::EnumDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Trait) => {
-                self.skip_fast(); // `trait`
                 let def = self.parse_trait_def()?;
                 self.node_with_joined_span(Expr::TraitDef(def), token.span)
             }
@@ -178,17 +172,18 @@ impl<'s> AstGen<'s> {
                 self.node_with_joined_span(Expr::Ty(TyExpr { ty }), token.span)
             }
             TokenKind::Keyword(Keyword::Mod) => {
-                self.skip_fast(); // `mod`
                 let def = self.parse_mod_def()?;
                 self.node_with_joined_span(Expr::ModDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Impl) => {
-                self.skip_fast(); // `impl`
-
-                if let Some(TokenKind::Tree(Delimiter::Brace, _)) = self.peek_kind() {
+                if let Some(Token { kind: TokenKind::Tree(Delimiter::Brace, _), .. }) =
+                    self.peek_second()
+                {
                     let def = self.parse_impl_def()?;
                     self.node_with_joined_span(Expr::ImplDef(def), token.span)
                 } else {
+                    self.skip_fast(); // `impl`
+
                     let ty = self.parse_ty()?;
                     let trait_body = self.parse_exprs_from_braces()?;
 
@@ -207,14 +202,13 @@ impl<'s> AstGen<'s> {
             }
             // Non-body blocks
             kind if kind.begins_block() => {
-                self.skip_fast(); // `for`, `while`, `loop`, `if`, `match`
-
                 let start = self.current_pos();
 
                 let block = match kind {
                     TokenKind::Keyword(Keyword::For) => self.parse_for_loop()?,
                     TokenKind::Keyword(Keyword::While) => self.parse_while_loop()?,
                     TokenKind::Keyword(Keyword::Loop) => {
+                        self.skip_fast(); // `loop`
                         let block = self.parse_block()?;
                         self.node_with_joined_span(
                             Block::Loop(LoopBlock { contents: block }),
@@ -236,7 +230,7 @@ impl<'s> AstGen<'s> {
 
             // Either tuple, function, or nested expression
             TokenKind::Tree(Delimiter::Paren, _) => {
-                let offset = self.offset();
+                let offset = self.position();
                 self.skip_token();
 
                 // Now here we have to look ahead after the token_tree to see if there is an
@@ -334,7 +328,7 @@ impl<'s> AstGen<'s> {
 
         loop {
             let op_start = self.next_pos();
-            let offset = self.offset();
+            let offset = self.position();
             // this doesn't consider operators that have an 'eq' variant because that is
             // handled at the statement level, since it isn't really a binary
             // operator...
@@ -405,14 +399,8 @@ impl<'s> AstGen<'s> {
         while let Some(token) = self.peek() {
             subject = match token.kind {
                 // Property access or method call
-                TokenKind::Dot => {
-                    self.skip_fast(); // `.`
-                    self.parse_property_access(subject, subject_span)?
-                }
-                TokenKind::Access => {
-                    self.skip_fast(); // `::`
-                    self.parse_ns_access(subject, subject_span)?
-                }
+                TokenKind::Dot => self.parse_property_access(subject, subject_span)?,
+                TokenKind::Access => self.parse_ns_access(subject, subject_span)?,
                 TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject, subject_span) {
                     (subject, true) => subject,
                     // Essentially break because the type_args failed
@@ -456,7 +444,9 @@ impl<'s> AstGen<'s> {
         let (path, span) =
             self.in_tree(Delimiter::Paren, None, |gen| match gen.next_token().copied() {
                 Some(Token { kind: TokenKind::Str(path), span }) => Ok((path, span)),
-                _ => gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), None)?,
+                tok => {
+                    gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), tok.map(|t| t.kind))?
+                }
             })?;
 
         // Attempt to add the module via the resolver
@@ -684,7 +674,7 @@ impl<'s> AstGen<'s> {
             return Ok((lhs, false));
         };
 
-        let offset = self.offset();
+        let offset = self.position();
         self.skip(consumed_tokens);
 
         match self.peek_kind() {
@@ -718,6 +708,7 @@ impl<'s> AstGen<'s> {
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
+        self.skip_fast(); // `.`
 
         if let Some(token) = self.peek() && token.kind.is_numeric() {
             // If the next token kind is a integer with no sign, then we can assume
@@ -761,6 +752,7 @@ impl<'s> AstGen<'s> {
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Access));
+        self.skip_fast(); // `::`
 
         let property = self.parse_named_field(ParseErrorKind::ExpectedName)?;
         Ok(self.node_with_joined_span(
@@ -790,7 +782,7 @@ impl<'s> AstGen<'s> {
             // parse a function in the form of `() => ...` for whatever reason, then it
             // is trying to parse either a tuple or an expression.
             // Handle the empty tuple case
-            if gen.stream().len() < 2 {
+            if gen.len() < 2 {
                 let elements = gen.nodes_with_span(thin_vec![], start);
                 let data = gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start);
                 let tuple = gen.node_with_joined_span(Expr::Lit(LitExpr { data }), start);
@@ -865,8 +857,8 @@ impl<'s> AstGen<'s> {
     /// into other functions.
     pub(crate) fn parse_fn_def(&mut self) -> ParseResult<AstNode<Expr>> {
         // parse function definition parameters.
-        let params = self.parse_params(ParamOrigin::Fn)?;
         let start = self.current_pos();
+        let params = self.parse_params(ParamOrigin::Fn)?;
 
         // check if there is a return type
         let return_ty = match self.peek_resultant_fn(|g| g.parse_token(TokenKind::ThinArrow)) {

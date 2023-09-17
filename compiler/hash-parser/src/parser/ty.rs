@@ -155,8 +155,6 @@ impl<'s> AstGen<'s> {
             // Type function, which is a collection of arguments enclosed in `<...>` and then
             // followed by a return type
             TokenKind::Lt => {
-                self.skip_fast(); // `<`
-
                 multi_ty_components = false;
                 self.parse_ty_fn()?
             }
@@ -315,7 +313,7 @@ impl<'s> AstGen<'s> {
             let params = match gen.peek_kind() {
                 // Handle special case where there is only one comma and no following items...
                 // Special edge case for '(,)' or an empty tuple type...
-                Some(TokenKind::Comma) if gen.stream().len() == 1 => {
+                Some(TokenKind::Comma) if gen.len() == 1 => {
                     gen.skip_fast(); // `,`
                     gen.nodes_with_span(thin_vec![], gen.range())
                 }
@@ -326,10 +324,8 @@ impl<'s> AstGen<'s> {
             };
 
             // Here we check that the token tree has a comma at the end to later determine
-            // if this is a `TupleType`...
-            let gen_has_comma =
-                !gen.stream().is_empty() && gen.current_token().has_kind(TokenKind::Comma);
-
+            // if this is a `TupleTy`...
+            let gen_has_comma = !gen.is_empty() && gen.prev_token().has_kind(TokenKind::Comma);
             Ok((params, gen_has_comma))
         })?;
 
@@ -358,6 +354,7 @@ impl<'s> AstGen<'s> {
     /// subject type is parsed and passed into the function. This function
     /// only deals with the argument part of the function.
     fn parse_ty_fn(&mut self) -> ParseResult<Ty> {
+        debug_assert!(matches!(self.current_token(), Token { kind: TokenKind::Lt, .. }));
         // Since this is only called from `parse_singular_type` we know that this should
         // only be fired when the next token is a an `<`
         let params = self.parse_ty_params(TyParamOrigin::TyFn)?;
@@ -377,10 +374,7 @@ impl<'s> AstGen<'s> {
         def_kind: TyParamOrigin,
     ) -> ParseResult<Option<AstNode<TyParams>>> {
         match self.peek_kind() {
-            Some(TokenKind::Lt) => {
-                self.skip_fast(); // `<`
-                Ok(Some(self.parse_ty_params(def_kind)?))
-            }
+            Some(TokenKind::Lt) => Ok(Some(self.parse_ty_params(def_kind)?)),
             _ => Ok(None),
         }
     }
@@ -402,8 +396,9 @@ impl<'s> AstGen<'s> {
         origin: TyParamOrigin,
     ) -> ParseResult<AstNode<TyParams>> {
         debug_assert!(matches!(self.current_token(), Token { kind: TokenKind::Lt, .. }));
-
         let start_span = self.current_pos();
+        self.skip_fast(); // `<`
+
         let mut params = thin_vec![];
 
         // Shortcut, if we get no arguments, then we can avoid looping:
@@ -411,7 +406,7 @@ impl<'s> AstGen<'s> {
             self.skip_fast(); // `>`
 
             // Emit a warning here if there were no params
-            let span = start_span.join(self.current_pos());
+            let span = start_span.join(self.prev_pos());
             self.add_warning(ParseWarning::new(
                 WarningKind::UselessTyParams { origin },
                 self.make_span(span),
@@ -478,12 +473,10 @@ impl<'s> AstGen<'s> {
     /// type annotation and an optional "default" value for the parameter.
     fn parse_ty_param(&mut self) -> ParseResult<AstNode<TyParam>> {
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
-        let start = self.current_pos();
+        let token = *self.current_token();
 
         // We always get a name for this kind of parameter.
         let name = Some(self.parse_name().map_err(|_| {
-            let token = self.current_token();
-
             self.make_err(
                 ParseErrorKind::UnExpected,
                 ExpectedItem::Ident | ExpectedItem::Gt,
@@ -512,6 +505,6 @@ impl<'s> AstGen<'s> {
             None => None,
         };
 
-        Ok(self.node_with_joined_span(TyParam { name, ty, default, macros }, start))
+        Ok(self.node_with_joined_span(TyParam { name, ty, default, macros }, token.span))
     }
 }
