@@ -283,7 +283,7 @@ impl<'s> AstGen<'s> {
     /// Parse a type argument.
     fn parse_ty_arg(&mut self) -> ParseResult<AstNode<TyArg>> {
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
-        let start = self.next_pos();
+        let start = self.current_pos();
 
         // Here we have to essentially try and parse a identifier. If this is the
         // case and then there is a colon present then we

@@ -22,7 +22,7 @@ impl<'s> AstGen<'s> {
     pub fn parse_pat(&mut self) -> ParseResult<AstNode<Pat>> {
         // attempt to get the next token location as we're starting a pattern here, if
         // there is no token we should exit and return an error
-        let start = self.next_pos();
+        let start = self.current_pos();
 
         // Parse the first pattern, but throw away the location information since that
         // will be computed at the end anyway...
@@ -55,7 +55,7 @@ impl<'s> AstGen<'s> {
     /// Parse a [Pat] with an optional `if-guard` after the singular
     /// pattern.
     pub fn parse_pat_with_if(&mut self) -> ParseResult<AstNode<Pat>> {
-        let start = self.next_pos();
+        let start = self.current_pos();
         let pat = self.parse_singular_pat()?;
 
         match self.peek_kind() {
@@ -74,7 +74,7 @@ impl<'s> AstGen<'s> {
     /// pattern operators such as a `|`, if guards or any form of compound
     /// pattern.
     pub(crate) fn parse_singular_pat(&mut self) -> ParseResult<AstNode<Pat>> {
-        let span = self.next_pos();
+        let span = self.current_pos();
         let (mut subject, can_continue) = self.parse_pat_component()?;
 
         while let Some(token) = self.peek() && can_continue {
@@ -166,7 +166,7 @@ impl<'s> AstGen<'s> {
 
                 return self.err_with_location(
                     ParseErrorKind::UnsupportedExprInPat {
-                        value: self.source.hunk(self.next_pos()).to_string(),
+                        value: self.source.hunk(self.current_pos()).to_string(),
                     },
                     ExpectedItem::empty(),
                     None,
@@ -400,7 +400,7 @@ impl<'s> AstGen<'s> {
     /// argument.
     pub(crate) fn parse_pat_arg(&mut self) -> ParseResult<AstNode<PatArg>> {
         let macros = self.parse_macro_invocations(MacroKind::Ast)?;
-        let start = self.next_pos();
+        let start = self.current_pos();
 
         let (name, pat) = match self.peek_kind() {
             Some(TokenKind::Ident(_)) => {
@@ -449,7 +449,7 @@ impl<'s> AstGen<'s> {
                     ParseErrorKind::MalformedSpreadPat(1),
                     ExpectedItem::Dot,
                     None,
-                    self.next_pos(),
+                    self.current_pos(),
                 );
             }
             Some(TokenKind::Dot) => {
@@ -458,7 +458,7 @@ impl<'s> AstGen<'s> {
                     ParseErrorKind::MalformedSpreadPat(2),
                     ExpectedItem::Range,
                     None,
-                    self.next_pos(),
+                    self.current_pos(),
                 );
             }
             _ => {

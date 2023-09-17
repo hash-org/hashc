@@ -82,7 +82,7 @@ impl<'s> AstGen<'s> {
     /// this will just parse the entry as a single expression rather than a
     /// tuple entry with an associated name and type.
     pub(crate) fn parse_tuple_lit_entry(&mut self) -> ParseResult<AstNode<TupleLitEntry>> {
-        let start = self.next_pos();
+        let start = self.current_pos();
         let offset = self.position();
 
         // Determine if this might have a tuple field name and optional type

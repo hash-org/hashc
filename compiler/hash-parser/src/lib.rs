@@ -29,7 +29,7 @@ use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
     indexmap::IndexMap,
     rayon,
-    timing::{time_item, AccessToMetrics},
+    timing::{time_item, AccessToMetrics}
 };
 use import_resolver::ImportResolver;
 use parser::AstGen;
@@ -267,6 +267,10 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     };
 
+    // @@Debugging: when we want to look at spans produced by the parser, uncomment 
+    // this line.
+    // SourceMapUtils::set_module_source(id, contents.clone());
+
     let spanned = SpannedSource::from_string(contents.as_str());
 
     // Lex the contents of the module or interactive block
@@ -294,7 +298,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(id, source.parent(), sender);
     let mut diagnostics = ParserDiagnostics::new();
-    let mut spans = LocalSpanMap::new(id);
+    let mut spans = LocalSpanMap::with_capacity(id, tokens.len() * 2);
     let mut gen = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the

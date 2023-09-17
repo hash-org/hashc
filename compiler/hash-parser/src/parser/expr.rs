@@ -18,7 +18,7 @@ impl<'s> AstGen<'s> {
     /// semi-colon.
     #[profiling::function]
     pub fn parse_top_level_expr(&mut self) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
-        let start = self.next_pos();
+        let start = self.current_pos();
 
         // This is used to handle a semi-colon that occurs at the end of
         // an expression...
@@ -327,7 +327,7 @@ impl<'s> AstGen<'s> {
         let (mut lhs, lhs_span) = self.track_span(|this| this.parse_expr())?;
 
         loop {
-            let op_start = self.next_pos();
+            let op_start = self.current_pos();
             let offset = self.position();
             // this doesn't consider operators that have an 'eq' variant because that is
             // handled at the statement level, since it isn't really a binary
