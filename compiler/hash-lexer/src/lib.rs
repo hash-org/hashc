@@ -25,6 +25,9 @@ use crate::{
 pub mod error;
 mod utils;
 
+/// Information about a tree that is being lexed by the [Lexer]. Includes
+/// information about the start of the lexer (in the token buffer), and if the
+/// lexer consumed a delimiter token.
 #[derive(Clone, Copy, Debug)]
 struct TreeInfo {
     /// An index into the stream of tokens, pointing to where the tree begins.
@@ -151,7 +154,7 @@ impl<'a> Lexer<'a> {
     /// Returns amount of already consumed symbols.
     #[inline(always)]
     fn len_consumed(&self) -> usize {
-        self.offset.get()
+        self.offset.get() - 1
     }
 
     /// Get the remaining un-lexed contents as a raw string.
@@ -210,7 +213,7 @@ impl<'a> Lexer<'a> {
 
     /// Checks if there is nothing more to consume.
     fn is_eof(&self) -> bool {
-        self.contents.0.len() == self.len_consumed()
+        self.contents.0.len() == self.offset.get()
     }
 
     /// Strip the shebang, e.g. "#!/usr/bin/hashc", from a source assuming that
@@ -362,7 +365,7 @@ impl<'a> Lexer<'a> {
     /// behaviour is desired and avoids performing complex delimiter depth
     /// analysis later on.
     fn eat_token_tree(&mut self, delimiter: Delimiter) -> TokenKind {
-        let tree_byte_offset = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
+        let delim_offset = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
         // we need to reset self.prev here as it might be polluted with previous token
         // trees
@@ -395,7 +398,7 @@ impl<'a> Lexer<'a> {
                 // Update the tree token with the length of the tree.
                 self.tokens[start - 1] = Token::new(
                     TokenKind::Tree(delimiter, (self.tokens.len() - start) as u32),
-                    ByteRange::new(tree_byte_offset, self.len_consumed()),
+                    ByteRange::new(delim_offset, self.len_consumed()),
                 );
 
                 // ##Hack: This token won't be put into the token stream, it's just
@@ -410,7 +413,7 @@ impl<'a> Lexer<'a> {
                 self.emit_error(
                     None,
                     LexerErrorKind::Unclosed(delimiter),
-                    ByteRange::new(tree_byte_offset, tree_byte_offset + 1),
+                    ByteRange::singleton(delim_offset),
                 )
             }
         }
@@ -476,7 +479,7 @@ impl<'a> Lexer<'a> {
     /// function is called.
     fn number(&mut self, prev: char, skip: bool) -> TokenKind {
         // record the start location of the literal
-        let start = self.offset.get() - (1 + skip as usize);
+        let start = self.offset.get() - (skip as usize);
 
         // firstly, figure out if this literal has a base, if so then we need to perform
         // some magic at the end to cast it into the correct base...
@@ -501,7 +504,7 @@ impl<'a> Lexer<'a> {
                     return self.emit_error(
                         None,
                         LexerErrorKind::MissingDigits,
-                        ByteRange::new(start, self.offset.get()),
+                        ByteRange::new(start, self.len_consumed()),
                     );
                 }
 
@@ -516,7 +519,7 @@ impl<'a> Lexer<'a> {
                     return self.emit_error(
                         None,
                         LexerErrorKind::UnsupportedFloatBaseLiteral(radix.into()),
-                        ByteRange::new(start, self.offset.get()),
+                        ByteRange::new(start, self.len_consumed()),
                     );
                 } else {
                     return self.create_int_const(radix.into(), suffix);
@@ -573,7 +576,7 @@ impl<'a> Lexer<'a> {
                             return self.emit_error(
                                 None,
                                 LexerErrorKind::InvalidLitSuffix(NumericLitKind::Float, suffix),
-                                ByteRange::new(start, self.offset.get()),
+                                ByteRange::new(start, self.len_consumed()),
                             );
                         }
                     }
@@ -608,7 +611,7 @@ impl<'a> Lexer<'a> {
             return self.error(
                 None,
                 LexerErrorKind::MissingExponentDigits,
-                ByteRange::new(start, self.offset.get()),
+                ByteRange::new(start, self.len_consumed()),
             );
         }
 
@@ -616,7 +619,7 @@ impl<'a> Lexer<'a> {
             self.error(
                 Some("Invalid float exponent.".to_string()),
                 LexerErrorKind::MalformedNumericalLit,
-                ByteRange::new(start, self.offset.get() + 1),
+                ByteRange::new(start, self.len_consumed()),
             )
         } else {
             Ok(())
@@ -651,7 +654,7 @@ impl<'a> Lexer<'a> {
                     return self.error(
                         Some("Expected `{` after a `\\u` escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        ByteRange::new(start, self.offset.get()),
+                        ByteRange::new(start, self.len_consumed()),
                     );
                 }
 
@@ -664,7 +667,7 @@ impl<'a> Lexer<'a> {
                     return self.error(
                         Some("expected `}` after a escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        ByteRange::new(self.offset.get(), self.offset.get() + 1),
+                        ByteRange::new(self.offset.get(), self.offset.get()),
                     );
                 }
                 self.skip_ascii(); // Eat the '}' ending part of the scape sequence
@@ -673,7 +676,7 @@ impl<'a> Lexer<'a> {
                     return self.error(
                         Some("Unicode escape literal must be at most 6 hex digits".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        ByteRange::new(start, self.offset.get()),
+                        ByteRange::new(start, self.len_consumed()),
                     );
                 }
 
@@ -702,21 +705,19 @@ impl<'a> Lexer<'a> {
                         EOF_CHAR => self.error(
                             Some("ASCII escape code too short".to_string()),
                             LexerErrorKind::BadEscapeSequence,
-                            ByteRange::new(start, self.offset.get()),
+                            ByteRange::new(start, self.len_consumed()),
                         ),
                         c => self.error(
                             Some("ASCII escape code must only contain hex digits".to_string()),
                             LexerErrorKind::Unexpected(c),
-                            ByteRange::new(start, self.offset.get()),
+                            ByteRange::new(start, self.len_consumed()),
                         ),
                     })
                     .collect();
 
-                let chars = chars?;
-
                 // ##Safety: Safe to unwrap since we check that both chars are hex valid and two
                 // hex chars will always to fit into a u32
-                let value = u32::from_str_radix(chars.as_str(), 16).unwrap();
+                let value = u32::from_str_radix(chars?.as_str(), 16).unwrap();
 
                 Ok(char::from_u32(value).unwrap())
             }
@@ -731,7 +732,7 @@ impl<'a> Lexer<'a> {
             ch => self.error(
                 Some(format!("unknown escape sequence `{ch}`")),
                 LexerErrorKind::BadEscapeSequence,
-                ByteRange::new(start, start + 1),
+                ByteRange::new(start, start),
             ),
         }
     }
@@ -764,7 +765,7 @@ impl<'a> Lexer<'a> {
                             return self.emit_error(
                                 Some("unclosed character literal".to_string()),
                                 LexerErrorKind::Expected(TokenKind::SingleQuote),
-                                ByteRange::new(offset, offset + 1),
+                                ByteRange::new(offset, offset),
                             );
                         }
 
@@ -810,7 +811,7 @@ impl<'a> Lexer<'a> {
         self.emit_error(
             None,
             LexerErrorKind::InvalidCharacterLit(lit),
-            ByteRange::new(start, self.offset.get()),
+            ByteRange::new(start, self.len_consumed()),
         )
     }
 
@@ -846,13 +847,13 @@ impl<'a> Lexer<'a> {
             // If we have a windows line ending, we want to use the offset before
             // the current so we're not highlighting the `\r` as well
             if value.len() >= 2 && &value[(value.len() - 2)..] == "\r\n" {
-                self.offset.set(self.offset.get() - 1);
+                self.offset.set(self.offset.get() - 2);
             }
 
             return self.emit_fatal_error(
                 None,
                 LexerErrorKind::UnclosedStringLit,
-                ByteRange::new(start, self.offset.get()),
+                ByteRange::new(start, self.len_consumed()),
             );
         }
 
@@ -927,7 +928,8 @@ impl<'a> Lexer<'a> {
     fn eat_while_and_slice(&self, condition: impl FnMut(char) -> bool) -> &str {
         let start = self.offset.get();
         self.eat_while_and_discard(condition);
-        let end = self.offset.get();
+        let consumed = self.offset.get();
+        let end = if consumed == start { start } else { consumed - 1 };
 
         self.contents.hunk(ByteRange::new(start, end))
     }

@@ -10,9 +10,9 @@ use hash_utils::{derive_more::Constructor, range_map::RangeMap};
 use crate::{SourceId, SourceMapUtils};
 
 /// [ByteRange] represents a location of a range of tokens within the source.
-///
-/// The first element of the tuple represents the starting byte offset and the
-/// second element represents the ending byte offset.
+/// The range itself is considered to be inclusive, so ranges such as `0:0`
+/// would include the first byte of the source, and ranges like `0:1` would
+/// include the first two bytes of the source.
 #[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
 pub struct ByteRange(u32, u32);
 
@@ -21,6 +21,11 @@ impl ByteRange {
     pub fn new(start: usize, end: usize) -> Self {
         debug_assert!(end >= start, "invalid span. start > end. start={} end={}", start, end);
         ByteRange(start as u32, end as u32)
+    }
+
+    /// Create a single byte [ByteRange] by providing a start position.
+    pub fn singleton(start: usize) -> Self {
+        ByteRange(start as u32, start as u32)
     }
 
     /// This function is used to join a [ByteRange] to another [ByteRange].
@@ -61,7 +66,7 @@ impl ByteRange {
     /// Compute the actual size of the [ByteRange] by subtracting the end
     /// from start.
     pub fn len(&self) -> usize {
-        self.end() - self.start()
+        (self.end() + 1) - self.start()
     }
 
     /// Check if the [ByteRange] is empty.
@@ -130,7 +135,12 @@ impl Span {
         self.range.is_empty()
     }
 
-    /// Formaat the [Span] into a file path with a column and row number.
+    /// Format the [ByteRange] into a file path with a column and row number.
+    pub fn fmt_range(&self) -> String {
+        SourceMapUtils::map(self.id, |source| format!("{}", source.row_cols(self.range)))
+    }
+
+    /// Format the [Span] into a file path with a column and row number.
     ///
     /// The span is formatted into the following format:
     /// ```notrust
@@ -225,7 +235,7 @@ impl<'s> SpannedSource<'s> {
 
     /// Get a hunk of the source by the specified [ByteRange].
     pub fn hunk(&self, range: ByteRange) -> &'s str {
-        &self.0[range.start()..range.end()]
+        &self.0[range.start()..(range.end() + 1)]
     }
 }
 
@@ -254,19 +264,19 @@ impl LineRanges {
     }
 
     /// Get a [RowCol] from a given byte index.
-    pub fn get_row_col(&self, index: usize) -> RowCol {
+    pub fn get_row_col(&self, index: usize, end: bool) -> RowCol {
         let ranges = &self.0;
         let line = ranges.index_wrapping(index);
         let key = ranges.key_wrapping(index);
         let offset = key.start();
 
-        RowCol { row: line, column: index - offset }
+        RowCol { row: line, column: index + (end as usize) - offset }
     }
 
     /// Returns the line and column of the given [ByteRange]
     pub fn row_cols(&self, range: ByteRange) -> RowColRange {
-        let start = self.get_row_col(range.start());
-        let end = self.get_row_col(range.end());
+        let start = self.get_row_col(range.start(), false);
+        let end = self.get_row_col(range.end(), true);
 
         RowColRange { start, end }
     }

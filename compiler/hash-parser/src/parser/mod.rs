@@ -85,12 +85,14 @@ impl<'s> AstGenFrame<'s> {
     ///
     /// Second step, offset the end of the span by one.
     fn eof_pos(&self) -> ByteRange {
-        let span = match self.peek() {
+        let pos = match self.peek() {
             Some(token) => token.span,
             None => self.previous_pos(),
-        };
+        }
+        .end()
+            + 1;
 
-        ByteRange::new(span.end(), span.end() + 1)
+        ByteRange::new(pos, pos)
     }
 
     /// Get a [ByteRange] to use when the parser expected a token or some other
@@ -103,8 +105,8 @@ impl<'s> AstGenFrame<'s> {
     ///
     /// - Add one to the end of the span.
     fn expected_pos(&self) -> ByteRange {
-        let span = self.previous_pos();
-        ByteRange::new(span.end(), span.end() + 1)
+        let pos = self.previous_pos().end() + 1;
+        ByteRange::new(pos, pos)
     }
 }
 
