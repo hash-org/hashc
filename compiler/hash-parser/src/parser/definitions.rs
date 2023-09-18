@@ -39,14 +39,11 @@ impl<'s> AstGen<'s> {
         let def_kind = TyParamOrigin::Enum;
         let ty_params = self.parse_optional_ty_params(def_kind)?;
 
-        let entries = self.in_tree(
-            Delimiter::Paren,
-            Some(ParseErrorKind::TypeDefinition(def_kind)),
-            |gen| {
+        let entries =
+            self.in_tree(Delimiter::Paren, Some(ParseErrorKind::TyDef(def_kind)), |gen| {
                 Ok(gen
                     .parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma)))
-            },
-        )?;
+            })?;
 
         Ok(EnumDef { ty_params, entries })
     }
@@ -80,8 +77,8 @@ impl<'s> AstGen<'s> {
         // We add a little bit more context if the param-origin is a type definition
         // item.
         let err_ctx = match origin {
-            ParamOrigin::Struct => Some(ParseErrorKind::TypeDefinition(TyParamOrigin::Struct)),
-            ParamOrigin::EnumVariant => Some(ParseErrorKind::TypeDefinition(TyParamOrigin::Enum)),
+            ParamOrigin::Struct => Some(ParseErrorKind::TyDef(TyParamOrigin::Struct)),
+            ParamOrigin::EnumVariant => Some(ParseErrorKind::TyDef(TyParamOrigin::Enum)),
             _ => None,
         };
 

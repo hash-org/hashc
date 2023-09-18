@@ -12,9 +12,10 @@ impl<'s> AstGen<'s> {
     /// Parse a block.
     #[inline]
     pub(crate) fn parse_block(&mut self) -> ParseResult<AstNode<Block>> {
-        let (block, span) = self.in_tree(Delimiter::Brace, Some(ParseErrorKind::Block), |gen| {
-            Ok((gen.parse_body_block_inner(), gen.range()))
-        })?;
+        let (block, span) =
+            self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
+                Ok((gen.parse_body_block_inner(), gen.range()))
+            })?;
 
         Ok(self.node_with_span(Block::Body(block), span))
     }
@@ -23,9 +24,10 @@ impl<'s> AstGen<'s> {
     /// [Block].
     #[inline]
     pub(crate) fn parse_body_block(&mut self) -> ParseResult<AstNode<BodyBlock>> {
-        let (block, span) = self.in_tree(Delimiter::Brace, Some(ParseErrorKind::Block), |gen| {
-            Ok((gen.parse_body_block_inner(), gen.range()))
-        })?;
+        let (block, span) =
+            self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
+                Ok((gen.parse_body_block_inner(), gen.range()))
+            })?;
 
         Ok(self.node_with_span(block, span))
     }

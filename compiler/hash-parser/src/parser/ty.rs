@@ -65,7 +65,7 @@ impl<'s> AstGen<'s> {
     fn parse_singular_ty(&mut self) -> ParseResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
             self.make_err(
-                ParseErrorKind::ExpectedType,
+                ParseErrorKind::ExpectedTy,
                 ExpectedItem::Type,
                 None,
                 Some(self.next_pos()),
@@ -168,7 +168,7 @@ impl<'s> AstGen<'s> {
             }
 
             kind => self.err_with_location(
-                ParseErrorKind::ExpectedType,
+                ParseErrorKind::ExpectedTy,
                 ExpectedItem::Type,
                 Some(*kind),
                 span,

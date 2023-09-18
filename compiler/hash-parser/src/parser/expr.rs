@@ -265,14 +265,6 @@ impl<'s> AstGen<'s> {
 
                 self.node_with_joined_span(return_expr, token.span)
             }
-            kind @ TokenKind::Keyword(_) => {
-                return self.err_with_location(
-                    ParseErrorKind::Keyword,
-                    ExpectedItem::empty(),
-                    Some(kind),
-                    token.span,
-                )
-            }
             kind => {
                 return self.err_with_location(
                     ParseErrorKind::ExpectedExpr,
