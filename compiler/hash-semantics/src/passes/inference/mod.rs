@@ -78,9 +78,7 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
                 tc.infer_ops().infer_term(term_id, ty_id)?;
                 Ok((term_id, ty_id))
             },
-            |(term_id, ty_id)| {
-                tc.sub_ops().atom_has_holes(term_id).or(tc.sub_ops().atom_has_holes(ty_id))
-            },
+            |(term_id, ty_id)| tc.sub_ops().has_holes(term_id).or(tc.sub_ops().has_holes(ty_id)),
         )?;
         self.ast_info.terms().insert(node.id(), term);
         Ok(())
@@ -107,7 +105,7 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
                 )?;
                 Ok(mod_def_id)
             },
-            |mod_def_id| tc.sub_ops().mod_def_has_holes(mod_def_id),
+            |mod_def_id| tc.sub_ops().has_holes(mod_def_id),
         )?;
         // Mod def is already registered in the ast info
         Ok(())

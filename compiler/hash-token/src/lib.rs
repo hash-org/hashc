@@ -1,5 +1,7 @@
 //! Hash Compiler token definitions that are used by the lexer when lexing
 //! the input sources.
+#![feature(c_size_t, strict_provenance)]
+
 pub mod delimiter;
 pub mod keyword;
 
@@ -82,7 +84,6 @@ impl TokenKind {
                     | TokenKind::Tilde
                     | TokenKind::Exclamation
                     | TokenKind::Keyword(Keyword::Unsafe)
-                    | TokenKind::Keyword(Keyword::TypeOf)
         )
     }
 

@@ -266,7 +266,7 @@ impl<I: CompilerInterface> Driver<I> {
             // bootstrap
             if self.compiler.diagnostics().iter().any(|r| r.is_error()) {
                 panic!(
-                    "failed to bootstrap compiler: {}",
+                    "failed to bootstrap compiler:\n{}",
                     Reporter::from_reports(self.compiler.diagnostics().to_owned())
                 );
             }
@@ -312,6 +312,7 @@ impl<I: CompilerInterface> Driver<I> {
         // we can print the diagnostics here
         if self.compiler.settings().emit_errors
             && (!self.compiler.diagnostics().is_empty() || result.is_err())
+            && !source.is_prelude()
         {
             self.emit_diagnostics();
         }

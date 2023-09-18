@@ -105,6 +105,12 @@ pub struct Span {
 }
 
 impl Span {
+    /// Create a null-[Span], setting the range to be 0-0, and
+    /// pointing to the prelude module.
+    pub fn null() -> Self {
+        Self::new(ByteRange::default(), SourceId::default())
+    }
+
     /// Join the span of a [Span] with another [Span].
     ///
     /// *Note*: the `id` of both [Span]s must be the same.

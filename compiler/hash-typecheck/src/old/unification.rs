@@ -150,10 +150,10 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             })?;
 
             let forward_sub = self.sub_ops().create_sub_from_param_names(f1.params, f2.params);
-            f2.return_ty = self.sub_ops().apply_sub_to_term(f2.return_ty, &forward_sub);
+            f2.return_ty = self.sub_ops().apply_sub(f2.return_ty, &forward_sub);
 
             let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
-            f1.return_ty = self.sub_ops().apply_sub_to_term(f1.return_ty, &backward_sub);
+            f1.return_ty = self.sub_ops().apply_sub(f1.return_ty, &backward_sub);
 
             src_id.set(src_id.value().with_data(f1.into()));
             target_id.set(target_id.value().with_data(f2.into()));
@@ -222,7 +222,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             self.unify_terms(src_id, target_id)?;
             Ok(self.sub_ops().create_sub_from_current_scope())
         })?;
-        let subbed_initial = self.sub_ops().apply_sub_to_term(initial, &sub);
+        let subbed_initial = self.sub_ops().apply_sub(initial, &sub);
         self.add_unification_from_sub(&sub);
         Ok((subbed_initial, sub))
     }
@@ -396,8 +396,8 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
 
                     // Unify the types
                     self.unify_terms(src_param.ty, target_param.ty)?;
-                    self.sub_ops().apply_sub_to_term_in_place(target_param.ty, &forward_sub);
-                    self.sub_ops().apply_sub_to_term_in_place(src_param.ty, &backward_sub);
+                    self.sub_ops().apply_sub_in_place(target_param.ty, &forward_sub);
+                    self.sub_ops().apply_sub_in_place(src_param.ty, &backward_sub);
                 }
 
                 // Run the in-scope closure

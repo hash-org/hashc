@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::HasDiagnostics;
+use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::location::ByteRange;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, IntLitKind, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
@@ -13,7 +13,7 @@ use crate::diagnostics::{
     warning::{ParseWarning, WarningKind},
 };
 
-impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
+impl<'s> AstGen<'s> {
     /// Parse a top level [Expr] that are optionally terminated with a
     /// semi-colon.
     #[profiling::function]
@@ -131,22 +131,24 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Firstly, we have to get the initial part of the expression,
         // and then we can check if there are any additional parts in the
         // forms of either property accesses, indexing or method calls
-        let subject = match token.kind {
+        let (subject, subject_span) = self.track_span(|this| this.parse_expr_component(token))?;
+
+        self.parse_singular_expr(subject, subject_span)
+    }
+
+    fn parse_expr_component(&mut self, token: Token) -> ParseResult<AstNode<Expr>> {
+        Ok(match token.kind {
             kind if kind.is_unary_op() => return self.parse_unary_expr(),
 
             // Handle primitive literals
-            kind if kind.is_lit() => self.node_with_span(
-                Expr::Lit(LitExpr { data: self.parse_primitive_lit()? }),
-                token.span,
-            ),
+            kind if kind.is_lit() => {
+                let data = self.parse_primitive_lit()?;
+                self.node_with_span(Expr::Lit(LitExpr { data }), token.span)
+            }
             TokenKind::Ident(ident) => {
                 // Create the variable expr
-                self.node_with_span(
-                    Expr::Variable(VariableExpr {
-                        name: self.node_with_span(Name { ident }, token.span),
-                    }),
-                    token.span,
-                )
+                let name = self.node_with_span(Name { ident }, token.span);
+                self.node_with_span(Expr::Variable(VariableExpr { name }), token.span)
             }
             TokenKind::Lt => {
                 let def = self.parse_ty_fn_def()?;
@@ -191,8 +193,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Tree(Delimiter::Brace, _) => {
                 // ##Hack: we need to backtrack a single token so that `parse_block` can be
                 // used.
-                self.offset.set(self.offset.get() - 1);
-
+                self.backtrack(1);
                 let block = self.parse_block()?;
 
                 self.node_with_joined_span(Expr::Block(BlockExpr { data: block }), token.span)
@@ -254,12 +255,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     .is_some();
 
                 if has_arrow {
-                    self.offset.set(self.offset.get() - 2);
+                    self.backtrack(2);
                     is_func = true;
                 }
 
-                // Backtrack one token so that we can re-parse the 'gen'.
-                self.offset.set(self.offset.get() - 1);
+                self.backtrack(1); // Backtrack one token so that we can re-parse the 'gen'.
 
                 match is_func {
                     true => self.parse_fn_def()?,
@@ -298,18 +298,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     token.span,
                 )
             }
-        };
-
-        self.parse_singular_expr(subject)
+        })
     }
 
     /// Parse a [TyFnCall] wrapped within a [TyExpr]. This function tries to
     /// parse `ty_args` by using `parse_ty_args`. If this parsing fails,
     /// it could be that this isn't a type function call, but rather a
     /// simple binary expression which uses the `<` operator.
-    fn maybe_parse_ty_fn_call(&mut self, subject: AstNode<Expr>) -> (AstNode<Expr>, bool) {
-        let span = subject.byte_range();
-
+    fn maybe_parse_ty_fn_call(
+        &mut self,
+        subject: AstNode<Expr>,
+        subject_span: ByteRange,
+    ) -> (AstNode<Expr>, bool) {
         // @@Speed: so here we want to be efficient about type_args, we'll just try to
         // see if the next token atom is a 'Lt' rather than using parse_token_atom
         // because it throws an error essentially and thus allocates a stupid amount
@@ -317,18 +317,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         match self.peek() {
             Some(token) if token.has_kind(TokenKind::Lt) => {
                 match self.peek_resultant_fn_mut(|g| g.parse_ty_args(false)) {
-                    Some(args) => (
-                        self.node_with_joined_span(
-                            Expr::Ty(TyExpr {
-                                ty: self.node_with_joined_span(
-                                    Ty::TyFnCall(TyFnCall { subject, args }),
-                                    span,
-                                ),
-                            }),
-                            span,
-                        ),
-                        true,
-                    ),
+                    Some(args) => {
+                        let ty = self.node_with_joined_span(
+                            Ty::TyFnCall(TyFnCall { subject, args }),
+                            subject_span,
+                        );
+
+                        (self.node_with_joined_span(Expr::Ty(TyExpr { ty }), subject_span), true)
+                    }
                     None => (subject, false),
                 }
             }
@@ -345,8 +341,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         mut min_prec: u8,
     ) -> ParseResult<AstNode<Expr>> {
         // first of all, we want to get the lhs...
-        let mut lhs = self.parse_expr()?;
-        let lhs_span = lhs.byte_range();
+        let (mut lhs, lhs_span) = self.track_span(|this| this.parse_expr())?;
 
         loop {
             let op_start = self.next_pos();
@@ -375,7 +370,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         break;
                     }
 
-                    self.offset.update(|x| x + consumed_tokens as usize);
+                    self.frame.skip(consumed_tokens);
                     let op_span = op_start.join(self.current_pos());
 
                     // if the operator is a non-functional, (e.g. as) we need to perform a different
@@ -393,12 +388,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let rhs = self.parse_expr_with_precedence(r_prec)?;
 
                         //v transform the operator into an `BinaryExpr`
+                        let operator = self.node_with_span(op, op_span);
                         lhs = self.node_with_joined_span(
-                            Expr::BinaryExpr(BinaryExpr {
-                                lhs,
-                                rhs,
-                                operator: self.node_with_span(op, op_span),
-                            }),
+                            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }),
                             lhs_span,
                         );
                     }
@@ -417,6 +409,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_singular_expr(
         &mut self,
         mut subject: AstNode<Expr>,
+        subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         // so here we need to peek to see if this is either a index_access, field access
         // or a function call...
@@ -425,14 +418,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // Property access or method call
                 TokenKind::Dot => {
                     self.skip_token();
-                    self.parse_property_access(subject)?
+                    self.parse_property_access(subject, subject_span)?
                 }
                 TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) =>
                 {
-                    self.offset.update(|offset| offset + 2);
-                    self.parse_ns_access(subject)?
+                    self.frame.skip(2);
+                    self.parse_ns_access(subject, subject_span)?
                 }
-                TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject) {
+                TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject, subject_span) {
                     (subject, true) => subject,
                     // Essentially break because the type_args failed
                     (subject, false) => return Ok(subject),
@@ -445,11 +438,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.parse_array_index(subject, tree, self.current_pos())?
                 }
                 // Function call
-                TokenKind::Tree(Delimiter::Paren, tree_index) => {
-                    self.skip_token();
-
-                    let tree = self.token_trees.get(tree_index as usize).unwrap();
-                    self.parse_constructor_call(subject, tree, self.current_pos())?
+                TokenKind::Tree(Delimiter::Paren, _) => {
+                    self.parse_constructor_call(subject, subject_span)?
                 }
                 _ => break,
             }
@@ -471,23 +461,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// `index.hash` file contained within the directory.
     pub(crate) fn parse_import(&mut self) -> ParseResult<AstNode<Expr>> {
         let start = self.current_pos();
-        let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-
-        let (path, span) = match gen.next_token().copied() {
-            Some(Token { kind: TokenKind::StrLit(path), span }) => (path, span),
-            _ => gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), None)?,
-        };
-
-        self.consume_gen(gen);
+        let (path, span) =
+            self.in_tree(Delimiter::Paren, None, |gen| match gen.next_token().copied() {
+                Some(Token { kind: TokenKind::StrLit(path), span }) => Ok((path, span)),
+                _ => gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), None)?,
+            })?;
 
         // Attempt to add the module via the resolver
         match self.resolver.resolve_import(path) {
-            Ok(source) => Ok(self.node_with_joined_span(
-                Expr::Import(ImportExpr {
-                    data: self.node_with_joined_span(Import { path, source }, start),
-                }),
-                start,
-            )),
+            Ok(source) => {
+                let data = self.node_with_joined_span(Import { path, source }, start);
+                Ok(self.node_with_joined_span(Expr::Import(ImportExpr { data }), start))
+            }
             Err(err) => self.err_with_location(
                 ParseErrorKind::ErroneousImport(err),
                 ExpectedItem::empty(),
@@ -532,15 +517,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_constructor_call(
         &mut self,
         subject: AstNode<Expr>,
-        tree: &'stream [Token],
-        span: ByteRange,
+        subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        let mut gen = self.from_stream(tree, span);
-
-        let args = gen.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma));
-        self.consume_gen(gen);
-
-        let subject_span = subject.byte_range();
+        let args = self.in_tree(Delimiter::Paren, None, |gen| {
+            Ok(gen.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma)))
+        })?;
 
         Ok(self.node_with_joined_span(
             Expr::ConstructorCall(ConstructorCallExpr { subject, args }),
@@ -553,23 +534,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_array_index(
         &mut self,
         subject: AstNode<Expr>,
-        tree: &'stream [Token],
+        tree: &'s [Token],
         span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        let mut gen = self.from_stream(tree, span);
-        let start = gen.current_pos();
-
         // parse the indexing expression between the square brackets...
-        let index_expr = gen.parse_expr_with_precedence(0)?;
-
-        // @@ErrorRecovery: Investigate introducing `Err` variant into expressions...
-        //
-        // since nothing should be after the expression, we can check that no tokens
-        // are left and the generator is empty, otherwise report this as an
-        // unexpected_token
-        self.consume_gen(gen);
-
-        Ok(self.node_with_joined_span(Expr::Index(IndexExpr { subject, index_expr }), start))
+        let index_expr = self.new_frame(tree, span, |gen| gen.parse_expr_with_precedence(0))?;
+        Ok(self.node_with_joined_span(Expr::Index(IndexExpr { subject, index_expr }), span))
     }
 
     /// Parses a unary operator or expression modifier followed by a singular
@@ -618,12 +588,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             }
             TokenKind::Plus => {
+                let start = self.current_pos();
                 let inner_expr = self.parse_expr()?;
 
                 // Emit a warning for the unnecessary `+` operator
                 self.add_warning(ParseWarning::new(
                     WarningKind::UselessUnaryOperator(inner_expr.body().into()),
-                    inner_expr.span(),
+                    self.make_span(start.join(self.current_pos())),
                 ));
 
                 return Ok(inner_expr);
@@ -644,7 +615,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Expr::UnaryExpr(UnaryExpr { expr, operator })
             }
             TokenKind::Pound => {
-                self.offset.update(|x| x - 1); // go back a token so we can parse the macro invocation
+                self.backtrack(1); // go back a token so we can parse the macro invocation
                 let macros = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
                 let subject = self.parse_expr()?;
                 Expr::Macro(ExprMacroInvocation { macros, subject })
@@ -653,13 +624,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Keyword(Keyword::Unsafe) => {
                 let arg = self.parse_expr()?;
                 Expr::Unsafe(UnsafeExpr { data: arg })
-            }
-            TokenKind::Keyword(Keyword::TypeOf) => {
-                let expr = self.parse_expr()?;
-                Expr::UnaryExpr(UnaryExpr {
-                    expr,
-                    operator: self.node_with_span(UnOp::TypeOf, start),
-                })
             }
 
             kind => panic!("Expected token to be a unary operator, but got '{kind}'"),
@@ -708,8 +672,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         decl: AstNode<Expr>,
     ) -> ParseResult<AstNode<Expr>> {
         self.parse_token(TokenKind::Eq)?;
-        let value = self.parse_expr_with_precedence(0)?;
-        let decl_span = decl.byte_range();
+        let (value, decl_span) = self.track_span(|this| this.parse_expr_with_precedence(0))?;
 
         Ok(self.node_with_joined_span(
             Expr::MergeDeclaration(MergeDeclaration { decl, value }),
@@ -724,8 +687,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// should just return the left-hand side.
     #[profiling::function]
     pub(crate) fn parse_expr_with_re_assignment(&mut self) -> ParseResult<(AstNode<Expr>, bool)> {
+        let start = self.current_pos();
         let lhs = self.parse_expr_with_precedence(0)?;
-        let lhs_span = lhs.byte_range();
+        let lhs_span = start.join(self.current_pos());
 
         // Check if we can parse a merge declaration
         if self.parse_token_fast(TokenKind::Tilde).is_some() {
@@ -739,7 +703,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         match self.peek_nth(consumed_tokens as usize) {
             Some(token) if operator.is_some() && token.has_kind(TokenKind::Eq) => {
                 // consume the number of tokens eaten whilst getting the operator...
-                self.offset.update(|x| x + 1 + consumed_tokens as usize);
+                self.frame.skip(1 + consumed_tokens);
                 let operator = self.node_with_joined_span(operator.unwrap(), start);
 
                 let rhs = self.parse_expr_with_precedence(0)?;
@@ -760,11 +724,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a property access expression, in other words an [AccessExpr] with
     /// the [AccessKind::Property] variant.
     pub(crate) fn parse_property_access(
-        &self,
+        &mut self,
         subject: AstNode<Expr>,
+        subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
-        let span = subject.byte_range();
 
         if let Some(token) = self.peek() && token.kind.is_numeric() {
             // If the next token kind is a integer with no sign, then we can assume
@@ -789,33 +753,30 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         property,
                         kind: AccessKind::Property,
                     }),
-                    span,
+                    subject_span,
                 ))
             }
         }
 
+        let property = self.parse_named_field(ParseErrorKind::ExpectedPropertyAccess)?;
         Ok(self.node_with_joined_span(
-            Expr::Access(AccessExpr {
-                subject,
-                property: self.parse_named_field(ParseErrorKind::ExpectedPropertyAccess)?,
-                kind: AccessKind::Property,
-            }),
-            span,
+            Expr::Access(AccessExpr { subject, property, kind: AccessKind::Property }),
+            subject_span,
         ))
     }
 
     /// Parse a [AccessExpr] with a `namespace` access kind.
-    pub(crate) fn parse_ns_access(&self, subject: AstNode<Expr>) -> ParseResult<AstNode<Expr>> {
+    pub(crate) fn parse_ns_access(
+        &mut self,
+        subject: AstNode<Expr>,
+        subject_span: ByteRange,
+    ) -> ParseResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Colon));
-        let span = subject.byte_range();
 
+        let property = self.parse_named_field(ParseErrorKind::ExpectedName)?;
         Ok(self.node_with_joined_span(
-            Expr::Access(AccessExpr {
-                subject,
-                property: self.parse_named_field(ParseErrorKind::ExpectedName)?,
-                kind: AccessKind::Namespace,
-            }),
-            span,
+            Expr::Access(AccessExpr { subject, property, kind: AccessKind::Namespace }),
+            subject_span,
         ))
     }
 
@@ -833,85 +794,81 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// - Singleton tuple : (A,)
     /// - Many membered tuple: (A, B, C) or (A, B, C,)
     pub(crate) fn parse_expr_or_tuple(&mut self) -> ParseResult<AstNode<Expr>> {
-        let mut gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-        let start = self.current_pos();
+        self.in_tree(Delimiter::Paren, None, |gen| {
+            let start = gen.current_pos();
 
-        // Handle the case if it is an empty stream, this means that if it failed to
-        // parse a function in the form of `() => ...` for whatever reason, then it
-        // is trying to parse either a tuple or an expression.
-        // Handle the empty tuple case
-        if gen.stream.len() < 2 {
-            let tuple = gen.node_with_joined_span(
-                Expr::Lit(LitExpr {
-                    data: gen.node_with_joined_span(
-                        Lit::Tuple(TupleLit { elements: gen.nodes_with_span(thin_vec![], start) }),
-                        start,
-                    ),
-                }),
-                start,
-            );
+            // Handle the case if it is an empty stream, this means that if it failed to
+            // parse a function in the form of `() => ...` for whatever reason, then it
+            // is trying to parse either a tuple or an expression.
+            // Handle the empty tuple case
+            if gen.stream().len() < 2 {
+                let elements = gen.nodes_with_span(thin_vec![], start);
+                let data = gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start);
+                let tuple = gen.node_with_joined_span(Expr::Lit(LitExpr { data }), start);
 
-            match gen.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    gen.skip_token();
-                    return Ok(tuple);
-                }
-                None => return Ok(tuple),
-                _ => (),
-            };
-        }
+                match gen.peek() {
+                    Some(token) if token.has_kind(TokenKind::Comma) => {
+                        gen.skip_token();
 
-        let entry = gen.parse_tuple_lit_entry()?;
-
-        // In the special case where this is just an expression that is wrapped within
-        // parentheses, we can check that the 'name' and 'ty' parameters are
-        // set to `None` and that there are no extra tokens that are left within
-        // the token tree...
-        if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
-            let expr = entry.into_body().value;
-
-            // We want to emit a redundant parentheses warning if it is not a binary-like
-            // expression since it does not affect the precedence...
-            if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
-                self.add_warning(ParseWarning::new(
-                    WarningKind::RedundantParenthesis(expr.body().into()),
-                    gen.span(),
-                ));
-            }
-
-            return Ok(expr);
-        }
-
-        let mut elements = AstNodes::new(thin_vec![entry], gen.span());
-
-        loop {
-            match gen.peek() {
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    gen.skip_token();
-
-                    // Handles the case where this is a trailing comma and no tokens after...
-                    if !gen.has_token() {
-                        break;
+                        return Ok(tuple);
                     }
-
-                    elements.nodes.push(gen.parse_tuple_lit_entry()?)
-                }
-                Some(token) => gen.err_with_location(
-                    ParseErrorKind::ExpectedExpr,
-                    ExpectedItem::Comma,
-                    Some(token.kind),
-                    token.span,
-                )?,
-                None => break,
+                    None => {
+                        return Ok(tuple);
+                    }
+                    _ => (),
+                };
             }
-        }
 
-        Ok(gen.node_with_joined_span(
-            Expr::Lit(LitExpr {
-                data: gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start),
-            }),
-            start,
-        ))
+            let entry = gen.parse_tuple_lit_entry()?;
+
+            // In the special case where this is just an expression that is wrapped within
+            // parentheses, we can check that the 'name' and 'ty' parameters are
+            // set to `None` and that there are no extra tokens that are left within
+            // the token tree...
+            if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
+                let expr = entry.into_body().value;
+
+                // We want to emit a redundant parentheses warning if it is not a binary-like
+                // expression since it does not affect the precedence...
+                if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
+                    gen.add_warning(ParseWarning::new(
+                        WarningKind::RedundantParenthesis(expr.body().into()),
+                        gen.span(),
+                    ));
+                }
+
+                return Ok(expr);
+            }
+
+            let mut elements = thin_vec![entry];
+
+            loop {
+                match gen.peek() {
+                    Some(token) if token.has_kind(TokenKind::Comma) => {
+                        gen.skip_token();
+
+                        // Handles the case where this is a trailing comma and no tokens after...
+                        if !gen.has_token() {
+                            break;
+                        }
+
+                        elements.push(gen.parse_tuple_lit_entry()?)
+                    }
+                    Some(token) => gen.err_with_location(
+                        ParseErrorKind::ExpectedExpr,
+                        ExpectedItem::Comma,
+                        Some(token.kind),
+                        token.span,
+                    )?,
+                    None => break,
+                }
+            }
+
+            let span = gen.range();
+            let elements = gen.nodes_with_span(elements, span);
+            let data = gen.node_with_span(Lit::Tuple(TupleLit { elements }), span);
+            Ok(gen.node_with_span(Expr::Lit(LitExpr { data }), span))
+        })
     }
 
     /// Parse a [FnDef]. Function literals are essentially definitions
@@ -943,22 +900,19 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// This function expects that the next token is a [TokenKind::Tree] and
     /// it will consume it producing [Expr]s from it.
     pub(crate) fn parse_exprs_from_braces(&mut self) -> ParseResult<AstNodes<Expr>> {
-        let mut gen = self.parse_delim_tree(Delimiter::Brace, Some(ParseErrorKind::Block))?;
+        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::Block), |gen| {
+            let mut exprs = thin_vec![];
 
-        let mut exprs = thin_vec![];
-
-        // Continue eating the generator until no more tokens are present
-        //
-        // @@ErrorRecovery: don't bail immediately...
-        while gen.has_token() {
-            if let Some((_, expr)) = gen.parse_top_level_expr()? {
-                exprs.push(expr);
+            // Continue eating the generator until no more tokens are present
+            //
+            // @@ErrorRecovery: don't bail immediately...
+            while gen.has_token() {
+                if let Some((_, expr)) = gen.parse_top_level_expr()? {
+                    exprs.push(expr);
+                }
             }
-        }
 
-        let span = gen.span();
-        self.consume_gen(gen);
-
-        Ok(AstNodes::new(exprs, span))
+            Ok(gen.nodes_with_span(exprs, gen.range()))
+        })
     }
 }

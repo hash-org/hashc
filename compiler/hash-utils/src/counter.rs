@@ -4,6 +4,7 @@
 #[macro_export]
 macro_rules! counter {
     (
+        $(#[$outer:meta])*
         name: $name:ident,
         counter_name: $counter_name:ident,
         visibility: $visibility:vis,
@@ -12,6 +13,7 @@ macro_rules! counter {
     ) => {
         static $counter_name: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
+        $(#[$outer])*
         #[derive($($derive),*)]
         $visibility struct $name(pub u32);
 
@@ -22,6 +24,10 @@ macro_rules! counter {
 
             $method_visibility fn total() -> u32 {
                 $counter_name.load(std::sync::atomic::Ordering::SeqCst)
+            }
+
+            $method_visibility fn to_usize(&self) -> usize {
+                self.0 as usize
             }
         }
 
@@ -38,12 +44,14 @@ macro_rules! counter {
         }
     };
     (
+        $(#[$outer:meta])*
         name: $name:ident,
         counter_name: $counter_name:ident,
         visibility: $visibility:vis,
         method_visibility: $method_visibility:vis,
     ) => {
         counter! {
+            $(#[$outer])*
             name: $name,
             counter_name: $counter_name,
             visibility: $visibility,

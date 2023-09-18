@@ -267,7 +267,7 @@ macro_rules! tir_node_sequence_store_direct {
                 self.elements().to_index_and_len()
             }
 
-            fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+            unsafe fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
                 panic!(
                     "{} cannot be used to create a new sequence, use {} instead",
                     stringify!($id),
@@ -356,7 +356,7 @@ macro_rules! tir_node_sequence_store_indirect {
                 self.elements().to_index_and_len()
             }
 
-            fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+            unsafe fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
                 panic!(
                     "{} cannot be used to create a new sequence, use {} instead",
                     stringify!($id),

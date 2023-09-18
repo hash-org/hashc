@@ -1,0 +1,9 @@
+// run=fail, stage=typecheck
+
+main := () => {
+    k := (1, 2);
+
+    match k {
+       (a, a) => {}
+    }
+}

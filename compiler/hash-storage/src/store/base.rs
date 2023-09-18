@@ -9,10 +9,14 @@ use parking_lot::{
 pub trait StoreKey: Copy + Eq {
     /// Turn the key into an index.
     fn to_index(self) -> usize;
+
     /// Create a key from an index.
     ///
-    /// This should generally not be used in client code.
-    fn from_index_unchecked(index: usize) -> Self;
+    /// # Safety
+    /// - This will create a [StoreKey] without checking the boundaries in the
+    ///   [Store].
+    /// - This should generally not be used in client code.
+    unsafe fn from_index_unchecked(index: usize) -> Self;
 }
 
 /// Create a new [`StoreKey`] with the given name.
@@ -26,11 +30,12 @@ macro_rules! new_store_key {
 
         impl $crate::store::StoreKey for $name {
 
+            #[inline(always)]
             fn to_index(self) -> usize {
                 self.index.try_into().unwrap()
             }
 
-            fn from_index_unchecked(index: usize) -> Self {
+            unsafe fn from_index_unchecked(index: usize) -> Self {
                 Self { index: index.try_into().unwrap() }
             }
         }
@@ -73,10 +78,12 @@ pub trait Store<Key: StoreKey, Value> {
     fn internal_data(&self) -> &StoreInternalData<Value>;
 
     /// Iterate over all keys in the store.
-    fn for_each_entry(&self, f: impl Fn(Key)) {
+    fn for_each_entry(&self, mut f: impl FnMut(Key)) {
         let len = self.internal_data().read().len();
-        for index in 0..len {
-            f(Key::from_index_unchecked(index));
+        unsafe {
+            for index in 0..len {
+                f(Key::from_index_unchecked(index));
+            }
         }
     }
 
@@ -84,7 +91,7 @@ pub trait Store<Key: StoreKey, Value> {
     fn create_with(&self, value_fn: impl FnOnce(Key) -> Value) -> Key {
         let mut data = self.internal_data().write();
         let next_index = data.len();
-        let key = Key::from_index_unchecked(next_index);
+        let key = unsafe { Key::from_index_unchecked(next_index) };
         let value = value_fn(key);
         data.push(value);
         key
@@ -95,7 +102,7 @@ pub trait Store<Key: StoreKey, Value> {
         let mut data = self.internal_data().write();
         let next_index = data.len();
         data.push(value);
-        Key::from_index_unchecked(next_index)
+        unsafe { Key::from_index_unchecked(next_index) }
     }
 
     /// Get a value by a key, and map it to another value given its reference.
@@ -120,8 +127,10 @@ pub trait Store<Key: StoreKey, Value> {
         f: impl FnOnce(&[&Value]) -> T,
     ) -> T {
         let data = self.internal_data().read();
-        let values =
-            keys.into_iter().map(|key| data.get(key.to_index()).unwrap()).collect::<Vec<_>>();
+        let values = keys
+            .into_iter()
+            .map(|key| unsafe { data.get_unchecked(key.to_index()) })
+            .collect::<Vec<_>>();
         f(&values)
     }
 
@@ -129,14 +138,14 @@ pub trait Store<Key: StoreKey, Value> {
     /// implements `DerefMut` to the value.
     fn borrow_mut(&self, key: Key) -> StoreBorrowMutHandle<'_, Value> {
         let data = self.internal_data().write();
-        RwLockWriteGuard::map(data, |d| d.get_mut(key.to_index()).unwrap())
+        RwLockWriteGuard::map(data, |d| unsafe { d.get_unchecked_mut(key.to_index()) })
     }
 
     /// Borrow a value, given a key. Returns an appropriate handle which
     /// implements `Deref` to the value.
     fn borrow(&self, key: Key) -> StoreBorrowHandle<'_, Value> {
         let data = self.internal_data().read();
-        RwLockReadGuard::map(data, |d| d.get(key.to_index()).unwrap())
+        RwLockReadGuard::map(data, |d| unsafe { d.get_unchecked(key.to_index()) })
     }
 
     /// Modify a value by a key, possibly returning another value.
@@ -146,7 +155,7 @@ pub trait Store<Key: StoreKey, Value> {
     /// [`CloneStore::modify()`] instead.
     fn modify_fast<T>(&self, key: Key, f: impl FnOnce(&mut Value) -> T) -> T {
         let mut data = self.internal_data().write();
-        let value = data.get_mut(key.to_index()).unwrap();
+        let value = unsafe { data.get_unchecked_mut(key.to_index()) };
         f(value)
     }
 }
@@ -155,7 +164,7 @@ pub trait Store<Key: StoreKey, Value> {
 pub trait CloneStore<Key: StoreKey, Value: Clone>: Store<Key, Value> {
     /// Get a value by its key.
     fn get(&self, key: Key) -> Value {
-        self.internal_data().read().get(key.to_index()).unwrap().clone()
+        unsafe { self.internal_data().read().get_unchecked(key.to_index()).clone() }
     }
 
     /// Get a value by a key, and map it to another value given its reference.
@@ -183,7 +192,7 @@ pub trait CloneStore<Key: StoreKey, Value: Clone>: Store<Key, Value> {
     /// Set a key's value to a new value, returning the old value.
     fn set(&self, key: Key, new_value: Value) -> Value {
         let mut data = self.internal_data().write();
-        let value_ref = data.get_mut(key.to_index()).unwrap();
+        let value_ref = unsafe { data.get_unchecked_mut(key.to_index()) };
         let old_value = value_ref.clone();
         *value_ref = new_value;
         old_value

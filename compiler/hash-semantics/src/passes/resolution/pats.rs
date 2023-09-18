@@ -300,6 +300,34 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     }
 
     /// Create a [`PatId`] from the given [`ast::Pat`], and assign it to the
+    /// node in the AST info store whilst checking that the pattern adheres
+    /// to the following rules:
+    ///
+    /// - Binds declared in variants must be the same.
+    ///
+    /// - Each declared bind in a variant must have the same mutability.
+    ///
+    /// - Binds in a single pattern must be unique.
+    ///
+    /// This handles all patterns.
+    pub(super) fn make_pat_from_ast_pat_and_check_binds(
+        &self,
+        node: AstNodeRef<ast::Pat>,
+    ) -> SemanticResult<PatId> {
+        // Maybe it has already been made:
+        if let Some(pat_id) = self.ast_info.pats().get_data_by_node(node.id()) {
+            return Ok(pat_id);
+        }
+
+        // Perform the check that the pattern is valid.
+        self.pat_binds_validator().check(node)?;
+
+        let pat_id = self.make_pat_from_ast_pat_uncached(node)?;
+        self.ast_info.pats().insert(node.id(), pat_id);
+        Ok(pat_id)
+    }
+
+    /// Create a [`PatId`] from the given [`ast::Pat`], and assign it to the
     /// node in the AST info store.
     ///
     /// This handles all patterns.
@@ -311,23 +339,30 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         if let Some(pat_id) = self.ast_info.pats().get_data_by_node(node.id()) {
             return Ok(pat_id);
         }
+
+        let pat_id = self.make_pat_from_ast_pat_uncached(node)?;
+        self.ast_info.pats().insert(node.id(), pat_id);
+        Ok(pat_id)
+    }
+
+    fn make_pat_from_ast_pat_uncached(&self, node: AstNodeRef<ast::Pat>) -> SemanticResult<PatId> {
         let origin = NodeOrigin::Given(node.id());
 
-        let pat_id = match node.body {
+        match node.body {
             ast::Pat::Access(access_pat) => {
                 let path = self.access_pat_as_ast_path(node.with_body(access_pat))?;
                 let resolved_path = self.resolve_ast_path(&path)?;
-                self.make_pat_from_resolved_ast_path(&resolved_path, node.id())?
+                self.make_pat_from_resolved_ast_path(&resolved_path, node.id())
             }
             ast::Pat::Binding(binding_pat) => {
                 let path = self.binding_pat_as_ast_path(node.with_body(binding_pat))?;
                 let resolved_path = self.resolve_ast_path(&path)?;
-                self.make_pat_from_resolved_ast_path(&resolved_path, node.id())?
+                self.make_pat_from_resolved_ast_path(&resolved_path, node.id())
             }
             ast::Pat::Constructor(ctor_pat) => {
                 let path = self.constructor_pat_as_ast_path(node.with_body(ctor_pat))?;
                 let resolved_path = self.resolve_ast_path(&path)?;
-                self.make_pat_from_resolved_ast_path(&resolved_path, node.id())?
+                self.make_pat_from_resolved_ast_path(&resolved_path, node.id())
             }
             ast::Pat::Macro(invocation) => {
                 return self.make_pat_from_ast_pat(invocation.subject.ast_ref())
@@ -336,51 +371,48 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 // This should be handled earlier
                 panic_on_span!(node.span(), "Found module pattern during symbol resolution")
             }
-            ast::Pat::Tuple(tuple_pat) => Node::create_at(
+            ast::Pat::Tuple(tuple_pat) => Ok(Node::create_at(
                 Pat::Tuple(TuplePat {
                     data: self.make_pat_args_from_ast_pat_args(&tuple_pat.fields)?,
                     data_spread: self.make_spread_from_ast_spread(&tuple_pat.spread)?,
                 }),
                 origin,
-            ),
-            ast::Pat::Array(array_pat) => Node::create_at(
+            )),
+            ast::Pat::Array(array_pat) => Ok(Node::create_at(
                 Pat::Array(ArrayPat {
                     pats: self.make_pat_list_from_ast_pats(&array_pat.fields)?,
                     spread: self.make_spread_from_ast_spread(&array_pat.spread)?,
                 }),
                 origin,
-            ),
-            ast::Pat::Lit(lit_pat) => self.make_pat_from_ast_lit(lit_pat.data.ast_ref()),
-            ast::Pat::Or(or_pat) => Node::create_at(
+            )),
+            ast::Pat::Lit(lit_pat) => Ok(self.make_pat_from_ast_lit(lit_pat.data.ast_ref())),
+            ast::Pat::Or(or_pat) => Ok(Node::create_at(
                 Pat::Or(OrPat {
                     alternatives: self.make_pat_list_from_ast_pats(&or_pat.variants)?,
                 }),
                 origin,
-            ),
-            ast::Pat::If(if_pat) => Node::create_at(
+            )),
+            ast::Pat::If(if_pat) => Ok(Node::create_at(
                 Pat::If(IfPat {
                     condition: self.make_term_from_ast_expr(if_pat.condition.ast_ref())?,
                     pat: self.make_pat_from_ast_pat(if_pat.pat.ast_ref())?,
                 }),
                 origin,
-            ),
-            ast::Pat::Wild(_) => Node::create_at(
+            )),
+            ast::Pat::Wild(_) => Ok(Node::create_at(
                 Pat::Binding(BindingPat {
                     name: SymbolId::fresh(NodeOrigin::Given(node.id())),
                     is_mutable: false,
                 }),
                 origin,
-            ),
+            )),
             ast::Pat::Range(ast::RangePat { lo, hi, end }) => {
                 let lo =
                     lo.as_ref().map(|lo| self.make_lit_pat_from_non_bool_ast_lit(lo.ast_ref()));
                 let hi =
                     hi.as_ref().map(|hi| self.make_lit_pat_from_non_bool_ast_lit(hi.ast_ref()));
-                Node::create_at(Pat::Range(RangePat { lo, hi, end: *end }), origin)
+                Ok(Node::create_at(Pat::Range(RangePat { lo, hi, end: *end }), origin))
             }
-        };
-
-        self.ast_info.pats().insert(node.id(), pat_id);
-        Ok(pat_id)
+        }
     }
 }

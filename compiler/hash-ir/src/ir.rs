@@ -663,7 +663,7 @@ impl RValue {
             RValue::BinaryOp(op, box (lhs, rhs)) => op.ty(lhs.ty(locals), rhs.ty(locals)),
             RValue::CheckedBinaryOp(op, box (lhs, rhs)) => {
                 let ty = op.ty(lhs.ty(locals), rhs.ty(locals));
-                IrTy::tuple(&[ty, COMMON_IR_TYS.bool])
+                IrTy::make_tuple(&[ty, COMMON_IR_TYS.bool])
             }
             RValue::Cast(_, _, ty) => *ty,
             RValue::Len(_) => COMMON_IR_TYS.usize,

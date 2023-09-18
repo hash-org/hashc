@@ -1,11 +1,12 @@
 //! Hash Compiler token keyword definitions.
 use std::fmt;
 
+use num_derive::FromPrimitive;
 use phf::phf_map;
 use strum_macros::AsRefStr;
 
 /// Enum Variants for keywords.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, AsRefStr)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, AsRefStr, FromPrimitive)]
 #[strum(serialize_all = "snake_case")]
 pub enum Keyword {
     For,
@@ -25,15 +26,14 @@ pub enum Keyword {
     Import,
     Raw,
     False,
-    True,
     Unsafe,
     Pub,
     Priv,
     Mut,
     Mod,
     Impl,
+    True,
     Type,
-    TypeOf,
 }
 
 impl fmt::Display for Keyword {
@@ -44,8 +44,6 @@ impl fmt::Display for Keyword {
 
 /// A static map of keywords to their enum variants using a
 /// perfect hashing function to quickly lookup the keyword.
-///
-/// @@Future: look into somehow using `gperf` instead?
 static KEYWORDS: phf::Map<&'static str, Keyword> = phf_map! {
     "for" => Keyword::For,
     "while" => Keyword::While,
@@ -72,7 +70,6 @@ static KEYWORDS: phf::Map<&'static str, Keyword> = phf_map! {
     "mod" => Keyword::Mod,
     "impl" => Keyword::Impl,
     "type" => Keyword::Type,
-    "typeof" => Keyword::TypeOf,
 };
 
 #[inline(always)]

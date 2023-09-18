@@ -6,12 +6,13 @@
 
 use std::{
     cmp::Ordering,
+    collections::HashMap,
     fmt,
     io::{self, Read},
+    iter::repeat,
     ops::{IndexMut, Neg},
 };
 
-use fnv::FnvBuildHasher;
 use hash_target::data_layout::Endian;
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
@@ -19,11 +20,10 @@ pub use hash_target::primitives::*;
 pub use hash_target::size::Size;
 use hash_utils::{
     counter,
-    dashmap::DashMap,
-    fxhash::FxBuildHasher,
+    fnv::FnvBuildHasher,
     index_vec::{define_index_type, IndexVec},
     lazy_static::lazy_static,
-    parking_lot::RwLock,
+    parking_lot::{RwLock, RwLockWriteGuard},
 };
 use num_bigint::{BigInt, Sign};
 use FloatConstantValue::*;
@@ -863,30 +863,14 @@ counter! {
     name: InternedStr,
     counter_name: STR_LIT_COUNTER,
     visibility: pub,
-    method_visibility:,
+    method_visibility: pub,
     derives: (Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd),
 }
 
 impl InternedStr {
     /// Get the value of the interned string.
     pub fn value(self) -> &'static str {
-        CONSTS.strings.get(&self).unwrap().value()
-    }
-
-    /// Intern a string into the [ConstantMap].
-    pub fn intern(string: &str) -> InternedStr {
-        if let Some(key) = CONSTS.reverse_string_table.get(string) {
-            *key
-        } else {
-            // @@Memory: memory leaks could be avoided/masked by having a wall?
-            // copy over the string so that we can insert it into the reverse lookup table
-            let value_copy = Box::leak(string.to_owned().into_boxed_str());
-            *CONSTS.reverse_string_table.entry(value_copy).or_insert_with(|| {
-                let interned = InternedStr::new();
-                CONSTS.strings.insert(interned, value_copy);
-                interned
-            })
-        }
+        string_table().get(self)
     }
 
     /// Get the length of the interned string.
@@ -912,18 +896,22 @@ impl fmt::Debug for InternedStr {
     }
 }
 
-// Utility methods for converting from a InternedString to an InternedStrLit and
-// vice versa.
+// // Utility methods for converting from a InternedString to an InternedStrLit
+// and // vice versa.
 
 impl From<&str> for InternedStr {
     fn from(string: &str) -> Self {
-        InternedStr::intern(string)
+        let id = InternedStr::new();
+        string_table().add(id, string);
+        id
     }
 }
 
 impl From<String> for InternedStr {
     fn from(string: String) -> Self {
-        InternedStr::intern(&string)
+        let id = InternedStr::new();
+        string_table().add(id, &string);
+        id
     }
 }
 
@@ -939,6 +927,79 @@ impl From<InternedStr> for String {
     }
 }
 
+/// A [LocalStringTable] can be used by a thread to intern strings, and later
+/// push them into the global [StringTable].
+#[derive(Default)]
+pub struct LocalStringTable {
+    /// The table itself.
+    table: HashMap<String, InternedStr, FnvBuildHasher>,
+
+    /// The largest key that was inserted into the table. This is used to know
+    /// exactly how much to reserve in the global string table.
+    max_key: Option<InternedStr>,
+}
+
+impl LocalStringTable {
+    /// Add an entry to the local string table.
+    #[inline]
+    pub fn add(&mut self, value: String) -> InternedStr {
+        let key = *self.table.entry(value).or_insert_with(InternedStr::new);
+        self.max_key = std::cmp::max(self.max_key, Some(key));
+        key
+    }
+}
+
+type StringTableInner = Vec<Option<&'static str>>;
+/// Represents storage for all of the strings that the compiler is storing
+/// during the compilation process.
+///
+/// @@Todo: Switch over to using `Const`s for string allocations...
+#[derive(Debug, Default)]
+pub struct StringTable {
+    table: RwLock<StringTableInner>,
+}
+
+impl StringTable {
+    /// Reserve enough capacity for a given number of strings.
+    #[inline(always)]
+    fn reserve(writer: &mut RwLockWriteGuard<StringTableInner>, key: usize) {
+        let len = (key + 1).saturating_sub(writer.len());
+        if len > 0 {
+            writer.extend(repeat(None).take(len));
+        }
+    }
+
+    /// Add a string to the map.
+    fn add(&self, key: InternedStr, value: &str) {
+        let mut writer = self.table.write();
+        let index = key.to_usize();
+        StringTable::reserve(&mut writer, index);
+        writer[index] = Some(Box::leak(value.to_string().into_boxed_str()));
+    }
+
+    /// Add a collection of interned strings from a given map.
+    pub fn add_local_table(&self, local: LocalStringTable) {
+        if local.table.is_empty() {
+            return;
+        }
+
+        // Acquire the writer and merge the table into the main one.
+        let mut writer = self.table.write();
+        let index = local.max_key.unwrap().to_usize();
+        StringTable::reserve(&mut writer, index);
+
+        for (key, value) in local.table {
+            writer[value.to_usize()] = Some(Box::leak(key.into_boxed_str()));
+        }
+    }
+
+    /// Get the string associated with the given key.
+    #[inline]
+    pub fn get(&self, key: InternedStr) -> &str {
+        self.table.read()[key.to_usize()].unwrap()
+    }
+}
+
 /// A map containing identifiers that essentially point to a string literal that
 /// has been parsed during the tokenisation process. This is so that we don't
 /// have to unnecessarily allocate a string multiple times even if it occurs
@@ -946,11 +1007,7 @@ impl From<InternedStr> for String {
 #[derive(Debug, Default)]
 pub struct ConstantMap {
     /// Where the interned strings are stored.
-    strings: DashMap<InternedStr, &'static str, FxBuildHasher>,
-
-    /// Lookup of string references to [InternedStr]. This is the mechansim
-    /// behind interning strings and avoiding unnecessary string duplications.
-    reverse_string_table: DashMap<&'static str, InternedStr, FnvBuildHasher>,
+    strings: StringTable,
 
     /// Float literals store
     floats: RwLock<IndexVec<InternedFloat, FloatConstant>>,
@@ -961,4 +1018,10 @@ pub struct ConstantMap {
 
 lazy_static! {
     pub(super) static ref CONSTS: ConstantMap = ConstantMap::default();
+}
+
+/// Get the compiler global [StringTable].
+#[inline]
+pub fn string_table() -> &'static StringTable {
+    &CONSTS.strings
 }

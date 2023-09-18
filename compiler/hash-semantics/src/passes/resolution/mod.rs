@@ -8,13 +8,17 @@ use hash_ast::ast;
 use hash_source::SourceId;
 use hash_utils::derive_more::Deref;
 
-use self::scoping::{ContextKind, Scoping};
+use self::{
+    pat_binds::PatBindsChecker,
+    scoping::{ContextKind, Scoping},
+};
 use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};
 use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
 pub mod defs;
 pub mod exprs;
 pub mod params;
+pub(crate) mod pat_binds;
 pub mod paths;
 pub mod pats;
 pub mod scoping;
@@ -95,6 +99,11 @@ impl<E: SemanticEnv> AnalysisPass for ResolutionPass<'_, E> {
 impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
     pub(crate) fn new(env: &'env E, ast_info: &'env AstInfo) -> Self {
         Self { env, scoping: Scoping::new(env, ast_info), ast_info }
+    }
+
+    /// Get a new pattern binder checker.
+    fn pat_binds_validator(&self) -> PatBindsChecker<E> {
+        PatBindsChecker::new(self.env)
     }
 
     /// Get access to the current scoping state and operations.

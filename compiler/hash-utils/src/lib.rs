@@ -29,6 +29,7 @@ pub use clap;
 pub use crossbeam_channel;
 pub use dashmap;
 pub use derive_more;
+pub use fnv;
 pub use fxhash;
 pub use index_vec;
 pub use indexmap;
