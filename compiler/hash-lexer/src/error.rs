@@ -4,7 +4,7 @@ use std::{cell::Cell, fmt::Display};
 
 use hash_reporting::{
     diagnostic::{DiagnosticStore, HasDiagnosticsMut},
-    report::{Report, ReportElement, ReportNote, ReportNoteKind},
+    report::{help, info, Report},
     reporter::{Reporter, Reports},
 };
 use hash_source::{identifier::Identifier, location::Span};
@@ -47,9 +47,6 @@ pub struct LexerError {
     /// The kind of the error.
     pub(crate) kind: LexerErrorKind,
 
-    /// Additional information about the error, if any.
-    pub(crate) message: Option<String>,
-
     /// The location of the error, this includes the span and the id of the
     /// source.
     pub(crate) location: Span,
@@ -59,10 +56,6 @@ pub struct LexerError {
 /// additional context to the error with the provided message in [LexerError]
 #[derive(Debug)]
 pub enum LexerErrorKind {
-    /// Occurs when a escape sequence (within a character or a string) is
-    /// malformed.
-    BadEscapeSequence,
-
     /// Occurs when a numerical literal doesn't follow the language
     /// specification, or is too large.
     MalformedNumericalLit,
@@ -75,9 +68,6 @@ pub enum LexerErrorKind {
 
     /// Occurs when a string literal is unclosed.
     UnclosedStringLit,
-
-    /// Occurs when a character literal is comprised of more than one character
-    InvalidCharacterLit(String),
 
     /// Occurs when a char is unexpected in the current context
     Unexpected(char),
@@ -94,45 +84,174 @@ pub enum LexerErrorKind {
 
     /// Invalid literal ascription for either `float` or `integer`
     InvalidLitSuffix(NumericLitKind, Identifier),
+
+    /// Encountered a invalid float exponent.
+    InvalidFloatExponent,
+
+    /// Unclosed character literal, e.g.
+    /// ```
+    /// 'a
+    /// ```
+    UnclosedCharLit,
+
+    /// Occurs when a escape sequence (within a character or a string) is
+    /// not a valid escape sequence, e.g.
+    /// ```
+    /// '\z'
+    /// ```
+    ///
+    /// The error contains the encountered invalid character.
+    UnknownEscapeSequence(char),
+
+    /// When a character literal has multiple code points, e.g.
+    /// ```
+    /// 'ab'
+    /// ```
+    MultipleCharCodePoints,
+
+    /// Unclosed unicode literal, when a unicode character literal
+    /// is missing the closing brace, e.g.
+    /// ```
+    /// '\u{1F600'
+    /// ```
+    UnclosedUnicodeLit,
+
+    /// When a unicode literal begins with `u`, but doesn't continue
+    /// with `{`, e.g.
+    /// ```
+    /// '\u1F600'
+    /// ```
+    MalformedUnicodeLit,
+
+    /// When a unicode literal has invalid digits, e.g.
+    /// ```
+    /// '\u{1F6G00}'
+    /// ```
+    ///
+    /// The error contains the encountered invalid character.
+    InvalidUnicodeEscape(char),
+
+    /// When a unicode literal is too long, e.g.
+    /// ```
+    /// '\u{1F600000000000}`
+    /// ```
+    UnicodeLitTooLong,
+
+    /// When an ASCII escape sequence is too short, e.g.
+    /// ```
+    /// '\x'
+    /// ```
+    NumericEscapeSequenceTooShort,
+
+    /// When an ASCII escape sequence has invalid digits, e.g.
+    /// ```
+    /// '\xMG'
+    /// ```
+    ///
+    /// The error contains the encountered invalid character.
+    InvalidNumericEscapeSequence(char),
+    UnicodeLitTooLarge,
 }
 
 impl From<LexerError> for Reports {
     fn from(err: LexerError) -> Self {
         let mut reporter = Reporter::new();
 
-        // We can have multiple notes describing what could be done about the error.
+        let mut span_label = None;
         let mut help_notes = vec![];
 
-        let mut message = match err.kind {
-            LexerErrorKind::BadEscapeSequence => "invalid character escape sequence".to_string(),
+        let message = match err.kind {
+            LexerErrorKind::UnknownEscapeSequence(ch) => {
+                format!("unrecognised character escape sequence `{ch}`")
+            }
             LexerErrorKind::MalformedNumericalLit => "malformed numerical literal".to_string(),
-            LexerErrorKind::MissingExponentDigits => "float exponent to have at least one digit".to_string(),
+            LexerErrorKind::MissingExponentDigits => {
+                "float exponent to have at least one digit".to_string()
+            }
             LexerErrorKind::MissingDigits => "missing digits after integer base prefix".to_string(),
             LexerErrorKind::UnclosedStringLit => "unclosed string literal".to_string(),
-            LexerErrorKind::InvalidCharacterLit(char) => format!("invalid character literal `{char}`, character literals may only contain one codepoint"),
-            LexerErrorKind::Unexpected(char) => format!("encountered unexpected character `{char}`"),
+            LexerErrorKind::Unexpected(char) => {
+                format!("encountered unexpected character `{char}`")
+            }
             LexerErrorKind::Expected(token) => format!("expected token `{token}`"),
-            LexerErrorKind::Unclosed(delim) => format!("encountered unclosed delimiter `{}`, add a `{}` after the inner expression", delim.left(), delim.right()),
-            LexerErrorKind::UnsupportedFloatBaseLiteral(base) => format!("{base} float literal is not supported"),
+            LexerErrorKind::Unclosed(delim) => format!(
+                "encountered unclosed delimiter `{}`, add a `{}` after the inner expression",
+                delim.left(),
+                delim.right()
+            ),
+            LexerErrorKind::UnsupportedFloatBaseLiteral(base) => {
+                format!("{base} float literal is not supported")
+            }
             LexerErrorKind::InvalidLitSuffix(kind, suffix) => {
                 let suffix_note = match kind {
-                    NumericLitKind::Integer => format!("{kind} suffix must be `u32`, `i64`, etc"),
-                    NumericLitKind::Float => format!("{kind} suffix must be `f32` or `f64`"),
+                    NumericLitKind::Integer => "suffix must be `u32`, `i64`, etc",
+                    NumericLitKind::Float => "suffix must be `f32` or `f64`",
                 };
 
                 // push a note about what kind of suffix is expected
-                help_notes
-                    .push(ReportElement::Note(ReportNote::new(ReportNoteKind::Info, suffix_note)));
+                help_notes.push(info!("{kind} {suffix_note}"));
 
                 format!("invalid suffix `{suffix}` for {kind} literal")
             }
+            LexerErrorKind::InvalidFloatExponent => {
+                "float literal has an invalid exponent".to_string()
+            }
+            LexerErrorKind::UnclosedCharLit => {
+                span_label = Some("expected `'` here".to_string());
+                "unclosed character literal".to_string()
+            }
+            LexerErrorKind::MalformedUnicodeLit => {
+                span_label = Some("expected `{` after a `\\u` escape sequence".to_string());
+                "invalid unicode escape sequence".to_string()
+            }
+            LexerErrorKind::UnclosedUnicodeLit => {
+                // push a note about what kind of suffix is expected
+                span_label = Some("expected `}` here".to_string());
+                "unclosed unicode escape sequence".to_string()
+            }
+            LexerErrorKind::MultipleCharCodePoints => {
+                help_notes
+                    .push(help!("{}", "if you meant to write a string literal, use `\"` instead"));
+                "character literals may only contain one codepoint".to_string()
+            }
+            LexerErrorKind::InvalidUnicodeEscape(ch) => {
+                help_notes
+                    .push(info!("{}", "unicode literals may only contain hexadecimal digits"));
+                format!("invalid character in unicode escape sequence `{ch}`")
+            }
+            LexerErrorKind::UnicodeLitTooLong => {
+                span_label = Some(
+                    "unicode literals may only contain up to 6 hexadecimal digits".to_string(),
+                );
+                "overlong unicode escape sequence".to_string()
+            }
+            LexerErrorKind::UnicodeLitTooLarge => {
+                span_label = Some("invalid escape".to_string());
+                help_notes.push(info!("{}", "unicode escape must be at most 10FFFF"));
+                "invalid unicode character escape".to_string()
+            }
+            LexerErrorKind::NumericEscapeSequenceTooShort => {
+                "numeric escape sequence is too short".to_string()
+            }
+            LexerErrorKind::InvalidNumericEscapeSequence(ch) => {
+                help_notes.push(info!(
+                    "{}",
+                    "numeric escape sequences may only contain hexadecimal digits"
+                ));
+                span_label = Some(format!("`{ch}` is not valid here"));
+                format!("invalid character in numeric escape sequence `{ch}`")
+            }
         };
 
-        if let Some(additional_info) = err.message {
-            message.push_str(&format!(". {additional_info}"));
-        }
+        let report = reporter
+            .error()
+            .title(message)
+            .add_labelled_span(err.location, span_label.unwrap_or("here".to_string()));
 
-        reporter.error().title(message).add_labelled_span(err.location, "here");
+        // Add any of the additionally generated notes.
+        for note in help_notes {
+            report.add_element(note);
+        }
 
         reporter.into_reports()
     }

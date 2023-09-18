@@ -1,5 +1,5 @@
-error: invalid character literal `a`, character literals may only contain one codepoint
- --> $DIR/unclosed_char_literal.hash:3:1
+error: unclosed character literal
+ --> $DIR/unclosed_char_literal.hash:3:3
 2 |   
 3 |   'a
-  |   ^^^ here
+  |     ^ expected `'` here

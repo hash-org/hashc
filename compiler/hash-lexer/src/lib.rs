@@ -99,30 +99,16 @@ impl<'a> Lexer<'a> {
     /// set `has_fatal_error` flag to true so that the
     /// lexer terminates on the next advancement.
     #[inline]
-    fn emit_fatal_error(
-        &mut self,
-        message: Option<String>,
-        kind: LexerErrorKind,
-        span: ByteRange,
-    ) -> TokenKind {
+    fn emit_fatal_error(&mut self, kind: LexerErrorKind, span: ByteRange) -> TokenKind {
         self.diagnostics.has_fatal_error.set(true);
-        self.emit_error(message, kind, span)
+        self.emit_error(kind, span)
     }
 
     /// Put an error into the [LexerDiagnostics], whilst returning a
     /// [TokenKind::Err] in place of a lexed token.
     #[inline]
-    fn emit_error(
-        &mut self,
-        message: Option<String>,
-        kind: LexerErrorKind,
-        span: ByteRange,
-    ) -> TokenKind {
-        self.add_error(LexerError {
-            message,
-            kind,
-            location: Span { range: span, id: self.source_id },
-        });
+    fn emit_error(&mut self, kind: LexerErrorKind, span: ByteRange) -> TokenKind {
+        self.add_error(LexerError { kind, location: Span { range: span, id: self.source_id } });
 
         TokenKind::Err
     }
@@ -130,13 +116,8 @@ impl<'a> Lexer<'a> {
     /// Create a Lexer error and return a [Result], but internally
     /// it is always the [Err] variant.
     #[inline]
-    fn error<T>(
-        &self,
-        message: Option<String>,
-        kind: LexerErrorKind,
-        span: ByteRange,
-    ) -> Result<T, LexerError> {
-        Err(LexerError { message, kind, location: Span { range: span, id: self.source_id } })
+    fn error<T>(&self, kind: LexerErrorKind, span: ByteRange) -> Result<T, LexerError> {
+        Err(LexerError { kind, location: Span { range: span, id: self.source_id } })
     }
 
     /// Tokenise the given input stream
@@ -411,7 +392,6 @@ impl<'a> Lexer<'a> {
                 self.offset.set(self.offset.get() - 1);
 
                 self.emit_error(
-                    None,
                     LexerErrorKind::Unclosed(delimiter),
                     ByteRange::singleton(delim_offset),
                 )
@@ -444,7 +424,6 @@ impl<'a> Lexer<'a> {
                 Ok(suffix) => IntLitKind::Suffixed(suffix),
                 Err(_) => {
                     return self.emit_error(
-                        None,
                         LexerErrorKind::InvalidLitSuffix(NumericLitKind::Integer, suffix),
                         ByteRange::new(self.offset.get(), self.offset.get()),
                     );
@@ -502,7 +481,6 @@ impl<'a> Lexer<'a> {
                     // @@Future: we want to return a `IntLit` token, and recover since this is not a
                     // fatal error...
                     return self.emit_error(
-                        None,
                         LexerErrorKind::MissingDigits,
                         ByteRange::new(start, self.len_consumed()),
                     );
@@ -517,7 +495,6 @@ impl<'a> Lexer<'a> {
                     // @@Future: we want to return a `IntLit` token, and recover since this is not a
                     // fatal error...
                     return self.emit_error(
-                        None,
                         LexerErrorKind::UnsupportedFloatBaseLiteral(radix.into()),
                         ByteRange::new(start, self.len_consumed()),
                     );
@@ -574,7 +551,6 @@ impl<'a> Lexer<'a> {
                         Ok(suffix) => FloatLitKind::Suffixed(suffix),
                         Err(_) => {
                             return self.emit_error(
-                                None,
                                 LexerErrorKind::InvalidLitSuffix(NumericLitKind::Float, suffix),
                                 ByteRange::new(start, self.len_consumed()),
                             );
@@ -609,7 +585,6 @@ impl<'a> Lexer<'a> {
         // Check that there is at least on digit in the exponent
         if self.peek() == EOF_CHAR {
             return self.error(
-                None,
                 LexerErrorKind::MissingExponentDigits,
                 ByteRange::new(start, self.len_consumed()),
             );
@@ -617,8 +592,7 @@ impl<'a> Lexer<'a> {
 
         if self.eat_decimal_digits(10).parse::<i32>().is_err() {
             self.error(
-                Some("Invalid float exponent.".to_string()),
-                LexerErrorKind::MalformedNumericalLit,
+                LexerErrorKind::InvalidFloatExponent,
                 ByteRange::new(start, self.len_consumed()),
             )
         } else {
@@ -635,7 +609,7 @@ impl<'a> Lexer<'a> {
 
     /// Transform an ordinary character into a well known escape sequence
     /// specified by the escape literal rules. More information about the
-    /// escape sequences can be found at [escape sequences](https://hash-org.github.io/lang/basics/intro.html)
+    /// escape sequences can be found at [escape sequences](https://hash-org.github.io/lang/basics/intro.html).
     fn escaped_char(&mut self) -> LexerResult<char> {
         let c = self.next().unwrap();
 
@@ -652,8 +626,7 @@ impl<'a> Lexer<'a> {
                 // literal
                 if self.peek() != '{' {
                     return self.error(
-                        Some("Expected `{` after a `\\u` escape sequence".to_string()),
-                        LexerErrorKind::BadEscapeSequence,
+                        LexerErrorKind::MalformedUnicodeLit,
                         ByteRange::new(start, self.len_consumed()),
                     );
                 }
@@ -661,39 +634,49 @@ impl<'a> Lexer<'a> {
                 self.skip_ascii(); // Eat the '{' beginning part of the scape sequence
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
-                let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
+                let chars = self.eat_while_and_slice(|c| c != '\'' && c != '\"' && c != '}');
 
                 if self.peek() != '}' {
                     return self.error(
-                        Some("expected `}` after a escape sequence".to_string()),
-                        LexerErrorKind::BadEscapeSequence,
+                        LexerErrorKind::UnclosedUnicodeLit,
                         ByteRange::new(self.offset.get(), self.offset.get()),
                     );
                 }
                 self.skip_ascii(); // Eat the '}' ending part of the scape sequence
 
+                // Check that all of the provided digits are valid.
+                for (index, char) in chars.chars().enumerate() {
+                    if !char.is_ascii_hexdigit() {
+                        return self.error(
+                            LexerErrorKind::InvalidUnicodeEscape(char),
+                            ByteRange::singleton(start + 2 + index),
+                        );
+                    }
+                }
+
                 if chars.len() > 6 {
                     return self.error(
-                        Some("Unicode escape literal must be at most 6 hex digits".to_string()),
-                        LexerErrorKind::BadEscapeSequence,
+                        LexerErrorKind::UnicodeLitTooLong,
                         ByteRange::new(start, self.len_consumed()),
                     );
                 }
 
-                let value = u32::from_str_radix(chars, 16);
+                match u32::from_str_radix(chars, 16) {
+                    Ok(value) => {
+                        // If the value is larger than the maximum unicode code point, then we error
+                        // since this is an invalid unicode code point.
+                        if value > 0x10FFFF {
+                            return self.error(
+                                LexerErrorKind::UnicodeLitTooLarge,
+                                ByteRange::new(start, self.len_consumed()),
+                            );
+                        }
 
-                if value.is_err() {
-                    return self.error(
-                        Some(
-                            "Unicode escape literal must only be comprised of hex digits"
-                                .to_string(),
-                        ),
-                        LexerErrorKind::BadEscapeSequence,
-                        ByteRange::new(start, self.offset.get()),
-                    );
+                        Ok(char::from_u32(value).unwrap())
+                    }
+                    // We handle the error above... so this parsing should never fail!
+                    Err(_) => unreachable!(),
                 }
-
-                Ok(char::from_u32(value.unwrap()).unwrap())
             }
             'x' => {
                 // Examples of the \x.. Escape sequence would be things like `\x07` or `\x0b`,
@@ -702,15 +685,13 @@ impl<'a> Lexer<'a> {
                 let chars: Result<String, LexerError> = (0..2)
                     .map(|_| match self.peek() {
                         c if c.is_ascii_hexdigit() => Ok(self.next().unwrap()),
-                        EOF_CHAR => self.error(
-                            Some("ASCII escape code too short".to_string()),
-                            LexerErrorKind::BadEscapeSequence,
+                        EOF_CHAR | '"' | '\'' => self.error(
+                            LexerErrorKind::NumericEscapeSequenceTooShort,
                             ByteRange::new(start, self.len_consumed()),
                         ),
                         c => self.error(
-                            Some("ASCII escape code must only contain hex digits".to_string()),
-                            LexerErrorKind::Unexpected(c),
-                            ByteRange::new(start, self.len_consumed()),
+                            LexerErrorKind::InvalidNumericEscapeSequence(c),
+                            ByteRange::singleton(self.offset.get()),
                         ),
                     })
                     .collect();
@@ -729,11 +710,9 @@ impl<'a> Lexer<'a> {
             '\\' => Ok('\\'),
             '"' => Ok('\"'),
             '\'' => Ok('\''),
-            ch => self.error(
-                Some(format!("unknown escape sequence `{ch}`")),
-                LexerErrorKind::BadEscapeSequence,
-                ByteRange::new(start, start),
-            ),
+            ch => {
+                self.error(LexerErrorKind::UnknownEscapeSequence(ch), ByteRange::new(start, start))
+            }
         }
     }
 
@@ -757,22 +736,19 @@ impl<'a> Lexer<'a> {
 
                     // eat the single quote after the character
                     if next != '\'' {
-                        let offset = self.offset.get();
+                        self.eat_until('\''); // Skip and eat all chars until we get a closed char lit.
 
-                        // @@Improvement: Maybe make this a function to check if we're about to hit
-                        // the end...
-                        if next == EOF_CHAR {
-                            return self.emit_error(
-                                Some("unclosed character literal".to_string()),
-                                LexerErrorKind::Expected(TokenKind::SingleQuote),
-                                ByteRange::new(offset, offset),
+                        if self.is_eof() {
+                            return self.emit_fatal_error(
+                                LexerErrorKind::UnclosedCharLit,
+                                ByteRange::singleton(self.offset.get()),
                             );
                         }
 
+                        self.skip(); // skip `'`
                         return self.emit_error(
-                            Some("character literal can only contain one codepoint".to_string()),
-                            LexerErrorKind::BadEscapeSequence,
-                            ByteRange::new(start, offset),
+                            LexerErrorKind::MultipleCharCodePoints,
+                            ByteRange::new(start, self.offset.get()),
                         );
                     }
 
@@ -787,7 +763,12 @@ impl<'a> Lexer<'a> {
                     if self.peek() != '\'' {
                         self.diagnostics.has_fatal_error.set(true);
                     }
-                    self.skip(); // Recover...
+
+                    // Recover...
+                    if !self.is_eof() {
+                        self.skip();
+                    }
+
                     return TokenKind::Err;
                 }
             };
@@ -800,7 +781,14 @@ impl<'a> Lexer<'a> {
         // So here we know that this is an invalid character literal, to improve
         // the reporting aspect, we want to eat up until the next `'` in order
         // to highlight the entire literal
-        let lit = self.eat_while_and_slice(move |c| c != '\'' && !c.is_whitespace()).to_string();
+        self.eat_while_and_discard(move |c| c != '\'' && !c.is_whitespace());
+
+        if self.peek() != '\'' {
+            return self.emit_fatal_error(
+                LexerErrorKind::UnclosedCharLit,
+                ByteRange::singleton(self.offset.get()),
+            );
+        }
 
         // @@ErrorReporting: essentially we jump over the erroneous character literal
         // and continue lexing
@@ -809,8 +797,7 @@ impl<'a> Lexer<'a> {
         }
 
         self.emit_error(
-            None,
-            LexerErrorKind::InvalidCharacterLit(lit),
+            LexerErrorKind::MultipleCharCodePoints,
             ByteRange::new(start, self.len_consumed()),
         )
     }
@@ -851,7 +838,6 @@ impl<'a> Lexer<'a> {
             }
 
             return self.emit_fatal_error(
-                None,
                 LexerErrorKind::UnclosedStringLit,
                 ByteRange::new(start, self.len_consumed()),
             );
