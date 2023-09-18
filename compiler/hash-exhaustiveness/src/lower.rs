@@ -6,7 +6,7 @@ use hash_ast::ast::RangeEnd;
 use hash_source::constant::InternedInt;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    SequenceStoreKey, Store, TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_target::HasTarget;
 use hash_tir::{
@@ -70,11 +70,11 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
     /// Performs a lowering operation on all of the specified branches.
     ///
     /// This takes in the `term` which is the type of the subject.
-    pub(crate) fn lower_pats_to_arms(&self, pats: &[PatId], ty: TyId) -> Vec<MatchArm> {
+    pub(crate) fn lower_pats_to_arms(&mut self, pats: &[PatId], ty: TyId) -> Vec<MatchArm> {
         pats.iter()
             .map(|id| {
                 let destructed_pat = self.deconstruct_pat(ty, *id);
-                let pat = self.deconstructed_pat_store().create(destructed_pat);
+                let pat = self.make_pat(destructed_pat);
 
                 MatchArm {
                     deconstructed_pat: pat,
@@ -86,7 +86,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
     }
 
     /// Convert a [Pat] into a [DeconstructedPat].
-    pub(crate) fn deconstruct_pat(&self, ty_id: TyId, pat_id: PatId) -> DeconstructedPat {
+    pub(crate) fn deconstruct_pat(&mut self, ty_id: TyId, pat_id: PatId) -> DeconstructedPat {
         let (ctor, fields) = match *pat_id.value() {
             Pat::Binding(_) => (DeconstructedCtor::Wildcard, vec![]),
             Pat::Range(range) => {
@@ -217,14 +217,12 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             }
         };
 
-        let ctor = self.ctor_store().create(ctor);
+        let ctor = self.make_ctor(ctor);
 
         // Now we need to put them in the store...
         DeconstructedPat::new(
             ctor,
-            Fields::from_iter(
-                fields.into_iter().map(|field| self.deconstructed_pat_store().create(field)),
-            ),
+            Fields::from_iter(fields.into_iter().map(|field| self.make_pat(field))),
             ty_id,
             Some(pat_id),
         )
@@ -232,19 +230,15 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
     // Convert a [DeconstructedPat] into a [Pat].
     pub(crate) fn construct_pat(&self, pat: DeconstructedPatId) -> PatId {
-        let deconstructed_store = self.deconstructed_pat_store();
-        let ctor_store = self.ctor_store();
+        let DeconstructedPat { ty, fields, id, ctor, .. } = self.get_pat(pat);
 
-        deconstructed_store.map_fast(pat, |deconstructed| {
-            let DeconstructedPat {ty, fields, ..} = deconstructed;
+        // Short-circuit, if the pattern already has an associated `PatId`...
+        if let Some(id) = id {
+            return *id;
+        }
 
-            // Short-circuit, if the pattern already has an associated `PatId`...
-            if deconstructed.id.is_some() {
-                return deconstructed.id.unwrap();
-            }
-
-            ctor_store.map_fast(deconstructed.ctor, |ctor| {
-                let pat = match ctor {
+        let ctor = self.get_ctor(*ctor);
+        let pat = match ctor {
                     DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
                         match *ty.value() {
                             Ty::DataTy(DataTy { data_def, args }) => {
@@ -292,10 +286,8 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                     ),
                 };
 
-                // Now put the pat on the store and return it
-                Node::create_at(pat, NodeOrigin::Generated)
-            })
-        })
+        // Now put the pat on the store and return it
+        Node::create_at(pat, NodeOrigin::Generated)
     }
 
     /// Construct pattern arguments from provided [ParamsId].
@@ -306,7 +298,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
         let fields = fields
             .iter_patterns()
             .enumerate()
-            .filter(|(_, p)| !self.get_deconstructed_pat_ctor(*p).is_wildcard())
+            .filter(|(_, p)| !self.get_pat_ctor(*p).is_wildcard())
             .map(|(index, p)| {
                 Node::at(
                     PatArg {

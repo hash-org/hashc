@@ -65,20 +65,14 @@ pub mod storage;
 pub mod usefulness;
 pub mod wildcard;
 
-use construct::DeconstructedCtor;
-use deconstruct::DeconstructedPat;
 use diagnostics::{ExhaustivenessDiagnostics, ExhaustivenessError, ExhaustivenessWarning};
 use hash_ast::ast::MatchOrigin;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::Span;
-use hash_storage::store::CloneStore;
 use hash_target::HasTarget;
 use hash_tir::tir::{PatId, TyId};
 use hash_utils::derive_more::Deref;
-use storage::{
-    DeconstructedCtorId, DeconstructedCtorStore, DeconstructedPatId, DeconstructedPatStore,
-    ExhaustivenessCtx,
-};
+use storage::ExhaustivenessCtx;
 use usefulness::Reachability;
 
 /// General exhaustiveness context that's used when performing
@@ -145,7 +139,7 @@ impl<'env, E: ExhaustivenessEnv> ExhaustivenessChecker<'env, E> {
     /// Checks whether a `match` block is exhaustive from the provided patterns
     /// of each branch and whether there are any `useless` patterns that
     /// are present within the
-    pub fn is_match_exhaustive(&self, pats: &[PatId], ty: TyId) {
+    pub fn is_match_exhaustive(&mut self, pats: &[PatId], ty: TyId) {
         let arms = self.lower_pats_to_arms(pats, ty);
         let report = self.compute_match_usefulness(ty, &arms);
 
@@ -188,7 +182,7 @@ impl<'env, E: ExhaustivenessEnv> ExhaustivenessChecker<'env, E> {
     /// are checked for irrefutability are transpiled into a match block to
     /// avoid being more complicated than they are needed. This process
     /// occurs in [ast desugaring](hash_ast_desugaring::desugaring) module.
-    pub fn is_pat_irrefutable(&self, pats: &[PatId], ty: TyId, origin: Option<MatchOrigin>) {
+    pub fn is_pat_irrefutable(&mut self, pats: &[PatId], ty: TyId, origin: Option<MatchOrigin>) {
         let arms = self.lower_pats_to_arms(pats, ty);
         let report = self.compute_match_usefulness(ty, &arms);
 
@@ -203,27 +197,6 @@ impl<'env, E: ExhaustivenessEnv> ExhaustivenessChecker<'env, E> {
                 uncovered_pats: witnesses,
             })
         }
-    }
-
-    pub(crate) fn ctor_store(&self) -> &DeconstructedCtorStore {
-        &self.ecx.deconstructed_ctor_store
-    }
-
-    pub(crate) fn deconstructed_pat_store(&self) -> &DeconstructedPatStore {
-        &self.ecx.deconstructed_pat_store
-    }
-
-    pub(crate) fn get_deconstructed_ctor(&self, id: DeconstructedCtorId) -> DeconstructedCtor {
-        self.ecx.deconstructed_ctor_store.get(id)
-    }
-
-    pub(crate) fn get_deconstructed_pat(&self, id: DeconstructedPatId) -> DeconstructedPat {
-        self.ecx.deconstructed_pat_store.get(id)
-    }
-
-    pub(crate) fn get_deconstructed_pat_ctor(&self, id: DeconstructedPatId) -> DeconstructedCtor {
-        let deconstructed_pat = self.get_deconstructed_pat(id);
-        self.get_deconstructed_ctor(deconstructed_pat.ctor)
     }
 }
 

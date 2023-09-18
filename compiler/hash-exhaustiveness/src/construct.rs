@@ -27,7 +27,7 @@
 use std::fmt::{self, Debug};
 
 use hash_source::constant::InternedStr;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::tir::{CtorDefId, DataTy, NodesId, TupleTy, Ty};
 use hash_utils::smallvec::{smallvec, SmallVec};
 
@@ -100,7 +100,7 @@ impl DeconstructedCtor {
 impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Compute the `arity` of this [DeconstructedCtor].
     pub(crate) fn ctor_arity(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> usize {
-        match self.get_deconstructed_ctor(ctor) {
+        match self.get_ctor(ctor) {
             ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
                 // if it a tuple, get the length and that is the arity
                 // if it is a struct or enum, then we get that variant and
@@ -110,7 +110,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                         // We need to extract the variant index from the constructor
                         let variant_idx = match ctor {
                             DeconstructedCtor::Single => 0,
-                            DeconstructedCtor::Variant(idx) => idx,
+                            DeconstructedCtor::Variant(idx) => *idx,
                             _ => unreachable!(),
                         };
 
@@ -155,12 +155,12 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// behaviour and diagnostics. For example, for the `_` case, we ignore the
     /// constructors already present in the matrix, unless all of them are.
     pub(super) fn split_ctor(
-        &self,
+        &mut self,
         ctx: PatCtx,
         ctor_id: DeconstructedCtorId,
         ctors: impl Iterator<Item = DeconstructedCtorId> + Clone,
     ) -> SmallVec<[DeconstructedCtorId; 1]> {
-        let ctor = self.get_deconstructed_ctor(ctor_id);
+        let ctor = self.get_ctor(ctor_id);
 
         match ctor {
             DeconstructedCtor::Wildcard => {
@@ -170,28 +170,23 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             }
             // Fast track to just the single constructor if this range is trivial
             DeconstructedCtor::IntRange(range) if !range.is_singleton() => {
-                let mut range = SplitIntRange::new(range);
-                let int_ranges = ctors
-                    .filter_map(|c| self.ctor_store().map_fast(c, |c| c.as_int_range().cloned()));
+                let mut range = SplitIntRange::new(*range);
+                let int_ranges = ctors.filter_map(|c| self.get_ctor(c).as_int_range().copied());
 
                 range.split(int_ranges);
                 range
                     .iter()
                     .map(DeconstructedCtor::IntRange)
-                    .map(|ctor| self.ctor_store().create(ctor))
+                    .map(|ctor| self.make_ctor(ctor))
                     .collect()
             }
             DeconstructedCtor::Array(Array { kind: ArrayKind::Var(prefix_len, suffix_len) }) => {
-                let mut list = SplitVarList::new(prefix_len, suffix_len);
-                let lists = ctors
-                    .filter_map(|c| self.ctor_store().map_fast(c, |c| c.as_array().cloned()))
-                    .map(|s| s.kind);
+                let mut list = SplitVarList::new(*prefix_len, *suffix_len);
+                let lists =
+                    ctors.filter_map(|c| self.get_ctor(c).as_array().copied()).map(|s| s.kind);
 
                 list.split(lists);
-                list.iter()
-                    .map(DeconstructedCtor::Array)
-                    .map(|ctor| self.ctor_store().create(ctor))
-                    .collect()
+                list.iter().map(DeconstructedCtor::Array).map(|ctor| self.make_ctor(ctor)).collect()
             }
             // In any other case, the split just puts this constructor
             // into the resultant constructors since it cannot split it any
@@ -249,20 +244,19 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             return false;
         }
 
-        match self.get_deconstructed_ctor(pat) {
+        match self.get_ctor(pat) {
             // If `self` is `Single`, `used_ctors` cannot contain anything else than `Single`s.
             DeconstructedCtor::Single => !used_ctors.is_empty(),
-            DeconstructedCtor::Variant(i) => used_ctors.iter().any(|c| {
-                self.ctor_store()
-                    .map_fast(*c, |c| matches!(c, DeconstructedCtor::Variant(k) if *k == i))
-            }),
+            DeconstructedCtor::Variant(i) => used_ctors
+                .iter()
+                .any(|c| matches!(self.get_ctor(*c), DeconstructedCtor::Variant(k) if *k == *i)),
             DeconstructedCtor::IntRange(range) => used_ctors
                 .iter()
-                .filter_map(|c| self.ctor_store().map_fast(*c, |c| c.as_int_range().cloned()))
+                .filter_map(|c| self.get_ctor(*c).as_int_range().copied())
                 .any(|other| range.is_covered_by(&other)),
             DeconstructedCtor::Array(list) => used_ctors
                 .iter()
-                .filter_map(|c| self.ctor_store().map_fast(*c, |c| c.as_array().cloned()))
+                .filter_map(|c| self.get_ctor(*c).as_array().copied())
                 .any(|other| list.is_covered_by(other)),
             // This constructor is never covered by anything else
             DeconstructedCtor::NonExhaustive => false,
@@ -278,6 +272,6 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
 
 impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedCtorId, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.checker.get_deconstructed_ctor(self.item))
+        write!(f, "{:?}", self.checker.get_ctor(self.item))
     }
 }

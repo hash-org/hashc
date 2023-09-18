@@ -48,9 +48,9 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// this recursively expands it.
     pub(crate) fn push_matrix_row(&self, matrix: &mut Matrix, row: PatStack) {
         if !row.is_empty() {
-            let pat = self.get_deconstructed_pat(row.head());
+            let pat = self.get_pat(row.head());
 
-            if self.is_or_pat(&pat) {
+            if self.is_or_pat(pat) {
                 return matrix.patterns.extend(self.expand_or_pat(&row));
             }
         }
@@ -60,22 +60,22 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
 
     /// This computes `S(constructor, matrix)`.
     pub(crate) fn specialise_ctor(
-        &self,
+        &mut self,
         ctx: PatCtx,
         matrix: &Matrix,
         ctor_id: DeconstructedCtorId,
     ) -> Matrix {
         let mut specialised_matrix = Matrix::empty();
-        let ctor = self.get_deconstructed_ctor(ctor_id);
+        let ctor = *self.get_ctor(ctor_id);
 
         // Iterate on each row, and specialise the `head` of
         // each row within the matrix with the provided constructor,
         // the results of the specialisation as new rows in
         // the matrix.
         for row in &matrix.patterns {
-            let row_head_ctor = self.get_deconstructed_pat_ctor(row.head());
+            let row_head_ctor = self.get_pat_ctor(row.head());
 
-            if self.is_ctor_covered_by(&ctor, &row_head_ctor) {
+            if self.is_ctor_covered_by(&ctor, row_head_ctor) {
                 let new_row = self.pop_head_ctor(ctx, row, ctor_id);
                 self.push_matrix_row(&mut specialised_matrix, new_row);
             }

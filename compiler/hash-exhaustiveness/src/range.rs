@@ -37,7 +37,6 @@ use std::{
 
 use hash_ast::ast::RangeEnd;
 use hash_reporting::diagnostic::Diagnostics;
-use hash_storage::store::Store;
 use hash_tir::{
     intrinsics::utils::try_use_ty_as_int_ty,
     tir::{PatId, RangePat, TyId},
@@ -328,9 +327,8 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
 
         let overlaps: Vec<_> = pats
             .filter_map(|pat| {
-                let d = self.get_deconstructed_pat(pat);
-                let ctor = self.ctor_store().map_fast(d.ctor, |c| c.as_int_range().cloned())?;
-
+                let d = self.get_pat(pat);
+                let ctor = self.get_ctor(d.ctor).as_int_range().copied()?;
                 Some((ctor, d.id.unwrap()))
             })
             .filter(|(other_range, _)| range.suspicious_intersection(other_range))
