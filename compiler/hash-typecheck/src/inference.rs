@@ -42,7 +42,7 @@ use hash_tir::{
         RefTy, ReturnTerm, Spread, SymbolId, Term, TermId, TermListId, TuplePat, TupleTerm,
         TupleTy, Ty, TyId, TyOfTerm, UnsafeTerm,
     },
-    visitor::{Atom, Visitor},
+    visitor::{Atom, Map, Visit, Visitor},
 };
 use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
@@ -135,9 +135,9 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for (arg, param_id) in args.zip(annotation_params.iter()) {
                     let param = param_id.value();
-                    let param_ty = self.sub_ops().copy_term(param.ty);
+                    let param_ty = Visitor::new().copy(param.ty);
                     infer_arg(&arg, param_ty)?;
-                    self.sub_ops().apply_sub_to_atom_from_context(param_ty);
+                    self.sub_ops().apply_sub_from_context(param_ty);
                     if let Some(value) = get_arg_value(&arg) {
                         self.context().add_assignment(param.name, param_ty, value);
                     }
@@ -393,7 +393,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         self.context().enter_scope(ScopeKind::Sub, || {
             self.normalise_and_check_ty(annotation_ty)?;
             let params = match *annotation_ty.value() {
-                Ty::TupleTy(tuple_ty) => self.sub_ops().copy_params(tuple_ty.data),
+                Ty::TupleTy(tuple_ty) => Visitor::new().copy(tuple_ty.data),
                 Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_term.data),
                 _ => {
                     let inferred = Param::seq_from_args_with_hole_types(tuple_term.data);
@@ -421,7 +421,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             self.check_by_unify(tuple_ty, annotation_ty)?;
             // @@Review: why is this needed? Shouldn't the substitution be applied during
             // `check_by_unify`?
-            self.sub_ops().apply_sub_to_atom_from_context(annotation_ty);
+            self.sub_ops().apply_sub_from_context(annotation_ty);
             Ok(())
         })
     }
@@ -582,14 +582,13 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                     DataDefCtors::Primitive(primitive) => {
                         if let PrimitiveCtorInfo::Array(array_prim) = primitive {
                             // First infer the data arguments
-                            let copied_params = self.sub_ops().copy_params(data_def.params);
+                            let copied_params = Visitor::new().copy(data_def.params);
                             self.infer_args(data.args, copied_params, |_| {
                                 let sub = self.sub_ops().create_sub_from_current_scope();
                                 let subbed_element_ty =
-                                    self.sub_ops().apply_sub_to_term(array_prim.element_ty, &sub);
-                                let subbed_index = array_prim
-                                    .length
-                                    .map(|l| self.sub_ops().apply_sub_to_term(l, &sub));
+                                    self.sub_ops().apply_sub(array_prim.element_ty, &sub);
+                                let subbed_index =
+                                    array_prim.length.map(|l| self.sub_ops().apply_sub(l, &sub));
                                 Ok(Some((subbed_element_ty, subbed_index)))
                             })
                         } else {
@@ -661,21 +660,14 @@ impl<T: TcEnv> InferenceOps<'_, T> {
 
     pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        Visitor::new()
-            .visit_pat::<!, _>(pat, &mut |atom| {
-                Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
-            })
-            .into_ok();
+        Visitor::new().visit(pat, &mut |atom| self.get_binds_in_pat_atom_once(atom, &mut binds));
         binds
     }
 
     pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
         Visitor::new()
-            .visit_pat_args::<!, _>(pat_args, &mut |atom| {
-                Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
-            })
-            .into_ok();
+            .visit(pat_args, &mut |atom| self.get_binds_in_pat_atom_once(atom, &mut binds));
         binds
     }
 
@@ -732,14 +724,13 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         // From the given constructor data args, substitute the constructor params and
         // result arguments. In the process, infer the data args more if
         // possible.
-        let copied_params = self.sub_ops().copy_params(data_def.params);
+        let copied_params = Visitor::new().copy(data_def.params);
         let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
             .infer_args(ctor_data_args, copied_params, |inferred_data_args| {
                 let sub = self.sub_ops().create_sub_from_current_scope();
-                let subbed_ctor_params = self.sub_ops().apply_sub_to_params(ctor.params, &sub);
-                let subbed_ctor_result_args =
-                    self.sub_ops().apply_sub_to_args(ctor.result_args, &sub);
-                self.sub_ops().apply_sub_to_args_in_place(inferred_data_args, &sub);
+                let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
+                let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
+                self.sub_ops().apply_sub_in_place(inferred_data_args, &sub);
                 Ok((inferred_data_args, subbed_ctor_params, subbed_ctor_result_args))
             })?;
 
@@ -750,9 +741,9 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         let (final_result_args, resulting_sub, binds) =
             self.infer_args(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
                 let ctor_sub = self.sub_ops().create_sub_from_current_scope();
-                self.sub_ops().apply_sub_to_args_in_place(subbed_ctor_result_args, &ctor_sub);
-                self.sub_ops().apply_sub_to_args_in_place(inferred_term_ctor_args, &ctor_sub);
-                self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_data_args, &ctor_sub);
+                self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
+                self.sub_ops().apply_sub_in_place(inferred_term_ctor_args, &ctor_sub);
+                self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
 
                 // These arguments might have been updated so we need to set them
                 term.data_args = inferred_ctor_data_args;
@@ -779,12 +770,12 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         // arguments, the constructor data arguments, and finally the annotation
         // type.
         let final_sub = self.sub_ops().create_sub_from_current_scope();
-        self.sub_ops().apply_sub_to_args_in_place(subbed_ctor_result_args, &final_sub);
-        self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_data_args, &final_sub);
+        self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
+        self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
         // Set data args because they might have been updated again
         term.data_args = inferred_ctor_data_args;
         original_term_id.set(original_term_id.value().with_data(term.into()));
-        self.sub_ops().apply_sub_to_term_in_place(annotation_ty, &final_sub);
+        self.sub_ops().apply_sub_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in term.data_args.iter().zip(subbed_ctor_result_args.iter())
         {
@@ -873,20 +864,20 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                         });
                     }
 
-                    let copied_params = self.sub_ops().copy_params(fn_ty.params);
-                    let copied_return_ty = self.sub_ops().copy_term(fn_ty.return_ty);
+                    let copied_params = Visitor::new().copy(fn_ty.params);
+                    let copied_return_ty = Visitor::new().copy(fn_ty.return_ty);
 
                     let mut fn_call_term = *fn_call_term;
                     self.infer_args(fn_call_term.args, copied_params, |inferred_fn_call_args| {
                         fn_call_term.args = inferred_fn_call_args;
                         original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
 
-                        self.sub_ops().apply_sub_to_atom_from_context(copied_return_ty);
+                        self.sub_ops().apply_sub_from_context(copied_return_ty);
                         self.check_by_unify(copied_return_ty, annotation_ty)?;
                         Ok(())
                     })?;
 
-                    self.sub_ops().apply_sub_to_atom_from_context(fn_call_term.subject);
+                    self.sub_ops().apply_sub_from_context(fn_call_term.subject);
                     self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;
 
                     Ok(())
@@ -1038,7 +1029,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         match self.context().try_get_decl(term) {
             Some(decl) => {
                 if let Some(ty) = decl.ty {
-                    let ty = self.sub_ops().copy_term(ty);
+                    let ty = Visitor::new().copy(ty);
                     self.check_ty(ty)?;
                     self.uni_ops().unify_terms(ty, annotation_ty)?;
                     Ok(())
@@ -1198,7 +1189,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             };
 
             let sub = self.sub_ops().create_sub_from_current_scope();
-            self.sub_ops().apply_sub_to_term_in_place(annotation_ty, &sub);
+            self.sub_ops().apply_sub_in_place(annotation_ty, &sub);
 
             let sub_ops = self.sub_ops();
             let vars_in_scope = sub_ops.get_unassigned_vars_in_current_scope();
@@ -1296,7 +1287,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                         let sub = self
                             .sub_ops()
                             .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                        self.sub_ops().apply_sub_to_params(ctor.params, &sub)
+                        self.sub_ops().apply_sub(ctor.params, &sub)
                     }
                     None => {
                         // Not a record type because it has more than one constructor
@@ -1327,8 +1318,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             // i.e. `x: (T: Type, t: T);  x.t: x.T`
             let param_access_sub =
                 self.sub_ops().create_sub_from_param_access(params, access_term.subject);
-            let subbed_param_ty =
-                self.sub_ops().apply_sub_to_term(param.borrow().ty, &param_access_sub);
+            let subbed_param_ty = self.sub_ops().apply_sub(param.borrow().ty, &param_access_sub);
             self.check_by_unify(subbed_param_ty, annotation_ty)?;
             Ok(())
         } else {
@@ -1376,8 +1366,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                     let sub = self
                         .sub_ops()
                         .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                    let array_ty =
-                        self.sub_ops().apply_sub_to_term(array_primitive.element_ty, &sub);
+                    let array_ty = self.sub_ops().apply_sub(array_primitive.element_ty, &sub);
                     Ok(array_ty)
                 } else {
                     wrong_subject_ty()
@@ -1432,11 +1421,11 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         for case in match_term.cases.iter() {
             let case_data = case.value();
             self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
-                let subject_ty_copy = self.sub_ops().copy_term(match_subject_ty);
+                let subject_ty_copy = Visitor::new().copy(match_subject_ty);
 
                 self.infer_pat(case_data.bind_pat, subject_ty_copy, Some(match_term.subject))?;
                 let new_unified_ty =
-                    Ty::expect_is(case_data.value, self.sub_ops().copy_term(unified_ty));
+                    Ty::expect_is(case_data.value, Visitor::new().copy(unified_ty));
 
                 if let Some(match_subject_var) = match_subject_var {
                     if let Some(pat_term) = self.try_use_pat_as_term(case_data.bind_pat) {
@@ -1561,7 +1550,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             }
             Ty::DataTy(mut data_ty) => {
                 let data_def = data_ty.data_def.value();
-                let copied_params = self.sub_ops().copy_params(data_def.params);
+                let copied_params = Visitor::new().copy(data_def.params);
                 self.infer_args(data_ty.args, copied_params, |inferred_data_ty_args| {
                     data_ty.args = inferred_data_ty_args;
                     term_id.set(term_id.value().with_data(data_ty.into()));
@@ -1718,14 +1707,13 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         // From the given constructor data args, substitute the constructor params and
         // result arguments. In the process, infer the data args more if
         // possible.
-        let copied_params = self.sub_ops().copy_params(data_def.params);
+        let copied_params = Visitor::new().copy(data_def.params);
         let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
             .infer_args(ctor_data_args, copied_params, |inferred_data_args| {
                 let sub = self.sub_ops().create_sub_from_current_scope();
-                let subbed_ctor_params = self.sub_ops().apply_sub_to_params(ctor.params, &sub);
-                let subbed_ctor_result_args =
-                    self.sub_ops().apply_sub_to_args(ctor.result_args, &sub);
-                self.sub_ops().apply_sub_to_args_in_place(inferred_data_args, &sub);
+                let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
+                let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
+                self.sub_ops().apply_sub_in_place(inferred_data_args, &sub);
                 Ok((inferred_data_args, subbed_ctor_params, subbed_ctor_result_args))
             })?;
 
@@ -1739,9 +1727,9 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             subbed_ctor_params,
             |inferred_pat_ctor_args| {
                 let ctor_sub = self.sub_ops().create_sub_from_current_scope();
-                self.sub_ops().apply_sub_to_args_in_place(subbed_ctor_result_args, &ctor_sub);
-                self.sub_ops().apply_sub_to_pat_args_in_place(inferred_pat_ctor_args, &ctor_sub);
-                self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_data_args, &ctor_sub);
+                self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
+                self.sub_ops().apply_sub_in_place(inferred_pat_ctor_args, &ctor_sub);
+                self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
 
                 // These arguments might have been updated so we need to set them
                 pat.data_args = inferred_ctor_data_args;
@@ -1773,13 +1761,13 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         // arguments, the constructor data arguments, and finally the annotation
         // type.
         let final_sub = self.sub_ops().create_sub_from_current_scope();
-        self.sub_ops().apply_sub_to_args_in_place(subbed_ctor_result_args, &final_sub);
-        self.sub_ops().apply_sub_to_args_in_place(inferred_ctor_data_args, &final_sub);
-        self.sub_ops().apply_sub_to_pat_args_in_place(pat.ctor_pat_args, &final_sub);
+        self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
+        self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
+        self.sub_ops().apply_sub_in_place(pat.ctor_pat_args, &final_sub);
         // Set data args because they might have been updated again
         pat.data_args = inferred_ctor_data_args;
         original_pat_id.set(original_pat_id.value().with_data(pat.into()));
-        self.sub_ops().apply_sub_to_term_in_place(annotation_ty, &final_sub);
+        self.sub_ops().apply_sub_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in pat.data_args.iter().zip(subbed_ctor_result_args.iter())
         {
