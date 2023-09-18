@@ -65,6 +65,17 @@ impl fmt::Display for Atom {
     }
 }
 
+/// Trait to visit a TIR node `X`, by mutating the node.
+pub trait Visit<X> {
+    fn visit<E, F: VisitFn<E>>(&self, x: X, f: &mut F) -> Result<(), E>;
+}
+
+/// Trait to map a TIR node `X` to another node of the same type `X`, without
+/// mutating the original.
+pub trait Map<X> {
+    fn map<E, F: MapFn<E>>(&self, x: X, f: F) -> Result<X, E>;
+}
+
 /// Function to visit an atom.
 ///
 /// This does not return a value, but instead returns a `ControlFlow` to
@@ -77,34 +88,93 @@ pub trait VisitFn<E> = FnMut(Atom) -> Result<ControlFlow<()>, E>;
 /// the atom canonically or break the traversal with a custom atom.
 pub trait MapFn<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
 
-/// Contains the implementation of `fmap` and `visit` for each atom, as well as
-/// secondary components such as arguments and parameters.
-impl Visitor {
-    /// Create a new `TraversingUtils`.
-    pub fn new() -> Self {
-        Self { visited: RefCell::new(HashSet::new()), visit_fns_once: true }
-    }
-
-    pub fn set_visit_fns_once(&mut self, visit_fns_once: bool) {
-        self.visit_fns_once = visit_fns_once;
-    }
-
-    pub fn fmap_atom_non_preserving<E, F: MapFn<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
-        match f(atom)? {
-            ControlFlow::Continue(()) => self.fmap_atom(atom, f),
-            ControlFlow::Break(atom) => Ok(atom),
+impl Visit<Atom> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, atom: Atom, f: &mut F) -> Result<(), E> {
+        match atom {
+            Atom::Term(term_id) => self.visit_term(term_id, f),
+            Atom::FnDef(fn_def_id) => self.visit_fn_def(fn_def_id, f),
+            Atom::Pat(pat_id) => self.visit_pat(pat_id, f),
         }
     }
+}
 
-    pub fn fmap_atom<E, F: MapFn<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
+impl Map<Atom> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
         match atom {
             Atom::Term(term_id) => Ok(Atom::Term(self.fmap_term(term_id, f)?)),
             Atom::FnDef(fn_def_id) => Ok(Atom::FnDef(self.fmap_fn_def(fn_def_id, f)?)),
             Atom::Pat(pat_id) => Ok(Atom::Pat(self.fmap_pat(pat_id, f)?)),
         }
     }
+}
 
-    pub fn fmap_term<E, F: MapFn<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
+impl Visit<TermId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, term_id: TermId, f: &mut F) -> Result<(), E> {
+        match f(term_id.into())? {
+            ControlFlow::Break(_) => Ok(()),
+            ControlFlow::Continue(()) => match *term_id.value() {
+                Term::Tuple(tuple_term) => self.visit_args(tuple_term.data, f),
+                Term::Lit(_) => Ok(()),
+                Term::Array(list_ctor) => self.visit_term_list(list_ctor.elements, f),
+                Term::Ctor(ctor_term) => {
+                    self.visit_args(ctor_term.data_args, f)?;
+                    self.visit_args(ctor_term.ctor_args, f)
+                }
+                Term::Call(fn_call_term) => {
+                    self.visit_term(fn_call_term.subject, f)?;
+                    self.visit_args(fn_call_term.args, f)
+                }
+                Term::Fn(fn_def_id) => self.visit_fn_def(fn_def_id, f),
+                Term::Block(block_term) => {
+                    self.visit_block_statements(block_term.statements, f)?;
+                    self.visit_term(block_term.expr, f)
+                }
+                Term::Var(_) => Ok(()),
+                Term::Loop(loop_term) => self.visit_term(loop_term.inner, f),
+                Term::LoopControl(_) => Ok(()),
+                Term::Match(match_term) => {
+                    self.visit_term(match_term.subject, f)?;
+                    for case in match_term.cases.elements().value() {
+                        self.visit_pat(case.bind_pat, f)?;
+                        self.visit_term(case.value, f)?;
+                    }
+                    Ok(())
+                }
+                Term::Return(return_term) => self.visit_term(return_term.expression, f),
+                Term::Assign(assign_term) => {
+                    self.visit_term(assign_term.subject, f)?;
+                    self.visit_term(assign_term.value, f)
+                }
+                Term::Unsafe(unsafe_term) => self.visit_term(unsafe_term.inner, f),
+                Term::Access(access_term) => self.visit_term(access_term.subject, f),
+                Term::Index(index_term) => {
+                    self.visit_term(index_term.subject, f)?;
+                    self.visit_term(index_term.index, f)
+                }
+                Term::Cast(cast_term) => {
+                    self.visit_term(cast_term.subject_term, f)?;
+                    self.visit_term(cast_term.target_ty, f)
+                }
+                Term::TypeOf(type_of_term) => self.visit_term(type_of_term.term, f),
+                Term::Ref(ref_term) => self.visit_term(ref_term.subject, f),
+                Term::Deref(deref_term) => self.visit_term(deref_term.subject, f),
+                Term::Hole(_) => Ok(()),
+                Term::Intrinsic(_) => Ok(()),
+                Ty::TupleTy(tuple_ty) => self.visit_params(tuple_ty.data, f),
+                Ty::FnTy(fn_ty) => {
+                    self.visit_params(fn_ty.params, f)?;
+                    self.visit_term(fn_ty.return_ty, f)
+                }
+                Ty::RefTy(ref_ty) => self.visit_term(ref_ty.ty, f),
+                Ty::DataTy(data_ty) => self.visit_args(data_ty.args, f),
+                Ty::Universe => Ok(()),
+            },
+        }
+    }
+}
+
+impl Map<TermId> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
         let origin = term_id.origin();
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
@@ -257,8 +327,31 @@ impl Visitor {
 
         Ok(result)
     }
+}
 
-    pub fn fmap_pat<E, F: MapFn<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
+impl Visit<PatId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, pat_id: PatId, f: &mut F) -> Result<(), E> {
+        match f(pat_id.into())? {
+            ControlFlow::Break(()) => Ok(()),
+            ControlFlow::Continue(()) => match *pat_id.value() {
+                Pat::Binding(_) | Pat::Range(_) | Pat::Lit(_) => Ok(()),
+                Pat::Tuple(tuple_pat) => self.visit_pat_args(tuple_pat.data, f),
+                Pat::Array(list_pat) => self.visit_pat_list(list_pat.pats, f),
+                Pat::Ctor(ctor_pat) => {
+                    self.visit_args(ctor_pat.data_args, f)?;
+                    self.visit_pat_args(ctor_pat.ctor_pat_args, f)
+                }
+                Pat::Or(or_pat) => self.visit_pat_list(or_pat.alternatives, f),
+                Pat::If(if_pat) => {
+                    self.visit_pat(if_pat.pat, f)?;
+                    self.visit_term(if_pat.condition, f)
+                }
+            },
+        }
+    }
+}
+impl Map<PatId> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
         let origin = pat_id.origin();
         let result = match f(pat_id.into())? {
             ControlFlow::Break(pat) => Ok(PatId::try_from(pat).unwrap()),
@@ -307,8 +400,31 @@ impl Visitor {
 
         Ok(result)
     }
+}
 
-    pub fn fmap_block_statements<E, F: MapFn<E>>(
+impl Visit<BlockStatementsId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(
+        &self,
+        block_statements: BlockStatementsId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        for statement in block_statements.elements().value() {
+            match *statement {
+                BlockStatement::Decl(decl) => {
+                    self.visit_pat(decl.bind_pat, f)?;
+                    self.visit_term(decl.ty, f)?;
+                    decl.value.map(|v| self.visit_term(v, f)).transpose()?;
+                }
+                BlockStatement::Expr(expr) => {
+                    self.visit_term(expr, f)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl Map<BlockStatementsId> for Visitor {
+    fn map<E, F: MapFn<E>>(
         &self,
         block_statements: BlockStatementsId,
         f: F,
@@ -335,20 +451,38 @@ impl Visitor {
         }
         Ok(Node::create_at(Node::seq(new_list), block_statements.origin()))
     }
+}
 
-    pub fn fmap_term_list<E, F: MapFn<E>>(
-        &self,
-        term_list: TermListId,
-        f: F,
-    ) -> Result<TermListId, E> {
+impl Visit<TermListId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, term_list_id: TermListId, f: &mut F) -> Result<(), E> {
+        for term in term_list_id.elements().value() {
+            self.visit_term(term, f)?;
+        }
+        Ok(())
+    }
+}
+impl Map<TermListId> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, term_list: TermListId, f: F) -> Result<TermListId, E> {
         let mut new_list = Vec::with_capacity(term_list.len());
         for term_id in term_list.elements().value() {
             new_list.push(self.fmap_term(term_id, f)?);
         }
         Ok(Node::create_at(TermId::seq(new_list), term_list.origin()))
     }
+}
 
-    pub fn fmap_pat_list<E, F: MapFn<E>>(&self, pat_list: PatListId, f: F) -> Result<PatListId, E> {
+impl Visit<PatListId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, pat_list_id: PatListId, f: &mut F) -> Result<(), E> {
+        for pat in pat_list_id.elements().value() {
+            if let PatOrCapture::Pat(pat) = pat {
+                self.visit_pat(pat, f)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl Map<PatListId> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, pat_list: PatListId, f: F) -> Result<PatListId, E> {
         let mut new_list = Vec::with_capacity(pat_list.len());
         for pat_id in pat_list.elements().value() {
             match pat_id {
@@ -362,8 +496,21 @@ impl Visitor {
         }
         Ok(Node::create_at(PatOrCapture::seq(new_list), pat_list.origin()))
     }
+}
 
-    pub fn fmap_params<E, F: MapFn<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
+impl Visit<ParamsId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
+        for param in params_id.elements().value() {
+            self.visit_term(param.ty, f)?;
+            if let Some(default) = param.default {
+                self.visit_term(default, f)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl Map<ParamsId> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
         let new_params = {
             let mut new_params = Vec::with_capacity(params_id.len());
             for param in params_id.elements().value() {
@@ -384,8 +531,18 @@ impl Visitor {
 
         Ok(new_params)
     }
+}
 
-    pub fn fmap_args<E, F: MapFn<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
+impl Visit<ArgsId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, args_id: ArgsId, f: &mut F) -> Result<(), E> {
+        for arg in args_id.elements().value() {
+            self.visit_term(arg.value, f)?;
+        }
+        Ok(())
+    }
+}
+impl Map<ArgsId> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
         let mut new_args = Vec::with_capacity(args_id.len());
         for arg in args_id.elements().value() {
             new_args.push(Node::at(
@@ -396,12 +553,20 @@ impl Visitor {
         let new_args_id = Node::create_at(Node::<Arg>::seq(new_args), args_id.origin());
         Ok(new_args_id)
     }
+}
 
-    pub fn fmap_pat_args<E, F: MapFn<E>>(
-        &self,
-        pat_args_id: PatArgsId,
-        f: F,
-    ) -> Result<PatArgsId, E> {
+impl Visit<PatArgsId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, pat_args_id: PatArgsId, f: &mut F) -> Result<(), E> {
+        for arg in pat_args_id.elements().value() {
+            if let PatOrCapture::Pat(pat) = arg.pat {
+                self.visit_pat(pat, f)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl Map<PatArgsId> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, pat_args_id: PatArgsId, f: F) -> Result<PatArgsId, E> {
         let new_pat_args = {
             let mut new_args = Vec::with_capacity(pat_args_id.len());
             for pat_arg in pat_args_id.elements().value() {
@@ -423,8 +588,33 @@ impl Visitor {
 
         Ok(new_pat_args)
     }
+}
 
-    pub fn fmap_fn_def<E, F: MapFn<E>>(&self, fn_def_id: FnDefId, f: F) -> Result<FnDefId, E> {
+impl Visit<FnDefId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, fn_def_id: FnDefId, f: &mut F) -> Result<(), E> {
+        if self.visit_fns_once {
+            {
+                if self.visited.borrow().contains(&fn_def_id.into()) {
+                    return Ok(());
+                }
+            }
+            self.visited.borrow_mut().insert(fn_def_id.into());
+        }
+
+        match f(fn_def_id.into())? {
+            ControlFlow::Break(()) => Ok(()),
+            ControlFlow::Continue(()) => {
+                let fn_def = fn_def_id.value();
+                let fn_ty = fn_def.ty;
+                self.visit_params(fn_ty.params, f)?;
+                self.visit_term(fn_ty.return_ty, f)?;
+                self.visit_term(fn_def.body, f)
+            }
+        }
+    }
+}
+impl Map<FnDefId> for Visitor {
+    fn map<E, F: MapFn<E>>(&self, fn_def_id: FnDefId, f: F) -> Result<FnDefId, E> {
         if self.visit_fns_once {
             {
                 if self.visited.borrow().contains(&fn_def_id.into()) {
@@ -463,199 +653,10 @@ impl Visitor {
 
         Ok(new_fn_def)
     }
+}
 
-    pub fn visit_term<E, F: VisitFn<E>>(&self, term_id: TermId, f: &mut F) -> Result<(), E> {
-        match f(term_id.into())? {
-            ControlFlow::Break(_) => Ok(()),
-            ControlFlow::Continue(()) => match *term_id.value() {
-                Term::Tuple(tuple_term) => self.visit_args(tuple_term.data, f),
-                Term::Lit(_) => Ok(()),
-                Term::Array(list_ctor) => self.visit_term_list(list_ctor.elements, f),
-                Term::Ctor(ctor_term) => {
-                    self.visit_args(ctor_term.data_args, f)?;
-                    self.visit_args(ctor_term.ctor_args, f)
-                }
-                Term::Call(fn_call_term) => {
-                    self.visit_term(fn_call_term.subject, f)?;
-                    self.visit_args(fn_call_term.args, f)
-                }
-                Term::Fn(fn_def_id) => self.visit_fn_def(fn_def_id, f),
-                Term::Block(block_term) => {
-                    self.visit_block_statements(block_term.statements, f)?;
-                    self.visit_term(block_term.expr, f)
-                }
-                Term::Var(_) => Ok(()),
-                Term::Loop(loop_term) => self.visit_term(loop_term.inner, f),
-                Term::LoopControl(_) => Ok(()),
-                Term::Match(match_term) => {
-                    self.visit_term(match_term.subject, f)?;
-                    for case in match_term.cases.elements().value() {
-                        self.visit_pat(case.bind_pat, f)?;
-                        self.visit_term(case.value, f)?;
-                    }
-                    Ok(())
-                }
-                Term::Return(return_term) => self.visit_term(return_term.expression, f),
-                Term::Assign(assign_term) => {
-                    self.visit_term(assign_term.subject, f)?;
-                    self.visit_term(assign_term.value, f)
-                }
-                Term::Unsafe(unsafe_term) => self.visit_term(unsafe_term.inner, f),
-                Term::Access(access_term) => self.visit_term(access_term.subject, f),
-                Term::Index(index_term) => {
-                    self.visit_term(index_term.subject, f)?;
-                    self.visit_term(index_term.index, f)
-                }
-                Term::Cast(cast_term) => {
-                    self.visit_term(cast_term.subject_term, f)?;
-                    self.visit_term(cast_term.target_ty, f)
-                }
-                Term::TypeOf(type_of_term) => self.visit_term(type_of_term.term, f),
-                Term::Ref(ref_term) => self.visit_term(ref_term.subject, f),
-                Term::Deref(deref_term) => self.visit_term(deref_term.subject, f),
-                Term::Hole(_) => Ok(()),
-                Term::Intrinsic(_) => Ok(()),
-                Ty::TupleTy(tuple_ty) => self.visit_params(tuple_ty.data, f),
-                Ty::FnTy(fn_ty) => {
-                    self.visit_params(fn_ty.params, f)?;
-                    self.visit_term(fn_ty.return_ty, f)
-                }
-                Ty::RefTy(ref_ty) => self.visit_term(ref_ty.ty, f),
-                Ty::DataTy(data_ty) => self.visit_args(data_ty.args, f),
-                Ty::Universe => Ok(()),
-            },
-        }
-    }
-
-    pub fn visit_pat<E, F: VisitFn<E>>(&self, pat_id: PatId, f: &mut F) -> Result<(), E> {
-        match f(pat_id.into())? {
-            ControlFlow::Break(()) => Ok(()),
-            ControlFlow::Continue(()) => match *pat_id.value() {
-                Pat::Binding(_) | Pat::Range(_) | Pat::Lit(_) => Ok(()),
-                Pat::Tuple(tuple_pat) => self.visit_pat_args(tuple_pat.data, f),
-                Pat::Array(list_pat) => self.visit_pat_list(list_pat.pats, f),
-                Pat::Ctor(ctor_pat) => {
-                    self.visit_args(ctor_pat.data_args, f)?;
-                    self.visit_pat_args(ctor_pat.ctor_pat_args, f)
-                }
-                Pat::Or(or_pat) => self.visit_pat_list(or_pat.alternatives, f),
-                Pat::If(if_pat) => {
-                    self.visit_pat(if_pat.pat, f)?;
-                    self.visit_term(if_pat.condition, f)
-                }
-            },
-        }
-    }
-
-    pub fn visit_fn_def<E, F: VisitFn<E>>(&self, fn_def_id: FnDefId, f: &mut F) -> Result<(), E> {
-        if self.visit_fns_once {
-            {
-                if self.visited.borrow().contains(&fn_def_id.into()) {
-                    return Ok(());
-                }
-            }
-            self.visited.borrow_mut().insert(fn_def_id.into());
-        }
-
-        match f(fn_def_id.into())? {
-            ControlFlow::Break(()) => Ok(()),
-            ControlFlow::Continue(()) => {
-                let fn_def = fn_def_id.value();
-                let fn_ty = fn_def.ty;
-                self.visit_params(fn_ty.params, f)?;
-                self.visit_term(fn_ty.return_ty, f)?;
-                self.visit_term(fn_def.body, f)
-            }
-        }
-    }
-
-    pub fn visit_atom<E, F: VisitFn<E>>(&self, atom: Atom, f: &mut F) -> Result<(), E> {
-        match atom {
-            Atom::Term(term_id) => self.visit_term(term_id, f),
-            Atom::FnDef(fn_def_id) => self.visit_fn_def(fn_def_id, f),
-            Atom::Pat(pat_id) => self.visit_pat(pat_id, f),
-        }
-    }
-
-    pub fn visit_term_list<E, F: VisitFn<E>>(
-        &self,
-        term_list_id: TermListId,
-        f: &mut F,
-    ) -> Result<(), E> {
-        for term in term_list_id.elements().value() {
-            self.visit_term(term, f)?;
-        }
-        Ok(())
-    }
-
-    pub fn visit_block_statements<E, F: VisitFn<E>>(
-        &self,
-        block_statements: BlockStatementsId,
-        f: &mut F,
-    ) -> Result<(), E> {
-        for statement in block_statements.elements().value() {
-            match *statement {
-                BlockStatement::Decl(decl) => {
-                    self.visit_pat(decl.bind_pat, f)?;
-                    self.visit_term(decl.ty, f)?;
-                    decl.value.map(|v| self.visit_term(v, f)).transpose()?;
-                }
-                BlockStatement::Expr(expr) => {
-                    self.visit_term(expr, f)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn visit_pat_list<E, F: VisitFn<E>>(
-        &self,
-        pat_list_id: PatListId,
-        f: &mut F,
-    ) -> Result<(), E> {
-        for pat in pat_list_id.elements().value() {
-            if let PatOrCapture::Pat(pat) = pat {
-                self.visit_pat(pat, f)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn visit_params<E, F: VisitFn<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
-        for param in params_id.elements().value() {
-            self.visit_term(param.ty, f)?;
-            if let Some(default) = param.default {
-                self.visit_term(default, f)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn visit_pat_args<E, F: VisitFn<E>>(
-        &self,
-        pat_args_id: PatArgsId,
-        f: &mut F,
-    ) -> Result<(), E> {
-        for arg in pat_args_id.elements().value() {
-            if let PatOrCapture::Pat(pat) = arg.pat {
-                self.visit_pat(pat, f)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn visit_args<E, F: VisitFn<E>>(&self, args_id: ArgsId, f: &mut F) -> Result<(), E> {
-        for arg in args_id.elements().value() {
-            self.visit_term(arg.value, f)?;
-        }
-        Ok(())
-    }
-
-    pub fn visit_ctor_def<E, F: VisitFn<E>>(
-        &self,
-        ctor_def_id: CtorDefId,
-        f: &mut F,
-    ) -> Result<(), E> {
+impl Visit<CtorDefId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, ctor_def_id: CtorDefId, f: &mut F) -> Result<(), E> {
         let ctor_def = ctor_def_id.value();
 
         // Visit the parameters
@@ -666,12 +667,10 @@ impl Visitor {
 
         Ok(())
     }
+}
 
-    pub fn visit_data_def<E, F: VisitFn<E>>(
-        &self,
-        data_def_id: DataDefId,
-        f: &mut F,
-    ) -> Result<(), E> {
+impl Visit<DataDefId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, data_def_id: DataDefId, f: &mut F) -> Result<(), E> {
         let (data_def_params, data_def_ctors) =
             data_def_id.map(|data_def| (data_def.params, data_def.ctors));
 
@@ -701,12 +700,10 @@ impl Visitor {
             },
         }
     }
+}
 
-    pub fn visit_mod_member<E, F: VisitFn<E>>(
-        &self,
-        mod_member_id: ModMemberId,
-        f: &mut F,
-    ) -> Result<(), E> {
+impl Visit<ModMemberId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, mod_member_id: ModMemberId, f: &mut F) -> Result<(), E> {
         let value = mod_member_id.borrow().value;
         match value {
             ModMemberValue::Data(data_def_id) => {
@@ -727,16 +724,167 @@ impl Visitor {
             }
         }
     }
+}
+
+impl Visit<ModDefId> for Visitor {
+    fn visit<E, F: VisitFn<E>>(&self, mod_def_id: ModDefId, f: &mut F) -> Result<(), E> {
+        for member in mod_def_id.borrow().members.iter() {
+            self.visit_mod_member(member, f)?;
+        }
+        Ok(())
+    }
+}
+
+/// Contains the implementation of `fmap` and `visit` for each atom, as well as
+/// secondary components such as arguments and parameters.
+impl Visitor {
+    /// Create a new `TraversingUtils`.
+    pub fn new() -> Self {
+        Self { visited: RefCell::new(HashSet::new()), visit_fns_once: true }
+    }
+
+    pub fn set_visit_fns_once(&mut self, visit_fns_once: bool) {
+        self.visit_fns_once = visit_fns_once;
+    }
+
+    pub fn fmap_atom<E, F: MapFn<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
+        self.map(atom, f)
+    }
+
+    pub fn fmap_term<E, F: MapFn<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
+        self.map(term_id, f)
+    }
+
+    pub fn fmap_pat<E, F: MapFn<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
+        self.map(pat_id, f)
+    }
+
+    pub fn fmap_block_statements<E, F: MapFn<E>>(
+        &self,
+        block_statements: BlockStatementsId,
+        f: F,
+    ) -> Result<BlockStatementsId, E> {
+        self.map(block_statements, f)
+    }
+
+    pub fn fmap_term_list<E, F: MapFn<E>>(
+        &self,
+        term_list: TermListId,
+        f: F,
+    ) -> Result<TermListId, E> {
+        self.map(term_list, f)
+    }
+
+    pub fn fmap_pat_list<E, F: MapFn<E>>(&self, pat_list: PatListId, f: F) -> Result<PatListId, E> {
+        self.map(pat_list, f)
+    }
+
+    pub fn fmap_params<E, F: MapFn<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
+        self.map(params_id, f)
+    }
+
+    pub fn fmap_args<E, F: MapFn<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
+        self.map(args_id, f)
+    }
+
+    pub fn fmap_pat_args<E, F: MapFn<E>>(
+        &self,
+        pat_args_id: PatArgsId,
+        f: F,
+    ) -> Result<PatArgsId, E> {
+        self.map(pat_args_id, f)
+    }
+
+    pub fn fmap_fn_def<E, F: MapFn<E>>(&self, fn_def_id: FnDefId, f: F) -> Result<FnDefId, E> {
+        self.map(fn_def_id, f)
+    }
+
+    pub fn visit_term<E, F: VisitFn<E>>(&self, term_id: TermId, f: &mut F) -> Result<(), E> {
+        self.visit(term_id, f)
+    }
+
+    pub fn visit_pat<E, F: VisitFn<E>>(&self, pat_id: PatId, f: &mut F) -> Result<(), E> {
+        self.visit(pat_id, f)
+    }
+
+    pub fn visit_fn_def<E, F: VisitFn<E>>(&self, fn_def_id: FnDefId, f: &mut F) -> Result<(), E> {
+        self.visit(fn_def_id, f)
+    }
+
+    pub fn visit_atom<E, F: VisitFn<E>>(&self, atom: Atom, f: &mut F) -> Result<(), E> {
+        self.visit(atom, f)
+    }
+
+    pub fn visit_term_list<E, F: VisitFn<E>>(
+        &self,
+        term_list_id: TermListId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        self.visit(term_list_id, f)
+    }
+
+    pub fn visit_block_statements<E, F: VisitFn<E>>(
+        &self,
+        block_statements: BlockStatementsId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        self.visit(block_statements, f)
+    }
+
+    pub fn visit_pat_list<E, F: VisitFn<E>>(
+        &self,
+        pat_list_id: PatListId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        self.visit(pat_list_id, f)
+    }
+
+    pub fn visit_params<E, F: VisitFn<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
+        self.visit(params_id, f)
+    }
+
+    pub fn visit_pat_args<E, F: VisitFn<E>>(
+        &self,
+        pat_args_id: PatArgsId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        self.visit(pat_args_id, f)
+    }
+
+    pub fn visit_args<E, F: VisitFn<E>>(&self, args_id: ArgsId, f: &mut F) -> Result<(), E> {
+        self.visit(args_id, f)
+    }
+
+    pub fn visit_ctor_def<E, F: VisitFn<E>>(
+        &self,
+        ctor_def_id: CtorDefId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        self.visit(ctor_def_id, f)
+    }
+
+    pub fn visit_data_def<E, F: VisitFn<E>>(
+        &self,
+        data_def_id: DataDefId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        self.visit(data_def_id, f)
+    }
+
+    pub fn visit_mod_member<E, F: VisitFn<E>>(
+        &self,
+        mod_member_id: ModMemberId,
+        f: &mut F,
+    ) -> Result<(), E> {
+        self.visit(mod_member_id, f)
+    }
 
     pub fn visit_mod_def<E, F: VisitFn<E>>(
         &self,
         mod_def_id: ModDefId,
         f: &mut F,
     ) -> Result<(), E> {
-        for member in mod_def_id.borrow().members.iter() {
-            self.visit_mod_member(member, f)?;
-        }
-        Ok(())
+        self.visit(mod_def_id, f)
     }
 }
 
