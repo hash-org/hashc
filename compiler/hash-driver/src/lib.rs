@@ -65,7 +65,7 @@ impl CompilerBuilder {
                 Box::new(AstExpansionPass),
                 Box::new(AstDesugaringPass),
                 Box::new(UntypedSemanticAnalysis),
-                Box::new(SemanticAnalysis),
+                Box::<SemanticAnalysis>::default(),
                 Box::<IrGen>::default(),
                 Box::<IrOptimiser>::default(),
                 Box::<CodeGenPass>::default(),

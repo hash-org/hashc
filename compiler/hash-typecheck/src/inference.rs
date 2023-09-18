@@ -1151,7 +1151,10 @@ impl<T: TcEnv> InferenceOps<'_, T> {
 
                         // Check that the binding pattern of the declaration is irrefutable.
                         let eck = self.exhaustiveness_checker(decl.bind_pat);
-                        eck.is_pat_irrefutable(&[decl.bind_pat], decl.ty, None);
+
+                        self.env.time_item("exhaustiveness", |_| {
+                            eck.is_pat_irrefutable(&[decl.bind_pat], decl.ty, None)
+                        });
                         self.append_exhaustiveness_diagnostics(eck);
 
                         decl.ty
@@ -1475,7 +1478,9 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         let pats =
             match_term.cases.elements().borrow().iter().map(|case| case.bind_pat).collect_vec();
         let eck = self.exhaustiveness_checker(match_term.subject);
-        eck.is_match_exhaustive(&pats, match_subject_ty);
+        self.env.time_item("exhaustiveness", |_| {
+            eck.is_match_exhaustive(&pats, match_subject_ty);
+        });
         self.append_exhaustiveness_diagnostics(eck);
 
         Ok(())

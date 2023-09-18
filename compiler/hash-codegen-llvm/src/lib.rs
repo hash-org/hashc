@@ -13,8 +13,6 @@ mod fmt;
 pub mod misc;
 mod translation;
 
-use std::time::Duration;
-
 use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
 use hash_attrs::builtin::attrs;
@@ -38,10 +36,7 @@ use hash_pipeline::{
 use hash_reporting::report::Report;
 use hash_source::{ModuleId, SourceMapUtils};
 use hash_storage::store::{statics::StoreId, Store};
-use hash_utils::{
-    stream_writeln,
-    timing::{time_item, AccessToMetrics},
-};
+use hash_utils::{stream_writeln, timing::HasMutMetrics};
 use inkwell as llvm;
 use llvm::{
     context::Context as LLVMContext,
@@ -90,9 +85,9 @@ pub struct LLVMBackend<'b> {
     metrics: &'b mut StageMetrics,
 }
 
-impl<'b> AccessToMetrics for LLVMBackend<'b> {
-    fn add_metric(&mut self, name: &'static str, time: Duration) {
-        self.metrics.timings.push((name, time));
+impl<'b> HasMutMetrics for LLVMBackend<'b> {
+    fn metrics(&mut self) -> &mut StageMetrics {
+        self.metrics
     }
 }
 
@@ -336,8 +331,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             self.codegen_storage,
         );
 
-        time_item(self, "predefine", |this| this.predefine_bodies(&ctx));
-        time_item(self, "build", |this| this.build_bodies(&ctx));
+        self.time_item("predefine", |this| this.predefine_bodies(&ctx));
+        self.time_item("build", |this| this.build_bodies(&ctx));
 
         // Now we define the entry point of the function, if there is one
         if self.ir_storage.entry_point.has() {
@@ -355,8 +350,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             );
         }
 
-        time_item(self, "optimise", |this| this.optimise(&module))?;
-        time_item(self, "write", |this| {
+        self.time_item("optimise", |this| this.optimise(&module))?;
+        self.time_item("write", |this| {
             this.write_module(&module, entry_point.into()).map_err(|err| vec![err.into()])
         })
     }

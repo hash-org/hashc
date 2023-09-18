@@ -104,7 +104,7 @@ impl Scope {
     }
 }
 
-/// Trait for types that have a context avaiable to them.
+/// Trait for types that have a context available to them.
 pub trait HasContext {
     fn context(&self) -> &Context;
 }
