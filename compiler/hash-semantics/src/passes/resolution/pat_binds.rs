@@ -22,7 +22,8 @@ use hash_ast::ast::{self, AstNodeId, AstNodeRef, AstNodes, BindingPat};
 use hash_source::{identifier::Identifier, location::Span};
 use hash_utils::{
     derive_more::{Constructor, Deref},
-    fxhash::FxHashMap,
+    fxhash::FxBuildHasher,
+    indexmap::IndexMap,
     itertools::Itertools,
     thin_vec::{thin_vec, ThinVec},
 };
@@ -133,13 +134,13 @@ struct PatBinds {
     root: AstNodeId,
 
     /// The bindings of the pattern.
-    binds: FxHashMap<Identifier, Bind>,
+    binds: IndexMap<Identifier, Bind, FxBuildHasher>,
 }
 
 impl PatBinds {
     /// Create an empty [PatBinds].
     fn empty(root: AstNodeId) -> Self {
-        Self::new(root, FxHashMap::default())
+        Self::new(root, IndexMap::default())
     }
 
     /// Create a new [PatBinds] from a single [BindingPat].
