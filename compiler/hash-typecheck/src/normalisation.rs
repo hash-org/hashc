@@ -21,7 +21,7 @@ use hash_tir::{
         ParamIndex, Pat, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, ReturnTerm, Spread,
         SymbolId, Term, TermId, TermListId, TupleTerm, Ty, TyId, TyOfTerm, UnsafeTerm,
     },
-    visitor::{Atom, Visitor},
+    visitor::{Atom, Map, Visit, Visitor},
 };
 use hash_utils::{
     derive_more::{Deref, From},
@@ -308,7 +308,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                                     if fn_ty.pure {
                                         // Check its args too
                                         traversing_utils
-                                            .visit_args::<!, _>(fn_call.args, &mut |atom| {
+                                            .try_visit::<!, _>(fn_call.args, &mut |atom| {
                                                 Self::atom_has_effects_once(
                                                     traversing_utils,
                                                     atom,
@@ -355,10 +355,10 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
             Atom::FnDef(fn_def_id) => {
                 let fn_ty = fn_def_id.value().ty;
                 // Check its params and return type only (no body)
-                traversing_utils.visit_params(fn_ty.params, &mut |atom| {
+                traversing_utils.try_visit(fn_ty.params, &mut |atom| {
                     Self::atom_has_effects_once(traversing_utils, atom, has_effects)
                 })?;
-                traversing_utils.visit_term(fn_ty.return_ty, &mut |atom| {
+                traversing_utils.try_visit(fn_ty.return_ty, &mut |atom| {
                     Self::atom_has_effects_once(traversing_utils, atom, has_effects)
                 })?;
                 Ok(ControlFlow::Break(()))
@@ -375,7 +375,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     ) -> Option<bool> {
         let mut has_effects = Some(false);
         traversing_utils
-            .visit_atom::<!, _>(atom, &mut |atom| {
+            .try_visit::<!, _>(atom, &mut |atom| {
                 Self::atom_has_effects_once(traversing_utils, atom, &mut has_effects)
             })
             .into_ok();
@@ -471,7 +471,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
             let sub = self.sub_ops().create_sub_from_current_scope();
             let result_term = self.eval_and_record(block_term.expr.into(), &st)?;
-            let subbed_result_term = self.sub_ops().apply_sub_to_atom(result_term, &sub);
+            let subbed_result_term = self.sub_ops().apply_sub(result_term, &sub);
 
             evaluation_to(subbed_result_term)
         })
@@ -735,7 +735,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                         Err(Signal::Return(result)) | Ok(result) => {
                             // Substitute remaining bindings:
                             let sub = self.sub_ops().create_sub_from_current_scope();
-                            let result = self.sub_ops().apply_sub_to_atom(result, &sub);
+                            let result = self.sub_ops().apply_sub(result, &sub);
                             evaluation_to(result)
                         }
                         Err(e) => Err(e),
@@ -768,7 +768,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
         let st = eval_state();
         let nested = Cell::new(false);
-        let result = traversal.fmap_atom(atom, |atom| -> Result<_, Signal> {
+        let result = traversal.map(atom, |atom| -> Result<_, Signal> {
             let old_mode = if self.mode.get() == NormalisationMode::Weak
                 && self.atom_has_effects(atom) == Some(true)
             {

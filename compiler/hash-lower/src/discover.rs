@@ -11,7 +11,7 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     stores::tir_stores,
     tir::{FnDefId, HasAstNodeId, ModKind, ModMemberValue, TermId},
-    visitor::{Atom, Visitor},
+    visitor::{Atom, Visit, Visitor},
 };
 use hash_utils::{derive_more::Constructor, indexmap::IndexSet};
 
@@ -139,21 +139,19 @@ impl FnDiscoverer<'_> {
     /// *Invariant*: The term must be inferred, i.e.
     /// `self.get_inferred_value(term) = term`
     fn add_all_child_fns(&self, term: TermId, fns: &mut DiscoveredFns) {
-        Visitor::new()
-            .visit_term::<!, _>(term, &mut |atom: Atom| match atom {
-                Atom::Term(_) => Ok(ControlFlow::Continue(())),
-                Atom::FnDef(fn_def) => {
-                    // @@Todo: this doesn't deal with captures.
-                    if !fns.contains(fn_def) && self.queue_fn_and_body(fn_def).is_some() {
-                        fns.add_fn(fn_def);
+        Visitor::new().visit(term, &mut |atom: Atom| match atom {
+            Atom::Term(_) => ControlFlow::Continue(()),
+            Atom::FnDef(fn_def) => {
+                // @@Todo: this doesn't deal with captures.
+                if !fns.contains(fn_def) && self.queue_fn_and_body(fn_def).is_some() {
+                    fns.add_fn(fn_def);
 
-                        Ok(ControlFlow::Continue(()))
-                    } else {
-                        Ok(ControlFlow::Break(()))
-                    }
+                    ControlFlow::Continue(())
+                } else {
+                    ControlFlow::Break(())
                 }
-                Atom::Pat(_) => Ok(ControlFlow::Continue(())),
-            })
-            .into_ok();
+            }
+            Atom::Pat(_) => ControlFlow::Continue(()),
+        });
     }
 }
