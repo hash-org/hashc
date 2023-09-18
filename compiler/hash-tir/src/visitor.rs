@@ -61,6 +61,7 @@ impl fmt::Display for Atom {
 
 /// Contains methods to traverse the Hash TIR structure.
 pub struct Visitor {
+    // @@Todo @@Performance: remove this in favour of referencing functions symbolically.
     visited: RefCell<HashSet<Atom>>,
     visit_fns_once: bool,
 }
@@ -90,6 +91,7 @@ pub trait Visit<X> {
     fn try_visit<E, F: TryVisitFn<E>>(&self, x: X, f: &mut F) -> Result<(), E>;
 
     /// Visit and mutate TIR node `X` through a function (infallible).
+    #[inline]
     fn visit<F: VisitFn>(&self, x: X, f: &mut F) {
         self.try_visit::<!, _>(x, &mut |a| Ok(f(a))).into_ok()
     }
@@ -100,11 +102,19 @@ pub trait Visit<X> {
 pub trait Map<X> {
     /// Map a TIR node `X` to another node of the same type `X` through a
     /// function.
-    fn map<E, F: MapFn<E>>(&self, x: X, f: F) -> Result<X, E>;
+    fn try_map<E, F: TryMapFn<E>>(&self, x: X, f: F) -> Result<X, E>;
+
+    /// Map a TIR node `X` to another node of the same type `X` through a
+    /// function (infallible).
+    #[inline]
+    fn map<F: MapFn>(&self, x: X, f: F) -> X {
+        self.try_map::<!, _>(x, |a| Ok(f(a))).into_ok()
+    }
 
     /// Deep-copy a TIR node `X`.
+    #[inline]
     fn copy(&self, x: X) -> X {
-        self.map::<!, _>(x, |_| Ok(ControlFlow::Continue(()))).into_ok()
+        self.map(x, |_| ControlFlow::Continue(()))
     }
 }
 
@@ -113,13 +123,18 @@ pub trait Map<X> {
 /// This does not return a value, but instead returns a `ControlFlow` to
 /// indicate whether to continue or break the traversal.
 pub trait TryVisitFn<E> = FnMut(Atom) -> Result<ControlFlow<()>, E>;
+
+/// Function to visit an atom (infallible version).
 pub trait VisitFn = FnMut(Atom) -> ControlFlow<()>;
 
 /// Function to map an atom to another atom.
 ///
 /// This returns a `ControlFlow` to indicate whether to continue by duplicating
 /// the atom canonically or break the traversal with a custom atom.
-pub trait MapFn<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
+pub trait TryMapFn<E> = Fn(Atom) -> Result<ControlFlow<Atom>, E> + Copy;
+
+/// Function to map an atom to another atom (infallible version).
+pub trait MapFn = Fn(Atom) -> ControlFlow<Atom> + Copy;
 
 impl Visit<Atom> for Visitor {
     fn try_visit<E, F: TryVisitFn<E>>(&self, atom: Atom, f: &mut F) -> Result<(), E> {
@@ -132,11 +147,11 @@ impl Visit<Atom> for Visitor {
 }
 
 impl Map<Atom> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, atom: Atom, f: F) -> Result<Atom, E> {
         match atom {
-            Atom::Term(term_id) => Ok(Atom::Term(self.map(term_id, f)?)),
-            Atom::FnDef(fn_def_id) => Ok(Atom::FnDef(self.map(fn_def_id, f)?)),
-            Atom::Pat(pat_id) => Ok(Atom::Pat(self.map(pat_id, f)?)),
+            Atom::Term(term_id) => Ok(Atom::Term(self.try_map(term_id, f)?)),
+            Atom::FnDef(fn_def_id) => Ok(Atom::FnDef(self.try_map(fn_def_id, f)?)),
+            Atom::Pat(pat_id) => Ok(Atom::Pat(self.try_map(pat_id, f)?)),
         }
     }
 }
@@ -207,7 +222,7 @@ impl Visit<TermId> for Visitor {
 }
 
 impl Map<TermId> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
         let origin = term_id.origin();
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
@@ -217,34 +232,34 @@ impl Map<TermId> for Visitor {
             },
             ControlFlow::Continue(()) => match *term_id.value() {
                 Term::Tuple(tuple_term) => {
-                    let data = self.map(tuple_term.data, f)?;
+                    let data = self.try_map(tuple_term.data, f)?;
                     Ok(Term::from(Term::Tuple(TupleTerm { data }), origin))
                 }
                 Term::Lit(lit) => Ok(Term::from(Term::Lit(lit), origin)),
                 Term::Array(list_ctor) => {
-                    let elements = self.map(list_ctor.elements, f)?;
+                    let elements = self.try_map(list_ctor.elements, f)?;
                     Ok(Term::from(Term::Array(ArrayTerm { elements }), origin))
                 }
                 Term::Ctor(ctor_term) => {
-                    let data_args = self.map(ctor_term.data_args, f)?;
-                    let ctor_args = self.map(ctor_term.ctor_args, f)?;
+                    let data_args = self.try_map(ctor_term.data_args, f)?;
+                    let ctor_args = self.try_map(ctor_term.ctor_args, f)?;
                     Ok(Term::from(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }, origin))
                 }
                 Term::Call(fn_call_term) => {
-                    let subject = self.map(fn_call_term.subject, f)?;
-                    let args = self.map(fn_call_term.args, f)?;
+                    let subject = self.try_map(fn_call_term.subject, f)?;
+                    let args = self.try_map(fn_call_term.args, f)?;
                     Ok(Term::from(
                         CallTerm { args, subject, implicit: fn_call_term.implicit },
                         origin,
                     ))
                 }
                 Term::Fn(fn_def_id) => {
-                    let fn_def_id = self.map(fn_def_id, f)?;
+                    let fn_def_id = self.try_map(fn_def_id, f)?;
                     Ok(Term::from(Term::Fn(fn_def_id), origin))
                 }
                 Term::Block(block_term) => {
-                    let statements = self.map(block_term.statements, f)?;
-                    let expr = self.map(block_term.expr, f)?;
+                    let statements = self.try_map(block_term.statements, f)?;
+                    let expr = self.try_map(block_term.expr, f)?;
                     Ok(Term::from(
                         BlockTerm { statements, stack_id: block_term.stack_id, expr },
                         origin,
@@ -252,12 +267,12 @@ impl Map<TermId> for Visitor {
                 }
                 Term::Var(var_term) => Ok(Term::from(var_term, origin)),
                 Term::Loop(loop_term) => {
-                    let inner = self.map(loop_term.inner, f)?;
+                    let inner = self.try_map(loop_term.inner, f)?;
                     Ok(Term::from(LoopTerm { inner }, origin))
                 }
                 Term::LoopControl(loop_control_term) => Ok(Term::from(loop_control_term, origin)),
                 Term::Match(match_term) => {
-                    let subject = self.map(match_term.subject, f)?;
+                    let subject = self.try_map(match_term.subject, f)?;
 
                     let cases = Node::<MatchCase>::seq(
                         match_term
@@ -266,8 +281,8 @@ impl Map<TermId> for Visitor {
                             .iter()
                             .map(|case| {
                                 let case_value = case.value();
-                                let bind_pat = self.map(case_value.bind_pat, f)?;
-                                let value = self.map(case_value.value, f)?;
+                                let bind_pat = self.try_map(case_value.bind_pat, f)?;
+                                let value = self.try_map(case_value.value, f)?;
                                 Ok(Node::at(
                                     MatchCase { bind_pat, value, stack_id: case_value.stack_id },
                                     case_value.origin,
@@ -285,56 +300,56 @@ impl Map<TermId> for Visitor {
                     ))
                 }
                 Term::Return(return_term) => {
-                    let expression = self.map(return_term.expression, f)?;
+                    let expression = self.try_map(return_term.expression, f)?;
                     Ok(Term::from(ReturnTerm { expression }, origin))
                 }
                 Term::Assign(assign_term) => {
-                    let subject = self.map(assign_term.subject, f)?;
-                    let value = self.map(assign_term.value, f)?;
+                    let subject = self.try_map(assign_term.subject, f)?;
+                    let value = self.try_map(assign_term.value, f)?;
                     Ok(Term::from(AssignTerm { subject, value }, origin))
                 }
                 Term::Unsafe(unsafe_term) => {
-                    let inner = self.map(unsafe_term.inner, f)?;
+                    let inner = self.try_map(unsafe_term.inner, f)?;
                     Ok(Term::from(UnsafeTerm { inner }, origin))
                 }
                 Term::Access(access_term) => {
-                    let subject = self.map(access_term.subject, f)?;
+                    let subject = self.try_map(access_term.subject, f)?;
                     Ok(Term::from(AccessTerm { subject, field: access_term.field }, origin))
                 }
                 Term::Index(index_term) => {
-                    let subject = self.map(index_term.subject, f)?;
-                    let index = self.map(index_term.index, f)?;
+                    let subject = self.try_map(index_term.subject, f)?;
+                    let index = self.try_map(index_term.index, f)?;
                     Ok(Term::from(IndexTerm { subject, index }, origin))
                 }
                 Term::Cast(cast_term) => {
-                    let subject_term = self.map(cast_term.subject_term, f)?;
-                    let target_ty = self.map(cast_term.target_ty, f)?;
+                    let subject_term = self.try_map(cast_term.subject_term, f)?;
+                    let target_ty = self.try_map(cast_term.target_ty, f)?;
                     Ok(Term::from(CastTerm { subject_term, target_ty }, origin))
                 }
                 Term::TypeOf(type_of_term) => {
-                    let term = self.map(type_of_term.term, f)?;
+                    let term = self.try_map(type_of_term.term, f)?;
                     Ok(Term::from(TyOfTerm { term }, origin))
                 }
                 Term::Ref(ref_term) => {
-                    let subject = self.map(ref_term.subject, f)?;
+                    let subject = self.try_map(ref_term.subject, f)?;
                     Ok(Term::from(
                         RefTerm { subject, kind: ref_term.kind, mutable: ref_term.mutable },
                         origin,
                     ))
                 }
                 Term::Deref(deref_term) => {
-                    let subject = self.map(deref_term.subject, f)?;
+                    let subject = self.try_map(deref_term.subject, f)?;
                     Ok(Term::from(DerefTerm { subject }, origin))
                 }
                 Term::Hole(hole_term) => Ok(Term::from(hole_term, origin)),
                 Term::Intrinsic(intrinsic) => Ok(Term::from(intrinsic, origin)),
                 Ty::TupleTy(tuple_ty) => {
-                    let data = self.map(tuple_ty.data, f)?;
+                    let data = self.try_map(tuple_ty.data, f)?;
                     Ok(Ty::from(TupleTy { data }, origin))
                 }
                 Ty::FnTy(fn_ty) => {
-                    let params = self.map(fn_ty.params, f)?;
-                    let return_ty = self.map(fn_ty.return_ty, f)?;
+                    let params = self.try_map(fn_ty.params, f)?;
+                    let return_ty = self.try_map(fn_ty.return_ty, f)?;
                     Ok(Ty::from(
                         FnTy {
                             params,
@@ -347,11 +362,11 @@ impl Map<TermId> for Visitor {
                     ))
                 }
                 Ty::RefTy(ref_ty) => {
-                    let ty = self.map(ref_ty.ty, f)?;
+                    let ty = self.try_map(ref_ty.ty, f)?;
                     Ok(Ty::from(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }, origin))
                 }
                 Ty::DataTy(data_ty) => {
-                    let args = self.map(data_ty.args, f)?;
+                    let args = self.try_map(data_ty.args, f)?;
                     Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }, origin))
                 }
                 Ty::Universe => Ok(Ty::from(Ty::Universe, origin)),
@@ -384,7 +399,7 @@ impl Visit<PatId> for Visitor {
     }
 }
 impl Map<PatId> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
         let origin = pat_id.origin();
         let result = match f(pat_id.into())? {
             ControlFlow::Break(pat) => Ok(PatId::try_from(pat).unwrap()),
@@ -393,22 +408,22 @@ impl Map<PatId> for Visitor {
                 Pat::Range(range_pat) => Ok(Node::create_at(Pat::from(range_pat), origin)),
                 Pat::Lit(lit_pat) => Ok(Node::create_at(Pat::from(lit_pat), origin)),
                 Pat::Tuple(tuple_pat) => {
-                    let data = self.map(tuple_pat.data, f)?;
+                    let data = self.try_map(tuple_pat.data, f)?;
                     Ok(Node::create_at(
                         Pat::from(TuplePat { data_spread: tuple_pat.data_spread, data }),
                         origin,
                     ))
                 }
                 Pat::Array(list_pat) => {
-                    let pats = self.map(list_pat.pats, f)?;
+                    let pats = self.try_map(list_pat.pats, f)?;
                     Ok(Node::create_at(
                         Pat::from(ArrayPat { spread: list_pat.spread, pats }),
                         origin,
                     ))
                 }
                 Pat::Ctor(ctor_pat) => {
-                    let data_args = self.map(ctor_pat.data_args, f)?;
-                    let ctor_pat_args = self.map(ctor_pat.ctor_pat_args, f)?;
+                    let data_args = self.try_map(ctor_pat.data_args, f)?;
+                    let ctor_pat_args = self.try_map(ctor_pat.ctor_pat_args, f)?;
                     Ok(Node::create_at(
                         Pat::from(CtorPat {
                             data_args,
@@ -420,12 +435,12 @@ impl Map<PatId> for Visitor {
                     ))
                 }
                 Pat::Or(or_pat) => {
-                    let alternatives = self.map(or_pat.alternatives, f)?;
+                    let alternatives = self.try_map(or_pat.alternatives, f)?;
                     Ok(Node::create_at(Pat::from(OrPat { alternatives }), origin))
                 }
                 Pat::If(if_pat) => {
-                    let pat = self.map(if_pat.pat, f)?;
-                    let condition = self.map(if_pat.condition, f)?;
+                    let pat = self.try_map(if_pat.pat, f)?;
+                    let condition = self.try_map(if_pat.condition, f)?;
                     Ok(Node::create_at(Pat::from(IfPat { pat, condition }), origin))
                 }
             },
@@ -457,7 +472,7 @@ impl Visit<BlockStatementsId> for Visitor {
     }
 }
 impl Map<BlockStatementsId> for Visitor {
-    fn map<E, F: MapFn<E>>(
+    fn try_map<E, F: TryMapFn<E>>(
         &self,
         block_statements: BlockStatementsId,
         f: F,
@@ -466,17 +481,19 @@ impl Map<BlockStatementsId> for Visitor {
         for statement in block_statements.elements().value() {
             match *statement {
                 BlockStatement::Decl(decl) => {
-                    let bind_pat = self.map(decl.bind_pat, f)?;
-                    let ty = self.map(decl.ty, f)?;
-                    let value = decl.value.map(|v| self.map(v, f)).transpose()?;
+                    let bind_pat = self.try_map(decl.bind_pat, f)?;
+                    let ty = self.try_map(decl.ty, f)?;
+                    let value = decl.value.map(|v| self.try_map(v, f)).transpose()?;
                     new_list.push(Node::at(
                         BlockStatement::Decl(Decl { ty, bind_pat, value }),
                         statement.origin,
                     ));
                 }
                 BlockStatement::Expr(expr) => {
-                    new_list
-                        .push(Node::at(BlockStatement::Expr(self.map(expr, f)?), statement.origin));
+                    new_list.push(Node::at(
+                        BlockStatement::Expr(self.try_map(expr, f)?),
+                        statement.origin,
+                    ));
                 }
             }
         }
@@ -493,10 +510,10 @@ impl Visit<TermListId> for Visitor {
     }
 }
 impl Map<TermListId> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, term_list: TermListId, f: F) -> Result<TermListId, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, term_list: TermListId, f: F) -> Result<TermListId, E> {
         let mut new_list = Vec::with_capacity(term_list.len());
         for term_id in term_list.elements().value() {
-            new_list.push(self.map(term_id, f)?);
+            new_list.push(self.try_map(term_id, f)?);
         }
         Ok(Node::create_at(TermId::seq(new_list), term_list.origin()))
     }
@@ -513,12 +530,12 @@ impl Visit<PatListId> for Visitor {
     }
 }
 impl Map<PatListId> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, pat_list: PatListId, f: F) -> Result<PatListId, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, pat_list: PatListId, f: F) -> Result<PatListId, E> {
         let mut new_list = Vec::with_capacity(pat_list.len());
         for pat_id in pat_list.elements().value() {
             match pat_id {
                 PatOrCapture::Pat(pat_id) => {
-                    new_list.push(PatOrCapture::Pat(self.map(pat_id, f)?));
+                    new_list.push(PatOrCapture::Pat(self.try_map(pat_id, f)?));
                 }
                 PatOrCapture::Capture(node) => {
                     new_list.push(PatOrCapture::Capture(node));
@@ -541,15 +558,18 @@ impl Visit<ParamsId> for Visitor {
     }
 }
 impl Map<ParamsId> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, params_id: ParamsId, f: F) -> Result<ParamsId, E> {
         let new_params = {
             let mut new_params = Vec::with_capacity(params_id.len());
             for param in params_id.elements().value() {
                 new_params.push(Node::at(
                     Param {
                         name: param.name,
-                        ty: self.map(param.ty, f)?,
-                        default: param.default.map(|default| self.map(default, f)).transpose()?,
+                        ty: self.try_map(param.ty, f)?,
+                        default: param
+                            .default
+                            .map(|default| self.try_map(default, f))
+                            .transpose()?,
                     },
                     param.origin,
                 ));
@@ -570,11 +590,11 @@ impl Visit<ArgsId> for Visitor {
     }
 }
 impl Map<ArgsId> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, args_id: ArgsId, f: F) -> Result<ArgsId, E> {
         let mut new_args = Vec::with_capacity(args_id.len());
         for arg in args_id.elements().value() {
             new_args.push(Node::at(
-                Arg { target: arg.target, value: self.map(arg.value, f)? },
+                Arg { target: arg.target, value: self.try_map(arg.value, f)? },
                 arg.origin,
             ));
         }
@@ -594,7 +614,7 @@ impl Visit<PatArgsId> for Visitor {
     }
 }
 impl Map<PatArgsId> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, pat_args_id: PatArgsId, f: F) -> Result<PatArgsId, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, pat_args_id: PatArgsId, f: F) -> Result<PatArgsId, E> {
         let new_pat_args = {
             let mut new_args = Vec::with_capacity(pat_args_id.len());
             for pat_arg in pat_args_id.elements().value() {
@@ -602,7 +622,9 @@ impl Map<PatArgsId> for Visitor {
                     PatArg {
                         target: pat_arg.target,
                         pat: match pat_arg.pat {
-                            PatOrCapture::Pat(pat_id) => PatOrCapture::Pat(self.map(pat_id, f)?),
+                            PatOrCapture::Pat(pat_id) => {
+                                PatOrCapture::Pat(self.try_map(pat_id, f)?)
+                            }
                             PatOrCapture::Capture(node) => PatOrCapture::Capture(node),
                         },
                     },
@@ -640,7 +662,7 @@ impl Visit<FnDefId> for Visitor {
     }
 }
 impl Map<FnDefId> for Visitor {
-    fn map<E, F: MapFn<E>>(&self, fn_def_id: FnDefId, f: F) -> Result<FnDefId, E> {
+    fn try_map<E, F: TryMapFn<E>>(&self, fn_def_id: FnDefId, f: F) -> Result<FnDefId, E> {
         if self.visit_fns_once {
             {
                 if self.visited.borrow().contains(&fn_def_id.into()) {
@@ -654,9 +676,9 @@ impl Map<FnDefId> for Visitor {
             ControlFlow::Break(fn_def_id) => Ok(FnDefId::try_from(fn_def_id).unwrap()),
             ControlFlow::Continue(()) => {
                 let fn_def = fn_def_id.value();
-                let params = self.map(fn_def.ty.params, f)?;
-                let return_ty = self.map(fn_def.ty.return_ty, f)?;
-                let body = self.map(fn_def.body, f)?;
+                let params = self.try_map(fn_def.ty.params, f)?;
+                let return_ty = self.try_map(fn_def.ty.return_ty, f)?;
+                let body = self.try_map(fn_def.body, f)?;
 
                 let def = Node::create_at(
                     FnDef {

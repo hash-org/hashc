@@ -273,11 +273,11 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         traversing_utils: &Visitor,
         atom: Atom,
         has_effects: &mut Option<bool>,
-    ) -> Result<ControlFlow<()>, !> {
+    ) -> ControlFlow<()> {
         match atom {
             Atom::Term(term) => match *term.value() {
                 // Never has effects
-                Term::Intrinsic(_) | Term::Hole(_) | Term::Fn(_) => Ok(ControlFlow::Break(())),
+                Term::Intrinsic(_) | Term::Hole(_) | Term::Fn(_) => ControlFlow::Break(()),
 
                 // These have effects if their constituents do
                 Term::Lit(_)
@@ -296,7 +296,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 | Term::Universe
                 | Term::TupleTy(_)
                 | Term::FnTy(_)
-                | Term::Block(_) => Ok(ControlFlow::Continue(())),
+                | Term::Block(_) => ControlFlow::Continue(()),
 
                 Term::Call(fn_call) => {
                     // Get its inferred type and check if it is pure
@@ -307,19 +307,17 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                                     // If it is a function, check if it is pure
                                     if fn_ty.pure {
                                         // Check its args too
-                                        traversing_utils
-                                            .try_visit::<!, _>(fn_call.args, &mut |atom| {
-                                                Self::atom_has_effects_once(
-                                                    traversing_utils,
-                                                    atom,
-                                                    has_effects,
-                                                )
-                                            })
-                                            .into_ok();
-                                        Ok(ControlFlow::Break(()))
+                                        traversing_utils.visit(fn_call.args, &mut |atom| {
+                                            Self::atom_has_effects_once(
+                                                traversing_utils,
+                                                atom,
+                                                has_effects,
+                                            )
+                                        });
+                                        ControlFlow::Break(())
                                     } else {
                                         *has_effects = Some(true);
-                                        Ok(ControlFlow::Break(()))
+                                        ControlFlow::Break(())
                                     }
                                 }
                                 _ => {
@@ -329,14 +327,14 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                                         "Found a function term that is not typed as a function: {}",
                                         fn_call.subject
                                     );
-                                    Ok(ControlFlow::Break(()))
+                                    ControlFlow::Break(())
                                 }
                             }
                         }
                         None => {
                             // Unknown
                             *has_effects = None;
-                            Ok(ControlFlow::Break(()))
+                            ControlFlow::Break(())
                         }
                     }
                 }
@@ -349,21 +347,21 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 | Term::LoopControl(_)
                 | Term::Return(_) => {
                     *has_effects = Some(true);
-                    Ok(ControlFlow::Break(()))
+                    ControlFlow::Break(())
                 }
             },
             Atom::FnDef(fn_def_id) => {
                 let fn_ty = fn_def_id.value().ty;
                 // Check its params and return type only (no body)
-                traversing_utils.try_visit(fn_ty.params, &mut |atom| {
+                traversing_utils.visit(fn_ty.params, &mut |atom| {
                     Self::atom_has_effects_once(traversing_utils, atom, has_effects)
-                })?;
-                traversing_utils.try_visit(fn_ty.return_ty, &mut |atom| {
+                });
+                traversing_utils.visit(fn_ty.return_ty, &mut |atom| {
                     Self::atom_has_effects_once(traversing_utils, atom, has_effects)
-                })?;
-                Ok(ControlFlow::Break(()))
+                });
+                ControlFlow::Break(())
             }
-            Atom::Pat(_) => Ok(ControlFlow::Continue(())),
+            Atom::Pat(_) => ControlFlow::Continue(()),
         }
     }
 
@@ -374,11 +372,9 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         traversing_utils: &Visitor,
     ) -> Option<bool> {
         let mut has_effects = Some(false);
-        traversing_utils
-            .try_visit::<!, _>(atom, &mut |atom| {
-                Self::atom_has_effects_once(traversing_utils, atom, &mut has_effects)
-            })
-            .into_ok();
+        traversing_utils.visit(atom, &mut |atom| {
+            Self::atom_has_effects_once(traversing_utils, atom, &mut has_effects)
+        });
         has_effects
     }
 
@@ -768,7 +764,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
         let st = eval_state();
         let nested = Cell::new(false);
-        let result = traversal.map(atom, |atom| -> Result<_, Signal> {
+        let result = traversal.try_map(atom, |atom| -> Result<_, Signal> {
             let old_mode = if self.mode.get() == NormalisationMode::Weak
                 && self.atom_has_effects(atom) == Some(true)
             {

@@ -185,10 +185,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
     pub fn atom_contains_vars(&self, atom: Atom, filter: &HashSet<SymbolId>) -> bool {
         let mut can_apply = false;
         self.traversing_utils
-            .try_visit::<!, _>(atom, &mut |atom| {
-                Ok(self.atom_contains_vars_once(atom, filter, &mut can_apply))
-            })
-            .into_ok();
+            .visit(atom, &mut |atom| self.atom_contains_vars_once(atom, filter, &mut can_apply));
         can_apply
     }
 
@@ -196,10 +193,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
     pub fn can_apply_sub_to_atom(&self, atom: Atom, sub: &Sub) -> bool {
         let mut can_apply = false;
         self.traversing_utils
-            .try_visit::<!, _>(atom, &mut |atom| {
-                Ok(self.can_apply_sub_to_atom_once(atom, sub, &mut can_apply))
-            })
-            .into_ok();
+            .visit(atom, &mut |atom| self.can_apply_sub_to_atom_once(atom, sub, &mut can_apply));
         can_apply
     }
 
@@ -208,11 +202,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         Visitor: Visit<U>,
     {
         self.traversing_utils
-            .try_visit::<!, _>(
-                item,
-                &mut |atom| Ok(self.apply_sub_to_atom_in_place_once(atom, sub)),
-            )
-            .into_ok()
+            .visit(item, &mut |atom| self.apply_sub_to_atom_in_place_once(atom, sub));
     }
 
     pub fn apply_sub_from_context<U>(&self, item: U)
@@ -264,8 +254,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
     {
         let mut has_holes = None;
         self.traversing_utils
-            .try_visit::<!, _>(item, &mut |atom| Ok(self.atom_has_holes_once(atom, &mut has_holes)))
-            .into_ok();
+            .visit(item, &mut |atom| self.atom_has_holes_once(atom, &mut has_holes));
         has_holes
     }
 

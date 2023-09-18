@@ -660,21 +660,14 @@ impl<T: TcEnv> InferenceOps<'_, T> {
 
     pub fn get_binds_in_pat(&self, pat: PatId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        Visitor::new()
-            .try_visit::<!, _>(pat, &mut |atom| {
-                Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
-            })
-            .into_ok();
+        Visitor::new().visit(pat, &mut |atom| self.get_binds_in_pat_atom_once(atom, &mut binds));
         binds
     }
 
     pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
         Visitor::new()
-            .try_visit::<!, _>(pat_args, &mut |atom| {
-                Ok(self.get_binds_in_pat_atom_once(atom, &mut binds))
-            })
-            .into_ok();
+            .visit(pat_args, &mut |atom| self.get_binds_in_pat_atom_once(atom, &mut binds));
         binds
     }
 
