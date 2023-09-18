@@ -17,7 +17,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::ScopeKind,
+    context::{Context, ScopeKind},
     dump::dump_tir,
     intrinsics::{
         definitions::{
@@ -49,7 +49,7 @@ use itertools::Itertools;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    operations::normalisation::NormalisationMode,
+    operations::{checking::CheckState, normalisation::NormalisationMode, Operations},
 };
 
 /// The mode in which to infer the type of a function.
@@ -1241,64 +1241,17 @@ impl<T: TcEnv> InferenceOps<'_, T> {
     /// Infer an access term.
     pub fn infer_access_term(
         &self,
-        access_term: &AccessTerm,
+        access_term: &mut AccessTerm,
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
-        let subject_ty = Ty::hole_for(access_term.subject);
-        self.infer_term(access_term.subject, subject_ty)?;
-
-        let params = match *subject_ty.value() {
-            Ty::TupleTy(tuple_ty) => tuple_ty.data,
-            Ty::DataTy(data_ty) => {
-                match data_ty.data_def.borrow().get_single_ctor() {
-                    Some(ctor) => {
-                        let ctor = ctor.value();
-                        let data_def = data_ty.data_def.value();
-                        let sub = self
-                            .sub_ops()
-                            .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                        self.sub_ops().apply_sub(ctor.params, &sub)
-                    }
-                    None => {
-                        // Not a record type because it has more than one constructor
-                        // @@ErrorReporting: more information about the error
-                        return Err(TcError::WrongTy {
-                            kind: WrongTermKind::NotARecord,
-                            inferred_term_ty: subject_ty,
-                            term: original_term_id,
-                        });
-                    }
-                }
-            }
-
-            // Not a record type.
-            _ => {
-                return Err(TcError::WrongTy {
-                    kind: WrongTermKind::NotARecord,
-                    inferred_term_ty: subject_ty,
-                    term: original_term_id,
-                })
-            }
-        };
-
-        if let Some(param) = params.at_index(access_term.field) {
-            // Create a substitution that maps the parameters of the record
-            // type to the corresponding fields of the record term.
-            //
-            // i.e. `x: (T: Type, t: T);  x.t: x.T`
-            let param_access_sub =
-                self.sub_ops().create_sub_from_param_access(params, access_term.subject);
-            let subbed_param_ty = self.sub_ops().apply_sub(param.borrow().ty, &param_access_sub);
-            self.check_by_unify(subbed_param_ty, annotation_ty)?;
-            Ok(())
-        } else {
-            Err(TcError::PropertyNotFound {
-                term: access_term.subject,
-                term_ty: subject_ty,
-                property: access_term.field,
-            })
-        }
+        let state = CheckState::new();
+        state.then(self.checker().check(
+            &mut Context::new(),
+            access_term,
+            annotation_ty,
+            original_term_id,
+        ))
     }
 
     /// Infer an index term.
@@ -1488,8 +1441,8 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             }
             Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
             Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
-            Term::Access(access_term) => {
-                self.infer_access_term(&access_term, annotation_ty, term_id)?
+            Term::Access(mut access_term) => {
+                self.infer_access_term(&mut access_term, annotation_ty, term_id)?
             }
             Term::Index(index_term) => {
                 self.infer_index_term(&index_term, annotation_ty, term_id)?

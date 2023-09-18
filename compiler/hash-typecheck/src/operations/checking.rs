@@ -34,7 +34,13 @@ impl From<TcError> for CheckSignal {
 ///
 /// `Err(Stuck)` means that the checking is stuck.
 /// `Err(Error)` means that the checking failed.
-pub type CheckResult = Result<bool, CheckSignal>;
+pub type RecursiveCheckResult<T> = Result<Check<T>, CheckSignal>;
+pub type CheckResult = RecursiveCheckResult<()>;
+
+pub struct Check<T> {
+    pub progress: bool,
+    pub result: T,
+}
 
 /// Signals that the checking is stuck.
 pub fn stuck_checking() -> CheckResult {
@@ -42,13 +48,13 @@ pub fn stuck_checking() -> CheckResult {
 }
 
 /// Signals that the checking is successful.
-pub fn checked() -> CheckResult {
-    Ok(true)
+pub fn did_check() -> CheckResult {
+    Ok(Check { progress: true, result: () })
 }
 
 /// Signals that the checking is unnecessary/has already happened.
 pub fn already_checked() -> CheckResult {
-    Ok(false)
+    Ok(Check { progress: false, result: () })
 }
 
 /// Keeps track of the state of a checking operation.
@@ -57,7 +63,7 @@ pub fn already_checked() -> CheckResult {
 /// and whether any checking has been stuck.
 #[derive(Debug, Clone)]
 pub struct CheckState {
-    has_checked: Cell<bool>,
+    progress: Cell<bool>,
     is_stuck: Cell<bool>,
 }
 
@@ -70,12 +76,12 @@ impl Default for CheckState {
 impl CheckState {
     /// Create a new empty checking state.
     pub fn new() -> Self {
-        Self { has_checked: Cell::new(false), is_stuck: Cell::new(false) }
+        Self { progress: Cell::new(false), is_stuck: Cell::new(false) }
     }
 
     /// Whether any checking has successfully happened.
     pub fn has_checked(&self) -> bool {
-        self.has_checked.get()
+        self.progress.get()
     }
 
     /// Whether any checking has been stuck.
@@ -84,11 +90,12 @@ impl CheckState {
     }
 
     /// Add the result of a checking operation to the state.
+    #[inline]
     pub fn then(&self, result: CheckResult) -> TcResult<()> {
         match result {
-            Ok(has_checked) => {
-                let current = self.has_checked.get();
-                self.has_checked.set(current || has_checked);
+            Ok(check) => {
+                let current = self.progress.get();
+                self.progress.set(current || check.progress);
                 Ok(())
             }
             Err(e) => match e {
@@ -103,21 +110,23 @@ impl CheckState {
 
     /// Signal that this checking operation is done, and
     /// is either stuck or has definitely checked.
+    #[inline]
     pub fn done_and_checked(&self) -> CheckResult {
         if self.is_stuck() {
             stuck_checking()
         } else {
-            checked()
+            did_check()
         }
     }
 
     /// Signal that this checking operation is done, and
     /// is either stuck or has checked if some child has checked.
+    #[inline]
     pub fn done(&self) -> CheckResult {
         if self.is_stuck() {
             stuck_checking()
         } else if self.has_checked() {
-            checked()
+            did_check()
         } else {
             already_checked()
         }

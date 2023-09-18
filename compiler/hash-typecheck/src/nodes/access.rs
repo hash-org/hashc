@@ -1,28 +1,89 @@
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::Context,
-    tir::{AccessTerm, ArgsId, TyId},
+    tir::{AccessTerm, TermId, Ty, TyId},
 };
 
 use crate::{
     checker::Checker,
     env::TcEnv,
+    errors::{TcError, WrongTermKind},
     operations::{
-        checking::CheckResult, normalisation::NormaliseResult, unification::UnifyResult, Operations,
+        checking::{did_check, CheckResult},
+        normalisation::NormaliseResult,
+        unification::UnifyResult,
+        Operations,
     },
 };
 
 impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
     type TyNode = TyId;
-    type Node = ArgsId;
+    type Node = TermId;
 
     fn check(
         &self,
         _ctx: &mut Context,
-        _item: &mut AccessTerm,
-        _item_ty: Self::TyNode,
-        _item_node: Self::Node,
+        access_term: &mut AccessTerm,
+        annotation_ty: Self::TyNode,
+        item_node: Self::Node,
     ) -> CheckResult {
-        todo!()
+        let subject_ty = Ty::hole_for(access_term.subject);
+        self.infer_ops().infer_term(access_term.subject, subject_ty)?;
+
+        let params = match *subject_ty.value() {
+            Ty::TupleTy(tuple_ty) => tuple_ty.data,
+            Ty::DataTy(data_ty) => {
+                match data_ty.data_def.borrow().get_single_ctor() {
+                    Some(ctor) => {
+                        let ctor = ctor.value();
+                        let data_def = data_ty.data_def.value();
+                        let sub = self
+                            .sub_ops()
+                            .create_sub_from_args_of_params(data_ty.args, data_def.params);
+                        self.sub_ops().apply_sub(ctor.params, &sub)
+                    }
+                    None => {
+                        // Not a record type because it has more than one constructor
+                        // @@ErrorReporting: more information about the error
+                        return Err(TcError::WrongTy {
+                            kind: WrongTermKind::NotARecord,
+                            inferred_term_ty: subject_ty,
+                            term: item_node,
+                        }
+                        .into());
+                    }
+                }
+            }
+
+            // Not a record type.
+            _ => {
+                return Err(TcError::WrongTy {
+                    kind: WrongTermKind::NotARecord,
+                    inferred_term_ty: subject_ty,
+                    term: item_node,
+                }
+                .into())
+            }
+        };
+
+        if let Some(param) = params.at_index(access_term.field) {
+            // Create a substitution that maps the parameters of the record
+            // type to the corresponding fields of the record term.
+            //
+            // i.e. `x: (T: Type, t: T);  x.t: x.T`
+            let param_access_sub =
+                self.sub_ops().create_sub_from_param_access(params, access_term.subject);
+            let subbed_param_ty = self.sub_ops().apply_sub(param.borrow().ty, &param_access_sub);
+            self.infer_ops().check_by_unify(subbed_param_ty, annotation_ty)?;
+            did_check()
+        } else {
+            Err(TcError::PropertyNotFound {
+                term: access_term.subject,
+                term_ty: subject_ty,
+                property: access_term.field,
+            }
+            .into())
+        }
     }
 
     fn normalise(
