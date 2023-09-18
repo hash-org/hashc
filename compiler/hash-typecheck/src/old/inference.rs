@@ -32,14 +32,14 @@ use hash_tir::{
     scopes::{AssignTerm, BlockStatement, BlockTerm},
     term_as_variant,
     tir::{
-        validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
-        validate_params, AccessTerm, Arg, ArgId, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm,
-        CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDefId, FnTy,
-        HasAstNodeId, IfPat, IndexTerm, Lit, LitId, LoopControlTerm, LoopTerm, MatchTerm, ModDefId,
-        ModMemberId, ModMemberValue, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId,
-        Pat, PatArgsId, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm,
-        RefTy, ReturnTerm, Spread, SymbolId, Term, TermId, TermListId, TuplePat, TupleTerm,
-        TupleTy, Ty, TyId, TyOfTerm, UnsafeTerm,
+        validate_and_reorder_pat_args_against_params, validate_params, AccessTerm, Arg, ArgId,
+        ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat, CtorTerm,
+        DataDefCtors, DataDefId, DataTy, DerefTerm, FnDefId, FnTy, HasAstNodeId, IfPat, IndexTerm,
+        Lit, LitId, LoopControlTerm, LoopTerm, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
+        Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId,
+        PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm, RefTy, ReturnTerm, Spread,
+        SymbolId, Term, TermId, TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm,
+        UnsafeTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -49,7 +49,11 @@ use itertools::Itertools;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    operations::{checking::CheckState, normalisation::NormalisationMode, Operations},
+    operations::{
+        checking::{did_check, CheckState},
+        normalisation::NormalisationMode,
+        Operations, RecursiveOperationsOnNode,
+    },
 };
 
 /// The mode in which to infer the type of a function.
@@ -180,27 +184,14 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         &self,
         args: ArgsId,
         annotation_params: ParamsId,
-        in_arg_scope: impl FnOnce(ArgsId) -> TcResult<U>,
+        mut in_arg_scope: impl FnMut(ArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
-        self.register_new_atom(args, annotation_params);
-        let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
-
-        let result = self.infer_some_args(
-            reordered_args_id.iter(),
+        CheckState::new().then_result(self.checker().check_node_rec(
+            &mut Context::new(),
+            args,
             annotation_params,
-            |arg, param_ty| {
-                let arg = arg.value();
-                self.infer_term(arg.value, param_ty)?;
-                Ok(())
-            },
-            |arg| {
-                let arg = arg.value();
-                Some(arg.value)
-            },
-            || in_arg_scope(reordered_args_id),
-        )?;
-
-        Ok(result)
+            |f| did_check(in_arg_scope(f)?),
+        ))
     }
 
     pub fn try_use_pat_args_as_term_args(&self, pat_args: PatArgsId) -> Option<ArgsId> {

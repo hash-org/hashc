@@ -75,7 +75,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
                 self.sub_ops().create_sub_from_param_access(params, access_term.subject);
             let subbed_param_ty = self.sub_ops().apply_sub(param.borrow().ty, &param_access_sub);
             self.infer_ops().check_by_unify(subbed_param_ty, annotation_ty)?;
-            did_check()
+            did_check(())
         } else {
             Err(TcError::PropertyNotFound {
                 term: access_term.subject,

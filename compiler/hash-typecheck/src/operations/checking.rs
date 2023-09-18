@@ -1,5 +1,6 @@
 use std::cell::Cell;
 
+use hash_tir::tir::ParamError;
 use hash_utils::derive_more::From;
 
 use super::unification::UnifySignal;
@@ -27,6 +28,12 @@ impl From<TcError> for CheckSignal {
     }
 }
 
+impl From<ParamError> for CheckSignal {
+    fn from(error: ParamError) -> Self {
+        Self::Error(Box::new(TcError::from(error)))
+    }
+}
+
 /// The result of a checking operation.
 ///
 /// `Ok(true)` means that the checking was successful.
@@ -42,18 +49,18 @@ pub struct Check<T> {
 }
 
 /// Signals that the checking is stuck.
-pub fn stuck_checking() -> CheckResult {
+pub fn stuck_checking<T>() -> CheckResult<T> {
     Err(CheckSignal::Stuck)
 }
 
 /// Signals that the checking is successful.
-pub fn did_check() -> CheckResult {
-    Ok(Check { progress: true, result: () })
+pub fn did_check<T>(t: T) -> CheckResult<T> {
+    Ok(Check { progress: true, result: t })
 }
 
 /// Signals that the checking is unnecessary/has already happened.
-pub fn already_checked() -> CheckResult {
-    Ok(Check { progress: false, result: () })
+pub fn already_checked<T>(t: T) -> CheckResult<T> {
+    Ok(Check { progress: false, result: t })
 }
 
 /// Keeps track of the state of a checking operation.
@@ -88,6 +95,31 @@ impl CheckState {
         self.is_stuck.get()
     }
 
+    /// Add the result of a checking operation to the state, and
+    /// return its data if applicable.
+    ///
+    /// If the checking operation is stuck, then return an appropriate
+    /// error.
+    ///
+    /// @@Temporary: until the old inference code is removed.
+    #[inline]
+    pub fn then_result<T>(&self, result: CheckResult<T>) -> TcResult<T> {
+        match result {
+            Ok(check) => {
+                let current = self.progress.get();
+                self.progress.set(current || check.progress);
+                Ok(check.result)
+            }
+            Err(e) => match e {
+                CheckSignal::Stuck => {
+                    self.is_stuck.set(true);
+                    Err(TcError::Signal)
+                }
+                CheckSignal::Error(e) => Err(*e),
+            },
+        }
+    }
+
     /// Add the result of a checking operation to the state.
     #[inline]
     pub fn then(&self, result: CheckResult) -> TcResult<()> {
@@ -114,7 +146,7 @@ impl CheckState {
         if self.is_stuck() {
             stuck_checking()
         } else {
-            did_check()
+            did_check(())
         }
     }
 
@@ -125,9 +157,9 @@ impl CheckState {
         if self.is_stuck() {
             stuck_checking()
         } else if self.has_checked() {
-            did_check()
+            did_check(())
         } else {
-            already_checked()
+            already_checked(())
         }
     }
 }
