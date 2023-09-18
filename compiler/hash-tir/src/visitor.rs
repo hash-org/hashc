@@ -59,21 +59,24 @@ impl fmt::Display for Atom {
     }
 }
 
-/// Contains methods to traverse the Hash TIR structure.
+/// Contains methods to traverse the Hash TIR structure, by implementing
+/// [`Visit`] and [`Map`] for all TIR nodes.
 pub struct Visitor {
-    // @@Todo @@Performance: remove this in favour of referencing functions symbolically.
     visited: RefCell<HashSet<Atom>>,
     visit_fns_once: bool,
 }
 
-/// Contains the implementation of `fmap` and `visit` for each atom, as well as
-/// secondary components such as arguments and parameters.
 impl Visitor {
-    /// Create a new `TraversingUtils`.
     pub fn new() -> Self {
         Self { visited: RefCell::new(HashSet::new()), visit_fns_once: true }
     }
 
+    /// Set a flag as to whether or not to visit functions only once.
+    ///
+    /// If set to `true` this keeps an internal record of which functions have
+    /// been visited, and will not visit them again.
+    // @@Todo @@Performance: remove this in favour of referencing functions
+    // symbolically.
     pub fn set_visit_fns_once(&mut self, once: bool) {
         self.visit_fns_once = once;
     }
