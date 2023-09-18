@@ -334,9 +334,9 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             // check that int ranges don't overlap here, in case
             // they're partially covered by other ranges.
             if let DeconstructedCtor::IntRange(range) = self.get_ctor(v_ctor) {
-                if let Some(head_id) = head.id {
+                if let Some(pat) = head.id {
                     self.check_for_overlapping_endpoints(
-                        head_id,
+                        pat,
                         *range,
                         matrix.heads(),
                         matrix.column_count().unwrap_or(0),

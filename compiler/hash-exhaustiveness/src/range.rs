@@ -52,19 +52,14 @@ use crate::{
 /// which are represented in this format. [IntRange] is a useful abstraction to
 /// represent these data types rather than listing all of the possible
 /// constructors that these data types have.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 
 pub struct IntRange {
     /// The beginning of the represented range
     pub(super) start: u128,
+
     /// The end of the represented range
     pub(super) end: u128,
-
-    /// Keeps the bias used for encoding the range. It depends on the type of
-    /// the range and possibly the pointer size of the current architecture.
-    /// The algorithm ensures we never compare `IntRange`s with different
-    /// types/architectures.
-    pub bias: u128,
 }
 
 impl IntRange {
@@ -85,7 +80,7 @@ impl IntRange {
         let (other_lo, other_hi) = other.boundaries();
 
         if lo <= other_hi && other_lo <= hi {
-            Some(IntRange { start: max(lo, other_lo), end: min(hi, other_hi), bias: self.bias })
+            Some(IntRange { start: max(lo, other_lo), end: min(hi, other_hi) })
         } else {
             None
         }
@@ -129,9 +124,25 @@ impl IntRange {
     }
 }
 
-impl fmt::Debug for IntRange {
+/// This is used to print [IntRange] with the actual values of the range
+/// rather than the bias encoded ones.
+pub struct IntRangeWithBias {
+    /// The beginning of the represented range
+    range: IntRange,
+
+    /// The bias of the represented range
+    bias: u128,
+}
+
+impl IntRangeWithBias {
+    pub fn new(range: IntRange, bias: u128) -> Self {
+        IntRangeWithBias { range, bias }
+    }
+}
+
+impl fmt::Debug for IntRangeWithBias {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (lo, hi) = self.boundaries();
+        let (lo, hi) = self.range.boundaries();
         let bias = self.bias;
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
@@ -170,7 +181,7 @@ pub enum IntBorder {
 /// ```text
 ///   ||---|--||-|---|---|---|--|
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SplitIntRange {
     /// The range we are splitting
     range: IntRange,
@@ -237,7 +248,7 @@ impl SplitIntRange {
                     (IntBorder::JustBefore(n), IntBorder::AfterMax) => (n, u128::MAX),
                     _ => unreachable!(), // Ruled out by the sorting and filtering we did
                 };
-                IntRange { start, end, bias: self.range.bias }
+                IntRange { start, end }
             })
     }
 }
@@ -250,7 +261,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
 
         // read from the constant the actual bits and apply bias
         let val = constant.data() ^ bias;
-        IntRange { start: val, end: val, bias }
+        IntRange { start: val, end: val }
     }
 
     /// Create an [IntRange] from two specified bounds, and assuming that the
@@ -264,7 +275,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             panic!("malformed range pattern: {lo}..{}", (hi - offset));
         }
 
-        IntRange { start: lo, end: hi - offset, bias }
+        IntRange { start: lo, end: hi - offset /* bias */ }
     }
 
     /// Get the bias based on the type, if it is a signed, integer then

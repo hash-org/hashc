@@ -28,7 +28,7 @@ pub type DeconstructedCtorStore = IndexVec<DeconstructedCtorId, DeconstructedCto
 
 /// The [ExhaustivenessStorage] holds data structures that are used during
 /// exhaustiveness checking as intermediate representations of patterns.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub(crate) struct ExhaustivenessCtx {
     /// The [crate::deconstruct::DeconstructedPat] store.
     pub(crate) dp: DeconstructedPatStore,

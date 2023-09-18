@@ -260,6 +260,13 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     }
 
+    // if !source.id().is_prelude() {
+    //     SourceMapUtils::set_module_source(id, contents.clone());
+    //     for token in &tokens {
+    //         println!("{:?}, {}, {:?}", token.kind, token.span,
+    // Span::new(token.span, id).fmt_range());     }
+    // }
+
     // Update the global string table now!
     string_table().add_local_table(strings);
 

@@ -230,12 +230,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
     // Convert a [DeconstructedPat] into a [Pat].
     pub(crate) fn construct_pat(&self, pat: DeconstructedPatId) -> PatId {
-        let DeconstructedPat { ty, fields, id, ctor, .. } = self.get_pat(pat);
-
-        // Short-circuit, if the pattern already has an associated `PatId`...
-        if let Some(id) = id {
-            return *id;
-        }
+        let DeconstructedPat { ty, fields, ctor, .. } = self.get_pat(pat);
 
         let ctor = self.get_ctor(*ctor);
         let pat = match ctor {
@@ -358,13 +353,13 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             // a singleton, and in fact the range will never be constructed from a
             // `ubig` or `ibig` type.
             match try_use_ty_as_lit_ty(self.target(), ty).unwrap() {
-                ty if ty.is_int() => {
+                int_ty if int_ty.is_int() => {
                     let (lo, _) = range.boundaries();
-                    let bias = range.bias;
+                    let bias = self.signed_bias(ty);
                     let lo = lo ^ bias;
 
                     let ptr_size = self.target().ptr_size();
-                    let val = InternedInt::from_u128(lo, ty.into(), ptr_size);
+                    let val = InternedInt::from_u128(lo, int_ty.into(), ptr_size);
                     Pat::Lit(LitPat(Node::create_gen(Lit::Int(IntLit::from(val)))))
                 }
                 LitTy::Char => {
@@ -387,7 +382,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
     /// [`Self::construct_pat_from_range`].
     pub(crate) fn construct_range_pat(&self, range: IntRange, ty: TyId) -> RangePat {
         let (lo, hi) = range.boundaries();
-        let bias = range.bias;
+        let bias = self.signed_bias(ty);
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
         let (lo, hi) = match try_use_ty_as_lit_ty(self.target(), ty).unwrap() {

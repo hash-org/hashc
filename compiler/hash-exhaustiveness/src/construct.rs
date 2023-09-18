@@ -40,9 +40,7 @@ use crate::{
 
 /// The [DeconstructedCtor] represents the type of constructor that a pattern
 /// is.
-///
-/// @@Ranges: float ranges
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum DeconstructedCtor {
     /// The constructor for patterns that have a single constructor, like
     /// tuples, struct patterns and fixed-length arrays.

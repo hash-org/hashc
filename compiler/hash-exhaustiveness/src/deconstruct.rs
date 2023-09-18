@@ -19,6 +19,7 @@ use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 use super::{construct::DeconstructedCtor, fields::Fields};
 use crate::{
     list::ArrayKind,
+    range::IntRangeWithBias,
     storage::{DeconstructedCtorId, DeconstructedPatId},
     ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
 };
@@ -38,8 +39,13 @@ pub struct DeconstructedPat {
     /// The type of the current deconstructed pattern
     pub ty: TyId,
 
-    /// An associated [hash_tir::old::Pat] that can be used
-    /// for reporting reachability and printing of patterns.
+    /// An associated [hash_tir::tir::Pat] which is used to
+    /// link a particular pattern with a span. This is primarily
+    /// used for reporting reachability, or checking if integer  
+    /// ranges overlap.
+    ///
+    /// @@Sizing: it would be nice to avoid the option so we could
+    /// shrink the constructor down from `32bytes` to `24bytes`.
     pub id: Option<PatId>,
 
     /// Whether the current pattern is reachable.
@@ -225,7 +231,10 @@ impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, Deconstructed
                 }
                 write!(f, ")")
             }
-            DeconstructedCtor::IntRange(range) => write!(f, "{range:?}"),
+            DeconstructedCtor::IntRange(range) => {
+                let bias = self.checker.signed_bias(pat.ty);
+                write!(f, "{:?}", IntRangeWithBias::new(*range, bias))
+            }
             DeconstructedCtor::Str(value) => write!(f, "{value}"),
             DeconstructedCtor::Array(list) => {
                 let mut sub_patterns = pat.fields.iter_patterns();
