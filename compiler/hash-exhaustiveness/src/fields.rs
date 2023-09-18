@@ -12,7 +12,10 @@ use hash_tir::{
     intrinsics::utils::try_use_ty_as_array_ty,
     tir::{CtorDefId, DataDefCtors, DataTy, NodesId, TupleTy, Ty, TyId},
 };
-use hash_utils::itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    thin_vec::{thin_vec, ThinVec},
+};
 
 use super::construct::DeconstructedCtor;
 use crate::{
@@ -26,13 +29,13 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Fields {
     /// Vector of the inner ids stored by the [Fields]
-    pub fields: Vec<DeconstructedPatId>,
+    pub fields: ThinVec<DeconstructedPatId>,
 }
 
 impl Fields {
     /// Create a [Fields] with no inner elements.
     pub fn empty() -> Self {
-        Fields { fields: vec![] }
+        Fields { fields: thin_vec![] }
     }
 
     /// Returns an [Iterator] of the inner stored [DeconstructedPatId]s.
