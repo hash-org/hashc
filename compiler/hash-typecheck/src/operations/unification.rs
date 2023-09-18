@@ -33,7 +33,7 @@ impl From<CheckSignal> for UnifySignal {
 ///
 /// `Err(Stuck)` means that the unification is stuck.
 /// `Err(Error)` means that the unification failed.
-pub type UnifyResult = Result<(), UnifySignal>;
+pub type UnifyResult<T = ()> = Result<T, UnifySignal>;
 
 /// Signals that the unification is stuck.
 pub fn stuck_unifying() -> UnifyResult {

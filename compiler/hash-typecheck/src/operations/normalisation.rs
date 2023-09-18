@@ -26,7 +26,7 @@ pub enum NormaliseSignal {
 }
 
 /// The result of a normalisation operation.
-pub type NormaliseResult<T> = Result<Option<T>, NormaliseSignal>;
+pub type NormaliseResult<T = ()> = Result<Option<T>, NormaliseSignal>;
 
 /// Signals that the atom is already normalised.
 pub fn already_normalised<T>() -> NormaliseResult<T> {

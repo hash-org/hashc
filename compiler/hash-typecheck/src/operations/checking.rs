@@ -34,8 +34,7 @@ impl From<TcError> for CheckSignal {
 ///
 /// `Err(Stuck)` means that the checking is stuck.
 /// `Err(Error)` means that the checking failed.
-pub type RecursiveCheckResult<T> = Result<Check<T>, CheckSignal>;
-pub type CheckResult = RecursiveCheckResult<()>;
+pub type CheckResult<T = ()> = Result<Check<T>, CheckSignal>;
 
 pub struct Check<T> {
     pub progress: bool,
