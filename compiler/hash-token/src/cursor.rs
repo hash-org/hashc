@@ -96,9 +96,10 @@ impl<'t> TokenCursor<'t> {
         self.stream.get(self.pos.get()).unwrap()
     }
 
-    /// Get the next token.
+    /// Get the current token, and advance to the next token if there
+    /// exists another token in the [TokenStream].
     #[inline(always)]
-    pub fn next_token(&self) -> Option<&Token> {
+    pub fn current_token_and_advance(&self) -> Option<&Token> {
         // Look at the current token, and check if we need
         // skip over a tree...
         let value = self.stream.get(self.pos.get())?;
@@ -117,6 +118,7 @@ impl<'t> TokenCursor<'t> {
     #[inline(always)]
     pub unsafe fn skip(&self, n: u8) {
         self.pos.set(self.pos.get() + n as usize);
+        self.prev_tree.set(None);
     }
 
     pub fn skip_token(&self) {
@@ -162,6 +164,7 @@ impl<'t> TokenCursor<'t> {
     #[inline(always)]
     pub unsafe fn set_pos(&self, pos: usize) {
         self.pos.set(pos);
+        self.prev_tree.set(None);
     }
 
     /// Attempt to peek one step token ahead.

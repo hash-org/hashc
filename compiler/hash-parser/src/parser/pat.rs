@@ -170,7 +170,7 @@ impl<'s> AstGen<'s> {
                     },
                     ExpectedItem::empty(),
                     None,
-                    token.span.join(self.next_pos()),
+                    token.span.join(self.current_pos()),
                 );
             }
 
@@ -272,7 +272,7 @@ impl<'s> AstGen<'s> {
                 ParseErrorKind::DisallowedSpreadPat { origin: PatOrigin::Mod },
                 ExpectedItem::Ident,
                 None,
-                self.next_pos(),
+                start,
             );
         }
 
@@ -507,7 +507,7 @@ impl<'s> AstGen<'s> {
 
     /// Parse a [Visibility] modifier, either being a `pub` or `priv`.
     fn parse_visibility(&mut self) -> ParseResult<AstNode<Visibility>> {
-        match self.next_token() {
+        match self.current_token_and_advance() {
             Some(Token { kind: TokenKind::Keyword(Keyword::Pub), span }) => {
                 Ok(self.node_with_span(Visibility::Public, *span))
             }
@@ -518,7 +518,7 @@ impl<'s> AstGen<'s> {
                 ParseErrorKind::UnExpected,
                 ExpectedItem::Visibility,
                 token.map(|t| t.kind),
-                token.map_or_else(|| self.next_pos(), |t| t.span),
+                token.map_or_else(|| self.eof_pos(), |t| t.span),
             ),
         }
     }

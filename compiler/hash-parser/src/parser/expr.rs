@@ -49,7 +49,7 @@ impl<'s> AstGen<'s> {
                     ParseErrorKind::ExpectedExpr,
                     ExpectedItem::empty(),
                     None,
-                    self.current_pos(),
+                    self.expected_pos(),
                 )
             };
         }
@@ -122,7 +122,7 @@ impl<'s> AstGen<'s> {
                     ParseErrorKind::ExpectedExpr,
                     ExpectedItem::empty(),
                     None,
-                    Some(self.next_pos()),
+                    Some(self.expected_pos()),
                 )
             })
             .copied()?;
@@ -433,13 +433,14 @@ impl<'s> AstGen<'s> {
         self.skip_fast(); // `import`
 
         let start = self.current_pos();
-        let (path, span) =
-            self.in_tree(Delimiter::Paren, None, |gen| match gen.next_token().copied() {
+        let (path, span) = self.in_tree(Delimiter::Paren, None, |gen| {
+            match gen.current_token_and_advance().copied() {
                 Some(Token { kind: TokenKind::Str(path), span }) => Ok((path, span)),
                 tok => {
                     gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), tok.map(|t| t.kind))?
                 }
-            })?;
+            }
+        })?;
 
         // Attempt to add the module via the resolver
         match self.resolver.resolve_import(path) {
@@ -873,7 +874,7 @@ impl<'s> AstGen<'s> {
     /// This function expects that the next token is a [TokenKind::Tree] and
     /// it will consume it producing [Expr]s from it.
     pub(crate) fn parse_exprs_from_braces(&mut self) -> ParseResult<AstNodes<Expr>> {
-        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::Block), |gen| {
+        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
             let mut exprs = thin_vec![];
 
             // Continue eating the generator until no more tokens are present

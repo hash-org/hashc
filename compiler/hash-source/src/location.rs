@@ -230,9 +230,7 @@ impl<'s> SpannedSource<'s> {
 }
 
 /// This struct is used a wrapper for a [RangeMap] in order to
-/// implement a nice display format, amongst other things. However,
-/// it is a bit of a @@Hack, but I don't think there is really any other
-/// better way to do this.
+/// implement a nice display format, amongst other things.
 #[derive(Debug)]
 pub struct LineRanges(RangeMap<usize, ()>);
 

@@ -72,18 +72,39 @@ impl<'s> AstGenFrame<'s> {
         self.current_token().span
     }
 
-    /// Get the [ByteRange] of the next [Token].
+    /// Get a [ByteRange] to use when the parser encounters an un-expected end
+    /// of file error. The strategy:
     ///
-    /// If there is no next [Token], we use the next character offset to
-    /// determine the location.
-    pub(crate) fn next_pos(&self) -> ByteRange {
-        match self.peek() {
+    /// First step, get the last "good" span.
+    ///
+    /// - Attempt to get the current token, if so use the span of the token.
+    ///
+    /// - Attempt to get the previous token, if so use the span of the token.
+    ///
+    /// - Fallback onto use the generator span. (infallible)
+    ///
+    /// Second step, offset the end of the span by one.
+    fn eof_pos(&self) -> ByteRange {
+        let span = match self.peek() {
             Some(token) => token.span,
-            None => {
-                let span = self.previous_pos();
-                ByteRange::new(span.end(), span.end() + 1)
-            }
-        }
+            None => self.previous_pos(),
+        };
+
+        ByteRange::new(span.end(), span.end() + 1)
+    }
+
+    /// Get a [ByteRange] to use when the parser expected a token or some other
+    /// construct, but instead received something else. The strategy for
+    /// getting this span is simpler:
+    ///
+    /// - Attempt to get the previous token, if so use the span of the token.
+    ///
+    /// - Fallback onto use the generator span. (infallible)
+    ///
+    /// - Add one to the end of the span.
+    fn expected_pos(&self) -> ByteRange {
+        let span = self.previous_pos();
+        ByteRange::new(span.end(), span.end() + 1)
     }
 }
 
@@ -221,9 +242,11 @@ impl<'s> AstGen<'s> {
         received: Option<TokenKind>,
         span: Option<ByteRange>,
     ) -> ParseError {
+        self.frame.error.set(true);
+
         ParseError::new(
             kind,
-            self.make_span(span.unwrap_or_else(|| self.current_pos())),
+            self.make_span(span.unwrap_or_else(|| self.eof_pos())),
             expected,
             received,
         )
@@ -256,7 +279,11 @@ impl<'s> AstGen<'s> {
     /// (such as if the generator is within a brackets) that it should now
     /// read no more tokens.
     pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
-        self.err(ParseErrorKind::UnExpected, ExpectedItem::empty(), Some(self.current_token().kind))
+        self.err(
+            ParseErrorKind::UnExpected,
+            ExpectedItem::empty(),
+            Some(self.previous_token().kind),
+        )
     }
 
     /// Generate an error representing that the current generator unexpectedly
@@ -481,7 +508,7 @@ impl<'s> AstGen<'s> {
                 ParseErrorKind::UnExpected,
                 ExpectedItem::from(atom),
                 token.map(|t| t.kind),
-                token.map_or_else(|| self.next_pos(), |t| t.span),
+                token.map_or_else(|| self.eof_pos(), |t| t.span),
             ),
         }
     }

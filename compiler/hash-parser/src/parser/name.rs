@@ -21,16 +21,11 @@ impl<'s> AstGen<'s> {
     /// disallows a [Name] to be the special binding `_`.
     #[inline]
     pub fn parse_name_with_error(&mut self, err: ParseErrorKind) -> ParseResult<AstNode<Name>> {
-        match self.next_token() {
+        match self.current_token_and_advance() {
             Some(Token { kind: TokenKind::Ident(ident), span }) if *ident != IDENTS.underscore => {
                 Ok(self.node_with_span(Name { ident: *ident }, *span))
             }
-            token => self.err_with_location(
-                err,
-                ExpectedItem::Ident,
-                None,
-                token.map(|tok| tok.span).unwrap_or_else(|| self.next_pos()),
-            ),
+            _ => self.err_with_location(err, ExpectedItem::Ident, None, self.expected_pos()),
         }
     }
 
@@ -39,7 +34,7 @@ impl<'s> AstGen<'s> {
     /// [PropertyKind::NumericField] variant.
     #[inline]
     pub fn parse_named_field(&mut self, err: ParseErrorKind) -> ParseResult<AstNode<PropertyKind>> {
-        match self.next_token() {
+        match self.current_token_and_advance() {
             Some(Token { kind: TokenKind::Ident(ident), span }) if *ident != IDENTS.underscore => {
                 Ok(self.node_with_span(PropertyKind::NamedField(*ident), *span))
             }
@@ -47,7 +42,7 @@ impl<'s> AstGen<'s> {
                 err,
                 ExpectedItem::Ident,
                 None,
-                token.map(|tok| tok.span).unwrap_or_else(|| self.next_pos()),
+                token.map(|tok| tok.span).unwrap_or_else(|| self.eof_pos()),
             ),
         }
     }

@@ -136,7 +136,7 @@ impl<'s> AstGen<'s> {
                         ParseErrorKind::ExpectedMacroInvocation,
                         ExpectedItem::Ident | ExpectedItem::LeftBracket,
                         token.map(|t| t.kind),
-                        token.map_or_else(|| self.next_pos(), |t| t.span),
+                        token.map_or_else(|| self.eof_pos(), |t| t.span),
                     )?;
                 }
                 _ => break,

@@ -124,7 +124,7 @@ impl<'s> AstGen<'s> {
                             ParseErrorKind::ExpectedValueAfterTyAnnotation,
                             ExpectedItem::Eq,
                             None,
-                            Some(self.next_pos()),
+                            Some(self.expected_pos()),
                         )
                     })?;
 

@@ -68,7 +68,7 @@ impl<'s> AstGen<'s> {
                 ParseErrorKind::ExpectedTy,
                 ExpectedItem::Type,
                 None,
-                Some(self.next_pos()),
+                Some(self.eof_pos()),
             )
         })?;
 
@@ -437,7 +437,7 @@ impl<'s> AstGen<'s> {
                     ParseErrorKind::UnExpected,
                     ExpectedItem::Comma | ExpectedItem::Gt,
                     token.map(|t| t.kind),
-                    token.map_or_else(|| self.next_pos(), |t| t.span),
+                    token.map_or_else(|| self.eof_pos(), |t| t.span),
                 )?,
             }
         }

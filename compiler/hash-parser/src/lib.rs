@@ -29,7 +29,7 @@ use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
     indexmap::IndexMap,
     rayon,
-    timing::{time_item, AccessToMetrics}
+    timing::{time_item, AccessToMetrics},
 };
 use import_resolver::ImportResolver;
 use parser::AstGen;
@@ -267,7 +267,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     };
 
-    // @@Debugging: when we want to look at spans produced by the parser, uncomment 
+    // @@Debugging: when we want to look at spans produced by the parser, uncomment
     // this line.
     // SourceMapUtils::set_module_source(id, contents.clone());
 
