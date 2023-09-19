@@ -1,0 +1,21 @@
+// stage=parse, run=fail
+
+{
+    foo := struct (
+        field: i32,
+        #invalid
+        // ~ERROR: expected struct field here
+    )
+}
+
+
+{
+    // ~ERROR: expected fn parameter here
+    foo := (field: i32, #incomplete) => {}
+}
+
+
+
+
+#invalid 
+// ~ERROR: expected expression here

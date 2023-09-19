@@ -128,6 +128,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::Macro(invocation) => {
                 self.make_term_from_ast_macro_invocation_expr(node.with_body(invocation))?
             }
+            ast::Expr::TokenMacro(_) => panic!("un-expanded token macro in resolution"),
             ast::Expr::Ref(ref_expr) => {
                 self.make_term_from_ast_ref_expr(node.with_body(ref_expr))?
             }

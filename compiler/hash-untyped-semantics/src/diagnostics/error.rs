@@ -9,7 +9,7 @@ use hash_reporting::{
     report::{ReportCodeBlock, ReportElement, ReportNote, ReportNoteKind},
     reporter::{Reporter, Reports},
 };
-use hash_source::{identifier::Identifier, location::Span};
+use hash_source::location::Span;
 
 // use super::directives::DirectiveArgument;
 use crate::analysis::params::FieldNamingExpectation;
@@ -77,9 +77,6 @@ pub(crate) enum AnalysisErrorKind {
 
     /// Using `self` within free-standing functions
     SelfInFreeStandingFn,
-
-    /// When a directive is used within an un-expected scope,
-    InvalidDirectiveScope { name: Identifier, expected: BlockOrigin, received: BlockOrigin },
 
     /// When fields of a `struct` or `enum` use inconsistent naming
     InconsistentFieldNaming {
@@ -186,15 +183,6 @@ impl From<AnalysisError> for Reports {
                         ReportNoteKind::Help,
                         format!("consider giving this {origin} field a type annotation"),
                     )));
-            }
-            AnalysisErrorKind::InvalidDirectiveScope { name, expected, received } => {
-                error.title(format!("the `{name}` directive is must be within a {expected} block"));
-
-                // Show the location where the directive is being used...
-                error.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                    err.location,
-                    format!("`{name}` cannot be used within {received} block"),
-                )));
             }
             AnalysisErrorKind::DisallowedFloatPat => {
                 error.title("float literals are disallowed within a pattern position");

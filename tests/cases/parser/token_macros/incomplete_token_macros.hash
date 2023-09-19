@@ -1,0 +1,4 @@
+// stage=parse, run=fail
+
+// ~ERROR: expected token tree here...
+{ @[invoke()] . }

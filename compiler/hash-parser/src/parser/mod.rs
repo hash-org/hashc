@@ -169,17 +169,18 @@ impl<'s> AstGen<'s> {
         parent_span: ByteRange,
         mut gen: impl FnMut(&mut Self) -> T,
     ) -> T {
-        let mut new_frame =
+        let new_frame =
             AstGenFrame::from_stream(&self.frame.stream()[start..(start + len)], parent_span);
         let old_frame = std::mem::replace(&mut self.frame, new_frame);
         let result = gen(self);
-        new_frame = std::mem::replace(&mut self.frame, old_frame);
 
         // Ensure that the generator token stream has been exhausted
-        if !new_frame.error.get() && new_frame.has_token() {
+        if !self.error.get() && self.has_token() {
             self.maybe_add_error::<()>(self.expected_eof());
         }
 
+        // Now finally swap back the old frame
+        let _ = std::mem::replace(&mut self.frame, old_frame);
         result
     }
 
@@ -281,10 +282,13 @@ impl<'s> AstGen<'s> {
     /// (such as if the generator is within a brackets) that it should now
     /// read no more tokens.
     pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
-        self.err(
+        let tok = self.peek().unwrap_or_else(|| self.previous_token());
+
+        self.err_with_location(
             ParseErrorKind::UnExpected,
             ExpectedItem::empty(),
-            Some(self.previous_token().kind),
+            Some(tok.kind),
+            tok.span,
         )
     }
 

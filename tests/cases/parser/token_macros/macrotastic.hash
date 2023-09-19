@@ -1,0 +1,78 @@
+// stage=parse, run=pass
+
+Def := struct (
+    field: u32,
+
+    // @@Todo: support token macro in params.
+    //
+    // @fields {
+    //     make, several, fields, from, these, tokens
+    // }
+)
+
+DefKind := enum (
+    Basis,
+
+    // @@Todo: support token macro in enum variants.
+    //
+    // @make_variants {
+    //     { make -> variants -> from -> these -> tokens }
+    // }
+)
+
+@top_level { 
+    make, a, top, level, macro, from, these, tokens
+}
+
+matches := (t: i32) => {
+    match t {
+        // @@Todo: support token macro in match cases.
+        //
+        // @make_cases { 1, 2, 3, 4 => 0 },
+        _ => 1,
+    }
+}
+
+frobulate:= () => {
+    // @@Todo: support token macro in type arguments
+    //
+    // Frobulator<@make_type_args { u32, i32, f32, f64 }>()
+}
+
+main := () => {
+    ty := (
+        first := @as_ty(Def),
+        second := @as_ty(DefKind),
+    )
+
+    match @as_ty { convert me into a ty } {
+        (@make_pat { 1 + 1 }) => {},
+        _ => {}
+    }
+    
+}
+
+sums := () => {
+    min := @min {1 + 2, 3 * 4, 7 - 6 + 1 };
+    max := @max {1 + 2, 3 * 4, 7 - 6 + 1 };
+
+    if max - min == 0 {
+        println("min and max are equal")
+    } else {
+        println("min and max are not equal")
+    }
+}
+
+
+welcome := () => {
+    @[xml(variant=html)] {
+        <html>
+            <head>
+                <title>My page</title>
+            </head>
+            <body>
+                <h1>Hello, world!</h1>
+            </body>
+        </html>
+    }
+}

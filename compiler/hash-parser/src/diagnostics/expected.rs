@@ -24,6 +24,9 @@ bitflags! {
         /// A plus token
         const Plus = 1 << 4;
 
+        /// An at token.
+        const At = 1 << 5;
+
         /// A dot.
         const Dot = 1 << 6;
 
@@ -111,21 +114,26 @@ bitflags! {
         /// Convenient left-wise delimiter mask.
         const DelimLeft = Self::LeftParen.bits()
                         | Self::LeftBrace.bits()
-                        | Self::LeftBracket.bits()
-                        | Self::Lt.bits();
+                        | Self::LeftBracket.bits();
 
         /// Tokens that can start a type.
-        const Type = ExpectedItem::Amp.bits()
-                   | ExpectedItem::Ident.bits()
-                   | ExpectedItem::DelimLeft.bits()
-                   | ExpectedItem::Exclamation.bits()
-                   | ExpectedItem::Pound.bits();
+        const Type = Self::Amp.bits()
+                   | Self::Ident.bits()
+                   | Self::DelimLeft.bits()
+                   | Self::Lt.bits()
+                   | Self::Exclamation.bits()
+                   | Self::Pound.bits()
+                   | Self::At.bits();
 
         /// Tokens that can start a pattern.
         const Pat = Self::Literal.bits()
                   | Self::Ident.bits()
                   | Self::LeftParen.bits()
-                  | Self::LeftBracket.bits();
+                  | Self::LeftBracket.bits()
+                  | Self::Pound.bits()
+                  | Self::At.bits()
+                  | Self::Visibility.bits()
+                  | Self::MutKw.bits();
     }
 }
 
@@ -148,6 +156,7 @@ impl fmt::Display for ExpectedItem {
                 ExpectedItem::Amp => toks.push("&"),
                 ExpectedItem::Exclamation => toks.push("!"),
                 ExpectedItem::Pound => toks.push("#"),
+                ExpectedItem::At => toks.push("@"),
                 ExpectedItem::LeftParen => toks.push("("),
                 ExpectedItem::RightParen => toks.push(")"),
                 ExpectedItem::LeftBrace => toks.push("{"),
@@ -179,6 +188,7 @@ impl From<TokenKind> for ExpectedItem {
             TokenKind::Dot => ExpectedItem::Dot,
             TokenKind::Exclamation => ExpectedItem::Exclamation,
             TokenKind::Pound => ExpectedItem::Pound,
+            TokenKind::At => ExpectedItem::At,
             TokenKind::Amp => ExpectedItem::Amp,
             TokenKind::Colon => ExpectedItem::Colon,
             TokenKind::Comma => ExpectedItem::Comma,

@@ -192,6 +192,15 @@ impl<'s> AstGen<'s> {
                 }
             }
 
+            // Parse a token macro invocation
+            Token { kind: TokenKind::At, .. } => {
+                let token_macro = self.parse_token_macro_invocation()?;
+                return Ok((
+                    self.node_with_joined_span(Pat::TokenMacro(token_macro), token.span),
+                    false,
+                ));
+            }
+
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, _), .. } => {
                 return self

@@ -371,6 +371,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Ty::Union(_) => {
                 panic_on_span!(node.span(), "Found union type after discovery")
             }
+            ast::Ty::TokenMacro(_) => {
+                panic_on_span!(node.span(), "Found token macro type after discovery")
+            }
         };
 
         self.ast_info.tys().insert(node.id(), ty_id);
