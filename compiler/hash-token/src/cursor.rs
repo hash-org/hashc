@@ -133,8 +133,10 @@ impl<'t> TokenCursor<'t> {
 
     /// Skip the current token.
     #[inline(always)]
-    pub fn skip_fast(&self) {
+    pub fn skip_fast(&self, kind: TokenKind) {
         debug_assert!(!matches!(self.peek_kind(), Some(TokenKind::Tree(_, _))));
+        debug_assert!(matches!(self.peek_kind(), Some(k) if k == kind));
+
         self.prev_tree.set(None);
         self.pos.set(self.pos.get() + 1)
     }

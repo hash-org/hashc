@@ -503,7 +503,7 @@ impl<'s> AstGen<'s> {
 
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
-                self.skip_fast(); // non-tree
+                self.skip_fast(token.kind); // non-tree
                 Ok(())
             }
             token => self.err_with_location(
@@ -524,7 +524,7 @@ impl<'s> AstGen<'s> {
 
         match self.peek() {
             Some(token) if token.has_kind(kind) => {
-                self.skip_fast(); // token, non-tree
+                self.skip_fast(kind); // token, non-tree
                 Some(())
             }
             _ => None,
@@ -574,8 +574,8 @@ impl<'s> AstGen<'s> {
                     Some(Token { kind: TokenKind::Pound, .. }),
                     Some(Token { kind: TokenKind::Exclamation, .. }),
                 ) => {
-                    self.skip_fast(); // `#`
-                    self.skip_fast(); // `!`
+                    self.skip_fast(TokenKind::Pound); // `#`
+                    self.skip_fast(TokenKind::Exclamation); // `!`
 
                     match self.parse_module_marco_invocations() {
                         Ok(items) => macros.extend(items),

@@ -24,7 +24,7 @@ impl<'s> AstGen<'s> {
         // an expression...
         let maybe_eat_semi = |this: &mut Self| -> bool {
             if let Some(TokenKind::Semi) = this.peek_kind() {
-                this.skip_fast(); // `;`
+                this.skip_fast(TokenKind::Semi); // `;`
                 true
             } else {
                 false
@@ -80,7 +80,7 @@ impl<'s> AstGen<'s> {
             // We don't skip here because it is handled after the statement has been
             // generated.
             Some(TokenKind::Eq) if !re_assigned => {
-                self.skip_fast(); // `=`
+                self.skip_fast(TokenKind::Eq); // `=`
 
                 // Parse the right hand-side of the assignment
                 let rhs = self.parse_expr_with_precedence(0)?;
@@ -100,11 +100,10 @@ impl<'s> AstGen<'s> {
     /// Function to eat a collection of trailing semi-colons.
     pub(crate) fn eat_trailing_semis(&mut self) {
         let tok = self.current_token();
-        debug_assert!(tok.has_kind(TokenKind::Semi));
 
         // Collect any additional trailing semis with the one that was encountered
         while let Some(TokenKind::Semi) = self.peek_kind() {
-            self.skip_fast(); // `;`
+            self.skip_fast(TokenKind::Semi); // `;`
         }
 
         // Emit trailing semis diagnostic
@@ -146,7 +145,7 @@ impl<'s> AstGen<'s> {
                 self.node_with_span(Expr::Lit(LitExpr { data }), token.span)
             }
             TokenKind::Ident(ident) => {
-                self.skip_fast(); // `ident`
+                self.skip_fast(token.kind); // `ident`
                 let name = self.node_with_span(Name { ident }, token.span);
                 self.node_with_span(Expr::Variable(VariableExpr { name }), token.span)
             }
@@ -167,7 +166,7 @@ impl<'s> AstGen<'s> {
                 self.node_with_joined_span(Expr::TraitDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Type) => {
-                self.skip_fast(); // `type`
+                self.skip_fast(token.kind); // `type`
                 let ty = self.parse_ty()?;
                 self.node_with_joined_span(Expr::Ty(TyExpr { ty }), token.span)
             }
@@ -182,7 +181,7 @@ impl<'s> AstGen<'s> {
                     let def = self.parse_impl_def()?;
                     self.node_with_joined_span(Expr::ImplDef(def), token.span)
                 } else {
-                    self.skip_fast(); // `impl`
+                    self.skip_fast(token.kind); // `impl`
 
                     let ty = self.parse_ty()?;
                     let trait_body = self.parse_exprs_from_braces()?;
@@ -207,8 +206,8 @@ impl<'s> AstGen<'s> {
                 let block = match kind {
                     TokenKind::Keyword(Keyword::For) => self.parse_for_loop()?,
                     TokenKind::Keyword(Keyword::While) => self.parse_while_loop()?,
-                    TokenKind::Keyword(Keyword::Loop) => {
-                        self.skip_fast(); // `loop`
+                    kw @ TokenKind::Keyword(Keyword::Loop) => {
+                        self.skip_fast(kw); // `loop`
                         let block = self.parse_block()?;
                         self.node_with_joined_span(
                             Block::Loop(LoopBlock { contents: block }),
@@ -246,16 +245,16 @@ impl<'s> AstGen<'s> {
                     false => self.parse_expr_or_tuple()?,
                 }
             }
-            TokenKind::Keyword(Keyword::Continue) => {
-                self.skip_fast(); // `continue`
+            kw @ TokenKind::Keyword(Keyword::Continue) => {
+                self.skip_fast(kw); // `continue`
                 self.node_with_span(Expr::Continue(ContinueStatement {}), token.span)
             }
-            TokenKind::Keyword(Keyword::Break) => {
-                self.skip_fast(); // `break`
+            kw @ TokenKind::Keyword(Keyword::Break) => {
+                self.skip_fast(kw); // `break`
                 self.node_with_span(Expr::Break(BreakStatement {}), token.span)
             }
-            TokenKind::Keyword(Keyword::Return) => {
-                self.skip_fast(); // `return`
+            kw @ TokenKind::Keyword(Keyword::Return) => {
+                self.skip_fast(kw); // `return`
                 let return_expr = match self.peek().copied() {
                     Some(tok) if !tok.has_kind(TokenKind::Semi) => Expr::Return(ReturnStatement {
                         expr: Some(self.parse_expr_with_precedence(0)?),
@@ -429,8 +428,7 @@ impl<'s> AstGen<'s> {
     /// provide is references '.hash' extension file or a directory with a
     /// `index.hash` file contained within the directory.
     pub(crate) fn parse_import(&mut self) -> ParseResult<AstNode<Expr>> {
-        debug_assert_eq!(self.peek_kind(), Some(TokenKind::Keyword(Keyword::Import)));
-        self.skip_fast(); // `import`
+        self.skip_fast(TokenKind::Keyword(Keyword::Import)); // `import`
 
         let start = self.current_pos();
         let (path, span) = self.in_tree(Delimiter::Paren, None, |gen| {
@@ -474,7 +472,7 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Eq, .. }),
             ) => {
                 let name = self.parse_name()?;
-                self.skip_fast(); // `=`
+                self.skip_fast(TokenKind::Eq); // `=`
 
                 Some(name)
             }
@@ -511,18 +509,18 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_unary_expr(&mut self, token: Token) -> ParseResult<AstNode<Expr>> {
         let start = self.current_pos();
 
-        let expr = match &token.kind {
+        let expr = match token.kind {
             TokenKind::Star => {
-                self.skip_fast(); // `*`
+                self.skip_fast(TokenKind::Star); // `*`
                 Expr::Deref(DerefExpr { data: self.parse_expr()? })
             }
             TokenKind::Amp => {
-                self.skip_fast(); // `&`
+                self.skip_fast(TokenKind::Amp); // `&`
 
                 // Check if this reference is raw...
                 match self.peek().copied() {
                     Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Raw)) => {
-                        self.skip_fast(); // `raw`
+                        self.skip_fast(token.kind); // `raw`
 
                         // Parse a mutability modifier if any
                         let mutability = self
@@ -535,8 +533,8 @@ impl<'s> AstGen<'s> {
                             mutability,
                         })
                     }
-                    Some(Token { kind: TokenKind::Keyword(Keyword::Mut), span }) => {
-                        self.skip_fast(); // `mut`
+                    Some(Token { kind: kw @ TokenKind::Keyword(Keyword::Mut), span }) => {
+                        self.skip_fast(kw); // `mut`
 
                         let inner_expr = self.parse_expr()?;
 
@@ -554,7 +552,7 @@ impl<'s> AstGen<'s> {
                 }
             }
             TokenKind::Plus => {
-                self.skip_fast(); // `+`
+                self.skip_fast(TokenKind::Plus); // `+`
                 let start = self.current_pos();
                 let inner_expr = self.parse_expr()?;
 
@@ -567,7 +565,7 @@ impl<'s> AstGen<'s> {
                 return Ok(inner_expr);
             }
             kind @ (TokenKind::Minus | TokenKind::Exclamation | TokenKind::Tilde) => {
-                self.skip_fast(); // `-` | `!` | `~`
+                self.skip_fast(kind); // `-` | `!` | `~`
                 let expr = self.parse_expr()?;
 
                 let operator = self.node_with_span(
@@ -588,8 +586,8 @@ impl<'s> AstGen<'s> {
                 Expr::Macro(ExprMacroInvocation { macros, subject })
             }
             TokenKind::At => todo!(),
-            TokenKind::Keyword(Keyword::Unsafe) => {
-                self.skip_fast(); // `unsafe`
+            kw @ TokenKind::Keyword(Keyword::Unsafe) => {
+                self.skip_fast(kw); // `unsafe`
                 let arg = self.parse_expr()?;
                 Expr::Unsafe(UnsafeExpr { data: arg })
             }
@@ -623,7 +621,7 @@ impl<'s> AstGen<'s> {
         // Now parse the value after the assignment
         match self.peek_kind() {
             Some(TokenKind::Eq) => {
-                self.skip_fast(); // `=`
+                self.skip_fast(TokenKind::Eq); // `=`
 
                 let value = self.parse_expr_with_precedence(0)?;
                 Ok(Declaration { pat: pattern, ty, value: Some(value) })
@@ -672,7 +670,7 @@ impl<'s> AstGen<'s> {
 
         match self.peek_kind() {
             Some(TokenKind::Eq) => {
-                self.skip_fast(); // `=`
+                self.skip_fast(TokenKind::Eq); // `=`
 
                 let operator = self.node_with_joined_span(operator, start);
                 let rhs = self.parse_expr_with_precedence(0)?;
@@ -700,8 +698,7 @@ impl<'s> AstGen<'s> {
         subject: AstNode<Expr>,
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Dot));
-        self.skip_fast(); // `.`
+        self.skip_fast(TokenKind::Dot); // `.`
 
         if let Some(token) = self.peek() && token.kind.is_numeric() {
             // If the next token kind is a integer with no sign, then we can assume
@@ -713,7 +710,7 @@ impl<'s> AstGen<'s> {
                     return self.err_with_location(ParseErrorKind::DisallowedSuffix(ty.into()), ExpectedItem::empty(), None, token.span)?;
                 }
 
-                self.skip_fast(); // `int` literal
+                self.skip_fast(token.kind); // `int` literal
                 let value = self.source.hunk(token.span).parse::<usize>().map_err(|_| {
                     self.make_err(ParseErrorKind::InvalidPropertyAccess, ExpectedItem::empty(), None, Some(token.span))
                 })?;
@@ -744,8 +741,7 @@ impl<'s> AstGen<'s> {
         subject: AstNode<Expr>,
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Access));
-        self.skip_fast(); // `::`
+        self.skip_fast(TokenKind::Access); // `::`
 
         let property = self.parse_named_field(ParseErrorKind::ExpectedName)?;
         Ok(self.node_with_joined_span(
@@ -782,7 +778,7 @@ impl<'s> AstGen<'s> {
 
                 match gen.peek_kind() {
                     Some(TokenKind::Comma) => {
-                        gen.skip_fast(); // ','
+                        gen.skip_fast(TokenKind::Comma); // ','
 
                         return Ok(tuple);
                     }
@@ -819,7 +815,7 @@ impl<'s> AstGen<'s> {
             loop {
                 match gen.peek() {
                     Some(token) if token.has_kind(TokenKind::Comma) => {
-                        gen.skip_fast(); // ','
+                        gen.skip_fast(TokenKind::Comma); // ','
 
                         // Handles the case where this is a trailing comma and no tokens after...
                         if !gen.has_token() {

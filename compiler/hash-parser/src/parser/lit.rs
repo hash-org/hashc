@@ -19,7 +19,7 @@ impl<'s> AstGen<'s> {
 
         // `parse_numeric_literal()` will skip itself.
         if !token.kind.is_numeric() {
-            self.skip_fast();
+            self.skip_fast(token.kind);
         }
 
         self.node_with_span(
@@ -40,7 +40,7 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_numeric_lit(&mut self) -> AstNode<Lit> {
         let token = self.current_token();
         debug_assert!(token.kind.is_numeric());
-        self.skip_fast(); // `float` or `int`
+        self.skip_fast(token.kind); // `float` or `int`
 
         let lit = match token.kind {
             TokenKind::Int(base, kind) => {
@@ -109,7 +109,7 @@ impl<'s> AstGen<'s> {
                     // Try and parse an optional type...
                     let ty = match self.peek_kind() {
                         Some(TokenKind::Colon) => {
-                            self.skip_fast(); // ':'
+                            self.skip_fast(TokenKind::Colon); // ':'
 
                             match self.peek_kind() {
                                 Some(TokenKind::Eq) => None,

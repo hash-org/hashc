@@ -35,7 +35,7 @@ impl<'s> AstGen<'s> {
             // Check if this is going to be another pattern following the current one.
             match self.peek_kind() {
                 Some(TokenKind::Pipe) => {
-                    self.skip_fast(); // '|'
+                    self.skip_fast(TokenKind::Pipe); // '|'
                 }
                 _ => break,
             }
@@ -59,8 +59,8 @@ impl<'s> AstGen<'s> {
         let pat = self.parse_singular_pat()?;
 
         match self.peek_kind() {
-            Some(TokenKind::Keyword(Keyword::If)) => {
-                self.skip_fast(); // `if`
+            Some(kind @ TokenKind::Keyword(Keyword::If)) => {
+                self.skip_fast(kind); // `if`
 
                 let condition = self.parse_expr_with_precedence(0)?;
 
@@ -110,7 +110,7 @@ impl<'s> AstGen<'s> {
                 // denotes with a name.
                 TokenKind::Access =>
                 {
-                    self.skip_fast(); // `::`
+                    self.skip_fast(TokenKind::Access); // `::`
                     let property = self.parse_name()?;
                     self.node_with_joined_span(
                         Pat::Access(AccessPat { subject, property }),
@@ -142,8 +142,8 @@ impl<'s> AstGen<'s> {
         })?;
 
         let pat = match token {
-            Token { kind: TokenKind::Ident(ident), .. } if ident == IDENTS.underscore => {
-                self.skip_fast(); // `ident`
+            Token { kind: kind @ TokenKind::Ident(ident), .. } if ident == IDENTS.underscore => {
+                self.skip_fast(kind); // `ident`
                 Pat::Wild(WildPat {})
             }
             // A name bind that has visibility/mutability modifiers
@@ -162,7 +162,7 @@ impl<'s> AstGen<'s> {
                     && matches!(self.peek_second(), Some(token) if token.kind.is_numeric()) =>
             {
                 // Just to get the error reporting to highlight the entire literal.
-                self.skip_fast(); // `-`
+                self.skip_fast(TokenKind::Minus); // `-`
 
                 return self.err_with_location(
                     ParseErrorKind::UnsupportedExprInPat {
@@ -242,11 +242,16 @@ impl<'s> AstGen<'s> {
     /// component.
     fn maybe_parse_range_pat(&mut self, lo: Option<AstNode<Lit>>) -> Option<RangePat> {
         let end = match self.peek_kind() {
-            Some(TokenKind::Range) => RangeEnd::Included,
-            Some(TokenKind::RangeExclusive) => RangeEnd::Excluded,
+            Some(TokenKind::Range) => {
+                self.skip_fast(TokenKind::Range);
+                RangeEnd::Included
+            }
+            Some(TokenKind::RangeExclusive) => {
+                self.skip_fast(TokenKind::RangeExclusive);
+                RangeEnd::Excluded
+            }
             _ => return None,
         };
-        self.skip_fast(); // '..' | '..<'
 
         // Now parse the `hi` part of the range
         if matches!(self.peek_kind(), Some(kind) if kind.is_range_lit()) {
@@ -261,7 +266,7 @@ impl<'s> AstGen<'s> {
     /// Parse a [ModulePatEntry]. The [ModulePatEntry] refers to
     /// destructuring either a struct or a namespace to extract fields,
     /// exported members. The function takes in a token atom because both
-    /// syntax's use different operators as pattern assigners.
+    /// syntaxes use different operators as pattern assigners.
     pub(crate) fn parse_module_pat_entry(&mut self) -> ParseResult<AstNode<ModulePatEntry>> {
         let start = self.current_pos();
 
@@ -341,7 +346,7 @@ impl<'s> AstGen<'s> {
         // check here if the tree length is 1, and the first token is the comma to check
         // if it is an empty tuple pattern...
         if let Some(TokenKind::Comma) = self.peek_kind() {
-            self.skip_fast();
+            self.skip_fast(TokenKind::Comma);
 
             let span = self.range();
             let fields = self.nodes_with_span(thin_vec![], span);
@@ -409,7 +414,7 @@ impl<'s> AstGen<'s> {
                 match self.peek_second() {
                     Some(token) if token.has_kind(TokenKind::Eq) => {
                         let name = self.parse_name()?;
-                        self.skip_fast(); // '='
+                        self.skip_fast(TokenKind::Eq); // '='
 
                         (Some(name), self.parse_pat()?)
                     }
@@ -441,10 +446,10 @@ impl<'s> AstGen<'s> {
         // Give some nice feedback to user about how many `.`s we expected
         match self.peek_kind() {
             Some(TokenKind::Ellipsis) => {
-                self.skip_fast(); // `...`
+                self.skip_fast(TokenKind::Ellipsis); // `...`
             }
             Some(TokenKind::Range) => {
-                self.skip_fast(); // `..`
+                self.skip_fast(TokenKind::Range); // `..`
                 return self.err_with_location(
                     ParseErrorKind::MalformedSpreadPat(1),
                     ExpectedItem::Dot,
@@ -453,7 +458,7 @@ impl<'s> AstGen<'s> {
                 );
             }
             Some(TokenKind::Dot) => {
-                self.skip_fast(); // `.`
+                self.skip_fast(TokenKind::Dot); // `.`
                 return self.err_with_location(
                     ParseErrorKind::MalformedSpreadPat(2),
                     ExpectedItem::Range,
@@ -548,15 +553,15 @@ impl<'s> AstGen<'s> {
         match self.peek_kind() {
             // Literals in ranges
             Some(kind) if kind.is_range_lit() => {
-                self.skip_fast(); // literal
+                self.skip_fast(kind);
 
                 match self.peek_kind() {
-                    Some(TokenKind::Range | TokenKind::RangeExclusive) => {
-                        self.skip_fast(); // '..' | '..<'
+                    Some(kind @ (TokenKind::Range | TokenKind::RangeExclusive)) => {
+                        self.skip_fast(kind); // '..' | '..<'
 
                         // Now we need to check that there is a literal after this range token
-                        if matches!(self.peek_kind(), Some(kind) if kind.is_range_lit()) {
-                            self.skip_fast(); // literal
+                        if let Some(kind) = self.peek_kind() && kind.is_range_lit() {
+                            self.skip_fast(kind);
                             peek_colon!()
                         } else {
                             false
@@ -568,7 +573,7 @@ impl<'s> AstGen<'s> {
             }
             // Other general literal patterns.
             Some(kind) if kind.is_lit() => {
-                self.skip_fast(); // literal
+                self.skip_fast(kind);
                 peek_colon!()
             }
             // Module, Array, Tuple patterns.
@@ -577,8 +582,8 @@ impl<'s> AstGen<'s> {
                 peek_colon!()
             }
             // Identifier or constructor pattern.
-            Some(TokenKind::Ident(_)) => {
-                self.skip_fast(); // `ident`
+            Some(ident @ TokenKind::Ident(_)) => {
+                self.skip_fast(ident);
 
                 // Continue looking ahead to see if we're applying an access pr a construction
                 // on the pattern
@@ -589,12 +594,13 @@ impl<'s> AstGen<'s> {
                         // Handle the `access` pattern case. We're looking for the next
                         // three tokens to be `::Ident`
                         TokenKind::Access => {
-                            self.skip_fast(); // `::`
+                            self.skip_fast(TokenKind::Access);
 
-                            if matches!(self.peek_kind(), Some(TokenKind::Ident(_))) {
-                                self.skip_fast(); // `ident`
-                            } else {
-                                return false;
+                            match self.peek_kind() {
+                                Some(ident @ TokenKind::Ident(_)) => {
+                                    self.skip_fast(ident);
+                                }
+                                _ => return false,
                             }
                         }
                         _ => break,

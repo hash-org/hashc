@@ -40,7 +40,7 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Eq, .. }),
             ) => {
                 let name = self.parse_name()?;
-                self.skip_fast(); // '='
+                self.skip_fast(TokenKind::Eq); // '='
 
                 Some(name)
             }
@@ -108,8 +108,8 @@ impl<'s> AstGen<'s> {
             }
 
             match self.peek().copied() {
-                Some(Token { kind: TokenKind::Ident(ident), span }) => {
-                    self.skip_fast(); // `ident`
+                Some(Token { kind: kind @ TokenKind::Ident(ident), span }) => {
+                    self.skip_fast(kind); // `ident`
 
                     let directive_span = span.join(start);
                     let name = self.node_with_span(Name { ident }, directive_span);

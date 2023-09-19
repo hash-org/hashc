@@ -79,8 +79,7 @@ impl<'s> AstGen<'s> {
 
     /// Parse a `for` loop block.
     pub(crate) fn parse_for_loop(&mut self) -> ParseResult<AstNode<Block>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::For)));
-        self.skip_fast(); // `for`
+        self.skip_fast(TokenKind::Keyword(Keyword::For)); // `for`
 
         let start = self.current_pos();
 
@@ -100,9 +99,8 @@ impl<'s> AstGen<'s> {
 
     /// Parse a `while` loop block.
     pub(crate) fn parse_while_loop(&mut self) -> ParseResult<AstNode<Block>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::While)));
         let start = self.current_pos();
-        self.skip_fast(); // `while`
+        self.skip_fast(TokenKind::Keyword(Keyword::While)); // `while`
 
         let condition = self.parse_expr_with_precedence(0)?;
         let while_body = self.parse_block()?;
@@ -127,9 +125,8 @@ impl<'s> AstGen<'s> {
     /// Parse a match block statement, which is composed of a subject and an
     /// arbitrary number of match cases that are surrounded in braces.
     pub(crate) fn parse_match_block(&mut self) -> ParseResult<AstNode<Block>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Match)));
         let start = self.current_pos();
-        self.skip_fast(); // `match`
+        self.skip_fast(TokenKind::Keyword(Keyword::Match)); // `match`
 
         let subject = self.parse_expr_with_precedence(0)?;
 
@@ -145,9 +142,8 @@ impl<'s> AstGen<'s> {
 
     /// Parse an `if-block` collection.
     pub(crate) fn parse_if_block(&mut self) -> ParseResult<AstNode<Block>> {
-        debug_assert!(matches!(self.current_token().kind, TokenKind::Keyword(Keyword::If)));
         let start = self.current_pos();
-        self.skip_fast(); // `if`
+        self.skip_fast(TokenKind::Keyword(Keyword::If)); // `if`
 
         let mut clauses = thin_vec![];
         let mut otherwise_clause = None;
@@ -165,12 +161,12 @@ impl<'s> AstGen<'s> {
             // onwards...
             match self.peek_kind() {
                 Some(TokenKind::Keyword(Keyword::Else)) => {
-                    self.skip_fast(); // `else`
+                    self.skip_fast(TokenKind::Keyword(Keyword::Else)); // `else`
 
                     // skip trying to convert just an 'else' branch since this is another
                     // if-branch
                     if let Some(TokenKind::Keyword(Keyword::If)) = self.peek_kind() {
-                        self.skip_fast(); // `if`
+                        self.skip_fast(TokenKind::Keyword(Keyword::If)); // `if`
                         continue;
                     }
 

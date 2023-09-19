@@ -20,8 +20,7 @@ impl<'s> AstGen<'s> {
     /// Parse a [StructDef]. The keyword `struct` begins the construct and is
     /// followed by parentheses with inner struct fields defined.
     pub fn parse_struct_def(&mut self) -> ParseResult<StructDef> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Struct)));
-        self.skip_fast(); // `struct`
+        self.skip_fast(TokenKind::Keyword(Keyword::Struct)); // `struct`
 
         let def_kind = TyParamOrigin::Struct;
         let ty_params = self.parse_optional_ty_params(def_kind)?;
@@ -33,8 +32,7 @@ impl<'s> AstGen<'s> {
     /// Parse an [EnumDef]. The keyword `enum` begins the construct and is
     /// followed by parentheses with inner enum fields defined.
     pub fn parse_enum_def(&mut self) -> ParseResult<EnumDef> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Enum)));
-        self.skip_fast(); // `enum`
+        self.skip_fast(TokenKind::Keyword(Keyword::Enum)); // `enum`
 
         let def_kind = TyParamOrigin::Enum;
         let ty_params = self.parse_optional_ty_params(def_kind)?;
@@ -103,7 +101,7 @@ impl<'s> AstGen<'s> {
             // Parse an optional type annotation...
             let ty = match self.peek_kind() {
                 Some(TokenKind::Colon) => {
-                    self.skip_fast(); // `:`
+                    self.skip_fast(TokenKind::Colon); // `:`
                     Some(self.parse_ty()?)
                 }
                 _ => None,
@@ -114,7 +112,7 @@ impl<'s> AstGen<'s> {
             match self.peek_second() {
                 Some(token) if token.has_kind(TokenKind::Colon) => {
                     let name = Some(self.parse_name()?);
-                    self.skip_fast(); // `:`
+                    self.skip_fast(TokenKind::Colon); // `:`
 
                     // Now try and parse a type if the next token permits it...
                     let ty = match self.peek_kind() {
@@ -132,7 +130,7 @@ impl<'s> AstGen<'s> {
         // for un-named fields.
         let default = match self.peek_kind() {
             Some(TokenKind::Eq) if name.is_some() => {
-                self.skip_fast(); // `=`
+                self.skip_fast(TokenKind::Eq); // `=`
                 Some(self.parse_expr_with_precedence(0)?)
             }
             _ => None,
@@ -165,8 +163,7 @@ impl<'s> AstGen<'s> {
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with
     /// `trait` that contains definitions or attach expressions to a trait.
     pub fn parse_trait_def(&mut self) -> ParseResult<TraitDef> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Trait)));
-        self.skip_fast(); // `trait`
+        self.skip_fast(TokenKind::Keyword(Keyword::Trait)); // `trait`
 
         let ty_params = self.parse_optional_ty_params(TyParamOrigin::Trait)?;
 
@@ -175,8 +172,7 @@ impl<'s> AstGen<'s> {
 
     /// Parse a `mod` block, with optional type parameters.
     pub(crate) fn parse_mod_def(&mut self) -> ParseResult<ModDef> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Mod)));
-        self.skip_fast(); // `mod`
+        self.skip_fast(TokenKind::Keyword(Keyword::Mod)); // `mod`
 
         let ty_params = self.parse_optional_ty_params(TyParamOrigin::Mod)?;
         let block = self.parse_body_block()?;
@@ -186,8 +182,7 @@ impl<'s> AstGen<'s> {
 
     /// Parse a `impl` block, with optional type parameters.
     pub(crate) fn parse_impl_def(&mut self) -> ParseResult<ImplDef> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Impl)));
-        self.skip_fast(); // `impl`
+        self.skip_fast(TokenKind::Keyword(Keyword::Impl)); // `impl`
 
         let ty_params = self.parse_optional_ty_params(TyParamOrigin::Impl)?;
         let block = self.parse_body_block()?;
