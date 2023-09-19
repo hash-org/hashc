@@ -1,7 +1,7 @@
-error: expected an arrow `=>` 
+error: unexpectedly encountered a `(...)`
  --> $DIR/malformed_range_pat.hash:6:13
 5 |           // Should fail since you cannot apply `()` on this pattern
 6 |           1..2() => {};
   |               ^^ 
 7 |       }
-  = help: expected a `=`
+  = help: expected a `=>`

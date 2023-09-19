@@ -18,13 +18,13 @@ impl<'s> AstGen<'s> {
     /// semi-colon.
     #[profiling::function]
     pub fn parse_top_level_expr(&mut self) -> ParseResult<Option<(bool, AstNode<Expr>)>> {
-        let start = self.next_pos();
+        let start = self.current_pos();
 
         // This is used to handle a semi-colon that occurs at the end of
         // an expression...
         let maybe_eat_semi = |this: &mut Self| -> bool {
-            if let Some(Token { kind: TokenKind::Semi, .. }) = this.peek() {
-                this.skip_token();
+            if let Some(TokenKind::Semi) = this.peek_kind() {
+                this.skip_fast(TokenKind::Semi); // `;`
                 true
             } else {
                 false
@@ -36,22 +36,22 @@ impl<'s> AstGen<'s> {
         if let Some(macros) = self.parse_macro_invocations(MacroKind::Ast)? {
             let top_level_expr = self.parse_top_level_expr()?;
 
-            if let Some((_, subject)) = top_level_expr {
+            return if let Some((_, subject)) = top_level_expr {
                 let expr = self.node_with_joined_span(
                     Expr::Macro(ExprMacroInvocation { macros, subject }),
                     start,
                 );
 
                 let semi = maybe_eat_semi(self);
-                return Ok(Some((semi, expr)));
+                Ok(Some((semi, expr)))
             } else {
-                return self.err_with_location(
+                self.err_with_location(
                     ParseErrorKind::ExpectedExpr,
                     ExpectedItem::empty(),
                     None,
-                    self.current_pos(),
-                );
-            }
+                    self.expected_pos(),
+                )
+            };
         }
 
         // So here we want to check that the next token(s) could make up a singular
@@ -68,8 +68,7 @@ impl<'s> AstGen<'s> {
         }
 
         // Handle trailing semi-colons...
-        if let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
-            self.skip_token();
+        if let Some(TokenKind::Semi) = self.peek_kind() {
             self.eat_trailing_semis();
 
             return Ok(None);
@@ -77,11 +76,11 @@ impl<'s> AstGen<'s> {
 
         let (expr, re_assigned) = self.parse_expr_with_re_assignment()?;
 
-        let expr = match self.peek() {
+        let expr = match self.peek_kind() {
             // We don't skip here because it is handled after the statement has been
             // generated.
-            Some(token) if token.has_kind(TokenKind::Eq) && !re_assigned => {
-                self.skip_token();
+            Some(TokenKind::Eq) if !re_assigned => {
+                self.skip_fast(TokenKind::Eq); // `=`
 
                 // Parse the right hand-side of the assignment
                 let rhs = self.parse_expr_with_precedence(0)?;
@@ -101,15 +100,14 @@ impl<'s> AstGen<'s> {
     /// Function to eat a collection of trailing semi-colons.
     pub(crate) fn eat_trailing_semis(&mut self) {
         let tok = self.current_token();
-        debug_assert!(tok.has_kind(TokenKind::Semi));
 
         // Collect any additional trailing semis with the one that was encountered
-        while let Some(Token { kind: TokenKind::Semi, .. }) = self.peek() {
-            self.skip_token();
+        while let Some(TokenKind::Semi) = self.peek_kind() {
+            self.skip_fast(TokenKind::Semi); // `;`
         }
 
         // Emit trailing semis diagnostic
-        let span = self.make_span(tok.span.join(self.current_pos()));
+        let span = self.make_span(tok.span.join(self.previous_pos()));
         self.add_warning(ParseWarning::new(WarningKind::TrailingSemis(span.len()), span));
     }
 
@@ -117,13 +115,13 @@ impl<'s> AstGen<'s> {
     #[profiling::function]
     pub(crate) fn parse_expr(&mut self) -> ParseResult<AstNode<Expr>> {
         let token = self
-            .next_token()
+            .peek()
             .ok_or_else(|| {
                 self.make_err(
                     ParseErrorKind::ExpectedExpr,
                     ExpectedItem::empty(),
                     None,
-                    Some(self.next_pos()),
+                    Some(self.expected_pos()),
                 )
             })
             .copied()?;
@@ -137,16 +135,17 @@ impl<'s> AstGen<'s> {
     }
 
     fn parse_expr_component(&mut self, token: Token) -> ParseResult<AstNode<Expr>> {
+        // ##Note: Each child path is responsible for skipping the current `token`.
         Ok(match token.kind {
-            kind if kind.is_unary_op() => return self.parse_unary_expr(),
+            kind if kind.is_unary_op() => return self.parse_unary_expr(token),
 
             // Handle primitive literals
             kind if kind.is_lit() => {
-                let data = self.parse_primitive_lit()?;
+                let data = self.parse_primitive_lit();
                 self.node_with_span(Expr::Lit(LitExpr { data }), token.span)
             }
             TokenKind::Ident(ident) => {
-                // Create the variable expr
+                self.skip_fast(token.kind); // `ident`
                 let name = self.node_with_span(Name { ident }, token.span);
                 self.node_with_span(Expr::Variable(VariableExpr { name }), token.span)
             }
@@ -167,35 +166,37 @@ impl<'s> AstGen<'s> {
                 self.node_with_joined_span(Expr::TraitDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Type) => {
+                self.skip_fast(token.kind); // `type`
                 let ty = self.parse_ty()?;
                 self.node_with_joined_span(Expr::Ty(TyExpr { ty }), token.span)
-            }
-            TokenKind::Keyword(Keyword::Impl)
-                if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
-            {
-                let ty = self.parse_ty()?;
-                let trait_body = self.parse_exprs_from_braces()?;
-
-                self.node_with_joined_span(
-                    Expr::TraitImpl(TraitImpl { ty, trait_body }),
-                    token.span,
-                )
             }
             TokenKind::Keyword(Keyword::Mod) => {
                 let def = self.parse_mod_def()?;
                 self.node_with_joined_span(Expr::ModDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Impl) => {
-                let def = self.parse_impl_def()?;
-                self.node_with_joined_span(Expr::ImplDef(def), token.span)
+                if let Some(Token { kind: TokenKind::Tree(Delimiter::Brace, _), .. }) =
+                    self.peek_second()
+                {
+                    let def = self.parse_impl_def()?;
+                    self.node_with_joined_span(Expr::ImplDef(def), token.span)
+                } else {
+                    self.skip_fast(token.kind); // `impl`
+
+                    let ty = self.parse_ty()?;
+                    let trait_body = self.parse_exprs_from_braces()?;
+
+                    self.node_with_joined_span(
+                        Expr::TraitImpl(TraitImpl { ty, trait_body }),
+                        token.span,
+                    )
+                }
             }
             // Body block.
             TokenKind::Tree(Delimiter::Brace, _) => {
-                // ##Hack: we need to backtrack a single token so that `parse_block` can be
-                // used.
-                self.backtrack(1);
-                let block = self.parse_block()?;
+                // Don't need to skip, `parse_block()` will eat it!
 
+                let block = self.parse_block()?;
                 self.node_with_joined_span(Expr::Block(BlockExpr { data: block }), token.span)
             }
             // Non-body blocks
@@ -205,7 +206,8 @@ impl<'s> AstGen<'s> {
                 let block = match kind {
                     TokenKind::Keyword(Keyword::For) => self.parse_for_loop()?,
                     TokenKind::Keyword(Keyword::While) => self.parse_while_loop()?,
-                    TokenKind::Keyword(Keyword::Loop) => {
+                    kw @ TokenKind::Keyword(Keyword::Loop) => {
+                        self.skip_fast(kw); // `loop`
                         let block = self.parse_block()?;
                         self.node_with_joined_span(
                             Block::Loop(LoopBlock { contents: block }),
@@ -223,56 +225,36 @@ impl<'s> AstGen<'s> {
             TokenKind::Keyword(Keyword::Import) => self.parse_import()?,
 
             // Array literal
-            TokenKind::Tree(Delimiter::Bracket, tree_index) => {
-                let tree = self.token_trees.get(tree_index as usize).unwrap();
-                self.parse_array_lit(tree, token.span)?
-            }
+            TokenKind::Tree(Delimiter::Bracket, _) => self.parse_array_lit()?,
 
             // Either tuple, function, or nested expression
             TokenKind::Tree(Delimiter::Paren, _) => {
-                let mut is_func = false;
+                let offset = self.position();
+                self.skip_token();
 
                 // Now here we have to look ahead after the token_tree to see if there is an
                 // arrow.
-                //
-                // @@Speed: avoid using parse_token_atom() because we don't care about error
-                // messages We just want to purely look if there are is a
-                // combination of symbols following which make up an '=>'.
-                let has_arrow = self
-                    .peek_resultant_fn(|g| -> Result<(), ()> {
-                        match g.peek() {
-                            Some(token)
-                                if token.has_kind(TokenKind::Minus)
-                                    || token.has_kind(TokenKind::Eq) =>
-                            {
-                                g.skip_token();
-                                g.parse_token_fast(TokenKind::Gt).ok_or(())?;
-                                Ok(())
-                            }
-                            _ => Err(()),
-                        }
-                    })
-                    .is_some();
+                let has_arrow = self.parse_token_fast(TokenKind::FatArrow).is_some()
+                    || self.parse_token_fast(TokenKind::ThinArrow).is_some();
 
-                if has_arrow {
-                    self.backtrack(2);
-                    is_func = true;
-                }
+                // Backtrack so that we can re-parse the 'gen' and potentially the arrow.
+                self.set_pos(offset);
 
-                self.backtrack(1); // Backtrack one token so that we can re-parse the 'gen'.
-
-                match is_func {
+                match has_arrow {
                     true => self.parse_fn_def()?,
                     false => self.parse_expr_or_tuple()?,
                 }
             }
-            TokenKind::Keyword(Keyword::Continue) => {
+            kw @ TokenKind::Keyword(Keyword::Continue) => {
+                self.skip_fast(kw); // `continue`
                 self.node_with_span(Expr::Continue(ContinueStatement {}), token.span)
             }
-            TokenKind::Keyword(Keyword::Break) => {
+            kw @ TokenKind::Keyword(Keyword::Break) => {
+                self.skip_fast(kw); // `break`
                 self.node_with_span(Expr::Break(BreakStatement {}), token.span)
             }
-            TokenKind::Keyword(Keyword::Return) => {
+            kw @ TokenKind::Keyword(Keyword::Return) => {
+                self.skip_fast(kw); // `return`
                 let return_expr = match self.peek().copied() {
                     Some(tok) if !tok.has_kind(TokenKind::Semi) => Expr::Return(ReturnStatement {
                         expr: Some(self.parse_expr_with_precedence(0)?),
@@ -281,14 +263,6 @@ impl<'s> AstGen<'s> {
                 };
 
                 self.node_with_joined_span(return_expr, token.span)
-            }
-            kind @ TokenKind::Keyword(_) => {
-                return self.err_with_location(
-                    ParseErrorKind::Keyword,
-                    ExpectedItem::empty(),
-                    Some(kind),
-                    token.span,
-                )
             }
             kind => {
                 return self.err_with_location(
@@ -344,58 +318,58 @@ impl<'s> AstGen<'s> {
         let (mut lhs, lhs_span) = self.track_span(|this| this.parse_expr())?;
 
         loop {
-            let op_start = self.next_pos();
+            let op_start = self.current_pos();
+            let offset = self.position();
             // this doesn't consider operators that have an 'eq' variant because that is
             // handled at the statement level, since it isn't really a binary
             // operator...
-            let (op, consumed_tokens) = self.parse_binary_operator();
+            let (Some(op), consumed_tokens) = self.parse_binary_operator() else {
+                break;
+            };
 
-            // We want to break if it's an operator and it is wanting to re-assign
-            if op.is_some_and(|op| op.is_re_assignable())
-                && matches!(self.peek_nth(consumed_tokens as usize), Some(token) if token.has_kind(TokenKind::Eq))
-            {
+            // check if we have higher precedence than the lhs expression...
+            let (l_prec, r_prec) = op.infix_binding_power();
+
+            if l_prec < min_prec {
                 break;
             }
 
-            match op {
-                // check if the operator here is re-assignable, as in '+=', '/=', if so then we need
-                // to stop parsing onwards because this might be an assignable
-                // expression... Only perform this check if know prior that the
-                // expression is not made of compounded components.
-                Some(op) => {
-                    // check if we have higher precedence than the lhs expression...
-                    let (l_prec, r_prec) = op.infix_binding_power();
+            // Now skip the consumed tokens...
+            self.skip(consumed_tokens);
 
-                    if l_prec < min_prec {
-                        break;
-                    }
-
-                    self.frame.skip(consumed_tokens);
-                    let op_span = op_start.join(self.current_pos());
-
-                    // if the operator is a non-functional, (e.g. as) we need to perform a different
-                    // conversion where we transform the AstNode into a
-                    // different
-                    if op == BinOp::As {
-                        let ty = self.parse_ty()?;
-                        lhs = self
-                            .node_with_joined_span(Expr::Cast(CastExpr { expr: lhs, ty }), op_span);
-
-                        // since we don't descend, we still need to update the precedence to
-                        // being `r_prec`.
-                        min_prec = r_prec;
-                    } else {
-                        let rhs = self.parse_expr_with_precedence(r_prec)?;
-
-                        //v transform the operator into an `BinaryExpr`
-                        let operator = self.node_with_span(op, op_span);
-                        lhs = self.node_with_joined_span(
-                            Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }),
-                            lhs_span,
-                        );
-                    }
+            // check if the operator here is re-assignable, as in '+=', '/=', if so then we
+            // need to stop parsing onwards because this might be an assignable
+            // expression... Only perform this check if know prior that the
+            // expression is not made of compounded components.
+            if op.is_re_assignable() {
+                // Check if the next token is a '='
+                if self.parse_token_fast(TokenKind::Eq).is_some() {
+                    self.set_pos(offset);
+                    break;
                 }
-                _ => break,
+            }
+
+            let op_span = op_start.join(self.current_pos());
+
+            // if the operator is a non-functional, (e.g. as) we need to perform a different
+            // conversion where we transform the AstNode into a
+            // different
+            if op == BinOp::As {
+                let ty = self.parse_ty()?;
+                lhs = self.node_with_joined_span(Expr::Cast(CastExpr { expr: lhs, ty }), op_span);
+
+                // since we don't descend, we still need to update the precedence to
+                // being `r_prec`.
+                min_prec = r_prec;
+            } else {
+                let rhs = self.parse_expr_with_precedence(r_prec)?;
+
+                //v transform the operator into an `BinaryExpr`
+                let operator = self.node_with_span(op, op_span);
+                lhs = self.node_with_joined_span(
+                    Expr::BinaryExpr(BinaryExpr { lhs, rhs, operator }),
+                    lhs_span,
+                );
             }
         }
 
@@ -416,26 +390,20 @@ impl<'s> AstGen<'s> {
         while let Some(token) = self.peek() {
             subject = match token.kind {
                 // Property access or method call
-                TokenKind::Dot => {
-                    self.skip_token();
-                    self.parse_property_access(subject, subject_span)?
-                }
-                TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) =>
-                {
-                    self.frame.skip(2);
-                    self.parse_ns_access(subject, subject_span)?
-                }
+                TokenKind::Dot => self.parse_property_access(subject, subject_span)?,
+                TokenKind::Access => self.parse_ns_access(subject, subject_span)?,
                 TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject, subject_span) {
                     (subject, true) => subject,
                     // Essentially break because the type_args failed
                     (subject, false) => return Ok(subject),
                 },
                 // Array index access syntax: ident[...]
-                TokenKind::Tree(Delimiter::Bracket, tree_index) => {
-                    self.skip_token();
+                TokenKind::Tree(Delimiter::Bracket, _) => {
+                    let span = token.span;
+                    let index_expr = self
+                        .in_tree(Delimiter::Bracket, None, |g| g.parse_expr_with_precedence(0))?;
 
-                    let tree = self.token_trees.get(tree_index as usize).unwrap();
-                    self.parse_array_index(subject, tree, self.current_pos())?
+                    self.node_with_joined_span(Expr::Index(IndexExpr { subject, index_expr }), span)
                 }
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, _) => {
@@ -460,12 +428,17 @@ impl<'s> AstGen<'s> {
     /// provide is references '.hash' extension file or a directory with a
     /// `index.hash` file contained within the directory.
     pub(crate) fn parse_import(&mut self) -> ParseResult<AstNode<Expr>> {
+        self.skip_fast(TokenKind::Keyword(Keyword::Import)); // `import`
+
         let start = self.current_pos();
-        let (path, span) =
-            self.in_tree(Delimiter::Paren, None, |gen| match gen.next_token().copied() {
-                Some(Token { kind: TokenKind::StrLit(path), span }) => Ok((path, span)),
-                _ => gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), None)?,
-            })?;
+        let (path, span) = self.in_tree(Delimiter::Paren, None, |gen| {
+            match gen.current_token_and_advance().copied() {
+                Some(Token { kind: TokenKind::Str(path), span }) => Ok((path, span)),
+                tok => {
+                    gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), tok.map(|t| t.kind))?
+                }
+            }
+        })?;
 
         // Attempt to add the module via the resolver
         match self.resolver.resolve_import(path) {
@@ -499,7 +472,7 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Eq, .. }),
             ) => {
                 let name = self.parse_name()?;
-                self.skip_token(); // '='
+                self.skip_fast(TokenKind::Eq); // `=`
 
                 Some(name)
             }
@@ -529,34 +502,25 @@ impl<'s> AstGen<'s> {
         ))
     }
 
-    /// Parse an array index. Array indexes are constructed with square brackets
-    /// wrapping a singular expression.
-    pub(crate) fn parse_array_index(
-        &mut self,
-        subject: AstNode<Expr>,
-        tree: &'s [Token],
-        span: ByteRange,
-    ) -> ParseResult<AstNode<Expr>> {
-        // parse the indexing expression between the square brackets...
-        let index_expr = self.new_frame(tree, span, |gen| gen.parse_expr_with_precedence(0))?;
-        Ok(self.node_with_joined_span(Expr::Index(IndexExpr { subject, index_expr }), span))
-    }
-
     /// Parses a unary operator or expression modifier followed by a singular
     /// expression. Once the unary operator is picked up, the expression is
     /// parsed given the specific rules of the operator or expression
     /// modifier.
-    pub(crate) fn parse_unary_expr(&mut self) -> ParseResult<AstNode<Expr>> {
-        let token = *self.current_token();
+    pub(crate) fn parse_unary_expr(&mut self, token: Token) -> ParseResult<AstNode<Expr>> {
         let start = self.current_pos();
 
-        let expr = match &token.kind {
-            TokenKind::Star => Expr::Deref(DerefExpr { data: self.parse_expr()? }),
+        let expr = match token.kind {
+            TokenKind::Star => {
+                self.skip_fast(TokenKind::Star); // `*`
+                Expr::Deref(DerefExpr { data: self.parse_expr()? })
+            }
             TokenKind::Amp => {
+                self.skip_fast(TokenKind::Amp); // `&`
+
                 // Check if this reference is raw...
                 match self.peek().copied() {
                     Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Raw)) => {
-                        self.skip_token();
+                        self.skip_fast(token.kind); // `raw`
 
                         // Parse a mutability modifier if any
                         let mutability = self
@@ -569,8 +533,8 @@ impl<'s> AstGen<'s> {
                             mutability,
                         })
                     }
-                    Some(Token { kind: TokenKind::Keyword(Keyword::Mut), span }) => {
-                        self.skip_token();
+                    Some(Token { kind: kw @ TokenKind::Keyword(Keyword::Mut), span }) => {
+                        self.skip_fast(kw); // `mut`
 
                         let inner_expr = self.parse_expr()?;
 
@@ -588,6 +552,7 @@ impl<'s> AstGen<'s> {
                 }
             }
             TokenKind::Plus => {
+                self.skip_fast(TokenKind::Plus); // `+`
                 let start = self.current_pos();
                 let inner_expr = self.parse_expr()?;
 
@@ -600,6 +565,7 @@ impl<'s> AstGen<'s> {
                 return Ok(inner_expr);
             }
             kind @ (TokenKind::Minus | TokenKind::Exclamation | TokenKind::Tilde) => {
+                self.skip_fast(kind); // `-` | `!` | `~`
                 let expr = self.parse_expr()?;
 
                 let operator = self.node_with_span(
@@ -615,13 +581,13 @@ impl<'s> AstGen<'s> {
                 Expr::UnaryExpr(UnaryExpr { expr, operator })
             }
             TokenKind::Pound => {
-                self.backtrack(1); // go back a token so we can parse the macro invocation
                 let macros = self.parse_macro_invocations(MacroKind::Ast)?.unwrap();
                 let subject = self.parse_expr()?;
                 Expr::Macro(ExprMacroInvocation { macros, subject })
             }
             TokenKind::At => todo!(),
-            TokenKind::Keyword(Keyword::Unsafe) => {
+            kw @ TokenKind::Keyword(Keyword::Unsafe) => {
+                self.skip_fast(kw); // `unsafe`
                 let arg = self.parse_expr()?;
                 Expr::Unsafe(UnsafeExpr { data: arg })
             }
@@ -647,15 +613,15 @@ impl<'s> AstGen<'s> {
     /// ```
     pub(crate) fn parse_declaration(&mut self, pattern: AstNode<Pat>) -> ParseResult<Declaration> {
         // Attempt to parse an optional type...
-        let ty = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Eq) => None,
+        let ty = match self.peek_kind() {
+            Some(TokenKind::Eq) => None,
             _ => Some(self.parse_ty()?),
         };
 
         // Now parse the value after the assignment
-        match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Eq) => {
-                self.skip_token();
+        match self.peek_kind() {
+            Some(TokenKind::Eq) => {
+                self.skip_fast(TokenKind::Eq); // `=`
 
                 let value = self.parse_expr_with_precedence(0)?;
                 Ok(Declaration { pat: pattern, ty, value: Some(value) })
@@ -687,9 +653,7 @@ impl<'s> AstGen<'s> {
     /// should just return the left-hand side.
     #[profiling::function]
     pub(crate) fn parse_expr_with_re_assignment(&mut self) -> ParseResult<(AstNode<Expr>, bool)> {
-        let start = self.current_pos();
-        let lhs = self.parse_expr_with_precedence(0)?;
-        let lhs_span = start.join(self.current_pos());
+        let (lhs, lhs_span) = self.track_span(|g| g.parse_expr_with_precedence(0))?;
 
         // Check if we can parse a merge declaration
         if self.parse_token_fast(TokenKind::Tilde).is_some() {
@@ -697,15 +661,18 @@ impl<'s> AstGen<'s> {
         }
 
         let start = self.current_pos();
-        let (operator, consumed_tokens) = self.parse_binary_operator();
+        let (Some(operator), consumed_tokens) = self.parse_binary_operator() else {
+            return Ok((lhs, false));
+        };
 
-        // Look at the token after the consumed tokens and see if it's an equal sign
-        match self.peek_nth(consumed_tokens as usize) {
-            Some(token) if operator.is_some() && token.has_kind(TokenKind::Eq) => {
-                // consume the number of tokens eaten whilst getting the operator...
-                self.frame.skip(1 + consumed_tokens);
-                let operator = self.node_with_joined_span(operator.unwrap(), start);
+        let offset = self.position();
+        self.skip(consumed_tokens);
 
+        match self.peek_kind() {
+            Some(TokenKind::Eq) => {
+                self.skip_fast(TokenKind::Eq); // `=`
+
+                let operator = self.node_with_joined_span(operator, start);
                 let rhs = self.parse_expr_with_precedence(0)?;
 
                 // Now we need to transform the re-assignment operator into a function call
@@ -717,7 +684,10 @@ impl<'s> AstGen<'s> {
                     false,
                 ))
             }
-            _ => Ok((lhs, false)),
+            _ => {
+                self.set_pos(offset);
+                Ok((lhs, false))
+            }
         }
     }
 
@@ -728,7 +698,7 @@ impl<'s> AstGen<'s> {
         subject: AstNode<Expr>,
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Dot));
+        self.skip_fast(TokenKind::Dot); // `.`
 
         if let Some(token) = self.peek() && token.kind.is_numeric() {
             // If the next token kind is a integer with no sign, then we can assume
@@ -740,7 +710,7 @@ impl<'s> AstGen<'s> {
                     return self.err_with_location(ParseErrorKind::DisallowedSuffix(ty.into()), ExpectedItem::empty(), None, token.span)?;
                 }
 
-                self.skip_token();
+                self.skip_fast(token.kind); // `int` literal
                 let value = self.source.hunk(token.span).parse::<usize>().map_err(|_| {
                     self.make_err(ParseErrorKind::InvalidPropertyAccess, ExpectedItem::empty(), None, Some(token.span))
                 })?;
@@ -771,7 +741,7 @@ impl<'s> AstGen<'s> {
         subject: AstNode<Expr>,
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        debug_assert!(self.current_token().has_kind(TokenKind::Colon));
+        self.skip_fast(TokenKind::Access); // `::`
 
         let property = self.parse_named_field(ParseErrorKind::ExpectedName)?;
         Ok(self.node_with_joined_span(
@@ -801,14 +771,14 @@ impl<'s> AstGen<'s> {
             // parse a function in the form of `() => ...` for whatever reason, then it
             // is trying to parse either a tuple or an expression.
             // Handle the empty tuple case
-            if gen.stream().len() < 2 {
+            if gen.len() < 2 {
                 let elements = gen.nodes_with_span(thin_vec![], start);
                 let data = gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start);
                 let tuple = gen.node_with_joined_span(Expr::Lit(LitExpr { data }), start);
 
-                match gen.peek() {
-                    Some(token) if token.has_kind(TokenKind::Comma) => {
-                        gen.skip_token();
+                match gen.peek_kind() {
+                    Some(TokenKind::Comma) => {
+                        gen.skip_fast(TokenKind::Comma); // ','
 
                         return Ok(tuple);
                     }
@@ -833,7 +803,7 @@ impl<'s> AstGen<'s> {
                 if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
                     gen.add_warning(ParseWarning::new(
                         WarningKind::RedundantParenthesis(expr.body().into()),
-                        gen.span(),
+                        gen.make_span(gen.range()),
                     ));
                 }
 
@@ -845,7 +815,7 @@ impl<'s> AstGen<'s> {
             loop {
                 match gen.peek() {
                     Some(token) if token.has_kind(TokenKind::Comma) => {
-                        gen.skip_token();
+                        gen.skip_fast(TokenKind::Comma); // ','
 
                         // Handles the case where this is a trailing comma and no tokens after...
                         if !gen.has_token() {
@@ -876,16 +846,16 @@ impl<'s> AstGen<'s> {
     /// into other functions.
     pub(crate) fn parse_fn_def(&mut self) -> ParseResult<AstNode<Expr>> {
         // parse function definition parameters.
-        let params = self.parse_params(ParamOrigin::Fn)?;
         let start = self.current_pos();
+        let params = self.parse_params(ParamOrigin::Fn)?;
 
         // check if there is a return type
-        let return_ty = match self.peek_resultant_fn(|g| g.parse_thin_arrow()) {
+        let return_ty = match self.peek_resultant_fn(|g| g.parse_token(TokenKind::ThinArrow)) {
             Some(_) => Some(self.parse_ty()?),
             _ => None,
         };
 
-        self.parse_arrow()?;
+        self.parse_token(TokenKind::FatArrow)?;
 
         let fn_body = match self.peek() {
             Some(_) => self.parse_expr_with_precedence(0)?,
@@ -900,7 +870,7 @@ impl<'s> AstGen<'s> {
     /// This function expects that the next token is a [TokenKind::Tree] and
     /// it will consume it producing [Expr]s from it.
     pub(crate) fn parse_exprs_from_braces(&mut self) -> ParseResult<AstNodes<Expr>> {
-        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::Block), |gen| {
+        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
             let mut exprs = thin_vec![];
 
             // Continue eating the generator until no more tokens are present

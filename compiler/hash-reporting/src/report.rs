@@ -144,10 +144,17 @@ pub enum ReportElement {
     Note(ReportNote),
 }
 
-/// Create a help note with the given message.
+/// Create a `help` note with the given message.
 pub macro help {
     ($($arg:tt)*) => {
         ReportElement::Note(ReportNote::new(ReportNoteKind::Help, format!($($arg)*)))
+    }
+}
+
+/// Create a `info` note with the given message.
+pub macro info {
+    ($($arg:tt)*) => {
+        ReportElement::Note(ReportNote::new(ReportNoteKind::Info, format!($($arg)*)))
     }
 }
 

@@ -1,5 +1,6 @@
-error: invalid character escape sequence. expected `}` after a escape sequence
+error: invalid character in unicode escape sequence `g`
  --> $DIR/non_hex_unicode_char.hash:3:10
 2 |   
 3 |   k := '\u{g00000}';
   |            ^ here
+  = info: unicode literals may only contain hexadecimal digits

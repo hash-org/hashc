@@ -4,4 +4,4 @@ error: negative numerical literals must be written as a single numerical value
 7 |           - 2 => { 1 },
   |           ^^^ 
 8 |           _ => {  0 }
-  = help: consider writting the literal as `-2`
+  = help: consider writing the literal as `-2`

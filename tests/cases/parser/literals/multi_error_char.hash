@@ -2,7 +2,12 @@
 
 // Should report that both these have invalid codepoints but recover from the error.
 main := () => {
+    // ~ERROR: Chracter literals are not allowed to have more than one character.
     a := 'ab'
 
+    // ~ERROR: Chracter literals are not allowed to have more than one character.
     c := 'ddddd'
+
+    // ~ERROR: Chracter literals are not allowed to have more than one character.
+    '\x063';
 }

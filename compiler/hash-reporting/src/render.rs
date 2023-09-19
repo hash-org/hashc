@@ -73,9 +73,10 @@ impl ReportCodeBlock {
             let Span { range, .. } = self.span;
             let ranges = source.line_ranges();
             let (start, end, last) = (
-                ranges.get_row_col(range.start()),
-                ranges.get_row_col(range.end()),
-                ranges.get_row_col(source.contents().0.len() - 1),
+                ranges.get_row_col(range.start(), false),
+                // The `end` of a span is considered to be inclusive!
+                ranges.get_row_col(range.end(), true),
+                ranges.get_row_col(source.contents().0.len() - 1, false),
             );
 
             // Compute the selected span outside of the diagnostic span

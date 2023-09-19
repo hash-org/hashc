@@ -1,13 +1,12 @@
 //! Hash Compiler token definitions that are used by the lexer when lexing
 //! the input sources.
-#![feature(c_size_t, strict_provenance)]
-
+pub mod cursor;
 pub mod delimiter;
 pub mod keyword;
 
 use std::fmt;
 
-use delimiter::{Delimiter, DelimiterVariant};
+use delimiter::Delimiter;
 use hash_source::{
     constant::{FloatTy, IntTy, InternedStr},
     identifier::Identifier,
@@ -57,11 +56,11 @@ impl std::fmt::Display for Token {
             TokenKind::Ident(ident) => {
                 write!(f, "Ident ({})", String::from(*ident))
             }
-            TokenKind::StrLit(lit) => {
+            TokenKind::Str(lit) => {
                 write!(f, "String (\"{}\")", String::from(*lit))
             }
             // We want to print the actual character, instead of a potential escape code
-            TokenKind::CharLit(ch) => {
+            TokenKind::Char(ch) => {
                 write!(f, "Char ('{ch}')")
             }
             kind => write!(f, "{kind:?}"),
@@ -87,11 +86,6 @@ impl TokenKind {
         )
     }
 
-    /// Check whether a token is a numeric prefix, either being `+` or `-`
-    pub fn is_numeric_prefix(&self) -> bool {
-        matches!(self, TokenKind::Plus | TokenKind::Minus)
-    }
-
     /// Check if the current token can begin a pattern
     /// Checks if the [TokenKind] must begin a block, as in the specified
     /// keywords that follow a specific syntax, and must be statements.
@@ -106,8 +100,8 @@ impl TokenKind {
         )
     }
 
-    /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int',
-    /// 'float' or a 'string'
+    /// Check if the [TokenKind] is a primitive literal, which is either: a
+    /// 'char', 'int', 'float' or a 'string'
     pub fn is_lit(&self) -> bool {
         matches!(
             self,
@@ -115,14 +109,22 @@ impl TokenKind {
                 | TokenKind::Keyword(Keyword::True)
                 | TokenKind::Int(_, _)
                 | TokenKind::Float(_)
-                | TokenKind::CharLit(_)
-                | TokenKind::StrLit(_)
+                | TokenKind::Char(_)
+                | TokenKind::Str(_)
         )
     }
 
     /// Check if the [TokenKind] is a numeric literal
+    #[inline]
     pub fn is_numeric(&self) -> bool {
         matches!(self, TokenKind::Int(_, _) | TokenKind::Float(_))
+    }
+
+    /// Check if the [TokenKind] is a `range` like literal, i.e.
+    /// it can feature within a range.
+    #[inline]
+    pub fn is_range_lit(&self) -> bool {
+        matches!(self, TokenKind::Int(_, _) | TokenKind::Float(_) | TokenKind::Char(_))
     }
 }
 
@@ -265,10 +267,8 @@ pub enum TokenKind {
     Semi,
     /// '#'
     Pound,
-
     /// `@`
     At,
-
     /// '$'
     Dollar,
     /// ','
@@ -277,15 +277,27 @@ pub enum TokenKind {
     Quote,
     /// "'"
     SingleQuote,
+    /// A thin arrow `->`
+    ThinArrow,
+    /// A fat arrow `=>`
+    FatArrow,
+    /// An access `::`
+    Access,
+    /// An ellipsis `...`
+    Ellipsis,
+    /// An inclusive range `..`
+    Range,
+    /// An exclusive range `..<`
+    RangeExclusive,
     /// Integer Literal
     Int(Base, IntLitKind),
     /// Float literal
     Float(FloatLitKind),
-    /// Character literal
-    CharLit(char),
-    /// StrLiteral,
-    StrLit(InternedStr),
-    /// Identifier
+    /// Character literal.
+    Char(char),
+    /// String literal.
+    Str(InternedStr),
+    /// Identifier.
     Ident(Identifier),
 
     /// Tree - The index is set as a `u32` since it isn't going
@@ -302,8 +314,11 @@ pub enum TokenKind {
     /// Keyword
     Keyword(Keyword),
 
-    /// Delimiters `(`, `{`, `[` and right hand-side variants
-    Delimiter(Delimiter, DelimiterVariant),
+    /// Delimiters `(`, `{`, `[`, doesn't include `<`.
+    LeftDelim(Delimiter),
+
+    /// Delimiters `)`, `}`, `]`, doesn't include `>`.
+    RightDelim(Delimiter),
 
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not
     /// within string literal.
@@ -321,12 +336,17 @@ impl TokenKind {
     pub fn as_error_string(&self) -> String {
         match self {
             TokenKind::Unexpected(atom) => format!("an unknown character `{atom}`"),
-            TokenKind::CharLit(ch) => format!("`{ch}`"),
-            TokenKind::StrLit(str) => format!("the string `{}`", *str),
+            TokenKind::Char(ch) => format!("`{ch}`"),
+            TokenKind::Str(str) => format!("the string `{}`", *str),
             TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
             TokenKind::Ident(ident) => format!("the identifier `{}`", *ident),
             kind => format!("a `{kind}`"),
         }
+    }
+
+    /// Check if the [TokenKind] is a tree.
+    pub fn is_tree(&self) -> bool {
+        matches!(self, TokenKind::Tree(_, _))
     }
 }
 
@@ -355,20 +375,21 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Dollar => write!(f, "$"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
+            TokenKind::ThinArrow => write!(f, "->"),
+            TokenKind::FatArrow => write!(f, "=>"),
+            TokenKind::Access => write!(f, "::"),
+            TokenKind::Ellipsis => write!(f, "..."),
+            TokenKind::Range => write!(f, ".."),
+            TokenKind::RangeExclusive => write!(f, "..<"),
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::Unexpected(atom) => write!(f, "{atom}"),
             TokenKind::Int(_, _) => write!(f, "float"),
             TokenKind::Float(_) => write!(f, "integer"),
-            TokenKind::CharLit(ch) => write!(f, "'{ch}'"),
-            TokenKind::Delimiter(delim, variant) => {
-                if *variant == DelimiterVariant::Left {
-                    write!(f, "{}", delim.left())
-                } else {
-                    write!(f, "{}", delim.right())
-                }
-            }
+            TokenKind::Char(ch) => write!(f, "'{ch}'"),
+            TokenKind::LeftDelim(delim) => write!(f, "{}", delim.left()),
+            TokenKind::RightDelim(delim) => write!(f, "{}", delim.right()),
             TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
-            TokenKind::StrLit(str) => {
+            TokenKind::Str(str) => {
                 write!(f, "\"{}\"", *str)
             }
             TokenKind::Keyword(kwd) => kwd.fmt(f),

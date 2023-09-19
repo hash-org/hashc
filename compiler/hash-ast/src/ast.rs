@@ -87,9 +87,14 @@ pub struct LocalSpanMap {
 }
 
 impl LocalSpanMap {
-    /// Create a new [LocalAstMap].
+    /// Create a new [LocalSpanMap].
     pub fn new(source: SourceId) -> Self {
         Self { map: vec![], source }
+    }
+
+    /// Create a new [LocalSpanMap] with a given capacity.
+    pub fn with_capacity(source: SourceId, capacity: usize) -> Self {
+        Self { map: Vec::with_capacity(capacity), source }
     }
 
     /// Add a new node to the map.
@@ -97,6 +102,14 @@ impl LocalSpanMap {
         let id = AstNodeId::new();
         self.map.push((id, range));
         id
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
     }
 }
 

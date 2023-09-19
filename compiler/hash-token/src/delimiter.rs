@@ -56,18 +56,3 @@ impl Delimiter {
         }
     }
 }
-
-/// Denotes which variant of the delimiter, either being left or right.
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum DelimiterVariant {
-    Left,
-    Right,
-}
-
-impl std::fmt::Display for Delimiter {
-    /// Display implementation for [Delimiter], it's always assumed that it's
-    /// asking for the right hand-side variant of the delimiter.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.right())
-    }
-}

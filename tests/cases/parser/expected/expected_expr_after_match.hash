@@ -1,0 +1,5 @@
+// stage=parse, run=fail
+main := () => {
+    // ~ERROR: expected expression after match
+    match
+}

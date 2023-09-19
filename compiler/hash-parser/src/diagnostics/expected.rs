@@ -69,19 +69,37 @@ bitflags! {
         /// Right bracket
         const RightBracket = 1 << 20;
 
+        /// Thin arrow.
+        const ThinArrow = 1 << 21;
+
+        /// Fat arrow.
+        const FatArrow = 1 << 22;
+
+        /// An access `::`.
+        const Access = 1 << 23;
+
+        /// An ellipsis `...`
+        const Ellipsis = 1 << 24;
+
+        /// A range `..`
+        const Range = 1 << 25;
+
+        /// An exclusive range `..<`
+        const RangeExclusive = 1 << 26;
+
         /// A `pub` keyword
-        const PubKw = 1 << 21;
+        const PubKw = 1 << 29;
 
         /// A `priv` keyword
-        const PrivKw = 1 << 22;
+        const PrivKw = 1 << 30;
 
         /// A `mut` keyword
-        const MutKw = 1 << 23;
+        const MutKw = 1 << 31;
 
         const Visibility = Self::PubKw.bits()
                          | Self::PrivKw.bits();
 
-        /// Convient grouping of `operator`.
+        /// Convenient grouping of `operator`.
         ///
         /// @@Incomplete: add all token operators.
         const Op = Self::Minus.bits()
@@ -90,7 +108,7 @@ bitflags! {
                  | Self::Gt.bits()
                  | Self::Amp.bits();
 
-        /// Convient left-wise delimiter mask.
+        /// Convenient left-wise delimiter mask.
         const DelimLeft = Self::LeftParen.bits()
                         | Self::LeftBrace.bits()
                         | Self::LeftBracket.bits()
@@ -136,6 +154,12 @@ impl fmt::Display for ExpectedItem {
                 ExpectedItem::RightBrace => toks.push("}"),
                 ExpectedItem::LeftBracket => toks.push("["),
                 ExpectedItem::RightBracket => toks.push("]"),
+                ExpectedItem::ThinArrow => toks.push("->"),
+                ExpectedItem::FatArrow => toks.push("=>"),
+                ExpectedItem::Access => toks.push("::"),
+                ExpectedItem::Ellipsis => toks.push("..."),
+                ExpectedItem::Range => toks.push(".."),
+                ExpectedItem::RangeExclusive => toks.push("..<"),
                 _ => unreachable!(),
             }
         }
@@ -159,7 +183,13 @@ impl From<TokenKind> for ExpectedItem {
             TokenKind::Colon => ExpectedItem::Colon,
             TokenKind::Comma => ExpectedItem::Comma,
             TokenKind::Ident(_) => ExpectedItem::Ident,
-            TokenKind::Tree(delim, _) | TokenKind::Delimiter(delim, _) => delim.into(),
+            TokenKind::ThinArrow => ExpectedItem::ThinArrow,
+            TokenKind::FatArrow => ExpectedItem::FatArrow,
+            TokenKind::Access => ExpectedItem::Access,
+            TokenKind::Ellipsis => ExpectedItem::Ellipsis,
+            TokenKind::Range => ExpectedItem::Range,
+            TokenKind::RangeExclusive => ExpectedItem::RangeExclusive,
+            TokenKind::Tree(delim, _) | TokenKind::RightDelim(delim) => delim.into(),
             _ => unreachable!("unexpected token kind when deriving expected item: {:?}", value),
         }
     }

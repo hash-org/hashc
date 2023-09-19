@@ -20,11 +20,7 @@ use hash_pipeline::{
     settings::CompilerStageKind,
     workspace::Workspace,
 };
-use hash_reporting::{
-    diagnostic::{DiagnosticsMut, HasDiagnosticsMut},
-    report::Report,
-    reporter::Reports,
-};
+use hash_reporting::{diagnostic::DiagnosticsMut, report::Report, reporter::Reports};
 use hash_source::{
     constant::string_table, location::SpannedSource, InteractiveId, ModuleId, SourceId,
     SourceMapUtils,
@@ -81,17 +77,6 @@ pub trait ParserCtxQuery: CompilerInterface {
 }
 
 impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
-    /// Return the [CompilerStageKind] of the parser.
-    fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::Parse
-    }
-
-    fn metrics(&self) -> StageMetrics {
-        StageMetrics {
-            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
-        }
-    }
-
     /// Entry point of the parser. Initialises a job from the specified
     /// `entry_point`.
     fn run(
@@ -168,18 +153,29 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
             ctx.workspace().print_sources(entry_point, mode, set, &mut stdout).unwrap();
         }
     }
+
+    fn metrics(&self) -> StageMetrics {
+        StageMetrics {
+            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
+        }
+    }
+
+    /// Return the [CompilerStageKind] of the parser.
+    fn kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Parse
+    }
 }
 
 /// A collection of timings for the parser stage. The stage records
 /// the amount of time it takes to lex and parse a module, or an
-/// interactive block. This infomation is later recorded, and can
+/// interactive block. This information is later recorded, and can
 /// then be grouped together and displayed with other stages.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ParseTimings {
     /// The amount of time the lexer took to tokenise the source.
     tokenise: Duration,
 
-    /// The amound of time the parser took to generate AST for the
+    /// The amount of time the parser took to generate AST for the
     /// source.
     gen: Duration,
 
@@ -271,15 +267,21 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     };
 
+    // @@Debugging: when we want to look at spans produced by the parser, uncomment
+    // this line.
+    // SourceMapUtils::set_module_source(id, contents.clone());
+
     let spanned = SpannedSource::from_string(contents.as_str());
 
     // Lex the contents of the module or interactive block
-    let mut lexer = Lexer::new(spanned, id);
-    let tokens = time_item(&mut timings, "tokenise", |_| lexer.tokenise());
+    let LexerMetadata { tokens, mut diagnostics, strings } =
+        time_item(&mut timings, "tokenise", |_| Lexer::new(spanned, id).tokenise());
 
     // Check if the lexer has errors...
-    if lexer.has_errors() {
-        sender.send(ParserAction::Error { diagnostics: lexer.into_reports(), timings }).unwrap();
+    if diagnostics.has_errors() {
+        sender
+            .send(ParserAction::Error { diagnostics: diagnostics.into_reports(), timings })
+            .unwrap();
 
         // We need to finally put the sources into the source map.
         if id.is_module() {
@@ -289,8 +291,6 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     }
 
-    let LexerMetadata { trees, strings } = lexer.metadata();
-
     // Update the global string table now!
     string_table().add_local_table(strings);
 
@@ -298,8 +298,8 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(id, source.parent(), sender);
     let mut diagnostics = ParserDiagnostics::new();
-    let mut spans = LocalSpanMap::new(id);
-    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &mut diagnostics, &mut spans);
+    let mut spans = LocalSpanMap::with_capacity(id, tokens.len() * 2);
+    let mut gen = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.

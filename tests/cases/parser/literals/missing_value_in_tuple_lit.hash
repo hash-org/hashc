@@ -1,0 +1,6 @@
+// run=fail, stage=parse
+
+main := () => {
+    // ~ERROR: expecting value assignment after type annotation
+    t := (name : 1, data := 2)
+}

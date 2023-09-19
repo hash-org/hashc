@@ -1,5 +1,6 @@
-error: invalid character literal `ab`, character literals may only contain one codepoint
+error: character literals may only contain one codepoint
  --> $DIR/multi_code_point_char_literal.hash:3:6
 2 |   
 3 |   k := 'ab';
   |        ^^^^ here
+  = help: if you meant to write a string literal, use `"` instead

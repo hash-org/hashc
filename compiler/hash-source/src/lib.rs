@@ -222,7 +222,7 @@ impl Source {
 
     /// Get a hunk of the source by the specified [ByteRange].
     pub fn hunk(&self, range: ByteRange) -> &str {
-        &self.contents[range.start()..range.end()]
+        &self.contents[range.start()..(range.end() + 1)]
     }
 
     pub fn row_cols(&self, range: ByteRange) -> RowColRange {

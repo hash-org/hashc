@@ -20,17 +20,10 @@ impl<'s> AstGen<'s> {
     /// **Note**: This function will consume the token if it is a macro prefix,
     /// otherwise it will not consume the token.
     fn parse_macro_prefix(&self, kind: MacroKind) -> Option<()> {
-        match kind {
-            MacroKind::Token if self.parse_token_fast(TokenKind::At).is_some() => {
-                self.skip_token();
-                Some(())
-            }
-            MacroKind::Ast if self.parse_token_fast(TokenKind::Pound).is_some() => {
-                self.skip_token();
-                Some(())
-            }
-            _ => None,
-        }
+        self.parse_token_fast(match kind {
+            MacroKind::Token => TokenKind::At,
+            MacroKind::Ast => TokenKind::Pound,
+        })
     }
 
     /// Parse a macro argument, which has the same syntax as a standard
@@ -47,7 +40,7 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Eq, .. }),
             ) => {
                 let name = self.parse_name()?;
-                self.skip_token(); // '='
+                self.skip_fast(TokenKind::Eq); // '='
 
                 Some(name)
             }
@@ -114,22 +107,23 @@ impl<'s> AstGen<'s> {
                 }
             }
 
-            match *self.current_token() {
-                Token { kind: TokenKind::Ident(ident), span } => {
+            match self.peek().copied() {
+                Some(Token { kind: kind @ TokenKind::Ident(ident), span }) => {
+                    self.skip_fast(kind); // `ident`
+
                     let directive_span = span.join(start);
                     let name = self.node_with_span(Name { ident }, directive_span);
                     invocations.push(
                         self.node_with_span(MacroInvocation { name, args: None }, directive_span),
                     );
                 }
-                Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
-                    let new_invocations =
-                        self.new_frame(&self.token_trees[tree_index as usize], span, |gen| {
-                            gen.parse_nodes(
-                                |g| g.parse_macro_invocation(),
-                                |g| g.parse_token(TokenKind::Comma),
-                            )
-                        });
+                Some(Token { kind: TokenKind::Tree(Delimiter::Bracket, _), .. }) => {
+                    let new_invocations = self.in_tree(Delimiter::Bracket, None, |gen| {
+                        Ok(gen.parse_nodes(
+                            |g| g.parse_macro_invocation(),
+                            |g| g.parse_token(TokenKind::Comma),
+                        ))
+                    })?;
 
                     // Simply append the new invocations to the list of invocations.
                     invocations.extend(new_invocations.nodes);
@@ -141,8 +135,8 @@ impl<'s> AstGen<'s> {
                     self.err_with_location(
                         ParseErrorKind::ExpectedMacroInvocation,
                         ExpectedItem::Ident | ExpectedItem::LeftBracket,
-                        Some(token.kind),
-                        token.span,
+                        token.map(|t| t.kind),
+                        token.map_or_else(|| self.eof_pos(), |t| t.span),
                     )?;
                 }
                 _ => break,

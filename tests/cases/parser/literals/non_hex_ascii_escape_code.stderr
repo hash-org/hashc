@@ -1,5 +1,6 @@
-error: encountered unexpected character `h`. ASCII escape code must only contain hex digits
- --> $DIR/non_hex_ascii_escape_code.hash:3:8
+error: invalid character in numeric escape sequence `h`
+ --> $DIR/non_hex_ascii_escape_code.hash:3:9
 2 |   
 3 |   k := '\xhh';
-  |          ^ here
+  |           ^ `h` is not valid here
+  = info: numeric escape sequences may only contain hexadecimal digits

@@ -4,10 +4,6 @@ use hash_ast::ast::*;
 use hash_token::{keyword::Keyword, TokenKind};
 
 use super::AstGen;
-use crate::diagnostics::{
-    error::{ParseErrorKind, ParseResult},
-    expected::ExpectedItem,
-};
 
 impl<'s> AstGen<'s> {
     /// This function is used to pickup 'glued' operator tokens to form more
@@ -80,45 +76,5 @@ impl<'s> AstGen<'s> {
             Some(token) if token.has_kind(TokenKind::Tilde) => (Some(BinTyOp::Merge), 1),
             _ => (None, 0),
         }
-    }
-
-    /// Function to parse a fat arrow component '=>' in any given context.
-    pub(crate) fn parse_arrow(&self) -> ParseResult<()> {
-        // Essentially, we want to re-map the error into a more concise one given
-        // the parsing context.
-        if self.parse_token_fast(TokenKind::Eq).is_none() {
-            return self.err_with_location(
-                ParseErrorKind::ExpectedArrow,
-                ExpectedItem::Eq,
-                None,
-                self.next_pos(),
-            )?;
-        }
-
-        if self.parse_token_fast(TokenKind::Gt).is_none() {
-            return self.err_with_location(
-                ParseErrorKind::ExpectedArrow,
-                ExpectedItem::Gt,
-                None,
-                self.next_pos(),
-            )?;
-        }
-
-        Ok(())
-    }
-
-    /// Function to parse a fat arrow component '=>' in any given context.
-    pub(crate) fn parse_thin_arrow(&self) -> ParseResult<()> {
-        // Essentially, we want to re-map the error into a more concise one given
-        // the parsing context.
-        if self.parse_token_fast(TokenKind::Minus).is_none() {
-            return self.err(ParseErrorKind::ExpectedFnArrow, ExpectedItem::Minus, None)?;
-        }
-
-        if self.parse_token_fast(TokenKind::Gt).is_none() {
-            return self.err(ParseErrorKind::ExpectedFnArrow, ExpectedItem::Gt, None)?;
-        }
-
-        Ok(())
     }
 }
