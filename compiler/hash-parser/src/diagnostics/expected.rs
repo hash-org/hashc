@@ -114,21 +114,26 @@ bitflags! {
         /// Convenient left-wise delimiter mask.
         const DelimLeft = Self::LeftParen.bits()
                         | Self::LeftBrace.bits()
-                        | Self::LeftBracket.bits()
-                        | Self::Lt.bits();
+                        | Self::LeftBracket.bits();
 
         /// Tokens that can start a type.
-        const Type = ExpectedItem::Amp.bits()
-                   | ExpectedItem::Ident.bits()
-                   | ExpectedItem::DelimLeft.bits()
-                   | ExpectedItem::Exclamation.bits()
-                   | ExpectedItem::Pound.bits();
+        const Type = Self::Amp.bits()
+                   | Self::Ident.bits()
+                   | Self::DelimLeft.bits()
+                   | Self::Lt.bits()
+                   | Self::Exclamation.bits()
+                   | Self::Pound.bits()
+                   | Self::At.bits();
 
         /// Tokens that can start a pattern.
         const Pat = Self::Literal.bits()
                   | Self::Ident.bits()
                   | Self::LeftParen.bits()
-                  | Self::LeftBracket.bits();
+                  | Self::LeftBracket.bits()
+                  | Self::Pound.bits()
+                  | Self::At.bits()
+                  | Self::Visibility.bits()
+                  | Self::MutKw.bits();
     }
 }
 

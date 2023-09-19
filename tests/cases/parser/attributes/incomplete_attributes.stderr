@@ -1,0 +1,22 @@
+error: expected a type annotation
+ --> $DIR/incomplete_attributes.hash:6:17
+5 |           field: i32,
+6 |           #invalid
+  |                   ^ 
+7 |           // ~ERROR: expected struct field here
+  = help: expected either `identifier`, `@`, `!`, `#`, `&`, `<`, `(`, `{`, or `[`
+
+error: expected a name here
+  --> $DIR/incomplete_attributes.hash:14:36
+13 |       // ~ERROR: expected fn parameter here
+14 |       foo := (field: i32, #incomplete) => {}
+   |                                      ^ 
+15 |   }
+   = help: expected a `identifier`
+
+error: expected an expression
+  --> $DIR/incomplete_attributes.hash:20:9
+19 |   
+20 |   #invalid 
+   |           ^ 
+21 |   // ~ERROR: expected expression here

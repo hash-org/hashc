@@ -1,0 +1,6 @@
+// stage=parse, run=pass
+
+#[multiple(k = 1, b = 2), invocations("1 + 2")]
+main := () => {
+    println("Hello, world!")
+}

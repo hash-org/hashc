@@ -1,0 +1,28 @@
+// stage=parse, run=fail
+
+// Places where macro invocations can't appear
+
+{
+    foo := () #invalid => {
+        println("Hello, world!")
+    }
+}
+
+{
+    foo := struct #invalid => (
+        field: i32
+    )
+}
+
+
+{
+    foo := struct #invalid (
+        field: i32
+    )
+}
+
+{
+    foo := struct<T> #invalid (
+        field: i32
+    )
+}
