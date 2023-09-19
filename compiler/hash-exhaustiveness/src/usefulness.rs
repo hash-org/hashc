@@ -7,7 +7,6 @@
 //! is detailed within [super].
 use std::iter::once;
 
-use hash_storage::store::Store;
 use hash_tir::tir::{PatId, TyId};
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 
@@ -157,7 +156,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// left_ty: struct `X := struct(a: (bool, str), b: u32)`
     /// pats: `[(false, "foo"), 42]  => X( a = (false, "foo"), b = 42)`
     fn apply_constructor_on_witness(
-        &self,
+        &mut self,
         ctx: PatCtx,
         mut witness: Witness,
         ctor: DeconstructedCtorId,
@@ -172,7 +171,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             DeconstructedPat::new(ctor, fields, ctx.ty, None)
         };
 
-        let pat = self.deconstructed_pat_store().create(pat);
+        let pat = self.make_pat(pat);
         witness.0.push(pat);
         witness
     }
@@ -182,7 +181,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// pre-specialization. This new usefulness can then be merged
     /// with the results of specializing with the other constructors.
     fn apply_ctor(
-        &self,
+        &mut self,
         ctx: PatCtx,
         usefulness: Usefulness,
         matrix: &Matrix, // used to compute missing ctors
@@ -192,27 +191,24 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             Usefulness::NoWitnesses { .. } => usefulness,
             Usefulness::WithWitnesses(ref witnesses) if witnesses.is_empty() => usefulness,
             Usefulness::WithWitnesses(witnesses) => {
-                let new_witnesses = if self
-                    .ctor_store()
-                    .map_fast(ctor_id, |ctor| matches!(ctor, DeconstructedCtor::Missing))
+                let new_witnesses = if matches!(self.get_ctor(ctor_id), DeconstructedCtor::Missing)
                 {
                     // We got the special `Missing` constructor, so each of the missing constructors
                     // gives a new  pattern that is not caught by the match. We
                     // list those patterns.
                     let mut wildcard = self.split_wildcard_from_pat_ctx(ctx);
 
-                    let ctors = matrix.heads().map(|id| self.get_deconstructed_pat(id).ctor);
+                    let ctors = matrix.heads().map(|id| self.get_pat(id).ctor).collect_vec();
 
-                    self.split_wildcard(ctx, &mut wildcard, ctors);
+                    self.split_wildcard(ctx, &mut wildcard, ctors.into_iter());
 
                     // Get all the missing constructors for the current type
-                    let new_pats = self
-                        .iter_missing_ctors(&wildcard)
-                        .map(|missing_ctor| {
-                            let pat = self.wildcard_from_ctor(ctx, missing_ctor);
-                            self.deconstructed_pat_store().create(pat)
-                        })
-                        .collect_vec();
+                    let mut new_pats = vec![];
+                    let missing_ctors = self.iter_missing_ctors(&wildcard).collect_vec();
+                    for missing_ctor in missing_ctors {
+                        let pat = self.wildcard_from_ctor(ctx, missing_ctor);
+                        new_pats.push(self.make_pat(pat));
+                    }
 
                     // Prepare new witnesses by attaching each of the `new_pats` to the end of
                     // old witness `ids`
@@ -234,10 +230,9 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                                 .map(|pat| {
                                     // Clone and forget the `pat` and then forget that that it is
                                     // reachable
-                                    let new_pat = self.get_deconstructed_pat(*pat);
+                                    let new_pat = self.get_pat(*pat).clone();
                                     new_pat.reachable.set(false);
-
-                                    self.deconstructed_pat_store().create(new_pat)
+                                    self.make_pat(new_pat)
                                 })
                                 .collect_vec();
 
@@ -281,7 +276,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// exhaustiveness checking (if a wildcard pattern is useful in relation
     /// to a matrix, the matrix isn't exhaustive).
     fn is_useful(
-        &self,
+        &mut self,
         matrix: &Matrix,
         v: &PatStack,
         arm_kind: MatchArmKind,
@@ -302,16 +297,14 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             return ret;
         }
 
-        let head = self.get_deconstructed_pat(v.head());
-
-        let DeconstructedPat { ty, .. } = head;
+        let head @ DeconstructedPat { ty, .. } = self.get_pat(v.head());
 
         // Create a new `PatCtx`, based on on the provided parameters
-        let ctx = PatCtx::new(ty, is_top_level);
+        let ctx = PatCtx::new(*ty, is_top_level);
         let mut report = Usefulness::new_not_useful(arm_kind);
 
         // If the first pattern is an or-pattern, expand it.
-        if self.is_or_pat(&head) {
+        if self.is_or_pat(head) {
             // We try each or-pattern branch in turn.
             let mut matrix = matrix.clone();
 
@@ -335,26 +328,25 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                 }
             }
         } else {
-            let ctors = matrix.heads().map(|id| self.get_deconstructed_pat(id).ctor);
-
+            let ctors = matrix.heads().map(|id| self.get_pat(id).ctor).collect_vec();
             let v_ctor = head.ctor;
 
             // check that int ranges don't overlap here, in case
             // they're partially covered by other ranges.
-            if let DeconstructedCtor::IntRange(range) = self.get_deconstructed_ctor(v_ctor) {
-                if let Some(head_id) = head.id {
+            if let DeconstructedCtor::IntRange(range) = self.get_ctor(v_ctor) {
+                if let Some(pat) = head.id {
                     self.check_for_overlapping_endpoints(
-                        head_id,
-                        range,
+                        pat,
+                        *range,
                         matrix.heads(),
                         matrix.column_count().unwrap_or(0),
-                        ty,
+                        *ty,
                     );
                 }
             }
 
             // We split the head constructor of `v`.
-            let split_ctors = self.split_ctor(ctx, v_ctor, ctors);
+            let split_ctors = self.split_ctor(ctx, v_ctor, ctors.iter().copied());
             let start_matrix = &matrix;
 
             // For each constructor, we compute whether there's a value that starts with it
@@ -374,7 +366,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
         }
 
         if report.is_useful() {
-            self.deconstructed_pat_store().modify_fast(v.head(), |item| item.set_reachable());
+            self.get_pat_mut(v.head()).set_reachable();
         }
 
         report
@@ -386,7 +378,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Note: the input patterns must have been lowered through
     /// [super::lower::LowerPatOps]
     pub(crate) fn compute_match_usefulness(
-        &self,
+        &mut self,
         subject: TyId,
         arms: &[MatchArm],
     ) -> UsefulnessReport {
@@ -407,10 +399,10 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                     self.push_matrix_row(&mut matrix, v);
                 }
 
-                let pat = self.get_deconstructed_pat(arm.deconstructed_pat);
+                let pat = self.get_pat(arm.deconstructed_pat);
 
                 let reachability = if pat.is_reachable() {
-                    Reachability::Reachable(self.compute_unreachable_pats(&pat))
+                    Reachability::Reachable(self.compute_unreachable_pats(pat))
                 } else {
                     Reachability::Unreachable
                 };
@@ -418,7 +410,8 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             })
             .collect();
 
-        let wildcard = self.deconstructed_pat_store().create(self.wildcard_from_ty(subject));
+        let w = self.wildcard_from_ty(subject);
+        let wildcard = self.make_pat(w);
         let v = PatStack::singleton(wildcard);
         let usefulness = self.is_useful(&matrix, &v, MatchArmKind::ExhaustiveWildcard, false, true);
 

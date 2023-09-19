@@ -20,6 +20,7 @@ use hash_tir::{
     intrinsics::make::IntrinsicAbilities,
     tir::{FnDefId, TermId},
 };
+use hash_utils::timing::HasMetrics;
 use inference::InferenceOps;
 use substitution::SubstitutionOps;
 use unification::UnificationOps;
@@ -37,7 +38,7 @@ pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
 }
 
 pub trait TcEnv:
-    HasTcDiagnostics + HasTarget + HasContext + HasAtomInfo + HasCompilerSettings + Sized
+    HasTcDiagnostics + HasTarget + HasContext + HasMetrics + HasAtomInfo + HasCompilerSettings + Sized
 {
     /// Get the entry point of the current compilation, if any.
     fn entry_point(&self) -> &EntryPointState<FnDefId>;

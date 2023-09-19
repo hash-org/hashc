@@ -4,7 +4,7 @@
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::RangeEnd;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, Store, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_target::size::Size;
 use hash_tir::{
     intrinsics::utils::try_use_ty_as_int_ty,
@@ -44,7 +44,7 @@ use crate::{storage::DeconstructedCtorId, ExhaustivenessChecker, ExhaustivenessE
 
 impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Create a [SplitWildcard] from the current context.
-    pub(super) fn split_wildcard_from_pat_ctx(&self, ctx: PatCtx) -> SplitWildcard {
+    pub(super) fn split_wildcard_from_pat_ctx(&mut self, ctx: PatCtx) -> SplitWildcard {
         let make_range = |start, end| {
             DeconstructedCtor::IntRange(self.make_int_range(
                 ctx.ty,
@@ -133,7 +133,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
         };
 
         // Now we have to allocate `all_ctors` into storage
-        let all_ctors = all_ctors.into_iter().map(|ctor| self.ctor_store().create(ctor)).collect();
+        let all_ctors = all_ctors.into_iter().map(|ctor| self.make_ctor(ctor)).collect();
 
         SplitWildcard { matrix_ctors: Vec::new(), all_ctors }
     }
@@ -141,7 +141,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Perform a split on a [SplitWildcard], take `all_ctors` on the
     /// current [SplitWildcard] and split them with the provided constructors.
     pub(super) fn split_wildcard(
-        &self,
+        &mut self,
         ctx: PatCtx,
         ctor: &mut SplitWildcard,
         ctors: impl Iterator<Item = DeconstructedCtorId> + Clone,
@@ -153,8 +153,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             .flat_map(|ctor| self.split_ctor(ctx, *ctor, ctors.clone()))
             .collect();
 
-        ctor.matrix_ctors =
-            ctors.filter(|c| !self.ctor_store().map_fast(*c, |c| c.is_wildcard())).collect();
+        ctor.matrix_ctors = ctors.filter(|c| !self.get_ctor(*c).is_wildcard()).collect();
     }
 
     /// Whether there are any value constructors for this type that are not
@@ -184,7 +183,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// [DeconstructedCtor::Wildcard] in the situations where it is nonsensical
     /// to show all missing constructors.
     pub(super) fn convert_into_ctors(
-        &self,
+        &mut self,
         ctx: PatCtx,
         wildcard: SplitWildcard,
     ) -> SmallVec<[DeconstructedCtorId; 1]> {
@@ -227,8 +226,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                 DeconstructedCtor::Wildcard
             };
 
-            let ctor = self.ctor_store().create(ctor);
-            return smallvec![ctor];
+            return smallvec![self.make_ctor(ctor)];
         }
 
         wildcard.all_ctors

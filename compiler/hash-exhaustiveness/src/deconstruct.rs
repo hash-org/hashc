@@ -9,7 +9,7 @@ use std::{
     fmt::{self, Debug},
 };
 
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     intrinsics::utils::try_use_ty_as_array_ty,
     tir::{CtorDefId, DataTy, NodesId, PatId, Ty, TyId},
@@ -19,6 +19,7 @@ use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 use super::{construct::DeconstructedCtor, fields::Fields};
 use crate::{
     list::ArrayKind,
+    range::IntRangeWithBias,
     storage::{DeconstructedCtorId, DeconstructedPatId},
     ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
 };
@@ -38,8 +39,13 @@ pub struct DeconstructedPat {
     /// The type of the current deconstructed pattern
     pub ty: TyId,
 
-    /// An associated [hash_tir::old::Pat] that can be used
-    /// for reporting reachability and printing of patterns.
+    /// An associated [hash_tir::tir::Pat] which is used to
+    /// link a particular pattern with a span. This is primarily
+    /// used for reporting reachability, or checking if integer  
+    /// ranges overlap.
+    ///
+    /// @@Sizing: it would be nice to avoid the option so we could
+    /// shrink the constructor down from `32bytes` to `24bytes`.
     pub id: Option<PatId>,
 
     /// Whether the current pattern is reachable.
@@ -84,7 +90,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// from the provided type in the context, this is only to be used
     /// when creating `match-all` wildcard patterns.
     pub(super) fn wildcard_from_ctor(
-        &self,
+        &mut self,
         ctx: PatCtx,
         ctor_id: DeconstructedCtorId,
     ) -> DeconstructedPat {
@@ -95,15 +101,14 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
 
     /// Create a new wildcard [DeconstructedPat], primarily used when
     /// performing specialisations.
-    pub(super) fn wildcard_from_ty(&self, ty: TyId) -> DeconstructedPat {
-        let ctor = self.ctor_store().create(DeconstructedCtor::Wildcard);
-
+    pub(super) fn wildcard_from_ty(&mut self, ty: TyId) -> DeconstructedPat {
+        let ctor = self.make_ctor(DeconstructedCtor::Wildcard);
         DeconstructedPat::new(ctor, Fields::empty(), ty, None)
     }
 
     /// Check whether this [DeconstructedPat] is an `or` pattern.
     pub(super) fn is_or_pat(&self, pat: &DeconstructedPat) -> bool {
-        self.ctor_store().map_fast(pat.ctor, |ctor| matches!(ctor, DeconstructedCtor::Or))
+        matches!(self.get_ctor(pat.ctor), DeconstructedCtor::Or)
     }
 
     /// Perform a `specialisation` on the current [DeconstructedPat]. This means
@@ -111,14 +116,14 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// will be turned into multiple `specialised` variants of the
     /// constructor,
     pub(super) fn specialise(
-        &self,
+        &mut self,
         ctx: PatCtx,
         pat_id: DeconstructedPatId,
         other_ctor_id: DeconstructedCtorId,
     ) -> SmallVec<[DeconstructedPatId; 2]> {
-        let pat = self.get_deconstructed_pat(pat_id);
-        let pat_ctor = self.get_deconstructed_ctor(pat.ctor);
-        let other_ctor = self.get_deconstructed_ctor(other_ctor_id);
+        let pat = self.get_pat(pat_id);
+        let pat_ctor = self.get_ctor(pat.ctor);
+        let other_ctor = self.get_ctor(other_ctor_id);
 
         match (pat_ctor, other_ctor) {
             (DeconstructedCtor::Wildcard, _) => {
@@ -138,15 +143,17 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                     ArrayKind::Fixed(_) => panic!("{this_list:?} cannot cover {other_list:?}"),
                     ArrayKind::Var(prefix, suffix) => {
                         let array_ty = try_use_ty_as_array_ty(ctx.ty).unwrap();
+                        let this_arity = this_list.arity();
+                        let other_arity = other_list.arity();
 
                         let prefix = pat.fields.fields[..prefix].to_vec();
-                        let suffix = pat.fields.fields[this_list.arity() - suffix..].to_vec();
+                        let suffix = pat.fields.fields[this_arity - suffix..].to_vec();
 
                         let wildcard = self.wildcard_from_ty(array_ty.element_ty);
 
-                        let extra_wildcards = other_list.arity() - this_list.arity();
+                        let extra_wildcards = other_arity - this_arity;
                         let extra_wildcards = (0..extra_wildcards)
-                            .map(|_| self.deconstructed_pat_store().create(wildcard.clone()))
+                            .map(|_| self.make_pat(wildcard.clone()))
                             .collect_vec();
 
                         prefix.into_iter().chain(extra_wildcards).chain(suffix).collect()
@@ -173,8 +180,8 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             spans.push(pat.id.unwrap());
         } else {
             for p in pat.fields.iter_patterns() {
-                let p = self.get_deconstructed_pat(p);
-                self.collect_unreachable_pats(&p, spans);
+                let p = self.get_pat(p);
+                self.collect_unreachable_pats(p, spans);
             }
         }
     }
@@ -182,9 +189,6 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
 
 impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, DeconstructedPatId, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let pat_store = self.checker.deconstructed_pat_store();
-        let ctor_store = self.checker.ctor_store();
-
         // Utility for printing a joined list of things...
         let mut first = true;
         let mut start_or_continue = |s| {
@@ -196,86 +200,87 @@ impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, Deconstructed
             }
         };
 
-        pat_store.map_fast(self.item, |pat| {
-            ctor_store.map_fast(pat.ctor, |ctor| {
-                match ctor {
-                    DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                        match *pat.ty.value() {
-                            Ty::TupleTy(_) => {}
-                            Ty::DataTy(ty @ DataTy { data_def, .. }) => {
-                                write!(f, "{ty}")?;
+        let pat = self.checker.get_pat(self.item);
+        let ctor = self.checker.get_ctor(pat.ctor);
 
-                                // If we have a variant, we print the specific variant that is
-                                // currently active.
-                                if let DeconstructedCtor::Variant(index) = ctor {
-                                    let ctors = data_def.borrow().ctors.assert_defined();
-                                    let ctor_name =
-                                        CtorDefId(ctors.elements(), *index).borrow().name;
-                                    write!(f, "::{ctor_name}")?;
-                                }
-                            }
-                            _ => {
-                                panic!("unexpected ty `{}` when printing deconstructed pat", pat.ty)
-                            }
-                        };
+        match ctor {
+            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
+                match *pat.ty.value() {
+                    Ty::TupleTy(_) => {}
+                    Ty::DataTy(ty @ DataTy { data_def, .. }) => {
+                        write!(f, "{ty}")?;
 
-                        write!(f, "(")?;
-
-                        for p in pat.fields.iter_patterns() {
-                            write!(f, "{}", start_or_continue(", "))?;
-                            write!(f, "{:?}", self.with(p))?;
+                        // If we have a variant, we print the specific variant that is
+                        // currently active.
+                        if let DeconstructedCtor::Variant(index) = ctor {
+                            let ctors = data_def.borrow().ctors.assert_defined();
+                            let ctor_name = CtorDefId(ctors.elements(), *index).borrow().name;
+                            write!(f, "::{ctor_name}")?;
                         }
-                        write!(f, ")")
                     }
-                    DeconstructedCtor::IntRange(range) => write!(f, "{range:?}"),
-                    DeconstructedCtor::Str(value) => write!(f, "{value}"),
-                    DeconstructedCtor::Array(list) => {
-                        let mut sub_patterns = pat.fields.iter_patterns();
+                    _ => {
+                        panic!("unexpected ty `{}` when printing deconstructed pat", pat.ty)
+                    }
+                };
 
-                        write!(f, "[")?;
+                write!(f, "(")?;
 
-                        match list.kind {
-                            ArrayKind::Fixed(_) => {
-                                for p in sub_patterns {
-                                    write!(f, "{}{p:?}", start_or_continue(","))?;
-                                }
-                            }
-                            ArrayKind::Var(prefix, _) => {
-                                for p in sub_patterns.by_ref().take(prefix) {
-                                    write!(f, "{}{:?}", start_or_continue(", "), self.with(p))?;
-                                }
-                                write!(f, "{}", start_or_continue(", "))?;
-                                write!(f, "..")?;
-                                for p in sub_patterns {
-                                    write!(f, "{}{:?}", start_or_continue(", "), self.with(p))?;
-                                }
-                            }
+                for p in pat.fields.iter_patterns() {
+                    write!(f, "{}", start_or_continue(", "))?;
+                    write!(f, "{:?}", self.with(p))?;
+                }
+                write!(f, ")")
+            }
+            DeconstructedCtor::IntRange(range) => {
+                let bias = self.checker.signed_bias(pat.ty);
+                write!(f, "{:?}", IntRangeWithBias::new(*range, bias))
+            }
+            DeconstructedCtor::Str(value) => write!(f, "{value}"),
+            DeconstructedCtor::Array(list) => {
+                let mut sub_patterns = pat.fields.iter_patterns();
+
+                write!(f, "[")?;
+
+                match list.kind {
+                    ArrayKind::Fixed(_) => {
+                        for p in sub_patterns {
+                            write!(f, "{}{p:?}", start_or_continue(","))?;
                         }
-
-                        write!(f, "]")
                     }
-                    DeconstructedCtor::Or => {
-                        for pat in pat.fields.iter_patterns() {
-                            write!(f, "{}{:?}", start_or_continue(" | "), self.with(pat))?;
+                    ArrayKind::Var(prefix, _) => {
+                        for p in sub_patterns.by_ref().take(prefix) {
+                            write!(f, "{}{:?}", start_or_continue(", "), self.with(p))?;
                         }
-                        Ok(())
-                    }
-                    ctor @ (DeconstructedCtor::Wildcard
-                    | DeconstructedCtor::Missing
-                    | DeconstructedCtor::NonExhaustive) => {
-                        // Just for clarity, we want to also print what specific `wildcard`
-                        // constructor it is
-                        let prefix = match ctor {
-                            DeconstructedCtor::Wildcard => "_",
-                            DeconstructedCtor::Missing => "?",
-                            DeconstructedCtor::NonExhaustive => "∞",
-                            _ => unreachable!(),
-                        };
-
-                        write!(f, "{prefix} : {}", pat.ty)
+                        write!(f, "{}", start_or_continue(", "))?;
+                        write!(f, "..")?;
+                        for p in sub_patterns {
+                            write!(f, "{}{:?}", start_or_continue(", "), self.with(p))?;
+                        }
                     }
                 }
-            })
-        })
+
+                write!(f, "]")
+            }
+            DeconstructedCtor::Or => {
+                for pat in pat.fields.iter_patterns() {
+                    write!(f, "{}{:?}", start_or_continue(" | "), self.with(pat))?;
+                }
+                Ok(())
+            }
+            ctor @ (DeconstructedCtor::Wildcard
+            | DeconstructedCtor::Missing
+            | DeconstructedCtor::NonExhaustive) => {
+                // Just for clarity, we want to also print what specific `wildcard`
+                // constructor it is
+                let prefix = match ctor {
+                    DeconstructedCtor::Wildcard => "_",
+                    DeconstructedCtor::Missing => "?",
+                    DeconstructedCtor::NonExhaustive => "∞",
+                    _ => unreachable!(),
+                };
+
+                write!(f, "{prefix} : {}", pat.ty)
+            }
+        }
     }
 }

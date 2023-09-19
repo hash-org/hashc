@@ -19,6 +19,7 @@ use hash_pipeline::{
 use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics, HasDiagnostics};
 use hash_source::SourceId;
 use hash_target::{HasTarget, Target};
+use hash_utils::timing::{CellStageMetrics, HasMetrics, StageMetrics};
 use storage::SemanticStorage;
 
 pub mod current_source;
@@ -32,7 +33,10 @@ pub mod storage;
 /// The Hash semantic analysis compiler stage.
 
 #[derive(Default)]
-pub struct SemanticAnalysis;
+pub struct SemanticAnalysis {
+    /// The metrics of the semantic analysis stage.
+    metrics: CellStageMetrics,
+}
 
 /// The [SemanticAnalysisCtx] represents all of the information that is required
 /// from the compiler state for the semantic analysis stage to operate.
@@ -62,7 +66,11 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         // Create the semantic environment
-        let env = SemanticEnvImpl { ctx: ctx.data(), diagnostics: DiagnosticCellStore::new() };
+        let env = SemanticEnvImpl {
+            ctx: ctx.data(),
+            metrics: &self.metrics,
+            diagnostics: DiagnosticCellStore::new(),
+        };
 
         // Visit the sources by first visiting the entry point
         //
@@ -81,6 +89,10 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
         }
     }
 
+    fn metrics(&self) -> StageMetrics {
+        self.metrics.clone().into()
+    }
+
     fn cleanup(&mut self, _entry_point: SourceId, _stage_data: &mut Ctx) {}
 }
 
@@ -89,6 +101,13 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
 pub struct SemanticEnvImpl<'env> {
     ctx: SemanticAnalysisCtx<'env>,
     diagnostics: DiagnosticCellStore<SemanticError, SemanticWarning>,
+    metrics: &'env CellStageMetrics,
+}
+
+impl HasMetrics for SemanticEnvImpl<'_> {
+    fn metrics(&self) -> &CellStageMetrics {
+        self.metrics
+    }
 }
 
 impl HasNodeMap for SemanticEnvImpl<'_> {

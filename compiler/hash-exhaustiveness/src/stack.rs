@@ -59,7 +59,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     ///
     /// Panics if `self` is empty.
     pub(crate) fn expand_or_pat(&self, stack: &PatStack) -> Vec<PatStack> {
-        let pat = self.get_deconstructed_pat(stack.head());
+        let pat = self.get_pat(stack.head());
 
         pat.fields
             .iter_patterns()
@@ -81,7 +81,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     ///
     /// This is roughly the inverse of `Constructor::apply`.
     pub(crate) fn pop_head_ctor(
-        &self,
+        &mut self,
         ctx: PatCtx,
         stack: &PatStack,
         ctor: DeconstructedCtorId,
