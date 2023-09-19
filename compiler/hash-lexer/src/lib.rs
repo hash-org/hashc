@@ -251,6 +251,7 @@ impl<'a> Lexer<'a> {
             ';' => TokenKind::Semi,
             ',' => TokenKind::Comma,
             '#' => TokenKind::Pound,
+            '@' => TokenKind::At,
             '$' => TokenKind::Dollar,
             '?' => TokenKind::Question,
             '.' => match self.peek() {
