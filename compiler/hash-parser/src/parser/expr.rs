@@ -585,7 +585,10 @@ impl<'s> AstGen<'s> {
                 let subject = self.parse_expr()?;
                 Expr::Macro(ExprMacroInvocation { macros, subject })
             }
-            TokenKind::At => todo!(),
+            TokenKind::At => {
+                let token_macro = self.parse_token_macro_invocation()?;
+                Expr::TokenMacro(token_macro)
+            }
             kw @ TokenKind::Keyword(Keyword::Unsafe) => {
                 self.skip_fast(kw); // `unsafe`
                 let arg = self.parse_expr()?;

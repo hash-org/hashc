@@ -2,7 +2,7 @@
 
 use hash_ast::ast::{
     AstNode, AstNodes, MacroInvocation, MacroInvocationArg, MacroInvocationArgs, MacroInvocations,
-    MacroKind, Name,
+    MacroKind, Name, TokenMacro, TokenMacroInvocation, TokenStream,
 };
 use hash_token::{delimiter::Delimiter, Token, TokenKind};
 use hash_utils::thin_vec::{thin_vec, ThinVec};
@@ -52,7 +52,7 @@ impl<'s> AstGen<'s> {
         Ok(self.node_with_span(MacroInvocationArg { name, value }, start))
     }
 
-    fn parse_macro_invocation(&mut self) -> ParseResult<AstNode<MacroInvocation>> {
+    fn parse_macro_invocation_with_args(&mut self) -> ParseResult<AstNode<MacroInvocation>> {
         let name = self.parse_name()?; // Parse a name for the macro invocation.
         let start = self.current_pos();
 
@@ -120,7 +120,7 @@ impl<'s> AstGen<'s> {
                 Some(Token { kind: TokenKind::Tree(Delimiter::Bracket, _), .. }) => {
                     let new_invocations = self.in_tree(Delimiter::Bracket, None, |gen| {
                         Ok(gen.parse_nodes(
-                            |g| g.parse_macro_invocation(),
+                            |g| g.parse_macro_invocation_with_args(),
                             |g| g.parse_token(TokenKind::Comma),
                         ))
                     })?;
@@ -185,11 +185,73 @@ impl<'s> AstGen<'s> {
     ) -> ParseResult<ThinVec<AstNode<MacroInvocation>>> {
         self.in_tree(Delimiter::Bracket, None, |gen| {
             let invocations = gen.parse_node_collection(
-                |g| g.parse_macro_invocation(),
+                |g| g.parse_macro_invocation_with_args(),
                 |g| g.parse_token(TokenKind::Comma),
             );
 
             Ok(invocations)
         })
+    }
+
+    /// Parse a token macro invocation, which begins with a `@`, and followed by
+    /// the name of the token macro, or a `[...]` which contains the name of
+    /// the token macro and its arguments.
+    pub(crate) fn parse_token_macro_invocation(&mut self) -> ParseResult<TokenMacroInvocation> {
+        self.skip_fast(TokenKind::At); // '@'
+
+        // We want to either parse a name of the macro invocation, or a name
+        // with arguments which is surrounded in a `[...]`.
+        // let invoke = self.parse_macro_invocation()
+        let mac = match self.peek().copied() {
+            Some(Token { kind: kind @ TokenKind::Ident(ident), span }) => {
+                self.skip_fast(kind);
+
+                let name = self.node_with_span(Name { ident }, span);
+                self.node_with_span(TokenMacro { name, args: None, delimited: false }, span)
+            }
+            Some(Token { kind: TokenKind::Tree(Delimiter::Bracket, _), .. }) => {
+                self.in_tree(Delimiter::Bracket, None, |gen| {
+                    // @@Ugly: we're converting the `macro_invocation` into a `token_macro` here...
+                    let invocation = gen.parse_macro_invocation_with_args()?;
+                    let id = invocation.id();
+                    let MacroInvocation { name, args } = invocation.into_body();
+
+                    Ok(AstNode::with_id(TokenMacro { name, args, delimited: true }, id))
+                })?
+            }
+
+            // We expected at least one directive here, so more specifically an
+            // identifier after the hash.
+            token => self.err_with_location(
+                ParseErrorKind::ExpectedMacroInvocation,
+                ExpectedItem::Ident | ExpectedItem::LeftBracket,
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.eof_pos(), |t| t.span),
+            )?,
+        };
+
+        // Next, we deal with a stream of tokens, which is any token tree.
+        let stream = match self.peek().copied() {
+            Some(Token { kind: TokenKind::Tree(delimiter, length), .. }) => {
+                let start = self.position() + 1;
+                self.skip_token(); // We want to update our position, when we return to this generator.
+
+                self.node_with_span(
+                    TokenStream {
+                        tokens: self.stream()[start..(start + length as usize)].to_vec(),
+                        delimiter,
+                    },
+                    self.previous_pos(),
+                )
+            }
+            tok => self.err_with_location(
+                ParseErrorKind::UnExpected,
+                ExpectedItem::DelimLeft,
+                tok.map(|t| t.kind),
+                tok.map_or_else(|| self.expected_pos(), |t| t.span),
+            )?,
+        };
+
+        Ok(TokenMacroInvocation { mac, stream })
     }
 }

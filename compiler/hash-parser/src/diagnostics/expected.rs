@@ -24,6 +24,9 @@ bitflags! {
         /// A plus token
         const Plus = 1 << 4;
 
+        /// An at token.
+        const At = 1 << 5;
+
         /// A dot.
         const Dot = 1 << 6;
 
@@ -148,6 +151,7 @@ impl fmt::Display for ExpectedItem {
                 ExpectedItem::Amp => toks.push("&"),
                 ExpectedItem::Exclamation => toks.push("!"),
                 ExpectedItem::Pound => toks.push("#"),
+                ExpectedItem::At => toks.push("@"),
                 ExpectedItem::LeftParen => toks.push("("),
                 ExpectedItem::RightParen => toks.push(")"),
                 ExpectedItem::LeftBrace => toks.push("{"),
@@ -179,6 +183,7 @@ impl From<TokenKind> for ExpectedItem {
             TokenKind::Dot => ExpectedItem::Dot,
             TokenKind::Exclamation => ExpectedItem::Exclamation,
             TokenKind::Pound => ExpectedItem::Pound,
+            TokenKind::At => ExpectedItem::At,
             TokenKind::Amp => ExpectedItem::Amp,
             TokenKind::Colon => ExpectedItem::Colon,
             TokenKind::Comma => ExpectedItem::Comma,

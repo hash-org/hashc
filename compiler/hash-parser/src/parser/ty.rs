@@ -152,6 +152,12 @@ impl<'s> AstGen<'s> {
                 Ty::Macro(TyMacroInvocation { macros, subject })
             }
 
+            // Parse a token macro invocation
+            TokenKind::At => {
+                let token_macro = self.parse_token_macro_invocation()?;
+                Ty::TokenMacro(token_macro)
+            }
+
             // Type function, which is a collection of arguments enclosed in `<...>` and then
             // followed by a return type
             TokenKind::Lt => {

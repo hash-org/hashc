@@ -91,6 +91,7 @@ impl TokenKind {
                     | TokenKind::Star
                     | TokenKind::Slash
                     | TokenKind::Pound // directives
+                    | TokenKind::At
                     | TokenKind::Amp
                     | TokenKind::Tilde
                     | TokenKind::Exclamation
