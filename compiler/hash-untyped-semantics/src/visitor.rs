@@ -2,49 +2,21 @@
 //! the [ast::AstVisitor] pattern on the AST for [SemanticAnalyser]. During
 //! traversal, the visitor calls various functions that are defined on the
 //! analyser to perform a variety of semantic checks.
-#![allow(unused)] // @@Temporary
 
 use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
-    ast::{
-        self, walk_mut_self, AstNodeRef, AstVisitorMutSelf, BindingPat, Block, BlockExpr,
-        Declaration, EnumDef, Expr, LitExpr, Mutability, Name, ParamOrigin, StructDef,
-    },
+    ast::{self, walk_mut_self},
     ast_visitor_mut_self_default_impl,
     origin::BlockOrigin,
+    visitor::AstVisitorMutSelf,
 };
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::IDENTS, ModuleKind};
 
 use crate::{
     analysis::SemanticAnalyser,
     diagnostics::{error::AnalysisErrorKind, warning::AnalysisWarningKind},
 };
-
-impl SemanticAnalyser {
-    /// This function is used by directives that require their usage to be
-    /// within a constant block, i.e. the `dump_ir` directive must only
-    /// accept declarations that are in constant blocks. This function will
-    /// emit an error if the current block is not a constant block.
-    fn maybe_emit_invalid_scope_err<T>(
-        &mut self,
-        directive: AstNodeRef<Name>,
-        expected_origin: BlockOrigin,
-        item: AstNodeRef<T>,
-    ) {
-        if !self.is_in_constant_block() {
-            self.append_error(
-                AnalysisErrorKind::InvalidDirectiveScope {
-                    name: directive.ident,
-                    expected: expected_origin,
-                    received: self.current_block,
-                },
-                item,
-            );
-        }
-    }
-}
 
 impl AstVisitorMutSelf for SemanticAnalyser {
     type Error = Infallible;
@@ -57,6 +29,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         LoopBlock,
         ForLoopBlock,
         WhileLoopBlock,
+        TokenMacroInvocation,
         ModDef,
         ImplDef,
         IfClause,
@@ -78,7 +51,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_float_lit(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLit>,
+        node: ast::AstNodeRef<ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
         // We disallow float literals within patterns
         if self.is_in_lit_pat {
@@ -92,7 +65,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_fn_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnDef>,
+        node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error> {
         // Swap the values with a new `true` and save the old state.
         let last_in_fn = mem::replace(&mut self.is_in_fn, true);
@@ -105,7 +78,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
     type ParamsRet = ();
     fn visit_params(
         &mut self,
-        node: AstNodeRef<ast::Params>,
+        node: ast::AstNodeRef<ast::Params>,
     ) -> Result<Self::ParamsRet, Self::Error> {
         let _ = walk_mut_self::walk_params(self, node);
 
@@ -126,7 +99,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_loop_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LoopBlock>,
+        node: ast::AstNodeRef<ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
         // Swap the values with a new `true` and save the old state.
         let last_in_loop = mem::replace(&mut self.is_in_loop, true);
@@ -143,7 +116,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_for_loop_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
+        node: ast::AstNodeRef<ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         panic_on_span!(
             node.span(),
@@ -155,7 +128,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_while_loop_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
+        node: ast::AstNodeRef<ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         panic_on_span!(
             node.span(),
@@ -163,11 +136,23 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         );
     }
 
+    type TokenMacroInvocationRet = ();
+
+    fn visit_token_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::TokenMacroInvocation>,
+    ) -> Result<Self::TokenMacroInvocationRet, Self::Error> {
+        panic_on_span!(
+            node.span(),
+            "hit non expanded token macro whilst performing semantic analysis"
+        );
+    }
+
     type ModDefRet = ();
 
     fn visit_mod_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModDef>,
+        node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
         self.check_constant_body_block(&node.body().block, BlockOrigin::Mod);
         Ok(())
@@ -177,7 +162,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_impl_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplDef>,
+        node: ast::AstNodeRef<ast::ImplDef>,
     ) -> Result<Self::ImplDefRet, Self::Error> {
         self.check_constant_body_block(&node.body().block, BlockOrigin::Impl);
         Ok(())
@@ -187,7 +172,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_if_clause(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
+        node: ast::AstNodeRef<ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         panic_on_span!(
             node.span(),
@@ -199,7 +184,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_if_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
+        node: ast::AstNodeRef<ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         panic_on_span!(
             node.span(),
@@ -211,14 +196,14 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_body_block(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BodyBlock>,
+        node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         // Iterate over the statements in a body block to check if there are any
         // 'useless' expressions... a literal that is constant of made of other
         // constant literals
         for statement in node.statements.iter() {
             match statement.body() {
-                Expr::Lit(LitExpr { data }) if data.body().is_constant() => {
+                ast::Expr::Lit(ast::LitExpr { data }) if data.body().is_constant() => {
                     self.append_warning(
                         AnalysisWarningKind::UselessExpression,
                         statement.ast_ref(),
@@ -241,7 +226,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_return_statement(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
+        node: ast::AstNodeRef<ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
         if !self.is_in_fn {
             self.append_error(AnalysisErrorKind::UsingReturnOutsideOfFn, node);
@@ -255,7 +240,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_break_statement(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
+        node: ast::AstNodeRef<ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         if !self.is_in_loop {
             self.append_error(AnalysisErrorKind::UsingBreakOutsideLoop, node);
@@ -268,7 +253,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_continue_statement(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
+        node: ast::AstNodeRef<ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         if !self.is_in_loop {
             self.append_error(AnalysisErrorKind::UsingContinueOutsideLoop, node);
@@ -281,7 +266,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_merge_declaration(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeDeclaration>,
+        node: ast::AstNodeRef<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
         // ##Note: We probably don't have to walk this??
         let _ = walk_mut_self::walk_merge_declaration(self, node);
@@ -292,7 +277,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_trait_def(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitDef>,
+        node: ast::AstNodeRef<ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Trait);
         let _ = walk_mut_self::walk_trait_def(self, node);
@@ -305,7 +290,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_trait_impl(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
+        node: ast::AstNodeRef<ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
         self.check_members_are_declarative(node.trait_body.ast_ref_iter(), BlockOrigin::Impl);
 
@@ -322,7 +307,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_lit_pat(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
+        node: ast::AstNodeRef<ast::LitPat>,
     ) -> Result<Self::LitPatRet, Self::Error> {
         let last_in_lit_pat = mem::replace(&mut self.is_in_lit_pat, true);
 
@@ -336,9 +321,9 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_binding_pat(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPat>,
+        node: ast::AstNodeRef<ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
-        let BindingPat { mutability, visibility, .. } = node.body();
+        let ast::BindingPat { mutability, visibility, .. } = node.body();
 
         // If the pattern is present in a declaration that is within a constant block,
         // it it not allowed to be declared to be mutable. If we are not in a
@@ -346,7 +331,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         // modifier which is disallowed within body blocks.
         if self.is_in_constant_block() {
             if let Some(mut_annotation) = mutability {
-                if *mut_annotation.body() == Mutability::Mutable {
+                if *mut_annotation.body() == ast::Mutability::Mutable {
                     self.append_error(
                         AnalysisErrorKind::IllegalBindingMutability,
                         mut_annotation.ast_ref(),
@@ -370,7 +355,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_range_pat(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RangePat>,
+        node: ast::AstNodeRef<ast::RangePat>,
     ) -> Result<Self::RangePatRet, Self::Error> {
         let _ = walk_mut_self::walk_range_pat(self, node);
 
@@ -386,7 +371,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
 
     fn visit_module(
         &mut self,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
+        node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let error_indices =
             self.check_members_are_declarative(node.contents.ast_ref_iter(), BlockOrigin::Root);

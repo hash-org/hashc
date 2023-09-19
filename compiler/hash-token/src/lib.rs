@@ -10,7 +10,7 @@ use delimiter::Delimiter;
 use hash_source::{
     constant::{FloatTy, IntTy, InternedStr},
     identifier::Identifier,
-    location::ByteRange,
+    location::{ByteRange, SpannedSource},
 };
 use keyword::Keyword;
 
@@ -48,20 +48,32 @@ impl Token {
     pub fn is_paren_tree(&self) -> bool {
         matches!(self.kind, TokenKind::Tree(Delimiter::Paren, _))
     }
+
+    /// Pretty-print a token with reference to a [SpannedSource] in
+    /// order to print literals.
+    ///
+    /// ##Note: this does not print trees.
+    pub fn pretty_print(&self, source: SpannedSource<'_>) -> String {
+        match self.kind {
+            TokenKind::Int(_, _) | TokenKind::Float(_) | TokenKind::Char(_) | TokenKind::Str(_) => {
+                source.hunk(self.span).to_string()
+            }
+            TokenKind::Tree(_, _) => {
+                panic!("cannot pretty print token trees directly")
+            }
+            _ => format!("{}", self),
+        }
+    }
 }
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
             TokenKind::Ident(ident) => {
-                write!(f, "Ident ({})", String::from(*ident))
+                write!(f, "{}", String::from(*ident))
             }
-            TokenKind::Str(lit) => {
-                write!(f, "String (\"{}\")", String::from(*lit))
-            }
-            // We want to print the actual character, instead of a potential escape code
-            TokenKind::Char(ch) => {
-                write!(f, "Char ('{ch}')")
+            TokenKind::Str(_) | TokenKind::Char(_) | TokenKind::Int(_, _) | TokenKind::Float(_) => {
+                panic!("cannot directly format literal token")
             }
             kind => write!(f, "{kind:?}"),
         }

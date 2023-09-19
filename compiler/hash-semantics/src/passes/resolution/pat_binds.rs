@@ -74,6 +74,7 @@ impl<'ast> PatCheckKind<'ast> {
             | ast::Pat::Lit(_)
             | ast::Pat::Wild(_)
             | ast::Pat::Macro(_)
+            | ast::Pat::TokenMacro(_)
             | ast::Pat::Range(_) => None,
         }
     }

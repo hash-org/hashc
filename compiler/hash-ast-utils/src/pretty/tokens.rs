@@ -1,0 +1,41 @@
+//! Logic and implementation for printing raw tokens that appear in the AST.
+
+use hash_source::location::SpannedSource;
+use hash_token::{delimiter::Delimiter, Token, TokenKind};
+
+use super::{AstPrettyPrinter, FmtResult};
+
+impl<'ast, T> AstPrettyPrinter<'ast, T>
+where
+    T: std::io::Write,
+{
+    /// Write a token tree.
+    ///
+    /// @@Todo: potentially format token trees in some way that preserves the
+    /// line order.
+    pub(super) fn write_token_tree(
+        &mut self,
+        delimiter: Delimiter,
+        tree: &[Token],
+        source: SpannedSource<'_>,
+    ) -> FmtResult {
+        self.write_char(delimiter.left())?;
+
+        for token in tree {
+            if let TokenKind::Tree(delim, length) = token.kind {
+                self.write_token_tree(delim, &tree[..(length as usize)], source)?;
+            } else {
+                self.write_token(token, source)?;
+            }
+
+            self.write(" ")?;
+        }
+
+        self.write_char(delimiter.right())
+    }
+
+    /// Write an atomic token, i.e. one that is not a tree.
+    fn write_token(&mut self, token: &Token, source: SpannedSource<'_>) -> FmtResult {
+        self.write(token.pretty_print(source))
+    }
+}
