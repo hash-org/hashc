@@ -17,7 +17,7 @@ use super::{
     FnBuilder,
 };
 use crate::{
-    common::{CheckedOp, IntComparisonKind, TypeKind},
+    common::{CheckedOp, IntComparisonKind, MemFlags, TypeKind},
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
         ty::TypeBuilderMethods,
@@ -146,6 +146,41 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             ir::RValue::Use(operand) => {
                 let operand = self.codegen_operand(builder, operand);
                 operand.value.store(builder, destination);
+            }
+            ir::RValue::Repeat(op, repeat) => {
+                let op = self.codegen_operand(builder, op);
+
+                // We don't write anything into the destination if it is a ZST... i.e. being
+                // ignored!
+                if destination.info.is_zst() {
+                    return;
+                }
+
+                // Optimisation for immediates, we can use llvm.memset.p0i8.* to
+                // initialise the memory.
+                if let OperandValue::Immediate(val) = op.value {
+                    let zero = builder.const_usize(0);
+                    let start = destination.project_index(builder, zero).value;
+                    let size = builder.const_usize(destination.info.size().bytes());
+
+                    // If it is zero, we just fill the array with zeroes...
+                    if self.ctx.const_to_optional_u128(val, false) == Some(0) {
+                        let fill = self.ctx.const_u8(0);
+                        builder.memset(start, fill, size, destination.alignment, MemFlags::empty());
+                        return;
+                    }
+
+                    // If the type is the size of a `i8`, we just memset it with the value...
+                    let v = builder.value_from_immediate(val);
+                    if self.ctx.ty_of_value(v) == self.ctx.type_i8() {
+                        builder.memset(start, v, size, destination.alignment, MemFlags::empty());
+                        return;
+                    }
+                }
+
+                // Slow-path: we actually need to generate code to write the value into the
+                // array...
+                builder.write_operand_repeatedly(op, *repeat, destination)
             }
             ir::RValue::Aggregate(kind, operands) => {
                 let destination = match *kind {
@@ -335,7 +370,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 let value = OperandValue::Immediate(new_value);
                 OperandRef { value, info: cast_ty }
             }
-            ir::RValue::Aggregate(_, _) => {
+            ir::RValue::Repeat(_, _) | ir::RValue::Aggregate(_, _) => {
                 // This is only called if the aggregate value is a ZST, so we just
                 // create a new ZST operand...
                 OperandRef::zst(builder.layout_of(self.ty_of_rvalue(rvalue)))
@@ -546,7 +581,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             | ir::RValue::Ref(_, _, _)
             | ir::RValue::Cast(_, _, _)
             | ir::RValue::Discriminant(_) => true,
-            ir::RValue::Aggregate(_, _) => {
+            ir::RValue::Repeat(_, _) | ir::RValue::Aggregate(_, _) => {
                 // check if the type is a ZST, and if so this satisfies the
                 // case that the rvalue creates an operand...
                 let ty = self.ty_of_rvalue(rvalue);
