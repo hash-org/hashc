@@ -4,6 +4,8 @@ extern crate test;
 /// Modules to do with UI tests and running them
 mod runner;
 
+use std::{fs, path::Path};
+
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -28,7 +30,18 @@ lazy_static! {
 /// @@Future: this will become a command-line interface in order
 /// to update test outputs rather than using the in-built `REGENERATE_OUTPUT`
 /// flag.
-fn main() {}
+fn main() {
+    // We want to clean-up the `target` directory from any potential previous
+    // test runs. This is because we want to ensure that the `target` directory
+    // is as clean as possible before we run the tests.
+    let target_dir = Path::new("./target").to_path_buf();
+
+    // We want to clear the directory before we start running the test, so that
+    // we don't have any old files lying around.
+    if target_dir.exists() {
+        fs::remove_dir_all(&target_dir).unwrap();
+    }
+}
 
 // @@Todo: move this into `main.rs` within this crate
 // so that we can edit each individual test case rather

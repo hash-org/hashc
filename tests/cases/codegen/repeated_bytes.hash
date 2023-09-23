@@ -1,0 +1,18 @@
+// stage=exe, run=pass
+
+main := () => {
+    buf := [1i32; 9]
+    mut sum := 0
+    mut count := 0usize
+
+    while count < 9 {
+        sum += buf[count]
+        count += 1usize
+    }
+
+    if sum == 9 {
+        println("sum is 9")
+    } else {
+        println("sum is not 9")
+    }
+}
