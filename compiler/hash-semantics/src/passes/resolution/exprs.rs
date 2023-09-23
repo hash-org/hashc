@@ -201,6 +201,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 self.resolve_ast_mod_def_inner_terms(node.with_body(mod_def))?;
                 Term::unit(NodeOrigin::Given(node.id()))
             }
+            ast::Expr::Repeat(repeat_expr) => {
+                self.make_term_from_repeat_expr(node.with_body(repeat_expr))?
+            }
         };
 
         self.ast_info.terms().insert(node.id(), term_id);
@@ -505,11 +508,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         Ok(Term::from(Term::Unsafe(UnsafeTerm { inner }), NodeOrigin::Given(node.id())))
     }
 
-    /// Make a term from an [`ast::LitExpr`].
-    fn make_term_from_ast_lit_expr(
-        &self,
-        node: AstNodeRef<ast::LitExpr>,
-    ) -> SemanticResult<TermId> {
+    /// Make a term from an [`ast::Lit`].
+    fn make_term_from_ast_lit(&self, node: AstNodeRef<ast::Lit>) -> SemanticResult<TermId> {
         // Macro to make a literal primitive term
         macro_rules! lit_prim {
             ($name:ident,$lit_name:ident, $contents:expr) => {
@@ -523,7 +523,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             };
         }
 
-        match node.data.body() {
+        match node.body() {
             ast::Lit::Str(str_lit) => Ok(lit_prim!(Str, StrLit, *str_lit)),
             ast::Lit::Char(char_lit) => Ok(lit_prim!(Char, CharLit, *char_lit)),
             ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, IntLit, *int_lit)),
@@ -541,9 +541,20 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     .collect::<SemanticResult<_>>()?;
                 let elements =
                     Node::create_at(TermId::seq(element_vec), NodeOrigin::Given(node.id()));
-                Ok(Term::from(Term::Array(ArrayTerm { elements }), NodeOrigin::Given(node.id())))
+                Ok(Term::from(
+                    Term::Array(ArrayTerm::Normal(elements)),
+                    NodeOrigin::Given(node.id()),
+                ))
             }
         }
+    }
+
+    /// Make a term from an [`ast::LitExpr`].
+    fn make_term_from_ast_lit_expr(
+        &self,
+        node: AstNodeRef<ast::LitExpr>,
+    ) -> SemanticResult<TermId> {
+        self.make_term_from_ast_lit(node.with_body(node.data.body()))
     }
 
     /// Make a term from an [`ast::CastExpr`].
@@ -926,6 +937,19 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let subject = self.make_term_from_ast_expr(node.subject.ast_ref())?;
         let index = self.make_term_from_ast_expr(node.index_expr.ast_ref())?;
         Ok(Term::from(IndexTerm { subject, index }, NodeOrigin::Given(node.id())))
+    }
+
+    /// Make a term from an [`ast::RepeatExpr`].
+    fn make_term_from_repeat_expr(
+        &self,
+        node: AstNodeRef<ast::RepeatExpr>,
+    ) -> SemanticResult<TermId> {
+        let subject = self.make_term_from_ast_expr(node.subject.ast_ref())?;
+        let repeat = self.make_term_from_ast_expr(node.repeat.ast_ref())?;
+        Ok(Term::from(
+            Term::Array(ArrayTerm::Repeated(subject, repeat)),
+            NodeOrigin::Given(node.id()),
+        ))
     }
 
     /// Make a term from a binary expression.

@@ -21,8 +21,8 @@ use hash_tir::{
     dump::dump_tir,
     intrinsics::{
         definitions::{
-            bool_ty, char_def, f32_def, f64_def, i32_def, list_def, list_ty, never_ty, str_def,
-            usize_ty, Intrinsic, Primitive,
+            array_ty, bool_ty, char_def, f32_def, f64_def, i32_def, list_def, list_ty, never_ty,
+            str_def, usize_ty, Intrinsic, Primitive,
         },
         make::{IsIntrinsic, IsPrimitive},
         utils::{
@@ -179,8 +179,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
     ) -> TcResult<()> {
         let terms = term_list_id.value();
         self.infer_unified_list(&terms.value(), element_annotation_ty, |term, ty| {
-            self.infer_term(term, ty)?;
-            Ok(())
+            self.infer_term(term, ty)
         })?;
         Ok(())
     }
@@ -607,20 +606,28 @@ impl<T: TcEnv> InferenceOps<'_, T> {
     /// Infer the type of a primitive term.
     pub fn infer_array_term(&self, array_term: &ArrayTerm, annotation_ty: TyId) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
-        let (list_annotation_inner_ty, list_len) = self
-            .use_ty_as_array(annotation_ty)?
-            .unwrap_or_else(|| (Ty::hole(array_term.elements.origin().inferred()), None));
 
-        self.infer_unified_term_list(array_term.elements, list_annotation_inner_ty)?;
+        let array_len_origin = array_term.length_origin();
+        let (inner_ty, array_len) = self
+            .use_ty_as_array(annotation_ty)?
+            .unwrap_or_else(|| (Ty::hole(array_len_origin.inferred()), None));
+
+        // Now unify that the terms that are specified in the array match the
+        // annotation type.
+        let inferred_len_term = match *array_term {
+            ArrayTerm::Normal(elements) => {
+                self.infer_unified_term_list(elements, inner_ty)?;
+                create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
+            }
+            ArrayTerm::Repeated(term, repeat) => {
+                self.infer_term(term, inner_ty)?;
+                self.infer_term(repeat, usize_ty(array_len_origin))?;
+                repeat
+            }
+        };
 
         // Ensure the array lengths match if given
-        if let Some(len) = list_len {
-            let inferred_len_term = create_term_from_usize_lit(
-                self.target(),
-                array_term.elements.len(),
-                array_term.elements.origin(),
-            );
-
+        if let Some(len) = array_len {
             if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
                 return Err(TcError::MismatchingArrayLengths {
                     expected_len: len,
@@ -629,13 +636,20 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             }
         }
 
-        // Either create a default list type or apply the substitution to the annotation
-        // type
+        // Either create  a default type, or apply a substitution to the annotation
+        // type.
+        //
+        // - If the array kind is "repeated", the default annotation that we use is an
+        //   array of the specified length.
+        //
+        // - Otherwise, we just default to a list type.
         if let Ty::Hole(_) = *annotation_ty.value() {
-            self.check_by_unify(
-                list_ty(list_annotation_inner_ty, NodeOrigin::Expected),
-                annotation_ty,
-            )?
+            let default_annotation = match array_term {
+                ArrayTerm::Normal(_) => list_ty(inner_ty, NodeOrigin::Expected),
+                ArrayTerm::Repeated(_, repeat) => array_ty(inner_ty, *repeat, NodeOrigin::Expected),
+            };
+
+            self.check_by_unify(default_annotation, annotation_ty)?
         };
 
         Ok(())

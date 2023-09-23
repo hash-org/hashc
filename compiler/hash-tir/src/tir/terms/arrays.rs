@@ -3,7 +3,7 @@ use std::fmt::Display;
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 
-use crate::tir::{NodesId, PatId, PatListId, Spread, TermId, TermListId};
+use crate::tir::{NodeId, NodeOrigin, NodesId, PatId, PatListId, Spread, TermId, TermListId};
 
 /// A term that is used as an index into an array.
 #[derive(Debug, Clone, Copy)]
@@ -18,8 +18,50 @@ pub struct IndexTerm {
 ///
 /// Contains a sequence of terms.
 #[derive(Copy, Clone, Debug)]
-pub struct ArrayTerm {
-    pub elements: TermListId,
+pub enum ArrayTerm {
+    /// When an array is written as a normal variant, i.e. `[x, y, z]`.
+    Normal(TermListId),
+
+    /// When an array is written as a repeated variant, i.e. `[x; 5]`. The
+    /// second term must be a constant integer.
+    Repeated(TermId, TermId),
+}
+
+impl ArrayTerm {
+    /// Get an element of the array.
+    ///
+    /// N.B. For repeated arrays, this will return the repeated element
+    /// regardless of the index.
+    pub fn element_at(&self, index: usize) -> Option<TermId> {
+        match self {
+            ArrayTerm::Normal(elements) => elements.elements().at(index),
+            ArrayTerm::Repeated(element, _) => Some(*element),
+        }
+    }
+
+    /// Get the [NodeOrigin] of the elements of the array.
+    ///
+    /// - For [ArrayTerm::Normal], it is the term list.
+    ///
+    /// - For [ArrayTerm::Repeated], it is the subject of the repeat.
+    pub fn elements_origin(&self) -> NodeOrigin {
+        match self {
+            ArrayTerm::Normal(elements) => elements.origin(),
+            ArrayTerm::Repeated(element, _) => element.origin(),
+        }
+    }
+
+    /// Get the [NodeOrigin] of the "computed" length of the array.
+    ///
+    /// - For [ArrayTerm::Normal], it is the term list.
+    ///
+    /// - For [ArrayTerm::Repeated], it is the repeated element.
+    pub fn length_origin(&self) -> NodeOrigin {
+        match self {
+            ArrayTerm::Normal(elements) => elements.origin(),
+            ArrayTerm::Repeated(_, repeat) => repeat.origin(),
+        }
+    }
 }
 
 /// A list pattern.
@@ -81,6 +123,9 @@ impl fmt::Display for ArrayPat {
 
 impl Display for ArrayTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]", self.elements)
+        match self {
+            ArrayTerm::Normal(elements) => write!(f, "[{elements}]"),
+            ArrayTerm::Repeated(subject, repeat) => write!(f, "[{subject}; {repeat}]"),
+        }
     }
 }
