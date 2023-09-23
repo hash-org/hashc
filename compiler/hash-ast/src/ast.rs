@@ -442,6 +442,11 @@ impl<T> AstNodes<T> {
         SpanMap::span_of(self.id)
     }
 
+    /// Insert an item into the [AstNodes] at a particular index.
+    pub fn insert(&mut self, item: AstNode<T>, index: usize) {
+        self.nodes.insert(index, item);
+    }
+
     /// Merge two [AstNodes] together, this will append the nodes of the
     /// other [AstNodes] to this one, and then return the new [AstNodes].
     ///
