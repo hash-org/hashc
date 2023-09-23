@@ -858,6 +858,23 @@ impl AstVisitor for AstTreePrinter {
         ))
     }
 
+    type RepeatExprRet = TreeNode;
+
+    fn visit_repeat_expr(
+        &self,
+        node: ast::AstNodeRef<ast::RepeatExpr>,
+    ) -> Result<Self::RepeatExprRet, Self::Error> {
+        let walk::RepeatExpr { subject, repeat } = walk::walk_repeat_expr(self, node)?;
+
+        Ok(TreeNode::branch(
+            "repeat_expr",
+            vec![
+                TreeNode::branch("subject", vec![subject]),
+                TreeNode::branch("repeat", vec![repeat]),
+            ],
+        ))
+    }
+
     type StructDefRet = TreeNode;
     fn visit_struct_def(
         &self,
