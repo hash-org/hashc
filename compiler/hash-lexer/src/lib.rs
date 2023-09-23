@@ -207,7 +207,7 @@ impl<'a> Lexer<'a> {
                 return;
             }
 
-            self.eat_until('\n');
+            self.eat_while_and_discard(|c| c != '\n');
         }
     }
 
@@ -505,9 +505,10 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        self.eat_decimal_digits(10);
+        // If we didn't get a radix, then we eat all the digits that we can, and then
+        // check if it is a float literal.
+        self.eat_while_and_slice(move |c| c.is_ascii_digit() || c == '_');
 
-        // peek next to check if this is an actual float literal...
         match self.peek() {
             // here we have to check if the next char valid char is potentially a character that
             // begins an identifier. This enables for infix calls on integer literals in
@@ -517,7 +518,7 @@ impl<'a> Lexer<'a> {
             // there isn't currently a clear way to resolve this ambiguity.
             '.' if !is_id_start(self.peek_second()) && self.peek_second() != '.' => {
                 self.skip_ascii();
-                self.eat_decimal_digits(10);
+                self.eat_while_and_slice(move |c| c.is_ascii_digit() || c == '_');
                 self.eat_float_lit(start)
             }
             // Immediate exponent
@@ -737,7 +738,7 @@ impl<'a> Lexer<'a> {
 
                     // eat the single quote after the character
                     if next != '\'' {
-                        self.eat_until('\''); // Skip and eat all chars until we get a closed char lit.
+                        self.eat_while_and_discard(|c| c != '\''); // Skip and eat all chars until we get a closed char lit.
 
                         if self.is_eof() {
                             return self.emit_fatal_error(
@@ -858,7 +859,7 @@ impl<'a> Lexer<'a> {
     /// some kind of documentation generator tool
     fn line_comment(&mut self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '/');
-        self.eat_until('\n')
+        self.eat_while_and_discard(|c| c != '\n')
     }
 
     /// Consume a block comment after the first following `/*a` sequence of
@@ -904,6 +905,10 @@ impl<'a> Lexer<'a> {
     /// cases we don't want to preserve what the token represents, such as
     /// comments or white-spaces...
     fn eat_while_and_discard(&self, mut condition: impl FnMut(char) -> bool) {
+        if self.is_eof() {
+            return;
+        }
+
         let slice = unsafe { self.as_slice() };
         let index = slice.find(|c| !condition(c)).unwrap_or(slice.len());
         self.offset.update(|x| x + index);
@@ -913,17 +918,16 @@ impl<'a> Lexer<'a> {
     /// to eat the input and where it finished, this is sometimes beneficial
     /// as the slice doesn't have to be re-allocated as a string.
     fn eat_while_and_slice(&self, condition: impl FnMut(char) -> bool) -> &str {
+        if self.is_eof() {
+            return "";
+        }
+
+        // Capture the range of the slice, and then finally update the offset
         let start = self.offset.get();
         self.eat_while_and_discard(condition);
         let consumed = self.offset.get();
         let end = if consumed == start { start } else { consumed - 1 };
 
         self.contents.hunk(ByteRange::new(start, end))
-    }
-
-    fn eat_until(&self, ch: char) {
-        let slice = unsafe { self.as_slice() };
-        let index = slice.find(ch).unwrap_or(slice.len());
-        self.offset.update(|x| x + index);
     }
 }
