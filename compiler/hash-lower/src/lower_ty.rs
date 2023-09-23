@@ -81,7 +81,7 @@ impl<'ir> BuilderCtx<'ir> {
                 _ => self.uncached_ty_from_tir_ty(id, &ty),
             };
 
-            (result, false)
+            (result, /* should_cache: */ false)
         })
     }
 
@@ -188,7 +188,7 @@ impl<'ir> BuilderCtx<'ir> {
             let item = Intrinsic::from_str_name(name.into()).expect("unknown intrinsic function");
             self.lcx.intrinsics_mut().set(item, instance, ty);
 
-            (ty, true)
+            (ty, /* should_cache: */ true)
         })
     }
 
@@ -211,7 +211,7 @@ impl<'ir> BuilderCtx<'ir> {
                 self.lcx.lang_items_mut().set(item, instance, ty);
             }
 
-            (ty, true)
+            (ty, /* should_cache: */ true)
         })
     }
 
@@ -347,7 +347,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         // We created our own cache entry, so we don't need to update the
         // cache.
-        (reserved_ty, true)
+        (reserved_ty, /* should_cache: */ true)
     }
 
     /// Function that converts a [DataTy] into the corresponding [IrTyId].
@@ -371,8 +371,8 @@ impl<'ir> BuilderCtx<'ir> {
             // Primitive are numerics, strings, arrays, etc.
             DataDefCtors::Primitive(primitive) => {
                 let ty = match primitive {
-                    PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, is_signed, is_float }) => {
-                        if is_float {
+                    PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, flags }) => {
+                        if flags.is_float() {
                             match bits {
                                 NumericCtorBits::Bounded(32) => COMMON_IR_TYS.f32,
                                 NumericCtorBits::Bounded(64) => COMMON_IR_TYS.f64,
@@ -385,8 +385,10 @@ impl<'ir> BuilderCtx<'ir> {
                                 NumericCtorBits::Bounded(bits) => {
                                     let size = Size::from_bits(bits);
 
-                                    if is_signed {
+                                    if flags.is_signed() {
                                         match size.bytes() {
+                                            // If this is a platform type, return `isize`
+                                            _ if flags.is_platform() => COMMON_IR_TYS.isize,
                                             1 => COMMON_IR_TYS.i8,
                                             2 => COMMON_IR_TYS.i16,
                                             4 => COMMON_IR_TYS.i32,
@@ -397,6 +399,8 @@ impl<'ir> BuilderCtx<'ir> {
                                         }
                                     } else {
                                         match size.bytes() {
+                                            // If this is a platform type, return `usize`
+                                            _ if flags.is_platform() => COMMON_IR_TYS.usize,
                                             1 => COMMON_IR_TYS.u8,
                                             2 => COMMON_IR_TYS.u16,
                                             4 => COMMON_IR_TYS.u32,
@@ -408,7 +412,7 @@ impl<'ir> BuilderCtx<'ir> {
                                     }
                                 }
                                 NumericCtorBits::Unbounded => {
-                                    if is_signed {
+                                    if flags.is_signed() {
                                         COMMON_IR_TYS.ibig
                                     } else {
                                         COMMON_IR_TYS.ubig
@@ -451,7 +455,7 @@ impl<'ir> BuilderCtx<'ir> {
 
                 // Since we don't do anything with the cache, we can specify that
                 // the result of the operation should be cached.
-                (ty, true)
+                (ty, /* should_cache: */ true)
             }
         }
     }

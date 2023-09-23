@@ -508,8 +508,9 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                                                 // If the value is not compatible with the numeric
                                                 // type,
                                                 // then return `None` and the unification will fail.
-                                                if numeric.is_float
-                                                    || (!numeric.is_signed && int_lit.is_negative())
+                                                if numeric.is_float()
+                                                    || (!numeric.is_signed()
+                                                        && int_lit.is_negative())
                                                 {
                                                     None
                                                 } else {
@@ -542,7 +543,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                                         // If the value is not compatible with the numeric type,
                                         // then
                                         // return `None` and the unification will fail.
-                                        if !numeric.is_float {
+                                        if !numeric.is_float() {
                                             None
                                         } else {
                                             Some(data_ty.data_def)
