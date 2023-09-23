@@ -439,6 +439,7 @@ pub mod walk_mut {
             }
             RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place, reference),
             RValue::Cast(_, operand, _) => visitor.visit_operand(operand, reference),
+            RValue::Repeat(operand, _) => visitor.visit_operand(operand, reference),
         }
     }
 
@@ -915,6 +916,7 @@ pub mod walk_modifying {
 
             RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place, reference),
             RValue::Cast(_, operand, _) => visitor.visit_operand(operand, reference),
+            RValue::Repeat(operand, _) => visitor.visit_operand(operand, reference),
         }
     }
 
