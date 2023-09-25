@@ -194,48 +194,6 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         ))
     }
 
-    pub fn try_use_pat_args_as_term_args(&self, pat_args: PatArgsId) -> Option<ArgsId> {
-        let mut args = Vec::new();
-        for pat_arg in pat_args.iter() {
-            let pat_arg = pat_arg.value();
-            match pat_arg.pat {
-                PatOrCapture::Pat(pat) => {
-                    let term = self.try_use_pat_as_term(pat)?;
-                    args.push(Node::at(
-                        Arg { target: pat_arg.target, value: term },
-                        pat_arg.origin,
-                    ));
-                }
-                PatOrCapture::Capture(_) => return None,
-            }
-        }
-        Some(Node::create_at(Node::<Arg>::seq(args), pat_args.origin()))
-    }
-
-    pub fn try_use_pat_as_term(&self, pat_id: PatId) -> Option<TermId> {
-        let origin = pat_id.origin();
-        match *pat_id.value() {
-            Pat::Binding(var) => Some(Term::from(var.name, origin)),
-            Pat::Range(_) => Some(Term::from(SymbolId::fresh(origin), origin)),
-            Pat::Lit(lit) => Some(Term::from(Term::Lit(*lit), origin)),
-            Pat::Ctor(ctor_pat) => Some(Term::from(
-                CtorTerm {
-                    ctor: ctor_pat.ctor,
-                    data_args: ctor_pat.data_args,
-                    ctor_args: self.try_use_pat_args_as_term_args(ctor_pat.ctor_pat_args)?,
-                },
-                origin,
-            )),
-            Pat::Tuple(tuple_pat) => Some(Term::from(
-                TupleTerm { data: self.try_use_pat_args_as_term_args(tuple_pat.data)? },
-                origin,
-            )),
-            Pat::Array(_) => None,
-            Pat::Or(_) => None,
-            Pat::If(if_pat) => self.try_use_pat_as_term(if_pat.pat),
-        }
-    }
-
     /// Infer the given pattern arguments, producing inferred parameters.
     pub fn infer_pat_args<U>(
         &self,
@@ -264,7 +222,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             |arg| {
                 let arg = arg.value();
                 match arg.pat {
-                    PatOrCapture::Pat(pat) => self.try_use_pat_as_term(pat),
+                    PatOrCapture::Pat(pat) => pat.try_use_as_term(),
                     PatOrCapture::Capture(_) => None,
                 }
             },
@@ -1343,7 +1301,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                     Ty::expect_is(case_data.value, Visitor::new().copy(unified_ty));
 
                 if let Some(match_subject_var) = match_subject_var {
-                    if let Some(pat_term) = self.try_use_pat_as_term(case_data.bind_pat) {
+                    if let Some(pat_term) = case_data.bind_pat.try_use_as_term() {
                         self.context().add_assignment(match_subject_var, subject_ty_copy, pat_term);
                     }
                 }

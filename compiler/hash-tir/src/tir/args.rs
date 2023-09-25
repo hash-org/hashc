@@ -157,6 +157,29 @@ pub struct PatArg {
 
 tir_node_sequence_store_direct!(PatArg);
 
+impl PatArgsId {
+    /// Use the patterns in this argument list as terms, if possible.
+    ///
+    /// This invokes [`Pat::try_use_as_term`] on each pattern in the list.
+    pub fn try_use_as_term_args(&self) -> Option<ArgsId> {
+        let mut args = Vec::new();
+        for pat_arg in self.iter() {
+            let pat_arg = pat_arg.value();
+            match pat_arg.pat {
+                PatOrCapture::Pat(pat) => {
+                    let term = pat.try_use_as_term()?;
+                    args.push(Node::at(
+                        Arg { target: pat_arg.target, value: term },
+                        pat_arg.origin,
+                    ));
+                }
+                PatOrCapture::Capture(_) => return None,
+            }
+        }
+        Some(Node::create_at(Node::<Arg>::seq(args), self.origin()))
+    }
+}
+
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
 pub enum SomeArgsId {
