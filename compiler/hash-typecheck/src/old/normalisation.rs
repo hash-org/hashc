@@ -19,7 +19,7 @@ use hash_tir::{
         AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, DerefTerm, FnDefId, Hole,
         IndexTerm, Lit, LitPat, LoopControlTerm, LoopTerm, MatchTerm, Node, NodeId, NodesId,
         ParamIndex, Pat, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, ReturnTerm, Spread,
-        SymbolId, Term, TermId, TermListId, TupleTerm, Ty, TyId, TyOfTerm, UnsafeTerm,
+        SymbolId, Term, TermId, TermListId, TupleTerm, Ty, TyId, TyOfTerm, UnsafeTerm, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -397,7 +397,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     fn eval_var(&self, var: SymbolId) -> AtomEvaluation {
         match self.context().try_get_decl_value(var) {
             Some(result) => {
-                if matches!(*result.value(), Term::Var(v) if v == var) {
+                if matches!(*result.value(), Term::Var(v) if v.symbol == var) {
                     already_normalised()
                 } else {
                     normalised_to(self.eval(result.into())?)
@@ -539,7 +539,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 }
             }
             Term::Var(var) => {
-                self.context().modify_assignment(var, assign_term.value);
+                self.context().modify_assignment(var.symbol, assign_term.value);
             }
             _ => panic!("Invalid assign {}", &*assign_term),
         }
@@ -737,7 +737,9 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                     ctrl_map(self.eval_fn_call(term.origin().with_data(fn_call)))
                 }
                 Term::Cast(cast_term) => ctrl_map(self.eval_cast(cast_term)),
-                Term::Hole(Hole(var)) | Term::Var(var) => ctrl_map(self.eval_var(var)),
+                Term::Hole(Hole(var)) | Term::Var(VarTerm { symbol: var }) => {
+                    ctrl_map(self.eval_var(var))
+                }
                 Term::Deref(deref_term) => {
                     ctrl_map(self.eval_deref(term.origin().with_data(deref_term)))
                 }

@@ -28,7 +28,7 @@ use hash_tir::{
     intrinsics::definitions::Intrinsic,
     tir::{
         Arg, ArgsId, CallTerm, CtorPat, CtorTerm, DataDefId, FnDefId, ModDefId, ModMemberValue,
-        Node, NodeId, NodeOrigin, SymbolId, Term,
+        Node, NodeId, NodeOrigin, SymbolId, Term, VarTerm,
     },
 };
 
@@ -402,7 +402,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     )),
                     args => {
                         let resultant_term = self.wrap_term_in_fn_call_from_ast_args(
-                            Term::from(Term::Var(decl), component.origin()),
+                            Term::from(Term::Var(VarTerm { symbol: decl }), component.origin()),
                             args,
                             component.node_id,
                         )?;

@@ -4,7 +4,7 @@ use core::fmt;
 use std::{fmt::Debug, option::Option};
 
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
@@ -55,10 +55,7 @@ impl Arg {
                         Node::at(
                             Arg {
                                 target: ParamIndex::Position(i),
-                                value: Node::create(Node::at(
-                                    Term::Var(param.value().name),
-                                    param.value().name.origin(),
-                                )),
+                                value: Term::var(param.value().name),
                             },
                             param.origin(),
                         )

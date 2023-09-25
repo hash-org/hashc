@@ -228,8 +228,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     }
                 }
             }
-            Term::Var(symbol) => {
-                let local = self.lookup_local(symbol).unwrap();
+            Term::Var(var) => {
+                let local = self.lookup_local(var.symbol).unwrap();
                 let place = Place::from_local(local);
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);
 

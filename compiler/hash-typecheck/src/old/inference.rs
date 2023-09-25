@@ -1259,7 +1259,11 @@ impl<T: TcEnv> InferenceOps<'_, T> {
 
                 if let Some(match_subject_var) = match_subject_var {
                     if let Some(pat_term) = case_data.bind_pat.try_use_as_term() {
-                        self.context().add_assignment(match_subject_var, subject_ty_copy, pat_term);
+                        self.context().add_assignment(
+                            match_subject_var.symbol,
+                            subject_ty_copy,
+                            pat_term,
+                        );
                     }
                 }
 
@@ -1331,7 +1335,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             Term::Fn(fn_def_id) => {
                 self.infer_fn_def(fn_def_id, annotation_ty, term_id, FnInferMode::Body)?
             }
-            Term::Var(var_term) => self.infer_var(var_term, annotation_ty)?,
+            Term::Var(var_term) => self.infer_var(var_term.symbol, annotation_ty)?,
             Term::Return(return_term) => {
                 self.infer_return_term(&return_term, annotation_ty, term_id)?
             }
@@ -1622,7 +1626,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         self.infer_term(pat.condition, expected_condition_ty)?;
         if let Term::Var(v) = *pat.condition.value() {
             self.context().add_assignment(
-                v,
+                v.symbol,
                 expected_condition_ty,
                 bool_term(true, pat.condition.origin().inferred()),
             );

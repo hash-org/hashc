@@ -50,6 +50,18 @@ pub struct TyOfTerm {
     pub term: TermId,
 }
 
+/// A variable, which is a symbol.
+#[derive(Debug, Clone, Copy)]
+pub struct VarTerm {
+    pub symbol: SymbolId,
+}
+
+impl From<VarTerm> for SymbolId {
+    fn from(var: VarTerm) -> Self {
+        var.symbol
+    }
+}
+
 /// A term in a Hash program.
 ///
 /// This is a narrowed down version of the AST whose structure is more suitable
@@ -63,7 +75,8 @@ pub struct TyOfTerm {
 pub enum Term {
     // -- General --
     // Variables
-    Var(SymbolId),
+    Var(VarTerm),
+
     // Scopes
     Block(BlockTerm),
 
@@ -171,7 +184,7 @@ impl Term {
     }
 
     pub fn var(symbol: SymbolId) -> TermId {
-        Node::create(Node::at(Term::Var(symbol), symbol.origin()))
+        Node::create(Node::at(Term::Var(VarTerm { symbol }), symbol.origin()))
     }
 
     /// Create a new term with the given origin.
@@ -244,9 +257,21 @@ impl Term {
     }
 }
 
+impl From<SymbolId> for Term {
+    fn from(symbol: SymbolId) -> Self {
+        Term::Var(VarTerm { symbol })
+    }
+}
+
 impl fmt::Display for UnsafeTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "unsafe {}", self.inner)
+    }
+}
+
+impl fmt::Display for VarTerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.symbol)
     }
 }
 
@@ -267,7 +292,7 @@ impl fmt::Display for Term {
                 }
             ),
             Term::Block(block_term) => write!(f, "{}", block_term),
-            Term::Var(resolved_var) => write!(f, "{}", *resolved_var),
+            Term::Var(resolved_var) => write!(f, "{}", resolved_var),
             Term::Loop(loop_term) => write!(f, "{}", loop_term),
             Term::LoopControl(loop_control_term) => {
                 write!(f, "{}", loop_control_term)

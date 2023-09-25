@@ -9,7 +9,7 @@ use hash_tir::{
     sub::Sub,
     tir::{
         AccessTerm, ArgsId, Hole, NodeId, ParamId, ParamIndex, ParamsId, Pat, SymbolId, Term,
-        TermId, Ty,
+        TermId, Ty, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -87,14 +87,16 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         }
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
-                    Some(subbed_term) => {
-                        let subbed_term_val = subbed_term.value();
-                        term.set(subbed_term_val);
-                        ControlFlow::Break(())
+                Term::Hole(Hole(symbol)) | Term::Var(VarTerm { symbol }) => {
+                    match sub.get_sub_for(symbol) {
+                        Some(subbed_term) => {
+                            let subbed_term_val = subbed_term.value();
+                            term.set(subbed_term_val);
+                            ControlFlow::Break(())
+                        }
+                        None => ControlFlow::Continue(()),
                     }
-                    None => ControlFlow::Continue(()),
-                },
+                }
                 Ty::TupleTy(tuple_ty) => {
                     let _ = self.apply_sub_to_params_and_get_shadowed(tuple_ty.data, sub);
                     ControlFlow::Break(())
@@ -131,7 +133,9 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         let var_matches = &var_matches;
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::Hole(Hole(symbol)) | Term::Var(symbol) if var_matches.contains(&symbol) => {
+                Term::Hole(Hole(symbol)) | Term::Var(VarTerm { symbol })
+                    if var_matches.contains(&symbol) =>
+                {
                     *can_apply = true;
                     ControlFlow::Break(())
                 }
@@ -320,7 +324,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
     /// the value is not a variable with the same name.
     pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: SymbolId, value: TermId) {
         let subbed_value = self.apply_sub(value, sub);
-        if !matches!(*subbed_value.value(), Term::Var(v) if v == name) {
+        if !matches!(*subbed_value.value(), Term::Var(v) if v.symbol == name) {
             sub.insert(name, subbed_value);
         }
     }
@@ -407,7 +411,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         for (name, value) in sub.iter() {
             match *value.value() {
                 Term::Var(v) => {
-                    reversed_sub.insert(v, Term::from(name, name.origin()));
+                    reversed_sub.insert(v.symbol, Term::from(name, name.origin()));
                 }
                 Term::Hole(h) => {
                     reversed_sub.insert(h.0, Term::from(name, name.origin()));

@@ -12,7 +12,7 @@ use hash_tir::{
     intrinsics::definitions::{array_ty, equal_ty, list_ty},
     tir::{
         Arg, ArgsId, CallTerm, DataTy, Node, NodeOrigin, ParamIndex, RefKind, RefTy, Term, Ty,
-        TyId, TyOfTerm,
+        TyId, TyOfTerm, VarTerm,
     },
 };
 
@@ -141,7 +141,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     Ok(Term::from(Term::Call(**fn_call_term), origin))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
-                    Ok(Ty::from(Ty::Var(*bound_var), origin))
+                    Ok(Ty::from(Ty::Var(VarTerm { symbol: *bound_var }), origin))
                 }
                 TerminalResolvedPathComponent::Intrinsic(intrinsic) => {
                     Ok(Term::from(Term::Intrinsic(*intrinsic), origin))

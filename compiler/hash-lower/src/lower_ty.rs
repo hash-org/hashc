@@ -133,10 +133,10 @@ impl<'ir> BuilderCtx<'ir> {
 
             // This is a type variable that should be found in the scope. It is
             // resolved and substituted in the `Ty::Var` case below.
-            Ty::Var(sym) => {
+            Ty::Var(var) => {
                 // @@Temporary
-                if self.context().try_get_decl(sym).is_some() {
-                    let term = self.context().get_binding_value(sym);
+                if self.context().try_get_decl(var.symbol).is_some() {
+                    let term = self.context().get_binding_value(var.symbol);
                     let ty = term.value();
                     return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {

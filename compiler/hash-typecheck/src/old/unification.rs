@@ -269,14 +269,14 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
 
             (Term::Var(a), _) if self.pat_binds.get().is_some() => {
-                self.add_unification(a, target_id);
+                self.add_unification(a.symbol, target_id);
                 Ok(())
             }
             (_, Term::Var(b)) if self.pat_binds.get().is_some() => {
-                self.add_unification(b, src_id);
+                self.add_unification(b.symbol, src_id);
                 Ok(())
             }
-            (Term::Var(a), Term::Var(b)) => self.unify_vars(a, b, src_id, target_id),
+            (Term::Var(a), Term::Var(b)) => self.unify_vars(a.symbol, b.symbol, src_id, target_id),
             (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
 
             // If the source is uninhabitable, then we can unify it with

@@ -23,7 +23,7 @@ use hash_tir::{
         AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, CharLit, DataTy, DerefTerm,
         FloatLit, IndexTerm, IntLit, Lit, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node,
         NodeId, NodeOrigin, ParamIndex, RefKind, RefTerm, ReturnTerm, StrLit, Term, TermId,
-        TupleTerm, Ty, TyOfTerm, UnsafeTerm,
+        TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -341,7 +341,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Bound variable
-                    Ok(Term::from(Term::Var(*bound_var), origin))
+                    Ok(Term::from(Term::Var(VarTerm { symbol: *bound_var }), origin))
                 }
                 TerminalResolvedPathComponent::Intrinsic(intrinsic) => {
                     // Intrinsic

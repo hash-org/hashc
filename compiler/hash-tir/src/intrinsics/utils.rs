@@ -301,9 +301,9 @@ pub fn try_use_term_as_integer_lit<
             Lit::Int(i) => (&i.value()).try_into().ok(),
             _ => None,
         },
-        Term::Var(sym) => env
+        Term::Var(var) => env
             .context()
-            .try_get_decl_value(sym)
+            .try_get_decl_value(var.symbol)
             .and_then(|result| try_use_term_as_integer_lit(env, result)),
 
         _ => None,
