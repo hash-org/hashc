@@ -1,20 +1,22 @@
 use std::cell::Cell;
 
+use hash_tir::tir::{PatId, TermId};
 use hash_utils::derive_more::From;
 
-use super::checking::CheckSignal;
-use crate::errors::{TcError, TcResult};
+use crate::errors::TcError;
 
 /// A signal which can be emitted during checking.
 #[derive(Debug, Clone, From)]
 pub enum UnifySignal {
     Stuck,
-    Error(Box<TcError>),
+    CannotUnifyTerms { src: TermId, target: TermId },
+    CannotUnifyPats { src: PatId, target: PatId },
+    Error(Box<TcError>), // @@Temporary: remove at the end of this transition
 }
 
 impl From<TcError> for UnifySignal {
-    fn from(error: TcError) -> Self {
-        Self::Error(Box::new(error))
+    fn from(err: TcError) -> Self {
+        UnifySignal::Error(Box::new(err))
     }
 }
 
@@ -23,15 +25,12 @@ impl From<UnifySignal> for TcError {
         match signal {
             UnifySignal::Stuck => TcError::Signal,
             UnifySignal::Error(e) => *e,
-        }
-    }
-}
-
-impl From<CheckSignal> for UnifySignal {
-    fn from(signal: CheckSignal) -> Self {
-        match signal {
-            CheckSignal::Stuck => Self::Stuck,
-            CheckSignal::Error(e) => Self::Error(e),
+            UnifySignal::CannotUnifyTerms { src, target } => {
+                TcError::MismatchingTypes { expected: src, actual: target }
+            }
+            UnifySignal::CannotUnifyPats { src, target } => {
+                TcError::MismatchingPats { a: src, b: target }
+            }
         }
     }
 }
@@ -84,20 +83,6 @@ impl UnifyState {
     /// Whether any unifying has been stuck.
     pub fn is_stuck(&self) -> bool {
         self.is_stuck.get()
-    }
-
-    /// Add the result of a unifying operation to the state.
-    pub fn then(&self, result: UnifyResult) -> TcResult<()> {
-        match result {
-            Ok(()) => Ok(()),
-            Err(e) => match e {
-                UnifySignal::Stuck => {
-                    self.is_stuck.set(true);
-                    Ok(())
-                }
-                UnifySignal::Error(e) => Err(*e),
-            },
-        }
     }
 
     /// Signal that this unifying operation is done, and

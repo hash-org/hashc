@@ -1,16 +1,18 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
-    context::Context,
-    tir::{FnDefId, FnTy, NodeOrigin, Ty, TyId},
+    atom_info::ItemInAtomInfo,
+    context::{Context, ScopeKind},
+    tir::{FnDefId, FnTy, NodeId, NodeOrigin, Term, TermId, Ty, TyId},
 };
 
 use crate::{
     checker::Checker,
     env::TcEnv,
+    inference::FnInferMode,
     operations::{
-        checking::{CheckResult, CheckState},
+        checking::{already_checked, did_check, CheckResult, CheckState},
         normalisation::{already_normalised, NormaliseResult},
-        unification::UnifyResult,
+        unification::{UnifyResult, UnifySignal},
         Operations,
     },
 };
@@ -78,41 +80,101 @@ impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<FnDefId> for Checker<'_, E> {
+impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
     type TyNode = TyId;
-    type Node = FnDefId;
+    type Node = TermId;
 
     fn check(
         &self,
-        _ctx: &mut Context,
-        _item: &mut FnDefId,
-        _item_ty: Self::TyNode,
-        _item_node: Self::Node,
+        _: &mut Context,
+        fn_def_id: &mut (FnDefId, FnInferMode),
+        annotation_ty: Self::TyNode,
+        original_term_id: Self::Node,
     ) -> CheckResult {
-        todo!()
+        let (fn_def_id, fn_mode) = *fn_def_id;
+        self.infer_ops().check_ty(annotation_ty)?;
+        if let Some(fn_ty) = self.infer_ops().try_get_inferred_ty(fn_def_id) {
+            let expected =
+                Ty::expect_is(original_term_id, Ty::from(fn_ty, fn_def_id.origin().inferred()));
+            self.infer_ops().check_by_unify(expected, annotation_ty)?;
+            return did_check(());
+        }
+
+        self.infer_ops().infer_fn_annotation_ty(fn_def_id, annotation_ty)?;
+        let fn_def = fn_def_id.value();
+
+        if fn_mode == FnInferMode::Header {
+            // If we are only inferring the header, then we also want to check for
+            // immediate body functions.
+            self.infer_ops().infer_params(fn_def.ty.params, || {
+                self.infer_ops()
+                    .infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+                if let Term::Fn(immediate_body_fn) = *fn_def.body.value() {
+                    self.infer_ops().infer_fn_def(
+                        immediate_body_fn,
+                        Ty::hole_for(fn_def.body),
+                        fn_def.body,
+                        FnInferMode::Header,
+                    )?;
+                }
+                Ok(())
+            })?;
+            return did_check(());
+        }
+
+        if self.atom_is_registered(fn_def_id) {
+            // Recursive call
+            return already_checked(());
+        }
+
+        self.register_new_atom(fn_def_id, fn_def.ty);
+
+        let fn_def = fn_def_id.value();
+
+        self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
+            self.infer_ops().infer_params(fn_def.ty.params, || {
+                self.infer_ops()
+                    .infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+                self.infer_ops().infer_term(fn_def.body, fn_def.ty.return_ty)
+            })
+        })?;
+
+        let fn_ty_id =
+            Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
+        self.infer_ops().check_by_unify(fn_ty_id, annotation_ty)?;
+
+        self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
+
+        did_check(())
     }
 
     fn normalise(
         &self,
         _ctx: &mut Context,
-        _item: &mut FnDefId,
+        _item: &mut (FnDefId, FnInferMode),
         _item_node: Self::Node,
     ) -> NormaliseResult<()> {
-        todo!()
+        already_normalised()
     }
 
     fn unify(
         &self,
         _ctx: &mut Context,
-        _src: &mut FnDefId,
-        _target: &mut FnDefId,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src: &mut (FnDefId, FnInferMode),
+        target: &mut (FnDefId, FnInferMode),
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> UnifyResult {
-        todo!()
+        let (src_id, _) = *src;
+        let (target_id, _) = *target;
+        if src_id == target_id {
+            return Ok(());
+        }
+
+        UnifyResult::Err(UnifySignal::CannotUnifyTerms { src: src_node, target: target_node })
     }
 
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut FnDefId) {
+    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut (FnDefId, FnInferMode)) {
         todo!()
     }
 }

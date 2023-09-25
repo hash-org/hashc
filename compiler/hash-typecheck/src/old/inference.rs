@@ -890,58 +890,12 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         original_term_id: TermId,
         fn_mode: FnInferMode,
     ) -> TcResult<()> {
-        self.check_ty(annotation_ty)?;
-        if let Some(fn_ty) = self.try_get_inferred_ty(fn_def_id) {
-            let expected =
-                Ty::expect_is(original_term_id, Ty::from(fn_ty, fn_def_id.origin().inferred()));
-            self.check_by_unify(expected, annotation_ty)?;
-            return Ok(());
-        }
-
-        self.infer_fn_annotation_ty(fn_def_id, annotation_ty)?;
-        let fn_def = fn_def_id.value();
-
-        if fn_mode == FnInferMode::Header {
-            // If we are only inferring the header, then we also want to check for
-            // immediate body functions.
-            self.infer_params(fn_def.ty.params, || {
-                self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
-                if let Term::Fn(immediate_body_fn) = *fn_def.body.value() {
-                    self.infer_fn_def(
-                        immediate_body_fn,
-                        Ty::hole_for(fn_def.body),
-                        fn_def.body,
-                        FnInferMode::Header,
-                    )?;
-                }
-                Ok(())
-            })?;
-            return Ok(());
-        }
-
-        if self.atom_is_registered(fn_def_id) {
-            // Recursive call
-            return Ok(());
-        }
-
-        self.register_new_atom(fn_def_id, fn_def.ty);
-
-        let fn_def = fn_def_id.value();
-
-        self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
-            self.infer_params(fn_def.ty.params, || {
-                self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
-                self.infer_term(fn_def.body, fn_def.ty.return_ty)
-            })
-        })?;
-
-        let fn_ty_id =
-            Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
-        self.check_by_unify(fn_ty_id, annotation_ty)?;
-
-        self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
-
-        Ok(())
+        CheckState::new().then_result(self.checker().check(
+            &mut Context::new(),
+            &mut (fn_def_id, fn_mode),
+            annotation_ty,
+            original_term_id,
+        ))
     }
 
     /// Infer the type of a variable, and return it.

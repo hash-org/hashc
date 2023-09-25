@@ -19,9 +19,11 @@ pub enum CheckSignal {
 
 impl From<UnifySignal> for CheckSignal {
     fn from(signal: UnifySignal) -> Self {
-        match signal {
-            UnifySignal::Stuck => Self::Stuck,
-            UnifySignal::Error(e) => Self::Error(e),
+        if let UnifySignal::Stuck = signal {
+            CheckSignal::Stuck
+        } else {
+            let error = TcError::from(signal);
+            Self::Error(Box::new(error))
         }
     }
 }
