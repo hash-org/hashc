@@ -39,7 +39,7 @@ use hash_tir::{
         Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId,
         PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm, RefTy, ReturnTerm, Spread,
         SymbolId, Term, TermId, TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm,
-        UnsafeTerm,
+        UnsafeTerm, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -899,24 +899,19 @@ impl<T: TcEnv> InferenceOps<'_, T> {
     }
 
     /// Infer the type of a variable, and return it.
-    pub fn infer_var(&self, term: SymbolId, annotation_ty: TyId) -> TcResult<()> {
-        match self.context().try_get_decl(term) {
-            Some(decl) => {
-                if let Some(ty) = decl.ty {
-                    let ty = Visitor::new().copy(ty);
-                    self.check_ty(ty)?;
-                    self.uni_ops().unify_terms(ty, annotation_ty)?;
-                    Ok(())
-                } else if decl.value.is_some() {
-                    panic!("no type found for decl '{}'", decl)
-                } else {
-                    panic!("Found declaration without type or value during inference: {}", decl)
-                }
-            }
-            None => {
-                panic!("no binding found for symbol '{}'", term)
-            }
-        }
+    pub fn infer_var(
+        &self,
+        symbol: SymbolId,
+        annotation_ty: TyId,
+        original_term_id: TermId,
+    ) -> TcResult<()> {
+        let mut var_term = VarTerm { symbol };
+        CheckState::new().then_result(self.checker().check(
+            &mut Context::new(),
+            &mut var_term,
+            annotation_ty,
+            original_term_id,
+        ))
     }
 
     /// Infer the type of a `return` term, and return it.
@@ -1335,7 +1330,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             Term::Fn(fn_def_id) => {
                 self.infer_fn_def(fn_def_id, annotation_ty, term_id, FnInferMode::Body)?
             }
-            Term::Var(var_term) => self.infer_var(var_term.symbol, annotation_ty)?,
+            Term::Var(var_term) => self.infer_var(var_term.symbol, annotation_ty, term_id)?,
             Term::Return(return_term) => {
                 self.infer_return_term(&return_term, annotation_ty, term_id)?
             }
