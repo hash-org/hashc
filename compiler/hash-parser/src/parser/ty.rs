@@ -338,7 +338,7 @@ impl<'s> AstGen<'s> {
         // If there is an arrow '=>', then this must be a function type
         match self.peek_resultant_fn(|g| g.parse_token(TokenKind::ThinArrow)) {
             Some(_) => {
-                let params = self.make_params(params, ParamOrigin::Tuple);
+                let params = self.make_params(params, ParamOrigin::Fn);
                 // Parse the return type here, and then give the function name
                 Ok(Ty::Fn(FnTy { params, return_ty: self.parse_ty()? }))
             }
@@ -350,7 +350,7 @@ impl<'s> AstGen<'s> {
                     return Ok(field.ty.unwrap().into_body());
                 }
 
-                let params = self.make_params(params, ParamOrigin::Fn);
+                let params = self.make_params(params, ParamOrigin::Tuple);
                 Ok(Ty::Tuple(TupleTy { entries: params }))
             }
         }
