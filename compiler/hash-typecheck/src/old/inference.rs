@@ -1406,12 +1406,12 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                 self.infer_params(tuple_ty.data, || Ok(()))?;
                 expects_ty(annotation_ty)?;
             }
-            Ty::FnTy(fn_ty) => {
-                self.infer_params(fn_ty.params, || {
-                    self.infer_term(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
-                })?;
-                expects_ty(annotation_ty)?;
-            }
+            Ty::FnTy(mut fn_ty) => CheckState::new().then_result(self.checker().check(
+                &mut Context::new(),
+                &mut fn_ty,
+                annotation_ty,
+                term_id,
+            ))?,
             Ty::RefTy(ref_ty) => {
                 // Infer the inner type
                 self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;

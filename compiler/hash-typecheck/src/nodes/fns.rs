@@ -1,13 +1,16 @@
 use hash_tir::{
     context::Context,
-    tir::{FnDefId, FnTy, TyId},
+    tir::{FnDefId, FnTy, NodeOrigin, Ty, TyId},
 };
 
 use crate::{
     checker::Checker,
     env::TcEnv,
     operations::{
-        checking::CheckResult, normalisation::NormaliseResult, unification::UnifyResult, Operations,
+        checking::{CheckResult, CheckState},
+        normalisation::NormaliseResult,
+        unification::UnifyResult,
+        Operations,
     },
 };
 
@@ -17,12 +20,17 @@ impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
-        _item: &mut FnTy,
-        _item_ty: Self::TyNode,
-        _item_node: Self::Node,
+        _: &mut Context,
+        fn_ty: &mut FnTy,
+        item_ty: Self::TyNode,
+        _: Self::Node,
     ) -> CheckResult {
-        todo!()
+        let state = CheckState::new();
+        state.then(self.check_is_universe(item_ty))?;
+        self.infer_ops().infer_params(fn_ty.params, || {
+            self.infer_ops().infer_term(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
+        })?;
+        state.done()
     }
 
     fn normalise(

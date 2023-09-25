@@ -1,10 +1,14 @@
 use std::cell::Cell;
 
-use hash_tir::tir::ParamError;
+use hash_tir::tir::{NodeOrigin, ParamError, Ty, TyId};
 use hash_utils::derive_more::From;
 
 use super::unification::UnifySignal;
-use crate::errors::{TcError, TcResult};
+use crate::{
+    checker::Checker,
+    env::TcEnv,
+    errors::{TcError, TcResult},
+};
 
 /// A signal which can be emitted during checking.
 #[derive(Debug, Clone, From)]
@@ -161,5 +165,12 @@ impl CheckState {
         } else {
             already_checked(())
         }
+    }
+}
+
+impl<E: TcEnv> Checker<'_, E> {
+    pub fn check_is_universe(&self, ty: TyId) -> CheckResult {
+        self.uni_ops().unify_terms(ty, Ty::universe(NodeOrigin::Expected))?;
+        CheckState::new().done()
     }
 }
