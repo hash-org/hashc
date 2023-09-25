@@ -166,7 +166,13 @@ impl Visit<TermId> for Visitor {
             ControlFlow::Continue(()) => match *term_id.value() {
                 Term::Tuple(tuple_term) => self.try_visit(tuple_term.data, f),
                 Term::Lit(_) => Ok(()),
-                Term::Array(list_ctor) => self.try_visit(list_ctor.elements, f),
+                Term::Array(array_term) => match array_term {
+                    ArrayTerm::Repeated(subject, count) => {
+                        self.try_visit(subject, f)?;
+                        self.try_visit(count, f)
+                    }
+                    ArrayTerm::Normal(elements) => self.try_visit(elements, f),
+                },
                 Term::Ctor(ctor_term) => {
                     self.try_visit(ctor_term.data_args, f)?;
                     self.try_visit(ctor_term.ctor_args, f)
@@ -239,10 +245,17 @@ impl Map<TermId> for Visitor {
                     Ok(Term::from(Term::Tuple(TupleTerm { data }), origin))
                 }
                 Term::Lit(lit) => Ok(Term::from(Term::Lit(lit), origin)),
-                Term::Array(list_ctor) => {
-                    let elements = self.try_map(list_ctor.elements, f)?;
-                    Ok(Term::from(Term::Array(ArrayTerm { elements }), origin))
-                }
+                Term::Array(array_term) => match array_term {
+                    ArrayTerm::Normal(elements) => {
+                        let elements = self.try_map(elements, f)?;
+                        Ok(Term::from(Term::Array(ArrayTerm::Normal(elements)), origin))
+                    }
+                    ArrayTerm::Repeated(subject, repeat) => {
+                        let subject = self.try_map(subject, f)?;
+                        let repeat = self.try_map(repeat, f)?;
+                        Ok(Term::from(Term::Array(ArrayTerm::Repeated(subject, repeat)), origin))
+                    }
+                },
                 Term::Ctor(ctor_term) => {
                     let data_args = self.try_map(ctor_term.data_args, f)?;
                     let ctor_args = self.try_map(ctor_term.ctor_args, f)?;

@@ -85,10 +85,10 @@ impl IntLit {
 
     /// Bakes the integer literal into a known representation.
     ///
-    /// This function does not do anyttihng if the literal has already been
+    /// This function does not do anything if the literal has already been
     /// baked.
     ///
-    /// @@Future: we shouldn't change the literal inplace, we should return a
+    /// @@Future: we shouldn't change the literal in-place, we should return a
     /// new literal value, or we should return a new term which is the bigint
     /// term.
     pub fn bake<E: HasTarget>(&mut self, env: &E, int_ty: IntTy) -> LitParseResult<()> {

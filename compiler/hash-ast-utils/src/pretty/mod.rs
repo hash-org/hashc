@@ -280,6 +280,21 @@ where
         self.write("]")
     }
 
+    type RepeatExprRet = ();
+
+    fn visit_repeat_expr(
+        &mut self,
+        node: ast::AstNodeRef<ast::RepeatExpr>,
+    ) -> Result<Self::RepeatExprRet, Self::Error> {
+        let ast::RepeatExpr { subject, repeat } = node.body();
+
+        self.write("[")?;
+        self.visit_expr(subject.ast_ref())?;
+        self.write("; ")?;
+        self.visit_expr(repeat.ast_ref())?;
+        self.write("]")
+    }
+
     type TupleLitEntryRet = ();
 
     fn visit_tuple_lit_entry(

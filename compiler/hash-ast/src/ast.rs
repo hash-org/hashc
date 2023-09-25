@@ -442,6 +442,11 @@ impl<T> AstNodes<T> {
         SpanMap::span_of(self.id)
     }
 
+    /// Insert an item into the [AstNodes] at a particular index.
+    pub fn insert(&mut self, item: AstNode<T>, index: usize) {
+        self.nodes.insert(index, item);
+    }
+
     /// Merge two [AstNodes] together, this will append the nodes of the
     /// other [AstNodes] to this one, and then return the new [AstNodes].
     ///
@@ -2235,6 +2240,17 @@ define_tree! {
         pub index_expr: Child!(Expr),
     }
 
+    /// A repeat expression `[x; 5]`.
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct RepeatExpr {
+        /// The subject that is being repeated.
+        pub subject: Child!(Expr),
+
+        /// The constant specifying the number of repeats of the subject.
+        pub repeat: Child!(Expr),
+    }
+
     /// An expression.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
@@ -2314,6 +2330,10 @@ define_tree! {
 
         /// Expression to index a subject e.g. `arr[x]`
         Index(IndexExpr),
+
+        /// An expression that specifies that an operand is to be
+        /// repeated a certain number of times, e.g. `[1; 5]`.
+        Repeat(RepeatExpr),
 
         /// An expression that captures a variable or a pattern being assigned
         /// to a right hand-side expression such as `x = 3`.

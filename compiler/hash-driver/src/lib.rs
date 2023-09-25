@@ -7,6 +7,7 @@
 //! methods for "selecting" the information that is needed by the stage.
 //! This creates a clear separation between the stages and the global state,
 //! keeping the crate dependency graph clean.
+#![feature(let_chains, thread_id_value)]
 pub mod driver;
 
 use std::collections::HashSet;

@@ -35,11 +35,19 @@ use hash_utils::{index_vec::index_vec, itertools::Itertools};
 
 use crate::ctx::BuilderCtx;
 
+/// A flag specifying whether a type lowering from TIR types to IR types
+/// should be cached or not.
+#[derive(PartialEq, Eq)]
+enum ShouldCache {
+    Yes,
+    No,
+}
+
 impl<'ir> BuilderCtx<'ir> {
     /// Perform a type lowering operation whilst also caching the result of the
     /// lowering operation. This is used to avoid duplicated work when lowering
     /// types.
-    fn with_cache<T>(&self, item: T, f: impl FnOnce() -> (IrTyId, bool)) -> IrTyId
+    fn with_cache<T>(&self, item: T, f: impl FnOnce() -> (IrTyId, ShouldCache)) -> IrTyId
     where
         T: Copy + Into<TyCacheEntry>,
     {
@@ -50,12 +58,12 @@ impl<'ir> BuilderCtx<'ir> {
         }
 
         // Create the new type
-        let (ty, add_to_cache) = f();
+        let (ty, should_cache) = f();
 
         // If the function returned true, then this means that it has dealt with
         // adding the item into the cache, and we can skip it here. This is to allow
         // for recursive type definitions to be lowered.
-        if add_to_cache {
+        if should_cache == ShouldCache::Yes {
             self.lcx.ty_cache().borrow_mut().insert(item.into(), ty);
         }
 
@@ -81,7 +89,7 @@ impl<'ir> BuilderCtx<'ir> {
                 _ => self.uncached_ty_from_tir_ty(id, &ty),
             };
 
-            (result, false)
+            (result, ShouldCache::No)
         })
     }
 
@@ -188,7 +196,7 @@ impl<'ir> BuilderCtx<'ir> {
             let item = Intrinsic::from_str_name(name.into()).expect("unknown intrinsic function");
             self.lcx.intrinsics_mut().set(item, instance, ty);
 
-            (ty, true)
+            (ty, ShouldCache::Yes)
         })
     }
 
@@ -211,7 +219,7 @@ impl<'ir> BuilderCtx<'ir> {
                 self.lcx.lang_items_mut().set(item, instance, ty);
             }
 
-            (ty, true)
+            (ty, ShouldCache::Yes)
         })
     }
 
@@ -276,7 +284,12 @@ impl<'ir> BuilderCtx<'ir> {
     ///
     /// This function that will create a [IrTy] and save it into the
     /// `reserved_ty` slot.
-    fn adt_ty_from_data(&self, ty: DataTy, def: &DataDef, ctor_defs: CtorDefsId) -> (IrTyId, bool) {
+    fn adt_ty_from_data(
+        &self,
+        ty: DataTy,
+        def: &DataDef,
+        ctor_defs: CtorDefsId,
+    ) -> (IrTyId, ShouldCache) {
         // If data_def has more than one constructor, then it is assumed that this
         // is a enum.
         let mut flags = AdtFlags::empty();
@@ -284,7 +297,7 @@ impl<'ir> BuilderCtx<'ir> {
         match ctor_defs.len() {
             // This must be the never type.
             0 => {
-                return (COMMON_IR_TYS.never, false);
+                return (COMMON_IR_TYS.never, ShouldCache::No);
             }
             1 => flags |= AdtFlags::STRUCT,
             _ => flags |= AdtFlags::ENUM,
@@ -347,11 +360,11 @@ impl<'ir> BuilderCtx<'ir> {
 
         // We created our own cache entry, so we don't need to update the
         // cache.
-        (reserved_ty, true)
+        (reserved_ty, ShouldCache::Yes)
     }
 
     /// Function that converts a [DataTy] into the corresponding [IrTyId].
-    fn uncached_ty_from_tir_data(&self, ty: DataTy) -> (IrTyId, bool) {
+    fn uncached_ty_from_tir_data(&self, ty: DataTy) -> (IrTyId, ShouldCache) {
         let data_def = ty.data_def.value();
 
         match data_def.ctors {
@@ -359,7 +372,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
                 if bool_def() == ty.data_def {
-                    return (COMMON_IR_TYS.bool, true);
+                    return (COMMON_IR_TYS.bool, ShouldCache::Yes);
                 }
 
                 self.context().enter_scope(ty.data_def.into(), || {
@@ -371,8 +384,8 @@ impl<'ir> BuilderCtx<'ir> {
             // Primitive are numerics, strings, arrays, etc.
             DataDefCtors::Primitive(primitive) => {
                 let ty = match primitive {
-                    PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, is_signed, is_float }) => {
-                        if is_float {
+                    PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, flags }) => {
+                        if flags.is_float() {
                             match bits {
                                 NumericCtorBits::Bounded(32) => COMMON_IR_TYS.f32,
                                 NumericCtorBits::Bounded(64) => COMMON_IR_TYS.f64,
@@ -385,8 +398,10 @@ impl<'ir> BuilderCtx<'ir> {
                                 NumericCtorBits::Bounded(bits) => {
                                     let size = Size::from_bits(bits);
 
-                                    if is_signed {
+                                    if flags.is_signed() {
                                         match size.bytes() {
+                                            // If this is a platform type, return `isize`
+                                            _ if flags.is_platform() => COMMON_IR_TYS.isize,
                                             1 => COMMON_IR_TYS.i8,
                                             2 => COMMON_IR_TYS.i16,
                                             4 => COMMON_IR_TYS.i32,
@@ -397,6 +412,8 @@ impl<'ir> BuilderCtx<'ir> {
                                         }
                                     } else {
                                         match size.bytes() {
+                                            // If this is a platform type, return `usize`
+                                            _ if flags.is_platform() => COMMON_IR_TYS.usize,
                                             1 => COMMON_IR_TYS.u8,
                                             2 => COMMON_IR_TYS.u16,
                                             4 => COMMON_IR_TYS.u32,
@@ -408,7 +425,7 @@ impl<'ir> BuilderCtx<'ir> {
                                     }
                                 }
                                 NumericCtorBits::Unbounded => {
-                                    if is_signed {
+                                    if flags.is_signed() {
                                         COMMON_IR_TYS.ibig
                                     } else {
                                         COMMON_IR_TYS.ubig
@@ -451,7 +468,7 @@ impl<'ir> BuilderCtx<'ir> {
 
                 // Since we don't do anything with the cache, we can specify that
                 // the result of the operation should be cached.
-                (ty, true)
+                (ty, ShouldCache::Yes)
             }
         }
     }

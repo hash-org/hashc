@@ -304,6 +304,9 @@ impl fmt::Display for IrWriter<'_, &RValue> {
                     }
                 }
             }
+            RValue::Repeat(op, repeat) => {
+                write!(f, "[{}; {}]", op.with(self), repeat)
+            }
         }
     }
 }

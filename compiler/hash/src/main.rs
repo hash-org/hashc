@@ -1,14 +1,8 @@
 //! Hash Compiler entry point.
-use std::{
-    panic,
-    process::{Command, Stdio},
-};
+use std::panic;
 
 use hash_driver::CompilerBuilder;
-use hash_pipeline::{
-    interface::CompilerInterface,
-    settings::{CompilerSettings, CompilerStageKind},
-};
+use hash_pipeline::settings::CompilerSettings;
 use hash_utils::{clap::Parser, crash::crash_handler, log, logging::CompilerLogger};
 
 /// The logger that is used by the compiler for `log!` statements.
@@ -39,32 +33,5 @@ fn main() {
 
     // Now run on the filename that was specified by the user.
     compiler.run_on_entry_point();
-
-    // If the stage is set to `exe`, this means that we want to run the
-    // produced executable from the building process. This is essentially
-    // a shorthand for `hash build <file> && ./<exe_path>`.
-    let workspace = compiler.workspace();
-    let settings = compiler.settings();
-
-    if settings.stage == CompilerStageKind::Exe
-        && workspace.yields_executable(settings)
-        && !compiler.has_errors()
-    {
-        let path = workspace.executable_path(settings);
-
-        // We need to convert the path to a string so that we can pass it
-        // to the `Command` struct.
-        let path = path.to_str().unwrap();
-
-        // @@Todo: ideally, we should be able to parse the arguments that are specified
-        // after `--` into the spawned process.
-        Command::new(path)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .unwrap()
-            .wait()
-            .unwrap();
-    }
+    compiler.maybe_run_executable();
 }

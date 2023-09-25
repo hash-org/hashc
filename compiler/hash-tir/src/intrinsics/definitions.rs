@@ -24,7 +24,7 @@ use crate::{
     make_intrinsics, make_primitives,
     tir::{
         numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, FnTy, Lit, ModMember, NodeId,
-        NodeOrigin, PrimitiveCtorInfo, RefKind, Term, TermId, TyId,
+        NodeOrigin, NumericCtorFlags, PrimitiveCtorInfo, RefKind, Term, TermId, TyId,
     },
 };
 
@@ -501,22 +501,22 @@ make_primitives! {
         })
     );
 
-    i8 := primitive (numeric_ctors(8, true, false));
-    i16 := primitive (numeric_ctors(16, true, false));
-    i32 := primitive (numeric_ctors(32, true, false));
-    i64 := primitive (numeric_ctors(64, true, false));
-    i128 := primitive (numeric_ctors(128, true, false));
-    isize := primitive (numeric_ctors(64, true, false));
-    ibig := primitive (numeric_ctors(0, true, false));
+    i8 := primitive (numeric_ctors(8, NumericCtorFlags::IS_SIGNED));
+    i16 := primitive (numeric_ctors(16, NumericCtorFlags::IS_SIGNED));
+    i32 := primitive (numeric_ctors(32, NumericCtorFlags::IS_SIGNED));
+    i64 := primitive (numeric_ctors(64, NumericCtorFlags::IS_SIGNED));
+    i128 := primitive (numeric_ctors(128, NumericCtorFlags::IS_SIGNED));
+    isize := primitive (numeric_ctors(64, NumericCtorFlags::IS_SIGNED & NumericCtorFlags::IS_PLATFORM));
+    ibig := primitive (numeric_ctors(0, NumericCtorFlags::IS_SIGNED));
 
-    u8 := primitive (numeric_ctors(8, false, false));
-    u16 := primitive (numeric_ctors(16, false, false));
-    u32 := primitive (numeric_ctors(32, false, false));
-    u64 := primitive (numeric_ctors(64, false, false));
-    u128 := primitive (numeric_ctors(128, false, false));
-    ubig := primitive (numeric_ctors(0, false, false));
-    usize := primitive (numeric_ctors(64, false, false));
+    u8 := primitive (numeric_ctors(8, NumericCtorFlags::empty()));
+    u16 := primitive (numeric_ctors(16, NumericCtorFlags::empty()));
+    u32 := primitive (numeric_ctors(32, NumericCtorFlags::empty()));
+    u64 := primitive (numeric_ctors(64, NumericCtorFlags::empty()));
+    u128 := primitive (numeric_ctors(128, NumericCtorFlags::empty()));
+    ubig := primitive (numeric_ctors(0, NumericCtorFlags::empty()));
+    usize := primitive (numeric_ctors(64, NumericCtorFlags::IS_PLATFORM));
 
-    f32 := primitive (numeric_ctors(32, false, true));
-    f64 := primitive (numeric_ctors(64, false, true));
+    f32 := primitive (numeric_ctors(32, NumericCtorFlags::IS_FLOAT));
+    f64 := primitive (numeric_ctors(64, NumericCtorFlags::IS_FLOAT));
 }

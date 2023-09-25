@@ -539,6 +539,22 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
             .map(|idx| elements.elements().at(idx).unwrap().into())
     }
 
+    /// Get the term at the given index in the given repeated array. If the
+    /// index term is larger than the `repeat` count, we fail, otherwise
+    /// return the `subject`.
+    ///
+    /// Assumes that the index is normalised.
+    fn get_index_in_repeat(&self, subject: TermId, repeat: TermId, index: TermId) -> Option<Atom> {
+        let subject = try_use_term_as_integer_lit::<_, usize>(self.env, subject)?;
+        let index = try_use_term_as_integer_lit::<_, usize>(self.env, index)?;
+
+        if index >= subject {
+            None
+        } else {
+            Some(repeat.into())
+        }
+    }
+
     /// Evaluate an access term.
     fn eval_access(&self, mut access_term: AccessTerm) -> AtomEvaluation {
         let st = eval_state();
@@ -561,10 +577,19 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         let st = eval_state();
         index_term.subject = self.to_term(self.eval_and_record(index_term.subject.into(), &st)?);
 
-        if let Term::Array(arr) = *index_term.subject.value() &&
-           let Some(result) = self.get_index_in_array(arr.elements, index_term.index)
-        {
-            let result = self.eval_and_record(result, &st)?;
+        if let Term::Array(array_term) = *index_term.subject.value() {
+            let result = match array_term {
+                ArrayTerm::Normal(elements) => self.get_index_in_array(elements, index_term.index),
+                ArrayTerm::Repeated(subject, count) => {
+                    // Evaluate the count, and the index terms to integers:
+                    self.get_index_in_repeat(subject, count, index_term.index)
+                }
+            };
+
+            // Check if we actually got the index when evaluating:
+            let Some(index) = result else { return stuck_evaluating() };
+
+            let result = self.eval_and_record(index, &st)?;
             evaluation_if(|| result, &st)
         } else {
             stuck_evaluating()
@@ -851,18 +876,18 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
     /// From the given arguments matching with the given parameters, extract the
     /// arguments that are part of the given spread.
-    fn extract_spread_list(&self, term_list: TermListId, pat_list: PatListId) -> TermListId {
+    fn extract_spread_list(&self, array_term: ArrayTerm, array_pat: PatListId) -> TermListId {
         // Create a new list term with the spread elements
-        let spread_term_list = pat_list
+        let spread_term_list = array_pat
             .borrow()
             .iter()
             .enumerate()
             .filter_map(|(i, p)| match p {
                 PatOrCapture::Pat(_) => None,
-                PatOrCapture::Capture(_) => Some(term_list.elements().at(i).unwrap()),
+                PatOrCapture::Capture(_) => Some(array_term.element_at(i).unwrap()),
             })
             .collect_vec();
-        Node::create_at(TermId::seq(spread_term_list), term_list.origin().computed())
+        Node::create_at(TermId::seq(spread_term_list), array_term.length_origin().computed())
     }
 
     /// From the given arguments matching with the given parameters, extract the
@@ -892,7 +917,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     ///
     /// If the pattern arguments match, the given closure is called with the
     /// bindings.
-    fn match_some_list_and_get_binds(
+    fn match_some_array_and_get_binds(
         &self,
         length: usize,
         spread: Option<Spread>,
@@ -941,6 +966,26 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         Ok(MatchResult::Successful)
     }
 
+    fn eval_array_term_len(&self, array: ArrayTerm) -> Evaluation<usize> {
+        let st = eval_state();
+
+        match array {
+            ArrayTerm::Normal(elements) => evaluation_if(|| elements.len(), &st),
+            ArrayTerm::Repeated(_, repeat) => {
+                let evaluated = self.eval_fully(repeat.into())?;
+                let Atom::Term(term) = evaluated else {
+                    return stuck_evaluating();
+                };
+
+                let Some(length) = try_use_term_as_integer_lit::<_, usize>(self.env, term) else {
+                    return stuck_evaluating();
+                };
+
+                evaluation_if(|| length, &st)
+            }
+        }
+    }
+
     /// Match the given arguments with the given pattern arguments.
     ///
     /// Also takes into account the spread.
@@ -954,7 +999,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         spread: Option<Spread>,
         f: &mut impl FnMut(SymbolId, TermId),
     ) -> Result<MatchResult, Signal> {
-        self.match_some_list_and_get_binds(
+        self.match_some_array_and_get_binds(
             term_args.len(),
             spread,
             |sp| {
@@ -1168,23 +1213,33 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                     _ => Ok(MatchResult::Stuck),
                 }
             }
-            // Lists
-            (Term::Array(array_term), Pat::Array(list_pat)) => self.match_some_list_and_get_binds(
-                array_term.elements.len(),
-                list_pat.spread,
-                |sp| {
-                    // Lists can have spreads, which return sublists
-                    Term::from(
-                        Term::Array(ArrayTerm {
-                            elements: self.extract_spread_list(array_term.elements, list_pat.pats),
-                        }),
-                        sp.name.origin().computed(),
-                    )
-                },
-                |i| list_pat.pats.elements().at(i).unwrap(),
-                |i| array_term.elements.elements().at(i).unwrap(),
-                f,
-            ),
+            // Arrays
+            (Term::Array(array_term), Pat::Array(array_pat)) => {
+                // Evaluate the length of the array term.
+                let Some(length) = self.eval_array_term_len(array_term)? else {
+                    return Ok(MatchResult::Stuck);
+                };
+
+                self.match_some_array_and_get_binds(
+                    length,
+                    array_pat.spread,
+                    |sp| {
+                        // Lists can have spreads, which return sublists
+                        Term::from(
+                            Term::Array(ArrayTerm::Normal(
+                                self.extract_spread_list(array_term, array_pat.pats),
+                            )),
+                            sp.name.origin().computed(),
+                        )
+                    },
+                    |i| array_pat.pats.elements().at(i).unwrap(),
+                    |i| match array_term {
+                        ArrayTerm::Normal(elements) => elements.elements().at(i).unwrap(),
+                        ArrayTerm::Repeated(subject, _) => subject,
+                    },
+                    f,
+                )
+            }
             (_, Pat::Lit(_)) => Ok(MatchResult::Stuck),
             (_, Pat::Array(_)) => Ok(MatchResult::Stuck),
         }
