@@ -18,6 +18,15 @@ impl From<TcError> for UnifySignal {
     }
 }
 
+impl From<UnifySignal> for TcError {
+    fn from(signal: UnifySignal) -> Self {
+        match signal {
+            UnifySignal::Stuck => TcError::Signal,
+            UnifySignal::Error(e) => *e,
+        }
+    }
+}
+
 impl From<CheckSignal> for UnifySignal {
     fn from(signal: CheckSignal) -> Self {
         match signal {
