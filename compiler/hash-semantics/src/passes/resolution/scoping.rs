@@ -313,7 +313,11 @@ impl<'env, E: SemanticEnv + 'env> Scoping<'env, E> {
                     f(member_id.name);
                 }
             }
-            ast::Pat::Module(_) | ast::Pat::Access(_) | ast::Pat::Lit(_) | ast::Pat::Range(_) => {}
+            ast::Pat::Module(_)
+            | ast::Pat::Access(_)
+            | ast::Pat::Lit(_)
+            | ast::Pat::Range(_)
+            | ast::Pat::TokenMacro(_) => {}
         }
     }
 

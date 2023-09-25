@@ -12,7 +12,6 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Output, Stdio},
-    time::Duration,
 };
 
 use command::{EscapeArg, LinkCommand};
@@ -29,7 +28,7 @@ use hash_target::{
     link::{Cc, LinkerFlavour, Lld},
     HasTarget,
 };
-use hash_utils::timing::{time_item, AccessToMetrics};
+use hash_utils::timing::HasMutMetrics;
 use linker::{build_linker_args, get_linker};
 use platform::flush_linked_file;
 
@@ -59,9 +58,9 @@ pub struct CompilerLinker {
     metrics: StageMetrics,
 }
 
-impl AccessToMetrics for CompilerLinker {
-    fn add_metric(&mut self, name: &'static str, time: Duration) {
-        self.metrics.timings.push((name, time));
+impl HasMutMetrics for CompilerLinker {
+    fn metrics(&mut self) -> &mut StageMetrics {
+        &mut self.metrics
     }
 }
 
@@ -98,7 +97,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
         // Get the linker that is going to be used to link
 
         let (linker_path, flavour) = get_path_linker_and_flavour(settings);
-        let linker = &mut *time_item(self, "find", |_| get_linker(&linker_path, flavour, settings));
+        let linker = &mut *self.time_item("find", |_| get_linker(&linker_path, flavour, settings));
 
         let linker_command =
             build_linker_args(linker, flavour, settings, workspace, output_path.as_path())
@@ -110,7 +109,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
         }
 
         // Run the linker
-        let program = time_item(self, "execute", |_| {
+        let program = self.time_item("execute", |_| {
             execute_linker(settings, &linker_command, output_path.as_path(), temp_path.as_path())
         });
 

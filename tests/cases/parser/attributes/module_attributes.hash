@@ -1,0 +1,7 @@
+// stage=parse, run=pass
+#![dump_ast]
+#![feature(cool_feature, quantum_closures)]
+
+main := () => {
+    println("Hello, world!"); // Will it execute or not?
+}

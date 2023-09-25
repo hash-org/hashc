@@ -7,7 +7,7 @@ mod import_resolver;
 pub mod parser;
 mod source;
 
-use std::{env, ops::AddAssign, time::Duration};
+use std::env;
 
 use hash_ast::{
     ast::{self, LocalSpanMap, SpanMap},
@@ -16,24 +16,19 @@ use hash_ast::{
 use hash_lexer::{Lexer, LexerMetadata};
 use hash_pipeline::{
     fs::read_in_path,
-    interface::{CompilerInterface, CompilerStage, StageMetrics},
+    interface::{CompilerInterface, CompilerStage},
     settings::CompilerStageKind,
     workspace::Workspace,
 };
-use hash_reporting::{
-    diagnostic::{DiagnosticsMut, HasDiagnosticsMut},
-    report::Report,
-    reporter::Reports,
-};
+use hash_reporting::{diagnostic::DiagnosticsMut, report::Report, reporter::Reports};
 use hash_source::{
     constant::string_table, location::SpannedSource, InteractiveId, ModuleId, SourceId,
     SourceMapUtils,
 };
 use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
-    indexmap::IndexMap,
     rayon,
-    timing::{time_item, AccessToMetrics},
+    timing::{HasMutMetrics, StageMetrics},
 };
 use import_resolver::ImportResolver;
 use parser::AstGen;
@@ -48,21 +43,21 @@ use crate::diagnostics::ParserDiagnostics;
 #[derive(Debug, Default)]
 pub struct Parser {
     /// The metrics for the parser stage.
-    metrics: IndexMap<&'static str, Duration>,
+    metrics: StageMetrics,
 }
 
 impl Parser {
     /// Merge an incoming set of metrics into the current metrics.
-    pub fn merge_metrics(&mut self, metrics: ParseTimings) {
+    pub fn merge_metrics(&mut self, metrics: StageMetrics) {
         // @@Improvement: we could record more "precise" metrics about how long
         // it took to lex/parse each module instead of grouping everything together.
         //
         // However, this might make the metrics output more difficult to read, so
         // perhaps there should be a "light" metrics mode, and a more verbose
         // one.
-        self.metrics.entry("read").or_default().add_assign(metrics.read);
-        self.metrics.entry("tokenise").or_default().add_assign(metrics.tokenise);
-        self.metrics.entry("gen").or_default().add_assign(metrics.gen);
+        for metric in metrics.iter() {
+            *self.metrics.timings.entry(metric.0).or_default() += metric.1;
+        }
     }
 }
 
@@ -81,17 +76,6 @@ pub trait ParserCtxQuery: CompilerInterface {
 }
 
 impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
-    /// Return the [CompilerStageKind] of the parser.
-    fn kind(&self) -> CompilerStageKind {
-        CompilerStageKind::Parse
-    }
-
-    fn metrics(&self) -> StageMetrics {
-        StageMetrics {
-            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
-        }
-    }
-
     /// Entry point of the parser. Initialises a job from the specified
     /// `entry_point`.
     fn run(
@@ -168,33 +152,14 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
             ctx.workspace().print_sources(entry_point, mode, set, &mut stdout).unwrap();
         }
     }
-}
 
-/// A collection of timings for the parser stage. The stage records
-/// the amount of time it takes to lex and parse a module, or an
-/// interactive block. This infomation is later recorded, and can
-/// then be grouped together and displayed with other stages.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ParseTimings {
-    /// The amount of time the lexer took to tokenise the source.
-    tokenise: Duration,
+    fn metrics(&self) -> StageMetrics {
+        self.metrics.clone()
+    }
 
-    /// The amound of time the parser took to generate AST for the
-    /// source.
-    gen: Duration,
-
-    /// The amount of time it took to read in the source from disk.
-    read: Duration,
-}
-
-impl AccessToMetrics for ParseTimings {
-    fn add_metric(&mut self, name: &'static str, time: Duration) {
-        match name {
-            "tokenise" => self.tokenise = time,
-            "gen" => self.gen = time,
-            "read" => self.read = time,
-            _ => unreachable!(),
-        }
+    /// Return the [CompilerStageKind] of the parser.
+    fn kind(&self) -> CompilerStageKind {
+        CompilerStageKind::Parse
     }
 }
 
@@ -205,7 +170,7 @@ pub enum ParserAction {
     ParseImport { source: SourceId, sender: Sender<ParserAction> },
 
     /// A unrecoverable error occurred during the parsing or lexing of a module.
-    Error { diagnostics: Vec<Report>, timings: ParseTimings },
+    Error { diagnostics: Vec<Report>, timings: StageMetrics },
 
     /// Update the global `SPAN_MAP` with the specified local span map.
     MergeSpans { spans: LocalSpanMap },
@@ -224,7 +189,7 @@ pub enum ParserAction {
         diagnostics: Vec<Report>,
 
         /// The timings of the parse operation.
-        timings: ParseTimings,
+        timings: StageMetrics,
     },
 
     /// A worker has completed processing an module and now provides the
@@ -241,18 +206,18 @@ pub enum ParserAction {
         diagnostics: Vec<Report>,
 
         /// The timings of the parse operation.
-        timings: ParseTimings,
+        timings: StageMetrics,
     },
 }
 
 /// Parse a specific source specified by [ParseSource].
 fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
-    let mut timings = ParseTimings::default();
+    let mut timings = StageMetrics::default();
     let id = source.id();
 
     // Read in the contents from disk if this is a module, otherwise copy
     // from the already inserted interactive line.
-    let contents = time_item(&mut timings, "read", |_| {
+    let contents = timings.time_item("read", |_| {
         if id.is_interactive() {
             // @@Dumbness: We have to copy out the contents of the interactive line.
             Ok(SourceMapUtils::map(id, |source| source.owned_contents()))
@@ -271,15 +236,21 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     };
 
+    // @@Debugging: when we want to look at spans produced by the parser, uncomment
+    // this line.
+    // SourceMapUtils::set_module_source(id, contents.clone());
+
     let spanned = SpannedSource::from_string(contents.as_str());
 
     // Lex the contents of the module or interactive block
-    let mut lexer = Lexer::new(spanned, id);
-    let tokens = time_item(&mut timings, "tokenise", |_| lexer.tokenise());
+    let LexerMetadata { tokens, mut diagnostics, strings } =
+        timings.time_item("tokenise", |_| Lexer::new(spanned, id).tokenise());
 
     // Check if the lexer has errors...
-    if lexer.has_errors() {
-        sender.send(ParserAction::Error { diagnostics: lexer.into_reports(), timings }).unwrap();
+    if diagnostics.has_errors() {
+        sender
+            .send(ParserAction::Error { diagnostics: diagnostics.into_reports(), timings })
+            .unwrap();
 
         // We need to finally put the sources into the source map.
         if id.is_module() {
@@ -289,8 +260,6 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
         return;
     }
 
-    let LexerMetadata { trees, strings } = lexer.metadata();
-
     // Update the global string table now!
     string_table().add_local_table(strings);
 
@@ -298,14 +267,14 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(id, source.parent(), sender);
     let mut diagnostics = ParserDiagnostics::new();
-    let mut spans = LocalSpanMap::new(id);
-    let mut gen = AstGen::new(spanned, &tokens, &trees, &resolver, &mut diagnostics, &mut spans);
+    let mut spans = LocalSpanMap::with_capacity(id, tokens.len() * 2);
+    let mut gen = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
     let action = match id.is_interactive() {
         false => {
-            let node = time_item(&mut timings, "gen", |_| gen.parse_module());
+            let node = timings.time_item("gen", |_| gen.parse_module());
             SourceMapUtils::set_module_source(id, contents);
 
             ParserAction::SetModuleNode {
@@ -316,7 +285,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
             }
         }
         true => {
-            let node = time_item(&mut timings, "gen", |_| gen.parse_expr_from_interactive());
+            let node = timings.time_item("gen", |_| gen.parse_expr_from_interactive());
 
             ParserAction::SetInteractiveNode {
                 id: id.into(),
@@ -332,6 +301,5 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // Send both the generated module, and the `LocalSpanMap` for updating
     // the global `SPAN_MAP`.
     sender.send(ParserAction::MergeSpans { spans }).unwrap();
-
     sender.send(action).unwrap();
 }

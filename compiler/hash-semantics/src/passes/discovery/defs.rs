@@ -569,7 +569,10 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
                     value: None,
                 },
             )),
-            ast::Pat::Access(_) | ast::Pat::Lit(_) | ast::Pat::Range(_) => {}
+            ast::Pat::Access(_)
+            | ast::Pat::Lit(_)
+            | ast::Pat::Range(_)
+            | ast::Pat::TokenMacro(_) => {}
         }
     }
 

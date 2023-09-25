@@ -13,8 +13,6 @@ mod discover;
 mod lower_ty;
 mod optimise;
 
-use std::time::Duration;
-
 use build::BodyBuilder;
 use ctx::BuilderCtx;
 use discover::FnDiscoverer;
@@ -33,23 +31,19 @@ use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{stores::tir_stores, tir::HasAstNodeId};
-use hash_utils::{
-    indexmap::IndexMap,
-    rayon,
-    timing::{time_item, AccessToMetrics},
-};
+use hash_utils::{rayon, timing::HasMutMetrics};
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.
 #[derive(Default)]
 pub struct IrGen {
     /// The metrics of the IR builder.
-    metrics: IndexMap<&'static str, Duration>,
+    metrics: StageMetrics,
 }
 
-impl AccessToMetrics for IrGen {
-    fn add_metric(&mut self, name: &'static str, time: Duration) {
-        self.metrics.entry(name).and_modify(|e| *e += time).or_insert(time);
+impl HasMutMetrics for IrGen {
+    fn metrics(&mut self) -> &mut StageMetrics {
+        &mut self.metrics
     }
 }
 
@@ -93,13 +87,11 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     }
 
     fn metrics(&self) -> StageMetrics {
-        StageMetrics {
-            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
-        }
+        self.metrics.clone()
     }
 
     fn reset_metrics(&mut self) {
-        self.metrics.clear();
+        self.metrics.timings.clear()
     }
 
     /// Lower that AST of each module that is currently in the workspace
@@ -114,7 +106,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let entry_point = &data.semantic_storage.distinguished_items.entry_point;
 
         // Discover all of the bodies that need to be lowered
-        let items = time_item(self, "discover", |_| {
+        let items = self.time_item("discover", |_| {
             let discoverer = FnDiscoverer::new(&data.workspace.source_stage_info);
             discoverer.discover_fns()
         });
@@ -122,7 +114,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // Pre-allocate the vector of lowered bodies.
         let mut lowered_bodies = Vec::with_capacity(items.fns.len());
 
-        time_item(self, "build", |_| {
+        self.time_item("build", |_| {
             for func in items.into_iter() {
                 let name = func.borrow().name.ident();
 
@@ -179,12 +171,12 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 #[derive(Default)]
 pub struct IrOptimiser {
     /// The metrics of the IR optimiser.
-    metrics: IndexMap<&'static str, Duration>,
+    metrics: StageMetrics,
 }
 
-impl AccessToMetrics for IrOptimiser {
-    fn add_metric(&mut self, name: &'static str, time: Duration) {
-        self.metrics.entry(name).and_modify(|e| *e += time).or_insert(time);
+impl HasMutMetrics for IrOptimiser {
+    fn metrics(&mut self) -> &mut StageMetrics {
+        &mut self.metrics
     }
 }
 
@@ -195,13 +187,11 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn metrics(&self) -> StageMetrics {
-        StageMetrics {
-            timings: self.metrics.iter().map(|(item, time)| (*item, *time)).collect::<Vec<_>>(),
-        }
+        self.metrics.clone()
     }
 
     fn reset_metrics(&mut self) {
-        self.metrics.clear();
+        self.metrics.timings.clear()
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
@@ -210,7 +200,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
         let bodies = &mut icx.bodies;
         let body_data = &icx.ctx;
 
-        time_item(self, "optimise", |_| {
+        self.time_item("optimise", |_| {
             // @@Todo: think about making optimisation passes in parallel...
             // pool.scope(|scope| {
             //     for body in &mut icx.generated_bodies {

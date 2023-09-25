@@ -7,12 +7,15 @@
 //! [Fields] with the typechecker context available for reading and creating
 //! [DeconstructedPat](super::deconstruct::DeconstructedPat)s.
 
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
     intrinsics::utils::try_use_ty_as_array_ty,
     tir::{CtorDefId, DataDefCtors, DataTy, NodesId, TupleTy, Ty, TyId},
 };
-use hash_utils::itertools::Itertools;
+use hash_utils::{
+    itertools::Itertools,
+    thin_vec::{thin_vec, ThinVec},
+};
 
 use super::construct::DeconstructedCtor;
 use crate::{
@@ -26,13 +29,13 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Fields {
     /// Vector of the inner ids stored by the [Fields]
-    pub fields: Vec<DeconstructedPatId>,
+    pub fields: ThinVec<DeconstructedPatId>,
 }
 
 impl Fields {
     /// Create a [Fields] with no inner elements.
     pub fn empty() -> Self {
-        Fields { fields: vec![] }
+        Fields { fields: thin_vec![] }
     }
 
     /// Returns an [Iterator] of the inner stored [DeconstructedPatId]s.
@@ -59,17 +62,17 @@ impl FromIterator<DeconstructedPatId> for Fields {
 
 impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Create [Fields] from an [Iterator] of [Ty]s.
-    pub fn wildcards_from_tys(&self, tys: impl IntoIterator<Item = TyId>) -> Fields {
+    pub fn wildcards_from_tys(&mut self, tys: impl IntoIterator<Item = TyId>) -> Fields {
         Fields::from_iter(tys.into_iter().map(|ty| {
             let pat = self.wildcard_from_ty(ty);
-            self.deconstructed_pat_store().create(pat)
+            self.make_pat(pat)
         }))
     }
 
     /// Creates a new list of wildcard fields for a given constructor. The
     /// result will have a length of `ctor.arity()`.
-    pub(super) fn wildcards_from_ctor(&self, ctx: PatCtx, ctor: DeconstructedCtorId) -> Fields {
-        let ctor = self.get_deconstructed_ctor(ctor);
+    pub(super) fn wildcards_from_ctor(&mut self, ctx: PatCtx, ctor: DeconstructedCtorId) -> Fields {
+        let ctor = self.get_ctor(ctor);
 
         match ctor {
             ctor @ (DeconstructedCtor::Single | DeconstructedCtor::Variant(_)) => {
@@ -82,7 +85,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                     Ty::DataTy(DataTy { data_def, .. }) => {
                         // get the variant index from the deconstructed ctor
                         let variant_idx =
-                            if let DeconstructedCtor::Variant(idx) = ctor { idx } else { 0 };
+                            if let DeconstructedCtor::Variant(idx) = ctor { *idx } else { 0 };
 
                         // We know that this has to be a non-primitive, so we can immediately get
                         // the variant from the data definition

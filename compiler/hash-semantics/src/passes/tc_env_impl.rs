@@ -8,6 +8,7 @@ use hash_tir::{
     stores::tir_stores,
 };
 use hash_typecheck::env::{HasTcDiagnostics, TcEnv};
+use hash_utils::timing::{CellStageMetrics, HasMetrics};
 
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticWarning},
@@ -25,6 +26,12 @@ pub struct TcEnvImpl<'env, E: SemanticEnv> {
 impl<'env, E: SemanticEnv> TcEnvImpl<'env, E> {
     pub fn new(env: &'env E, source: SourceId) -> Self {
         Self { env, source, context: Context::new() }
+    }
+}
+
+impl<E: SemanticEnv> HasMetrics for TcEnvImpl<'_, E> {
+    fn metrics(&self) -> &CellStageMetrics {
+        self.env.metrics()
     }
 }
 

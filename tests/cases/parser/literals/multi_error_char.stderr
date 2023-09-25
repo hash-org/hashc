@@ -1,13 +1,23 @@
-error: invalid character literal `ab`, character literals may only contain one codepoint
- --> $DIR/multi_error_char.hash:5:10
-4 |   main := () => {
-5 |       a := 'ab'
+error: character literals may only contain one codepoint
+ --> $DIR/multi_error_char.hash:6:10
+5 |       // ~ERROR: Chracter literals are not allowed to have more than one character.
+6 |       a := 'ab'
   |            ^^^^ here
-6 |   
+7 |   
+  = help: if you meant to write a string literal, use `"` instead
 
-error: invalid character literal `ddddd`, character literals may only contain one codepoint
- --> $DIR/multi_error_char.hash:7:10
-6 |   
-7 |       c := 'ddddd'
-  |            ^^^^^^^ here
-8 |   }
+error: character literals may only contain one codepoint
+  --> $DIR/multi_error_char.hash:9:10
+ 8 |       // ~ERROR: Chracter literals are not allowed to have more than one character.
+ 9 |       c := 'ddddd'
+   |            ^^^^^^^ here
+10 |   
+   = help: if you meant to write a string literal, use `"` instead
+
+error: character literals may only contain one codepoint
+  --> $DIR/multi_error_char.hash:12:5
+11 |       // ~ERROR: Chracter literals are not allowed to have more than one character.
+12 |       '\x063';
+   |       ^^^^^^^^ here
+13 |   }
+   = help: if you meant to write a string literal, use `"` instead

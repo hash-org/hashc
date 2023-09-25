@@ -3,6 +3,7 @@
 mod collection;
 mod config;
 mod state;
+mod tokens;
 
 use collection::CollectionPrintingOptions;
 use config::AstPrintingConfig;
@@ -10,8 +11,11 @@ use hash_ast::{
     ast::{self, walk_mut_self, AstVisitorMutSelf, ParamOrigin},
     ast_visitor_mut_self_default_impl,
 };
+use hash_source::SourceMapUtils;
 use hash_token::{delimiter::Delimiter, FloatLitKind, IntLitKind};
 use state::AstPrinterState;
+
+pub(super) type FmtResult = std::io::Result<()>;
 
 /// The AST printer, this is just a container to store the [AstPrintingConfig]
 /// and implement the traversal for the AST pretty printing.
@@ -48,18 +52,23 @@ where
     }
 
     /// Write a string to the output stream.
-    fn write(&mut self, contents: impl AsRef<str>) -> std::io::Result<()> {
+    fn write(&mut self, contents: impl AsRef<str>) -> FmtResult {
         self.state.width += contents.as_ref().len() as u32;
         write!(self.fmt, "{}", contents.as_ref())
     }
 
+    fn write_char(&mut self, ch: char) -> FmtResult {
+        self.state.width += 1;
+        write!(self.fmt, "{}", ch)
+    }
+
     /// Write a line with applied indentation.
-    fn terminate_line(&mut self, line: impl ToString) -> std::io::Result<()> {
+    fn terminate_line(&mut self, line: impl ToString) -> FmtResult {
         self.state.width = 0;
         writeln!(self.fmt, "{}", line.to_string())
     }
 
-    fn indent(&mut self) -> std::io::Result<()> {
+    fn indent(&mut self) -> FmtResult {
         let indentation = " ".repeat(self.state.indentation as usize);
         self.write(indentation)
     }
@@ -1330,6 +1339,58 @@ where
         })
     }
 
+    type TokenStreamRet = ();
+
+    fn visit_token_stream(
+        &mut self,
+        node: ast::AstNodeRef<ast::TokenStream>,
+    ) -> Result<Self::TokenStreamRet, Self::Error> {
+        // @@Future: figure out the exact formatting for this. Currently, we will just
+        // pretty-print the tokens as they are separated by spaces, we might
+        // want to take in account token spacing in the future.
+        let ast::TokenStream { tokens, delimiter } = node.body();
+
+        SourceMapUtils::map(node.id().source(), |source| {
+            self.write_token_tree(*delimiter, tokens, source.contents())
+        })
+    }
+
+    type TokenMacroRet = ();
+
+    fn visit_token_macro(
+        &mut self,
+        node: ast::AstNodeRef<ast::TokenMacro>,
+    ) -> Result<Self::TokenMacroRet, Self::Error> {
+        let ast::TokenMacro { name, args, delimited } = node.body();
+
+        if *delimited || args.is_some() {
+            self.write("[")?;
+            self.visit_name(name.ast_ref())?;
+            if let Some(args) = args {
+                self.visit_macro_invocation_args(args.ast_ref())?;
+            }
+
+            self.write("]")
+        } else {
+            self.visit_name(name.ast_ref())
+        }
+    }
+
+    type TokenMacroInvocationRet = ();
+
+    fn visit_token_macro_invocation(
+        &mut self,
+        node: ast::AstNodeRef<ast::TokenMacroInvocation>,
+    ) -> Result<Self::TokenMacroInvocationRet, Self::Error> {
+        let ast::TokenMacroInvocation { mac, stream } = node.body();
+
+        // Start of the macro invocation
+        self.write("@")?;
+        self.visit_token_macro(mac.ast_ref())?;
+        self.write(" ")?;
+        self.visit_token_stream(stream.ast_ref())
+    }
+
     type MacroInvocationRet = ();
 
     fn visit_macro_invocation(
@@ -1361,7 +1422,7 @@ where
             return Ok(());
         }
 
-        // Start of the
+        // Start of the macro invocation
         self.write("#")?;
 
         if invocations.len() == 1 && invocations[0].args.is_none() {

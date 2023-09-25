@@ -1,0 +1,6 @@
+error: unexpectedly encountered a `.`
+ --> $DIR/incomplete_token_macros.hash:4:15
+3 |   // ~ERROR: expected token tree here...
+4 |   { @[invoke()] . }
+  |                 ^ 
+  = help: expected either `(`, `{`, or `[`

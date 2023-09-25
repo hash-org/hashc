@@ -1,0 +1,7 @@
+error: invalid unicode character escape
+ --> $DIR/unicode_escape_too_large.hash:4:12
+3 |   main := () => {
+4 |       k := '\u{11FFFF}';
+  |              ^^^^^^^^^ invalid escape
+5 |   }
+  = info: unicode escape must be at most 10FFFF

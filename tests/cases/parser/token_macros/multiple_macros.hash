@@ -1,0 +1,4 @@
+// stage=parse, run=fail
+
+// ~ERROR: cannot invoke two token macros on a single input tree
+@[invoke(), invoke(2)] { ... }

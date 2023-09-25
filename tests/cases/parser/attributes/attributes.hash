@@ -1,0 +1,23 @@
+// stage=parse, run=pass
+
+#top
+Foo := #direct struct <#attr T>(
+    #field
+    x: #ty T = #value 2,
+)
+
+#top
+Bar := #direct enum <#attr T>(
+    #variant
+    X(#field T): #ty U, // = #value 2,
+)
+
+
+#top
+foo := #direct (#param param: #ty u32 = #value 2) -> #ty f32 => #code {
+    match #inner param {
+        #case
+        (#pat 2) => 3,
+        _ => 4,
+    }
+}

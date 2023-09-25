@@ -1,0 +1,5 @@
+error: unexpectedly encountered a `,`
+ --> $DIR/multiple_macros.hash:4:11
+3 |   // ~ERROR: cannot invoke two token macros on a single input tree
+4 |   @[invoke(), invoke(2)] { ... }
+  |             ^ 

@@ -1,0 +1,6 @@
+error: expected an expression
+ --> $DIR/expected_expr_after_match.hash:4:10
+3 |       // ~ERROR: expected expression after match
+4 |       match
+  |            ^ 
+5 |   }

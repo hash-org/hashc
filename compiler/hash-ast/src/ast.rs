@@ -13,7 +13,7 @@ use hash_source::{
     location::{ByteRange, Span},
     SourceId,
 };
-use hash_token::{Base, FloatLitKind, IntLitKind};
+use hash_token::{delimiter::Delimiter, Base, FloatLitKind, IntLitKind, Token};
 use hash_tree_def::define_tree;
 use hash_utils::{
     counter,
@@ -87,9 +87,14 @@ pub struct LocalSpanMap {
 }
 
 impl LocalSpanMap {
-    /// Create a new [LocalAstMap].
+    /// Create a new [LocalSpanMap].
     pub fn new(source: SourceId) -> Self {
         Self { map: vec![], source }
+    }
+
+    /// Create a new [LocalSpanMap] with a given capacity.
+    pub fn with_capacity(source: SourceId, capacity: usize) -> Self {
+        Self { map: Vec::with_capacity(capacity), source }
     }
 
     /// Add a new node to the map.
@@ -97,6 +102,14 @@ impl LocalSpanMap {
         let id = AstNodeId::new();
         self.map.push((id, range));
         id
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
     }
 }
 
@@ -591,6 +604,47 @@ define_tree! {
         pub subject: Child!(Pat),
     }
 
+
+    /// A token macro invocation, e.g.
+    /// ```
+    /// @brainfuck   { ,+[-.,+] }
+    ///  ^^^^^^^^^   ^^^^^^^^^^^^
+    ///  Invocation  Token stream
+    /// ```
+    #[derive(Clone, Debug, PartialEq)]
+    #[node]
+    pub struct TokenMacroInvocation {
+        /// The macro invocation name, and possibly arguments.
+        pub mac: Child!(TokenMacro),
+
+        /// The token stream that is being applied to the macro.
+        pub stream: Child!(TokenStream),
+    }
+
+    /// The name of the token macro, and any optional arguments that
+    /// are applied to the macro.
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct TokenMacro {
+        /// The name of the macro. @@Todo: make this into an access-name.
+        pub name: Child!(Name),
+
+        /// Any arguments to the macro itself.
+        pub args: OptionalChild!(MacroInvocationArgs),
+
+        /// If the macro name and arguments are wrapped in `[...]`
+        pub delimited: bool
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    #[node]
+    pub struct TokenStream {
+        pub tokens: Vec<Token>,
+
+        /// The delimiter used for the stream.
+        pub delimiter: Delimiter,
+    }
+
     /// The kind of macros that can be invoked and written in the source.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum MacroKind {
@@ -775,6 +829,9 @@ define_tree! {
 
         /// Macro invocation on a type.
         Macro(TyMacroInvocation),
+
+        /// A token macro invocation in an type position.
+        TokenMacro(TokenMacroInvocation),
 
         /// Function type
         Fn(FnTy),
@@ -1144,6 +1201,9 @@ define_tree! {
 
         /// A macro invocation on a pattern.
         Macro(PatMacroInvocation),
+
+        /// A token macro invocation in an pattern position.
+        TokenMacro(TokenMacroInvocation),
 
         /// Module pattern is used to destructure entries from an import.
         Module(ModulePat),
@@ -2185,6 +2245,9 @@ define_tree! {
 
         /// A macro invocation on an expression.
         Macro(ExprMacroInvocation),
+
+        /// A token macro invocation in an expression position.
+        TokenMacro(TokenMacroInvocation),
 
         /// Declaration e.g. `x := 5;`
         Declaration(Declaration),

@@ -4,6 +4,7 @@ use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::HasTarget;
 use hash_tir::{atom_info::HasAtomInfo, context::HasContext, tir::FnDefId};
+use hash_utils::timing::HasMetrics;
 
 use crate::{
     checker::Checker, errors::TcError, inference::InferenceOps, normalisation,
@@ -17,7 +18,7 @@ pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
 }
 
 pub trait TcEnv:
-    HasTcDiagnostics + HasTarget + HasContext + HasAtomInfo + HasCompilerSettings + Sized
+    HasTcDiagnostics + HasTarget + HasContext + HasAtomInfo + HasCompilerSettings + HasMetrics + Sized
 {
     /// Get the entry point of the current compilation, if any.
     fn entry_point(&self) -> &EntryPointState<FnDefId>;

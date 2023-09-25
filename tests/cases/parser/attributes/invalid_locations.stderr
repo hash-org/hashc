@@ -1,0 +1,30 @@
+error: expected an expression, however received a `=>`
+ --> $DIR/invalid_locations.hash:6:24
+5 |   {
+6 |       foo := () #invalid => {
+  |                          ^^ 
+7 |           println("Hello, world!")
+
+error: expected struct definition entries here which begin with a `<` or `(`, however received a `#`
+  --> $DIR/invalid_locations.hash:12:19
+11 |   {
+12 |       foo := struct #invalid => (
+   |                     ^ 
+13 |           field: i32
+   = help: expected a `(`
+
+error: expected struct definition entries here which begin with a `<` or `(`, however received a `#`
+  --> $DIR/invalid_locations.hash:19:19
+18 |   {
+19 |       foo := struct #invalid (
+   |                     ^ 
+20 |           field: i32
+   = help: expected a `(`
+
+error: expected struct definition entries here which begin with a `<` or `(`, however received a `#`
+  --> $DIR/invalid_locations.hash:25:22
+24 |   {
+25 |       foo := struct<T> #invalid (
+   |                        ^ 
+26 |           field: i32
+   = help: expected a `(`

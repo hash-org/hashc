@@ -2,14 +2,12 @@
 //! that are used by the pipeline to run various stages that transform the
 //! provided sources into runnable/executable code.
 
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::sync::{Arc, Mutex};
 
 use hash_ast::node_map::NodeMap;
 use hash_reporting::report::Report;
 use hash_source::SourceId;
+pub use hash_utils::timing::StageMetrics;
 
 use crate::{
     settings::{CompilerSettings, CompilerStageKind},
@@ -17,20 +15,6 @@ use crate::{
 };
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
-
-/// A [StageMetrics] is a collection of timings for each section of a stage.
-#[derive(Default, Debug, Clone)]
-pub struct StageMetrics {
-    /// The collected timings for each section of the stage.
-    pub timings: Vec<(&'static str, Duration)>,
-}
-
-impl StageMetrics {
-    /// Create an iterator over the collected timings.
-    pub fn iter(&self) -> impl Iterator<Item = (&'static str, Duration)> + '_ {
-        self.timings.iter().cloned()
-    }
-}
 
 /// [CompilerStage] represents an abstract stage within the compiler pipeline.
 /// Each stage has an associated [CompilerStageKind] which can be used by

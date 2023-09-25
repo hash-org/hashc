@@ -1,16 +1,3 @@
-error[0081]: variable `m` is not bound in all patterns
-  --> $DIR/multiple_invalid_binds.hash:10:15
- 9 |       // ~ERROR: variable ` b` not declared in all patterns
-10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
-   |                 ^^^^^^ pattern doesn't bind `m`
-11 |   }
-
-  --> $DIR/multiple_invalid_binds.hash:10:10
- 9 |       // ~ERROR: variable ` b` not declared in all patterns
-10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
-   |            ^ variable not in all patterns
-11 |   }
-
 error[0081]: variable `c` is not bound in all patterns
   --> $DIR/multiple_invalid_binds.hash:10:15
  9 |       // ~ERROR: variable ` b` not declared in all patterns
@@ -22,6 +9,19 @@ error[0081]: variable `c` is not bound in all patterns
  9 |       // ~ERROR: variable ` b` not declared in all patterns
 10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
    |         ^ variable not in all patterns
+11 |   }
+
+error[0081]: variable `m` is not bound in all patterns
+  --> $DIR/multiple_invalid_binds.hash:10:15
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |                 ^^^^^^ pattern doesn't bind `m`
+11 |   }
+
+  --> $DIR/multiple_invalid_binds.hash:10:10
+ 9 |       // ~ERROR: variable ` b` not declared in all patterns
+10 |       ((c, m) | (d, k), (a, b)) := (2, 1);    
+   |            ^ variable not in all patterns
 11 |   }
 
 error[0081]: variable `d` is not bound in all patterns

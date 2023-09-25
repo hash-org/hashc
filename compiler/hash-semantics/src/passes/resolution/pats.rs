@@ -169,6 +169,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             | ast::Pat::Wild(_)
             | ast::Pat::Range(_)
             | ast::Pat::Module(_)
+            | ast::Pat::TokenMacro(_)
             | ast::Pat::Tuple(_) => Ok(None),
         }
     }
@@ -412,6 +413,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 let hi =
                     hi.as_ref().map(|hi| self.make_lit_pat_from_non_bool_ast_lit(hi.ast_ref()));
                 Ok(Node::create_at(Pat::Range(RangePat { lo, hi, end: *end }), origin))
+            }
+            ast::Pat::TokenMacro(_) => {
+                panic_on_span!(node.span(), "Found token macro pattern during symbol resolution")
             }
         }
     }

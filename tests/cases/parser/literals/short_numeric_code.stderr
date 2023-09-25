@@ -1,0 +1,5 @@
+error: numeric escape sequence is too short
+ --> $DIR/short_numeric_code.hash:3:8
+2 |   
+3 |   k := '\x0';
+  |          ^^ here

@@ -1164,8 +1164,42 @@ impl AstVisitor for AstTreePrinter {
 
         Ok(TreeNode::branch("module", children))
     }
+    type TokenStreamRet = TreeNode;
 
-    type MacroInvocationRet = TreeNode;
+    fn visit_token_stream(
+        &self,
+        _: ast::AstNodeRef<ast::TokenStream>,
+    ) -> Result<Self::TokenStreamRet, Self::Error> {
+        Ok(TreeNode::leaf("stream"))
+    }
+
+    type TokenMacroRet = TreeNode;
+
+    fn visit_token_macro(
+        &self,
+        node: ast::AstNodeRef<ast::TokenMacro>,
+    ) -> Result<Self::TokenMacroRet, Self::Error> {
+        let walk::TokenMacro { args, .. } = walk::walk_token_macro(self, node)?;
+
+        let mut children = vec![TreeNode::leaf(labelled("name", node.name.ident, "\""))];
+
+        if let Some(args) = args {
+            children.push(args)
+        }
+
+        Ok(TreeNode::branch("token_macro", children))
+    }
+
+    type TokenMacroInvocationRet = TreeNode;
+
+    fn visit_token_macro_invocation(
+        &self,
+        node: ast::AstNodeRef<ast::TokenMacroInvocation>,
+    ) -> Result<Self::TokenMacroInvocationRet, Self::Error> {
+        let walk::TokenMacroInvocation { mac, stream } =
+            walk::walk_token_macro_invocation(self, node)?;
+        Ok(TreeNode::branch("token_macro_invocation", vec![mac, stream]))
+    }
 
     type MacroInvocationArgRet = TreeNode;
 
@@ -1187,6 +1221,8 @@ impl AstVisitor for AstTreePrinter {
             Ok(value)
         }
     }
+
+    type MacroInvocationRet = TreeNode;
 
     fn visit_macro_invocation(
         &self,

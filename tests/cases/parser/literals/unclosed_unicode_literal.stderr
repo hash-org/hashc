@@ -1,5 +1,5 @@
-error: invalid character escape sequence. expected `}` after a escape sequence
+error: unclosed unicode escape sequence
  --> $DIR/unclosed_unicode_literal.hash:3:14
 2 |   
 3 |   k := '\u{005a';
-  |                ^ here
+  |                ^ expected `}` here
