@@ -1,0 +1,15 @@
+// stage=exe, run=pass
+
+main := () => {
+    t := if "bing chilling" != "chilling bing" {
+        "just chilling"
+    } else {
+        "hello"
+    }
+
+    match t {
+        "hello" => println("hello"),
+        "world" => println("world"),
+        _ => println("other")
+    }
+}
