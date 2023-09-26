@@ -30,12 +30,12 @@ impl<T: TcEnv> IntrinsicAbilities for IntrinsicAbilitiesImpl<'_, T> {
     fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String> {
         let norm = self.tc.norm_ops();
 
-        norm.potentially_normalise(term.into())
-            .map(|result| result.map(|r| norm.to_term(r)))
-            .map_err(|e| {
+        norm.potentially_normalise(term.into()).map(|result| result.map(|r| r.to_term())).map_err(
+            |e| {
                 self.tc.diagnostics().add_error(e.into());
                 "normalisation error".to_string()
-            })
+            },
+        )
     }
 
     fn resolve_from_prelude(

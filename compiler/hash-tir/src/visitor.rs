@@ -17,7 +17,7 @@ use crate::{
         IfPat, IndexTerm, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
         Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
         PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
-        TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyOfTerm, UniverseTy, UnsafeTerm,
+        TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
     },
 };
 
@@ -25,7 +25,7 @@ use crate::{
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, From, TryInto)]
 pub enum Atom {
     Term(TermId),
-    FnDef(FnDefId),
+    FnDef(FnDefId), // @@Cleanup: remove this when functions are just normal terms
     Pat(PatId),
 }
 
@@ -36,6 +36,63 @@ impl Atom {
             Atom::FnDef(f) => f.origin(),
             Atom::Pat(p) => p.origin(),
         }
+    }
+
+    /// Try to use the given atom as a type.
+    pub fn maybe_to_ty(&self) -> Option<TyId> {
+        match *self {
+            Atom::Term(term) => Some(term),
+            _ => None,
+        }
+    }
+
+    /// Normalise the given atom, and try to use it as a function definition.
+    pub fn maybe_to_fn_def(&self) -> Option<FnDefId> {
+        match *self {
+            Atom::Term(term) => match *term.value() {
+                Term::Fn(fn_def_id) => Some(fn_def_id),
+                _ => None,
+            },
+            Atom::FnDef(fn_def_id) => Some(fn_def_id),
+            _ => None,
+        }
+    }
+
+    /// Normalise the given atom, and try to use it as a term.
+    pub fn maybe_to_term(&self) -> Option<TermId> {
+        match *self {
+            Atom::Term(term) => Some(term),
+            Atom::FnDef(fn_def_id) => Some(Term::from(fn_def_id, fn_def_id.origin())),
+            _ => None,
+        }
+    }
+
+    /// Normalise the given atom, and try to use it as a pattern.
+    pub fn maybe_to_pat(&self) -> Option<PatId> {
+        match *self {
+            Atom::Pat(pat) => Some(pat),
+            _ => None,
+        }
+    }
+
+    /// Normalise the given atom, and try to use it as a term.
+    pub fn to_term(&self) -> TermId {
+        self.maybe_to_term().unwrap_or_else(|| panic!("Cannot convert {} to a term", *self))
+    }
+
+    /// Normalise the given atom, and try to use it as a function definition.
+    pub fn to_fn_def(&self) -> FnDefId {
+        self.maybe_to_fn_def().unwrap_or_else(|| panic!("Cannot convert {} to an fn def", *self))
+    }
+
+    /// Try to use the given atom as a type.
+    pub fn to_ty(&self) -> TyId {
+        self.maybe_to_ty().unwrap_or_else(|| panic!("Cannot convert {} to a type", *self))
+    }
+
+    /// Try to use the given atom as a pattern.
+    pub fn to_pat(&self) -> PatId {
+        self.maybe_to_pat().unwrap_or_else(|| panic!("Cannot convert {} to a pattern", *self))
     }
 }
 

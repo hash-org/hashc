@@ -59,7 +59,7 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
                     already_normalised()
                 } else {
                     let actual = self.norm_ops().eval(result.into())?;
-                    item_node.set(self.norm_ops().to_term(actual).value());
+                    item_node.set(actual.to_term().value());
                     normalised()
                 }
             }

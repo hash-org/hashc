@@ -89,8 +89,8 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
     fn normalise(
         &self,
         _ctx: &mut Context,
-        _item: &mut AccessTerm,
-        _item_node: Self::Node,
+        _access_term: &mut AccessTerm,
+        _term_id: Self::Node,
     ) -> NormaliseResult<()> {
         todo!()
     }

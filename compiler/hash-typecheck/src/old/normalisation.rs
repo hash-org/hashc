@@ -16,10 +16,10 @@ use hash_tir::{
     scopes::{AssignTerm, BlockStatement, BlockTerm},
     stores::tir_stores,
     tir::{
-        AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, DerefTerm, FnDefId, Hole,
-        IndexTerm, Lit, LitPat, LoopControlTerm, LoopTerm, MatchTerm, Node, NodeId, NodesId,
-        ParamIndex, Pat, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, ReturnTerm, Spread,
-        SymbolId, Term, TermId, TermListId, TupleTerm, Ty, TyId, TyOfTerm, UnsafeTerm, VarTerm,
+        AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, DerefTerm, Hole, IndexTerm, Lit,
+        LitPat, LoopControlTerm, LoopTerm, MatchTerm, Node, NodeId, NodesId, ParamIndex, Pat,
+        PatArgsId, PatId, PatListId, PatOrCapture, RangePat, ReturnTerm, Spread, SymbolId, Term,
+        TermId, TermListId, TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -87,12 +87,12 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         if let Some(result) = self.potentially_normalise(atom)? {
             match atom {
                 Atom::Term(term_id) => {
-                    term_id.set(self.to_term(result).value());
+                    term_id.set(result.to_term().value());
                 }
                 // Fn defs are already normalised.
                 Atom::FnDef(_) => return Ok(false),
                 Atom::Pat(pat_id) => {
-                    pat_id.set(self.to_pat(result).value());
+                    pat_id.set(result.to_pat().value());
                 }
             }
             Ok(true)
@@ -125,63 +125,6 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 NormaliseSignal::Err(e) => Err(e),
             },
         }
-    }
-
-    /// Try to use the given atom as a type.
-    pub fn maybe_to_ty(&self, atom: Atom) -> Option<TyId> {
-        match atom {
-            Atom::Term(term) => Some(term),
-            _ => None,
-        }
-    }
-
-    /// Normalise the given atom, and try to use it as a function definition.
-    pub fn maybe_to_fn_def(&self, atom: Atom) -> Option<FnDefId> {
-        match atom {
-            Atom::Term(term) => match *term.value() {
-                Term::Fn(fn_def_id) => Some(fn_def_id),
-                _ => None,
-            },
-            Atom::FnDef(fn_def_id) => Some(fn_def_id),
-            _ => None,
-        }
-    }
-
-    /// Normalise the given atom, and try to use it as a term.
-    pub fn maybe_to_term(&self, atom: Atom) -> Option<TermId> {
-        match atom {
-            Atom::Term(term) => Some(term),
-            Atom::FnDef(fn_def_id) => Some(Term::from(fn_def_id, fn_def_id.origin())),
-            _ => None,
-        }
-    }
-
-    /// Normalise the given atom, and try to use it as a pattern.
-    pub fn maybe_to_pat(&self, atom: Atom) -> Option<PatId> {
-        match atom {
-            Atom::Pat(pat) => Some(pat),
-            _ => None,
-        }
-    }
-
-    /// Normalise the given atom, and try to use it as a term.
-    pub fn to_term(&self, atom: Atom) -> TermId {
-        self.maybe_to_term(atom).unwrap_or_else(|| panic!("Cannot convert {} to a term", atom))
-    }
-
-    /// Normalise the given atom, and try to use it as a function definition.
-    pub fn to_fn_def(&self, atom: Atom) -> FnDefId {
-        self.maybe_to_fn_def(atom).unwrap_or_else(|| panic!("Cannot convert {} to an fn def", atom))
-    }
-
-    /// Try to use the given atom as a type.
-    pub fn to_ty(&self, atom: Atom) -> TyId {
-        self.maybe_to_ty(atom).unwrap_or_else(|| panic!("Cannot convert {} to a type", atom))
-    }
-
-    /// Try to use the given atom as a pattern.
-    pub fn to_pat(&self, atom: Atom) -> PatId {
-        self.maybe_to_pat(atom).unwrap_or_else(|| panic!("Cannot convert {} to a pattern", atom))
     }
 
     fn atom_has_effects_once(
@@ -355,7 +298,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                         decl_term.value = decl_term
                             .value
                             .map(|v| -> Result<_, NormaliseSignal> {
-                                Ok(self.to_term(self.eval_nested_and_record(v.into(), &st)?))
+                                Ok((self.eval_nested_and_record(v.into(), &st)?).to_term())
                             })
                             .transpose()?;
 
@@ -416,7 +359,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     /// Evaluate a dereference term.
     fn eval_deref(&self, mut deref_term: Node<DerefTerm>) -> AtomEvaluation {
         let st = NormalisationState::new();
-        deref_term.subject = self.to_term(self.eval_and_record(deref_term.subject.into(), &st)?);
+        deref_term.subject = self.eval_and_record(deref_term.subject.into(), &st)?.to_term();
 
         // Reduce:
         if let Term::Ref(ref_expr) = *deref_term.subject.value() {
@@ -440,7 +383,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
     /// Set the parameter at the given index in the given argument list.
     fn set_param_in_args(&self, args: ArgsId, target: ParamIndex, value: Atom) {
-        let value = self.to_term(value);
+        let value = value.to_term();
         for arg_i in args.iter() {
             let arg = arg_i.value();
             if arg.target == target || ParamIndex::Position(arg_i.1) == target {
@@ -478,7 +421,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     /// Evaluate an access term.
     fn eval_access(&self, mut access_term: AccessTerm) -> AtomEvaluation {
         let st = NormalisationState::new();
-        access_term.subject = self.to_term(self.eval_and_record(access_term.subject.into(), &st)?);
+        access_term.subject = (self.eval_and_record(access_term.subject.into(), &st)?).to_term();
 
         let result = match *access_term.subject.value() {
             Term::Tuple(tuple) => self.get_param_in_args(tuple.data, access_term.field),
@@ -495,7 +438,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     /// Evaluate an index term.
     fn eval_index(&self, mut index_term: IndexTerm) -> AtomEvaluation {
         let st = NormalisationState::new();
-        index_term.subject = self.to_term(self.eval_and_record(index_term.subject.into(), &st)?);
+        index_term.subject = (self.eval_and_record(index_term.subject.into(), &st)?).to_term();
 
         if let Term::Array(array_term) = *index_term.subject.value() {
             let result = match array_term {
@@ -544,11 +487,11 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate an assignment term.
     fn eval_assign(&self, mut assign_term: Node<AssignTerm>) -> FullEvaluation<Atom> {
-        assign_term.value = self.to_term(self.eval(assign_term.value.into())?);
+        assign_term.value = (self.eval(assign_term.value.into())?).to_term();
 
         match *assign_term.subject.value() {
             Term::Access(mut access_term) => {
-                access_term.subject = self.to_term(self.eval(access_term.subject.into())?);
+                access_term.subject = (self.eval(access_term.subject.into())?).to_term();
                 match *access_term.subject.value() {
                     Term::Tuple(tuple) => self.set_param_in_args(
                         tuple.data,
@@ -575,7 +518,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     /// Evaluate a match term.
     fn eval_match(&self, mut match_term: MatchTerm) -> AtomEvaluation {
         let st = NormalisationState::new();
-        match_term.subject = self.to_term(self.eval_and_record(match_term.subject.into(), &st)?);
+        match_term.subject = (self.eval_and_record(match_term.subject.into(), &st)?).to_term();
 
         for case_id in match_term.cases.iter() {
             let case = case_id.value();
@@ -642,7 +585,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 Ok(Node::at(
                     Arg {
                         target: arg.target,
-                        value: self.to_term(self.eval_nested_and_record(arg.value.into(), &st)?),
+                        value: (self.eval_nested_and_record(arg.value.into(), &st)?).to_term(),
                     },
                     arg.origin,
                 ))
@@ -659,7 +602,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     fn eval_fn_call(&self, mut fn_call: Node<CallTerm>) -> AtomEvaluation {
         let st = NormalisationState::new();
 
-        fn_call.subject = self.to_term(self.eval_and_record(fn_call.subject.into(), &st)?);
+        fn_call.subject = (self.eval_and_record(fn_call.subject.into(), &st)?).to_term();
         fn_call.args = st.update_from_result(fn_call.args, self.eval_args(fn_call.args))?;
 
         let subject = *fn_call.subject.value();
@@ -1001,7 +944,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         pat_id: PatId,
         f: &mut impl FnMut(SymbolId, TermId),
     ) -> Result<MatchResult, NormaliseSignal> {
-        let evaluated_id = self.to_term(self.eval(term_id.into())?);
+        let evaluated_id = (self.eval(term_id.into())?).to_term();
         let evaluated = *evaluated_id.value();
         match (evaluated, *pat_id.value()) {
             (_, Pat::Or(pats)) => {

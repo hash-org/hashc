@@ -71,7 +71,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     /// Add the given unification to the context, and create a substitution
     /// from it.
     pub fn add_unification(&self, src: SymbolId, target: impl Into<Atom>) -> Sub {
-        let sub = Sub::from_pairs([(src, self.norm_ops().to_term(target.into()))]);
+        let sub = Sub::from_pairs([(src, (target.into()).to_term())]);
         self.add_unification_from_sub(&sub);
         sub
     }
@@ -150,13 +150,12 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
         hole_src: impl Into<Atom>,
         sub_dest: impl Into<Atom>,
     ) -> TcResult<()> {
-        let norm_ops = self.norm_ops();
         let hole_atom: Atom = hole_src.into();
         let sub_dest_atom: Atom = sub_dest.into();
 
         let hole_symbol = match hole_atom {
             Atom::Term(term_id) => {
-                let dest_term = (norm_ops.to_term(sub_dest_atom)).value();
+                let dest_term = (sub_dest_atom.to_term()).value();
                 match *term_id.value() {
                     Term::Hole(Hole(h)) => {
                         if self.opts.modify_terms.get() {
@@ -429,7 +428,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     /// This does not look too deeply into the type, so it may return false
     /// for types that are actually uninhabitable.
     pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
-        let ty = self.norm_ops().to_ty(self.norm_ops().normalise(ty.into())?);
+        let ty = self.norm_ops().normalise(ty.into())?.to_ty();
         match *ty.value() {
             Ty::DataTy(data_ty) => {
                 let data_def = data_ty.data_def.borrow();
