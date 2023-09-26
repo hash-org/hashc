@@ -9,7 +9,7 @@ use crate::{
     env::TcEnv,
     errors::TcResult,
     operations::{
-        normalisation::{already_normalised, normalised, NormalisationOptions},
+        normalisation::{already_normalised, normalised_to, NormalisationOptions},
         unification::UnificationOptions,
         Operations,
     },
@@ -50,9 +50,9 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
         &self,
         _ctx: &mut hash_tir::context::Context,
         _opts: &NormalisationOptions,
-        item: &mut VarTerm,
-        item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<()> {
+        item: VarTerm,
+        _: Self::Node,
+    ) -> crate::operations::normalisation::NormaliseResult<TermId> {
         let var = item.symbol;
         match self.context().try_get_decl_value(var) {
             Some(result) => {
@@ -60,8 +60,7 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
                     already_normalised()
                 } else {
                     let actual = self.norm_ops().eval(result.into())?;
-                    item_node.set(actual.to_term().value());
-                    normalised()
+                    normalised_to(actual.to_term())
                 }
             }
             None => already_normalised(),

@@ -32,9 +32,9 @@ impl<E: TcEnv> Operations<ArrayTerm> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut ArrayTerm,
+        _item: ArrayTerm,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TermId> {
         todo!()
     }
 
@@ -73,9 +73,9 @@ impl<E: TcEnv> Operations<ArrayPat> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut ArrayPat,
+        _item: ArrayPat,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<PatId> {
         todo!()
     }
 

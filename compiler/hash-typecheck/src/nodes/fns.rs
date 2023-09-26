@@ -39,9 +39,9 @@ impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut FnTy,
+        _item: FnTy,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TyId> {
         already_normalised()
     }
 
@@ -153,9 +153,9 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut (FnDefId, FnInferMode),
+        _item: (FnDefId, FnInferMode),
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TermId> {
         already_normalised()
     }
 

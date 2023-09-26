@@ -10,7 +10,8 @@ use crate::{
     errors::{TcError, TcResult, WrongTermKind},
     operations::{
         normalisation::{
-            stuck_normalising, NormalisationOptions, NormalisationState, NormaliseResult,
+            normalised_if, stuck_normalising, NormalisationOptions, NormalisationState,
+            NormaliseResult,
         },
         unification::UnificationOptions,
         Operations,
@@ -88,9 +89,9 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
         &self,
         _: &mut Context,
         opts: &NormalisationOptions,
-        access_term: &mut AccessTerm,
-        term_id: Self::Node,
-    ) -> NormaliseResult<()> {
+        mut access_term: AccessTerm,
+        _: Self::Node,
+    ) -> NormaliseResult<TermId> {
         let st = NormalisationState::new();
         let norm_ops = self.norm_ops_with(opts);
         access_term.subject =
@@ -105,11 +106,8 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
                 return stuck_normalising();
             }
         };
-
-        let result = norm_ops.eval_and_record(result, &st)?.to_term();
-        term_id.set(result.value());
-
-        st.done()
+        let evaluated = norm_ops.eval_and_record(result, &st)?.to_term();
+        normalised_if(|| evaluated, &st)
     }
 
     fn unify(

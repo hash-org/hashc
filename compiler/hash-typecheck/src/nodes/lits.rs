@@ -10,47 +10,37 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations,
+        OperationsOnNode,
     },
 };
 
-impl<E: TcEnv> Operations<LitId> for Checker<'_, E> {
+impl<E: TcEnv> OperationsOnNode<LitId> for Checker<'_, E> {
     type TyNode = TyId;
-    type Node = LitId;
 
-    fn check(
-        &self,
-        _ctx: &mut Context,
-        _item: &mut LitId,
-        _item_ty: Self::TyNode,
-        _item_node: Self::Node,
-    ) -> TcResult<()> {
+    fn check_node(&self, _ctx: &mut Context, _item: LitId, _item_ty: Self::TyNode) -> TcResult<()> {
         todo!()
     }
 
-    fn normalise(
+    fn normalise_node(
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut LitId,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+        _item: LitId,
+    ) -> NormaliseResult<LitId> {
         todo!()
     }
 
-    fn unify(
+    fn unify_nodes(
         &self,
         _ctx: &mut Context,
         _opts: &UnificationOptions,
-        _src: &mut LitId,
-        _target: &mut LitId,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        _src: LitId,
+        _target: LitId,
     ) -> TcResult<()> {
         todo!()
     }
 
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut LitId) {
+    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: LitId) {
         todo!()
     }
 }

@@ -33,9 +33,9 @@ impl<E: TcEnv> Operations<BlockTerm> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut BlockTerm,
+        _item: BlockTerm,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TermId> {
         todo!()
     }
 

@@ -31,11 +31,11 @@ use crate::{
     intrinsic_abilities::IntrinsicAbilitiesImpl,
     operations::{
         normalisation::{
-            already_normalised, ctrl_continue, ctrl_map, normalised_if, normalised_option,
-            normalised_to, stuck_normalising, NormalisationMode, NormalisationOptions,
-            NormalisationState, NormaliseResult, NormaliseSignal,
+            already_normalised, ctrl_continue, ctrl_map, normalisation_result_into, normalised_if,
+            normalised_option, normalised_to, stuck_normalising, NormalisationMode,
+            NormalisationOptions, NormalisationState, NormaliseResult, NormaliseSignal,
         },
-        Operations,
+        Operations, RecursiveOperationsOnNode,
     },
 };
 
@@ -280,7 +280,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     }
 
     /// Same as `eval_nested`, but with a given evaluation state.
-    fn eval_nested_and_record(
+    pub fn eval_nested_and_record(
         &self,
         atom: Atom,
         state: &NormalisationState,
@@ -345,17 +345,12 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate a variable.
     fn eval_var(&self, var: SymbolId, original_term_id: TermId) -> AtomEvaluation {
-        let term_id = Visitor::new().copy(original_term_id);
-        let result = self.checker().normalise(
+        normalisation_result_into(self.checker().normalise(
             &mut Context::new(),
             &self.opts,
-            &mut VarTerm { symbol: var },
-            term_id,
-        )?;
-        match result {
-            Some(()) => normalised_to(term_id),
-            None => Ok(None),
-        }
+            VarTerm { symbol: var },
+            original_term_id,
+        ))
     }
 
     /// Evaluate a cast term.
@@ -427,14 +422,13 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     }
 
     /// Evaluate an access term.
-    fn eval_access(&self, mut access_term: AccessTerm, original_term_id: TermId) -> AtomEvaluation {
-        let term_id = Visitor::new().copy(original_term_id);
-        let result =
-            self.checker().normalise(&mut Context::new(), &self.opts, &mut access_term, term_id)?;
-        match result {
-            Some(()) => normalised_to(term_id),
-            None => Ok(None),
-        }
+    fn eval_access(&self, access_term: AccessTerm, original_term_id: TermId) -> AtomEvaluation {
+        normalisation_result_into(self.checker().normalise(
+            &mut Context::new(),
+            &self.opts,
+            access_term,
+            original_term_id,
+        ))
     }
 
     /// Evaluate an index term.
@@ -577,27 +571,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate some arguments
     fn eval_args(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
-        let args = args_id.value();
-        let st = NormalisationState::new();
-
-        let evaluated_arg_data = args
-            .value()
-            .into_iter()
-            .map(|arg| -> Result<_, NormaliseSignal> {
-                Ok(Node::at(
-                    Arg {
-                        target: arg.target,
-                        value: (self.eval_nested_and_record(arg.value.into(), &st)?).to_term(),
-                    },
-                    arg.origin,
-                ))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        normalised_if(
-            || Node::create_at(Node::<Arg>::seq(evaluated_arg_data), args_id.origin().computed()),
-            &st,
-        )
+        self.checker().normalise_node(&mut Context::new(), &self.opts, args_id)
     }
 
     /// Evaluate a function call.

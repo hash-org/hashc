@@ -2,14 +2,10 @@ pub mod checking;
 pub mod normalisation;
 pub mod unification;
 
-use hash_tir::{
-    context::Context,
-    sub::Sub,
-    visitor::{Map, Visit, Visitor},
-};
+use hash_tir::{context::Context, sub::Sub};
 
 use self::{
-    normalisation::{NormalisationOptions, NormalisationState, NormaliseResult},
+    normalisation::{NormalisationOptions, NormaliseResult},
     unification::UnificationOptions,
 };
 use crate::{env::HasTcEnv, errors::TcResult};
@@ -30,9 +26,9 @@ pub trait Operations<X>: HasTcEnv {
         &self,
         ctx: &mut Context,
         opts: &NormalisationOptions,
-        item: &mut X,
+        item: X,
         item_node: Self::Node,
-    ) -> NormaliseResult<()>;
+    ) -> NormaliseResult<Self::Node>;
 
     fn unify(
         &self,
@@ -47,24 +43,17 @@ pub trait Operations<X>: HasTcEnv {
     fn substitute(&self, sub: &Sub, target: &mut X);
 }
 
-pub trait OperationsOnNode<X: Copy>: Operations<X, Node = X>
-where
-    Visitor: Visit<X> + Map<X>,
-{
-    fn check_node(&self, ctx: &mut Context, item: X, item_ty: Self::TyNode) -> TcResult<()> {
-        let mut item_ref = item;
-        Operations::check(self, ctx, &mut item_ref, item_ty, item)
-    }
+pub trait OperationsOnNode<X: Copy>: HasTcEnv {
+    type TyNode;
+
+    fn check_node(&self, ctx: &mut Context, item: X, item_ty: Self::TyNode) -> TcResult<()>;
 
     fn normalise_node(
         &self,
-        opts: &NormalisationOptions,
         ctx: &mut Context,
+        opts: &NormalisationOptions,
         item: X,
-    ) -> NormaliseResult<()> {
-        let mut item_ref = item;
-        Operations::normalise(self, ctx, opts, &mut item_ref, item)
-    }
+    ) -> NormaliseResult<X>;
 
     fn unify_nodes(
         &self,
@@ -72,28 +61,51 @@ where
         opts: &UnificationOptions,
         src: X,
         target: X,
-    ) -> TcResult<()> {
-        let mut src_ref = src;
-        let mut target_ref = target;
-        Operations::unify(self, ctx, opts, &mut src_ref, &mut target_ref, src, target)
-    }
+    ) -> TcResult<()>;
 
-    fn substitute_in_node(&self, sub: &Sub, mut target: X) {
-        Operations::substitute(self, sub, &mut target)
-    }
-
-    fn copy_node(&self, target: X) -> X {
-        Visitor::new().copy(target)
-    }
-
-    fn substitute_in_node_copied(&self, sub: &Sub, target: X) -> X {
-        let mut copied = self.copy_node(target);
-        Operations::substitute(self, sub, &mut copied);
-        copied
-    }
+    fn substitute_node(&self, sub: &Sub, target: X);
 }
 
-impl<X: Copy, T: Operations<X, Node = X>> OperationsOnNode<X> for T where Visitor: Visit<X> + Map<X> {}
+impl<X: Copy, T: HasTcEnv + OperationsOnNode<X>> Operations<X> for T {
+    type TyNode = T::TyNode;
+    type Node = X;
+
+    fn check(
+        &self,
+        ctx: &mut Context,
+        item: &mut X,
+        item_ty: Self::TyNode,
+        _: Self::Node,
+    ) -> TcResult<()> {
+        self.check_node(ctx, *item, item_ty)
+    }
+
+    fn normalise(
+        &self,
+        ctx: &mut Context,
+        opts: &NormalisationOptions,
+        item: X,
+        _: Self::Node,
+    ) -> NormaliseResult<X> {
+        self.normalise_node(ctx, opts, item)
+    }
+
+    fn unify(
+        &self,
+        ctx: &mut Context,
+        opts: &UnificationOptions,
+        src: &mut X,
+        target: &mut X,
+        _: Self::Node,
+        _: Self::Node,
+    ) -> TcResult<()> {
+        self.unify_nodes(ctx, opts, *src, *target)
+    }
+
+    fn substitute(&self, sub: &Sub, target: &mut X) {
+        self.substitute_node(sub, *target)
+    }
+}
 
 pub trait RecursiveOperations<X>: HasTcEnv {
     type TyNode;
@@ -109,17 +121,19 @@ pub trait RecursiveOperations<X>: HasTcEnv {
         f: F,
     ) -> TcResult<T>;
 
-    fn normalise_rec<T, F: FnMut(NormalisationState, Self::RecursiveArg) -> NormaliseResult<T>>(
+    fn normalise(
         &self,
         ctx: &mut Context,
-        item: &mut X,
+        opts: &NormalisationOptions,
+        item: X,
         item_node: Self::Node,
-        f: F,
-    ) -> NormaliseResult<T>;
+    ) -> NormaliseResult<X>;
 
+    #[allow(clippy::too_many_arguments)]
     fn unify_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         ctx: &mut Context,
+        opts: &UnificationOptions,
         src: &mut X,
         target: &mut X,
         src_node: Self::Node,
@@ -135,72 +149,87 @@ pub trait RecursiveOperations<X>: HasTcEnv {
     ) -> T;
 }
 
-pub trait RecursiveOperationsOnNode<X: Copy>: RecursiveOperations<X, Node = X>
-where
-    Visitor: Visit<X> + Map<X>,
-{
+pub trait RecursiveOperationsOnNode<X: Copy>: HasTcEnv {
+    type TyNode;
+    type RecursiveArg;
+
     fn check_node_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         ctx: &mut Context,
         item: X,
         item_ty: Self::TyNode,
         f: F,
-    ) -> TcResult<T> {
-        let mut item_ref = item;
-        RecursiveOperations::check_rec(self, ctx, &mut item_ref, item_ty, item, f)
-    }
+    ) -> TcResult<T>;
 
-    fn normalise_node_rec<
-        T,
-        F: FnMut(NormalisationState, Self::RecursiveArg) -> NormaliseResult<T>,
-    >(
+    fn normalise_node(
         &self,
         ctx: &mut Context,
+        opts: &NormalisationOptions,
         item: X,
-        f: F,
-    ) -> NormaliseResult<T> {
-        let mut item_ref = item;
-        RecursiveOperations::normalise_rec(self, ctx, &mut item_ref, item, f)
-    }
+    ) -> NormaliseResult<X>;
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         ctx: &mut Context,
+        opts: &UnificationOptions,
         src: X,
         target: X,
         f: F,
-    ) -> TcResult<T> {
-        let mut src_ref = src;
-        let mut target_ref = target;
-        RecursiveOperations::unify_rec(self, ctx, &mut src_ref, &mut target_ref, src, target, f)
-    }
+    ) -> TcResult<T>;
 
-    fn substitute_in_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
-        &self,
-        sub: &Sub,
-        mut target: X,
-        f: F,
-    ) -> T {
-        RecursiveOperations::substitute_rec(self, sub, &mut target, f)
-    }
-
-    fn copy_node(&self, target: X) -> X {
-        Visitor::new().copy(target)
-    }
-
-    fn substitute_in_node_copied_rec<T, F: FnMut(Self::RecursiveArg)>(
+    fn substitute_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
         &self,
         sub: &Sub,
         target: X,
         f: F,
-    ) -> X {
-        let mut copied = self.copy_node(target);
-        RecursiveOperations::substitute_rec(self, sub, &mut copied, f);
-        copied
-    }
+    ) -> T;
 }
 
-impl<X: Copy, T: RecursiveOperations<X, Node = X>> RecursiveOperationsOnNode<X> for T where
-    Visitor: Visit<X> + Map<X>
-{
+impl<X: Copy, U: RecursiveOperationsOnNode<X> + HasTcEnv> RecursiveOperations<X> for U {
+    type TyNode = U::TyNode;
+    type Node = X;
+    type RecursiveArg = U::RecursiveArg;
+
+    fn check_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+        &self,
+        ctx: &mut Context,
+        item: &mut X,
+        item_ty: Self::TyNode,
+        _: Self::Node,
+        f: F,
+    ) -> TcResult<T> {
+        self.check_node_rec(ctx, *item, item_ty, f)
+    }
+
+    fn normalise(
+        &self,
+        ctx: &mut Context,
+        opts: &NormalisationOptions,
+        item: X,
+        _: Self::Node,
+    ) -> NormaliseResult<X> {
+        self.normalise_node(ctx, opts, item)
+    }
+
+    fn unify_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+        &self,
+        ctx: &mut Context,
+        opts: &UnificationOptions,
+        src: &mut X,
+        target: &mut X,
+        _: Self::Node,
+        _: Self::Node,
+        f: F,
+    ) -> TcResult<T> {
+        self.unify_nodes_rec(ctx, opts, *src, *target, f)
+    }
+
+    fn substitute_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
+        &self,
+        sub: &Sub,
+        target: &mut X,
+        f: F,
+    ) -> T {
+        self.substitute_node_rec(sub, *target, f)
+    }
 }

@@ -1,8 +1,11 @@
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    TrivialSequenceStoreKey,
+};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::Context,
-    tir::{validate_and_reorder_args_against_params, ArgsId, ParamsId},
+    tir::{validate_and_reorder_args_against_params, Arg, ArgsId, Node, NodeId, ParamsId},
 };
 
 use crate::{
@@ -10,25 +13,26 @@ use crate::{
     env::TcEnv,
     errors::TcResult,
     operations::{
-        normalisation::{NormalisationState, NormaliseResult},
-        RecursiveOperations,
+        normalisation::{
+            normalised_if, NormalisationOptions, NormalisationState, NormaliseResult,
+            NormaliseSignal,
+        },
+        unification::UnificationOptions,
+        RecursiveOperationsOnNode,
     },
 };
 
-impl<E: TcEnv> RecursiveOperations<ArgsId> for Checker<'_, E> {
+impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Checker<'_, E> {
     type TyNode = ParamsId;
-    type Node = ArgsId;
     type RecursiveArg = ArgsId;
 
-    fn check_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+    fn check_node_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         _: &mut Context,
-        args: &mut ArgsId,
+        args: ArgsId,
         annotation_params: Self::TyNode,
-        _: Self::Node,
         mut in_arg_scope: F,
     ) -> TcResult<T> {
-        let args = *args;
         self.register_new_atom(args, annotation_params);
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
@@ -50,32 +54,51 @@ impl<E: TcEnv> RecursiveOperations<ArgsId> for Checker<'_, E> {
         Ok(result)
     }
 
-    fn normalise_rec<T, F: FnMut(NormalisationState, Self::RecursiveArg) -> NormaliseResult<T>>(
+    fn normalise_node(
         &self,
         _ctx: &mut Context,
-        _item: &mut ArgsId,
-        _item_node: Self::Node,
-        _f: F,
-    ) -> NormaliseResult<T> {
-        todo!()
+        opts: &NormalisationOptions,
+        args_id: ArgsId,
+    ) -> NormaliseResult<ArgsId> {
+        let args = args_id.value();
+        let st = NormalisationState::new();
+        let ops = self.norm_ops_with(opts);
+
+        let evaluated_arg_data = args
+            .value()
+            .into_iter()
+            .map(|arg| -> Result<_, NormaliseSignal> {
+                Ok(Node::at(
+                    Arg {
+                        target: arg.target,
+                        value: (ops.eval_nested_and_record(arg.value.into(), &st)?).to_term(),
+                    },
+                    arg.origin,
+                ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let new_node =
+            Node::create_at(Node::<Arg>::seq(evaluated_arg_data), args_id.origin().computed());
+
+        normalised_if(|| new_node, &st)
     }
 
-    fn unify_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+    fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         _ctx: &mut Context,
-        _src: &mut ArgsId,
-        _target: &mut ArgsId,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        _opts: &UnificationOptions,
+        _src: ArgsId,
+        _target: ArgsId,
         _f: F,
     ) -> TcResult<T> {
         todo!()
     }
 
-    fn substitute_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
+    fn substitute_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
         &self,
         _sub: &hash_tir::sub::Sub,
-        _target: &mut ArgsId,
+        _target: ArgsId,
         _f: F,
     ) -> T {
         todo!()

@@ -7,47 +7,42 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations,
+        OperationsOnNode,
     },
 };
 
-impl<E: TcEnv> Operations<ParamsId> for Checker<'_, E> {
-    type Node = ParamsId;
+impl<E: TcEnv> OperationsOnNode<ParamsId> for Checker<'_, E> {
     type TyNode = ();
 
-    fn check(
+    fn check_node(
         &self,
         _ctx: &mut Context,
-        _item: &mut ParamsId,
+        _item: ParamsId,
         _item_ty: Self::TyNode,
-        _item_node: Self::Node,
     ) -> TcResult<()> {
         todo!()
     }
 
-    fn normalise(
+    fn normalise_node(
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut ParamsId,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+        _item: ParamsId,
+    ) -> NormaliseResult<ParamsId> {
         todo!()
     }
 
-    fn unify(
+    fn unify_nodes(
         &self,
         _ctx: &mut Context,
         _opts: &UnificationOptions,
-        _src: &mut ParamsId,
-        _target: &mut ParamsId,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        _src: ParamsId,
+        _target: ParamsId,
     ) -> TcResult<()> {
         todo!()
     }
 
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut ParamsId) {
+    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: ParamsId) {
         todo!()
     }
 }

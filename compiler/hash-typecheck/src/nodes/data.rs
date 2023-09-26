@@ -32,9 +32,9 @@ impl<E: TcEnv> Operations<CtorTerm> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut CtorTerm,
+        _item: CtorTerm,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TermId> {
         todo!()
     }
 
@@ -73,9 +73,9 @@ impl<E: TcEnv> Operations<DataTy> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut DataTy,
+        _item: DataTy,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TyId> {
         todo!()
     }
 

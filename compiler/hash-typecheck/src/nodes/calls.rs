@@ -32,9 +32,9 @@ impl<E: TcEnv> Operations<CallTerm> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut CallTerm,
+        _item: CallTerm,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TermId> {
         todo!()
     }
 

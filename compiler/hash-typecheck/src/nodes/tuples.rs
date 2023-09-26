@@ -32,9 +32,9 @@ impl<E: TcEnv> Operations<TupleTerm> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut TupleTerm,
+        _item: TupleTerm,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TermId> {
         todo!()
     }
 
@@ -73,9 +73,9 @@ impl<E: TcEnv> Operations<TupleTy> for Checker<'_, E> {
         &self,
         _ctx: &mut Context,
         _opts: &NormalisationOptions,
-        _item: &mut TupleTy,
+        _item: TupleTy,
         _item_node: Self::Node,
-    ) -> NormaliseResult<()> {
+    ) -> NormaliseResult<TyId> {
         todo!()
     }
 

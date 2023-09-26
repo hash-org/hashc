@@ -70,6 +70,16 @@ pub fn ctrl_continue<T>() -> NormaliseResult<ControlFlow<T>> {
     Ok(Some(ControlFlow::Continue(())))
 }
 
+/// Lift a `From` implementation into a conversion between normalisation
+/// results.
+pub fn normalisation_result_into<T, U: From<T>>(t: NormaliseResult<T>) -> NormaliseResult<U> {
+    match t {
+        Ok(Some(t)) => Ok(Some(t.into())),
+        Ok(None) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 /// Whether an atom has been evaluated or not.
 #[derive(Debug, Clone, Default)]
 pub struct NormalisationState {

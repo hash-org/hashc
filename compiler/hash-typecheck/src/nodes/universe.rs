@@ -1,4 +1,4 @@
-use hash_tir::tir::{TyId, UniverseTy};
+use hash_tir::tir::{TermId, TyId, UniverseTy};
 
 use crate::{
     checker::Checker,
@@ -29,9 +29,9 @@ impl<E: TcEnv> Operations<UniverseTy> for Checker<'_, E> {
         &self,
         _: &mut hash_tir::context::Context,
         _opts: &NormalisationOptions,
-        _: &mut UniverseTy,
+        _: UniverseTy,
         _: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<()> {
+    ) -> crate::operations::normalisation::NormaliseResult<TermId> {
         already_normalised()
     }
 
