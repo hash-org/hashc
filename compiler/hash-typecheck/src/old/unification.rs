@@ -311,11 +311,16 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             ),
             (Term::Lit(_), _) | (_, Term::Lit(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Term::Access(a1), Term::Access(a2)) if a1.field == a2.field => {
-                self.unify_terms(a1.subject, a2.subject)
-            }
-            (Term::Access(_), _) | (_, Term::Access(_)) => {
-                self.mismatching_atoms(src_id, target_id)
+            (Term::Access(mut a1), Term::Access(mut a2)) => {
+                self.checker().unify(
+                    &mut Context::new(),
+                    &self.opts,
+                    &mut a1,
+                    &mut a2,
+                    src_id,
+                    target_id,
+                )?;
+                Ok(())
             }
 
             (Term::Ref(r1), Term::Ref(r2)) if r1.mutable == r2.mutable && r1.kind == r2.kind => {

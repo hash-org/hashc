@@ -13,7 +13,7 @@ use crate::{
         normalisation::{
             stuck_normalising, NormalisationOptions, NormalisationState, NormaliseResult,
         },
-        unification::{UnificationOptions, UnifyResult},
+        unification::{UnificationOptions, UnifyResult, UnifySignal},
         Operations,
     },
 };
@@ -119,13 +119,17 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut Context,
-        _opts: &UnificationOptions,
-        _src: &mut AccessTerm,
-        _target: &mut AccessTerm,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        opts: &UnificationOptions,
+        src: &mut AccessTerm,
+        target: &mut AccessTerm,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> UnifyResult {
-        todo!()
+        if src.field != target.field {
+            return Err(UnifySignal::CannotUnifyTerms { src: src_node, target: target_node });
+        }
+        self.uni_ops_with(opts).unify_terms(src.subject, target.subject)?;
+        Ok(())
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut AccessTerm) {
