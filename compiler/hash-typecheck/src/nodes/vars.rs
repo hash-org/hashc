@@ -10,6 +10,7 @@ use crate::{
     operations::{
         checking::did_check,
         normalisation::{already_normalised, normalised},
+        unification::UnificationOptions,
         Operations,
     },
 };
@@ -69,10 +70,11 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut hash_tir::context::Context,
+        _opts: &UnificationOptions,
         _src: &mut VarTerm,
         _target: &mut VarTerm,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        _a_id: Self::Node,
+        _b_id: Self::Node,
     ) -> crate::operations::unification::UnifyResult {
         todo!()
     }

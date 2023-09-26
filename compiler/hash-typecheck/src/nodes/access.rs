@@ -11,7 +11,7 @@ use crate::{
     operations::{
         checking::{did_check, CheckResult},
         normalisation::NormaliseResult,
-        unification::UnifyResult,
+        unification::{UnificationOptions, UnifyResult},
         Operations,
     },
 };
@@ -98,6 +98,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut Context,
+        _opts: &UnificationOptions,
         _src: &mut AccessTerm,
         _target: &mut AccessTerm,
         _src_node: Self::Node,

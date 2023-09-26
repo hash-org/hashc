@@ -1,6 +1,6 @@
 //! Operations for unifying types and terms.
 
-use std::{cell::Cell, collections::HashSet};
+use std::{borrow::Cow, collections::HashSet};
 
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
@@ -13,48 +13,38 @@ use hash_tir::{
     visitor::Atom,
 };
 use hash_utils::derive_more::Deref;
-use once_cell::unsync::OnceCell;
 
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::Operations,
+    operations::{unification::UnificationOptions, Operations},
 };
 
 #[derive(Deref)]
 pub struct UnificationOps<'a, T: TcEnv> {
     #[deref]
     env: &'a T,
-    add_to_ctx: Cell<bool>,
-    modify_terms: Cell<bool>,
-    pat_binds: OnceCell<HashSet<SymbolId>>,
+    opts: Cow<'a, UnificationOptions>,
 }
 
 impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     pub fn new(env: &'tc T) -> Self {
-        Self {
-            env,
-            add_to_ctx: Cell::new(true),
-            modify_terms: Cell::new(true),
-            pat_binds: OnceCell::new(),
-        }
+        Self { env, opts: Cow::Owned(UnificationOptions::new()) }
+    }
+
+    pub fn new_with_opts(env: &'tc T, opts: &'tc UnificationOptions) -> Self {
+        Self { env, opts: Cow::Borrowed(opts) }
     }
 
     /// Disable modifying terms
     pub fn with_no_modify(&self) -> &Self {
-        self.modify_terms.set(false);
+        self.opts.modify_terms.set(false);
         self
     }
 
     /// Disable adding unifications to the context.
     pub fn with_binds(&self, binds: HashSet<SymbolId>) -> &Self {
-        self.pat_binds.set(binds).unwrap();
-        self
-    }
-
-    /// Disable adding unifications to the context.
-    pub fn with_no_ctx(&self) -> &Self {
-        self.add_to_ctx.set(false);
+        self.opts.pat_binds.set(binds).unwrap();
         self
     }
 
@@ -75,9 +65,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
 
     /// Add the given substitutions to the context.
     pub fn add_unification_from_sub(&self, sub: &Sub) {
-        if self.add_to_ctx.get() {
-            self.context().add_sub_to_scope(sub);
-        }
+        self.context().add_sub_to_scope(sub);
     }
 
     /// Add the given unification to the context, and create a substitution
@@ -142,7 +130,14 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
         src_id: TyId,
         target_id: TyId,
     ) -> TcResult<()> {
-        self.checker().unify(&mut Context::new(), &mut f1, &mut f2, src_id, target_id)?;
+        self.checker().unify(
+            &mut Context::new(),
+            &self.opts,
+            &mut f1,
+            &mut f2,
+            src_id,
+            target_id,
+        )?;
         Ok(())
     }
 
@@ -164,7 +159,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
                 let dest_term = (norm_ops.to_term(sub_dest_atom)).value();
                 match *term_id.value() {
                     Term::Hole(Hole(h)) => {
-                        if self.modify_terms.get() {
+                        if self.opts.modify_terms.get() {
                             term_id.set(dest_term);
                         }
                         h
@@ -212,7 +207,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     }
 
     pub fn unify_vars(&self, a: SymbolId, b: SymbolId, a_id: TermId, b_id: TermId) -> TcResult<()> {
-        if let Some(binds) = self.pat_binds.get() {
+        if let Some(binds) = self.opts.pat_binds.get() {
             if binds.contains(&a) {
                 self.add_unification(b, a_id);
                 return Ok(());
@@ -268,11 +263,11 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
             (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
 
-            (Term::Var(a), _) if self.pat_binds.get().is_some() => {
+            (Term::Var(a), _) if self.opts.pat_binds.get().is_some() => {
                 self.add_unification(a.symbol, target_id);
                 Ok(())
             }
-            (_, Term::Var(b)) if self.pat_binds.get().is_some() => {
+            (_, Term::Var(b)) if self.opts.pat_binds.get().is_some() => {
                 self.add_unification(b.symbol, src_id);
                 Ok(())
             }

@@ -8,7 +8,8 @@ use hash_utils::timing::HasMetrics;
 
 use crate::{
     checker::Checker, errors::TcError, inference::InferenceOps, normalisation,
-    substitution::SubstitutionOps, unification::UnificationOps,
+    operations::unification::UnificationOptions, substitution::SubstitutionOps,
+    unification::UnificationOps,
 };
 
 pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
@@ -45,6 +46,10 @@ pub trait TcEnv:
 
     fn uni_ops(&self) -> UnificationOps<Self> {
         UnificationOps::new(self)
+    }
+
+    fn uni_ops_with<'a>(&'a self, opts: &'a UnificationOptions) -> UnificationOps<Self> {
+        UnificationOps::new_with_opts(self, opts)
     }
 
     fn norm_ops(&self) -> normalisation::NormalisationOps<Self> {

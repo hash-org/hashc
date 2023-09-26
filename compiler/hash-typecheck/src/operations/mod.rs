@@ -8,7 +8,11 @@ use hash_tir::{
     visitor::{Map, Visit, Visitor},
 };
 
-use self::{checking::CheckResult, normalisation::NormaliseResult, unification::UnifyResult};
+use self::{
+    checking::CheckResult,
+    normalisation::NormaliseResult,
+    unification::{UnificationOptions, UnifyResult},
+};
 use crate::env::HasTcEnv;
 
 pub trait Operations<X>: HasTcEnv {
@@ -33,6 +37,7 @@ pub trait Operations<X>: HasTcEnv {
     fn unify(
         &self,
         ctx: &mut Context,
+        opts: &UnificationOptions,
         src: &mut X,
         target: &mut X,
         src_node: Self::Node,
@@ -56,10 +61,16 @@ where
         Operations::normalise(self, ctx, &mut item_ref, item)
     }
 
-    fn unify_nodes(&self, ctx: &mut Context, src: X, target: X) -> UnifyResult {
+    fn unify_nodes(
+        &self,
+        ctx: &mut Context,
+        opts: &UnificationOptions,
+        src: X,
+        target: X,
+    ) -> UnifyResult {
         let mut src_ref = src;
         let mut target_ref = target;
-        Operations::unify(self, ctx, &mut src_ref, &mut target_ref, src, target)
+        Operations::unify(self, ctx, opts, &mut src_ref, &mut target_ref, src, target)
     }
 
     fn substitute_in_node(&self, sub: &Sub, mut target: X) {

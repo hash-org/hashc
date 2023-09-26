@@ -7,7 +7,10 @@ use crate::{
     checker::Checker,
     env::TcEnv,
     operations::{
-        checking::CheckResult, normalisation::NormaliseResult, unification::UnifyResult, Operations,
+        checking::CheckResult,
+        normalisation::NormaliseResult,
+        unification::{UnificationOptions, UnifyResult},
+        Operations,
     },
 };
 
@@ -37,6 +40,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut Context,
+        _opts: &UnificationOptions,
         _src: &mut ArrayTerm,
         _target: &mut ArrayTerm,
         _src_node: Self::Node,
@@ -76,6 +80,7 @@ impl<E: TcEnv> Operations<ArrayPat> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut Context,
+        _opts: &UnificationOptions,
         _src: &mut ArrayPat,
         _target: &mut ArrayPat,
         _src_node: Self::Node,

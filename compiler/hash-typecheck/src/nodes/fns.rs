@@ -12,7 +12,7 @@ use crate::{
     operations::{
         checking::{already_checked, did_check, CheckResult, CheckState},
         normalisation::{already_normalised, NormaliseResult},
-        unification::{UnifyResult, UnifySignal},
+        unification::{UnificationOptions, UnifyResult, UnifySignal},
         Operations,
     },
 };
@@ -48,6 +48,7 @@ impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut Context,
+        _opts: &UnificationOptions,
         f1: &mut FnTy,
         f2: &mut FnTy,
         src_id: Self::Node,
@@ -160,6 +161,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut Context,
+        _opts: &UnificationOptions,
         src: &mut (FnDefId, FnInferMode),
         target: &mut (FnDefId, FnInferMode),
         src_node: Self::Node,

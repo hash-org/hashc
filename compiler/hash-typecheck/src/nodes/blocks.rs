@@ -8,7 +8,10 @@ use crate::{
     checker::Checker,
     env::TcEnv,
     operations::{
-        checking::CheckResult, normalisation::NormaliseResult, unification::UnifyResult, Operations,
+        checking::CheckResult,
+        normalisation::NormaliseResult,
+        unification::{UnificationOptions, UnifyResult},
+        Operations,
     },
 };
 
@@ -38,6 +41,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut Context,
+        _opts: &UnificationOptions,
         _src: &mut BlockTerm,
         _target: &mut BlockTerm,
         _src_node: Self::Node,
