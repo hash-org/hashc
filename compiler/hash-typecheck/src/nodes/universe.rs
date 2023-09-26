@@ -3,9 +3,9 @@ use hash_tir::tir::{TyId, UniverseTy};
 use crate::{
     checker::Checker,
     env::TcEnv,
+    errors::TcResult,
     operations::{
         normalisation::{already_normalised, NormalisationOptions},
-        unification::unified,
         Operations,
     },
 };
@@ -20,7 +20,7 @@ impl<E: TcEnv> Operations<UniverseTy> for Checker<'_, E> {
         _: &mut UniverseTy,
         item_ty: Self::TyNode,
         _: Self::Node,
-    ) -> crate::operations::checking::CheckResult {
+    ) -> TcResult<()> {
         // Type: Type
         self.check_is_universe(item_ty)
     }
@@ -43,8 +43,8 @@ impl<E: TcEnv> Operations<UniverseTy> for Checker<'_, E> {
         _: &mut UniverseTy,
         _: Self::Node,
         _: Self::Node,
-    ) -> crate::operations::unification::UnifyResult {
-        unified()
+    ) -> TcResult<()> {
+        Ok(())
     }
 
     fn substitute(&self, _: &hash_tir::sub::Sub, _: &mut UniverseTy) {}

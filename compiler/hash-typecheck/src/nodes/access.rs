@@ -7,13 +7,12 @@ use hash_tir::{
 use crate::{
     checker::Checker,
     env::TcEnv,
-    errors::{TcError, WrongTermKind},
+    errors::{TcError, TcResult, WrongTermKind},
     operations::{
-        checking::{did_check, CheckResult},
         normalisation::{
             stuck_normalising, NormalisationOptions, NormalisationState, NormaliseResult,
         },
-        unification::{UnificationOptions, UnifyResult, UnifySignal},
+        unification::UnificationOptions,
         Operations,
     },
 };
@@ -28,7 +27,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
         access_term: &mut AccessTerm,
         annotation_ty: Self::TyNode,
         item_node: Self::Node,
-    ) -> CheckResult {
+    ) -> TcResult<()> {
         let subject_ty = Ty::hole_for(access_term.subject);
         self.infer_ops().infer_term(access_term.subject, subject_ty)?;
 
@@ -51,8 +50,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
                             kind: WrongTermKind::NotARecord,
                             inferred_term_ty: subject_ty,
                             term: item_node,
-                        }
-                        .into());
+                        });
                     }
                 }
             }
@@ -63,8 +61,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
                     kind: WrongTermKind::NotARecord,
                     inferred_term_ty: subject_ty,
                     term: item_node,
-                }
-                .into())
+                })
             }
         };
 
@@ -77,14 +74,13 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
                 self.sub_ops().create_sub_from_param_access(params, access_term.subject);
             let subbed_param_ty = self.sub_ops().apply_sub(param.borrow().ty, &param_access_sub);
             self.infer_ops().check_by_unify(subbed_param_ty, annotation_ty)?;
-            did_check(())
+            Ok(())
         } else {
             Err(TcError::PropertyNotFound {
                 term: access_term.subject,
                 term_ty: subject_ty,
                 property: access_term.field,
-            }
-            .into())
+            })
         }
     }
 
@@ -124,12 +120,12 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
         target: &mut AccessTerm,
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> UnifyResult {
+    ) -> TcResult<()> {
+        let ops = self.uni_ops_with(opts);
         if src.field != target.field {
-            return Err(UnifySignal::CannotUnifyTerms { src: src_node, target: target_node });
+            return ops.mismatching_atoms(src_node, target_node);
         }
-        self.uni_ops_with(opts).unify_terms(src.subject, target.subject)?;
-        Ok(())
+        ops.unify_terms(src.subject, target.subject)
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut AccessTerm) {

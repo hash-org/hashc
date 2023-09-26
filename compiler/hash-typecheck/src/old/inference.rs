@@ -49,11 +49,7 @@ use itertools::Itertools;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    operations::{
-        checking::{did_check, CheckState},
-        normalisation::NormalisationMode,
-        Operations, RecursiveOperationsOnNode,
-    },
+    operations::{normalisation::NormalisationMode, Operations, RecursiveOperationsOnNode},
 };
 
 /// The mode in which to infer the type of a function.
@@ -183,14 +179,9 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         &self,
         args: ArgsId,
         annotation_params: ParamsId,
-        mut in_arg_scope: impl FnMut(ArgsId) -> TcResult<U>,
+        in_arg_scope: impl FnMut(ArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
-        CheckState::new().then_result(self.checker().check_node_rec(
-            &mut Context::new(),
-            args,
-            annotation_params,
-            |f| did_check(in_arg_scope(f)?),
-        ))
+        self.checker().check_node_rec(&mut Context::new(), args, annotation_params, in_arg_scope)
     }
 
     /// Infer the given pattern arguments, producing inferred parameters.
@@ -905,12 +896,12 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         original_term_id: TermId,
         fn_mode: FnInferMode,
     ) -> TcResult<()> {
-        CheckState::new().then_result(self.checker().check(
+        self.checker().check(
             &mut Context::new(),
             &mut (fn_def_id, fn_mode),
             annotation_ty,
             original_term_id,
-        ))
+        )
     }
 
     /// Infer the type of a variable, and return it.
@@ -921,12 +912,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         original_term_id: TermId,
     ) -> TcResult<()> {
         let mut var_term = VarTerm { symbol };
-        CheckState::new().then_result(self.checker().check(
-            &mut Context::new(),
-            &mut var_term,
-            annotation_ty,
-            original_term_id,
-        ))
+        self.checker().check(&mut Context::new(), &mut var_term, annotation_ty, original_term_id)
     }
 
     /// Infer the type of a `return` term, and return it.
@@ -1161,13 +1147,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         annotation_ty: TyId,
         original_term_id: TermId,
     ) -> TcResult<()> {
-        let state = CheckState::new();
-        state.then(self.checker().check(
-            &mut Context::new(),
-            access_term,
-            annotation_ty,
-            original_term_id,
-        ))
+        self.checker().check(&mut Context::new(), access_term, annotation_ty, original_term_id)
     }
 
     /// Infer an index term.
@@ -1379,12 +1359,9 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                 self.infer_params(tuple_ty.data, || Ok(()))?;
                 expects_ty(annotation_ty)?;
             }
-            Ty::FnTy(mut fn_ty) => CheckState::new().then_result(self.checker().check(
-                &mut Context::new(),
-                &mut fn_ty,
-                annotation_ty,
-                term_id,
-            ))?,
+            Ty::FnTy(mut fn_ty) => {
+                self.checker().check(&mut Context::new(), &mut fn_ty, annotation_ty, term_id)?
+            }
             Ty::RefTy(ref_ty) => {
                 // Infer the inner type
                 self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
@@ -1400,8 +1377,11 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                 })?;
                 expects_ty(annotation_ty)?;
             }
-            Ty::Universe(mut universe_ty) => CheckState::new().then_result(
-                self.checker().check(&mut Context::new(), &mut universe_ty, annotation_ty, term_id),
+            Ty::Universe(mut universe_ty) => self.checker().check(
+                &mut Context::new(),
+                &mut universe_ty,
+                annotation_ty,
+                term_id,
             )?,
         };
 

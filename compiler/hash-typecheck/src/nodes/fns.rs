@@ -8,11 +8,11 @@ use hash_tir::{
 use crate::{
     checker::Checker,
     env::TcEnv,
+    errors::TcResult,
     inference::FnInferMode,
     operations::{
-        checking::{already_checked, did_check, CheckResult, CheckState},
         normalisation::{already_normalised, NormalisationOptions, NormaliseResult},
-        unification::{UnificationOptions, UnifyResult, UnifySignal},
+        unification::UnificationOptions,
         Operations,
     },
 };
@@ -27,13 +27,12 @@ impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
         fn_ty: &mut FnTy,
         item_ty: Self::TyNode,
         _: Self::Node,
-    ) -> CheckResult {
-        let state = CheckState::new();
-        state.then(self.check_is_universe(item_ty))?;
+    ) -> TcResult<()> {
+        self.check_is_universe(item_ty)?;
         self.infer_ops().infer_params(fn_ty.params, || {
             self.infer_ops().infer_term(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
         })?;
-        state.done()
+        Ok(())
     }
 
     fn normalise(
@@ -54,7 +53,7 @@ impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
         f2: &mut FnTy,
         src_id: Self::Node,
         target_id: Self::Node,
-    ) -> UnifyResult {
+    ) -> TcResult<()> {
         if !self.uni_ops().fn_modalities_match(*f1, *f2) {
             self.uni_ops().mismatching_atoms(src_id, target_id)?;
             Ok(())
@@ -92,14 +91,14 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
         fn_def_id: &mut (FnDefId, FnInferMode),
         annotation_ty: Self::TyNode,
         original_term_id: Self::Node,
-    ) -> CheckResult {
+    ) -> TcResult<()> {
         let (fn_def_id, fn_mode) = *fn_def_id;
         self.infer_ops().check_ty(annotation_ty)?;
         if let Some(fn_ty) = self.infer_ops().try_get_inferred_ty(fn_def_id) {
             let expected =
                 Ty::expect_is(original_term_id, Ty::from(fn_ty, fn_def_id.origin().inferred()));
             self.infer_ops().check_by_unify(expected, annotation_ty)?;
-            return did_check(());
+            return Ok(());
         }
 
         self.infer_ops().infer_fn_annotation_ty(fn_def_id, annotation_ty)?;
@@ -121,12 +120,12 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
                 }
                 Ok(())
             })?;
-            return did_check(());
+            return Ok(());
         }
 
         if self.atom_is_registered(fn_def_id) {
             // Recursive call
-            return already_checked(());
+            return Ok(());
         }
 
         self.register_new_atom(fn_def_id, fn_def.ty);
@@ -147,7 +146,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
 
         self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
 
-        did_check(())
+        Ok(())
     }
 
     fn normalise(
@@ -163,19 +162,19 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut Context,
-        _opts: &UnificationOptions,
+        opts: &UnificationOptions,
         src: &mut (FnDefId, FnInferMode),
         target: &mut (FnDefId, FnInferMode),
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> UnifyResult {
+    ) -> TcResult<()> {
         let (src_id, _) = *src;
         let (target_id, _) = *target;
         if src_id == target_id {
             return Ok(());
         }
 
-        UnifyResult::Err(UnifySignal::CannotUnifyTerms { src: src_node, target: target_node })
+        self.uni_ops_with(opts).mismatching_atoms(src_node, target_node)
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut (FnDefId, FnInferMode)) {

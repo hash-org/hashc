@@ -8,10 +8,9 @@ use hash_tir::{
 use crate::{
     checker::Checker,
     env::TcEnv,
+    errors::TcResult,
     operations::{
-        checking::{did_check, CheckResult, CheckState},
-        normalisation::NormaliseResult,
-        unification::UnifyResult,
+        normalisation::{NormalisationState, NormaliseResult},
         RecursiveOperations,
     },
 };
@@ -21,14 +20,14 @@ impl<E: TcEnv> RecursiveOperations<ArgsId> for Checker<'_, E> {
     type Node = ArgsId;
     type RecursiveArg = ArgsId;
 
-    fn check_rec<T, F: FnMut(Self::RecursiveArg) -> CheckResult<T>>(
+    fn check_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         _: &mut Context,
         args: &mut ArgsId,
         annotation_params: Self::TyNode,
         _: Self::Node,
         mut in_arg_scope: F,
-    ) -> CheckResult<T> {
+    ) -> TcResult<T> {
         let args = *args;
         self.register_new_atom(args, annotation_params);
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
@@ -45,13 +44,13 @@ impl<E: TcEnv> RecursiveOperations<ArgsId> for Checker<'_, E> {
                 let arg = arg.value();
                 Some(arg.value)
             },
-            || CheckState::new().then_result(in_arg_scope(reordered_args_id)),
+            || in_arg_scope(reordered_args_id),
         )?;
 
-        did_check(result)
+        Ok(result)
     }
 
-    fn normalise_rec<T, F: FnMut(Self::RecursiveArg) -> NormaliseResult<T>>(
+    fn normalise_rec<T, F: FnMut(NormalisationState, Self::RecursiveArg) -> NormaliseResult<T>>(
         &self,
         _ctx: &mut Context,
         _item: &mut ArgsId,
@@ -61,7 +60,7 @@ impl<E: TcEnv> RecursiveOperations<ArgsId> for Checker<'_, E> {
         todo!()
     }
 
-    fn unify_rec<T, F: FnMut(Self::RecursiveArg) -> UnifyResult<T>>(
+    fn unify_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         _ctx: &mut Context,
         _src: &mut ArgsId,
@@ -69,7 +68,7 @@ impl<E: TcEnv> RecursiveOperations<ArgsId> for Checker<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
         _f: F,
-    ) -> UnifyResult<T> {
+    ) -> TcResult<T> {
         todo!()
     }
 

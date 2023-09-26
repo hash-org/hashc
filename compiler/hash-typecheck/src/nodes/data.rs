@@ -6,10 +6,10 @@ use hash_tir::{
 use crate::{
     checker::Checker,
     env::TcEnv,
+    errors::TcResult,
     operations::{
-        checking::CheckResult,
         normalisation::{NormalisationOptions, NormaliseResult},
-        unification::{UnificationOptions, UnifyResult},
+        unification::UnificationOptions,
         Operations,
     },
 };
@@ -24,7 +24,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Checker<'_, E> {
         _item: &mut CtorTerm,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
-    ) -> CheckResult {
+    ) -> TcResult<()> {
         todo!()
     }
 
@@ -46,7 +46,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Checker<'_, E> {
         _target: &mut CtorTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> UnifyResult {
+    ) -> TcResult<()> {
         todo!()
     }
 
@@ -65,7 +65,7 @@ impl<E: TcEnv> Operations<DataTy> for Checker<'_, E> {
         _item: &mut DataTy,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
-    ) -> CheckResult {
+    ) -> TcResult<()> {
         todo!()
     }
 
@@ -87,7 +87,7 @@ impl<E: TcEnv> Operations<DataTy> for Checker<'_, E> {
         _target: &mut DataTy,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> UnifyResult {
+    ) -> TcResult<()> {
         todo!()
     }
 

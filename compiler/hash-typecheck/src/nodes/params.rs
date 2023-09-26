@@ -3,10 +3,10 @@ use hash_tir::{context::Context, tir::ParamsId};
 use crate::{
     checker::Checker,
     env::TcEnv,
+    errors::TcResult,
     operations::{
-        checking::CheckResult,
         normalisation::{NormalisationOptions, NormaliseResult},
-        unification::{UnificationOptions, UnifyResult},
+        unification::UnificationOptions,
         Operations,
     },
 };
@@ -21,7 +21,7 @@ impl<E: TcEnv> Operations<ParamsId> for Checker<'_, E> {
         _item: &mut ParamsId,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
-    ) -> CheckResult {
+    ) -> TcResult<()> {
         todo!()
     }
 
@@ -43,7 +43,7 @@ impl<E: TcEnv> Operations<ParamsId> for Checker<'_, E> {
         _target: &mut ParamsId,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> UnifyResult {
+    ) -> TcResult<()> {
         todo!()
     }
 

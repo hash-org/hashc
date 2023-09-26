@@ -7,8 +7,8 @@ use hash_tir::{
 use crate::{
     checker::Checker,
     env::TcEnv,
+    errors::TcResult,
     operations::{
-        checking::did_check,
         normalisation::{already_normalised, normalised, NormalisationOptions},
         unification::UnificationOptions,
         Operations,
@@ -25,7 +25,7 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
         term: &mut VarTerm,
         annotation_ty: Self::TyNode,
         _: Self::Node,
-    ) -> crate::operations::checking::CheckResult {
+    ) -> TcResult<()> {
         let term = *term;
         match self.context().try_get_decl(term.symbol) {
             Some(decl) => {
@@ -33,7 +33,7 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
                     let ty = Visitor::new().copy(ty);
                     self.infer_ops().check_ty(ty)?;
                     self.uni_ops().unify_terms(ty, annotation_ty)?;
-                    did_check(())
+                    Ok(())
                 } else if decl.value.is_some() {
                     panic!("no type found for decl '{}'", decl)
                 } else {
@@ -76,7 +76,7 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
         target: &mut VarTerm,
         a_id: Self::Node,
         b_id: Self::Node,
-    ) -> crate::operations::unification::UnifyResult {
+    ) -> TcResult<()> {
         let a = src.symbol;
         let b = target.symbol;
         let uni_ops = self.uni_ops_with(opts);
@@ -94,8 +94,7 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
         if a == b {
             Ok(())
         } else {
-            uni_ops.mismatching_atoms(a_id, b_id)?;
-            Ok(())
+            uni_ops.mismatching_atoms(a_id, b_id)
         }
     }
 
