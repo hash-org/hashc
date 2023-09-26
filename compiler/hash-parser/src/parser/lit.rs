@@ -3,6 +3,7 @@
 use hash_ast::ast::*;
 use hash_source::{identifier::Identifier, location::ByteRange};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, FloatLitKind, IntLitKind, TokenKind};
+use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
 use crate::diagnostics::{
@@ -155,17 +156,58 @@ impl<'s> AstGen<'s> {
         }
     }
 
-    /// Parse an array literal from a bracket token tree.
+    /// Parse an array literal from a bracket token tree. This function
+    /// also handles array literals that specify a repeat expression, i.e.
+    /// `[0; 10]` which would be an array of 10 `0`'s.
     pub(crate) fn parse_array_lit(&mut self) -> ParseResult<AstNode<Expr>> {
         self.in_tree(Delimiter::Bracket, None, |gen| {
-            let elements = gen.parse_nodes(
-                |g| g.parse_expr_with_precedence(0),
-                |g| g.parse_token(TokenKind::Comma),
-            );
+            macro_rules! make_arr {
+                ($elements:expr; $span:expr) => {{
+                    let elements = gen.nodes_with_span($elements, $span);
+                    let data = gen.node_with_span(Lit::Array(ArrayLit { elements }), $span);
+                    Ok(gen.node_with_span(Expr::Lit(LitExpr { data }), $span))
+                }};
+            }
 
             let span = gen.range();
-            let data = gen.node_with_span(Lit::Array(ArrayLit { elements }), span);
-            Ok(gen.node_with_span(Expr::Lit(LitExpr { data }), span))
+
+            // If the generator is empty, then we can just return an empty array literal...
+            if gen.is_empty() {
+                return make_arr!(thin_vec![]; span);
+            }
+
+            // Parse the initial expression, then if the next token is a
+            // semi colon, this must be a repeat expression!
+            let start = gen.parse_expr_with_precedence(0)?;
+
+            match gen.peek_kind() {
+                Some(TokenKind::Semi) => {
+                    gen.skip_fast(TokenKind::Semi); // ';'
+
+                    let repeat = gen.parse_expr_with_precedence(0)?;
+
+                    Ok(gen
+                        .node_with_span(Expr::Repeat(RepeatExpr { subject: start, repeat }), span))
+                }
+                Some(TokenKind::Comma) => {
+                    // We might have to perform some cleanup here, if the next token is a comma,
+                    // then we need to parse the rest of the elements.
+                    gen.skip_fast(TokenKind::Comma); // ';'
+
+                    let mut elements = gen.parse_nodes(
+                        |g| g.parse_expr_with_precedence(0),
+                        |g| g.parse_token(TokenKind::Comma),
+                    );
+
+                    // Insert the first element into the array...
+                    elements.insert(start, 0);
+                    let data = gen.node_with_span(Lit::Array(ArrayLit { elements }), span);
+                    Ok(gen.node_with_span(Expr::Lit(LitExpr { data }), span))
+                }
+                _ => {
+                    make_arr!(thin_vec![start]; span)
+                }
+            }
         })
     }
 }

@@ -39,7 +39,7 @@ use llvm_sys::core as llvm;
 
 use super::{
     abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,
-    LLVMBuilder,
+    LLVMBuilder, EMPTY_NAME,
 };
 use crate::misc::{
     AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
@@ -71,7 +71,7 @@ impl<'a, 'b, 'm> LLVMBuilder<'a, 'b, 'm> {
 
         // Create the PHI value, and then add all of the incoming values.
         let ty: BasicTypeEnum = ty.try_into().unwrap();
-        let phi = self.builder.build_phi(ty, "phi");
+        let phi = self.builder.build_phi(ty, "");
 
         // @@Efficiency: patch inkwell to allow to provide these references directly...
         let blocks_and_values = blocks
@@ -464,10 +464,21 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
     }
 
     fn unchecked_uadd(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
-        let lhs = lhs.into_int_value();
-        let rhs = rhs.into_int_value();
-
-        self.builder.build_int_nuw_add(lhs, rhs, "").into()
+        // @@PatchInkwell: we need to potentially support `phi_value` from
+        // the lhs, so we can't use the standard builder method here...
+        //
+        // let lhs = lhs.into_int_value();
+        // let rhs = rhs.into_int_value();
+        // self.builder.build_int_nuw_add(lhs, rhs, "").into()
+        //
+        unsafe {
+            AnyValueEnum::new(llvm::LLVMBuildNUWAdd(
+                self.builder.as_mut_ptr(),
+                lhs.as_value_ref(),
+                rhs.as_value_ref(),
+                EMPTY_NAME,
+            ))
+        }
     }
 
     fn unchecked_ssub(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -579,10 +590,20 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn icmp(&mut self, op: IntComparisonKind, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let op = IntPredicateWrapper::from(op).0;
-        let lhs = lhs.into_int_value();
-        let rhs = rhs.into_int_value();
 
-        self.builder.build_int_compare(op, lhs, rhs, "").into()
+        // @@PatchInkwell: `built_int_compare` doesn't support passing in `phi` values
+        // because of the `IntMathType` bound on the operands.
+        unsafe {
+            let value = llvm::LLVMBuildICmp(
+                self.builder.as_mut_ptr(),
+                op.into(),
+                lhs.as_value_ref(),
+                rhs.as_value_ref(),
+                EMPTY_NAME,
+            );
+
+            AnyValueEnum::new(value)
+        }
     }
 
     fn fcmp(&mut self, op: RealComparisonKind, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -751,8 +772,6 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
     ) {
         let zero = self.const_usize(0);
         let count = self.const_usize(count as u64);
-        let start = destination.project_index(self, zero).value;
-        let end = destination.project_index(self, count).value;
 
         // setup the blocks to write the operand to...
         let header_bb = self.append_sibling_block("repeat_loop_header");
@@ -764,37 +783,20 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
         let mut header_builder = Self::build(self.ctx, header_bb);
 
-        let basic_value: BasicValueEnum = start.try_into().unwrap();
+        let zero_val: BasicValueEnum = zero.try_into().unwrap();
         let current: AnyValueEnum = header_builder
-            .phi(
-                self.ctx.ty_of_value(start),
-                &[&basic_value as &dyn BasicValue],
-                &[self.basic_block()],
-            )
+            .phi(self.ctx.ty_of_value(zero), &[&zero_val], &[self.basic_block()])
             .into();
 
-        let keep_going = header_builder.icmp(IntComparisonKind::Ne, current, end);
+        let keep_going = header_builder.icmp(IntComparisonKind::Ult, current, count);
         header_builder.conditional_branch(keep_going, body_bb, next_bb);
 
         let mut body_builder = Self::build(self.ctx, body_bb);
+        let dest = destination.project_index(&mut body_builder, current);
+        operand.value.store(&mut body_builder, dest);
 
-        let field_info = destination.info.field(self.ctx.layouts(), 0);
-        let field_size = field_info.size();
-
-        let alignment = destination.alignment.restrict_to(field_size);
-
-        // now we want to emit a `store` for the value we are writing
-        operand.value.store(
-            &mut body_builder,
-            PlaceRef { value: current, extra: None, info: operand.info, alignment },
-        );
-
-        // Compute the "next" value...
-        let ty = self.backend_ty_from_info(operand.info);
-        let next: BasicValueEnum = body_builder
-            .bounded_get_element_pointer(ty, current, &[self.const_usize(1)])
-            .try_into()
-            .unwrap();
+        let next: BasicValueEnum =
+            body_builder.unchecked_uadd(current, self.const_usize(1)).try_into().unwrap();
 
         // and branch back to the header
         body_builder.branch(header_bb);
@@ -1013,13 +1015,29 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         indices: &[Self::Value],
     ) -> Self::Value {
         let ty: BasicTypeEnum = ty.try_into().unwrap();
-        let indices = indices.iter().map(|i| i.into_int_value()).collect::<Vec<_>>();
 
         // ## Safety: If the `indices` are invalid or out of bounds, LLVM
         // is likely to segfault, which is noted by Inkwell and thus labelled
         // as `unsafe`.
         unsafe {
-            self.builder.build_in_bounds_gep(ty, ptr.into_pointer_value(), &indices, "").into()
+            let pointee = ptr.into_pointer_value();
+            let mut index_values: Vec<llvm_sys::prelude::LLVMValueRef> =
+                indices.iter().map(|val| val.as_value_ref()).collect();
+
+            // @@PatchInkwell, we can't use `self.builder.build_in_bounds_gep()` because
+            // again of the possibility of the `indices` to be non-int values.
+            //
+            // We need to patch inkwell to support this.
+            let value = llvm::LLVMBuildInBoundsGEP2(
+                self.builder.as_mut_ptr(),
+                ty.as_type_ref(),
+                pointee.as_value_ref(),
+                index_values.as_mut_ptr(),
+                index_values.len() as u32,
+                EMPTY_NAME,
+            );
+
+            AnyValueEnum::new(value)
         }
     }
 

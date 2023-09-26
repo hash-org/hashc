@@ -10,7 +10,7 @@ use hash_storage::{
         SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
-use hash_utils::itertools::Itertools;
+use hash_utils::{bitflags::bitflags, derive_more::Deref, itertools::Itertools};
 use textwrap::indent;
 use utility_types::omit;
 
@@ -98,17 +98,49 @@ pub enum NumericCtorBits {
     Unbounded,
 }
 
+bitflags! {
+    /// Flags for numeric constructors.
+    #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+    pub struct NumericCtorFlags: u8 {
+        /// Whether the number is signed or not.
+        const IS_SIGNED = 1 << 1;
+
+        /// If the numeric is a float.
+        const IS_FLOAT = 1 << 2;
+
+        /// If the numeric is a platform dependent type.
+        const IS_PLATFORM = 1 << 3;
+    }
+}
+
+impl NumericCtorFlags {
+    /// Check if the numeric is a float.
+    pub fn is_float(self) -> bool {
+        self.contains(NumericCtorFlags::IS_FLOAT)
+    }
+
+    /// Check if the numeric is signed.
+    pub fn is_signed(self) -> bool {
+        self.contains(NumericCtorFlags::IS_SIGNED)
+    }
+
+    /// Check if the numeric is a platform dependent type.
+    pub fn is_platform(self) -> bool {
+        self.contains(NumericCtorFlags::IS_PLATFORM)
+    }
+}
+
 /// A numeric constructor definition.
 ///
 /// This is a constructor which accepts numeric literals
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deref)]
 pub struct NumericCtorInfo {
     /// The number of bits in the number.
     pub bits: NumericCtorBits,
-    /// Whether the number is signed or not.
-    pub is_signed: bool,
-    /// Whether the number is floating-point or not.
-    pub is_float: bool,
+
+    /// Flags for the numeric constructor.
+    #[deref]
+    pub flags: NumericCtorFlags,
     // @@Future: allowable range?
 }
 
@@ -139,11 +171,10 @@ pub enum PrimitiveCtorInfo {
 }
 
 /// Helper for creating primitive numeric constructor info.
-pub(crate) fn numeric_ctors(bits: u8, signed: bool, float: bool) -> PrimitiveCtorInfo {
+pub(crate) fn numeric_ctors(bits: u8, flags: NumericCtorFlags) -> PrimitiveCtorInfo {
     PrimitiveCtorInfo::Numeric(NumericCtorInfo {
         bits: if bits == 0 { NumericCtorBits::Unbounded } else { NumericCtorBits::Bounded(bits) },
-        is_signed: signed,
-        is_float: float,
+        flags,
     })
 }
 
@@ -480,8 +511,11 @@ impl Display for PrimitiveCtorInfo {
             PrimitiveCtorInfo::Numeric(numeric) => {
                 writeln!(
                     f,
-                    "numeric [bits={}, float={}, signed={}]",
-                    numeric.bits, numeric.is_float, numeric.is_signed,
+                    "numeric [bits={}, float={}, signed={}, platform={}]",
+                    numeric.bits,
+                    numeric.flags.contains(NumericCtorFlags::IS_FLOAT),
+                    numeric.flags.contains(NumericCtorFlags::IS_SIGNED),
+                    numeric.flags.contains(NumericCtorFlags::IS_PLATFORM)
                 )
             }
             PrimitiveCtorInfo::Str => {

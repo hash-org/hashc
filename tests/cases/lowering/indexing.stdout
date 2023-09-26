@@ -5,10 +5,10 @@ foo := (_1: &[i32]) -> i32 {
 
     // parameter `arr` -> _1
 
-    mut _2: u64;
+    mut _2: usize;
     mut _3: i32;
-    mut _4: u64;
-    mut _5: u64;
+    mut _4: usize;
+    mut _5: usize;
     _6: (i32, bool);
     _7: (i32, bool);
 

@@ -336,6 +336,7 @@ fn handle_test(test: TestingInput) {
 
     // // Now parse the module and store the result
     compiler.run_on_entry_point();
+    compiler.maybe_run_executable();
 
     // @@Copying: we shouldn't really need to clone the diagnostics here!!
     let diagnostics = compiler.diagnostics().to_owned();

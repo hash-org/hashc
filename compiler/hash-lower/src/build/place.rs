@@ -123,10 +123,12 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Create a temporary for the index expression.
                 let index = unpack!(block = self.term_into_temp(block, index, mutability));
 
-                // Auto-deref: if the base place is behind a reference, then we dereference
-                // it.
                 let ty = self.ty_id_from_tir_term(subject);
 
+                // we need to check whether this is referring to a "list", or an array.
+                //
+                // @@AutoDeref: if the base place is behind a reference, then we dereference
+                // it.
                 if ty.borrow().is_ref() {
                     base_place = base_place.deref()
                 }

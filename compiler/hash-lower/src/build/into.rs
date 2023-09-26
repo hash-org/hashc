@@ -18,11 +18,12 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::Context,
+    intrinsics::utils::try_use_term_as_integer_lit,
     scopes::AssignTerm,
     term_as_variant,
     tir::{
-        self, ArgsId, ArrayTerm, CallTerm, CtorTerm, LoopControlTerm, NodesId, ParamIndex, RefTerm,
-        ReturnTerm, Term, TermId, TupleTerm, Ty, UnsafeTerm,
+        self, ArgsId, ArrayTerm, CallTerm, CtorTerm, HasAstNodeId, LoopControlTerm, NodesId,
+        ParamIndex, RefTerm, ReturnTerm, Term, TermId, TupleTerm, Ty, UnsafeTerm,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -75,19 +76,40 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 block.unit()
             }
-            Term::Array(ArrayTerm { elements }) => {
+            Term::Array(array_term) => {
                 // We lower literal arrays and tuples as aggregates.
                 let ty = self.ty_id_from_tir_term(term);
-
                 let aggregate_kind = AggregateKind::Array(ty);
-                let args = elements
-                    .borrow()
-                    .value()
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .map(|(index, element)| (index.into(), element))
-                    .collect_vec();
+
+                let args = match array_term {
+                    ArrayTerm::Normal(elements) => elements
+                        .borrow()
+                        .value()
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .map(|(index, element)| (index.into(), element))
+                        .collect_vec(),
+                    ArrayTerm::Repeated(operand, repeat) => {
+                        // @@Semantics: When we need to deal with data drops, what do we do in the
+                        // case of a zero length array, do we need to still
+                        // drop the initial operand?
+                        let Some(length) = try_use_term_as_integer_lit::<_, usize>(self, repeat)
+                        else {
+                            panic_on_span!(repeat.span().unwrap(), "non-constant repeat length");
+                        };
+
+                        let value_operand =
+                            unpack!(block = self.as_operand(block, operand, Mutability::Immutable));
+                        self.control_flow_graph.push_assign(
+                            block,
+                            destination,
+                            RValue::Repeat(value_operand, length),
+                            span,
+                        );
+                        return block.unit();
+                    }
+                };
 
                 // If it is a list, we have to initialise it with the array elements...
                 if !ty.borrow().is_array() {

@@ -2,6 +2,8 @@
 //! logic of transforming generated Hash IR into LLVM IR so that it can be
 //! compiled by LLVM into a native executable with the specified target triple.
 
+use std::ffi::{c_char, CStr};
+
 use hash_codegen::{
     backend::CodeGenStorage,
     layout::compute::LayoutComputer,
@@ -24,6 +26,13 @@ mod metadata;
 mod misc;
 mod statics;
 pub(crate) mod ty;
+
+/// An empty c-string.
+const EMPTY_C_STR: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
+
+/// Used to fill in names where LLVM requires a name for an instruction, or some
+/// value. We don't care about the names, so we just use an empty c-string.
+pub(crate) const EMPTY_NAME: *const c_char = EMPTY_C_STR.as_ptr();
 
 /// A [Builder] is defined as being a context that is used to implement
 /// all of the specified builder methods.

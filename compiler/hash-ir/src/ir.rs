@@ -630,9 +630,15 @@ pub enum RValue {
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
     Ref(Mutability, Place, RefKind),
+
     /// Used for initialising structs, tuples and other aggregate
     /// data structures
     Aggregate(AggregateKind, Vec<Operand>),
+
+    /// An array aggregate which is used to initialise an array with a repeated
+    /// operand, this originates from the initial repeat expression: `[x; 5]`.
+    Repeat(Operand, usize),
+
     /// Compute the discriminant of a [Place], this is essentially checking
     /// which variant a union is. For types that don't have a discriminant
     /// (non-union types ) this will return the value as 0.
@@ -680,6 +686,9 @@ impl RValue {
             RValue::Discriminant(place) => {
                 let ty = place.ty(locals);
                 ty.borrow().discriminant_ty()
+            }
+            RValue::Repeat(op, length) => {
+                IrTy::create(IrTy::Array { ty: op.ty(locals), length: *length })
             }
         }
     }
@@ -1407,7 +1416,7 @@ mod size_asserts {
 
     use super::*;
 
-    static_assert_size!(Statement, 64);
+    static_assert_size!(Statement, 72);
     static_assert_size!(Terminator, 120);
-    static_assert_size!(RValue, 40);
+    static_assert_size!(RValue, 48);
 }

@@ -337,6 +337,7 @@ pub fn parse_test_case_metadata(path: &PathBuf) -> Result<ParsedMetadata, io::Er
                         "ir" => CompilerStageKind::Lower,
                         "codegen" => CompilerStageKind::CodeGen,
                         "full" => CompilerStageKind::Build,
+                        "exe" => CompilerStageKind::Exe,
                         // We always default to `full` here
                         _ => {
                             warnings.push(ParseWarning::unrecognised_value(key, value));

@@ -11,7 +11,6 @@ use super::BodyBuilder;
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Lower a literal value into a [constant::Const].
-    #[allow(unused)]
     pub(crate) fn lit_as_const(&self, lit: LitId) -> ir::Const {
         let value = *lit.value();
         let ty = self.ty_id_from_lit(&value);

@@ -1,0 +1,5 @@
+// stage=exe, run=pass
+
+main := () => {
+    println("hello world!")
+}
