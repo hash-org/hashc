@@ -50,6 +50,11 @@ pub fn normalised_if<T, I: Into<T>>(
     }
 }
 
+/// Signals that the normalisation was successful.
+pub fn normalised() -> NormaliseResult<()> {
+    Ok(Some(()))
+}
+
 /// Signals that the normalisation produced the given atom.
 pub fn normalised_to<T>(atom: impl Into<T>) -> NormaliseResult<T> {
     Ok(Some(atom.into()))

@@ -8,7 +8,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::ScopeKind,
+    context::{Context, ScopeKind},
     intrinsics::{
         make::IsIntrinsic,
         utils::{get_bool_ctor, try_use_term_as_integer_lit},
@@ -29,10 +29,13 @@ use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
     intrinsic_abilities::IntrinsicAbilitiesImpl,
-    operations::normalisation::{
-        already_normalised, ctrl_continue, ctrl_map, normalised_if, normalised_option,
-        normalised_to, stuck_normalising, NormalisationMode, NormalisationState, NormaliseResult,
-        NormaliseSignal,
+    operations::{
+        normalisation::{
+            already_normalised, ctrl_continue, ctrl_map, normalised_if, normalised_option,
+            normalised_to, stuck_normalising, NormalisationMode, NormalisationState,
+            NormaliseResult, NormaliseSignal,
+        },
+        Operations,
     },
 };
 
@@ -297,7 +300,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate an atom with the current mode, performing at least a single
     /// step of normalisation.
-    fn eval(&self, atom: Atom) -> Result<Atom, NormaliseSignal> {
+    pub fn eval(&self, atom: Atom) -> Result<Atom, NormaliseSignal> {
         match self.potentially_eval(atom)? {
             Some(atom) => Ok(atom),
             None => Ok(atom),
@@ -394,16 +397,13 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     }
 
     /// Evaluate a variable.
-    fn eval_var(&self, var: SymbolId) -> AtomEvaluation {
-        match self.context().try_get_decl_value(var) {
-            Some(result) => {
-                if matches!(*result.value(), Term::Var(v) if v.symbol == var) {
-                    already_normalised()
-                } else {
-                    normalised_to(self.eval(result.into())?)
-                }
-            }
-            None => already_normalised(),
+    fn eval_var(&self, var: SymbolId, original_term_id: TermId) -> AtomEvaluation {
+        let term_id = Visitor::new().copy(original_term_id);
+        let result =
+            self.checker().normalise(&mut Context::new(), &mut VarTerm { symbol: var }, term_id)?;
+        match result {
+            Some(()) => normalised_to(term_id),
+            None => Ok(None),
         }
     }
 
@@ -738,7 +738,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 }
                 Term::Cast(cast_term) => ctrl_map(self.eval_cast(cast_term)),
                 Term::Hole(Hole(var)) | Term::Var(VarTerm { symbol: var }) => {
-                    ctrl_map(self.eval_var(var))
+                    ctrl_map(self.eval_var(var, term))
                 }
                 Term::Deref(deref_term) => {
                     ctrl_map(self.eval_deref(term.origin().with_data(deref_term)))

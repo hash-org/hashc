@@ -1,12 +1,17 @@
+use hash_storage::store::statics::StoreId;
 use hash_tir::{
-    tir::{TermId, TyId, VarTerm},
+    tir::{Term, TermId, TyId, VarTerm},
     visitor::{Map, Visitor},
 };
 
 use crate::{
     checker::Checker,
     env::TcEnv,
-    operations::{checking::did_check, Operations},
+    operations::{
+        checking::did_check,
+        normalisation::{already_normalised, normalised},
+        Operations,
+    },
 };
 
 impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
@@ -43,10 +48,22 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
     fn normalise(
         &self,
         _ctx: &mut hash_tir::context::Context,
-        _item: &mut VarTerm,
-        _item_node: Self::Node,
+        item: &mut VarTerm,
+        item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<()> {
-        todo!()
+        let var = item.symbol;
+        match self.context().try_get_decl_value(var) {
+            Some(result) => {
+                if matches!(*result.value(), Term::Var(v) if v.symbol == var) {
+                    already_normalised()
+                } else {
+                    let actual = self.norm_ops().eval(result.into())?;
+                    item_node.set(self.norm_ops().to_term(actual).value());
+                    normalised()
+                }
+            }
+            None => already_normalised(),
+        }
     }
 
     fn unify(
