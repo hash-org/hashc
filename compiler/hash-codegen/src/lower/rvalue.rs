@@ -282,9 +282,12 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     // This occurs when a binary operator is implemented on a non-primitive
                     // type meaning that there is an implicit function dispatch to compute
                     // the resultant value.
-                    (OperandValue::Pair(_, _), OperandValue::Pair(_, _)) => {
-                        unimplemented!()
-                    }
+                    (
+                        OperandValue::Pair(lhs_addr, lhs_extra),
+                        OperandValue::Pair(rhs_addr, rhs_extra),
+                    ) => self.codegen_pair_binop(
+                        builder, operator, lhs_addr, lhs_extra, rhs_addr, rhs_extra,
+                    ),
                     (OperandValue::Immediate(lhs_value), OperandValue::Immediate(rhs_value)) => {
                         self.codegen_scalar_binop(
                             builder,
@@ -566,6 +569,60 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         };
 
         OperandValue::Pair(value, overflow)
+    }
+
+    /// Emit code for a [ir::BinOp] which is being applied to two
+    /// [OperandValue::Pair]s. This is usually for `SizedPointer`s, and or
+    /// strings (which is the same representation).
+    fn codegen_pair_binop(
+        &mut self,
+        builder: &mut Builder,
+        operator: ir::BinOp,
+        lhs_addr: Builder::Value,
+        lhs_extra: Builder::Value,
+        rhs_addr: Builder::Value,
+        rhs_extra: Builder::Value,
+    ) -> Builder::Value {
+        match operator {
+            BinOp::Eq => {
+                // We emit the following:
+                //
+                // lhs.0 == rhs.0 && lhs.1 == rhs.1
+
+                let lhs = builder.icmp(IntComparisonKind::Eq, lhs_addr, rhs_addr);
+                let rhs = builder.icmp(IntComparisonKind::Eq, lhs_extra, rhs_extra);
+                builder.and(lhs, rhs)
+            }
+            BinOp::Neq => {
+                // We emit the following:
+                //
+                // lhs.0 != rhs.0 || lhs.1 != rhs.1
+
+                let lhs = builder.icmp(IntComparisonKind::Ne, lhs_addr, rhs_addr);
+                let rhs = builder.icmp(IntComparisonKind::Ne, lhs_extra, rhs_extra);
+                builder.or(lhs, rhs)
+            }
+            BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq => {
+                let (op, strict_op) = match operator {
+                    BinOp::Lt => (IntComparisonKind::Ult, IntComparisonKind::Ult),
+                    BinOp::LtEq => (IntComparisonKind::Ule, IntComparisonKind::Ult),
+                    BinOp::Gt => (IntComparisonKind::Ugt, IntComparisonKind::Ugt),
+                    BinOp::GtEq => (IntComparisonKind::Uge, IntComparisonKind::Ugt),
+                    _ => unreachable!(),
+                };
+
+                // We generate the following expression:
+                //
+                // lhs.0 <STRICT_OP> lhs.1 || (lhs.0 == rhs.0 && lhs.1 <OP> rhs.1)
+
+                let lhs = builder.icmp(strict_op, lhs_addr, rhs_addr);
+                let and_lhs = builder.icmp(op, lhs_extra, rhs_extra);
+                let and_rhs = builder.icmp(IntComparisonKind::Eq, lhs_addr, rhs_addr);
+                let rhs = builder.and(and_lhs, and_rhs);
+                builder.or(lhs, rhs)
+            }
+            op => panic!("unexpected binary operator `{}` on scalar pairs", op),
+        }
     }
 
     /// Check whether the given [ir::RValue] will create an
