@@ -284,7 +284,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
     /// Check that the given type is well-formed, and normalise it.
     pub fn check_ty(&self, ty: TyId) -> TcResult<()> {
         match *ty.value() {
-            Ty::Universe | Ty::Hole(_) => Ok(()),
+            Ty::Universe(_) | Ty::Hole(_) => Ok(()),
             _ => self.infer_term(ty, Ty::universe_of(ty)),
         }
     }
@@ -1400,7 +1400,7 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                 })?;
                 expects_ty(annotation_ty)?;
             }
-            Ty::Universe => {
+            Ty::Universe(_) => {
                 expects_ty(annotation_ty)?;
             }
         };

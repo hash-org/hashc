@@ -283,7 +283,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             }
             (Ty::DataTy(_), _) | (_, Ty::DataTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::Universe, Ty::Universe) => Ok(()),
+            (Ty::Universe(_), Ty::Universe(_)) => Ok(()),
 
             (Term::Tuple(t1), Term::Tuple(t2)) => self.unify_args(t1.data, t2.data),
             (Term::Tuple(_), _) | (_, Term::Tuple(_)) => self.mismatching_atoms(src_id, target_id),

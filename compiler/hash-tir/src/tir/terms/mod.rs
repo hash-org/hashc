@@ -50,6 +50,12 @@ pub struct TyOfTerm {
     pub term: TermId,
 }
 
+/// The type representing the universe.
+///
+/// Every other type is typed by this type.
+#[derive(Debug, Clone, Copy)]
+pub struct UniverseTy;
+
 /// A variable, which is a symbol.
 #[derive(Debug, Clone, Copy)]
 pub struct VarTerm {
@@ -136,7 +142,7 @@ pub enum Term {
     DataTy(DataTy),
 
     /// The universe type
-    Universe,
+    Universe(UniverseTy),
 
     /// Holes
     Hole(Hole),
@@ -209,7 +215,7 @@ impl Term {
 
     /// Create a type of types.
     pub fn universe(origin: NodeOrigin) -> TyId {
-        Node::create(Node::at(Ty::Universe, origin))
+        Node::create(Node::at(Ty::Universe(UniverseTy), origin))
     }
 
     /// Create a new empty tuple type.
@@ -320,8 +326,14 @@ impl fmt::Display for Term {
             Ty::FnTy(fn_ty) => write!(f, "{}", fn_ty),
             Ty::RefTy(ref_ty) => write!(f, "{}", ref_ty),
             Ty::DataTy(data_ty) => write!(f, "{}", data_ty),
-            Ty::Universe => write!(f, "Type"),
+            Ty::Universe(universe) => write!(f, "{}", universe),
         }
+    }
+}
+
+impl fmt::Display for UniverseTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Type")
     }
 }
 

@@ -208,7 +208,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 | Term::TypeOf(_)
                 | Term::DataTy(_)
                 | Term::RefTy(_)
-                | Term::Universe
+                | Term::Universe(_)
                 | Term::TupleTy(_)
                 | Term::FnTy(_)
                 | Term::Block(_) => ControlFlow::Continue(()),
@@ -790,7 +790,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 Term::Loop(loop_term) => {
                     ctrl_map_full(self.eval_loop(term.origin().with_data(loop_term)))
                 }
-                Ty::FnTy(_) | Ty::TupleTy(_) | Ty::DataTy(_) | Ty::Universe | Ty::RefTy(_) => {
+                Ty::FnTy(_) | Ty::TupleTy(_) | Ty::DataTy(_) | Ty::Universe(_) | Ty::RefTy(_) => {
                     ctrl_continue()
                 }
             },

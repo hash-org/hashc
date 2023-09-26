@@ -17,7 +17,7 @@ use crate::{
         IfPat, IndexTerm, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
         Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
         PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
-        TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyOfTerm, UnsafeTerm,
+        TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyOfTerm, UniverseTy, UnsafeTerm,
     },
 };
 
@@ -224,7 +224,7 @@ impl Visit<TermId> for Visitor {
                 }
                 Ty::RefTy(ref_ty) => self.try_visit(ref_ty.ty, f),
                 Ty::DataTy(data_ty) => self.try_visit(data_ty.args, f),
-                Ty::Universe => Ok(()),
+                Ty::Universe(_) => Ok(()),
             },
         }
     }
@@ -385,7 +385,7 @@ impl Map<TermId> for Visitor {
                     let args = self.try_map(data_ty.args, f)?;
                     Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }, origin))
                 }
-                Ty::Universe => Ok(Ty::from(Ty::Universe, origin)),
+                Ty::Universe(_) => Ok(Ty::from(Ty::Universe(UniverseTy), origin)),
             },
         }?;
 

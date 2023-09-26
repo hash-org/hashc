@@ -157,7 +157,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Ty::FnTy(_)
             | Ty::TupleTy(_)
             | Ty::RefTy(_)
-            | Ty::Universe
+            | Ty::Universe(_)
             | Term::Ref(_)
             | Term::Hole(_) => {
                 // These expressions are not places, so we need to create a temporary
