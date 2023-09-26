@@ -1,6 +1,6 @@
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    TrivialSequenceStoreKey,
+    SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
@@ -11,7 +11,7 @@ use hash_tir::{
 use crate::{
     checker::Checker,
     env::TcEnv,
-    errors::TcResult,
+    errors::{TcError, TcResult},
     operations::{
         normalisation::{
             normalised_if, NormalisationOptions, NormalisationState, NormaliseResult,
@@ -87,12 +87,24 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Checker<'_, E> {
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         _ctx: &mut Context,
-        _opts: &UnificationOptions,
-        _src: ArgsId,
-        _target: ArgsId,
-        _f: F,
+        opts: &UnificationOptions,
+        src_id: ArgsId,
+        target_id: ArgsId,
+        mut f: F,
     ) -> TcResult<T> {
-        todo!()
+        if src_id.len() != target_id.len() {
+            return Err(TcError::DifferentParamOrArgLengths {
+                a: src_id.into(),
+                b: target_id.into(),
+            });
+        }
+        let uni_ops = self.uni_ops_with(opts);
+        for (src_arg_id, target_arg_id) in src_id.iter().zip(target_id.iter()) {
+            let src_arg = src_arg_id.value();
+            let target_arg = target_arg_id.value();
+            uni_ops.unify_terms(src_arg.value, target_arg.value)?;
+        }
+        f(src_id)
     }
 
     fn substitute_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(

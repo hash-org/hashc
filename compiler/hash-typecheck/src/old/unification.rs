@@ -17,7 +17,7 @@ use hash_utils::derive_more::Deref;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{unification::UnificationOptions, Operations},
+    operations::{unification::UnificationOptions, Operations, RecursiveOperationsOnNode},
 };
 
 #[derive(Deref)]
@@ -401,18 +401,8 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
 
     /// Unify two argument lists.
     pub fn unify_args(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<()> {
-        if src_id.len() != target_id.len() {
-            return Err(TcError::DifferentParamOrArgLengths {
-                a: src_id.into(),
-                b: target_id.into(),
-            });
-        }
-        for (src_arg_id, target_arg_id) in src_id.iter().zip(target_id.iter()) {
-            let src_arg = src_arg_id.value();
-            let target_arg = target_arg_id.value();
-            self.unify_terms(src_arg.value, target_arg.value)?;
-        }
-        Ok(())
+        self.checker()
+            .unify_nodes_rec(&mut Context::new(), &self.opts, src_id, target_id, |_| Ok(()))
     }
 
     /// Whether two function types match in terms of their modality.
