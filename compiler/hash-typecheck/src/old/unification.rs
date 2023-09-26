@@ -8,7 +8,7 @@ use hash_tir::{
     sub::Sub,
     tir::{
         validate_params, ArgsId, CallTerm, DataDefCtors, FnTy, Hole, Lit, ParamsId, SymbolId, Term,
-        TermId, Ty, TyId,
+        TermId, Ty, TyId, VarTerm,
     },
     visitor::Atom,
 };
@@ -207,21 +207,10 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     }
 
     pub fn unify_vars(&self, a: SymbolId, b: SymbolId, a_id: TermId, b_id: TermId) -> TcResult<()> {
-        if let Some(binds) = self.opts.pat_binds.get() {
-            if binds.contains(&a) {
-                self.add_unification(b, a_id);
-                return Ok(());
-            }
-            if binds.contains(&b) {
-                self.add_unification(a, b_id);
-                return Ok(());
-            }
-        }
-        if a == b {
-            Ok(())
-        } else {
-            self.mismatching_atoms(a_id, b_id)
-        }
+        let mut src = VarTerm { symbol: a };
+        let mut target = VarTerm { symbol: b };
+        self.checker().unify(&mut Context::new(), &self.opts, &mut src, &mut target, a_id, b_id)?;
+        Ok(())
     }
 
     /// Whether two literals are equal.

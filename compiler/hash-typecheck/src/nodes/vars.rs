@@ -70,13 +70,32 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
     fn unify(
         &self,
         _ctx: &mut hash_tir::context::Context,
-        _opts: &UnificationOptions,
-        _src: &mut VarTerm,
-        _target: &mut VarTerm,
-        _a_id: Self::Node,
-        _b_id: Self::Node,
+        opts: &UnificationOptions,
+        src: &mut VarTerm,
+        target: &mut VarTerm,
+        a_id: Self::Node,
+        b_id: Self::Node,
     ) -> crate::operations::unification::UnifyResult {
-        todo!()
+        let a = src.symbol;
+        let b = target.symbol;
+        let uni_ops = self.uni_ops_with(opts);
+
+        if let Some(binds) = opts.pat_binds.get() {
+            if binds.contains(&a) {
+                uni_ops.add_unification(b, a_id);
+                return Ok(());
+            }
+            if binds.contains(&b) {
+                uni_ops.add_unification(a, b_id);
+                return Ok(());
+            }
+        }
+        if a == b {
+            Ok(())
+        } else {
+            uni_ops.mismatching_atoms(a_id, b_id)?;
+            Ok(())
+        }
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut VarTerm) {
