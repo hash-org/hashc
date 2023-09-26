@@ -5,17 +5,6 @@ use hash_utils::derive_more::From;
 
 use crate::errors::TcError;
 
-/// The mode in which to normalise terms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NormalisationMode {
-    /// Normalise the term as much as possible.
-    Full,
-    /// Normalise the term to a single step.
-    ///
-    /// This will not execute any impure code.
-    Weak,
-}
-
 /// A signal which can be emitted during normalisation.
 #[derive(Debug, Clone, From)]
 pub enum NormaliseSignal {
@@ -117,5 +106,45 @@ impl NormalisationState {
         } else {
             Ok(previous)
         }
+    }
+
+    /// Signal that the normalisation is done, and produce
+    /// an appropriate result.
+    pub fn done(&self) -> NormaliseResult {
+        if self.has_normalised() {
+            Ok(Some(()))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// The mode in which to normalise terms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalisationMode {
+    /// Normalise the term as much as possible.
+    Full,
+    /// Normalise the term to a single step.
+    ///
+    /// This will not execute any impure code.
+    Weak,
+}
+
+/// Options that can be applied to a normalisation operation.
+#[derive(Clone, Debug)]
+pub struct NormalisationOptions {
+    /// The mode in which to normalise terms.
+    pub mode: Cell<NormalisationMode>,
+}
+
+impl Default for NormalisationOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NormalisationOptions {
+    pub fn new() -> Self {
+        Self { mode: Cell::new(NormalisationMode::Weak) }
     }
 }

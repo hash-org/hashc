@@ -7,8 +7,12 @@ use hash_tir::{atom_info::HasAtomInfo, context::HasContext, tir::FnDefId};
 use hash_utils::timing::HasMetrics;
 
 use crate::{
-    checker::Checker, errors::TcError, inference::InferenceOps, normalisation,
-    operations::unification::UnificationOptions, substitution::SubstitutionOps,
+    checker::Checker,
+    errors::TcError,
+    inference::InferenceOps,
+    normalisation,
+    operations::{normalisation::NormalisationOptions, unification::UnificationOptions},
+    substitution::SubstitutionOps,
     unification::UnificationOps,
 };
 
@@ -54,6 +58,13 @@ pub trait TcEnv:
 
     fn norm_ops(&self) -> normalisation::NormalisationOps<Self> {
         normalisation::NormalisationOps::new(self)
+    }
+
+    fn norm_ops_with<'a>(
+        &'a self,
+        opts: &'a NormalisationOptions,
+    ) -> normalisation::NormalisationOps<Self> {
+        normalisation::NormalisationOps::new_with_opts(self, opts)
     }
 }
 

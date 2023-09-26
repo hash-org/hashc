@@ -1,5 +1,5 @@
 //! Operations for normalising terms and types.
-use std::{cell::Cell, ops::ControlFlow};
+use std::{borrow::Cow, cell::Cell, ops::ControlFlow};
 
 use hash_ast::ast::RangeEnd;
 use hash_storage::store::{
@@ -32,8 +32,8 @@ use crate::{
     operations::{
         normalisation::{
             already_normalised, ctrl_continue, ctrl_map, normalised_if, normalised_option,
-            normalised_to, stuck_normalising, NormalisationMode, NormalisationState,
-            NormaliseResult, NormaliseSignal,
+            normalised_to, stuck_normalising, NormalisationMode, NormalisationOptions,
+            NormalisationState, NormaliseResult, NormaliseSignal,
         },
         Operations,
     },
@@ -43,7 +43,7 @@ use crate::{
 pub struct NormalisationOps<'env, T: TcEnv> {
     #[deref]
     env: &'env T,
-    mode: Cell<NormalisationMode>,
+    opts: Cow<'env, NormalisationOptions>,
 }
 
 /// The result of matching a pattern against a term.
@@ -71,12 +71,16 @@ fn ctrl_map_full<T>(t: FullEvaluation<T>) -> NormaliseResult<ControlFlow<T>> {
 
 impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     pub fn new(env: &'env T) -> Self {
-        Self { env, mode: Cell::new(NormalisationMode::Weak) }
+        Self { env, opts: Cow::Owned(NormalisationOptions::new()) }
+    }
+
+    pub fn new_with_opts(env: &'env T, opts: &'env NormalisationOptions) -> Self {
+        Self { env, opts: Cow::Borrowed(opts) }
     }
 
     /// Change the normalisation mode.
     pub fn with_mode(&self, mode: NormalisationMode) -> &Self {
-        self.mode.set(mode);
+        self.opts.mode.set(mode);
         self
     }
 
@@ -252,7 +256,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
 
     /// Same as `eval`, but also sets the `evaluated` flag in the given
     /// `EvalState`.
-    fn eval_and_record(
+    pub fn eval_and_record(
         &self,
         atom: Atom,
         state: &NormalisationState,
@@ -269,9 +273,9 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     /// Evaluate an atom in full, even if it has no effects, and including
     /// impure function calls.
     fn eval_fully(&self, atom: Atom) -> Result<Atom, NormaliseSignal> {
-        let old_mode = self.mode.replace(NormalisationMode::Full);
+        let old_mode = self.opts.mode.replace(NormalisationMode::Full);
         let result = self.eval(atom);
-        self.mode.set(old_mode);
+        self.opts.mode.set(old_mode);
         result
     }
 
@@ -281,7 +285,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         atom: Atom,
         state: &NormalisationState,
     ) -> Result<Atom, NormaliseSignal> {
-        match self.mode.get() {
+        match self.opts.mode.get() {
             NormalisationMode::Full => self.eval_and_record(atom, state),
             NormalisationMode::Weak => Ok(atom),
         }
@@ -342,8 +346,12 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     /// Evaluate a variable.
     fn eval_var(&self, var: SymbolId, original_term_id: TermId) -> AtomEvaluation {
         let term_id = Visitor::new().copy(original_term_id);
-        let result =
-            self.checker().normalise(&mut Context::new(), &mut VarTerm { symbol: var }, term_id)?;
+        let result = self.checker().normalise(
+            &mut Context::new(),
+            &self.opts,
+            &mut VarTerm { symbol: var },
+            term_id,
+        )?;
         match result {
             Some(()) => normalised_to(term_id),
             None => Ok(None),
@@ -371,7 +379,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     }
 
     /// Get the parameter at the given index in the given argument list.
-    fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
+    pub fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
         for arg_i in args.iter() {
             let arg = arg_i.value();
             if arg.target == target || ParamIndex::Position(arg_i.1) == target {
@@ -419,20 +427,14 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     }
 
     /// Evaluate an access term.
-    fn eval_access(&self, mut access_term: AccessTerm) -> AtomEvaluation {
-        let st = NormalisationState::new();
-        access_term.subject = (self.eval_and_record(access_term.subject.into(), &st)?).to_term();
-
-        let result = match *access_term.subject.value() {
-            Term::Tuple(tuple) => self.get_param_in_args(tuple.data, access_term.field),
-            Term::Ctor(ctor) => self.get_param_in_args(ctor.ctor_args, access_term.field),
-            _ => {
-                return stuck_normalising();
-            }
-        };
-
-        let result = self.eval_and_record(result, &st)?;
-        normalised_if(|| result, &st)
+    fn eval_access(&self, mut access_term: AccessTerm, original_term_id: TermId) -> AtomEvaluation {
+        let term_id = Visitor::new().copy(original_term_id);
+        let result =
+            self.checker().normalise(&mut Context::new(), &self.opts, &mut access_term, term_id)?;
+        match result {
+            Some(()) => normalised_to(term_id),
+            None => Ok(None),
+        }
     }
 
     /// Evaluate an index term.
@@ -610,7 +612,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         // Beta-reduce:
         if let Term::Fn(fn_def_id) = subject {
             let fn_def = fn_def_id.value();
-            if (fn_def.ty.pure || matches!(self.mode.get(), NormalisationMode::Full))
+            if (fn_def.ty.pure || matches!(self.opts.mode.get(), NormalisationMode::Full))
                 && tir_stores().atom_info().try_get_inferred_ty(fn_def_id).is_some()
             {
                 return self.context().enter_scope(fn_def_id.into(), || {
@@ -656,14 +658,14 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
         let st = NormalisationState::new();
         let nested = Cell::new(false);
         let result = traversal.try_map(atom, |atom| -> Result<_, NormaliseSignal> {
-            let old_mode = if self.mode.get() == NormalisationMode::Weak
+            let old_mode = if self.opts.mode.get() == NormalisationMode::Weak
                 && self.atom_has_effects(atom) == Some(true)
             {
                 // If the atom has effects, we need to evaluate it fully
-                self.mode.replace(NormalisationMode::Full)
+                self.opts.mode.replace(NormalisationMode::Full)
             } else {
                 // Otherwise, we can just evaluate it normally
-                self.mode.get()
+                self.opts.mode.get()
             };
 
             let result = match self.eval_once(atom, nested.get())? {
@@ -675,9 +677,9 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 None => Ok(ControlFlow::Break(atom)),
             };
 
-            self.mode.set(old_mode);
+            self.opts.mode.set(old_mode);
 
-            if self.mode.get() == NormalisationMode::Weak {
+            if self.opts.mode.get() == NormalisationMode::Weak {
                 nested.set(true);
             }
             result
@@ -691,7 +693,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
     /// Invariant: if `self.atom_has_effects(atom)`, then `self.eval_once(atom)
     /// != ctrl_continue()`.
     fn eval_once(&self, atom: Atom, nested: bool) -> NormaliseResult<ControlFlow<Atom>> {
-        if nested && self.mode.get() == NormalisationMode::Weak {
+        if nested && self.opts.mode.get() == NormalisationMode::Weak {
             // If we're in weak mode, we don't want to evaluate nested atoms
             return already_normalised();
         }
@@ -711,7 +713,7 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
                 Term::Deref(deref_term) => {
                     ctrl_map(self.eval_deref(term.origin().with_data(deref_term)))
                 }
-                Term::Access(access_term) => ctrl_map(self.eval_access(access_term)),
+                Term::Access(access_term) => ctrl_map(self.eval_access(access_term, term)),
                 Term::Index(index_term) => ctrl_map(self.eval_index(index_term)),
 
                 // Introduction forms:

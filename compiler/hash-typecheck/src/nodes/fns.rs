@@ -11,7 +11,7 @@ use crate::{
     inference::FnInferMode,
     operations::{
         checking::{already_checked, did_check, CheckResult, CheckState},
-        normalisation::{already_normalised, NormaliseResult},
+        normalisation::{already_normalised, NormalisationOptions, NormaliseResult},
         unification::{UnificationOptions, UnifyResult, UnifySignal},
         Operations,
     },
@@ -39,6 +39,7 @@ impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
     fn normalise(
         &self,
         _ctx: &mut Context,
+        _opts: &NormalisationOptions,
         _item: &mut FnTy,
         _item_node: Self::Node,
     ) -> NormaliseResult<()> {
@@ -152,6 +153,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
     fn normalise(
         &self,
         _ctx: &mut Context,
+        _opts: &NormalisationOptions,
         _item: &mut (FnDefId, FnInferMode),
         _item_node: Self::Node,
     ) -> NormaliseResult<()> {

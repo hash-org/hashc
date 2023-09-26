@@ -9,7 +9,7 @@ use crate::{
     env::TcEnv,
     operations::{
         checking::did_check,
-        normalisation::{already_normalised, normalised},
+        normalisation::{already_normalised, normalised, NormalisationOptions},
         unification::UnificationOptions,
         Operations,
     },
@@ -49,6 +49,7 @@ impl<E: TcEnv> Operations<VarTerm> for Checker<'_, E> {
     fn normalise(
         &self,
         _ctx: &mut hash_tir::context::Context,
+        _opts: &NormalisationOptions,
         item: &mut VarTerm,
         item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<()> {

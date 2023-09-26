@@ -8,7 +8,7 @@ use crate::{
     env::TcEnv,
     operations::{
         checking::CheckResult,
-        normalisation::NormaliseResult,
+        normalisation::{NormalisationOptions, NormaliseResult},
         unification::{UnificationOptions, UnifyResult},
         Operations,
     },
@@ -31,6 +31,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Checker<'_, E> {
     fn normalise(
         &self,
         _ctx: &mut Context,
+        _opts: &NormalisationOptions,
         _item: &mut CtorTerm,
         _item_node: Self::Node,
     ) -> NormaliseResult<()> {
@@ -71,6 +72,7 @@ impl<E: TcEnv> Operations<DataTy> for Checker<'_, E> {
     fn normalise(
         &self,
         _ctx: &mut Context,
+        _opts: &NormalisationOptions,
         _item: &mut DataTy,
         _item_node: Self::Node,
     ) -> NormaliseResult<()> {

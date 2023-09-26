@@ -3,7 +3,11 @@ use hash_tir::tir::{TyId, UniverseTy};
 use crate::{
     checker::Checker,
     env::TcEnv,
-    operations::{normalisation::already_normalised, unification::unified, Operations},
+    operations::{
+        normalisation::{already_normalised, NormalisationOptions},
+        unification::unified,
+        Operations,
+    },
 };
 
 impl<E: TcEnv> Operations<UniverseTy> for Checker<'_, E> {
@@ -24,6 +28,7 @@ impl<E: TcEnv> Operations<UniverseTy> for Checker<'_, E> {
     fn normalise(
         &self,
         _: &mut hash_tir::context::Context,
+        _opts: &NormalisationOptions,
         _: &mut UniverseTy,
         _: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<()> {

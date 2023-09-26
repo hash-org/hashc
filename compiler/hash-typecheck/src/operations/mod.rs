@@ -10,7 +10,7 @@ use hash_tir::{
 
 use self::{
     checking::CheckResult,
-    normalisation::NormaliseResult,
+    normalisation::{NormalisationOptions, NormaliseResult},
     unification::{UnificationOptions, UnifyResult},
 };
 use crate::env::HasTcEnv;
@@ -30,6 +30,7 @@ pub trait Operations<X>: HasTcEnv {
     fn normalise(
         &self,
         ctx: &mut Context,
+        opts: &NormalisationOptions,
         item: &mut X,
         item_node: Self::Node,
     ) -> NormaliseResult<()>;
@@ -56,9 +57,14 @@ where
         Operations::check(self, ctx, &mut item_ref, item_ty, item)
     }
 
-    fn normalise_node(&self, ctx: &mut Context, item: X) -> NormaliseResult<()> {
+    fn normalise_node(
+        &self,
+        opts: &NormalisationOptions,
+        ctx: &mut Context,
+        item: X,
+    ) -> NormaliseResult<()> {
         let mut item_ref = item;
-        Operations::normalise(self, ctx, &mut item_ref, item)
+        Operations::normalise(self, ctx, opts, &mut item_ref, item)
     }
 
     fn unify_nodes(

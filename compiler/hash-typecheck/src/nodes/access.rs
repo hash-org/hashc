@@ -1,7 +1,7 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::Context,
-    tir::{AccessTerm, TermId, Ty, TyId},
+    tir::{AccessTerm, CtorTerm, Term, TermId, TupleTerm, Ty, TyId},
 };
 
 use crate::{
@@ -10,7 +10,9 @@ use crate::{
     errors::{TcError, WrongTermKind},
     operations::{
         checking::{did_check, CheckResult},
-        normalisation::NormaliseResult,
+        normalisation::{
+            stuck_normalising, NormalisationOptions, NormalisationState, NormaliseResult,
+        },
         unification::{UnificationOptions, UnifyResult},
         Operations,
     },
@@ -88,11 +90,30 @@ impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
-        _access_term: &mut AccessTerm,
-        _term_id: Self::Node,
+        _: &mut Context,
+        opts: &NormalisationOptions,
+        access_term: &mut AccessTerm,
+        term_id: Self::Node,
     ) -> NormaliseResult<()> {
-        todo!()
+        let st = NormalisationState::new();
+        let norm_ops = self.norm_ops_with(opts);
+        access_term.subject =
+            (norm_ops.eval_and_record(access_term.subject.into(), &st)?).to_term();
+
+        let result = match *access_term.subject.value() {
+            Term::Tuple(TupleTerm { data: args })
+            | Term::Ctor(CtorTerm { ctor_args: args, .. }) => {
+                norm_ops.get_param_in_args(args, access_term.field)
+            }
+            _ => {
+                return stuck_normalising();
+            }
+        };
+
+        let result = norm_ops.eval_and_record(result, &st)?.to_term();
+        term_id.set(result.value());
+
+        st.done()
     }
 
     fn unify(
