@@ -1400,9 +1400,9 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                 })?;
                 expects_ty(annotation_ty)?;
             }
-            Ty::Universe(_) => {
-                expects_ty(annotation_ty)?;
-            }
+            Ty::Universe(mut universe_ty) => CheckState::new().then_result(
+                self.checker().check(&mut Context::new(), &mut universe_ty, annotation_ty, term_id),
+            )?,
         };
 
         self.check_ty(annotation_ty)?;

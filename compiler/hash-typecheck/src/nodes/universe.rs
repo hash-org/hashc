@@ -1,6 +1,10 @@
 use hash_tir::tir::{TyId, UniverseTy};
 
-use crate::{checker::Checker, env::TcEnv, operations::Operations};
+use crate::{
+    checker::Checker,
+    env::TcEnv,
+    operations::{normalisation::already_normalised, unification::unified, Operations},
+};
 
 impl<E: TcEnv> Operations<UniverseTy> for Checker<'_, E> {
     type TyNode = TyId;
@@ -8,36 +12,35 @@ impl<E: TcEnv> Operations<UniverseTy> for Checker<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut hash_tir::context::Context,
-        _item: &mut UniverseTy,
-        _item_ty: Self::TyNode,
-        _item_node: Self::Node,
+        _: &mut hash_tir::context::Context,
+        _: &mut UniverseTy,
+        item_ty: Self::TyNode,
+        _: Self::Node,
     ) -> crate::operations::checking::CheckResult {
-        todo!()
+        // Type: Type
+        self.check_is_universe(item_ty)
     }
 
     fn normalise(
         &self,
-        _ctx: &mut hash_tir::context::Context,
-        _item: &mut UniverseTy,
-        _item_node: Self::Node,
+        _: &mut hash_tir::context::Context,
+        _: &mut UniverseTy,
+        _: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<()> {
-        todo!()
+        already_normalised()
     }
 
     fn unify(
         &self,
-        _ctx: &mut hash_tir::context::Context,
-        _opts: &crate::operations::unification::UnificationOptions,
-        _src: &mut UniverseTy,
-        _target: &mut UniverseTy,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        _: &mut hash_tir::context::Context,
+        _: &crate::operations::unification::UnificationOptions,
+        _: &mut UniverseTy,
+        _: &mut UniverseTy,
+        _: Self::Node,
+        _: Self::Node,
     ) -> crate::operations::unification::UnifyResult {
-        todo!()
+        unified()
     }
 
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut UniverseTy) {
-        todo!()
-    }
+    fn substitute(&self, _: &hash_tir::sub::Sub, _: &mut UniverseTy) {}
 }
