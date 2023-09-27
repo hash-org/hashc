@@ -1019,7 +1019,7 @@ pub enum TerminatorKind {
         /// What the assert terminator expects the `condition` to be
         expected: bool,
         /// What condition is the assert verifying that it holds
-        kind: AssertKind,
+        kind: Box<AssertKind>,
         /// If the `condition` was verified, this is where the program should
         /// continue to.
         target: BasicBlock,
@@ -1406,6 +1406,6 @@ mod size_asserts {
     use super::*;
 
     static_assert_size!(Statement, 72);
-    static_assert_size!(Terminator, 120);
+    static_assert_size!(Terminator, 104);
     static_assert_size!(RValue, 48);
 }

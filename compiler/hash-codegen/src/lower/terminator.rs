@@ -80,12 +80,12 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             }
         };
 
-        match terminator.kind {
+        match &terminator.kind {
             ir::TerminatorKind::Goto(target) => {
-                self.codegen_goto_terminator(builder, target, can_merge())
+                self.codegen_goto_terminator(builder, *target, can_merge())
             }
             ir::TerminatorKind::Call { ref op, ref args, destination, target } => {
-                self.codegen_call_terminator(builder, op, args, destination, target, can_merge())
+                self.codegen_call_terminator(builder, op, args, *destination, *target, can_merge())
             }
             ir::TerminatorKind::Return => {
                 self.codegen_return_terminator(builder);
@@ -100,7 +100,14 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 false
             }
             ir::TerminatorKind::Assert { ref condition, expected, kind, target } => self
-                .codegen_assert_terminator(builder, condition, expected, kind, target, can_merge()),
+                .codegen_assert_terminator(
+                    builder,
+                    condition,
+                    *expected,
+                    kind.as_ref(),
+                    *target,
+                    can_merge(),
+                ),
         }
     }
 
@@ -560,7 +567,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         builder: &mut Builder,
         condition: &ir::Operand,
         expected: bool,
-        assert_kind: ir::AssertKind,
+        assert_kind: &ir::AssertKind,
         target: ir::BasicBlock,
         can_merge: bool,
     ) -> bool {
