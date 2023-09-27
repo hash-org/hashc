@@ -1552,6 +1552,9 @@ define_tree! {
         /// The type of the enum variant, if any.
         pub ty: OptionalChild!(Ty),
 
+        /// The discriminant initialiser, if any.
+        pub discriminant: OptionalChild!(Expr),
+
         /// Any macro invocations that occur on the enum variant.
         pub macros: OptionalChild!(MacroInvocations),
     }
