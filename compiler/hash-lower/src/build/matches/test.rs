@@ -563,10 +563,10 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
                 let discriminant_ty = discriminant_ty.to_ir_ty();
-                let targets = SwitchTargets::new(
-                    adt.map(|adt| {
-                        // Map over all of the discriminants of the ADT, and filter out those that
-                        // are not in the `options` set.
+                let targets = adt.map(|adt| {
+                    // Map over all of the discriminants of the ADT, and filter out those that
+                    // are not in the `options` set.
+                    SwitchTargets::new(
                         adt.discriminants().filter_map(|(var_idx, discriminant)| {
                             let idx = var_idx.index();
                             if variants.contains(idx) {
@@ -574,10 +574,10 @@ impl<'tcx> BodyBuilder<'tcx> {
                             } else {
                                 None
                             }
-                        })
-                    }),
-                    otherwise_block,
-                );
+                        }),
+                        otherwise_block,
+                    )
+                });
 
                 // Then we push an assignment to a the passed in `place` so that we
                 // can compare the discriminant to the specified value within the

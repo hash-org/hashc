@@ -8,7 +8,7 @@ use hash_ir::{
     lang_items::LangItem,
     ty::{
         self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
-        IrTyListId, Mutability, COMMON_IR_TYS,
+        IrTyListId, Mutability, VariantDiscriminant, COMMON_IR_TYS,
     },
     TyCacheEntry,
 };
@@ -114,7 +114,7 @@ impl<'ir> BuilderCtx<'ir> {
                     .enumerate()
                     .map(|(index, ty)| AdtField { name: index.into(), ty })
                     .collect();
-                let variant = AdtVariant { name: "0".into(), fields };
+                let variant = AdtVariant::singleton("0".into(), fields);
 
                 let adt = Adt::new_with_flags("tuple".into(), index_vec![variant], flags);
                 IrTy::Adt(Adt::create(adt))
@@ -327,7 +327,8 @@ impl<'ir> BuilderCtx<'ir> {
             .elements()
             .borrow()
             .iter()
-            .map(|ctor| {
+            .enumerate()
+            .map(|(index, ctor)| {
                 let fields = ctor
                     .params
                     .elements()
@@ -340,7 +341,11 @@ impl<'ir> BuilderCtx<'ir> {
                     })
                     .collect_vec();
 
-                AdtVariant { name: ctor.name.ident(), fields }
+                AdtVariant {
+                    name: ctor.name.ident(),
+                    fields,
+                    discriminant: VariantDiscriminant(index as u128),
+                }
             })
             .collect::<AdtVariants>();
 
@@ -352,7 +357,7 @@ impl<'ir> BuilderCtx<'ir> {
         // Deal with any specific attributes that were set on the type, i.e.
         // `#repr`.
         if let Some(origin) = ty.data_def.node_id() {
-            adt.apply_origin(origin, self)
+            adt.apply_origin(origin)
         }
 
         // Update the type in the slot that was reserved for it.

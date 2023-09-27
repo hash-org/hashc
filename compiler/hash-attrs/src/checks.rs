@@ -22,13 +22,13 @@ pub struct AttrChecker<'env> {
     warnings: Vec<AttrWarning>,
 
     /// The current compilation target.
-    data_layout: &'env TargetDataLayout,
+    _data_layout: &'env TargetDataLayout,
 }
 
 impl<'env> AttrChecker<'env> {
     /// Create a new [AttrChecker].
     pub fn new(source: SourceId, target: &'env TargetDataLayout) -> Self {
-        Self { source, warnings: Vec::new(), data_layout: target }
+        Self { source, warnings: Vec::new(), _data_layout: target }
     }
 
     /// Take any warnings that the checker has collected.
@@ -100,7 +100,7 @@ impl<'env> AttrChecker<'env> {
         let arg = attr.get_arg(0).unwrap();
 
         // Check that the specified `#repr` attribute is valid.
-        let repr = ReprAttr::parse(attr, self.data_layout)?;
+        let repr = ReprAttr::parse(attr)?;
 
         if let ReprAttr::Int(_) = repr && let AttrNode::StructDef(_) = node {
             return Err(AttrError::InvalidReprForItem {
@@ -115,7 +115,7 @@ impl<'env> AttrChecker<'env> {
         if let Some(prev) = attrs.get_attr(attr.id) {
             // @@Improve: we're re-parsing the repr attribute here, which is
             // wasteful!.
-            let prev_repr = ReprAttr::parse(prev, self.data_layout).unwrap();
+            let prev_repr = ReprAttr::parse(prev).unwrap();
             if prev_repr != repr {
                 return Err(AttrError::IncompatibleReprArgs {
                     origin: prev.origin,

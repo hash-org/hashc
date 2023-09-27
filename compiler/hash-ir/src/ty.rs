@@ -271,15 +271,14 @@ pub enum IrTy {
 impl IrTy {
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
     pub fn tuple(tys: &[IrTyId]) -> IrTy {
-        let variants = index_vec![AdtVariant {
-            name: 0usize.into(),
-            fields: tys
-                .iter()
+        let variants = index_vec![AdtVariant::singleton(
+            0usize.into(),
+            tys.iter()
                 .copied()
                 .enumerate()
                 .map(|(idx, ty)| AdtField { name: idx.into(), ty })
                 .collect(),
-        }];
+        )];
         let adt = Adt::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
         Self::Adt(Adt::create(adt))
     }
@@ -416,16 +415,10 @@ impl IrTy {
                 if !id.borrow().flags.is_enum() || id.borrow().variants.is_empty() {
                     None
                 } else {
-                    // We get the offset of the current discriminant and then
-                    // we also compute the "initial" value of the discriminant
-                    // for this type. Currently, this is quite trivial to do
-                    // since the user cannot (yet) modify what the discriminant
-                    // of each enum variant is, and thus we don't need to account
-                    // for this.
-                    let discriminant_value = id.borrow().discriminant_value_for(variant);
-                    let discriminant_type = id.borrow().discriminant_ty();
+                    let (discriminant_value, discriminant_type) =
+                        id.map(|def| (def.discriminant_value_for(variant), def.discriminant_ty()));
 
-                    Some((discriminant_type, discriminant_value as u128))
+                    Some((discriminant_type, discriminant_value))
                 }
             }
             _ => None,
@@ -912,14 +905,14 @@ impl Adt {
     /// Apply a given origin onto the ADT. This will update
     /// any representation flags, or anything that can be
     /// derived from attributes that were specified on the ADT.
-    pub fn apply_origin<C: HasDataLayout>(&mut self, origin: ast::AstNodeId, ctx: &C) {
+    pub fn apply_origin(&mut self, origin: ast::AstNodeId) {
         self.origin = Some(origin);
 
         attr_store().map_with_default(origin, |attrs| {
             // If we have a representation hint, we update the repr flags
             // on this ADT accordingly...
             if let Some(repr_hint) = attrs.get_attr(attrs::REPR) {
-                self.metadata = AdtRepresentation::from_attr(repr_hint, ctx);
+                self.metadata = AdtRepresentation::from_attr(repr_hint);
             }
         })
     }
@@ -948,12 +941,12 @@ impl Adt {
 
     /// Compute the discriminant type of this ADT, assuming that this
     /// is an `enum` or a `union`.
-    ///
-    /// @@Future(discriminants): This is incomplete because it does not account
-    /// for the `repr` attribute, and the fact that enums might have
-    /// explicit discriminants specified on them.
     pub fn discriminant_ty(&self) -> IntTy {
         debug_assert!(self.flags.is_enum() || self.flags.is_union());
+
+        if let Some(ty) = self.metadata.discriminant {
+            return ty;
+        }
 
         // Compute the maximum number of bits needed for the discriminant.
         let max = self.variants.len() as u64;
@@ -963,17 +956,34 @@ impl Adt {
         IntTy::UInt(UIntTy::from_size(size))
     }
 
-    /// Compute the representation of the discriminant of this [AdtData]
-    /// in terms of a [abi::Integer].
+    /// Compute the representation of the discriminant of this [Adt]
+    /// in terms of a [abi::Integer]. Getting the discriminant representation
+    /// uses the following rules:
     ///
-    /// @@Future(discriminants): we would need to account for different
-    /// representations of the discriminant, e.g. `repr(u8)`, and specified
-    /// values on the discriminant.
+    /// - If the `repr` attribute specifies a discriminant, then we use that.
     ///
-    /// For now, we always use the "unsigned" integer representation, and try
-    /// to minimise the size of the discriminant.
+    /// - We determine the "minimum" size of the discriminant by using the
+    ///   rules:
+    ///  
+    ///    - If the ADT is a C-like type, then we use the minimum size specified
+    ///      by the target, i.e. `c_style_enum_min_size` in the data layout.
+    ///   
+    ///    - default to using a `u8`.
+    ///
+    /// - Using the minimum, we then determine the "fit" of the discriminant by
+    ///   computing the maximum discriminant value, and then determining the
+    ///   smallest integer type that can fit that value.
     pub fn discriminant_representation<C: HasDataLayout>(&self, ctx: &C) -> abi::Integer {
-        let max = self.variants.len() as u128;
+        // If this representation specifies a `repr`, then we default to using that,
+        // otherwise we fallback on trying to compute the size of the discriminant.
+        if let Some(discriminant) = self.metadata.discriminant {
+            return abi::Integer::from_int_ty(discriminant, ctx);
+        }
+
+        // The user did not specify the representation, or no representation was deduced
+        // from the attributes, so we compute the discriminant size using the documented
+        // rules.
+        let max = self.variants.iter().map(|variant| variant.discriminant.0).max().unwrap_or(0);
         let computed_fit = abi::Integer::fit_unsigned(max);
 
         // If this is a C-like representation, then we always
@@ -988,18 +998,14 @@ impl Adt {
     }
 
     /// Compute the discriminant value for a particular variant.
-    pub fn discriminant_value_for(&self, variant: VariantIdx) -> u32 {
+    pub fn discriminant_value_for(&self, variant: VariantIdx) -> u128 {
         debug_assert!(self.flags.is_enum());
-
-        // @@Future(discriminants): We don't account for user specified
-        // discriminants just yet, so this is simply the index of the
-        // variant.
-        variant._raw
+        self.variants[variant].discriminant.0
     }
 
     /// Create an iterator of all of the discriminants of this ADT.
-    pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> {
-        self.variants.indices().map(|idx| (idx, idx._raw as u128))
+    pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> + '_ {
+        self.variants.indices().map(|idx| (idx, self.variants[idx].discriminant.0))
     }
 }
 
@@ -1064,7 +1070,7 @@ bitflags! {
 #[derive(Clone, Debug, Default)]
 pub struct AdtRepresentation {
     /// Whether to use a specific type for the discriminant.
-    pub discriminant: Option<Integer>,
+    pub discriminant: Option<IntTy>,
 
     /// Flags that determine the representation of the type. Currently, if
     /// no flags are set the type is treated normally, if the `C_LIKE` flag
@@ -1075,22 +1081,23 @@ pub struct AdtRepresentation {
 
 impl AdtRepresentation {
     /// Parse a [AdtRepresentation] from an [Attr].
-    fn from_attr<C: HasDataLayout>(attr: &Attr, ctx: &C) -> Self {
+    fn from_attr(attr: &Attr) -> Self {
         debug_assert!(attr.id == attrs::REPR);
 
-        let parsed = ReprAttr::parse(attr, ctx).unwrap();
-        let mut represention = AdtRepresentation::default();
+        let parsed = ReprAttr::parse(attr).unwrap();
+        let mut representation = AdtRepresentation::default();
 
         match parsed {
             ReprAttr::C => {
-                represention.add_flags(RepresentationFlags::C_LIKE);
+                representation.add_flags(RepresentationFlags::C_LIKE);
             }
             ReprAttr::Int(value) => {
-                represention.discriminant = Some(value);
+                debug_assert!(!value.is_big()); // Discriminant cannot be a big int.
+                representation.discriminant = Some(value);
             }
         }
 
-        represention
+        representation
     }
 
     /// Specify [RepresentationFlags] on the [AdtRepresentation].
@@ -1117,6 +1124,12 @@ impl AdtRepresentation {
     }
 }
 
+/// A [VariantDiscriminant] is a value that is used for the tag of a
+/// variant within an ADT. It can either be explicitly stated, or
+/// computed relatively to the previous variant.
+#[derive(Clone, Copy, Debug)]
+pub struct VariantDiscriminant(pub u128);
+
 /// An [AdtVariant] is a potential variant of an ADT which contains all of the
 /// associated fields, and the name of the variant if any. If no names are
 /// available, then the name will be the index of that variant.
@@ -1128,9 +1141,18 @@ pub struct AdtVariant {
 
     /// The fields that are defined for this variant.
     pub fields: Vec<AdtField>,
+
+    /// The discriminant value of this variant.
+    pub discriminant: VariantDiscriminant,
 }
 
 impl AdtVariant {
+    /// Make a singleton variant, implicitly setting the discriminant value
+    /// as being `0`.
+    pub fn singleton(name: Identifier, fields: Vec<AdtField>) -> Self {
+        Self { name, fields, discriminant: VariantDiscriminant(0) }
+    }
+
     /// Find the index of a field by name.
     pub fn field_idx(&self, name: Identifier) -> Option<usize> {
         self.fields.iter().position(|field| field.name == name)

@@ -12,7 +12,7 @@ use hash_source::{
     identifier::Identifier,
 };
 use hash_storage::store::{DefaultPartialStore, PartialStore};
-use hash_target::{abi::Integer, data_layout::HasDataLayout, primitives::IntTy, size::Size};
+use hash_target::{primitives::IntTy, size::Size};
 use hash_tir::tir::ParamIndex;
 use hash_utils::{derive_more::From, fxhash::FxHashMap, lazy_static::lazy_static};
 
@@ -25,7 +25,7 @@ use crate::{
 /// this in the macro.
 pub(crate) const REPR_OPTIONS: &[&str] = &["c", "u8", "u16", "u32", "u64", "u128"];
 
-/// A rerpresnetation of the variants that the `repr` attribute
+/// A representation of the variants that the `repr` attribute
 /// can be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReprAttr {
@@ -35,12 +35,12 @@ pub enum ReprAttr {
 
     /// The representation is annotated with a `u8`, `u16`, `u32`, `u64`,
     /// `u128`, or `usize`.
-    Int(Integer),
+    Int(IntTy),
 }
 
 impl ReprAttr {
     /// Parse a [ReprAttr] from an [Attr].
-    pub fn parse<C: HasDataLayout>(attr: &Attr, ctx: &C) -> AttrResult<Self> {
+    pub fn parse(attr: &Attr) -> AttrResult<Self> {
         let arg = attr.get_arg(0).unwrap();
         let inner = arg.value.as_str_value();
 
@@ -56,7 +56,7 @@ impl ReprAttr {
                     return Err(AttrError::InvalidReprIntKind { arg: *arg });
                 }
 
-                Ok(ReprAttr::Int(Integer::from_int_ty(ty, ctx)))
+                Ok(ReprAttr::Int(ty))
             }
         }
     }
