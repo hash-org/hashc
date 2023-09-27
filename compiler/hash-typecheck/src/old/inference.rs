@@ -32,14 +32,13 @@ use hash_tir::{
     scopes::{AssignTerm, BlockStatement, BlockTerm},
     term_as_variant,
     tir::{
-        validate_and_reorder_pat_args_against_params, validate_params, AccessTerm, Arg, ArgId,
-        ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat, CtorTerm,
-        DataDefCtors, DataDefId, DataTy, DerefTerm, FnDefId, FnTy, HasAstNodeId, IfPat, IndexTerm,
-        Lit, LitId, LoopControlTerm, LoopTerm, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
-        Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId,
-        PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm, RefTy, ReturnTerm, Spread,
-        SymbolId, Term, TermId, TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm,
-        UnsafeTerm, VarTerm,
+        validate_and_reorder_pat_args_against_params, validate_params, Arg, ArgId, ArgsId,
+        ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat, CtorTerm, DataDefCtors,
+        DataDefId, DataTy, DerefTerm, FnDefId, FnTy, HasAstNodeId, IfPat, IndexTerm, Lit, LitId,
+        LoopControlTerm, LoopTerm, MatchTerm, ModDefId, ModMemberId, ModMemberValue, Node, NodeId,
+        NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId, PatListId,
+        PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm, RefTy, ReturnTerm, Spread, SymbolId,
+        Term, TermId, TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UnsafeTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -885,36 +884,6 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         Ok(fn_ty_value)
     }
 
-    /// Infer the type of a function definition.
-    ///
-    /// This will infer and modify the type of the function definition, and then
-    /// return it.
-    pub fn infer_fn_def(
-        &self,
-        fn_def_id: FnDefId,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-        fn_mode: FnInferMode,
-    ) -> TcResult<()> {
-        self.checker().check(
-            &mut Context::new(),
-            &mut (fn_def_id, fn_mode),
-            annotation_ty,
-            original_term_id,
-        )
-    }
-
-    /// Infer the type of a variable, and return it.
-    pub fn infer_var(
-        &self,
-        symbol: SymbolId,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        let mut var_term = VarTerm { symbol };
-        self.checker().check(&mut Context::new(), &mut var_term, annotation_ty, original_term_id)
-    }
-
     /// Infer the type of a `return` term, and return it.
     pub fn infer_return_term(
         &self,
@@ -1140,16 +1109,6 @@ impl<T: TcEnv> InferenceOps<'_, T> {
         Ok(())
     }
 
-    /// Infer an access term.
-    pub fn infer_access_term(
-        &self,
-        access_term: &mut AccessTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        self.checker().check(&mut Context::new(), access_term, annotation_ty, original_term_id)
-    }
-
     /// Infer an index term.
     pub fn infer_index_term(
         &self,
@@ -1317,15 +1276,22 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                 self.infer_tuple_term(&tuple_term, annotation_ty, term_id)?
             }
             Term::Lit(lit_term) => self.infer_lit(lit_term, annotation_ty)?,
-            Term::Array(prim_term) => self.infer_array_term(&prim_term, annotation_ty)?,
+            Term::Array(mut prim_term) => {
+                self.checker().check(&mut Context::new(), &mut prim_term, annotation_ty, term_id)
+            }?,
             Term::Ctor(ctor_term) => self.infer_ctor_term(&ctor_term, annotation_ty, term_id)?,
             Term::Call(fn_call_term) => {
                 self.infer_fn_call_term(&fn_call_term, annotation_ty, term_id)?
             }
-            Term::Fn(fn_def_id) => {
-                self.infer_fn_def(fn_def_id, annotation_ty, term_id, FnInferMode::Body)?
+            Term::Fn(fn_def_id) => self.checker().check(
+                &mut Context::new(),
+                &mut (fn_def_id, FnInferMode::Body),
+                annotation_ty,
+                term_id,
+            )?,
+            Term::Var(mut var_term) => {
+                self.checker().check(&mut Context::new(), &mut var_term, annotation_ty, term_id)?
             }
-            Term::Var(var_term) => self.infer_var(var_term.symbol, annotation_ty, term_id)?,
             Term::Return(return_term) => {
                 self.infer_return_term(&return_term, annotation_ty, term_id)?
             }
@@ -1343,9 +1309,12 @@ impl<T: TcEnv> InferenceOps<'_, T> {
             }
             Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
             Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
-            Term::Access(mut access_term) => {
-                self.infer_access_term(&mut access_term, annotation_ty, term_id)?
-            }
+            Term::Access(mut access_term) => self.checker().check(
+                &mut Context::new(),
+                &mut access_term,
+                annotation_ty,
+                term_id,
+            )?,
             Term::Index(index_term) => {
                 self.infer_index_term(&index_term, annotation_ty, term_id)?
             }
@@ -1748,11 +1717,11 @@ impl<T: TcEnv> InferenceOps<'_, T> {
                 Ok(())
             }
             ModMemberValue::Fn(fn_def_id) => {
-                self.infer_fn_def(
-                    fn_def_id,
+                self.checker().check(
+                    &mut Context::new(),
+                    &mut (fn_def_id, fn_mode),
                     Ty::hole(fn_def_id.origin().inferred()),
                     Term::hole(fn_def_id.origin()),
-                    fn_mode,
                 )?;
                 if fn_mode == FnInferMode::Body {
                     // Dump TIR if necessary

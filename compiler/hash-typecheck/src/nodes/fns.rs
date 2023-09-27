@@ -87,7 +87,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
 
     fn check(
         &self,
-        _: &mut Context,
+        _ctx: &mut Context,
         fn_def_id: &mut (FnDefId, FnInferMode),
         annotation_ty: Self::TyNode,
         original_term_id: Self::Node,
@@ -111,11 +111,11 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
                 self.infer_ops()
                     .infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let Term::Fn(immediate_body_fn) = *fn_def.body.value() {
-                    self.infer_ops().infer_fn_def(
-                        immediate_body_fn,
+                    self.check(
+                        _ctx,
+                        &mut (immediate_body_fn, FnInferMode::Header),
                         Ty::hole_for(fn_def.body),
                         fn_def.body,
-                        FnInferMode::Header,
                     )?;
                 }
                 Ok(())
