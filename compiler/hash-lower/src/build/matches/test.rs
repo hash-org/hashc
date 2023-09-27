@@ -576,7 +576,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                             }
                         })
                     }),
-                    discriminant_ty,
                     otherwise_block,
                 );
 
@@ -617,7 +616,6 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                     let targets = SwitchTargets::new(
                         options.values().copied().zip(target_blocks),
-                        ty,
                         otherwise_block,
                     );
 

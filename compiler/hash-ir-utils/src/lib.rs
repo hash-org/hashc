@@ -4,7 +4,7 @@
 //! crate dependencies to be cyclic.
 //!
 //! One of the main uses of this crate uses `hash-layout` to provide needed
-//! information about data rerpesenttion when constructing and destructing
+//! information about data representation when constructing and destructing
 //! Hash IR constants into various representations.
 #![feature(let_chains)]
 pub mod const_utils;
@@ -22,7 +22,7 @@ use const_utils::ConstUtils;
 use hash_ir::{
     constant::{Const, ConstKind, Scalar, ScalarInt},
     ir::{
-        AggregateKind, AssertKind, Operand, RValue, Statement, StatementKind, Terminator,
+        AggregateKind, AssertKind, Body, Operand, RValue, Statement, StatementKind, Terminator,
         TerminatorKind,
     },
     ty::{AdtFlags, IrTy, Mutability, VariantIdx, COMMON_IR_TYS},
@@ -190,6 +190,9 @@ pub struct IrWriter<'ctx, T> {
     /// under the constant.
     pub lc: LayoutComputer<'ctx>,
 
+    /// The overall [Body] to which the IR belongs to.
+    pub body: &'ctx Body,
+
     /// Whether the formatting implementations should write
     /// edges for IR items, this mostly applies to [Terminator]s.
     pub with_edges: bool,
@@ -197,8 +200,8 @@ pub struct IrWriter<'ctx, T> {
 
 impl<'ctx, T> IrWriter<'ctx, T> {
     /// Create a new IR writer for the given body.
-    pub fn new(item: T, lc: LayoutComputer<'ctx>) -> Self {
-        Self { item, lc, with_edges: false }
+    pub fn new(item: T, body: &'ctx Body, lc: LayoutComputer<'ctx>) -> Self {
+        Self { item, lc, body, with_edges: false }
     }
 }
 
@@ -218,12 +221,17 @@ impl<T> Deref for IrWriter<'_, T> {
 
 pub trait WriteIr<'ctx>: Sized {
     #[inline]
-    fn with_edges(self, lc: LayoutComputer<'ctx>, with_edges: bool) -> IrWriter<'ctx, Self> {
-        IrWriter { item: self, lc, with_edges }
+    fn with_edges(
+        self,
+        body: &'ctx Body,
+        lc: LayoutComputer<'ctx>,
+        with_edges: bool,
+    ) -> IrWriter<'ctx, Self> {
+        IrWriter { item: self, body, lc, with_edges }
     }
 
-    fn with<U: Into<LayoutComputer<'ctx>>>(self, other: U) -> IrWriter<'ctx, Self> {
-        IrWriter::new(self, other.into())
+    fn with<U>(self, other: &IrWriter<'ctx, U>) -> IrWriter<'ctx, Self> {
+        IrWriter::new(self, other.body, other.lc)
     }
 }
 
@@ -366,6 +374,8 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
                 if self.with_edges {
                     write!(f, " [")?;
 
+                    let target_ty = value.ty(&self.body.declarations);
+
                     // Iterate over each value in the table, and add a arrow denoting
                     // that the CF will go to the specified block given the specified
                     // `value`.
@@ -376,7 +386,7 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
 
                         // We want to create an a constant from this value
                         // with the type, and then print it.
-                        let value = Const::from_scalar_like(value, targets.ty, &self.lc);
+                        let value = Const::from_scalar_like(value, target_ty, &self.lc);
 
                         let mut buf = TempWriter::default();
                         pretty_print_const(&mut buf, &value, self.lc).unwrap();
