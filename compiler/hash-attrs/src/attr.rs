@@ -52,7 +52,7 @@ impl ReprAttr {
                 };
 
                 // We reject the type if it is non-sized...
-                if !ty.is_big() {
+                if ty.is_big() {
                     return Err(AttrError::InvalidReprIntKind { arg: *arg });
                 }
 
