@@ -1,0 +1,5 @@
+error: empty character literal
+ --> $DIR/empty.hash:3:2
+2 |   
+3 |   '';
+  |    ^ expected a character literal here

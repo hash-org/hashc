@@ -1,0 +1,4 @@
+// run=fail, stage=parse
+
+'\xFF';
+'\x8f';

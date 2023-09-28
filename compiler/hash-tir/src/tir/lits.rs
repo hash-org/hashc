@@ -123,6 +123,13 @@ impl From<ast::IntLit> for IntLit {
     }
 }
 
+impl From<ast::ByteLit> for IntLit {
+    fn from(value: ast::ByteLit) -> Self {
+        let constant: IntConstant = value.data.into();
+        Self { value: LitValue::Value(constant.into()) }
+    }
+}
+
 /// A string literal.
 ///
 /// Uses the `ast` representation.

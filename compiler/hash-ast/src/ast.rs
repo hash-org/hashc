@@ -912,6 +912,13 @@ define_tree! {
         pub data: char
     }
 
+    /// A byte literal.
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    #[node]
+    pub struct ByteLit {
+        pub data: u8
+    }
+
     /// An integer literal.
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
@@ -958,6 +965,8 @@ define_tree! {
         Char(CharLit),
         /// Integer literals, e.g. `5i32`
         Int(IntLit),
+        /// A byte literal, e.g. `b'c'`
+        Byte(ByteLit),
         /// Float literals, e.g. `27.4`
         Float(FloatLit),
         /// Boolean literals e.g. `false`

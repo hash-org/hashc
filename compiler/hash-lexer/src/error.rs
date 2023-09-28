@@ -94,6 +94,12 @@ pub enum LexerErrorKind {
     /// ```
     UnclosedCharLit,
 
+    /// When an empty character literal is specified, e.g.
+    /// ```
+    /// ''
+    /// ```
+    EmptyCharLit,
+
     /// Occurs when a escape sequence (within a character or a string) is
     /// not a valid escape sequence, e.g.
     /// ```
@@ -143,6 +149,14 @@ pub enum LexerErrorKind {
     /// ```
     NumericEscapeSequenceTooShort,
 
+    /// When an ASCII Escape is too large, e.g.
+    /// ```
+    /// '\x8f'
+    /// ```
+    ///
+    /// The maximum valid ASCII codepoint is `\x7f`.
+    NumericEscapeSequenceTooLarge,
+
     /// When an ASCII escape sequence has invalid digits, e.g.
     /// ```
     /// '\xMG'
@@ -150,7 +164,20 @@ pub enum LexerErrorKind {
     ///
     /// The error contains the encountered invalid character.
     InvalidNumericEscapeSequence(char),
+
+    /// When a unicode literal is too large, e.g.
+    /// ```
+    /// '\u{FFFFFF}'
+    /// ```
+    ///
+    /// This exceeds the maximum valid unicode codepoint of `10FFFF`.
     UnicodeLitTooLarge,
+
+    /// When a unicode codepoint is present within a byte literal, e.g.
+    /// ```
+    /// b'\u{1F600}'
+    /// ```
+    UnicodeInByteLit,
 }
 
 impl From<LexerError> for Reports {
@@ -200,6 +227,10 @@ impl From<LexerError> for Reports {
                 span_label = Some("expected `'` here".to_string());
                 "unclosed character literal".to_string()
             }
+            LexerErrorKind::EmptyCharLit => {
+                span_label = Some("expected a character literal here".to_string());
+                "empty character literal".to_string()
+            }
             LexerErrorKind::MalformedUnicodeLit => {
                 span_label = Some("expected `{` after a `\\u` escape sequence".to_string());
                 "invalid unicode escape sequence".to_string()
@@ -230,8 +261,17 @@ impl From<LexerError> for Reports {
                 help_notes.push(info!("{}", "unicode escape must be at most 10FFFF"));
                 "invalid unicode character escape".to_string()
             }
+            LexerErrorKind::UnicodeInByteLit => {
+                span_label = Some("unicode escape in byte literal".to_string());
+                help_notes.push(help!("{}", "unicode escape sequences cannot be used as a byte"));
+                "unicode escape in byte literal".to_string()
+            }
             LexerErrorKind::NumericEscapeSequenceTooShort => {
                 "numeric escape sequence is too short".to_string()
+            }
+            LexerErrorKind::NumericEscapeSequenceTooLarge => {
+                span_label = Some("must be a character in the range \\x00..\\x7F".to_string());
+                "out of range hex escape".to_string()
             }
             LexerErrorKind::InvalidNumericEscapeSequence(ch) => {
                 help_notes.push(info!(

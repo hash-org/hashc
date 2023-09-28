@@ -311,12 +311,20 @@ impl<'a> Lexer<'a> {
                 // Immediately try to index the next token...
                 return self.advance_token();
             }
+            ch @ '0'..='9' => self.number(ch, false),
+            '\'' => self.char(false),
+            '"' => self.string(),
+            ch @ 'b' => match self.peek() {
+                '\'' => {
+                    self.skip_ascii();
+                    self.byte_literal()
+                }
+                _ => self.ident(ch),
+            },
+
             // Identifier (this should be checked after other variant that can
             // start as identifier).
             ch if is_id_start(ch) => self.ident(ch),
-            ch @ '0'..='9' => self.number(ch, false),
-            '\'' => self.char(),
-            '"' => self.string(),
             // We have to exit the current tree if we encounter a closing delimiter...
             ch @ (')' | '}' | ']') if let Some(mut info) = self.tree.get() => {
                 info.delimiter = Some(Delimiter::from_right(ch).unwrap());
@@ -612,7 +620,7 @@ impl<'a> Lexer<'a> {
     /// Transform an ordinary character into a well known escape sequence
     /// specified by the escape literal rules. More information about the
     /// escape sequences can be found at [escape sequences](https://hash-org.github.io/lang/basics/intro.html).
-    fn escaped_char(&mut self) -> LexerResult<char> {
+    fn escaped_char(&mut self, byte_lit: bool) -> LexerResult<char> {
         let c = self.next().unwrap();
 
         // we need to compute the old byte offset by accounting for both the 'u'
@@ -665,6 +673,15 @@ impl<'a> Lexer<'a> {
 
                 match u32::from_str_radix(chars, 16) {
                     Ok(value) => {
+                        // If we are in a byte literal, we emit an error saying
+                        // that unicode chars aren't allowed in byte literals.
+                        if byte_lit {
+                            return self.error(
+                                LexerErrorKind::UnicodeInByteLit,
+                                ByteRange::new(start, self.len_consumed()),
+                            );
+                        }
+
                         // If the value is larger than the maximum unicode code point, then we error
                         // since this is an invalid unicode code point.
                         if value > 0x10FFFF {
@@ -702,6 +719,16 @@ impl<'a> Lexer<'a> {
                 // hex chars will always to fit into a u32
                 let value = u32::from_str_radix(chars?.as_str(), 16).unwrap();
 
+                // If we aren't parsing a byte literal, then we
+                // can ignore the restriction of the maximum ASCII
+                // code point.
+                if !byte_lit && value > 0x7F {
+                    return self.error(
+                        LexerErrorKind::NumericEscapeSequenceTooLarge,
+                        ByteRange::new(start, self.len_consumed()),
+                    );
+                }
+
                 Ok(char::from_u32(value).unwrap())
             }
             'a' => Ok('\x07'),
@@ -718,12 +745,27 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Parse a byte literal, this is essentially the same as a char literal
+    /// but we disallow unicode escapes, and don't restrict hex escape codes
+    /// to be within the ASCII range.
+    fn byte_literal(&mut self) -> TokenKind {
+        // We parse a `char` but we know that it is a byte literal, so we
+        // need to check that the value is within the range of a byte.
+        let lit = self.char(/* byte_lit: */ true);
+
+        if let TokenKind::Char(ch) = lit {
+            TokenKind::Byte(ch as u8)
+        } else {
+            lit
+        }
+    }
+
     /// Consume a char literal provided that the current previous token is a
     /// single quote, this will produce a [TokenKind::CharLit] provided
     /// that the literal is correctly formed and is ended before the end of
     /// file is reached. This function expects the the callee has previously
     /// eaten the starting single quote.
-    fn char(&mut self) -> TokenKind {
+    fn char(&mut self, byte_lit: bool) -> TokenKind {
         // Subtract one to capture the previous quote, since we know it's one byte in
         // size
         let start = self.offset.get() - 1;
@@ -732,7 +774,7 @@ impl<'a> Lexer<'a> {
         if self.peek() == '\\' {
             self.skip_ascii(); // eat the backslash
 
-            match self.escaped_char() {
+            match self.escaped_char(byte_lit) {
                 Ok(ch) => {
                     let next = self.peek();
 
@@ -774,6 +816,12 @@ impl<'a> Lexer<'a> {
                     return TokenKind::Err;
                 }
             };
+        } else if self.peek() == '\'' {
+            self.skip_ascii();
+            return self.emit_error(
+                LexerErrorKind::EmptyCharLit,
+                ByteRange::singleton(self.len_consumed()),
+            );
         } else if self.peek_second() == '\'' {
             let ch = self.next().unwrap();
             self.skip_ascii();
@@ -820,7 +868,7 @@ impl<'a> Lexer<'a> {
                     closed = true;
                     break;
                 }
-                '\\' => match self.escaped_char() {
+                '\\' => match self.escaped_char(false) {
                     Ok(ch) => value.push(ch),
                     Err(err) => {
                         self.add_error(err);

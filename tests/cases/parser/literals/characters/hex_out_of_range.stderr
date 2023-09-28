@@ -1,0 +1,12 @@
+error: out of range hex escape
+ --> $DIR/hex_out_of_range.hash:3:3
+2 |   
+3 |   '\xFF';
+  |     ^^^ must be a character in the range \x00..\x7F
+4 |   '\x8f';
+
+error: out of range hex escape
+ --> $DIR/hex_out_of_range.hash:4:3
+3 |   '\xFF';
+4 |   '\x8f';
+  |     ^^^ must be a character in the range \x00..\x7F

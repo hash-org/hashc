@@ -1,0 +1,7 @@
+// run=fail, stage=parse
+
+make_hello := () -> str => {
+    // ~ERROR: unicode escape in byte literal
+    buf := [b'H', b'\u{FFFF}', b'l', b'l', b'o'];
+    transmute<_, str>(buf)
+}

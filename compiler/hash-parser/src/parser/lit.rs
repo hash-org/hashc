@@ -25,7 +25,9 @@ impl<'s> AstGen<'s> {
 
         self.node_with_span(
             match token.kind {
-                TokenKind::Int(_, _) | TokenKind::Float(_) => return self.parse_numeric_lit(),
+                TokenKind::Int(_, _) | TokenKind::Byte(_) | TokenKind::Float(_) => {
+                    return self.parse_numeric_lit()
+                }
                 TokenKind::Char(value) => Lit::Char(CharLit { data: value }),
                 TokenKind::Str(value) => Lit::Str(StrLit { data: value }),
                 TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit { data: false }),
@@ -71,6 +73,7 @@ impl<'s> AstGen<'s> {
                 let hunk = Hunk::create(self.make_span(span));
                 Lit::Float(FloatLit { hunk, kind })
             }
+            TokenKind::Byte(value) => Lit::Byte(ByteLit { data: value }),
             _ => panic!("expected numeric token in parse_numeric_lit()"),
         };
 
