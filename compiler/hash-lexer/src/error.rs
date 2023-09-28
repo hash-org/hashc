@@ -173,11 +173,17 @@ pub enum LexerErrorKind {
     /// This exceeds the maximum valid unicode codepoint of `10FFFF`.
     UnicodeLitTooLarge,
 
-    /// When a unicode codepoint is present within a byte literal, e.g.
+    /// When a unicode escape is present within a byte literal, e.g.
     /// ```
     /// b'\u{1F600}'
     /// ```
-    UnicodeInByteLit,
+    UnicodeEscapeInByteLit,
+
+    /// When a non-ascii character is present within a byte literal, e.g.
+    /// ```
+    /// b'😀'
+    /// ```
+    NonAsciiByteLit(char),
 }
 
 impl From<LexerError> for Reports {
@@ -261,10 +267,23 @@ impl From<LexerError> for Reports {
                 help_notes.push(info!("{}", "unicode escape must be at most 10FFFF"));
                 "invalid unicode character escape".to_string()
             }
-            LexerErrorKind::UnicodeInByteLit => {
+            LexerErrorKind::UnicodeEscapeInByteLit => {
                 span_label = Some("unicode escape in byte literal".to_string());
                 help_notes.push(help!("{}", "unicode escape sequences cannot be used as a byte"));
                 "unicode escape in byte literal".to_string()
+            }
+            LexerErrorKind::NonAsciiByteLit(char) => {
+                // Add a potential help note for characters than can fit into a byte, but
+                // should be written as a hex escape code, i.e. `©` -> `\xA9`
+                let postfix = if char as u32 > 0xFF {
+                    "\nthis multibyte character does not fit into a single byte"
+                } else {
+                    help_notes.push(help!("{}", format!("if you meant to use the unicode code point for `{char}`, use a \\xHH escape, replace it with `\\x{:X}` ", char as u32)));
+                    ""
+                };
+
+                span_label = Some(format!("must be ASCII{postfix}"));
+                "non-ascii character in byte literal".to_string()
             }
             LexerErrorKind::NumericEscapeSequenceTooShort => {
                 "numeric escape sequence is too short".to_string()

@@ -1,0 +1,23 @@
+error: non-ascii character in byte literal
+ --> $DIR/non_ascii_byte_literals.hash:4:3
+3 |   (
+4 |   b'ß',
+  |     ^ must be ASCII
+5 |   b'👍',
+  = help: if you meant to use the unicode code point for `ß`, use a \xHH escape, replace it with `\xDF` 
+
+error: non-ascii character in byte literal
+ --> $DIR/non_ascii_byte_literals.hash:5:3
+4 |   b'ß',
+5 |   b'👍',
+  |     ^ must be ASCII
+this multibyte character does not fit into a single byte
+6 |   b'😘',
+
+error: non-ascii character in byte literal
+ --> $DIR/non_ascii_byte_literals.hash:6:3
+5 |   b'👍',
+6 |   b'😘',
+  |     ^ must be ASCII
+this multibyte character does not fit into a single byte
+7 |   )

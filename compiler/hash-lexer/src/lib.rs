@@ -677,7 +677,7 @@ impl<'a> Lexer<'a> {
                         // that unicode chars aren't allowed in byte literals.
                         if byte_lit {
                             return self.error(
-                                LexerErrorKind::UnicodeInByteLit,
+                                LexerErrorKind::UnicodeEscapeInByteLit,
                                 ByteRange::new(start, self.len_consumed()),
                             );
                         }
@@ -823,8 +823,16 @@ impl<'a> Lexer<'a> {
                 ByteRange::singleton(self.len_consumed()),
             );
         } else if self.peek_second() == '\'' {
+            let pos = self.offset.get();
             let ch = self.next().unwrap();
             self.skip_ascii();
+
+            // Check if the character literal is out of range of a byte.
+            if byte_lit && !ch.is_ascii() {
+                return self
+                    .emit_error(LexerErrorKind::NonAsciiByteLit(ch), ByteRange::singleton(pos));
+            }
+
             return TokenKind::Char(ch);
         }
 
