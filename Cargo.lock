@@ -784,6 +784,7 @@ dependencies = [
  "hash-target",
  "hash-utils",
  "unicode-normalization",
+ "unicode-width",
 ]
 
 [[package]]
