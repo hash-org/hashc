@@ -189,6 +189,9 @@ enum SourceKind {
 
 #[derive(Debug)]
 pub struct Source {
+    /// The id of the [Source].
+    id: SourceId,
+
     /// The contents of the module.
     contents: String,
 
@@ -198,12 +201,19 @@ pub struct Source {
     /// Canonicalised version of the path.
     canonicalised_path: OnceCell<PathBuf>,
 
+    /// Additional information about the source itself.
     extra: SourceKind,
 }
 
 impl Source {
-    fn new(contents: String, extra: SourceKind) -> Self {
-        Self { contents, line_ranges: OnceCell::new(), canonicalised_path: OnceCell::new(), extra }
+    fn new(id: SourceId, contents: String, extra: SourceKind) -> Self {
+        Self {
+            id,
+            contents,
+            line_ranges: OnceCell::new(),
+            canonicalised_path: OnceCell::new(),
+            extra,
+        }
     }
 
     pub fn is_interactive(&self) -> bool {
@@ -231,7 +241,7 @@ impl Source {
 
     /// Get the line ranges for this particular module.
     pub fn line_ranges(&self) -> &LineRanges {
-        self.line_ranges.get_or_init(|| LineRanges::new_from_str(&self.contents))
+        self.line_ranges.get_or_init(|| LineRanges::new_from_str(self.id, &self.contents))
     }
 
     /// Get the path of the module.
@@ -286,13 +296,13 @@ pub struct Module {
 
 impl Module {
     /// Create a new [Module].
-    pub fn new(contents: String, path: PathBuf, kind: ModuleKind) -> Self {
-        Self { source: Source::new(contents, SourceKind::Module { path }), kind }
+    pub fn new(id: SourceId, contents: String, path: PathBuf, kind: ModuleKind) -> Self {
+        Self { source: Source::new(id, contents, SourceKind::Module { path }), kind }
     }
 
     /// Create a dummy [Module] entry, this only used.
-    fn empty(path: PathBuf, kind: ModuleKind) -> Module {
-        Self { source: Source::new(String::new(), SourceKind::Module { path }), kind }
+    fn empty(id: SourceId, path: PathBuf, kind: ModuleKind) -> Module {
+        Self { source: Source::new(id, String::new(), SourceKind::Module { path }), kind }
     }
 }
 
@@ -307,8 +317,8 @@ pub struct InteractiveBlock {
 
 impl InteractiveBlock {
     /// Create a new [InteractiveBlock].
-    pub fn new(contents: String) -> Self {
-        Self { source: Source::new(contents, SourceKind::Interactive) }
+    pub fn new(id: SourceId, contents: String) -> Self {
+        Self { source: Source::new(id, contents, SourceKind::Interactive) }
     }
 }
 
@@ -351,8 +361,10 @@ impl SourceMap {
 
     fn add_interactive_block(&mut self, contents: String) -> SourceId {
         let id = self.interactive_blocks.len() as u32;
-        self.interactive_blocks.push(InteractiveBlock::new(contents));
-        SourceId::new_interactive(id)
+        let source = SourceId::new_interactive(id);
+
+        self.interactive_blocks.push(InteractiveBlock::new(source, contents));
+        source
     }
 
     /// Get the entry point that has been registered with the [SourceMap].
@@ -378,13 +390,13 @@ impl SourceMapUtils {
     pub fn reserve_module(path: PathBuf, kind: ModuleKind) -> SourceId {
         let mut map = SOURCE_MAP.write();
 
-        let id = map.modules.len() as u32;
-        map.modules.push(Module::empty(path.clone(), kind));
+        let id = ModuleId::from_raw(map.modules.len() as u32);
+        let source = id.into();
+        map.modules.push(Module::empty(source, path.clone(), kind));
 
         // Create references for the paths reverse
-        let id = ModuleId::from_raw(id);
         map.module_paths.insert(path, id);
-        id.into()
+        source
     }
 
     pub fn set_module_source(id: SourceId, contents: String) {
