@@ -9,9 +9,10 @@ use fixedbitset::FixedBitSet;
 use hash_ast::ast::{self, AstNodeId};
 use hash_ir::{
     ir::{
-        BasicBlock, BinOp, Const, ConstKind, Operand, PlaceProjection, RValue, SwitchTargets,
-        TerminatorKind,
+        BasicBlock, BinOp, Const, ConstKind, Operand, Place, PlaceProjection, RValue,
+        SwitchTargets, TerminatorKind,
     },
+    lang_items::LangItem,
     ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
@@ -626,18 +627,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 self.control_flow_graph.terminate(block, span, terminator_kind);
             }
             TestKind::Eq { ty, value } => {
-                let is_scalar = ty.map(|ty| ty.is_scalar());
-
-                // If this type is a string, we essentially have to make a call to
-                // a string comparator function (which will be filled in later on
-                // by the `codegen` pass).
-                if ty == COMMON_IR_TYS.str {
-                    unimplemented!("string comparisons not yet implemented")
-                }
-
                 // If the type is a scalar, then we can just perform a binary
                 // operation on the value, and then switch on the result
-                if is_scalar {
+                if ty.borrow().is_scalar() {
                     let [success, fail] = *make_target_blocks(self) else {
                         panic!("expected two target blocks for `Eq` test");
                     };
@@ -647,10 +639,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                     self.compare(block, success, fail, BinOp::Eq, expected, actual, span);
                 } else {
-                    // @@Todo: here we essentially have to make a call to some alternative
-                    //         equality mechanism since the [BinOp::EqEq] cannot handle
-                    //         non-scalar types.
-                    unimplemented!("non-scalar comparisons not yet implemented")
+                    self.non_scalar_compare(block, make_target_blocks, value, place, ty, span);
                 }
             }
             TestKind::Range { range: ConstRange { lo, hi, end, .. } } => {
@@ -766,6 +755,57 @@ impl<'tcx> BodyBuilder<'tcx> {
             block,
             origin,
             TerminatorKind::make_if(result.into(), success, fail),
+        );
+    }
+
+    /// Emit code for a non-scalar compare (i.e. a scalar pair). This currently
+    /// only handles string compares, and will panic if it is called on any
+    /// other type.
+    fn non_scalar_compare(
+        &mut self,
+        block: BasicBlock,
+        make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
+        expected: Const,
+        value: Place,
+        ty: IrTyId,
+        span: AstNodeId,
+    ) {
+        let expected = Operand::Const(expected);
+
+        // If the type is not `&str`, then we don't emit any code yet, but it should
+        // basically be the same.
+        //
+        // @@FixMe: support non-scalar compares for:
+        //
+        // - &[T] == &[T]
+        // - &[T; N] == &[T; N]
+        if ty != COMMON_IR_TYS.str {
+            panic!("unsupported non-scalar compare for type: {:?}", ty);
+        }
+
+        let str_eq = self.get_lang_item(LangItem::StrEq);
+        let eq_result = self.temp_place(COMMON_IR_TYS.bool);
+        let eq_block = self.control_flow_graph.start_new_block();
+        self.control_flow_graph.terminate(
+            block,
+            span,
+            TerminatorKind::Call {
+                op: Const::zst(str_eq).into(),
+                args: vec![Operand::Place(value), expected],
+                destination: eq_result,
+                target: Some(eq_block),
+            },
+        );
+
+        let [success_block, fail_block] = *make_target_blocks(self) else {
+            panic!("expected two target blocks for `Eq` test");
+        };
+
+        // Act upon the result
+        self.control_flow_graph.terminate(
+            eq_block,
+            span,
+            TerminatorKind::make_if(Operand::Place(eq_result), success_block, fail_block),
         );
     }
 
