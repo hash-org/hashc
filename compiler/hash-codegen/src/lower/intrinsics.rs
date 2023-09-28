@@ -58,6 +58,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     &[offset],
                 )
             }
+            Intrinsic::Memcmp | Intrinsic::Memcpy => {
+                return;
+            }
         };
 
         if !ret_abi.is_ignored() {

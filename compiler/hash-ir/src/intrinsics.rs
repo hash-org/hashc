@@ -24,6 +24,12 @@ pub enum Intrinsic {
 
     /// The `abort` intrinsic, terminates the program.
     Abort,
+
+    /// Memory copy intrinsic.
+    Memcpy,
+
+    /// Memory compare intrinsic.
+    Memcmp,
 }
 
 impl Intrinsic {
@@ -32,6 +38,8 @@ impl Intrinsic {
         match name {
             "ptr_offset" => Some(Self::PtrOffset),
             "transmute" => Some(Self::Transmute),
+            "memcpy" => Some(Self::Memcpy),
+            "memcmp" => Some(Self::Memcmp),
             "abort" => Some(Self::Abort),
             _ => None,
         }

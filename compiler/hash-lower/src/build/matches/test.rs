@@ -626,12 +626,12 @@ impl<'tcx> BodyBuilder<'tcx> {
                 self.control_flow_graph.terminate(block, span, terminator_kind);
             }
             TestKind::Eq { ty, value } => {
-                let (is_str, is_scalar) = ty.map(|ty| (matches!(ty, IrTy::Str), ty.is_scalar()));
+                let is_scalar = ty.map(|ty| ty.is_scalar());
 
                 // If this type is a string, we essentially have to make a call to
                 // a string comparator function (which will be filled in later on
                 // by the `codegen` pass).
-                if is_str {
+                if ty == COMMON_IR_TYS.str {
                     unimplemented!("string comparisons not yet implemented")
                 }
 
