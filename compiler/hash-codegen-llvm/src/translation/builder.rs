@@ -850,12 +850,15 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn load_operand(&mut self, place: PlaceRef<Self::Value>) -> OperandRef<Self::Value> {
         // If the operand is a zst, we return a `()` value
-        place.info.layout.map(|layout| {
-            if layout.is_zst() {
+        let (abi, is_llvm_immediate) = place.info.layout.map(|layout| {
+            (layout.abi, layout.is_llvm_immediate())
+        });
+
+            if place.info.is_zst() {
                 return OperandRef::zst(place.info);
             }
 
-            let value = if layout.is_llvm_immediate() {
+            let value = if is_llvm_immediate {
                 let mut const_value = None;
                 let ty = place.info.llvm_ty(self.ctx);
 
@@ -887,7 +890,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
                     // Check if the type is pointing to a global constant value
                     let load_value = self.load(ty, place.value, place.alignment);
 
-                    if let AbiRepresentation::Scalar(scalar) = layout.abi {
+                    if let AbiRepresentation::Scalar(scalar) = abi {
                         let instruction = instruction_from_any_value(load_value);
 
                         load_scalar_value_metadata(
@@ -903,7 +906,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
                 });
 
                 OperandValue::Immediate(self.to_immediate(value, place.info.layout))
-            } else if let AbiRepresentation::Pair(scalar_a, scalar_b) = layout.abi {
+            } else if let AbiRepresentation::Pair(scalar_a, scalar_b) = abi {
                 let b_offset = scalar_a.size(self).align_to(scalar_b.align(self).abi);
                 let pair_ty = place.info.llvm_ty(self.ctx);
 
@@ -935,7 +938,6 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
             };
 
             OperandRef { value, info: place.info }
-        })
     }
 
     fn store(&mut self, value: Self::Value, ptr: Self::Value, alignment: Alignment) -> Self::Value {
