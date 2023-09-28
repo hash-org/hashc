@@ -848,10 +848,9 @@ impl<'a> Lexer<'a> {
             );
         }
 
-        // @@ErrorReporting: essentially we jump over the erroneous character literal
-        // and continue lexing
+        // The next character is either eof or `'`, so we skip it and emit an error
         if !self.is_eof() {
-            self.skip();
+            self.skip_ascii();
         }
 
         self.emit_error(
