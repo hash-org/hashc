@@ -1,0 +1,7 @@
+// run=fail, stage=parse
+
+(
+b'ß',
+b'👍',
+b'😘',
+)
