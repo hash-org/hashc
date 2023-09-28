@@ -3,7 +3,6 @@
 //! a list of items as a single id.
 
 use std::{
-    hash::Hash,
     iter::{repeat, Map, Repeat, Zip},
     marker::PhantomData,
     ops::Range,
@@ -12,15 +11,6 @@ use std::{
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-
-#[derive(Copy, Clone, Default, PartialEq, Eq, Hash)]
-pub struct SequenceStoreElement<T>(pub T, pub usize);
-
-impl<T> From<(T, usize)> for SequenceStoreElement<T> {
-    fn from(value: (T, usize)) -> Self {
-        SequenceStoreElement(value.0, value.1)
-    }
-}
 
 pub type SequenceStoreKeyIter<T, K> = Map<Zip<Repeat<T>, Range<usize>>, fn((T, usize)) -> K>;
 
@@ -505,8 +495,6 @@ impl<K: SequenceStoreKey, V: Clone> SequenceStore<K, V> for DefaultSequenceStore
 
 #[cfg(test)]
 mod test_super {
-    use super::*;
-
     // Ensuring macros expand correctly:
     new_sequence_store_key_direct!(pub TestSeqK, TestKK);
 }
