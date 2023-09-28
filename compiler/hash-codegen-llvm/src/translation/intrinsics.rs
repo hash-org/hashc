@@ -299,6 +299,7 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
             i if i == IDENTS.fma_f64 => "llvm.fma.f64",
             i if i == IDENTS.fabs_f32 => "llvm.fabs.f32",
             i if i == IDENTS.fabs_f64 => "llvm.fabs.f64",
+            i if i == IDENTS.memcmp => "memcmp",
             _ => return None,
         };
 

@@ -186,6 +186,29 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             ReturnDestinationKind::Nothing
         };
 
+        // Keep track of all of the copied "constant" arguments to a function
+        // if the value is being passed as a reference.
+        let mut copied_const_args = vec![];
+
+        // Deal with the function arguments
+        for (index, arg) in fn_args.iter().enumerate() {
+            let mut arg_operand = self.codegen_operand(builder, arg);
+
+            if let (ir::Operand::Const(_), OperandValue::Ref(_, _)) = (arg, arg_operand.value) {
+                let temp = PlaceRef::new_stack(builder, arg_operand.info);
+                let size = arg_operand.info.size();
+
+                builder.lifetime_start(temp.value, size);
+                arg_operand.value.store(builder, temp);
+                arg_operand.value = OperandValue::Ref(temp.value, temp.alignment);
+
+                copied_const_args.push(temp);
+            }
+
+            let arg_abi = abis.get_arg_abi(fn_abi, index);
+            self.codegen_fn_argument(builder, arg_operand, &mut args, &arg_abi);
+        }
+
         // If we have an intrinsic, then we will generate the appropriate code
         // for the intrinsic through the `codegen_intrinsic` function.
         if let Some(intrinsic) = maybe_intrinsic {
@@ -220,29 +243,6 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 builder.unreachable();
                 false
             };
-        }
-
-        // Keep track of all of the copied "constant" arguments to a function
-        // if the value is being passed as a reference.
-        let mut copied_const_args = vec![];
-
-        // Deal with the function arguments
-        for (index, arg) in fn_args.iter().enumerate() {
-            let mut arg_operand = self.codegen_operand(builder, arg);
-
-            if let (ir::Operand::Const(_), OperandValue::Ref(_, _)) = (arg, arg_operand.value) {
-                let temp = PlaceRef::new_stack(builder, arg_operand.info);
-                let size = arg_operand.info.size();
-
-                builder.lifetime_start(temp.value, size);
-                arg_operand.value.store(builder, temp);
-                arg_operand.value = OperandValue::Ref(temp.value, temp.alignment);
-
-                copied_const_args.push(temp);
-            }
-
-            let arg_abi = abis.get_arg_abi(fn_abi, index);
-            self.codegen_fn_argument(builder, arg_operand, &mut args, &arg_abi);
         }
 
         let fn_ptr = builder.get_fn_ptr(instance);

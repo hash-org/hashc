@@ -89,4 +89,6 @@ libc := mod {
     #foreign free := (ptr: &raw u8) -> () => { Intrinsics::abort() }
 
     #foreign memcpy := (dest: &raw u8, src: &raw u8, n: usize) -> &raw u8 => { Intrinsics::abort() }
+
+    #foreign memcmp := (s1: &raw u8, s2: &raw u8, n: usize) -> i32 => { Intrinsics::abort() }
 }
