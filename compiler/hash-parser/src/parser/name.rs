@@ -25,7 +25,12 @@ impl<'s> AstGen<'s> {
             Some(Token { kind: TokenKind::Ident(ident), span }) if *ident != IDENTS.underscore => {
                 Ok(self.node_with_span(Name { ident: *ident }, *span))
             }
-            _ => self.err_with_location(err, ExpectedItem::Ident, None, self.expected_pos()),
+            tok => self.err_with_location(
+                err,
+                ExpectedItem::Ident,
+                None,
+                tok.map(|tok| tok.span).unwrap_or_else(|| self.eof_pos()),
+            ),
         }
     }
 

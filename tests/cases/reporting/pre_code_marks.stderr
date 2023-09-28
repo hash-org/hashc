@@ -1,0 +1,50 @@
+error: expected an expression
+  --> $DIR/pre_code_marks.hash:9:12
+ 8 |       // ~ERROR: expected expression
+ 9 |       "aaa" + 
+   |              ^ 
+10 |   }
+
+error: expected an expression
+  --> $DIR/pre_code_marks.hash:14:15
+13 |       // ~ERROR: expected expression
+14 |       "äää" + 
+   |              ^ 
+15 |   }
+
+error: expected a name here
+  --> $DIR/pre_code_marks.hash:17:34
+15 |    }
+16 |    
+17 |    start := "aaa"; normal_block := ((foo, 
+   |  ___________________________________-
+18 | |  bar)) => {
+   | |_____- 
+19 |    
+20 |    
+   = help: expected a `identifier`
+
+error: expected a name here
+  --> $DIR/pre_code_marks.hash:23:38
+21 |    }
+22 |    
+23 |    start := "äää"; crazy_block_1 := ((foo, 
+   |  ____________________________________-
+24 | |  bar)) => {
+   | |_____- 
+25 |    
+26 |    }
+   = help: expected a `identifier`
+
+error: expected a name here
+  --> $DIR/pre_code_marks.hash:28:38
+26 |    }
+27 |    
+28 |    start := "äää"; crazy_block_2 := ((foo, 
+   |  ____________________________________-
+29 | |  bar, 
+30 | |  baz, "äää")) => {
+   | |____________- 
+31 |    
+32 |    }
+   = help: expected a `identifier`

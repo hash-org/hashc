@@ -1,0 +1,32 @@
+// stage=parse, run=fail
+
+// Here we are testing that the reporting sub-system
+// is correctly adjusting the span labels and widths for 
+// any encountered combining characters.
+
+normal := () => {
+    // ~ERROR: expected expression
+    "aaa" + 
+}
+
+crazy := () => {
+    // ~ERROR: expected expression
+    "äää" + 
+}
+
+start := "aaa"; normal_block := ((foo, 
+bar)) => {
+
+
+}
+
+start := "äää"; crazy_block_1 := ((foo, 
+bar)) => {
+
+}
+
+start := "äää"; crazy_block_2 := ((foo, 
+bar, 
+baz, "äää")) => {
+
+}
