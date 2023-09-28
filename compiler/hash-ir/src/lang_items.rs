@@ -9,6 +9,10 @@ pub enum LangItem {
     /// The `panic` intrinsic function. This will cause the program
     /// to terminate.
     Panic,
+
+    /// The `str_eq` intrinsic function. This will compare two strings
+    /// and return a boolean value.
+    StrEq,
 }
 
 impl LangItem {
@@ -16,6 +20,7 @@ impl LangItem {
     pub fn from_str_name(name: &str) -> Self {
         match name {
             "panic" => Self::Panic,
+            "str_eq" => Self::StrEq,
             _ => panic!("unknown language item: {name}"),
         }
     }

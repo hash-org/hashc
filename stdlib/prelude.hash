@@ -69,6 +69,14 @@ dbg := <T> => (item: T) -> T => {
     Intrinsics::abort()
 }
 
+#lang
+str_eq := (left: str, right: str) => {
+   SizedPointer(left_data, left_len) := transmute<_, SizedPointer>(left);
+   SizedPointer(right_data, right_len) := transmute<_, SizedPointer>(right);
+
+   left_len == right_len && Intrinsics::memcmp(left_data, right_data, left_len) == 0
+}
+
 
 libc := mod {
     /// The `char` is equivalent to an `i32` but avoid having to make the cast.

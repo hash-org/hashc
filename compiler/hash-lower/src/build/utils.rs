@@ -9,6 +9,7 @@ use hash_ir::{
         AggregateKind, AssertKind, BasicBlock, Const, Local, LocalDecl, Operand, Place, RValue,
         TerminatorKind,
     },
+    lang_items::LangItem,
     ty::{IrTyId, Mutability, COMMON_IR_TYS},
     IrCtx,
 };
@@ -88,6 +89,10 @@ impl<'tcx> BodyBuilder<'tcx> {
                 Some(self.ty_id_from_tir_intrinsic(intrinsic, member.node_id_or_default()))
             }
         }
+    }
+
+    pub(crate) fn get_lang_item(&self, name: LangItem) -> IrTyId {
+        self.ctx.lcx.lang_items().get_ty(name).expect("lang item not found or not defined")
     }
 
     /// Create a new [RValue] that represents a pointer with metadata, this uses

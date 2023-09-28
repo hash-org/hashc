@@ -336,14 +336,19 @@ impl IrTy {
                 | Self::UInt(_)
                 | Self::Float(_)
                 | Self::Char
-                | Self::Bool
-                | Self::Ref(_, _, RefKind::Normal | RefKind::Raw)
-        )
+                | Self::Bool)
+
+            // A reference to `str` is non-scalar since it is a fat pointer.
+            || matches!(self, Self::Ref(element, _, RefKind::Normal | RefKind::Raw) if element.is_str())
     }
 
     /// Check if the type is an array.
     pub fn is_array(&self) -> bool {
         matches!(self, Self::Array { .. })
+    }
+
+    pub fn is_str(&self) -> bool {
+        matches!(self, Self::Str)
     }
 
     /// Check if the type is an ADT.
@@ -500,6 +505,11 @@ impl IrTyId {
     /// Check if the type is a signed integer.
     pub fn is_signed(&self) -> bool {
         self.borrow().is_signed()
+    }
+
+    /// Check if the type is a raw `str` type.
+    pub fn is_str(&self) -> bool {
+        self.borrow().is_str()
     }
 }
 
