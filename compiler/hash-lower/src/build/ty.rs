@@ -179,6 +179,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     | TirIntrinsic::AlignOf
                     | TirIntrinsic::PtrOffset
                     | TirIntrinsic::Transmute
+                    | TirIntrinsic::Memcmp
+                    | TirIntrinsic::Memcpy
                     | TirIntrinsic::Abort
                     | TirIntrinsic::Panic => FnCallTermKind::Call(*term),
                     TirIntrinsic::Eval | TirIntrinsic::UserError | TirIntrinsic::DebugPrint => {

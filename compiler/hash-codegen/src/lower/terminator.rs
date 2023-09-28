@@ -142,7 +142,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // generate the operand as the function call...
         let callee = self.codegen_operand(builder, op);
 
-        let instance = callee.info.ty.borrow().as_instance();
+        let ty = callee.info.ty;
+        let instance = ty.borrow().as_instance();
         let is_intrinsic = instance.borrow().is_intrinsic();
         let mut maybe_intrinsic = None;
 
@@ -168,8 +169,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
         // compute the function pointer value and the ABI
         let abis = self.ctx.cg_ctx().abis();
-        let abi_id = abis.create_fn_abi(builder, instance);
-        let ret_abi = abis.map_fast(abi_id, |abi| abi.ret_abi);
+        let fn_abi = abis.create_fn_abi(builder, instance);
+        let ret_abi = abis.map_fast(fn_abi, |abi| abi.ret_abi);
 
         // If the return ABI pass mode is "indirect", then this means that
         // we have to create a temporary in order to represent the "out_ptr"
@@ -184,36 +185,6 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         } else {
             ReturnDestinationKind::Nothing
         };
-
-        // If we have an intrinsic, then we will generate the appropriate code
-        // for the intrinsic through the `codegen_intrinsic` function.
-        if let Some(intrinsic) = maybe_intrinsic {
-            let destination = match return_destination {
-                _ if ret_abi.is_indirect() => args[0],
-                ReturnDestinationKind::Nothing => builder.const_undef(builder.type_ptr()),
-                ReturnDestinationKind::IndirectOperand(op, _)
-                | ReturnDestinationKind::Store(op) => op.value,
-                ReturnDestinationKind::DirectOperand(_) => {
-                    panic!("direct operand being used for intrinsic call")
-                }
-            };
-
-            let op_args =
-                fn_args.iter().map(|arg| self.codegen_operand(builder, arg)).collect::<Vec<_>>();
-
-            self.codegen_intrinsic(builder, intrinsic, &ret_abi, &op_args, destination);
-
-            if let ReturnDestinationKind::IndirectOperand(dest, _) = return_destination {
-                self.store_return_value(builder, return_destination, &ret_abi, dest.value);
-            }
-
-            return if target.is_some() {
-                true
-            } else {
-                builder.unreachable();
-                false
-            };
-        }
 
         // Keep track of all of the copied "constant" arguments to a function
         // if the value is being passed as a reference.
@@ -234,8 +205,44 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 copied_const_args.push(temp);
             }
 
-            let arg_abi = abis.get_arg_abi(abi_id, index);
+            let arg_abi = abis.get_arg_abi(fn_abi, index);
             self.codegen_fn_argument(builder, arg_operand, &mut args, &arg_abi);
+        }
+
+        // If we have an intrinsic, then we will generate the appropriate code
+        // for the intrinsic through the `codegen_intrinsic` function.
+        if let Some(intrinsic) = maybe_intrinsic {
+            let destination = match return_destination {
+                _ if ret_abi.is_indirect() => args[0],
+                ReturnDestinationKind::Nothing => builder.const_undef(builder.type_ptr()),
+                ReturnDestinationKind::IndirectOperand(op, _)
+                | ReturnDestinationKind::Store(op) => op.value,
+                ReturnDestinationKind::DirectOperand(_) => {
+                    panic!("direct operand being used for intrinsic call")
+                }
+            };
+
+            let op_args =
+                fn_args.iter().map(|arg| self.codegen_operand(builder, arg)).collect::<Vec<_>>();
+
+            if let Some(Intrinsic::Memcmp) = maybe_intrinsic {
+                abis.map_fast(fn_abi, |abi| {
+                    builder.codegen_intrinsic_call(ty, abi, &args, destination);
+                })
+            } else {
+                self.codegen_intrinsic(builder, intrinsic, &ret_abi, &op_args, destination)
+            }
+
+            if let ReturnDestinationKind::IndirectOperand(dest, _) = return_destination {
+                self.store_return_value(builder, return_destination, &ret_abi, dest.value);
+            }
+
+            return if target.is_some() {
+                true
+            } else {
+                builder.unreachable();
+                false
+            };
         }
 
         let fn_ptr = builder.get_fn_ptr(instance);
@@ -244,7 +251,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         // cleanup
         self.codegen_fn_call(
             builder,
-            abi_id,
+            fn_abi,
             fn_ptr,
             &args,
             &copied_const_args,

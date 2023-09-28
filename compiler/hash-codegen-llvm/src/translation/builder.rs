@@ -850,92 +850,86 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn load_operand(&mut self, place: PlaceRef<Self::Value>) -> OperandRef<Self::Value> {
         // If the operand is a zst, we return a `()` value
-        place.info.layout.map(|layout| {
-            if layout.is_zst() {
-                return OperandRef::zst(place.info);
-            }
+        let (abi, is_llvm_immediate) =
+            place.info.layout.map(|layout| (layout.abi, layout.is_llvm_immediate()));
 
-            let value = if layout.is_llvm_immediate() {
-                let mut const_value = None;
-                let ty = place.info.llvm_ty(self.ctx);
+        if place.info.is_zst() {
+            return OperandRef::zst(place.info);
+        }
 
-                // Check here if the need to load it in a as global value, i.e.
-                // a constant...
-                //
-                // @@PatchInkwell: need to patch inkwell to be able to check if things are
-                // global variables, and constant.
-                unsafe {
-                    let value = llvm::LLVMIsAGlobalVariable(place.value.as_value_ref());
+        let value = if is_llvm_immediate {
+            let mut const_value = None;
+            let ty = place.info.llvm_ty(self.ctx);
 
-                    if !value.is_null()
-                        && (llvm::LLVMIsAConstant(value) as llvm_sys::prelude::LLVMBool) == 1
-                    {
-                        let init = llvm::LLVMGetInitializer(value);
+            // Check here if the need to load it in a as global value, i.e.
+            // a constant...
+            //
+            // @@PatchInkwell: need to patch inkwell to be able to check if things are
+            // global variables, and constant.
+            unsafe {
+                let value = llvm::LLVMIsAGlobalVariable(place.value.as_value_ref());
 
-                        if !init.is_null() {
-                            let value = AnyValueEnum::new(init);
-                            if self.ty_of_value(value) == ty {
-                                const_value = Some(value);
-                            }
+                if !value.is_null()
+                    && (llvm::LLVMIsAConstant(value) as llvm_sys::prelude::LLVMBool) == 1
+                {
+                    let init = llvm::LLVMGetInitializer(value);
+
+                    if !init.is_null() {
+                        let value = AnyValueEnum::new(init);
+                        if self.ty_of_value(value) == ty {
+                            const_value = Some(value);
                         }
                     }
                 }
+            }
 
-                // If this wasn't a global constant value, we'll just load it in
-                // as a normal scalar.
-                let value = const_value.unwrap_or_else(|| {
-                    // Check if the type is pointing to a global constant value
-                    let load_value = self.load(ty, place.value, place.alignment);
+            // If this wasn't a global constant value, we'll just load it in
+            // as a normal scalar.
+            let value = const_value.unwrap_or_else(|| {
+                // Check if the type is pointing to a global constant value
+                let load_value = self.load(ty, place.value, place.alignment);
 
-                    if let AbiRepresentation::Scalar(scalar) = layout.abi {
-                        let instruction = instruction_from_any_value(load_value);
+                if let AbiRepresentation::Scalar(scalar) = abi {
+                    let instruction = instruction_from_any_value(load_value);
 
-                        load_scalar_value_metadata(
-                            self,
-                            instruction,
-                            scalar,
-                            place.info,
-                            Size::ZERO,
-                        );
-                    }
+                    load_scalar_value_metadata(self, instruction, scalar, place.info, Size::ZERO);
+                }
 
-                    load_value
-                });
+                load_value
+            });
 
-                OperandValue::Immediate(self.to_immediate(value, place.info.layout))
-            } else if let AbiRepresentation::Pair(scalar_a, scalar_b) = layout.abi {
-                let b_offset = scalar_a.size(self).align_to(scalar_b.align(self).abi);
-                let pair_ty = place.info.llvm_ty(self.ctx);
+            OperandValue::Immediate(self.to_immediate(value, place.info.layout))
+        } else if let AbiRepresentation::Pair(scalar_a, scalar_b) = abi {
+            let b_offset = scalar_a.size(self).align_to(scalar_b.align(self).abi);
+            let pair_ty = place.info.llvm_ty(self.ctx);
 
-                // Utility closure to load one of the elements from the pair using
-                // a `struct-gep`.
-                let mut load = |index, scalar: Scalar, info, align, offset| {
-                    let ptr =
-                        self.structural_get_element_pointer(pair_ty, place.value, index as u64);
-                    let ty = place.info.scalar_pair_element_llvm_ty(self.ctx, index, false);
-                    let load_value = self.load(ty, ptr, align);
+            // Utility closure to load one of the elements from the pair using
+            // a `struct-gep`.
+            let mut load = |index, scalar: Scalar, info, align, offset| {
+                let ptr = self.structural_get_element_pointer(pair_ty, place.value, index as u64);
+                let ty = place.info.scalar_pair_element_llvm_ty(self.ctx, index, false);
+                let load_value = self.load(ty, ptr, align);
 
-                    load_scalar_value_metadata(
-                        self,
-                        instruction_from_any_value(load_value),
-                        scalar,
-                        info,
-                        offset,
-                    );
+                load_scalar_value_metadata(
+                    self,
+                    instruction_from_any_value(load_value),
+                    scalar,
+                    info,
+                    offset,
+                );
 
-                    self.to_immediate_scalar(load_value, scalar)
-                };
-
-                OperandValue::Pair(
-                    load(0, scalar_a, place.info, place.alignment, Size::ZERO),
-                    load(1, scalar_b, place.info, place.alignment.restrict_to(b_offset), b_offset),
-                )
-            } else {
-                OperandValue::Ref(place.value, place.alignment)
+                self.to_immediate_scalar(load_value, scalar)
             };
 
-            OperandRef { value, info: place.info }
-        })
+            OperandValue::Pair(
+                load(0, scalar_a, place.info, place.alignment, Size::ZERO),
+                load(1, scalar_b, place.info, place.alignment.restrict_to(b_offset), b_offset),
+            )
+        } else {
+            OperandValue::Ref(place.value, place.alignment)
+        };
+
+        OperandRef { value, info: place.info }
     }
 
     fn store(&mut self, value: Self::Value, ptr: Self::Value, alignment: Alignment) -> Self::Value {

@@ -305,4 +305,5 @@ core_idents! {
     fma_f64: "fmaf64",
     fabs_f32: "fabsf32",
     fabs_f64: "fabsf64",
+    memcmp: "memcmp",
 }
