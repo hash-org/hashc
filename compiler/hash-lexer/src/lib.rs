@@ -816,6 +816,12 @@ impl<'a> Lexer<'a> {
                     return TokenKind::Err;
                 }
             };
+        } else if self.peek() == '\'' {
+            self.skip_ascii();
+            return self.emit_error(
+                LexerErrorKind::EmptyCharLit,
+                ByteRange::singleton(self.len_consumed()),
+            );
         } else if self.peek_second() == '\'' {
             let ch = self.next().unwrap();
             self.skip_ascii();
