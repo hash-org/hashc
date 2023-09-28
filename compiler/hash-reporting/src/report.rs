@@ -151,6 +151,13 @@ pub macro help {
     }
 }
 
+/// Create a `note` note with the given message.
+pub macro note {
+    ($($arg:tt)*) => {
+        ReportElement::Note(ReportNote::new(ReportNoteKind::Note, format!($($arg)*)))
+    }
+}
+
 /// Create a `info` note with the given message.
 pub macro info {
     ($($arg:tt)*) => {

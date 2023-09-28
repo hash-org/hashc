@@ -1,14 +1,16 @@
 //! Hash Compiler lexer error data types.
 
-use std::{cell::Cell, fmt::Display};
+use std::{cell::Cell, fmt::Display, iter};
 
 use hash_reporting::{
     diagnostic::{DiagnosticStore, HasDiagnosticsMut},
-    report::{help, info, Report},
+    report::{help, info, note, Report},
     reporter::{Reporter, Reports},
+    unicode_normalization::UnicodeNormalization,
 };
 use hash_source::{identifier::Identifier, location::Span};
 use hash_token::{delimiter::Delimiter, Base, TokenKind};
+use hash_utils::{pluralise, thin_vec::ThinVec};
 
 use crate::Lexer;
 
@@ -113,7 +115,16 @@ pub enum LexerErrorKind {
     /// ```
     /// 'ab'
     /// ```
-    MultipleCharCodePoints,
+    MultipleCharCodePoints {
+        /// The starting character of the literal.
+        start: char,
+
+        /// Any combining marks that followed the starting character.
+        combining_marks: ThinVec<char>,
+
+        /// If the error occurred in a byte literal.
+        byte_lit: bool,
+    },
 
     /// Unclosed unicode literal, when a unicode character literal
     /// is missing the closing brace, e.g.
@@ -246,10 +257,51 @@ impl From<LexerError> for Reports {
                 span_label = Some("expected `}` here".to_string());
                 "unclosed unicode escape sequence".to_string()
             }
-            LexerErrorKind::MultipleCharCodePoints => {
-                help_notes
-                    .push(help!("{}", "if you meant to write a string literal, use `\"` instead"));
-                "character literals may only contain one codepoint".to_string()
+            LexerErrorKind::MultipleCharCodePoints { start, combining_marks, byte_lit } => {
+                // If we got some combining marks, then we report that the
+                // character literal has multiple code points, and that the
+                // combining marks are not allowed in character literals.
+                if !combining_marks.is_empty() {
+                    let escaped_marks = combining_marks
+                        .iter()
+                        .map(|c| c.escape_default().to_string())
+                        .collect::<Vec<_>>();
+
+                    help_notes.push(note!(
+                        "{}",
+                        format!(
+                            "this `{start}` is followed by combining mark{} `{}`",
+                            pluralise!(combining_marks.len()),
+                            escaped_marks.join("")
+                        )
+                    ));
+
+                    // Insert the starting character into the combined string.
+                    let combined = iter::once(start).chain(combining_marks).collect::<String>();
+
+                    // Now we try to see if the character has a normalised form, and
+                    // potentially suggest that instead.
+                    let normalised = combined.nfc().to_string();
+                    if normalised.chars().count() == 1 {
+                        let ch = normalised.chars().next().unwrap().escape_default().to_string();
+                        help_notes.push(help!(
+                            "{}",
+                            format!("if you meant to write `{normalised}` instead, use `{ch}`",)
+                        ));
+                    }
+                }
+
+                // Don't suggest string notation for byte literals.
+                if !byte_lit {
+                    help_notes.push(help!(
+                        "{}",
+                        format!("if you meant to write a string literal, use `\"` instead")
+                    ));
+                }
+
+                let prefix = if byte_lit { "byte" } else { "character" };
+
+                format!("{prefix} literals may only contain one codepoint")
             }
             LexerErrorKind::InvalidUnicodeEscape(ch) => {
                 help_notes

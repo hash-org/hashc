@@ -3,7 +3,9 @@
 
 use std::cell::Cell;
 
-use hash_reporting::diagnostic::HasDiagnosticsMut;
+use hash_reporting::{
+    diagnostic::HasDiagnosticsMut, unicode_normalization::char::is_combining_mark,
+};
 use hash_source::{
     self,
     constant::LocalStringTable,
@@ -16,6 +18,7 @@ use hash_token::{
     delimiter::Delimiter, keyword::ident_is_keyword, Base, FloatLitKind, IntLitKind, Token,
     TokenKind,
 };
+use hash_utils::{itertools::Itertools, thin_vec::thin_vec};
 
 use crate::{
     error::{LexerDiagnostics, LexerError, LexerErrorKind, LexerResult, NumericLitKind},
@@ -768,7 +771,7 @@ impl<'a> Lexer<'a> {
     fn char(&mut self, byte_lit: bool) -> TokenKind {
         // Subtract one to capture the previous quote, since we know it's one byte in
         // size
-        let start = self.offset.get() - 1;
+        let start = self.offset.get() - (1 + byte_lit as usize);
 
         // Slow path, we have an escaped character.
         if self.peek() == '\\' {
@@ -780,20 +783,7 @@ impl<'a> Lexer<'a> {
 
                     // eat the single quote after the character
                     if next != '\'' {
-                        self.eat_while_and_discard(|c| c != '\''); // Skip and eat all chars until we get a closed char lit.
-
-                        if self.is_eof() {
-                            return self.emit_fatal_error(
-                                LexerErrorKind::UnclosedCharLit,
-                                ByteRange::singleton(self.offset.get()),
-                            );
-                        }
-
-                        self.skip(); // skip `'`
-                        return self.emit_error(
-                            LexerErrorKind::MultipleCharCodePoints,
-                            ByteRange::new(start, self.offset.get()),
-                        );
+                        return self.emit_char_lit_error(start, Some(ch), byte_lit);
                     }
 
                     self.skip_ascii(); // eat the ending part of the character literal `'`
@@ -836,10 +826,51 @@ impl<'a> Lexer<'a> {
             return TokenKind::Char(ch);
         }
 
+        // Not a valid character, now compute the error message based on the character
+        // that we encountered.
+        self.emit_char_lit_error(start, None, byte_lit)
+    }
+
+    /// We emit an error for when a character literal is encountered that
+    /// is not valid for a number of potential reasons. If a character literal
+    /// is parsed, it begins with `'`, and then it is later followed by one
+    /// of the following things:
+    ///
+    /// - (1) A `'` character, which means that the character literal is empty
+    ///   (this is not handled here).
+    ///
+    /// - (2) A unicode character, then followed by a `'` character.
+    ///
+    /// - (3) A `\` (backslash), followed by some valid escape pattern, and
+    ///   finally a closing `'` character.
+    ///
+    /// If after parsing the initial character (2) or escape pattern (3), then
+    /// we end up here because we get an unclosed literal. This function
+    /// will then attempt to recover and potentially emit a more precise
+    /// error. The following errors could occur:
+    ///
+    /// - (1e) The next character is <EOF>, hence the character is unclosed.
+    ///
+    /// - (2e) The next character is non-<EOF>, and non-`'`, hence the character
+    ///   is unclosed.
+    ///
+    ///   - In this case, we will try to eat up until the next `'` or
+    ///     (whitespace or EOF) to report about the specifics of the error.
+    ///
+    ///   - If we stop at a non-`'` character, then we emit an error saying that
+    ///     the character is unclosed.
+    ///
+    ///   - Otherwise, two other errors can occur:
+    fn emit_char_lit_error(
+        &mut self,
+        pos: usize,
+        starting_char: Option<char>,
+        byte_lit: bool,
+    ) -> TokenKind {
         // So here we know that this is an invalid character literal, to improve
         // the reporting aspect, we want to eat up until the next `'` in order
         // to highlight the entire literal
-        self.eat_while_and_discard(move |c| c != '\'' && !c.is_whitespace());
+        let lit = self.eat_while_and_slice(move |c| c != '\'' && !c.is_whitespace());
 
         if self.peek() != '\'' {
             return self.emit_fatal_error(
@@ -853,9 +884,36 @@ impl<'a> Lexer<'a> {
             self.skip_ascii();
         }
 
+        // Split the literal into the starting character, and the rest...
+        let chars = lit.chars().collect_vec();
+        let (start, rest) = match starting_char {
+            Some(ref ch) => (ch, chars.as_slice()),
+            None => chars.split_first().unwrap_or((&'\'', &[])),
+        };
+
+        let mut combining_marks = thin_vec![];
+        let mut all_combining = true;
+
+        // Iterate through the "rest" of the characters and check if they are combining
+        // marks
+        for ch in rest {
+            if is_combining_mark(*ch) {
+                combining_marks.push(*ch);
+            } else {
+                all_combining = false;
+                break;
+            }
+        }
+
+        // If all of the marks weren't combining we avoid reporting the
+        // additional details about the combining marks...
+        if !all_combining {
+            combining_marks.clear();
+        }
+
         self.emit_error(
-            LexerErrorKind::MultipleCharCodePoints,
-            ByteRange::new(start, self.len_consumed()),
+            LexerErrorKind::MultipleCharCodePoints { start: *start, combining_marks, byte_lit },
+            ByteRange::new(pos, self.len_consumed()),
         )
     }
 

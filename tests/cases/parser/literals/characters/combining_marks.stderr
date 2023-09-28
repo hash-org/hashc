@@ -1,0 +1,44 @@
+error: character literals may only contain one codepoint
+ --> $DIR/combining_marks.hash:5:15
+4 |       // Single combining mark.
+5 |       spade  := '♠️'
+  |                 ^^^ here
+6 |   
+  = note: this `♠` is followed by combining mark `\u{fe0f}`
+  = help: if you meant to write a string literal, use `"` instead
+
+error: character literals may only contain one codepoint
+ --> $DIR/combining_marks.hash:8:15
+7 |       // Multiple combining characters.
+8 |       bing   := 'ṩ̂̊'
+  |                 ^^^ here
+9 |   
+  = note: this `s` is followed by combining marks `\u{323}\u{307}\u{302}\u{30a}`
+  = help: if you meant to write a string literal, use `"` instead
+
+error: character literals may only contain one codepoint
+  --> $DIR/combining_marks.hash:11:15
+10 |       // Suggest to write the normalised character.
+11 |       a_ring := 'Å'
+   |                 ^^^ here
+12 |       happy  := '☺️'
+   = note: this `A` is followed by combining mark `\u{30a}`
+   = help: if you meant to write `Å` instead, use `\u{c5}`
+   = help: if you meant to write a string literal, use `"` instead
+
+error: character literals may only contain one codepoint
+  --> $DIR/combining_marks.hash:12:15
+11 |       a_ring := 'Å'
+12 |       happy  := '☺️'
+   |                 ^^^ here
+13 |   
+   = note: this `☺` is followed by combining mark `\u{fe0f}`
+   = help: if you meant to write a string literal, use `"` instead
+
+error: character literals may only contain one codepoint
+  --> $DIR/combining_marks.hash:15:19
+14 |       // This shouldn't print the combining characters suggestions.
+15 |       bing_happy := 'ṩ̂̊☺️'
+   |                     ^^^^ here
+16 |   }
+   = help: if you meant to write a string literal, use `"` instead
