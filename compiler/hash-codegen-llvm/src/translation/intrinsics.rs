@@ -70,7 +70,7 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
         let i32 = self.type_i32();
         let i64 = self.type_i64();
         let i128 = self.type_i128();
-        let _isize = self.type_isize();
+        let isize = self.type_isize();
         let f32 = self.type_f32();
         let f64 = self.type_f64();
         let _metadata = self.type_metadata();
@@ -98,6 +98,9 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
         intrinsic_on!("llvm.fptoui.sat.i32.f64", fn(f64) -> i32);
         intrinsic_on!("llvm.fptoui.sat.i64.f64", fn(f64) -> i64);
         intrinsic_on!("llvm.fptoui.sat.i128.f64", fn(f64) -> i128);
+
+        // Memory intrinsics
+        intrinsic_on!("memcmp", fn(ptr, ptr, isize) -> i32);
 
         // Abort intrinsic
         intrinsic_on!("llvm.trap", fn() -> void);

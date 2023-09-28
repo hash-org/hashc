@@ -112,6 +112,16 @@ make_intrinsics! {
         Ok(None)
     };
 
+    memcpy := (dest: ref_ty(u8_gen_ty(), RefKind::Raw, false), src: ref_ty(u8_gen_ty(), RefKind::Raw, false), len: usize_gen_ty()) -> ref_ty(u8_gen_ty(), RefKind::Raw, false) => |env| {
+        // @@Todo: actually perform memcpy (Probably on an `AllocId`)
+        Ok(None)
+    };
+
+    memcmp := (a: ref_ty(u8_gen_ty(), RefKind::Raw, false), b: ref_ty(u8_gen_ty(), RefKind::Raw, false), len: usize_gen_ty()) -> i32_gen_ty() => |env| {
+        // @@Todo: actually perform memcmp (Probably on an `AllocId`)
+        Ok(None)
+    };
+
     eval := (T: Type(), a: ty(T)) -> ty(T) => |env| {
         env.normalise_term(a)
     };
