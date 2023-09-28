@@ -76,6 +76,14 @@ impl AstVisitor for AstTreePrinter {
         Ok(TreeNode::leaf(labelled("str", format!("{:?}", node.data), "")))
     }
 
+    type ByteLitRet = TreeNode;
+    fn visit_byte_lit(
+        &self,
+        node: ast::AstNodeRef<ast::ByteLit>,
+    ) -> Result<Self::CharLitRet, Self::Error> {
+        Ok(TreeNode::leaf(labelled("byte", node.data, "'")))
+    }
+
     type CharLitRet = TreeNode;
     fn visit_char_lit(
         &self,

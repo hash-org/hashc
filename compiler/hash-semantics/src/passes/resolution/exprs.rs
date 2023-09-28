@@ -527,6 +527,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Lit::Str(str_lit) => Ok(lit_prim!(Str, StrLit, *str_lit)),
             ast::Lit::Char(char_lit) => Ok(lit_prim!(Char, CharLit, *char_lit)),
             ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, IntLit, *int_lit)),
+            ast::Lit::Byte(byte_lit) => Ok(lit_prim!(Int, IntLit, *byte_lit)),
             ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
             ast::Lit::Bool(bool_lit) => Ok(bool_term(bool_lit.data, NodeOrigin::Given(node.id()))),
             ast::Lit::Tuple(tuple_lit) => {

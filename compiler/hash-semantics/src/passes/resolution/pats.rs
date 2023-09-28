@@ -273,6 +273,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 Pat::Lit(LitPat(Node::create_at(Lit::Int((*int_lit).into()), origin))),
                 origin,
             ),
+            ast::Lit::Byte(byte_lit) => Node::create_at(
+                Pat::Lit(LitPat(Node::create_at(Lit::Int((*byte_lit).into()), origin))),
+                origin,
+            ),
             ast::Lit::Bool(bool_lit) => bool_pat(bool_lit.data, NodeOrigin::Given(lit_pat.id())),
             ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {
                 panic!("Found invalid literal in pattern")
@@ -292,6 +296,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             }
             ast::Lit::Char(char_lit) => {
                 LitPat(Node::create_at(Lit::Char(CharLit { underlying: *char_lit }), origin))
+            }
+            ast::Lit::Byte(byte_lit) => {
+                LitPat(Node::create_at(Lit::Int((*byte_lit).into()), origin))
             }
             ast::Lit::Int(int_lit) => LitPat(Node::create_at(Lit::Int((*int_lit).into()), origin)),
             ast::Lit::Bool(_) | ast::Lit::Float(_) | ast::Lit::Array(_) | ast::Lit::Tuple(_) => {

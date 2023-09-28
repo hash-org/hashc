@@ -121,6 +121,7 @@ impl TokenKind {
             TokenKind::Keyword(Keyword::False)
                 | TokenKind::Keyword(Keyword::True)
                 | TokenKind::Int(_, _)
+                | TokenKind::Byte(_)
                 | TokenKind::Float(_)
                 | TokenKind::Char(_)
                 | TokenKind::Str(_)
@@ -130,14 +131,17 @@ impl TokenKind {
     /// Check if the [TokenKind] is a numeric literal
     #[inline]
     pub fn is_numeric(&self) -> bool {
-        matches!(self, TokenKind::Int(_, _) | TokenKind::Float(_))
+        matches!(self, TokenKind::Int(_, _) | TokenKind::Byte(_) | TokenKind::Float(_))
     }
 
     /// Check if the [TokenKind] is a `range` like literal, i.e.
     /// it can feature within a range.
     #[inline]
     pub fn is_range_lit(&self) -> bool {
-        matches!(self, TokenKind::Int(_, _) | TokenKind::Float(_) | TokenKind::Char(_))
+        matches!(
+            self,
+            TokenKind::Int(_, _) | TokenKind::Byte(_) | TokenKind::Float(_) | TokenKind::Char(_)
+        )
     }
 }
 
@@ -304,6 +308,8 @@ pub enum TokenKind {
     RangeExclusive,
     /// Integer Literal
     Int(Base, IntLitKind),
+    /// Byte Literal
+    Byte(u8),
     /// Float literal
     Float(FloatLitKind),
     /// Character literal.
@@ -397,6 +403,7 @@ impl std::fmt::Display for TokenKind {
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::Unexpected(atom) => write!(f, "{atom}"),
             TokenKind::Int(_, _) => write!(f, "integer"),
+            TokenKind::Byte(_) => write!(f, "byte"),
             TokenKind::Float(_) => write!(f, "float"),
             TokenKind::Char(ch) => write!(f, "'{ch}'"),
             TokenKind::LeftDelim(delim) => write!(f, "{}", delim.left()),
