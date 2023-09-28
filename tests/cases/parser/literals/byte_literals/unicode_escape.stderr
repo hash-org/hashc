@@ -1,0 +1,7 @@
+error: unicode escape in byte literal
+ --> $DIR/unicode_escape.hash:5:22
+4 |       // ~ERROR: unicode escape in byte literal
+5 |       buf := [b'H', b'\u{FFFF}', b'l', b'l', b'o'];
+  |                        ^^^^^^^ unicode escape in byte literal
+6 |       transmute<_, str>(buf)
+  = help: unicode escape sequences cannot be used as a byte

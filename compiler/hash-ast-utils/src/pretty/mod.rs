@@ -1077,6 +1077,15 @@ where
         self.write("}")
     }
 
+    type ByteLitRet = ();
+
+    fn visit_byte_lit(
+        &mut self,
+        node: ast::AstNodeRef<ast::ByteLit>,
+    ) -> Result<Self::ByteLitRet, Self::Error> {
+        self.write(format!("b'{}'", node.body.data))
+    }
+
     type CharLitRet = ();
 
     fn visit_char_lit(
