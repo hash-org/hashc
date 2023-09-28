@@ -1,6 +1,5 @@
-error: character literals may only contain one codepoint
- --> $DIR/empty.hash:3:2
+error: empty character literal
+ --> $DIR/empty.hash:3:3
 2 |   
 3 |   b'';
-  |    ^^ here
-  = help: if you meant to write a string literal, use `"` instead
+  |     ^ expected a character literal here

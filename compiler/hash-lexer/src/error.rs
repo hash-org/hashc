@@ -94,6 +94,12 @@ pub enum LexerErrorKind {
     /// ```
     UnclosedCharLit,
 
+    /// When an empty character literal is specified, e.g.
+    /// ```
+    /// ''
+    /// ```
+    EmptyCharLit,
+
     /// Occurs when a escape sequence (within a character or a string) is
     /// not a valid escape sequence, e.g.
     /// ```
@@ -220,6 +226,10 @@ impl From<LexerError> for Reports {
             LexerErrorKind::UnclosedCharLit => {
                 span_label = Some("expected `'` here".to_string());
                 "unclosed character literal".to_string()
+            }
+            LexerErrorKind::EmptyCharLit => {
+                span_label = Some("expected a character literal here".to_string());
+                "empty character literal".to_string()
             }
             LexerErrorKind::MalformedUnicodeLit => {
                 span_label = Some("expected `{` after a `\\u` escape sequence".to_string());
