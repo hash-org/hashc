@@ -88,7 +88,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     }
 
     /// Use the given [`ast::ImplicitFnCall`] as a path.
-    fn implicit_call_as_ast_path<'a>(
+    pub(super) fn implicit_call_as_ast_path<'a>(
         &self,
         node: AstNodeRef<'a, ast::ImplicitFnCall>,
     ) -> SemanticResult<Option<AstPath<'a>>> {
@@ -196,7 +196,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     }
 
     /// Make a type from the given [`ast::ImplicitFnCall`].
-    fn make_ty_from_ast_implicit_fn_call(
+    pub(super) fn make_ty_from_ast_implicit_fn_call(
         &self,
         node: AstNodeRef<ast::ImplicitFnCall>,
     ) -> SemanticResult<TyId> {

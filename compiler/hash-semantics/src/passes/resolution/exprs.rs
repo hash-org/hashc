@@ -118,6 +118,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::Variable(variable_expr) => {
                 self.make_term_from_ast_variable_expr(node.with_body(variable_expr))?
             }
+            ast::Expr::ImplicitCall(implicit_call) => {
+                self.make_ty_from_ast_implicit_fn_call(node.with_body(implicit_call))?
+            }
             ast::Expr::ConstructorCall(ctor_expr) => {
                 self.make_term_from_ast_constructor_call_expr(node.with_body(ctor_expr))?
             }
@@ -292,6 +295,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::Ty(expr_ty) => {
                 let expr_ty_ref = node.with_body(expr_ty.ty.body());
                 self.ty_as_ast_path(expr_ty_ref)
+            }
+            ast::Expr::ImplicitCall(implicit_call) => {
+                let call_ref = node.with_body(implicit_call);
+                self.implicit_call_as_ast_path(call_ref)
             }
             _ => Ok(None),
         }

@@ -253,30 +253,26 @@ impl<'s> AstGen<'s> {
         })
     }
 
-    /// Parse a [ImplicitFnCall] wrapped within a [TyExpr]. This function tries
-    /// to parse `ty_args` by using `parse_ty_args`. If this parsing fails,
-    /// it could be that this isn't a type function call, but rather a
-    /// simple binary expression which uses the `<` operator.
+    /// Parse a [Expr::ImplicitCall]. This function tries to parse `<` delimited
+    /// [TyArg]s by using [`parse_ty_args()`].
+    ///
+    /// If this parsing fails, it could be that this isn't a type function call,
+    /// but rather a simple binary expression which uses the `<` operator.
     fn maybe_parse_implicit_call(
         &mut self,
         subject: AstNode<Expr>,
         subject_span: ByteRange,
     ) -> (AstNode<Expr>, bool) {
-        // @@Speed: so here we want to be efficient about type_args, we'll just try to
-        // see if the next token atom is a 'Lt' rather than using parse_token_atom
-        // because it throws an error essentially and thus allocates a stupid amount
-        // of strings which at the end of the day aren't even used...
         match self.peek() {
             Some(token) if token.has_kind(TokenKind::Lt) => {
                 match self.peek_resultant_fn_mut(|g| g.parse_ty_args(false)) {
-                    Some(args) => {
-                        let ty = self.node_with_joined_span(
-                            Ty::ImplicitCall(ImplicitFnCall { subject, args }),
+                    Some(args) => (
+                        self.node_with_joined_span(
+                            Expr::ImplicitCall(ImplicitFnCall { subject, args }),
                             subject_span,
-                        );
-
-                        (self.node_with_joined_span(Expr::Ty(TyExpr { ty }), subject_span), true)
-                    }
+                        ),
+                        true,
+                    ),
                     None => (subject, false),
                 }
             }

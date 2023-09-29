@@ -2201,6 +2201,9 @@ define_tree! {
         /// function call e.g. `foo(5)`.
         ConstructorCall(ConstructorCallExpr),
 
+        /// A call to an implicit function, i.e. `cast<_, u32>(5)`.
+        ImplicitCall(ImplicitFnCall),
+
         /// A macro invocation on an expression.
         Macro(ExprMacroInvocation),
 

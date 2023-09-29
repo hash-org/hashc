@@ -393,7 +393,7 @@ impl AstVisitor for AstTreePrinter {
         let walk::ImplicitFnCall { subject, args } = walk::walk_implicit_fn_call(self, node)?;
 
         Ok(TreeNode::branch(
-            "type_function_call",
+            "implicit_call",
             vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("arguments", args)],
         ))
     }
