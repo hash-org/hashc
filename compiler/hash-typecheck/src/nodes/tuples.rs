@@ -93,11 +93,13 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
 
     fn check(
         &self,
-        _item: &mut TupleTy,
-        _item_ty: Self::TyNode,
-        _item_node: Self::Node,
+        tuple_ty: &mut TupleTy,
+        annotation_ty: Self::TyNode,
+        _original_term_id: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.infer_params(tuple_ty.data, || Ok(()))?;
+        self.check_is_universe(annotation_ty)?;
+        Ok(())
     }
 
     fn normalise(

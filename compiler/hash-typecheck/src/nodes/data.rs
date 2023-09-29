@@ -171,12 +171,19 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
 
     fn check(
         &self,
-
-        _item: &mut DataTy,
-        _item_ty: Self::TyNode,
-        _item_node: Self::Node,
+        data_ty: &mut DataTy,
+        annotation_ty: Self::TyNode,
+        term_id: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        let data_def = data_ty.data_def.value();
+        let copied_params = Visitor::new().copy(data_def.params);
+        self.infer_args(data_ty.args, copied_params, |inferred_data_ty_args| {
+            data_ty.args = inferred_data_ty_args;
+            term_id.set(term_id.value().with_data((*data_ty).into()));
+            Ok(())
+        })?;
+        self.check_is_universe(annotation_ty)?;
+        Ok(())
     }
 
     fn normalise(

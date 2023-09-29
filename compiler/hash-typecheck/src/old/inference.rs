@@ -1,6 +1,6 @@
 //! Operations to infer types of terms and patterns.
 
-use std::{cell::Cell, collections::HashSet, ops::ControlFlow};
+use std::{collections::HashSet, ops::ControlFlow};
 
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_exhaustiveness::ExhaustivenessChecker;
@@ -15,25 +15,23 @@ use hash_tir::{
     context::{HasContext, ScopeKind},
     dump::dump_tir,
     intrinsics::{
-        definitions::{array_ty, bool_ty, list_def, list_ty, never_ty, usize_ty, Intrinsic},
+        definitions::{array_ty, bool_ty, list_def, list_ty, usize_ty, Intrinsic},
         make::IsIntrinsic,
         utils::{
             bool_term, create_term_from_usize_lit, try_use_ty_as_float_ty, try_use_ty_as_int_ty,
         },
     },
-    scopes::AssignTerm,
     term_as_variant,
     tir::{
         validate_and_reorder_pat_args_against_params, validate_params, Arg, ArgId, ArgsId,
         ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorPat, DataDefCtors, DataDefId, DataTy,
-        FnDefId, FnTy, HasAstNodeId, IfPat, Lit, LitId, MatchTerm, ModDefId, ModMemberId,
-        ModMemberValue, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId,
-        PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, Spread, SymbolId, Term,
-        TermId, TermListId, TuplePat, TupleTy, Ty, TyId,
+        FnDefId, FnTy, HasAstNodeId, IfPat, Lit, LitId, ModDefId, ModMemberId, ModMemberValue,
+        Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId,
+        PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, Spread, SymbolId, Term, TermId,
+        TermListId, TuplePat, TupleTy, Ty, TyId,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
-use itertools::Itertools;
 
 use crate::{
     checker::Tc,
@@ -554,119 +552,9 @@ impl<T: TcEnv> Tc<'_, T> {
         Ok(())
     }
 
-    /// Infer an assign term.
-    pub fn infer_assign_term(
-        &self,
-        assign_term: &AssignTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        let subject_ty = Ty::hole_for(assign_term.subject);
-        self.infer_term(assign_term.subject, subject_ty)?;
-
-        let value_ty = Ty::hole_for(assign_term.value);
-        self.infer_term(assign_term.value, value_ty)?;
-
-        self.check_by_unify(value_ty, subject_ty)?;
-
-        let inferred_ty =
-            Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
-        self.check_by_unify(inferred_ty, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer a match term.
-    pub fn infer_match_term(&self, match_term: &MatchTerm, annotation_ty: TyId) -> TcResult<()> {
-        self.check_ty(annotation_ty)?;
-        let match_subject_ty = Ty::hole_for(match_term.subject);
-        self.infer_term(match_term.subject, match_subject_ty)?;
-
-        let match_subject_var = match *match_term.subject.value() {
-            Term::Var(v) => Some(v),
-            _ => None,
-        };
-
-        let match_annotation_ty = match *annotation_ty.value() {
-            Ty::Hole(_) => None,
-            t => Some(t),
-        };
-
-        let mut unified_ty = annotation_ty;
-        let inhabited = Cell::new(false);
-        for case in match_term.cases.iter() {
-            let case_data = case.value();
-            self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
-                let subject_ty_copy = Visitor::new().copy(match_subject_ty);
-
-                self.infer_pat(case_data.bind_pat, subject_ty_copy, Some(match_term.subject))?;
-                let new_unified_ty =
-                    Ty::expect_is(case_data.value, Visitor::new().copy(unified_ty));
-
-                if let Some(match_subject_var) = match_subject_var {
-                    if let Some(pat_term) = case_data.bind_pat.try_use_as_term() {
-                        self.context().add_assignment(
-                            match_subject_var.symbol,
-                            subject_ty_copy,
-                            pat_term,
-                        );
-                    }
-                }
-
-                match match_annotation_ty {
-                    _ if self.uni_ops().is_uninhabitable(subject_ty_copy)? => {
-                        let new_unified_ty = Ty::hole_for(case_data.value);
-                        self.infer_term(case_data.value, new_unified_ty)?;
-                        self.check_by_unify(new_unified_ty, never_ty(NodeOrigin::Expected))?;
-                    }
-                    Some(_) => {
-                        self.infer_term(case_data.value, new_unified_ty)?;
-                        if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
-                            inhabited.set(true);
-                        }
-                    }
-                    None => {
-                        self.infer_term(case_data.value, new_unified_ty)?;
-                        if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
-                            inhabited.set(true);
-                            self.uni_ops().unify_terms(new_unified_ty, unified_ty)?;
-                            unified_ty = new_unified_ty;
-                        }
-                    }
-                }
-
-                Ok(())
-            })?
-        }
-
-        if matches!(*unified_ty.value(), Ty::Hole(_)) {
-            if !inhabited.get() {
-                unified_ty = never_ty(NodeOrigin::Expected);
-            } else {
-                unified_ty = Ty::unit_ty(NodeOrigin::Expected);
-            }
-        }
-
-        self.check_by_unify(unified_ty, annotation_ty)?;
-
-        // @@Caching: Check if the MatchTerm has already been queued for exhaustiveness,
-        // if it hasn't, we can use/make a new ExhaustivenessChecker and then
-        // add the job.
-        let pats =
-            match_term.cases.elements().borrow().iter().map(|case| case.bind_pat).collect_vec();
-        let mut eck = self.exhaustiveness_checker(match_term.subject);
-        self.env.time_item("exhaustiveness", |_| {
-            eck.is_match_exhaustive(&pats, match_subject_ty);
-        });
-        self.append_exhaustiveness_diagnostics(eck);
-
-        Ok(())
-    }
-
     /// Infer a concrete type for a given term.
     pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
         self.register_new_atom(term_id, annotation_ty);
-        let expects_ty = |ty: TyId| self.check_by_unify(ty, Ty::universe(NodeOrigin::Expected));
-
         match *term_id.value() {
             Term::Tuple(mut tuple_term) => self.check(&mut tuple_term, annotation_ty, term_id)?,
             Term::Lit(lit_term) => self.check_node(lit_term, annotation_ty)?,
@@ -696,31 +584,19 @@ impl<T: TcEnv> Tc<'_, T> {
                 self.check(&mut access_term, annotation_ty, term_id)?
             }
             Term::Index(mut index_term) => self.check(&mut index_term, annotation_ty, term_id)?,
-            Term::Match(match_term) => self.infer_match_term(&match_term, annotation_ty)?,
-            Term::Assign(assign_term) => {
-                self.infer_assign_term(&assign_term, annotation_ty, term_id)?
+            Term::Match(mut match_term) => self.check(&mut match_term, annotation_ty, term_id)?,
+            Term::Assign(mut assign_term) => {
+                self.check(&mut assign_term, annotation_ty, term_id)?
             }
-            Term::Intrinsic(intrinsic) => self.infer_intrinsic(intrinsic, annotation_ty)?,
-            Term::Hole(_) => {}
-            Ty::TupleTy(tuple_ty) => {
-                self.infer_params(tuple_ty.data, || Ok(()))?;
-                expects_ty(annotation_ty)?;
-            }
+            Term::Intrinsic(mut intrinsic) => self.check(&mut intrinsic, annotation_ty, term_id)?,
+            Term::Hole(mut hole) => self.check(&mut hole, annotation_ty, term_id)?,
+            Ty::TupleTy(mut tuple_ty) => self.check(&mut tuple_ty, annotation_ty, term_id)?,
             Ty::FnTy(mut fn_ty) => self.check(&mut fn_ty, annotation_ty, term_id)?,
-            Ty::RefTy(ref_ty) => {
-                // Infer the inner type
-                self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
-                expects_ty(annotation_ty)?;
+            Ty::RefTy(mut ref_ty) => {
+                self.check(&mut ref_ty, annotation_ty, term_id)?;
             }
             Ty::DataTy(mut data_ty) => {
-                let data_def = data_ty.data_def.value();
-                let copied_params = Visitor::new().copy(data_def.params);
-                self.infer_args(data_ty.args, copied_params, |inferred_data_ty_args| {
-                    data_ty.args = inferred_data_ty_args;
-                    term_id.set(term_id.value().with_data(data_ty.into()));
-                    Ok(())
-                })?;
-                expects_ty(annotation_ty)?;
+                self.check(&mut data_ty, annotation_ty, term_id)?;
             }
             Ty::Universe(mut universe_ty) => {
                 self.check(&mut universe_ty, annotation_ty, term_id)?

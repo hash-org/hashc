@@ -2,6 +2,7 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::HasContext,
     intrinsics::definitions::never_ty,
+    scopes::AssignTerm,
     tir::{LoopControlTerm, LoopTerm, NodeId, NodeOrigin, ReturnTerm, TermId, Ty, TyId},
 };
 
@@ -137,6 +138,55 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut LoopTerm) {
+        todo!()
+    }
+}
+
+impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
+    type TyNode = TyId;
+    type Node = TermId;
+
+    fn check(
+        &self,
+        assign_term: &mut AssignTerm,
+        annotation_ty: Self::TyNode,
+        original_term_id: Self::Node,
+    ) -> crate::errors::TcResult<()> {
+        let subject_ty = Ty::hole_for(assign_term.subject);
+        self.infer_term(assign_term.subject, subject_ty)?;
+
+        let value_ty = Ty::hole_for(assign_term.value);
+        self.infer_term(assign_term.value, value_ty)?;
+
+        self.check_by_unify(value_ty, subject_ty)?;
+
+        let inferred_ty =
+            Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
+        self.check_by_unify(inferred_ty, annotation_ty)?;
+        Ok(())
+    }
+
+    fn normalise(
+        &self,
+        _opts: &crate::operations::normalisation::NormalisationOptions,
+        _item: AssignTerm,
+        _item_node: Self::Node,
+    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+        todo!()
+    }
+
+    fn unify(
+        &self,
+        _opts: &crate::operations::unification::UnificationOptions,
+        _src: &mut AssignTerm,
+        _target: &mut AssignTerm,
+        _src_node: Self::Node,
+        _target_node: Self::Node,
+    ) -> crate::errors::TcResult<()> {
+        todo!()
+    }
+
+    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut AssignTerm) {
         todo!()
     }
 }

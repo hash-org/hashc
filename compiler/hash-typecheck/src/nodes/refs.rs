@@ -1,5 +1,5 @@
 use hash_storage::store::statics::StoreId;
-use hash_tir::tir::{DerefTerm, NodeId, RefTerm, RefTy, TermId, Ty, TyId};
+use hash_tir::tir::{DerefTerm, NodeId, NodeOrigin, RefTerm, RefTy, TermId, Ty, TyId};
 
 use crate::{checker::Tc, env::TcEnv, errors::TcError, operations::Operations};
 
@@ -117,6 +117,47 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut DerefTerm) {
+        todo!()
+    }
+}
+
+impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
+    type TyNode = TyId;
+    type Node = TermId;
+
+    fn check(
+        &self,
+        ref_ty: &mut RefTy,
+        annotation_ty: Self::TyNode,
+        _original_term_id: Self::Node,
+    ) -> crate::errors::TcResult<()> {
+        // Infer the inner type
+        self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
+        self.check_is_universe(annotation_ty)?;
+        Ok(())
+    }
+
+    fn normalise(
+        &self,
+        _opts: &crate::operations::normalisation::NormalisationOptions,
+        _item: RefTy,
+        _item_node: Self::Node,
+    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+        todo!()
+    }
+
+    fn unify(
+        &self,
+        _opts: &crate::operations::unification::UnificationOptions,
+        _src: &mut RefTy,
+        _target: &mut RefTy,
+        _src_node: Self::Node,
+        _target_node: Self::Node,
+    ) -> crate::errors::TcResult<()> {
+        todo!()
+    }
+
+    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut RefTy) {
         todo!()
     }
 }
