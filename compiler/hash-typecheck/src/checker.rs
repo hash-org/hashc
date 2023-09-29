@@ -4,6 +4,9 @@ use crate::env::{HasTcEnv, TcEnv};
 
 #[derive(Deref, Constructor)]
 pub struct Tc<'env, E: TcEnv> {
+    // @@Todo:
+    // move context to here
+    // move "unify problems" to here
     env: &'env E,
 }
 
