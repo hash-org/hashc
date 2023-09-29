@@ -1320,7 +1320,7 @@ define_tree! {
 
         /// Any value that is assigned to the binding, simply
         /// an expression.
-        pub value: OptionalChild!(Expr),
+        pub value: Child!(Expr),
     }
 
     /// Unary operators that are defined within the core of the language.

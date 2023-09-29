@@ -435,20 +435,13 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let pat =
             self.try_or_add_error(self.make_pat_from_ast_pat_and_check_binds(node.pat.ast_ref()));
 
-        // Inner expression:
-        let value = match node.value.as_ref() {
-            Some(value) => {
-                self.try_or_add_error(self.make_term_from_ast_expr(value.ast_ref()).map(Some))
-            }
-            None => Some(None),
-        };
+        // Initialiser:
+        let value = self.try_or_add_error(self.make_term_from_ast_expr(node.value.ast_ref()));
 
         // Type annotation:
         let ty = match node.ty.as_ref() {
             Some(ty) => self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())),
-            None => Some(Ty::hole(NodeOrigin::InferredFrom(
-                node.value.as_ref().map(|v| v.id()).unwrap_or_else(|| node.pat.id()),
-            ))),
+            None => Some(Ty::hole(NodeOrigin::InferredFrom(node.value.id()))),
         };
 
         match (pat, ty, value) {

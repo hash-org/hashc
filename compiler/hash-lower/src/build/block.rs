@@ -12,7 +12,7 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{Context, ScopeKind},
     scopes::{BlockStatement, BlockTerm},
-    tir::{HasAstNodeId, LoopTerm, MatchTerm, Term, TermId},
+    tir::{LoopTerm, MatchTerm, Term, TermId},
 };
 
 use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
@@ -84,8 +84,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // in order to not have to create a temporary for the declaration
                     // which doesn't make sense because we are just declaring a local(s)
                     BlockStatement::Decl(decl) => {
-                        let span = statement.node_id_or_default();
-                        unpack!(block = this.lower_declaration(block, &decl, span));
+                        unpack!(block = this.lower_declaration(block, &decl));
                     }
                     BlockStatement::Expr(statement) => {
                         // @@Investigate: do we need to deal with the temporary here?

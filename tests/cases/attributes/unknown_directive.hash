@@ -2,7 +2,9 @@
 
 
 Bar := #memoise () -> u32 => {
-    into_bar: (T) -> Self
+    into_bar := (T) -> u32 => {
+        2
+    }
 }
 
 main := () => {

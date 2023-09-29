@@ -130,7 +130,7 @@ impl AttrTarget {
             ast::Expr::Ty(_) => AttrTarget::Ty,
 
             // If this is a declaration, we have to recurse into the subject...
-            ast::Expr::Declaration(ast::Declaration { value: Some(value), .. }) => {
+            ast::Expr::Declaration(ast::Declaration { value, .. }) => {
                 AttrTarget::classify_expr(value.body())
             }
             _ => AttrTarget::Expr,
@@ -328,7 +328,7 @@ impl<'ast> AttrNode<'ast> {
     /// - Otherwise, get the equivalent [AttrTarget] from the expression.
     pub fn from_expr(expr: ast::AstNodeRef<'ast, ast::Expr>) -> Self {
         match expr.body() {
-            ast::Expr::Declaration(ast::Declaration { value: Some(value), .. }) => {
+            ast::Expr::Declaration(ast::Declaration { value, .. }) => {
                 Self::from_expr(value.ast_ref())
             }
             ast::Expr::Lit(lit) => Self::Lit(expr.with_body(lit.data.body())),

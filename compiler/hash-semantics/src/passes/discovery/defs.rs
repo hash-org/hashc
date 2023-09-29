@@ -351,12 +351,11 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
         &self,
         node: AstNodeRef<ast::Declaration>,
     ) -> bool {
-        let def_node_id = match node.value.as_ref().map(|node| node.body()) {
+        let def_node_id = match node.value.body() {
             // If the declaration is a block, we need to get the
             // right node to look up the members
-            Some(ast::Expr::Block(block)) => block.data.id(),
-            Some(_) => node.value.as_ref().unwrap().id(),
-            _ => return false, // Mod members need values
+            ast::Expr::Block(block) => block.data.id(),
+            _ => node.value.id(),
         };
 
         // Function definitions are not considered module members in stack
@@ -404,32 +403,26 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
         // The `def_node_id` is the `AstNodeId` of the actual definition value that
         // this declaration is pointing to. For example, in `Y := mod {...}`, the `mod`
         // node's ID (which is a block) would be `def_node_id`.
-        let def_node_id = match node.value.as_ref().map(|node| node.body()) {
+        let def_node_id = match node.value.body() {
             // If the declaration is a block, we need to get the
             // right node to look up the members
-            Some(ast::Expr::Block(block)) => block.data.id(),
-            Some(_) => node.value.as_ref().unwrap().id(),
-            _ => {
-                panic_on_span!(node.span(), "Found declaration without value")
-            }
+            ast::Expr::Block(block) => block.data.id(),
+            _ => node.value.id(),
         };
 
-        match node.value.as_ref() {
-            Some(value) => match value.body() {
-                // Import
-                ast::Expr::Import(import_expr) => {
-                    let source_id = import_expr.data.source;
-                    let imported_mod_def_id = self.create_or_get_module_mod_def(source_id.into());
-                    Some(ModMember { name, value: ModMemberValue::Mod(imported_mod_def_id) })
-                }
-                // Directive, recurse
-                ast::Expr::Macro(inner) => {
-                    self.get_mod_member_data_from_def_node_id(name, inner.subject.id())
-                }
-                // Get the `ModMember` from the `def_node_id` of the declaration.
-                _ => self.get_mod_member_data_from_def_node_id(name, def_node_id),
-            },
-            None => None,
+        match node.value.body() {
+            // Import
+            ast::Expr::Import(import_expr) => {
+                let source_id = import_expr.data.source;
+                let imported_mod_def_id = self.create_or_get_module_mod_def(source_id.into());
+                Some(ModMember { name, value: ModMemberValue::Mod(imported_mod_def_id) })
+            }
+            // Directive, recurse
+            ast::Expr::Macro(inner) => {
+                self.get_mod_member_data_from_def_node_id(name, inner.subject.id())
+            }
+            // Get the `ModMember` from the `def_node_id` of the declaration.
+            _ => self.get_mod_member_data_from_def_node_id(name, def_node_id),
         }
     }
 

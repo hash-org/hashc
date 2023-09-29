@@ -477,7 +477,7 @@ impl Visit<BlockStatementsId> for Visitor {
                 BlockStatement::Decl(decl) => {
                     self.try_visit(decl.bind_pat, f)?;
                     self.try_visit(decl.ty, f)?;
-                    decl.value.map(|v| self.try_visit(v, f)).transpose()?;
+                    self.try_visit(decl.value, f)?;
                 }
                 BlockStatement::Expr(expr) => {
                     self.try_visit(expr, f)?;
@@ -499,7 +499,7 @@ impl Map<BlockStatementsId> for Visitor {
                 BlockStatement::Decl(decl) => {
                     let bind_pat = self.try_map(decl.bind_pat, f)?;
                     let ty = self.try_map(decl.ty, f)?;
-                    let value = decl.value.map(|v| self.try_map(v, f)).transpose()?;
+                    let value = self.try_map(decl.value, f)?;
                     new_list.push(Node::at(
                         BlockStatement::Decl(Decl { ty, bind_pat, value }),
                         statement.origin,

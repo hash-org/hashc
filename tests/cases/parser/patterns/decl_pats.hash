@@ -7,7 +7,7 @@ animals::Dog(name, age) := dog;
 
 // This wouldn't be allowed but would parse
 animals::ModuleVariable := 3;
-animals::ModuleVariable: i32;
+animals::ModuleVariable: i32 = 3;
 
 
 // Multiple constructors on the pattern

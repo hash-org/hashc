@@ -154,19 +154,12 @@ where
         if let Some(ty) = ty {
             self.write(" ")?;
             self.visit_ty(ty.ast_ref())?;
+            self.write(" ")?;
         }
 
-        // Visit the expression
-        if let Some(value) = value {
-            if ty.is_some() {
-                self.write(" ")?;
-            }
-
-            self.write("= ")?;
-            self.visit_expr(value.ast_ref())
-        } else {
-            self.write(";")
-        }
+        // Visit the initialiser
+        self.write("= ")?;
+        self.visit_expr(value.ast_ref())
     }
 
     type EnumDefEntryRet = ();

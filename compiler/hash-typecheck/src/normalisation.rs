@@ -429,33 +429,24 @@ impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
             for statement in block_term.statements.iter() {
                 match *statement.value() {
                     BlockStatement::Decl(mut decl_term) => {
-                        decl_term.value = decl_term
-                            .value
-                            .map(|v| -> Result<_, Signal> {
-                                Ok(self.to_term(self.eval_nested_and_record(v.into(), &st)?))
-                            })
-                            .transpose()?;
+                        decl_term.value =
+                            self.to_term(self.eval_nested_and_record(decl_term.value.into(), &st)?);
 
-                        match decl_term.value {
-                            Some(value) => match self.match_value_and_get_binds(
-                                value,
-                                decl_term.bind_pat,
-                                &mut |name, term_id| {
-                                    self.context().add_untyped_assignment(name, term_id)
-                                },
-                            )? {
-                                MatchResult::Successful => {
-                                    // All good
-                                }
-                                MatchResult::Failed => {
-                                    panic!("Non-exhaustive let-binding: {}", decl_term)
-                                }
-                                MatchResult::Stuck => {
-                                    info!("Stuck evaluating let-binding: {}", decl_term);
-                                }
+                        match self.match_value_and_get_binds(
+                            decl_term.value,
+                            decl_term.bind_pat,
+                            &mut |name, term_id| {
+                                self.context().add_untyped_assignment(name, term_id)
                             },
-                            None => {
-                                panic!("Let binding with no value: {}", decl_term)
+                        )? {
+                            MatchResult::Successful => {
+                                // All good
+                            }
+                            MatchResult::Failed => {
+                                panic!("Non-exhaustive let-binding: {}", decl_term)
+                            }
+                            MatchResult::Stuck => {
+                                info!("Stuck evaluating let-binding: {}", decl_term);
                             }
                         }
                     }

@@ -1,5 +1,6 @@
-error: expected an expression, however received a `>`
+error: unexpectedly encountered a `>`
  --> $DIR/malformed_function_type.hash:3:20
 2 |   
 3 |   str_eq: (str, str) > str;
   |                      ^ 
+  = help: expected a `=`

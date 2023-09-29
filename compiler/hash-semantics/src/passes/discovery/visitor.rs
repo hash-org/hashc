@@ -96,7 +96,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                             node.pat.ast_ref(),
                             stack_id,
                             name,
-                            node.value.as_ref(),
+                            Some(&node.value),
                         );
                     }
                 }

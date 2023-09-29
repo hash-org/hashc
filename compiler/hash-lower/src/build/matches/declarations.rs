@@ -6,7 +6,6 @@ use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
     ty::{IrTyId, Mutability},
 };
-use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     scopes::{BindingPat, Decl},
@@ -35,25 +34,12 @@ impl<'tcx> BodyBuilder<'tcx> {
     }
 
     /// This function handles the lowering of an declaration term.
-    pub(crate) fn lower_declaration(
-        &mut self,
-        mut block: BasicBlock,
-        decl: &Decl,
-        decl_origin: AstNodeId,
-    ) -> BlockAnd<()> {
-        if let Some(value) = &decl.value {
-            // First, we declare all of the bindings that are present
-            // in the pattern, and then we place the expression into
-            // the pattern using `expr_into_pat`.
-            self.declare_bindings(decl.bind_pat);
-
-            unpack!(block = self.tir_term_into_pat(block, decl.bind_pat, *value));
-        } else {
-            panic_on_span!(
-                decl_origin.span(),
-                "expected initialisation value, declaration are expected to have values (for now)."
-            );
-        };
+    pub(crate) fn lower_declaration(&mut self, mut block: BasicBlock, decl: &Decl) -> BlockAnd<()> {
+        // First, we declare all of the bindings that are present
+        // in the pattern, and then we place the expression into
+        // the pattern using `expr_into_pat`.
+        self.declare_bindings(decl.bind_pat);
+        unpack!(block = self.tir_term_into_pat(block, decl.bind_pat, decl.value));
 
         // if the declaration has an initialiser, then we need to deal with
         // the initialisation block.

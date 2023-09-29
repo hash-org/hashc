@@ -2,7 +2,6 @@
 
 alpha := 5;
 alpha: int = 5;
-alpha: int;
 
 
 merge := (a, b) => str_concat(a, b);

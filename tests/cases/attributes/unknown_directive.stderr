@@ -3,4 +3,4 @@ error: could not resolve macro `memoise`
 3 |   
 4 |   Bar := #memoise () -> u32 => {
   |           ^^^^^^^ `memoise` is not a built-in attribute macro
-5 |       into_bar: (T) -> Self
+5 |       into_bar := (T) -> u32 => {

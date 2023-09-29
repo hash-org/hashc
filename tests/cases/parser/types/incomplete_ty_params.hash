@@ -20,12 +20,12 @@
 
 {
     T := mod <> {
-        mux: () -> char;
+        mux := () -> char => 'a';
     }
 }
 
 {
     T := mod < { // missing `>`
-        mux: () -> char;
+        mux := () -> char => 'a';
     }
 }

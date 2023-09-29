@@ -588,27 +588,21 @@ impl<'s> AstGen<'s> {
     /// example:
     ///
     /// ```text
-    /// some_var: float = ...;
-    /// ^^^^^^^^  ^^^^^   ^^^─────┐
-    /// pattern    type    the right hand-side expr
+    /// some_var: f64 = ...;
+    /// ^^^^^^^^  ^^^   ^^^─────┐
+    /// pattern   type    the right hand-side expr
     /// ```
-    pub(crate) fn parse_declaration(&mut self, pattern: AstNode<Pat>) -> ParseResult<Declaration> {
+    pub(crate) fn parse_declaration(&mut self, pat: AstNode<Pat>) -> ParseResult<Declaration> {
         // Attempt to parse an optional type...
         let ty = match self.peek_kind() {
             Some(TokenKind::Eq) => None,
             _ => Some(self.parse_ty()?),
         };
 
-        // Now parse the value after the assignment
-        match self.peek_kind() {
-            Some(TokenKind::Eq) => {
-                self.skip_fast(TokenKind::Eq); // `=`
-
-                let value = self.parse_expr_with_precedence(0)?;
-                Ok(Declaration { pat: pattern, ty, value: Some(value) })
-            }
-            _ => Ok(Declaration { pat: pattern, ty, value: None }),
-        }
+        // Now parse the initialiser...
+        self.parse_token(TokenKind::Eq)?;
+        let value = self.parse_expr_with_precedence(0)?;
+        Ok(Declaration { pat, ty, value })
     }
 
     /// Given a initial left-hand side expression, attempt to parse a

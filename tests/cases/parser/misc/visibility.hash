@@ -9,8 +9,12 @@ bar := 4;
 
 Foo := mod {
     // Visible from outside
-    foo: (Self) -> str;
+    foo: (Self) -> str = () => {
+        
+    };
 
     // Not visible from outside
-    priv bar: (Self) -> str;
+    priv bar: (Self) -> str = () => {
+        
+    };
 };

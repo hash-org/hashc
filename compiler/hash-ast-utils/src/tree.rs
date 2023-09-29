@@ -763,13 +763,13 @@ impl AstVisitor for AstTreePrinter {
         &self,
         node: ast::AstNodeRef<ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let walk::Declaration { pat: pattern, ty, value } = walk::walk_declaration(self, node)?;
+        let walk::Declaration { pat, ty, value } = walk::walk_declaration(self, node)?;
 
         Ok(TreeNode::branch(
             "declaration",
-            iter::once(TreeNode::branch("pattern", vec![pattern]))
+            iter::once(TreeNode::branch("pattern", vec![pat]))
                 .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
-                .chain(value.map(|t| TreeNode::branch("value", vec![t])))
+                .chain(iter::once(TreeNode::branch("value", vec![value])))
                 .collect(),
         ))
     }
