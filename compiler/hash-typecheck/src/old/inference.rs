@@ -21,16 +21,15 @@ use hash_tir::{
             bool_term, create_term_from_usize_lit, try_use_ty_as_float_ty, try_use_ty_as_int_ty,
         },
     },
-    scopes::{AssignTerm, BlockStatement, BlockTerm},
+    scopes::AssignTerm,
     term_as_variant,
     tir::{
         validate_and_reorder_pat_args_against_params, validate_params, Arg, ArgId, ArgsId,
-        ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat, CtorTerm, DataDefCtors,
-        DataDefId, DataTy, DerefTerm, FnDefId, FnTy, HasAstNodeId, IfPat, IndexTerm, Lit, LitId,
-        LoopControlTerm, LoopTerm, MatchTerm, ModDefId, ModMemberId, ModMemberValue, Node, NodeId,
-        NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId, PatListId,
-        PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm, RefTy, ReturnTerm, Spread, SymbolId,
-        Term, TermId, TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UnsafeTerm,
+        ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat, DataDefCtors, DataDefId,
+        DataTy, FnDefId, FnTy, HasAstNodeId, IfPat, Lit, LitId, MatchTerm, ModDefId, ModMemberId,
+        ModMemberValue, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId,
+        PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm, RefTy, Spread,
+        SymbolId, Term, TermId, TermListId, TuplePat, TupleTy, Ty, TyId, TyOfTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -39,7 +38,7 @@ use itertools::Itertools;
 use crate::{
     checker::Tc,
     env::TcEnv,
-    errors::{TcError, TcResult, WrongTermKind},
+    errors::{TcError, TcResult},
     operations::{
         normalisation::NormalisationMode, Operations, OperationsOnNode, RecursiveOperationsOnNode,
     },
@@ -57,7 +56,7 @@ pub enum FnInferMode {
 impl<T: TcEnv> Tc<'_, T> {
     /// Create a new [ExhaustivenessChecker] so it can be used to check
     /// refutability or exhaustiveness of patterns.
-    fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<T> {
+    pub fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<T> {
         let location = subject.span().unwrap();
         ExhaustivenessChecker::new(location, self.env)
     }
@@ -66,7 +65,7 @@ impl<T: TcEnv> Tc<'_, T> {
     ///
     /// @@Hack: remove this when we have a better way to send exhaustiveness
     /// jobs and add them to general tc diagnostics.
-    fn append_exhaustiveness_diagnostics(&self, checker: ExhaustivenessChecker<T>) {
+    pub fn append_exhaustiveness_diagnostics(&self, checker: ExhaustivenessChecker<T>) {
         let (errors, warnings) = checker.into_diagnostics().into_diagnostics();
 
         for error in errors {
@@ -169,7 +168,7 @@ impl<T: TcEnv> Tc<'_, T> {
         annotation_params: ParamsId,
         in_arg_scope: impl FnMut(ArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
-        self.checker().check_node_rec(args, annotation_params, in_arg_scope)
+        self.check_node_rec(args, annotation_params, in_arg_scope)
     }
 
     /// Infer the given pattern arguments, producing inferred parameters.
@@ -281,49 +280,6 @@ impl<T: TcEnv> Tc<'_, T> {
         }
     }
 
-    /// Infer the type of a tuple term.
-    pub fn infer_tuple_term(
-        &self,
-        tuple_term: &TupleTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        self.context().enter_scope(ScopeKind::Sub, || {
-            self.normalise_and_check_ty(annotation_ty)?;
-            let params = match *annotation_ty.value() {
-                Ty::TupleTy(tuple_ty) => Visitor::new().copy(tuple_ty.data),
-                Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_term.data),
-                _ => {
-                    let inferred = Param::seq_from_args_with_hole_types(tuple_term.data);
-                    return Err(TcError::MismatchingTypes {
-                        expected: annotation_ty,
-                        actual: Ty::from(
-                            TupleTy { data: inferred },
-                            original_term_id.origin().inferred(),
-                        ),
-                    });
-                }
-            };
-
-            let mut tuple_term = *tuple_term;
-            self.infer_args(tuple_term.data, params, |new_args| {
-                tuple_term.data = new_args;
-                original_term_id.set(original_term_id.value().with_data(tuple_term.into()));
-                Ok(())
-            })?;
-
-            let tuple_ty = Ty::expect_is(
-                original_term_id,
-                Ty::from(TupleTy { data: params }, annotation_ty.origin()),
-            );
-            self.check_by_unify(tuple_ty, annotation_ty)?;
-            // @@Review: why is this needed? Shouldn't the substitution be applied during
-            // `check_by_unify`?
-            self.sub_ops().apply_sub_from_context(annotation_ty);
-            Ok(())
-        })
-    }
-
     /// Potentially adjust the underlying constant of a literal after its type
     /// has been inferred.
     ///
@@ -365,11 +321,6 @@ impl<T: TcEnv> Tc<'_, T> {
             _ => {}
         }
         Ok(())
-    }
-
-    /// Infer the type of a literal.
-    pub fn infer_lit(&self, lit: LitId, annotation_ty: TyId) -> TcResult<()> {
-        self.checker().check_node(lit, annotation_ty)
     }
 
     pub fn use_ty_as_array(&self, annotation_ty: TyId) -> TcResult<Option<(TyId, Option<TermId>)>> {
@@ -492,124 +443,6 @@ impl<T: TcEnv> Tc<'_, T> {
         binds
     }
 
-    /// Infer a constructor term.
-    pub fn infer_ctor_term(
-        &self,
-        term: &CtorTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        let mut term = *term;
-        let ctor_def_id = term.ctor;
-        let data_args = term.data_args;
-        let original_atom: Atom = original_term_id.into();
-        let ctor = ctor_def_id.value();
-        let data_def = ctor.data_def_id.value();
-
-        // Ensure the annotation is valid
-        self.normalise_and_check_ty(annotation_ty)?;
-
-        // Get the annotation as a DataTy, or create a hole one if not given
-        let mut annotation_data_ty = match *annotation_ty.value() {
-            Ty::DataTy(data) if data.data_def == ctor.data_def_id => DataTy {
-                data_def: ctor.data_def_id,
-                args: if data.args.len() == 0 {
-                    Arg::seq_from_params_as_holes(data_def.params)
-                } else {
-                    data.args
-                },
-            },
-            Ty::Hole(_) => DataTy {
-                data_def: ctor.data_def_id,
-                args: Arg::seq_from_params_as_holes(data_def.params),
-            },
-            _ => {
-                return Err(TcError::MismatchingTypes {
-                    expected: annotation_ty,
-                    actual: Ty::from(
-                        DataTy { args: data_args, data_def: ctor.data_def_id },
-                        original_term_id.origin(),
-                    ),
-                });
-            }
-        };
-
-        // Get the data arguments given to the constructor, like Equal<...>::Refl(...)
-        //                                                             ^^^ these
-        let ctor_data_args = if data_args.len() == 0 {
-            Arg::seq_from_params_as_holes(data_def.params)
-        } else {
-            data_args
-        };
-
-        // From the given constructor data args, substitute the constructor params and
-        // result arguments. In the process, infer the data args more if
-        // possible.
-        let copied_params = Visitor::new().copy(data_def.params);
-        let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
-            .infer_args(ctor_data_args, copied_params, |inferred_data_args| {
-                let sub = self.sub_ops().create_sub_from_current_scope();
-                let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
-                let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
-                self.sub_ops().apply_sub_in_place(inferred_data_args, &sub);
-                Ok((inferred_data_args, subbed_ctor_params, subbed_ctor_result_args))
-            })?;
-
-        // Infer the constructor arguments from the term, using the substituted
-        // parameters. Substitute any results to the constructor arguments, the
-        // result arguments of the constructor, and the constructor data
-        // arguments.
-        let (final_result_args, resulting_sub, binds) =
-            self.infer_args(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
-                let ctor_sub = self.sub_ops().create_sub_from_current_scope();
-                self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
-                self.sub_ops().apply_sub_in_place(inferred_term_ctor_args, &ctor_sub);
-                self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
-
-                // These arguments might have been updated so we need to set them
-                term.data_args = inferred_ctor_data_args;
-                term.ctor_args = inferred_term_ctor_args;
-                original_term_id.set(original_term_id.value().with_data(term.into()));
-
-                // We are exiting the constructor scope, so we need to hide the binds
-                let hidden_ctor_sub =
-                    self.sub_ops().hide_param_binds(ctor.params.iter(), &ctor_sub);
-                Ok((subbed_ctor_result_args, hidden_ctor_sub, HashSet::new()))
-            })?;
-
-        // Set the annotation data type to the final result arguments, and unify
-        // the annotation type with the expected type.
-        annotation_data_ty.args = final_result_args;
-        let expected_data_ty =
-            Ty::expect_is(original_atom, Ty::from(annotation_data_ty, annotation_ty.origin()));
-        let uni_ops = self.uni_ops();
-        uni_ops.with_binds(binds);
-        uni_ops.add_unification_from_sub(&resulting_sub);
-        uni_ops.unify_terms(expected_data_ty, annotation_ty)?;
-
-        // Now we gather the final substitution, and apply it to the result
-        // arguments, the constructor data arguments, and finally the annotation
-        // type.
-        let final_sub = self.sub_ops().create_sub_from_current_scope();
-        self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
-        self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
-        // Set data args because they might have been updated again
-        term.data_args = inferred_ctor_data_args;
-        original_term_id.set(original_term_id.value().with_data(term.into()));
-        self.sub_ops().apply_sub_in_place(annotation_ty, &final_sub);
-
-        for (data_arg, result_data_arg) in term.data_args.iter().zip(subbed_ctor_result_args.iter())
-        {
-            let data_arg = data_arg.value();
-            let result_data_arg = result_data_arg.value();
-            if let Ty::Hole(_) = *data_arg.value.value() {
-                data_arg.value.set(result_data_arg.value.value());
-            }
-        }
-
-        Ok(())
-    }
-
     /// Potentially run an expression at compile-time.
     ///
     /// This is only done if the expression has a `#run` annotation.
@@ -647,72 +480,6 @@ impl<T: TcEnv> Tc<'_, T> {
             }
         }
         Ok(())
-    }
-
-    /// Infer the type of a function call.
-    pub fn infer_fn_call_term(
-        &self,
-        fn_call_term: &CallTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        self.context().enter_scope(ScopeKind::Sub, || {
-            self.normalise_and_check_ty(annotation_ty)?;
-            let inferred_subject_ty = Ty::hole_for(fn_call_term.subject);
-            self.infer_term(fn_call_term.subject, inferred_subject_ty)?;
-
-            match *inferred_subject_ty.value() {
-                Ty::FnTy(fn_ty) => {
-                    // Potentially fill-in implicit args
-                    if let Ty::FnTy(_) = *fn_ty.return_ty.value() && fn_ty.implicit && !fn_call_term.implicit {
-                        let applied_args = Arg::seq_from_params_as_holes(fn_ty.params);
-                        let copied_subject = Term::inherited_from(fn_call_term.subject, *fn_call_term.subject.value());
-                        let new_subject = CallTerm {
-                            args: applied_args,
-                            subject: copied_subject,
-                            implicit: fn_ty.implicit,
-                        };
-                        fn_call_term.subject.set(fn_call_term.subject.value().with_data(new_subject.into()));
-                        return self.infer_fn_call_term(fn_call_term, annotation_ty, original_term_id);
-                    }
-
-                    // Check that the function call is of the correct kind.
-                    if fn_ty.implicit != fn_call_term.implicit {
-                        return Err(TcError::WrongCallKind {
-                            site: original_term_id,
-                            expected_implicit: fn_ty.implicit,
-                            actual_implicit: fn_call_term.implicit,
-                        });
-                    }
-
-                    let copied_params = Visitor::new().copy(fn_ty.params);
-                    let copied_return_ty = Visitor::new().copy(fn_ty.return_ty);
-
-                    let mut fn_call_term = *fn_call_term;
-                    self.infer_args(fn_call_term.args, copied_params, |inferred_fn_call_args| {
-                        fn_call_term.args = inferred_fn_call_args;
-                        original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
-
-                        self.sub_ops().apply_sub_from_context(copied_return_ty);
-                        self.check_by_unify(copied_return_ty, annotation_ty)?;
-                        Ok(())
-                    })?;
-
-                    self.sub_ops().apply_sub_from_context(fn_call_term.subject);
-                    self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;
-
-                    Ok(())
-                }
-                _ => {
-                    // Not a function type.
-                    Err(TcError::WrongTy {
-                        kind: WrongTermKind::NotAFunction,
-                        inferred_term_ty: inferred_subject_ty,
-                        term: original_term_id,
-                    })
-                }
-            }
-        })
     }
 
     /// Flag the given function as an entry point if it is one.
@@ -780,165 +547,6 @@ impl<T: TcEnv> Tc<'_, T> {
         Ok(fn_ty_value)
     }
 
-    /// Infer the type of a `return` term, and return it.
-    pub fn infer_return_term(
-        &self,
-        return_term: &ReturnTerm,
-        annotation_ty: TyId,
-        original_term: TermId,
-    ) -> TcResult<()> {
-        let closest_fn_def = self.context().get_first_fn_def_in_scope();
-        match closest_fn_def {
-            Some(closest_fn_def) => {
-                // Get the closest fn def in scope, and unify the
-                // inferred expression type with its return type.
-                // If successful, modify the fn def to set the return type to the inferred type.
-                let closest_fn_def_return_ty = closest_fn_def.borrow().ty.return_ty;
-                self.infer_term(return_term.expression, closest_fn_def_return_ty)?;
-
-                let inferred_ty = Ty::expect_is(original_term, never_ty(NodeOrigin::Expected));
-                self.check_by_unify(inferred_ty, annotation_ty)?;
-                Ok(())
-            }
-            None => panic!("no fn def found in scope for return term"),
-        }
-    }
-
-    /// Infer the type of a deref term, and return it.
-    pub fn infer_deref_term(&self, deref_term: &DerefTerm, annotation_ty: TyId) -> TcResult<()> {
-        let deref_inner_inferred = Ty::hole_for(deref_term.subject);
-        self.infer_term(deref_term.subject, deref_inner_inferred)?;
-
-        let dereferenced_ty = match *deref_inner_inferred.value() {
-            Ty::RefTy(ref_ty) => ref_ty.ty,
-            _ => {
-                return Err(TcError::CannotDeref {
-                    subject: deref_term.subject,
-                    actual_subject_ty: deref_inner_inferred,
-                })
-            }
-        };
-
-        self.check_by_unify(dereferenced_ty, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer the type of a loop control term, and return it.
-    pub fn infer_loop_control_term(
-        &self,
-        _: &LoopControlTerm,
-        annotation_ty: TyId,
-    ) -> TcResult<()> {
-        // Always `never`.
-        self.check_by_unify(never_ty(NodeOrigin::Expected), annotation_ty)
-    }
-
-    /// Infer the type of an unsafe term, and return it.
-    pub fn infer_unsafe_term(&self, unsafe_term: &UnsafeTerm, annotation_ty: TyId) -> TcResult<()> {
-        // @@Todo: unsafe context
-        self.infer_term(unsafe_term.inner, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer the type of a loop term, and return it.
-    pub fn infer_loop_term(
-        &self,
-        loop_term: &LoopTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        // Forward to the inner term.
-        self.infer_term(loop_term.inner, Ty::hole(loop_term.inner.origin().inferred()))?;
-        let loop_term =
-            Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
-        self.check_by_unify(loop_term, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer the type of a block term, and return it.
-    pub fn infer_block_term(
-        &self,
-        block_term: &BlockTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        self.context().enter_scope(block_term.stack_id.into(), || {
-            // Handle local mod def
-            let stack = block_term.stack_id.value();
-            if let Some(local_mod_def) = stack.local_mod_def {
-                // @@Improvement: it would be nice to pass through local
-                // mod defs in two stages as well.
-                self.infer_mod_def(local_mod_def, FnInferMode::Body)?;
-            }
-
-            // Keep track of statements diverging, so we can infer the appropriate return
-            // type.
-            let mut diverges = false;
-
-            for statement in block_term.statements.iter() {
-                let ty_to_check_divergence = match *statement.value() {
-                    BlockStatement::Decl(decl) => {
-                        self.check_ty(decl.ty)?;
-                        if let Some(value) = decl.value {
-                            self.infer_term(value, decl.ty)?;
-                        };
-                        self.infer_pat(decl.bind_pat, decl.ty, decl.value)?;
-
-                        // Check that the binding pattern of the declaration is irrefutable.
-                        let mut eck = self.exhaustiveness_checker(decl.bind_pat);
-
-                        self.env.time_item("exhaustiveness", |_| {
-                            eck.is_pat_irrefutable(&[decl.bind_pat], decl.ty, None)
-                        });
-                        self.append_exhaustiveness_diagnostics(eck);
-
-                        decl.ty
-                    }
-                    BlockStatement::Expr(expr) => {
-                        let statement_ty = Ty::hole_for(expr);
-                        self.infer_term(expr, statement_ty)?;
-                        statement_ty
-                    }
-                };
-
-                // If the statement diverges, we can already exit
-                if self.uni_ops().is_uninhabitable(ty_to_check_divergence)? {
-                    diverges = true;
-                }
-            }
-
-            if diverges {
-                match *annotation_ty.value() {
-                    Ty::Hole(_) => {
-                        // If it diverges, we can just infer the return type as `never`.
-                        let block_term_ty =
-                            Ty::expect_is(original_term_id, never_ty(NodeOrigin::Expected));
-                        self.check_by_unify(block_term_ty, annotation_ty)?;
-                    }
-                    _ => {
-                        // Infer the return value
-                        let return_value_ty = Ty::hole_for(block_term.expr);
-                        self.infer_term(block_term.expr, return_value_ty)?;
-                    }
-                }
-            } else {
-                // Infer the return value
-                self.infer_term(block_term.expr, annotation_ty)?;
-            };
-
-            let sub = self.sub_ops().create_sub_from_current_scope();
-            self.sub_ops().apply_sub_in_place(annotation_ty, &sub);
-
-            let sub_ops = self.sub_ops();
-            let vars_in_scope = sub_ops.get_unassigned_vars_in_current_scope();
-            if sub_ops.atom_contains_vars(annotation_ty.into(), &vars_in_scope) {
-                return Err(TcError::TryingToReferenceLocalsInType { ty: annotation_ty });
-            }
-
-            Ok(())
-        })
-    }
-
     /// Infer a `typeof` term, and return it.
     pub fn infer_ty_of_term(
         &self,
@@ -1002,55 +610,6 @@ impl<T: TcEnv> Tc<'_, T> {
     pub fn infer_intrinsic(&self, intrinsic: Intrinsic, annotation_ty: TyId) -> TcResult<()> {
         // ##GeneratedOrigin: intrinsics do not belong to the source code
         self.check_by_unify(Term::from(intrinsic.ty(), NodeOrigin::Generated), annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer an index term.
-    pub fn infer_index_term(
-        &self,
-        index_term: &IndexTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        self.check_ty(annotation_ty)?;
-
-        let subject_ty = Ty::hole_for(index_term.subject);
-        self.infer_term(index_term.subject, subject_ty)?;
-        self.normalise_and_check_ty(subject_ty)?;
-
-        // Ensure the index is a usize
-        let index_ty =
-            Ty::expect_is(index_term.index, usize_ty(index_term.index.origin().inferred()));
-        self.infer_term(index_term.index, index_ty)?;
-
-        let wrong_subject_ty = || {
-            Err(TcError::WrongTy {
-                term: original_term_id,
-                inferred_term_ty: subject_ty,
-                kind: WrongTermKind::NotAnArray,
-            })
-        };
-
-        // Ensure that the subject is array-like
-        let inferred_ty = match *subject_ty.value() {
-            Ty::DataTy(data_ty) => {
-                let data_def = data_ty.data_def.value();
-                if let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array_primitive)) =
-                    data_def.ctors
-                {
-                    let sub = self
-                        .sub_ops()
-                        .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                    let array_ty = self.sub_ops().apply_sub(array_primitive.element_ty, &sub);
-                    Ok(array_ty)
-                } else {
-                    wrong_subject_ty()
-                }
-            }
-            _ => wrong_subject_ty(),
-        }?;
-
-        self.check_by_unify(inferred_ty, annotation_ty)?;
         Ok(())
     }
 
@@ -1168,46 +727,36 @@ impl<T: TcEnv> Tc<'_, T> {
         let expects_ty = |ty: TyId| self.check_by_unify(ty, Ty::universe(NodeOrigin::Expected));
 
         match *term_id.value() {
-            Term::Tuple(tuple_term) => {
-                self.infer_tuple_term(&tuple_term, annotation_ty, term_id)?
-            }
-            Term::Lit(lit_term) => self.infer_lit(lit_term, annotation_ty)?,
-            Term::Array(mut prim_term) => {
-                { self.checker().check(&mut prim_term, annotation_ty, term_id) }?
-            }
-            Term::Ctor(ctor_term) => self.infer_ctor_term(&ctor_term, annotation_ty, term_id)?,
-            Term::Call(fn_call_term) => {
-                self.infer_fn_call_term(&fn_call_term, annotation_ty, term_id)?
-            }
+            Term::Tuple(mut tuple_term) => self.check(&mut tuple_term, annotation_ty, term_id)?,
+            Term::Lit(lit_term) => self.check_node(lit_term, annotation_ty)?,
+            Term::Array(mut prim_term) => { self.check(&mut prim_term, annotation_ty, term_id) }?,
+            Term::Ctor(mut ctor_term) => self.check(&mut ctor_term, annotation_ty, term_id)?,
+            Term::Call(mut call_term) => self.check(&mut call_term, annotation_ty, term_id)?,
             Term::Fn(fn_def_id) => {
-                self.checker().check(&mut (fn_def_id, FnInferMode::Body), annotation_ty, term_id)?
+                self.check(&mut (fn_def_id, FnInferMode::Body), annotation_ty, term_id)?
             }
-            Term::Var(mut var_term) => {
-                self.checker().check(&mut var_term, annotation_ty, term_id)?
+            Term::Var(mut var_term) => self.check(&mut var_term, annotation_ty, term_id)?,
+            Term::Return(mut return_term) => {
+                self.check(&mut return_term, annotation_ty, term_id)?
             }
-            Term::Return(return_term) => {
-                self.infer_return_term(&return_term, annotation_ty, term_id)?
+            Term::Deref(mut deref_term) => self.check(&mut deref_term, annotation_ty, term_id)?,
+            Term::LoopControl(mut loop_control_term) => {
+                self.check(&mut loop_control_term, annotation_ty, term_id)?
             }
-            Term::Deref(deref_term) => self.infer_deref_term(&deref_term, annotation_ty)?,
-            Term::LoopControl(loop_control_term) => {
-                self.infer_loop_control_term(&loop_control_term, annotation_ty)?
+            Term::Unsafe(mut unsafe_term) => {
+                self.check(&mut unsafe_term, annotation_ty, term_id)?
             }
-            Term::Unsafe(unsafe_term) => self.infer_unsafe_term(&unsafe_term, annotation_ty)?,
-            Term::Loop(loop_term) => self.infer_loop_term(&loop_term, annotation_ty, term_id)?,
-            Term::Block(block_term) => {
-                self.infer_block_term(&block_term, annotation_ty, term_id)?
-            }
+            Term::Loop(mut loop_term) => self.check(&mut loop_term, annotation_ty, term_id)?,
+            Term::Block(mut block_term) => self.check(&mut block_term, annotation_ty, term_id)?,
             Term::TypeOf(ty_of_term) => {
                 self.infer_ty_of_term(ty_of_term, annotation_ty, term_id)?
             }
             Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
             Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
             Term::Access(mut access_term) => {
-                self.checker().check(&mut access_term, annotation_ty, term_id)?
+                self.check(&mut access_term, annotation_ty, term_id)?
             }
-            Term::Index(index_term) => {
-                self.infer_index_term(&index_term, annotation_ty, term_id)?
-            }
+            Term::Index(mut index_term) => self.check(&mut index_term, annotation_ty, term_id)?,
             Term::Match(match_term) => self.infer_match_term(&match_term, annotation_ty)?,
             Term::Assign(assign_term) => {
                 self.infer_assign_term(&assign_term, annotation_ty, term_id)?
@@ -1218,7 +767,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 self.infer_params(tuple_ty.data, || Ok(()))?;
                 expects_ty(annotation_ty)?;
             }
-            Ty::FnTy(mut fn_ty) => self.checker().check(&mut fn_ty, annotation_ty, term_id)?,
+            Ty::FnTy(mut fn_ty) => self.check(&mut fn_ty, annotation_ty, term_id)?,
             Ty::RefTy(ref_ty) => {
                 // Infer the inner type
                 self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
@@ -1235,7 +784,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 expects_ty(annotation_ty)?;
             }
             Ty::Universe(mut universe_ty) => {
-                self.checker().check(&mut universe_ty, annotation_ty, term_id)?
+                self.check(&mut universe_ty, annotation_ty, term_id)?
             }
         };
 
@@ -1253,8 +802,8 @@ impl<T: TcEnv> Tc<'_, T> {
     pub fn infer_range_pat(&self, range_pat: RangePat, annotation_ty: TyId) -> TcResult<()> {
         let RangePat { lo, hi, .. } = range_pat;
 
-        lo.map(|lo| self.infer_lit(*lo, annotation_ty)).transpose()?;
-        hi.map(|hi| self.infer_lit(*hi, annotation_ty)).transpose()?;
+        lo.map(|lo| self.check_node(*lo, annotation_ty)).transpose()?;
+        hi.map(|hi| self.check_node(*hi, annotation_ty)).transpose()?;
 
         Ok(())
     }
@@ -1506,7 +1055,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 }
             }
             Pat::Range(range_pat) => self.infer_range_pat(range_pat, annotation_ty)?,
-            Pat::Lit(lit) => self.infer_lit(*lit, annotation_ty)?,
+            Pat::Lit(lit) => self.check_node(*lit, annotation_ty)?,
             Pat::Tuple(tuple_pat) => self.infer_tuple_pat(&tuple_pat, annotation_ty, pat_id)?,
             Pat::Array(list_term) => self.infer_array_pat(&list_term, annotation_ty, pat_id)?,
             Pat::Ctor(ctor_pat) => self.infer_ctor_pat(&ctor_pat, annotation_ty, pat_id)?,
@@ -1602,7 +1151,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 Ok(())
             }
             ModMemberValue::Fn(fn_def_id) => {
-                self.checker().check(
+                self.check(
                     &mut (fn_def_id, fn_mode),
                     Ty::hole(fn_def_id.origin().inferred()),
                     Term::hole(fn_def_id.origin()),

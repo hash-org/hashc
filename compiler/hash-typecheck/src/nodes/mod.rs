@@ -14,6 +14,7 @@ pub mod mods;
 pub mod params;
 pub mod pats;
 pub mod refs;
+pub mod safety;
 pub mod terms;
 pub mod tuples;
 pub mod universe;

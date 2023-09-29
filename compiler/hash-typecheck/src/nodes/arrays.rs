@@ -4,13 +4,16 @@ use hash_tir::{
         definitions::{array_ty, list_ty, usize_ty},
         utils::create_term_from_usize_lit,
     },
-    tir::{ArrayPat, ArrayTerm, NodeOrigin, PatId, TermId, Ty, TyId},
+    tir::{
+        ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, NodeId, NodeOrigin, PatId, PrimitiveCtorInfo,
+        TermId, Ty, TyId,
+    },
 };
 
 use crate::{
     checker::Tc,
     env::TcEnv,
-    errors::{TcError, TcResult},
+    errors::{TcError, TcResult, WrongTermKind},
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
@@ -24,7 +27,6 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-
         array_term: &mut ArrayTerm,
         annotation_ty: Self::TyNode,
         _: Self::Node,
@@ -81,7 +83,6 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _opts: &NormalisationOptions,
         _item: ArrayTerm,
         _item_node: Self::Node,
@@ -91,7 +92,6 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _opts: &UnificationOptions,
         _src: &mut ArrayTerm,
         _target: &mut ArrayTerm,
@@ -112,7 +112,6 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
 
     fn check(
         &self,
-
         _item: &mut ArrayPat,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
@@ -122,7 +121,6 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _opts: &NormalisationOptions,
         _item: ArrayPat,
         _item_node: Self::Node,
@@ -143,6 +141,83 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut ArrayPat) {
+        todo!()
+    }
+}
+
+impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
+    type TyNode = TyId;
+    type Node = TermId;
+
+    fn check(
+        &self,
+        index_term: &mut IndexTerm,
+        annotation_ty: Self::TyNode,
+        original_term_id: Self::Node,
+    ) -> TcResult<()> {
+        self.check_ty(annotation_ty)?;
+
+        let subject_ty = Ty::hole_for(index_term.subject);
+        self.infer_term(index_term.subject, subject_ty)?;
+        self.normalise_and_check_ty(subject_ty)?;
+
+        // Ensure the index is a usize
+        let index_ty =
+            Ty::expect_is(index_term.index, usize_ty(index_term.index.origin().inferred()));
+        self.infer_term(index_term.index, index_ty)?;
+
+        let wrong_subject_ty = || {
+            Err(TcError::WrongTy {
+                term: original_term_id,
+                inferred_term_ty: subject_ty,
+                kind: WrongTermKind::NotAnArray,
+            })
+        };
+
+        // Ensure that the subject is array-like
+        let inferred_ty = match *subject_ty.value() {
+            Ty::DataTy(data_ty) => {
+                let data_def = data_ty.data_def.value();
+                if let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array_primitive)) =
+                    data_def.ctors
+                {
+                    let sub = self
+                        .sub_ops()
+                        .create_sub_from_args_of_params(data_ty.args, data_def.params);
+                    let array_ty = self.sub_ops().apply_sub(array_primitive.element_ty, &sub);
+                    Ok(array_ty)
+                } else {
+                    wrong_subject_ty()
+                }
+            }
+            _ => wrong_subject_ty(),
+        }?;
+
+        self.check_by_unify(inferred_ty, annotation_ty)?;
+        Ok(())
+    }
+
+    fn normalise(
+        &self,
+        _opts: &NormalisationOptions,
+        _item: IndexTerm,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<TermId> {
+        todo!()
+    }
+
+    fn unify(
+        &self,
+        _opts: &UnificationOptions,
+        _src: &mut IndexTerm,
+        _target: &mut IndexTerm,
+        _src_node: Self::Node,
+        _target_node: Self::Node,
+    ) -> TcResult<()> {
+        todo!()
+    }
+
+    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut IndexTerm) {
         todo!()
     }
 }
