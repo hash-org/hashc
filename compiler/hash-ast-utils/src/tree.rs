@@ -442,15 +442,15 @@ impl AstVisitor for AstTreePrinter {
         ))
     }
 
-    type MergeTyRet = TreeNode;
-    fn visit_merge_ty(
+    type EqualityTyRet = TreeNode;
+    fn visit_equality_ty(
         &self,
-        node: ast::AstNodeRef<ast::MergeTy>,
-    ) -> Result<Self::MergeTyRet, Self::Error> {
-        let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, node)?;
+        node: ast::AstNodeRef<ast::EqualityTy>,
+    ) -> Result<Self::EqualityTyRet, Self::Error> {
+        let walk::EqualityTy { lhs, rhs } = walk::walk_equality_ty(self, node)?;
 
         Ok(TreeNode::branch(
-            "merge_ty",
+            "equality_ty",
             vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
         ))
     }

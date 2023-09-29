@@ -903,13 +903,13 @@ where
         Ok(())
     }
 
-    type MergeTyRet = ();
+    type EqualityTyRet = ();
 
-    fn visit_merge_ty(
+    fn visit_equality_ty(
         &mut self,
-        node: ast::AstNodeRef<ast::MergeTy>,
-    ) -> Result<Self::MergeTyRet, Self::Error> {
-        let ast::MergeTy { lhs, rhs } = node.body();
+        node: ast::AstNodeRef<ast::EqualityTy>,
+    ) -> Result<Self::EqualityTyRet, Self::Error> {
+        let ast::EqualityTy { lhs, rhs } = node.body();
 
         // @@Todo: deal with wrapping here if needed
         self.visit_ty(lhs.ast_ref())?;

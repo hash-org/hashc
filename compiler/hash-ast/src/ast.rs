@@ -770,14 +770,15 @@ define_tree! {
         pub args: Children!(TyArg),
     }
 
-    /// A merge type meaning that multiple types are considered to be
-    /// specified in place of one, e.g. `Conv ~ Eq`
+    /// An equality type specifies that there is an equality between two types, and hence
+    /// labelling it as the type of equality between the two operands.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct MergeTy {
-        /// left hand-side of the merge type
+    pub struct EqualityTy {
+        /// left hand-side of the equality type.
         pub lhs: Child!(Ty),
-        /// right hand-side of the merge type
+
+        /// right hand-side of the equality type.
         pub rhs: Child!(Ty),
     }
 
@@ -797,14 +798,14 @@ define_tree! {
         /// The union of two types, essentially an or, e.g `f64 | u64`
         Union,
         /// The intersection between two types, essentially an `and`, `Ord ~ Eq`
-        Merge,
+        Equality,
     }
 
     impl BinTyOp {
         /// Compute the precedence for an operator
         pub fn infix_binding_power(&self) -> (u8, u8) {
             match self {
-                BinTyOp::Merge => (2, 3),
+                BinTyOp::Equality => (2, 3),
                 BinTyOp::Union => (4, 5),
             }
         }
@@ -847,8 +848,8 @@ define_tree! {
         /// Reference type, the reference type of the inner type
         Ref(RefTy),
 
-        /// Merge type, the intersection of two types
-        Merge(MergeTy),
+        /// Equality between two types.
+        Equality(EqualityTy),
 
         /// Union type, the union of two types
         Union(UnionTy),

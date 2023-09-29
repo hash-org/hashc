@@ -45,14 +45,15 @@ impl<'s> AstGen<'s> {
                     // Now recurse and get the `rhs` of the operator.
                     let rhs = self.parse_ty_with_precedence(r_prec)?;
 
-                    // transform the operator into an `UnaryTy` or `MergeTy` based on the operator
-                    lhs =
-                        match op {
-                            BinTyOp::Union => self
-                                .node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), lhs_span),
-                            BinTyOp::Merge => self
-                                .node_with_joined_span(Ty::Merge(MergeTy { lhs, rhs }), lhs_span),
+                    // transform the operator into an `UnaryTy` or `EqualityTy` based on the
+                    // operator
+                    lhs = match op {
+                        BinTyOp::Union => {
+                            self.node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), lhs_span)
                         }
+                        BinTyOp::Equality => self
+                            .node_with_joined_span(Ty::Equality(EqualityTy { lhs, rhs }), lhs_span),
+                    }
                 }
                 _ => break,
             }

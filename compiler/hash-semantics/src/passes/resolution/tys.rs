@@ -335,13 +335,11 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         })
     }
 
-    /// Make a type from the given [`ast::MergeTy`] and assign it to the node in
-    /// the AST info store.
-    ///
-    /// We use merge types to represent propositional equality.
-    pub(super) fn make_ty_from_merge_ty(
+    /// Make a type from the given [`ast::EqualityTy`] and assign it to the node
+    /// in the AST info store.
+    pub(super) fn make_ty_from_equality_ty(
         &self,
-        node: AstNodeRef<ast::MergeTy>,
+        node: AstNodeRef<ast::EqualityTy>,
     ) -> SemanticResult<TyId> {
         let lhs = self.make_ty_from_ast_ty(node.lhs.ast_ref())?;
         let rhs = self.make_ty_from_ast_ty(node.rhs.ast_ref())?;
@@ -370,7 +368,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Ty::ImplicitFn(implicit_fn_ty) => {
                 self.make_ty_from_ast_implicit_fn_ty(node.with_body(implicit_fn_ty))?
             }
-            ast::Ty::Merge(merge_ty) => self.make_ty_from_merge_ty(node.with_body(merge_ty))?,
+            ast::Ty::Equality(eq_ty) => self.make_ty_from_equality_ty(node.with_body(eq_ty))?,
             ast::Ty::Macro(invocation) => self.make_ty_from_ast_ty(invocation.subject.ast_ref())?,
             ast::Ty::Expr(expr) => self.make_term_from_ast_expr(expr.expr.ast_ref())?,
             ast::Ty::Union(_) => {
