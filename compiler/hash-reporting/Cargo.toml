@@ -14,4 +14,3 @@ hash-utils = { path = "../hash-utils" }
 hash-target = { path = "../hash-target" }
 
 unicode-normalization = "0.1.22"
-unicode-width = "0.1.8"
