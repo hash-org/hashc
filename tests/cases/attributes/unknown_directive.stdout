@@ -1,4 +1,4 @@
-AST for `$DIR/unknown_directive.hash:13:20-16:6`:
+AST for `$DIR/unknown_directive.hash:11:20-14:6`:
 body
 ├─statements
 │ └─declaration
@@ -6,12 +6,12 @@ body
 │   │ └─binding
 │   │   └─name "k"
 │   └─value
-│     └─constructor
+│     └─call
 │       └─subject
 │         └─variable
 │           └─named "perform_operation"
 └─expr
-  └─constructor
+  └─call
     ├─subject
     │ └─variable
     │   └─named "unmerge"

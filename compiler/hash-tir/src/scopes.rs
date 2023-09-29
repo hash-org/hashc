@@ -74,7 +74,7 @@ impl StackIndices {
 pub struct Decl {
     pub bind_pat: PatId,
     pub ty: TyId,
-    pub value: Option<TermId>,
+    pub value: TermId,
 }
 
 /// Term to assign a value to a subject.
@@ -177,25 +177,18 @@ impl fmt::Display for BindingPat {
 
 impl fmt::Display for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let value = match self.value {
-            Some(term_id) => {
-                match *self.bind_pat.value() {
-                    Pat::Binding(binding_pat) => {
-                        match *term_id.value() {
-                            // If a function is being declared, print the body, otherwise just
-                            // its name.
-                            Term::Fn(fn_def_id)
-                                if fn_def_id.map(|def| def.name == binding_pat.name) =>
-                            {
-                                fn_def_id.to_string()
-                            }
-                            _ => term_id.to_string(),
-                        }
+        let value = match *self.bind_pat.value() {
+            Pat::Binding(binding_pat) => {
+                match *self.value.value() {
+                    // If a function is being declared, print the body, otherwise just
+                    // its name.
+                    Term::Fn(fn_def_id) if fn_def_id.map(|def| def.name == binding_pat.name) => {
+                        fn_def_id.to_string()
                     }
-                    _ => term_id.to_string(),
+                    _ => self.value.to_string(),
                 }
             }
-            None => "{uninitialised}".to_string(),
+            _ => self.value.to_string(),
         };
 
         write!(f, "{}: {} = {}", self.bind_pat, self.ty, value,)

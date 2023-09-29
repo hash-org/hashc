@@ -118,8 +118,11 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::Variable(variable_expr) => {
                 self.make_term_from_ast_variable_expr(node.with_body(variable_expr))?
             }
-            ast::Expr::ConstructorCall(ctor_expr) => {
-                self.make_term_from_ast_constructor_call_expr(node.with_body(ctor_expr))?
+            ast::Expr::ImplicitCall(implicit_call) => {
+                self.make_ty_from_ast_implicit_fn_call(node.with_body(implicit_call))?
+            }
+            ast::Expr::Call(ctor_expr) => {
+                self.make_term_from_ast_call_expr(node.with_body(ctor_expr))?
             }
             ast::Expr::Access(access_expr) => {
                 self.make_term_from_ast_access_expr(node.with_body(access_expr))?
@@ -159,8 +162,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::Block(block_expr) => {
                 self.make_term_from_ast_block_expr(node.with_body(block_expr))?
             }
-            ast::Expr::TyFnDef(ty_fn_def) => {
-                self.make_term_from_ast_ty_fn_def(node.with_body(ty_fn_def))?
+            ast::Expr::ImplicitFnDef(def) => {
+                self.make_term_from_ast_implicit_fn_def(node.with_body(def))?
             }
             ast::Expr::FnDef(fn_def) => self.make_term_from_ast_fn_def(node.with_body(fn_def))?,
             ast::Expr::AssignOp(assign_op_expr) => {
@@ -182,12 +185,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 Term::unit(NodeOrigin::Given(node.id()))
             }
 
-            // No-ops (not supported or handled earlier):
-            ast::Expr::TraitDef(_)
-            | ast::Expr::MergeDeclaration(_)
-            | ast::Expr::Declaration(_)
-            | ast::Expr::ImplDef(_)
-            | ast::Expr::TraitImpl(_) => Term::unit(NodeOrigin::Given(node.id())),
+            // No-ops (handled earlier):
+            ast::Expr::Declaration(_) => Term::unit(NodeOrigin::Given(node.id())),
 
             ast::Expr::StructDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;
@@ -255,10 +254,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         }
     }
 
-    /// Use the given [`ast::ConstructorCallExpr`] as a path.
-    fn constructor_call_as_ast_path<'a>(
+    /// Use the given [`ast::CallExpr`] as a path.
+    fn call_as_ast_path<'a>(
         &self,
-        node: AstNodeRef<'a, ast::ConstructorCallExpr>,
+        node: AstNodeRef<'a, ast::CallExpr>,
     ) -> SemanticResult<Option<AstPath<'a>>> {
         match self.expr_as_ast_path(node.body.subject.ast_ref())? {
             Some(mut path) => match path.last_mut() {
@@ -285,9 +284,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 let variable_ref = node.with_body(variable_expr);
                 Ok(Some(self.variable_expr_as_ast_path(variable_ref)?))
             }
-            ast::Expr::ConstructorCall(ctor_expr) => {
-                let ctor_ref = node.with_body(ctor_expr);
-                self.constructor_call_as_ast_path(ctor_ref)
+            ast::Expr::Call(call_expr) => {
+                let call_ref = node.with_body(call_expr);
+                self.call_as_ast_path(call_ref)
             }
             ast::Expr::Access(access_expr) => {
                 let access_ref = node.with_body(access_expr);
@@ -296,6 +295,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::Ty(expr_ty) => {
                 let expr_ty_ref = node.with_body(expr_ty.ty.body());
                 self.ty_as_ast_path(expr_ty_ref)
+            }
+            ast::Expr::ImplicitCall(implicit_call) => {
+                let call_ref = node.with_body(implicit_call);
+                self.implicit_call_as_ast_path(call_ref)
             }
             _ => Ok(None),
         }
@@ -364,13 +367,13 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         self.make_term_from_resolved_ast_path(&resolved_path, node.id())
     }
 
-    /// Make a term from an [`ast::ConstructorCallExpr`].
-    fn make_term_from_ast_constructor_call_expr(
+    /// Make a term from an [`ast::CallExpr`].
+    fn make_term_from_ast_call_expr(
         &self,
-        node: AstNodeRef<ast::ConstructorCallExpr>,
+        node: AstNodeRef<ast::CallExpr>,
     ) -> SemanticResult<TermId> {
         // This is either a path or a computed function call
-        match self.constructor_call_as_ast_path(node)? {
+        match self.call_as_ast_path(node)? {
             Some(path) => {
                 let resolved_path = self.resolve_ast_path(&path)?;
                 self.make_term_from_resolved_ast_path(&resolved_path, node.id())
@@ -439,20 +442,13 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let pat =
             self.try_or_add_error(self.make_pat_from_ast_pat_and_check_binds(node.pat.ast_ref()));
 
-        // Inner expression:
-        let value = match node.value.as_ref() {
-            Some(value) => {
-                self.try_or_add_error(self.make_term_from_ast_expr(value.ast_ref()).map(Some))
-            }
-            None => Some(None),
-        };
+        // Initialiser:
+        let value = self.try_or_add_error(self.make_term_from_ast_expr(node.value.ast_ref()));
 
         // Type annotation:
         let ty = match node.ty.as_ref() {
             Some(ty) => self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())),
-            None => Some(Ty::hole(NodeOrigin::InferredFrom(
-                node.value.as_ref().map(|v| v.id()).unwrap_or_else(|| node.pat.id()),
-            ))),
+            None => Some(Ty::hole(NodeOrigin::InferredFrom(node.value.id()))),
         };
 
         match (pat, ty, value) {
@@ -808,7 +804,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     }
 
     /// Make a function term from an AST function definition, which is either a
-    /// [`ast::TyFnDef`] or a [`ast::FnDef`].
+    /// [`ast::ImplicitFnDef`] or a [`ast::FnDef`].
     fn make_term_from_some_ast_fn_def(
         &self,
         params: AstParams<'_>,
@@ -873,14 +869,14 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         }
     }
 
-    /// Make a term from an [`ast::TyFnDef`].
-    pub(super) fn make_term_from_ast_ty_fn_def(
+    /// Make a term from an [`ast::ImplicitFnDef`].
+    pub(super) fn make_term_from_ast_implicit_fn_def(
         &self,
-        node: AstNodeRef<ast::TyFnDef>,
+        node: AstNodeRef<ast::ImplicitFnDef>,
     ) -> SemanticResult<TermId> {
         self.make_term_from_some_ast_fn_def(
             AstParams::Ty(&node.params),
-            &node.ty_fn_body,
+            &node.fn_body,
             &node.return_ty,
             node.id(),
         )
@@ -1022,10 +1018,6 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let typeof_a = Term::from(TyOfTerm { term: a }, origin);
 
         let (intrinsic, op_num): (Intrinsic, u8) = match node.operator.body() {
-            ast::UnOp::TypeOf => {
-                let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-                return Ok(Term::from(TyOfTerm { term: inner }, origin));
-            }
             ast::UnOp::BitNot => (Intrinsic::UnOp, UnOp::BitNot.into()),
             ast::UnOp::Not => (Intrinsic::UnOp, UnOp::Not.into()),
             ast::UnOp::Neg => (Intrinsic::UnOp, UnOp::Neg.into()),

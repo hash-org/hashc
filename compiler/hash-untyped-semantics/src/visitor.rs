@@ -31,16 +31,12 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         WhileLoopBlock,
         TokenMacroInvocation,
         ModDef,
-        ImplDef,
         IfClause,
         IfBlock,
         BodyBlock,
         ReturnStatement,
         BreakStatement,
         ContinueStatement,
-        MergeDeclaration,
-        TraitDef,
-        TraitImpl,
         LitPat,
         BindingPat,
         RangePat,
@@ -158,16 +154,6 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         Ok(())
     }
 
-    type ImplDefRet = ();
-
-    fn visit_impl_def(
-        &mut self,
-        node: ast::AstNodeRef<ast::ImplDef>,
-    ) -> Result<Self::ImplDefRet, Self::Error> {
-        self.check_constant_body_block(&node.body().block, BlockOrigin::Impl);
-        Ok(())
-    }
-
     type IfClauseRet = ();
 
     fn visit_if_clause(
@@ -258,47 +244,6 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         if !self.is_in_loop {
             self.append_error(AnalysisErrorKind::UsingContinueOutsideLoop, node);
         }
-
-        Ok(())
-    }
-
-    type MergeDeclarationRet = ();
-
-    fn visit_merge_declaration(
-        &mut self,
-        node: ast::AstNodeRef<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        // ##Note: We probably don't have to walk this??
-        let _ = walk_mut_self::walk_merge_declaration(self, node);
-        Ok(())
-    }
-
-    type TraitDefRet = ();
-
-    fn visit_trait_def(
-        &mut self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Trait);
-        let _ = walk_mut_self::walk_trait_def(self, node);
-        self.current_block = old_block_origin;
-
-        Ok(())
-    }
-
-    type TraitImplRet = ();
-
-    fn visit_trait_impl(
-        &mut self,
-        node: ast::AstNodeRef<ast::TraitImpl>,
-    ) -> Result<Self::TraitImplRet, Self::Error> {
-        self.check_members_are_declarative(node.trait_body.ast_ref_iter(), BlockOrigin::Impl);
-
-        // Verify that the declarations in this implementation block adhere to the
-        // rules of constant blocks....
-        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Impl);
-        let _ = walk_mut_self::walk_trait_impl(self, node);
-        self.current_block = old_block_origin;
 
         Ok(())
     }

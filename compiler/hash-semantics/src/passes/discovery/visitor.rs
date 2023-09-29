@@ -5,7 +5,7 @@ use hash_ast::{
     ast_visitor_default_impl,
     visitor::walk,
 };
-use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
+use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     scopes::Stack,
@@ -30,13 +30,12 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         hiding: Declaration,
         Module,
         ModDef,
-        TraitDef,
         StructDef,
         EnumDef,
         FnDef,
         FnTy,
-        TyFnTy,
-        TyFnDef,
+        ImplicitFnTy,
+        ImplicitFnDef,
         TupleTy,
         BodyBlock,
         Expr,
@@ -97,7 +96,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                             node.pat.ast_ref(),
                             stack_id,
                             name,
-                            node.value.as_ref(),
+                            Some(&node.value),
                         );
                     }
                 }
@@ -278,11 +277,11 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         Ok(())
     }
 
-    type TyFnDefRet = ();
-    fn visit_ty_fn_def(
+    type ImplicitFnDefRet = ();
+    fn visit_implicit_fn_def(
         &self,
-        node: AstNodeRef<ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error> {
+        node: AstNodeRef<ast::ImplicitFnDef>,
+    ) -> Result<Self::ImplicitFnDefRet, Self::Error> {
         // Type functions are interpreted as functions that are implicit.
 
         // Get the function name from the name hint.
@@ -292,7 +291,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: Term::hole(NodeOrigin::Given(node.ty_fn_body.id())),
+                body: Term::hole(NodeOrigin::Given(node.fn_body.id())),
                 ty: FnTy {
                     implicit: true,
                     is_unsafe: false,
@@ -303,16 +302,14 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                         .return_ty
                         .as_ref()
                         .map(|ty| Ty::hole(NodeOrigin::Given(ty.id())))
-                        .unwrap_or_else(|| {
-                            Ty::hole(NodeOrigin::InferredFrom(node.ty_fn_body.id()))
-                        }),
+                        .unwrap_or_else(|| Ty::hole(NodeOrigin::InferredFrom(node.fn_body.id()))),
                 },
             },
             NodeOrigin::Given(node.id()),
         );
 
         // Traverse the function body
-        self.enter_def(node, fn_def_id, || walk::walk_ty_fn_def(self, node))?;
+        self.enter_def(node, fn_def_id, || walk::walk_implicit_fn_def(self, node))?;
 
         Ok(())
     }
@@ -355,11 +352,11 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         }
     }
 
-    type TyFnTyRet = ();
-    fn visit_ty_fn_ty(
+    type ImplicitFnTyRet = ();
+    fn visit_implicit_fn_ty(
         &self,
-        node: AstNodeRef<ast::TyFnTy>,
-    ) -> Result<Self::TyFnTyRet, Self::Error> {
+        node: AstNodeRef<ast::ImplicitFnTy>,
+    ) -> Result<Self::ImplicitFnTyRet, Self::Error> {
         // This will be filled in during resolution
         let fn_ty_id = Ty::from(
             FnTy {
@@ -374,7 +371,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         );
 
         // Traverse the type function body
-        self.enter_item(node, fn_ty_id, || walk::walk_ty_fn_ty(self, node))?;
+        self.enter_item(node, fn_ty_id, || walk::walk_implicit_fn_ty(self, node))?;
 
         Ok(())
     }
@@ -418,28 +415,14 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         Ok(())
     }
 
-    type TraitDefRet = ();
-    fn visit_trait_def(
-        &self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        // Traits are not yet supported
-        self.diagnostics()
-            .add_error(SemanticError::TraitsNotSupported { trait_location: node.span() });
-        Ok(())
-    }
-
     type ExprRet = ();
     fn visit_expr(&self, node: AstNodeRef<ast::Expr>) -> Result<Self::ExprRet, Self::Error> {
         match node.body {
             ast::Expr::StructDef(_)
             | ast::Expr::EnumDef(_)
-            | ast::Expr::TyFnDef(_)
-            | ast::Expr::TraitDef(_)
-            | ast::Expr::ImplDef(_)
+            | ast::Expr::ImplicitFnDef(_)
             | ast::Expr::ModDef(_)
             | ast::Expr::FnDef(_)
-            | ast::Expr::TraitImpl(_)
             | ast::Expr::Macro(_) => {} // These accept a name hint
             _ => {
                 // Everything else should not have a name hint

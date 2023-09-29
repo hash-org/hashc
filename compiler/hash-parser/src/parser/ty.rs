@@ -15,7 +15,7 @@ use crate::diagnostics::{
 
 impl<'s> AstGen<'s> {
     /// Parse a [Ty]. This includes all forms of a [Ty]. This function
-    /// does not deal with any kind of [Ty] annotation or [TyFnDef]
+    /// does not deal with any kind of [Ty] annotation or [ImplicitFnDef]
     /// syntax.
     pub(crate) fn parse_ty(&mut self) -> ParseResult<AstNode<Ty>> {
         self.parse_ty_with_precedence(0)
@@ -45,14 +45,15 @@ impl<'s> AstGen<'s> {
                     // Now recurse and get the `rhs` of the operator.
                     let rhs = self.parse_ty_with_precedence(r_prec)?;
 
-                    // transform the operator into an `UnaryTy` or `MergeTy` based on the operator
-                    lhs =
-                        match op {
-                            BinTyOp::Union => self
-                                .node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), lhs_span),
-                            BinTyOp::Merge => self
-                                .node_with_joined_span(Ty::Merge(MergeTy { lhs, rhs }), lhs_span),
+                    // transform the operator into an `UnaryTy` or `EqualityTy` based on the
+                    // operator
+                    lhs = match op {
+                        BinTyOp::Union => {
+                            self.node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), lhs_span)
                         }
+                        BinTyOp::Equality => self
+                            .node_with_joined_span(Ty::Equality(EqualityTy { lhs, rhs }), lhs_span),
+                    }
                 }
                 _ => break,
             }
@@ -162,7 +163,7 @@ impl<'s> AstGen<'s> {
             // followed by a return type
             TokenKind::Lt => {
                 multi_ty_components = false;
-                self.parse_ty_fn()?
+                self.parse_implicit_fn()?
             }
 
             // This allows for the user to use the shorthand for literal types within
@@ -188,7 +189,7 @@ impl<'s> AstGen<'s> {
                     self.skip_fast(TokenKind::Lt);
 
                     let ty = self.node_with_joined_span(ty, span);
-                    Ty::TyFnCall(TyFnCall {
+                    Ty::ImplicitCall(ImplicitFnCall {
                         subject: self.node_with_joined_span(
                             Expr::Ty(TyExpr { ty }),
                             span,
@@ -356,20 +357,20 @@ impl<'s> AstGen<'s> {
         }
     }
 
-    /// Parses a [Ty::TyFn] with the pre-condition that the initial
+    /// Parses a [Ty::ImplicitFn] with the pre-condition that the initial
     /// subject type is parsed and passed into the function. This function
     /// only deals with the argument part of the function.
-    fn parse_ty_fn(&mut self) -> ParseResult<Ty> {
+    fn parse_implicit_fn(&mut self) -> ParseResult<Ty> {
         debug_assert!(matches!(self.current_token(), Token { kind: TokenKind::Lt, .. }));
         // Since this is only called from `parse_singular_type` we know that this should
         // only be fired when the next token is a an `<`
-        let params = self.parse_ty_params(TyParamOrigin::TyFn)?;
+        let params = self.parse_ty_params(TyParamOrigin::ImplicitFn)?;
 
         // Now pass the return type
         self.parse_token(TokenKind::ThinArrow)?;
         let return_ty = self.parse_ty()?;
 
-        Ok(Ty::TyFn(TyFnTy { params, return_ty }))
+        Ok(Ty::ImplicitFn(ImplicitFnTy { params, return_ty }))
     }
 
     /// Parse optional type [Param]s, if the next token is not a

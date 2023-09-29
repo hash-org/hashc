@@ -73,7 +73,7 @@ impl<'s> AstGen<'s> {
     pub(crate) fn parse_ty_op(&self) -> (Option<BinTyOp>, u8) {
         match self.peek() {
             Some(token) if token.has_kind(TokenKind::Pipe) => (Some(BinTyOp::Union), 1),
-            Some(token) if token.has_kind(TokenKind::Tilde) => (Some(BinTyOp::Merge), 1),
+            Some(token) if token.has_kind(TokenKind::Tilde) => (Some(BinTyOp::Equality), 1),
             _ => (None, 0),
         }
     }

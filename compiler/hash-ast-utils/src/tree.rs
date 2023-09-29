@@ -161,13 +161,12 @@ impl AstVisitor for AstTreePrinter {
         }
     }
 
-    type ConstructorCallExprRet = TreeNode;
-    fn visit_constructor_call_expr(
+    type CallExprRet = TreeNode;
+    fn visit_call_expr(
         &self,
-        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
-    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        let walk::ConstructorCallExpr { subject, args } =
-            walk::walk_constructor_call_expr(self, node)?;
+        node: ast::AstNodeRef<ast::CallExpr>,
+    ) -> Result<Self::CallExprRet, Self::Error> {
+        let walk::CallExpr { subject, args } = walk::walk_call_expr(self, node)?;
 
         let children = if !node.args.is_empty() {
             vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("args", args)]
@@ -175,7 +174,7 @@ impl AstVisitor for AstTreePrinter {
             vec![TreeNode::branch("subject", vec![subject])]
         };
 
-        Ok(TreeNode::branch("constructor", children))
+        Ok(TreeNode::branch("call", children))
     }
 
     type PropertyKindRet = TreeNode;
@@ -372,28 +371,28 @@ impl AstVisitor for AstTreePrinter {
         Ok(TreeNode::branch("function", children))
     }
 
-    type TyFnTyRet = TreeNode;
-    fn visit_ty_fn_ty(
+    type ImplicitFnTyRet = TreeNode;
+    fn visit_implicit_fn_ty(
         &self,
-        node: ast::AstNodeRef<ast::TyFnTy>,
-    ) -> Result<Self::TyFnTyRet, Self::Error> {
-        let walk::TyFnTy { params, return_ty } = walk::walk_ty_fn_ty(self, node)?;
+        node: ast::AstNodeRef<ast::ImplicitFnTy>,
+    ) -> Result<Self::ImplicitFnTyRet, Self::Error> {
+        let walk::ImplicitFnTy { params, return_ty } = walk::walk_implicit_fn_ty(self, node)?;
 
         Ok(TreeNode::branch(
-            "type_function",
+            "implicit_fn_ty",
             vec![params, TreeNode::branch("return", vec![return_ty])],
         ))
     }
 
-    type TyFnCallRet = TreeNode;
-    fn visit_ty_fn_call(
+    type ImplicitFnCallRet = TreeNode;
+    fn visit_implicit_fn_call(
         &self,
-        node: ast::AstNodeRef<ast::TyFnCall>,
-    ) -> Result<Self::TyFnCallRet, Self::Error> {
-        let walk::TyFnCall { subject, args } = walk::walk_ty_fn_call(self, node)?;
+        node: ast::AstNodeRef<ast::ImplicitFnCall>,
+    ) -> Result<Self::ImplicitFnCallRet, Self::Error> {
+        let walk::ImplicitFnCall { subject, args } = walk::walk_implicit_fn_call(self, node)?;
 
         Ok(TreeNode::branch(
-            "type_function_call",
+            "implicit_call",
             vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("arguments", args)],
         ))
     }
@@ -443,15 +442,15 @@ impl AstVisitor for AstTreePrinter {
         ))
     }
 
-    type MergeTyRet = TreeNode;
-    fn visit_merge_ty(
+    type EqualityTyRet = TreeNode;
+    fn visit_equality_ty(
         &self,
-        node: ast::AstNodeRef<ast::MergeTy>,
-    ) -> Result<Self::MergeTyRet, Self::Error> {
-        let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, node)?;
+        node: ast::AstNodeRef<ast::EqualityTy>,
+    ) -> Result<Self::EqualityTyRet, Self::Error> {
+        let walk::EqualityTy { lhs, rhs } = walk::walk_equality_ty(self, node)?;
 
         Ok(TreeNode::branch(
-            "merge_ty",
+            "equality_ty",
             vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
         ))
     }
@@ -480,18 +479,19 @@ impl AstVisitor for AstTreePrinter {
         Ok(TreeNode::branch("expr", vec![expr]))
     }
 
-    type TyFnDefRet = TreeNode;
-    fn visit_ty_fn_def(
+    type ImplicitFnDefRet = TreeNode;
+    fn visit_implicit_fn_def(
         &self,
-        node: ast::AstNodeRef<ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let walk::TyFnDef { params, return_ty, ty_fn_body } = walk::walk_ty_fn_def(self, node)?;
+        node: ast::AstNodeRef<ast::ImplicitFnDef>,
+    ) -> Result<Self::ImplicitFnDefRet, Self::Error> {
+        let walk::ImplicitFnDef { params, return_ty, fn_body } =
+            walk::walk_implicit_fn_def(self, node)?;
 
         Ok(TreeNode::branch(
-            "type_function",
+            "implicit_function_def",
             iter::once(params)
                 .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
-                .chain(iter::once(TreeNode::branch("body", vec![ty_fn_body])))
+                .chain(iter::once(TreeNode::branch("body", vec![fn_body])))
                 .collect(),
         ))
     }
@@ -650,24 +650,6 @@ impl AstVisitor for AstTreePrinter {
         Ok(TreeNode::branch("mod", children))
     }
 
-    type ImplDefRet = TreeNode;
-    fn visit_impl_def(
-        &self,
-        node: ast::AstNodeRef<ast::ImplDef>,
-    ) -> Result<Self::ImplDefRet, Self::Error> {
-        let walk::ImplDef { block, ty_params } = walk::walk_impl_def(self, node)?;
-
-        let children = {
-            if let Some(ty_params) = ty_params && !ty_params.children.is_empty() {
-                vec![ty_params, block]
-            } else {
-                vec![block]
-            }
-        };
-
-        Ok(TreeNode::branch("impl", children))
-    }
-
     type IfClauseRet = TreeNode;
     fn visit_if_clause(
         &self,
@@ -780,26 +762,15 @@ impl AstVisitor for AstTreePrinter {
         &self,
         node: ast::AstNodeRef<ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let walk::Declaration { pat: pattern, ty, value } = walk::walk_declaration(self, node)?;
+        let walk::Declaration { pat, ty, value } = walk::walk_declaration(self, node)?;
 
         Ok(TreeNode::branch(
             "declaration",
-            iter::once(TreeNode::branch("pattern", vec![pattern]))
+            iter::once(TreeNode::branch("pattern", vec![pat]))
                 .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
-                .chain(value.map(|t| TreeNode::branch("value", vec![t])))
+                .chain(iter::once(TreeNode::branch("value", vec![value])))
                 .collect(),
         ))
-    }
-
-    type MergeDeclarationRet = TreeNode;
-    fn visit_merge_declaration(
-        &self,
-        node: ast::AstNodeRef<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        let walk::MergeDeclaration { decl: pattern, value } =
-            walk::walk_merge_declaration(self, node)?;
-
-        Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
     }
 
     type AssignExprRet = TreeNode;
@@ -935,28 +906,6 @@ impl AstVisitor for AstTreePrinter {
         };
 
         Ok(TreeNode::branch("enum_def", children))
-    }
-
-    type TraitDefRet = TreeNode;
-    fn visit_trait_def(
-        &self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        let walk::TraitDef { members, ty_params: _ } = walk::walk_trait_def(self, node)?;
-        Ok(TreeNode::branch("trait_def", vec![TreeNode::branch("members", members)]))
-    }
-
-    type TraitImplRet = TreeNode;
-
-    fn visit_trait_impl(
-        &self,
-        node: ast::AstNodeRef<ast::TraitImpl>,
-    ) -> Result<Self::TraitImplRet, Self::Error> {
-        let walk::TraitImpl { trait_body, ty } = walk::walk_trait_impl(self, node)?;
-        Ok(TreeNode::branch(
-            "trait_impl",
-            vec![TreeNode::branch("ty", vec![ty]), TreeNode::branch("body", trait_body)],
-        ))
     }
 
     type PatRet = TreeNode;

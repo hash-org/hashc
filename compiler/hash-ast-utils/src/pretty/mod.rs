@@ -111,13 +111,13 @@ where
         self.visit_name(property.ast_ref())
     }
 
-    type TyFnCallRet = ();
+    type ImplicitFnCallRet = ();
 
-    fn visit_ty_fn_call(
+    fn visit_implicit_fn_call(
         &mut self,
-        node: ast::AstNodeRef<ast::TyFnCall>,
-    ) -> Result<Self::TyFnCallRet, Self::Error> {
-        let ast::TyFnCall { subject, args } = node.body();
+        node: ast::AstNodeRef<ast::ImplicitFnCall>,
+    ) -> Result<Self::ImplicitFnCallRet, Self::Error> {
+        let ast::ImplicitFnCall { subject, args } = node.body();
 
         self.visit_expr(subject.ast_ref())?;
 
@@ -154,19 +154,12 @@ where
         if let Some(ty) = ty {
             self.write(" ")?;
             self.visit_ty(ty.ast_ref())?;
+            self.write(" ")?;
         }
 
-        // Visit the expression
-        if let Some(value) = value {
-            if ty.is_some() {
-                self.write(" ")?;
-            }
-
-            self.write("= ")?;
-            self.visit_expr(value.ast_ref())
-        } else {
-            self.write(";")
-        }
+        // Visit the initialiser
+        self.write("= ")?;
+        self.visit_expr(value.ast_ref())
     }
 
     type EnumDefEntryRet = ();
@@ -356,13 +349,13 @@ where
         Ok(())
     }
 
-    type TyFnTyRet = ();
+    type ImplicitFnTyRet = ();
 
-    fn visit_ty_fn_ty(
+    fn visit_implicit_fn_ty(
         &mut self,
-        node: ast::AstNodeRef<ast::TyFnTy>,
-    ) -> Result<Self::TyFnTyRet, Self::Error> {
-        let ast::TyFnTy { params, return_ty } = node.body();
+        node: ast::AstNodeRef<ast::ImplicitFnTy>,
+    ) -> Result<Self::ImplicitFnTyRet, Self::Error> {
+        let ast::ImplicitFnTy { params, return_ty } = node.body();
 
         self.visit_ty_params(params.ast_ref())?;
         self.write(" -> ")?;
@@ -435,24 +428,6 @@ where
         node: ast::AstNodeRef<ast::StrLit>,
     ) -> Result<Self::StrLitRet, Self::Error> {
         self.write(format!("{:?}", node.body.data))
-    }
-
-    type TraitImplRet = ();
-
-    fn visit_trait_impl(
-        &mut self,
-        node: ast::AstNodeRef<ast::TraitImpl>,
-    ) -> Result<Self::TraitImplRet, Self::Error> {
-        let ast::TraitImpl { ty, trait_body } = node.body();
-
-        self.write("impl ")?;
-        self.visit_ty(ty.ast_ref())?;
-        self.write(" ")?;
-
-        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Bracket, ", ");
-        opts.indented().terminating_delimiters();
-
-        self.print_separated_collection(trait_body, opts, |this, item| this.visit_expr(item))
     }
 
     type ReturnStatementRet = ();
@@ -747,13 +722,13 @@ where
         Ok(())
     }
 
-    type TyFnDefRet = ();
+    type ImplicitFnDefRet = ();
 
-    fn visit_ty_fn_def(
+    fn visit_implicit_fn_def(
         &mut self,
-        node: ast::AstNodeRef<ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let ast::TyFnDef { params, return_ty, ty_fn_body } = node.body();
+        node: ast::AstNodeRef<ast::ImplicitFnDef>,
+    ) -> Result<Self::ImplicitFnDefRet, Self::Error> {
+        let ast::ImplicitFnDef { params, return_ty, fn_body } = node.body();
 
         self.visit_ty_params(params.ast_ref())?;
 
@@ -763,7 +738,7 @@ where
         }
 
         self.write(" => ")?;
-        self.visit_expr(ty_fn_body.ast_ref())
+        self.visit_expr(fn_body.ast_ref())
     }
 
     type ArrayLitRet = ();
@@ -895,26 +870,13 @@ where
         Ok(())
     }
 
-    type MergeDeclarationRet = ();
+    type CallExprRet = ();
 
-    fn visit_merge_declaration(
+    fn visit_call_expr(
         &mut self,
-        node: ast::AstNodeRef<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        let ast::MergeDeclaration { decl, value } = node.body();
-
-        self.visit_expr(decl.ast_ref())?;
-        self.write(" ~= ")?;
-        self.visit_expr(value.ast_ref())
-    }
-
-    type ConstructorCallExprRet = ();
-
-    fn visit_constructor_call_expr(
-        &mut self,
-        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
-    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        let ast::ConstructorCallExpr { subject, args } = node.body();
+        node: ast::AstNodeRef<ast::CallExpr>,
+    ) -> Result<Self::CallExprRet, Self::Error> {
+        let ast::CallExpr { subject, args } = node.body();
 
         self.visit_expr(subject.ast_ref())?;
 
@@ -941,13 +903,13 @@ where
         Ok(())
     }
 
-    type MergeTyRet = ();
+    type EqualityTyRet = ();
 
-    fn visit_merge_ty(
+    fn visit_equality_ty(
         &mut self,
-        node: ast::AstNodeRef<ast::MergeTy>,
-    ) -> Result<Self::MergeTyRet, Self::Error> {
-        let ast::MergeTy { lhs, rhs } = node.body();
+        node: ast::AstNodeRef<ast::EqualityTy>,
+    ) -> Result<Self::EqualityTyRet, Self::Error> {
+        let ast::EqualityTy { lhs, rhs } = node.body();
 
         // @@Todo: deal with wrapping here if needed
         self.visit_ty(lhs.ast_ref())?;
@@ -1010,26 +972,6 @@ where
         self.visit_ty(subject.ast_ref())?;
         self.write("::")?;
         self.visit_name(property.ast_ref())
-    }
-
-    type TraitDefRet = ();
-
-    fn visit_trait_def(
-        &mut self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        let ast::TraitDef { ty_params, members } = node.body();
-
-        self.write("trait")?;
-
-        if let Some(ty_params) = ty_params {
-            self.visit_ty_params(ty_params.ast_ref())?;
-        }
-
-        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Brace, "\n");
-        opts.indented().per_line().terminating_delimiters();
-
-        self.print_separated_collection(members, opts, |this, member| this.visit_expr(member))
     }
 
     type ModulePatRet = ();
@@ -1226,24 +1168,6 @@ where
         // @@Todo: consider line breaks here.
         self.write(format!(" {} ", operator.body()))?;
         self.visit_expr(rhs.ast_ref())
-    }
-
-    type ImplDefRet = ();
-
-    fn visit_impl_def(
-        &mut self,
-        node: ast::AstNodeRef<ast::ImplDef>,
-    ) -> Result<Self::ImplDefRet, Self::Error> {
-        let ast::ImplDef { ty_params, block } = node.body();
-
-        self.write("impl")?;
-
-        if let Some(ty_params) = ty_params {
-            self.visit_ty_params(ty_params.ast_ref())?;
-        }
-
-        self.write(" ")?;
-        self.visit_body_block(block.ast_ref())
     }
 
     type LoopBlockRet = ();

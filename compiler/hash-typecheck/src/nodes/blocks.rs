@@ -46,10 +46,8 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                 let ty_to_check_divergence = match *statement.value() {
                     BlockStatement::Decl(decl) => {
                         self.check_ty(decl.ty)?;
-                        if let Some(value) = decl.value {
-                            self.infer_term(value, decl.ty)?;
-                        };
-                        self.infer_pat(decl.bind_pat, decl.ty, decl.value)?;
+                        self.infer_term(decl.value, decl.ty)?;
+                        self.infer_pat(decl.bind_pat, decl.ty, Some(decl.value))?;
 
                         // Check that the binding pattern of the declaration is irrefutable.
                         let mut eck = self.exhaustiveness_checker(decl.bind_pat);

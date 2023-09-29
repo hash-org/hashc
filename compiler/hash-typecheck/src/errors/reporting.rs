@@ -216,13 +216,14 @@ impl TcErrorReporter {
                         "explicit (`(...)`)"
                     }
                 };
-                let error = reporter.error().code(HashErrorCode::UnsupportedTyFnApplication).title(
-                    format!(
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::UnsupportedImplicitFnApplication)
+                    .title(format!(
                         "expected an {} call but got an {} call",
                         get_call_kind(expected_implicit),
                         get_call_kind(actual_implicit)
-                    ),
-                );
+                    ));
                 if let Some(location) = site.span() {
                     error.add_labelled_span(location, "unexpected call kind at this call site");
                 }

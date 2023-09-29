@@ -32,7 +32,7 @@ bitflags::bitflags! {
         const Expr = 1 << 1;
 
         /// Some function call, or a constructor initialisation.
-        const ConstructorCall = 1 << 2;
+        const Call = 1 << 2;
 
         /// A directive expression.
         const MacroInvocation = 1 << 3;
@@ -49,9 +49,6 @@ bitflags::bitflags! {
         /// A match block, represents for `match` and `if` expressions.
         const Match = 1 << 7;
 
-        /// An implementation definition block.
-        const ImplDef = 1 << 8;
-
         /// A top-level module.
         const Mod = 1 << 9;
 
@@ -65,7 +62,7 @@ bitflags::bitflags! {
         const Import = 1 << 12;
 
         /// A type function definition.
-        const TyFnDef = 1 << 13;
+        const ImplicitFnDef = 1 << 13;
 
         /// A `struct` definition.
         const StructDef = 1 << 14;
@@ -102,11 +99,12 @@ bitflags::bitflags! {
         /// A pattern argument.
         const PatArg  = 1 << 24;
 
-        /// A trait definition.
-        const TraitDef = 1 << 25;
-
-        /// A general item definition e.g. `struct`, `enum`, `impl`, `mod` and `fn`.
-        const Item = Self::StructDef.bits() | Self::EnumDef.bits() | Self::FnDef.bits() | Self::TyFnDef.bits() | Self::ImplDef.bits() | Self::ModDef.bits() | Self::TraitDef.bits();
+        /// A general item definition e.g. `struct`, `enum`, `mod`, and functions.
+        const Item = Self::StructDef.bits()
+                   | Self::EnumDef.bits()
+                   | Self::FnDef.bits()
+                   | Self::ImplicitFnDef.bits()
+                   | Self::ModDef.bits();
     }
 }
 
@@ -114,7 +112,7 @@ impl AttrTarget {
     /// Classify the given [ast::Expr] into a [AttrTarget].
     pub fn classify_expr(expr: &ast::Expr) -> Self {
         match expr {
-            ast::Expr::ConstructorCall(_) => AttrTarget::ConstructorCall,
+            ast::Expr::Call(_) => AttrTarget::Call,
             ast::Expr::Macro(_) => AttrTarget::MacroInvocation,
             ast::Expr::Unsafe(_) => AttrTarget::Unsafe,
             ast::Expr::Lit(_) => AttrTarget::Lit,
@@ -126,15 +124,13 @@ impl AttrTarget {
             ast::Expr::Import(_) => AttrTarget::Import,
             ast::Expr::StructDef(_) => AttrTarget::StructDef,
             ast::Expr::EnumDef(_) => AttrTarget::EnumDef,
-            ast::Expr::TyFnDef(_) => AttrTarget::TyFnDef,
-            ast::Expr::TraitDef(_) => AttrTarget::TraitDef,
-            ast::Expr::ImplDef(_) => AttrTarget::ImplDef,
+            ast::Expr::ImplicitFnDef(_) => AttrTarget::ImplicitFnDef,
             ast::Expr::ModDef(_) => AttrTarget::ModDef,
             ast::Expr::FnDef(_) => AttrTarget::FnDef,
             ast::Expr::Ty(_) => AttrTarget::Ty,
 
             // If this is a declaration, we have to recurse into the subject...
-            ast::Expr::Declaration(ast::Declaration { value: Some(value), .. }) => {
+            ast::Expr::Declaration(ast::Declaration { value, .. }) => {
                 AttrTarget::classify_expr(value.body())
             }
             _ => AttrTarget::Expr,
@@ -148,20 +144,19 @@ impl fmt::Display for AttrTarget {
         let allowed_argument_kinds = self
             .iter()
             .map(|item| match item {
-                AttrTarget::ConstructorCall => "constructor call",
+                AttrTarget::Call => "constructor call",
                 AttrTarget::MacroInvocation => "directive",
                 AttrTarget::Unsafe => "unsafe expression",
                 AttrTarget::Lit => "literal",
                 AttrTarget::Loop => "loop block",
                 AttrTarget::Match => "match block",
-                AttrTarget::ImplDef => "impl block",
                 AttrTarget::Mod => "module",
                 AttrTarget::ModDef => "mod block",
                 AttrTarget::Block => "body block",
                 AttrTarget::Import => "import",
                 AttrTarget::StructDef => "`struct` definition",
                 AttrTarget::EnumDef => "`enum` definition",
-                AttrTarget::TyFnDef => "implicit function definition",
+                AttrTarget::ImplicitFnDef => "implicit function definition",
                 AttrTarget::FnDef => "`function` definition",
                 AttrTarget::Ty => "type",
                 AttrTarget::Expr => "expression",
@@ -170,7 +165,6 @@ impl fmt::Display for AttrTarget {
                 AttrTarget::Field => "field",
                 AttrTarget::EnumVariant => "enum variant",
                 AttrTarget::MatchCase => "match case",
-                AttrTarget::TraitDef => "trait definition",
                 _ => unreachable!(),
             })
             .collect_vec();
@@ -334,7 +328,7 @@ impl<'ast> AttrNode<'ast> {
     /// - Otherwise, get the equivalent [AttrTarget] from the expression.
     pub fn from_expr(expr: ast::AstNodeRef<'ast, ast::Expr>) -> Self {
         match expr.body() {
-            ast::Expr::Declaration(ast::Declaration { value: Some(value), .. }) => {
+            ast::Expr::Declaration(ast::Declaration { value, .. }) => {
                 Self::from_expr(value.ast_ref())
             }
             ast::Expr::Lit(lit) => Self::Lit(expr.with_body(lit.data.body())),
