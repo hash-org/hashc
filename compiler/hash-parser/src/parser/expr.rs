@@ -611,22 +611,6 @@ impl<'s> AstGen<'s> {
         }
     }
 
-    /// Function to pass a [MergeDeclaration] which is a pattern on the
-    /// right-hand side followed by the `~=` operator and then an expression
-    /// (which should be either a [ImplBlock] or a [TraitImpl]).
-    pub(crate) fn parse_merge_declaration(
-        &mut self,
-        decl: AstNode<Expr>,
-    ) -> ParseResult<AstNode<Expr>> {
-        self.parse_token(TokenKind::Eq)?;
-        let (value, decl_span) = self.track_span(|this| this.parse_expr_with_precedence(0))?;
-
-        Ok(self.node_with_joined_span(
-            Expr::MergeDeclaration(MergeDeclaration { decl, value }),
-            decl_span,
-        ))
-    }
-
     /// Given a initial left-hand side expression, attempt to parse a
     /// re-assignment operator and then right hand-side. If a re-assignment
     /// operator is successfully parsed, then a right hand-side is expected
@@ -635,11 +619,6 @@ impl<'s> AstGen<'s> {
     #[profiling::function]
     pub(crate) fn parse_expr_with_re_assignment(&mut self) -> ParseResult<(AstNode<Expr>, bool)> {
         let (lhs, lhs_span) = self.track_span(|g| g.parse_expr_with_precedence(0))?;
-
-        // Check if we can parse a merge declaration
-        if self.parse_token_fast(TokenKind::Tilde).is_some() {
-            return Ok((self.parse_merge_declaration(lhs)?, false));
-        }
 
         let start = self.current_pos();
         let (Some(operator), consumed_tokens) = self.parse_binary_operator() else {

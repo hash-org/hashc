@@ -1323,19 +1323,6 @@ define_tree! {
         pub value: OptionalChild!(Expr),
     }
 
-    /// A merge declaration (adding implementations to traits/structs), e.g. `x ~=
-    /// impl T { ... };`.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct MergeDeclaration {
-        /// The expression to bind the right-hand side to.
-        pub decl: Child!(Expr),
-
-        /// Any value that is assigned to the binding, simply
-        /// an expression.
-        pub value: Child!(Expr),
-    }
-
     /// Unary operators that are defined within the core of the language.
     #[derive(Debug, Clone, Copy)]
     #[node]
@@ -2292,10 +2279,6 @@ define_tree! {
         /// An expression that captures a variable or a pattern being assigned with
         /// the application of a binary operator, such as `x += 3`.
         AssignOp(AssignOpExpr),
-
-        /// A merge declaration is one that adds an implementation for a particular
-        /// trait/struct to an already declared item, such as `x ~= impl T { ... }`
-        MergeDeclaration(MergeDeclaration),
 
         /// Binary Expression composed of a left and right hand-side with a binary
         /// operator

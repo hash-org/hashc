@@ -252,17 +252,6 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         Ok(())
     }
 
-    type MergeDeclarationRet = ();
-
-    fn visit_merge_declaration(
-        &mut self,
-        node: ast::AstNodeRef<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        // ##Note: We probably don't have to walk this??
-        let _ = walk_mut_self::walk_merge_declaration(self, node);
-        Ok(())
-    }
-
     type LitPatRet = ();
 
     fn visit_lit_pat(

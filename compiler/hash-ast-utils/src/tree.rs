@@ -773,17 +773,6 @@ impl AstVisitor for AstTreePrinter {
         ))
     }
 
-    type MergeDeclarationRet = TreeNode;
-    fn visit_merge_declaration(
-        &self,
-        node: ast::AstNodeRef<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        let walk::MergeDeclaration { decl: pattern, value } =
-            walk::walk_merge_declaration(self, node)?;
-
-        Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
-    }
-
     type AssignExprRet = TreeNode;
     fn visit_assign_expr(
         &self,

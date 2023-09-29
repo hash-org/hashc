@@ -877,19 +877,6 @@ where
         Ok(())
     }
 
-    type MergeDeclarationRet = ();
-
-    fn visit_merge_declaration(
-        &mut self,
-        node: ast::AstNodeRef<ast::MergeDeclaration>,
-    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        let ast::MergeDeclaration { decl, value } = node.body();
-
-        self.visit_expr(decl.ast_ref())?;
-        self.write(" ~= ")?;
-        self.visit_expr(value.ast_ref())
-    }
-
     type ConstructorCallExprRet = ();
 
     fn visit_constructor_call_expr(
