@@ -160,16 +160,6 @@ impl<'s> AstGen<'s> {
         Ok(TyFnDef { params, return_ty, ty_fn_body })
     }
 
-    /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with
-    /// `trait` that contains definitions or attach expressions to a trait.
-    pub fn parse_trait_def(&mut self) -> ParseResult<TraitDef> {
-        self.skip_fast(TokenKind::Keyword(Keyword::Trait)); // `trait`
-
-        let ty_params = self.parse_optional_ty_params(TyParamOrigin::Trait)?;
-
-        Ok(TraitDef { members: self.parse_exprs_from_braces()?, ty_params })
-    }
-
     /// Parse a `mod` block, with optional type parameters.
     pub(crate) fn parse_mod_def(&mut self) -> ParseResult<ModDef> {
         self.skip_fast(TokenKind::Keyword(Keyword::Mod)); // `mod`
@@ -178,15 +168,5 @@ impl<'s> AstGen<'s> {
         let block = self.parse_body_block()?;
 
         Ok(ModDef { block, ty_params })
-    }
-
-    /// Parse a `impl` block, with optional type parameters.
-    pub(crate) fn parse_impl_def(&mut self) -> ParseResult<ImplDef> {
-        self.skip_fast(TokenKind::Keyword(Keyword::Impl)); // `impl`
-
-        let ty_params = self.parse_optional_ty_params(TyParamOrigin::Impl)?;
-        let block = self.parse_body_block()?;
-
-        Ok(ImplDef { block, ty_params })
     }
 }

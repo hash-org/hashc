@@ -28,20 +28,20 @@ error: unexpectedly encountered a `,`
    = help: expected either `identifier`, or `>`
 
 error: unexpectedly encountered a `{...}`
-  --> $DIR/incomplete_ty_params.hash:28:18
+  --> $DIR/incomplete_ty_params.hash:28:16
 26 |    
 27 |    {
-28 |        T := trait < { // missing `>`
-   |  ___________________-
+28 |        T := mod < { // missing `>`
+   |  _________________-
 29 | |          mux: () -> char;
 30 | |      }
    | |______- 
 31 |    }
    = help: expected either `identifier`, or `>`
 
-warn: useless type parameters on this `trait` definition
-  --> $DIR/incomplete_ty_params.hash:22:16
+warn: useless type parameters on this `mod` block
+  --> $DIR/incomplete_ty_params.hash:22:14
 21 |   {
-22 |       T := trait <> {
-   |                  ^^ remove this `<>`
+22 |       T := mod <> {
+   |                ^^ remove this `<>`
 23 |           mux: () -> char;

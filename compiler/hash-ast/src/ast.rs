@@ -1586,23 +1586,6 @@ define_tree! {
         pub entries: Children!(EnumDefEntry),
     }
 
-    /// A trait definition, e.g.
-    /// ```ignore
-    /// trait<T> {
-    ///     add: (T, T) -> T;
-    /// }
-    /// ```
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct TraitDef {
-        /// Type parameters that are attached to the definition.
-        pub ty_params: OptionalChild!(TyParams),
-
-        /// Members of the trait definition, which are constricted to
-        /// constant-block only allowed [Expr]s.
-        pub members: Children!(Expr),
-    }
-
     /// A return statement.
     ///
     /// Has an optional return expression, which becomes `void` if [None] is given.
@@ -1749,24 +1732,6 @@ define_tree! {
     #[derive(Debug, PartialEq, Clone)]
     #[node]
     pub struct ModDef {
-        /// Any type parameters that are applied to the `mod` block.
-        pub ty_params: OptionalChild!(TyParams),
-
-        /// The actual contents of the block.
-        pub block: Child!(BodyBlock),
-    }
-
-    /// An `impl` definition block, e.g.
-    ///
-    /// ```ignore
-    /// impl<T> {
-    ///     into := () -> T => {
-    ///     };
-    /// };
-    /// ```
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct ImplDef {
         /// Any type parameters that are applied to the `mod` block.
         pub ty_params: OptionalChild!(TyParams),
 
@@ -2016,12 +1981,6 @@ define_tree! {
         /// The definition is a `enum`.
         Enum,
 
-        /// The definition is a `trait`.
-        Trait,
-
-        /// The definition is a `impl` block.
-        Impl,
-
         /// The definition is a `mod` block.
         Mod,
     }
@@ -2033,8 +1992,6 @@ define_tree! {
                 TyParamOrigin::TyFn => "type function",
                 TyParamOrigin::Struct => "struct",
                 TyParamOrigin::Enum => "enum",
-                TyParamOrigin::Trait => "trait",
-                TyParamOrigin::Impl => "impl",
                 TyParamOrigin::Mod => "mod",
             }
         }
@@ -2207,16 +2164,6 @@ define_tree! {
         pub data: Child!(Import)
     }
 
-    /// A trait implementation.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct TraitImpl {
-        /// The referenced name to the trait
-        pub ty: Child!(Ty),
-        /// The implementation of the trait.
-        pub trait_body: Children!(Expr),
-    }
-
     /// A binary expression `2 + 2`.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
@@ -2313,12 +2260,6 @@ define_tree! {
         /// Type function definition e.g. `<T> => ...`
         TyFnDef(TyFnDef),
 
-        /// Trait definition e.g.  `trait { ... }`
-        TraitDef(TraitDef),
-
-        /// An implementation definition e.g. `impl { ... }`
-        ImplDef(ImplDef),
-
         /// A `mod` definition e.g. `mod { ... }`
         ModDef(ModDef),
 
@@ -2355,9 +2296,6 @@ define_tree! {
         /// A merge declaration is one that adds an implementation for a particular
         /// trait/struct to an already declared item, such as `x ~= impl T { ... }`
         MergeDeclaration(MergeDeclaration),
-
-        /// Trait implementation e.g. `impl Clone { ... }`
-        TraitImpl(TraitImpl),
 
         /// Binary Expression composed of a left and right hand-side with a binary
         /// operator

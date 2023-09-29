@@ -650,24 +650,6 @@ impl AstVisitor for AstTreePrinter {
         Ok(TreeNode::branch("mod", children))
     }
 
-    type ImplDefRet = TreeNode;
-    fn visit_impl_def(
-        &self,
-        node: ast::AstNodeRef<ast::ImplDef>,
-    ) -> Result<Self::ImplDefRet, Self::Error> {
-        let walk::ImplDef { block, ty_params } = walk::walk_impl_def(self, node)?;
-
-        let children = {
-            if let Some(ty_params) = ty_params && !ty_params.children.is_empty() {
-                vec![ty_params, block]
-            } else {
-                vec![block]
-            }
-        };
-
-        Ok(TreeNode::branch("impl", children))
-    }
-
     type IfClauseRet = TreeNode;
     fn visit_if_clause(
         &self,
@@ -935,28 +917,6 @@ impl AstVisitor for AstTreePrinter {
         };
 
         Ok(TreeNode::branch("enum_def", children))
-    }
-
-    type TraitDefRet = TreeNode;
-    fn visit_trait_def(
-        &self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        let walk::TraitDef { members, ty_params: _ } = walk::walk_trait_def(self, node)?;
-        Ok(TreeNode::branch("trait_def", vec![TreeNode::branch("members", members)]))
-    }
-
-    type TraitImplRet = TreeNode;
-
-    fn visit_trait_impl(
-        &self,
-        node: ast::AstNodeRef<ast::TraitImpl>,
-    ) -> Result<Self::TraitImplRet, Self::Error> {
-        let walk::TraitImpl { trait_body, ty } = walk::walk_trait_impl(self, node)?;
-        Ok(TreeNode::branch(
-            "trait_impl",
-            vec![TreeNode::branch("ty", vec![ty]), TreeNode::branch("body", trait_body)],
-        ))
     }
 
     type PatRet = TreeNode;

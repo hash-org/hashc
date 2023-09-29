@@ -183,11 +183,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             }
 
             // No-ops (not supported or handled earlier):
-            ast::Expr::TraitDef(_)
-            | ast::Expr::MergeDeclaration(_)
-            | ast::Expr::Declaration(_)
-            | ast::Expr::ImplDef(_)
-            | ast::Expr::TraitImpl(_) => Term::unit(NodeOrigin::Given(node.id())),
+            ast::Expr::MergeDeclaration(_) | ast::Expr::Declaration(_) => {
+                Term::unit(NodeOrigin::Given(node.id()))
+            }
 
             ast::Expr::StructDef(_) => {
                 self.resolve_data_def_inner_terms(node)?;

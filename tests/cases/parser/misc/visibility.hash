@@ -7,7 +7,7 @@ pub foo := 3;
 bar := 4;
 
 
-Foo := trait {
+Foo := mod {
     // Visible from outside
     foo: (Self) -> str;
 

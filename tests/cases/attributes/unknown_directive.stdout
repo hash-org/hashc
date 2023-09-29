@@ -1,4 +1,4 @@
-AST for `$DIR/unknown_directive.hash:13:20-16:6`:
+AST for `$DIR/unknown_directive.hash:9:20-12:6`:
 body
 ├─statements
 │ └─declaration

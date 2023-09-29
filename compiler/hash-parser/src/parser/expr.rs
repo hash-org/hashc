@@ -161,10 +161,6 @@ impl<'s> AstGen<'s> {
                 let def = self.parse_enum_def()?;
                 self.node_with_joined_span(Expr::EnumDef(def), token.span)
             }
-            TokenKind::Keyword(Keyword::Trait) => {
-                let def = self.parse_trait_def()?;
-                self.node_with_joined_span(Expr::TraitDef(def), token.span)
-            }
             TokenKind::Keyword(Keyword::Type) => {
                 self.skip_fast(token.kind); // `type`
                 let ty = self.parse_ty()?;
@@ -173,24 +169,6 @@ impl<'s> AstGen<'s> {
             TokenKind::Keyword(Keyword::Mod) => {
                 let def = self.parse_mod_def()?;
                 self.node_with_joined_span(Expr::ModDef(def), token.span)
-            }
-            TokenKind::Keyword(Keyword::Impl) => {
-                if let Some(Token { kind: TokenKind::Tree(Delimiter::Brace, _), .. }) =
-                    self.peek_second()
-                {
-                    let def = self.parse_impl_def()?;
-                    self.node_with_joined_span(Expr::ImplDef(def), token.span)
-                } else {
-                    self.skip_fast(token.kind); // `impl`
-
-                    let ty = self.parse_ty()?;
-                    let trait_body = self.parse_exprs_from_braces()?;
-
-                    self.node_with_joined_span(
-                        Expr::TraitImpl(TraitImpl { ty, trait_body }),
-                        token.span,
-                    )
-                }
             }
             // Body block.
             TokenKind::Tree(Delimiter::Brace, _) => {
@@ -866,26 +844,5 @@ impl<'s> AstGen<'s> {
         };
 
         Ok(self.node_with_joined_span(Expr::FnDef(FnDef { params, return_ty, fn_body }), start))
-    }
-
-    /// Function to parse a sequence of top-level [Expr]s from a
-    /// brace-block exhausting all of the remaining tokens within the block.
-    /// This function expects that the next token is a [TokenKind::Tree] and
-    /// it will consume it producing [Expr]s from it.
-    pub(crate) fn parse_exprs_from_braces(&mut self) -> ParseResult<AstNodes<Expr>> {
-        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
-            let mut exprs = thin_vec![];
-
-            // Continue eating the generator until no more tokens are present
-            //
-            // @@ErrorRecovery: don't bail immediately...
-            while gen.has_token() {
-                if let Some((_, expr)) = gen.parse_top_level_expr()? {
-                    exprs.push(expr);
-                }
-            }
-
-            Ok(gen.nodes_with_span(exprs, gen.range()))
-        })
     }
 }

@@ -1,13 +1,6 @@
-error: could not resolve macro `erase`
- --> $DIR/unknown_directive.hash:3:9
-2 |   
-3 |   Bar := #erase trait<T> {
-  |           ^^^^^ `erase` is not a built-in attribute macro
-4 |       into_bar: (T) -> Self
-
 error: could not resolve macro `memoise`
- --> $DIR/unknown_directive.hash:8:9
-7 |   
-8 |   Bar := #memoise () -> u32 => {
+ --> $DIR/unknown_directive.hash:4:9
+3 |   
+4 |   Bar := #memoise () -> u32 => {
   |           ^^^^^^^ `memoise` is not a built-in attribute macro
-9 |       into_bar: (T) -> Self
+5 |       into_bar: (T) -> Self

@@ -127,8 +127,6 @@ impl AttrTarget {
             ast::Expr::StructDef(_) => AttrTarget::StructDef,
             ast::Expr::EnumDef(_) => AttrTarget::EnumDef,
             ast::Expr::TyFnDef(_) => AttrTarget::TyFnDef,
-            ast::Expr::TraitDef(_) => AttrTarget::TraitDef,
-            ast::Expr::ImplDef(_) => AttrTarget::ImplDef,
             ast::Expr::ModDef(_) => AttrTarget::ModDef,
             ast::Expr::FnDef(_) => AttrTarget::FnDef,
             ast::Expr::Ty(_) => AttrTarget::Ty,

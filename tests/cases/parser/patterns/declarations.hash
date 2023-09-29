@@ -7,6 +7,4 @@ alpha: int;
 
 merge := (a, b) => str_concat(a, b);
 
-Merge := <T: Add> => trait {
-    merge := (a, b) => a + b;
-};
+add := <T: Add> => (a: T, b: T) => a + b

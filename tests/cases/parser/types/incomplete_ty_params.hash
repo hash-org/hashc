@@ -19,13 +19,13 @@
 }
 
 {
-    T := trait <> {
+    T := mod <> {
         mux: () -> char;
     }
 }
 
 {
-    T := trait < { // missing `>`
+    T := mod < { // missing `>`
         mux: () -> char;
     }
 }

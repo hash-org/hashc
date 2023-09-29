@@ -437,24 +437,6 @@ where
         self.write(format!("{:?}", node.body.data))
     }
 
-    type TraitImplRet = ();
-
-    fn visit_trait_impl(
-        &mut self,
-        node: ast::AstNodeRef<ast::TraitImpl>,
-    ) -> Result<Self::TraitImplRet, Self::Error> {
-        let ast::TraitImpl { ty, trait_body } = node.body();
-
-        self.write("impl ")?;
-        self.visit_ty(ty.ast_ref())?;
-        self.write(" ")?;
-
-        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Bracket, ", ");
-        opts.indented().terminating_delimiters();
-
-        self.print_separated_collection(trait_body, opts, |this, item| this.visit_expr(item))
-    }
-
     type ReturnStatementRet = ();
 
     fn visit_return_statement(
@@ -1012,26 +994,6 @@ where
         self.visit_name(property.ast_ref())
     }
 
-    type TraitDefRet = ();
-
-    fn visit_trait_def(
-        &mut self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        let ast::TraitDef { ty_params, members } = node.body();
-
-        self.write("trait")?;
-
-        if let Some(ty_params) = ty_params {
-            self.visit_ty_params(ty_params.ast_ref())?;
-        }
-
-        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Brace, "\n");
-        opts.indented().per_line().terminating_delimiters();
-
-        self.print_separated_collection(members, opts, |this, member| this.visit_expr(member))
-    }
-
     type ModulePatRet = ();
 
     fn visit_module_pat(
@@ -1226,24 +1188,6 @@ where
         // @@Todo: consider line breaks here.
         self.write(format!(" {} ", operator.body()))?;
         self.visit_expr(rhs.ast_ref())
-    }
-
-    type ImplDefRet = ();
-
-    fn visit_impl_def(
-        &mut self,
-        node: ast::AstNodeRef<ast::ImplDef>,
-    ) -> Result<Self::ImplDefRet, Self::Error> {
-        let ast::ImplDef { ty_params, block } = node.body();
-
-        self.write("impl")?;
-
-        if let Some(ty_params) = ty_params {
-            self.visit_ty_params(ty_params.ast_ref())?;
-        }
-
-        self.write(" ")?;
-        self.visit_body_block(block.ast_ref())
     }
 
     type LoopBlockRet = ();

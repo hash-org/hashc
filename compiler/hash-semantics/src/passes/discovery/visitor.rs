@@ -5,7 +5,7 @@ use hash_ast::{
     ast_visitor_default_impl,
     visitor::walk,
 };
-use hash_reporting::{diagnostic::Diagnostics, macros::panic_on_span};
+use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
     scopes::Stack,
@@ -30,7 +30,6 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         hiding: Declaration,
         Module,
         ModDef,
-        TraitDef,
         StructDef,
         EnumDef,
         FnDef,
@@ -418,28 +417,14 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         Ok(())
     }
 
-    type TraitDefRet = ();
-    fn visit_trait_def(
-        &self,
-        node: ast::AstNodeRef<ast::TraitDef>,
-    ) -> Result<Self::TraitDefRet, Self::Error> {
-        // Traits are not yet supported
-        self.diagnostics()
-            .add_error(SemanticError::TraitsNotSupported { trait_location: node.span() });
-        Ok(())
-    }
-
     type ExprRet = ();
     fn visit_expr(&self, node: AstNodeRef<ast::Expr>) -> Result<Self::ExprRet, Self::Error> {
         match node.body {
             ast::Expr::StructDef(_)
             | ast::Expr::EnumDef(_)
             | ast::Expr::TyFnDef(_)
-            | ast::Expr::TraitDef(_)
-            | ast::Expr::ImplDef(_)
             | ast::Expr::ModDef(_)
             | ast::Expr::FnDef(_)
-            | ast::Expr::TraitImpl(_)
             | ast::Expr::Macro(_) => {} // These accept a name hint
             _ => {
                 // Everything else should not have a name hint
