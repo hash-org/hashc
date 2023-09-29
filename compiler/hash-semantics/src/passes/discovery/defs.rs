@@ -391,8 +391,7 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
             // If the above `get_data_by_node` returns `None`, do
             // nothing because there might have been a recoverable
             // error in a declaration which could have led to no
-            // `AstInfo` being recorded, for example for
-            // `TraitsNotSupported` error.
+            // `AstInfo` being recorded.
         }
     }
 

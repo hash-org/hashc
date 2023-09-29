@@ -72,7 +72,7 @@ impl SemanticAnalyser {
                         self.append_error(AnalysisErrorKind::SelfInFreeStandingFn, param);
                     }
                 }
-                BlockOrigin::Impl | BlockOrigin::Trait | BlockOrigin::Mod  => {
+                BlockOrigin::Mod  => {
                     // If both the type definition is missing and the default expression assignment
                     // to the struct-def field, then a type cannot be inferred and is thus
                     // ambiguous.

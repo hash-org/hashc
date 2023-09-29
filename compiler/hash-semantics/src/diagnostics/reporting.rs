@@ -57,22 +57,6 @@ impl SemanticReporter {
                     Self::add_error_to_reporter(error, reporter);
                 }
             }
-            SemanticError::TraitsNotSupported { trait_location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::UnsupportedTraits)
-                    .title("traits are work-in-progress and currently not supported".to_string());
-
-                error.add_span(*trait_location).add_help("cannot use traits yet");
-            }
-            SemanticError::MergeDeclarationsNotSupported { merge_location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::UnsupportedTraits)
-                    .title("merge declarations are currently not supported".to_string());
-
-                error.add_span(*merge_location).add_help("cannot use merge declarations yet");
-            }
             SemanticError::SymbolNotFound { symbol, location, looking_in } => {
                 let def_name = format!("{}", looking_in);
                 let search_name = *symbol;
