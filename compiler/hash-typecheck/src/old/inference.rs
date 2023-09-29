@@ -25,11 +25,11 @@ use hash_tir::{
     term_as_variant,
     tir::{
         validate_and_reorder_pat_args_against_params, validate_params, Arg, ArgId, ArgsId,
-        ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat, DataDefCtors, DataDefId,
-        DataTy, FnDefId, FnTy, HasAstNodeId, IfPat, Lit, LitId, MatchTerm, ModDefId, ModMemberId,
+        ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorPat, DataDefCtors, DataDefId, DataTy,
+        FnDefId, FnTy, HasAstNodeId, IfPat, Lit, LitId, MatchTerm, ModDefId, ModMemberId,
         ModMemberValue, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId,
-        PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, RefTerm, RefTy, Spread,
-        SymbolId, Term, TermId, TermListId, TuplePat, TupleTy, Ty, TyId, TyOfTerm,
+        PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, Spread, SymbolId, Term,
+        TermId, TermListId, TuplePat, TupleTy, Ty, TyId,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -547,65 +547,6 @@ impl<T: TcEnv> Tc<'_, T> {
         Ok(fn_ty_value)
     }
 
-    /// Infer a `typeof` term, and return it.
-    pub fn infer_ty_of_term(
-        &self,
-        ty_of_term: TyOfTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        let inferred_ty = Ty::hole_for(ty_of_term.term);
-        self.infer_term(ty_of_term.term, inferred_ty)?;
-        self.infer_term(inferred_ty, annotation_ty)?;
-        self.norm_ops().normalise_in_place(original_term_id.into())?;
-        Ok(())
-    }
-
-    /// Infer a reference term, and return its type.
-    pub fn infer_ref_term(
-        &self,
-        ref_term: &RefTerm,
-        annotation_ty: TyId,
-        original_term_id: TermId,
-    ) -> TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-        let annotation_ref_ty = match *annotation_ty.value() {
-            Ty::RefTy(ref_ty) => ref_ty,
-            Ty::Hole(_) => RefTy {
-                kind: ref_term.kind,
-                mutable: ref_term.mutable,
-                ty: Ty::hole_for(ref_term.subject),
-            },
-            _ => {
-                return Err(TcError::MismatchingTypes {
-                    expected: annotation_ty,
-                    actual: Ty::from(
-                        RefTy {
-                            kind: ref_term.kind,
-                            mutable: ref_term.mutable,
-                            ty: Ty::hole(ref_term.subject.origin().inferred()),
-                        },
-                        original_term_id.origin().inferred(),
-                    ),
-                })
-            }
-        };
-
-        self.infer_term(ref_term.subject, annotation_ref_ty.ty)?;
-
-        let ty =
-            Ty::expect_is(original_term_id, Ty::from(annotation_ref_ty, annotation_ty.origin()));
-        self.check_by_unify(ty, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer a cast term, and return its type.
-    pub fn infer_cast_term(&self, cast_term: CastTerm, annotation_ty: TyId) -> TcResult<()> {
-        self.infer_term(cast_term.subject_term, cast_term.target_ty)?;
-        self.check_by_unify(cast_term.target_ty, annotation_ty)?;
-        Ok(())
-    }
-
     /// Infer an intrinsic term, and return it.
     pub fn infer_intrinsic(&self, intrinsic: Intrinsic, annotation_ty: TyId) -> TcResult<()> {
         // ##GeneratedOrigin: intrinsics do not belong to the source code
@@ -748,11 +689,9 @@ impl<T: TcEnv> Tc<'_, T> {
             }
             Term::Loop(mut loop_term) => self.check(&mut loop_term, annotation_ty, term_id)?,
             Term::Block(mut block_term) => self.check(&mut block_term, annotation_ty, term_id)?,
-            Term::TypeOf(ty_of_term) => {
-                self.infer_ty_of_term(ty_of_term, annotation_ty, term_id)?
-            }
-            Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
-            Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
+            Term::TyOf(mut ty_of_term) => self.check(&mut ty_of_term, annotation_ty, term_id)?,
+            Term::Ref(mut ref_term) => self.check(&mut ref_term, annotation_ty, term_id)?,
+            Term::Cast(mut cast_term) => self.check(&mut cast_term, annotation_ty, term_id)?,
             Term::Access(mut access_term) => {
                 self.check(&mut access_term, annotation_ty, term_id)?
             }

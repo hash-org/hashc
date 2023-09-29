@@ -152,7 +152,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
                 | Term::Array(_)
                 | Term::Index(_)
                 | Term::Cast(_)
-                | Term::TypeOf(_)
+                | Term::TyOf(_)
                 | Term::DataTy(_)
                 | Term::RefTy(_)
                 | Term::Universe(_)
@@ -663,7 +663,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::TypeOf(term) => ctrl_map(self.eval_type_of(term)),
+                Term::TyOf(term) => ctrl_map(self.eval_type_of(term)),
                 Term::Unsafe(unsafe_expr) => ctrl_map(self.eval_unsafe(unsafe_expr)),
                 Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
                 Term::Call(fn_call) => {

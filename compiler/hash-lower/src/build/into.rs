@@ -336,7 +336,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
 
             Term::Cast(_)
-            | Term::TypeOf(_)
+            | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)
             | Ty::TupleTy(_)

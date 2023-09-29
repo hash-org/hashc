@@ -1,7 +1,73 @@
 use hash_storage::store::statics::StoreId;
-use hash_tir::tir::{DerefTerm, TermId, Ty, TyId};
+use hash_tir::tir::{DerefTerm, NodeId, RefTerm, RefTy, TermId, Ty, TyId};
 
 use crate::{checker::Tc, env::TcEnv, errors::TcError, operations::Operations};
+
+impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
+    type TyNode = TyId;
+    type Node = TermId;
+
+    fn check(
+        &self,
+        ref_term: &mut RefTerm,
+        annotation_ty: Self::TyNode,
+        original_term_id: Self::Node,
+    ) -> crate::errors::TcResult<()> {
+        self.normalise_and_check_ty(annotation_ty)?;
+        let annotation_ref_ty = match *annotation_ty.value() {
+            Ty::RefTy(ref_ty) => ref_ty,
+            Ty::Hole(_) => RefTy {
+                kind: ref_term.kind,
+                mutable: ref_term.mutable,
+                ty: Ty::hole_for(ref_term.subject),
+            },
+            _ => {
+                return Err(TcError::MismatchingTypes {
+                    expected: annotation_ty,
+                    actual: Ty::from(
+                        RefTy {
+                            kind: ref_term.kind,
+                            mutable: ref_term.mutable,
+                            ty: Ty::hole(ref_term.subject.origin().inferred()),
+                        },
+                        original_term_id.origin().inferred(),
+                    ),
+                })
+            }
+        };
+
+        self.infer_term(ref_term.subject, annotation_ref_ty.ty)?;
+
+        let ty =
+            Ty::expect_is(original_term_id, Ty::from(annotation_ref_ty, annotation_ty.origin()));
+        self.check_by_unify(ty, annotation_ty)?;
+        Ok(())
+    }
+
+    fn normalise(
+        &self,
+        _opts: &crate::operations::normalisation::NormalisationOptions,
+        _item: RefTerm,
+        _item_node: Self::Node,
+    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+        todo!()
+    }
+
+    fn unify(
+        &self,
+        _opts: &crate::operations::unification::UnificationOptions,
+        _src: &mut RefTerm,
+        _target: &mut RefTerm,
+        _src_node: Self::Node,
+        _target_node: Self::Node,
+    ) -> crate::errors::TcResult<()> {
+        todo!()
+    }
+
+    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut RefTerm) {
+        todo!()
+    }
+}
 
 impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
     type TyNode = TyId;

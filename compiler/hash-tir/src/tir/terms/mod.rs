@@ -122,7 +122,7 @@ pub enum Term {
 
     // Casting
     Cast(CastTerm),
-    TypeOf(TyOfTerm),
+    TyOf(TyOfTerm),
 
     // References
     Ref(RefTerm),
@@ -309,7 +309,7 @@ impl fmt::Display for Term {
             Term::Unsafe(unsafe_term) => write!(f, "{}", unsafe_term),
             Term::Access(access_term) => write!(f, "{}", access_term),
             Term::Cast(cast_term) => write!(f, "{}", cast_term),
-            Term::TypeOf(type_of_term) => write!(f, "{}", type_of_term),
+            Term::TyOf(type_of_term) => write!(f, "{}", type_of_term),
             Term::Ref(ref_term) => write!(f, "{}", ref_term),
             Term::Deref(deref_term) => write!(f, "{}", deref_term),
             Term::Hole(hole) => write!(f, "{}", *hole),

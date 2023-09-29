@@ -269,7 +269,7 @@ impl Visit<TermId> for Visitor {
                     self.try_visit(cast_term.subject_term, f)?;
                     self.try_visit(cast_term.target_ty, f)
                 }
-                Term::TypeOf(type_of_term) => self.try_visit(type_of_term.term, f),
+                Term::TyOf(type_of_term) => self.try_visit(type_of_term.term, f),
                 Term::Ref(ref_term) => self.try_visit(ref_term.subject, f),
                 Term::Deref(deref_term) => self.try_visit(deref_term.subject, f),
                 Term::Hole(_) => Ok(()),
@@ -399,7 +399,7 @@ impl Map<TermId> for Visitor {
                     let target_ty = self.try_map(cast_term.target_ty, f)?;
                     Ok(Term::from(CastTerm { subject_term, target_ty }, origin))
                 }
-                Term::TypeOf(type_of_term) => {
+                Term::TyOf(type_of_term) => {
                     let term = self.try_map(type_of_term.term, f)?;
                     Ok(Term::from(TyOfTerm { term }, origin))
                 }
