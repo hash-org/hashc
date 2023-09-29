@@ -111,6 +111,120 @@ impl ReportCodeBlock {
             .take(top_buffer + end_row - start_row + 1 + bottom_buffer)
     }
 
+    /// Function which compute the "true" width of a span in a source file. This
+    /// means that if the line contains any [combining marks][https://unicode.org/reports/tr15/#Normalization_Forms_Table].
+    ///
+    /// If any combining marks are encountered, it is assumed that they are not
+    /// rendered within the span, and thus they are subtracted from the
+    /// total width of the given drawn span.
+    ///
+    /// More specifically, when the rendering wants to draw a reference on a
+    /// span which will be of some "width", it will use this function to
+    /// compute the "true" width of the span, and then draw the span using
+    /// the computed width. For example, this snippet of code:
+    ///
+    /// ```
+    /// 'ä' // a + combining diaeresis'
+    /// ```
+    ///
+    /// In this snippet, the compiler lexer will emit an error on the `ä`
+    /// character because it is not normalised. The compiler will then want
+    /// to draw a span on the `'ä'` character to indicate that it is the
+    /// source of the error. However, the `'ä'` character is actually
+    /// two characters, the `a` and the combining diaeresis. So, when the
+    /// compiler wants to draw the following (snippet 1):
+    /// ```
+    /// 'ä'
+    /// ^^^
+    /// ```
+    ///
+    /// It will actually draw the following (snippet 2):
+    ///
+    /// ```
+    /// 'ä'
+    /// ^^^^
+    /// ```
+    ///
+    /// To solve this issue, we need to compute the "true" width of the span,
+    /// which is the width of the span minus the number of combining marks
+    /// in the span. So, in the above example, the "true" width of the span
+    /// is 3, and thus the compiler will draw (snippet 1) instead of
+    /// (snippet 2).
+    ///
+    /// N.B. It is assumed that the provided [RowColRange] references on the
+    /// `line`.
+    fn get_line_display_width(&self, line: &str, start: usize, end: usize) -> usize {
+        // count the number of combining marks is up to the given `end.column`.
+        let mut combining_marks = 0;
+
+        for (index, ch) in line.chars().enumerate().skip(start) {
+            // Stop counting the characters once we reach the end of the span.
+            if index == end {
+                break;
+            }
+
+            // If it is a combining mark, its not going to be rendered within the
+            // span, so we need to subtract it from the total width.
+            //
+            // @@Investigate: maybe use `unicode-width` here?
+            if unicode_normalization::char::is_combining_mark(ch) {
+                combining_marks += 1;
+            }
+        }
+
+        (end - start).saturating_sub(combining_marks)
+    }
+
+    /// Function which is responsible for rendering the span note which is
+    /// present at the end of the span view. This will print the initial
+    /// prefix to the span view, usually the highlighted part of the span,
+    /// and then the message.
+    ///
+    /// This function will automatically format the message to correctly align
+    /// all of the lines of the span message with the correct indentation.
+    fn render_span_label(
+        &self,
+        f: &mut fmt::Formatter,
+        offset: usize,
+        initial_prefix: String,
+        longest_indent_width: usize,
+        kind: ReportKind,
+    ) -> fmt::Result {
+        let mut write_line = |line: &str| {
+            writeln!(
+                f,
+                "{} {} {}",
+                " ".repeat(longest_indent_width),
+                highlight(Colour::Blue, "|"),
+                highlight(kind.as_colour(), line)
+            )
+        };
+
+        let line_count = self.code_message.lines().count();
+
+        // If the number of lines is zero, then we still want to print
+        // the initial prefix.
+        if line_count == 0 {
+            let line: String = once(initial_prefix.as_str())
+                .chain(once(" "))
+                .chain(once(self.code_message.as_str()))
+                .collect();
+            return write_line(&line);
+        }
+
+        for (index, line) in self.code_message.lines().enumerate() {
+            let message_line: String = if index == 0 {
+                once(initial_prefix.as_str()).chain(once(" ")).chain(once(line)).collect()
+            } else {
+                repeat(" ").take(offset).chain(once(line)).collect()
+            };
+
+            write_line(&message_line)?;
+        }
+
+        Ok(())
+    }
+
     /// Function that performs the rendering of the `line` view for a
     /// diagnostic. In this mode, only a single line is highlighted using
     /// the [LINE_DIAGNOSTIC_MARKER]. It will highlight the entire span
@@ -148,36 +262,29 @@ impl ReportCodeBlock {
                 index_str
             };
 
+            // Print the line number and the line
             writeln!(f, "{line_number} {}   {line}", highlight(Colour::Blue, "|"))?;
 
-            if (start_row..=end_row).contains(&index) && !line.is_empty() {
-                let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER)
-                    .take(if index == start_row && start_row == end_row {
-                        end_column - start_column
-                    } else if index == start_row {
-                        line.len().saturating_sub(start_column)
-                    } else if index == end_row {
-                        end_column
-                    } else {
-                        line.len()
-                    })
-                    .collect();
+            // If this is the error view. then we want to print the
+            // the span label.
+            if index == start_row && !line.is_empty() {
+                let dashes_length = self.get_line_display_width(line, start_column, end_column);
+                let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER).take(dashes_length).collect();
 
-                let mut code_note: String = repeat(" ")
-                    .take(if index == start_row { start_column } else { 0 })
-                    .chain(once(dashes.as_str()))
-                    .collect();
+                let highlight_offset = self.get_line_display_width(line, 0, start_column) + 2;
 
-                if index == end_row {
-                    code_note.extend(once(" ").chain(once(self.code_message.as_str())));
-                }
+                // Offset of the initial space between the start, then the dashes, then a space
+                let total_offset = highlight_offset + dashes_length + 1;
 
-                writeln!(
+                let initial_prefix =
+                    repeat(" ").take(highlight_offset).chain(once(dashes.as_str())).collect();
+
+                self.render_span_label(
                     f,
-                    "{} {}   {}",
-                    " ".repeat(longest_indent_width),
-                    highlight(Colour::Blue, "|"),
-                    highlight(kind.as_colour(), &code_note)
+                    total_offset,
+                    initial_prefix,
+                    longest_indent_width,
+                    kind,
                 )?;
             }
         }
@@ -215,7 +322,7 @@ impl ReportCodeBlock {
         f: &mut fmt::Formatter,
         source: &Source,
         longest_indent_width: usize,
-        report_kind: ReportKind,
+        kind: ReportKind,
     ) -> fmt::Result {
         let error_view = self.get_source_view(source);
         let ReportCodeBlockInfo { span, .. } = self.info(source);
@@ -243,7 +350,7 @@ impl ReportCodeBlock {
             let index_str = format!("{:<longest_indent_width$}", index + 1);
 
             let line_number = if (start_row..=end_row).contains(&index) {
-                highlight(report_kind.as_colour(), &index_str)
+                highlight(kind.as_colour(), &index_str)
             } else {
                 index_str
             };
@@ -272,8 +379,8 @@ impl ReportCodeBlock {
                     writeln!(
                         f,
                         "{} {}",
-                        highlight(report_kind.as_colour(), range_line_number),
-                        highlight(report_kind.as_colour(), connector),
+                        highlight(kind.as_colour(), range_line_number),
+                        highlight(kind.as_colour(), connector),
                     )?;
                 }
 
@@ -288,43 +395,38 @@ impl ReportCodeBlock {
                 "{} {} {}  {}",
                 line_number,
                 highlight(Colour::Blue, "|"),
-                highlight(report_kind.as_colour(), connector),
+                highlight(kind.as_colour(), connector),
                 line
             )?;
 
             // If this is th first row of the diagnostic span, then we want to draw an arrow
             // leading up to it
             if index == start_row {
-                let arrow: String = repeat('_')
-                    .take(start_column + 2)
-                    .chain(once(BLOCK_DIAGNOSTIC_MARKER))
-                    .collect();
+                // compute the actual length of the arrow
+                let arrow_length = self.get_line_display_width(line, 0, start_column + 2);
+                let arrow: String =
+                    repeat('_').take(arrow_length).chain(once(BLOCK_DIAGNOSTIC_MARKER)).collect();
 
                 writeln!(
                     f,
                     "{} {}  {}",
                     " ".repeat(longest_indent_width),
                     highlight(Colour::Blue, "|"),
-                    highlight(report_kind.as_colour(), arrow)
+                    highlight(kind.as_colour(), arrow)
                 )?;
             }
 
             // Now we perform the same operator for creating an arrow to join the end span,
             // and of course we write the note at the end of the span.
             if index == end_row {
+                // compute the actual length of the arrow
+                let arrow_length = self.get_line_display_width(line, 0, end_column + 1);
                 let arrow: String = once('|')
-                    .chain(repeat('_').take(end_column + 1))
-                    .chain(format!("{BLOCK_DIAGNOSTIC_MARKER} ").chars())
-                    .chain(self.code_message.as_str().chars())
+                    .chain(repeat('_').take(arrow_length))
+                    .chain(format!("{BLOCK_DIAGNOSTIC_MARKER}").chars())
                     .collect();
 
-                writeln!(
-                    f,
-                    "{} {} {}",
-                    " ".repeat(longest_indent_width),
-                    highlight(Colour::Blue, "|"),
-                    highlight(report_kind.as_colour(), arrow)
-                )?;
+                self.render_span_label(f, arrow_length, arrow, longest_indent_width, kind)?;
             }
         }
 
@@ -350,7 +452,7 @@ impl ReportCodeBlock {
                 highlight(Colour::Blue, "-->"),
                 highlight(
                     Modifier::Underline,
-                    format!("{}:{}", source.canonicalised_path().display(), span.start)
+                    format!("{}:{}", source.canonicalised_path().display(), span.start),
                 )
             )?;
 

@@ -1,0 +1,16 @@
+// run=fail, stage=parse
+
+main := () => {
+    // Single combining mark.
+    spade  := '♠️'
+
+    // Multiple combining characters.
+    bing   := 'ṩ̂̊'
+
+    // Suggest to write the normalised character.
+    a_ring := 'Å'
+    happy  := '☺️'
+
+    // This shouldn't print the combining characters suggestions.
+    bing_happy := 'ṩ̂̊☺️'
+}

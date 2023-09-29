@@ -9,7 +9,6 @@ use std::{
     time::Duration,
 };
 
-use hash_ast::node_map::InteractiveBlock;
 use hash_pipeline::{
     fs::{resolve_path, PRELUDE},
     interface::{CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage},
@@ -352,8 +351,7 @@ impl<I: CompilerInterface> Driver<I> {
 
     /// Run the compiler on a interactive line input.
     pub fn run_interactive(&mut self, input: String) {
-        let source =
-            self.compiler.workspace_mut().add_interactive_block(input, InteractiveBlock::new());
+        let source = self.compiler.workspace_mut().add_interactive_block(input);
         self.run(source)
     }
 

@@ -9,3 +9,4 @@ pub mod report;
 pub mod reporter;
 
 pub use hash_error_codes;
+pub use unicode_normalization;

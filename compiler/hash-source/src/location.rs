@@ -242,35 +242,58 @@ impl<'s> SpannedSource<'s> {
 /// This struct is used a wrapper for a [RangeMap] in order to
 /// implement a nice display format, amongst other things.
 #[derive(Debug)]
-pub struct LineRanges(RangeMap<usize, ()>);
+pub struct LineRanges {
+    /// The actual line map.
+    map: RangeMap<usize, ()>,
+
+    /// The source that the map belongs to.
+    source: SourceId,
+}
 
 impl LineRanges {
     /// Create a line range from a string slice.
-    pub fn new_from_str(s: &str) -> Self {
+    pub fn new_from_str(source: SourceId, s: &str) -> Self {
         // Pre-allocate the line ranges to a specific size by counting the number of
         // newline characters within the module source.
-        let mut ranges = Self(RangeMap::with_capacity(bytecount::count(s.as_bytes(), b'\n')));
+        let mut map = RangeMap::with_capacity(bytecount::count(s.as_bytes(), b'\n'));
 
         // Now, iterate through the source and record the position of each newline
         // range, and push it into the map.
         let mut count = 0;
 
         for line in s.lines() {
-            ranges.append(count..=(count + line.len()), ());
+            map.append(count..=(count + line.len()), ());
             count += line.len() + 1;
         }
 
-        ranges
+        Self { map, source }
     }
 
     /// Get a [RowCol] from a given byte index.
     pub fn get_row_col(&self, index: usize, end: bool) -> RowCol {
-        let ranges = &self.0;
+        let ranges = &self.map;
         let line = ranges.index_wrapping(index);
         let key = ranges.key_wrapping(index);
         let offset = key.start();
+        let column_byte_offset = index + (end as usize) - offset;
 
-        RowCol { row: line, column: index + (end as usize) - offset }
+        // Unfortunately, it isn't as simple as just counting the number of
+        // bytes from the start of the line to the current byte index, as
+        // some characters are encoded using multiple bytes. So, we need to
+        // iterate the character indices until we reach the current byte
+        // index.
+        let mut column = 0;
+
+        SourceMapUtils::map(self.source, |source| {
+            let line_range = ByteRange::new(key.start(), key.end());
+            let mut indices = source.contents().hunk(line_range).char_indices();
+
+            while let Some((index, _)) = indices.next() && index < column_byte_offset {
+                column += 1;
+            }
+        });
+
+        RowCol { row: line, column }
     }
 
     /// Returns the line and column of the given [ByteRange]
@@ -286,17 +309,17 @@ impl Deref for LineRanges {
     type Target = RangeMap<usize, ()>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.map
     }
 }
 
 impl DerefMut for LineRanges {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.map
     }
 }
 
-impl fmt::Display for LineRanges {
+impl Display for LineRanges {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (index, (key, _)) in self.iter().enumerate() {
             writeln!(f, "{key}: {}", index + 1)?;

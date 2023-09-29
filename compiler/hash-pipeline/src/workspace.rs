@@ -274,8 +274,9 @@ impl Workspace {
     /// Add a interactive block to the [Workspace] by providing the contents and
     /// the [InteractiveBlock]. Returns the created [InteractiveId] from
     /// adding it to the source map.
-    pub fn add_interactive_block(&mut self, input: String, block: InteractiveBlock) -> SourceId {
+    pub fn add_interactive_block(&mut self, input: String) -> SourceId {
         let id = SourceMapUtils::add_interactive_block(input);
+        let block = InteractiveBlock::new();
 
         // Add this source to the node map, and to the stage info
         self.node_map.add_interactive_block(block);
