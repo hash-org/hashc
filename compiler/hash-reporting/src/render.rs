@@ -165,6 +165,8 @@ impl ReportCodeBlock {
 
             // If it is a combining mark, its not going to be rendered within the
             // span, so we need to subtract it from the total width.
+            //
+            // @@Investigate: maybe use `unicode-width` here?
             if unicode_normalization::char::is_combining_mark(ch) {
                 combining_marks += 1;
             }
