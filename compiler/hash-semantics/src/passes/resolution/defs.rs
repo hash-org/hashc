@@ -151,7 +151,7 @@ impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
     ) -> ast::AstNodeRef<'_, ast::Expr> {
         // By this point, all members should be declarations (caught at pre-TC)
         match member_expr.body() {
-            ast::Expr::Declaration(decl) => decl.value.as_ref().unwrap().ast_ref(),
+            ast::Expr::Declaration(decl) => decl.value.ast_ref(),
             ast::Expr::Macro(invocation) => {
                 // Recurse to the inner declaration
                 Self::use_expr_as_mod_def_declaration_and_get_rhs(invocation.subject.ast_ref())

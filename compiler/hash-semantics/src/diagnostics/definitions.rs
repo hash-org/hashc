@@ -21,12 +21,6 @@ pub enum SemanticError {
     /// More type annotations are needed to infer the type of the given term.
     NeedMoreTypeAnnotationsToInfer { term: TermId },
 
-    /// Traits are not yet supported.
-    TraitsNotSupported { trait_location: Span },
-
-    /// Merge declarations are not yet supported.
-    MergeDeclarationsNotSupported { merge_location: Span },
-
     /// Module patterns are not yet supported.
     ModulePatternsNotSupported { location: Span },
 

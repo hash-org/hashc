@@ -12,12 +12,6 @@ pub enum BlockOrigin {
     /// The block is a `mod` block.
     Mod,
 
-    /// The block is from a `trait` definition.
-    Trait,
-
-    /// The block is an `impl` block.
-    Impl,
-
     /// Block is a body of some kind.
     Body,
 
@@ -37,9 +31,7 @@ impl Display for BlockOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BlockOrigin::Root | BlockOrigin::Mod => write!(f, "module"),
-            BlockOrigin::Impl => write!(f, "impl"),
             BlockOrigin::Body => write!(f, "body"),
-            BlockOrigin::Trait => write!(f, "trait"),
             BlockOrigin::Const => write!(f, "constant"),
         }
     }

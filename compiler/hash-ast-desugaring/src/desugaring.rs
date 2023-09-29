@@ -118,7 +118,7 @@ impl AstDesugaring {
             contents: ast::AstNode::new(
                 ast::Block::Match(ast::MatchBlock {
                     subject: ast::AstNode::new(
-                        ast::Expr::ConstructorCall(ast::ConstructorCallExpr {
+                        ast::Expr::Call(ast::CallExpr {
                             subject: ast::AstNode::new(
                                 ast::Expr::Variable(ast::VariableExpr {
                                     name: ast::AstNode::new(

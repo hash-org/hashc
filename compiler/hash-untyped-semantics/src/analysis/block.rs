@@ -29,9 +29,8 @@ impl SemanticAnalyser {
     ) -> HashSet<usize> {
         let mut error_indices = HashSet::new();
 
-        let allowed_top_level_expr = |statement: AstNodeRef<Expr>| {
-            matches!(statement.body(), Expr::Declaration(_) | Expr::MergeDeclaration(_))
-        };
+        let allowed_top_level_expr =
+            |statement: AstNodeRef<Expr>| matches!(statement.body(), Expr::Declaration(_));
 
         for (index, statement) in members.enumerate() {
             let current = Cell::new(statement);

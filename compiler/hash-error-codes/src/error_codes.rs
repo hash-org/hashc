@@ -27,11 +27,9 @@ error_codes! {
     TypeMismatch = 20,
     DisallowedType = 21,
     UnresolvedType = 22,
-    TyIsNotTyFn = 23,
     ValueCannotBeUsedAsType = 24,
     NonRuntimeInstantiable = 25,
-    UnsupportedTyFnApplication = 26,
-    TypeIsNotTrait = 27,
+    UnsupportedImplicitFnApplication = 26,
     InvalidUnionElement = 28,
     InvalidIndexSubject = 29,
 
@@ -45,12 +43,7 @@ error_codes! {
     // traits
     InvalidMergeElement = 50,
     MultipleNominals = 51,
-    TraitDefinitionNotFound = 52,
-    NoMatchingTraitImplementations = 53,
     InvalidPropertyAccessOfNonMethod = 54,
-    TraitImplMissingMember = 55,
-    MethodNotAMemberOfTrait = 56,
-    UnsupportedTraits = 57,
 
     // Pattern errors
     MismatchingPatBind = 79,
@@ -60,6 +53,6 @@ error_codes! {
     NonExhaustiveMatch = 83,
     InvalidRangePatBoundaries = 84,
 
-    // Lexing/Parsing erorrs
+    // Lexing/Parsing errors
     InvalidLiteral = 100,
 }

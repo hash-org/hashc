@@ -751,33 +751,34 @@ define_tree! {
     /// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct TyFnTy {
+    pub struct ImplicitFnTy {
         /// The parameters of the type function
         pub params: Child!(TyParams),
         /// Return type of the function
         pub return_ty: Child!(Ty),
     }
 
-    /// A type function call specifies a call to a type function with the specified
+    /// An implicit function call specifies a call to a implicit function with the specified
     /// function name in the form of a [Ty] (which can only be a [NamedTy] then
     /// followed by arguments. For example: `Conv<u32>` or `(Foo<bar>)<baz>`
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct TyFnCall {
+    pub struct ImplicitFnCall {
         /// The subject of the type function call
         pub subject: Child!(Expr),
         /// Arguments that are applied to the type function call
         pub args: Children!(TyArg),
     }
 
-    /// A merge type meaning that multiple types are considered to be
-    /// specified in place of one, e.g. `Conv ~ Eq`
+    /// An equality type specifies that there is an equality between two types, and hence
+    /// labelling it as the type of equality between the two operands.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct MergeTy {
-        /// left hand-side of the merge type
+    pub struct EqualityTy {
+        /// left hand-side of the equality type.
         pub lhs: Child!(Ty),
-        /// right hand-side of the merge type
+
+        /// right hand-side of the equality type.
         pub rhs: Child!(Ty),
     }
 
@@ -797,14 +798,14 @@ define_tree! {
         /// The union of two types, essentially an or, e.g `f64 | u64`
         Union,
         /// The intersection between two types, essentially an `and`, `Ord ~ Eq`
-        Merge,
+        Equality,
     }
 
     impl BinTyOp {
         /// Compute the precedence for an operator
         pub fn infix_binding_power(&self) -> (u8, u8) {
             match self {
-                BinTyOp::Merge => (2, 3),
+                BinTyOp::Equality => (2, 3),
                 BinTyOp::Union => (4, 5),
             }
         }
@@ -847,17 +848,17 @@ define_tree! {
         /// Reference type, the reference type of the inner type
         Ref(RefTy),
 
-        /// Merge type, the intersection of two types
-        Merge(MergeTy),
+        /// Equality between two types.
+        Equality(EqualityTy),
 
         /// Union type, the union of two types
         Union(UnionTy),
 
-        /// Type function type
-        TyFn(TyFnTy),
+        /// Implicit function type
+        ImplicitFn(ImplicitFnTy),
 
-        /// Type function call
-        TyFnCall(TyFnCall),
+        /// Implicit function call
+        ImplicitCall(ImplicitFnCall),
 
         /// An expression within a type in the form of `{ <expr> }`
         Expr(ExprTy)
@@ -1297,7 +1298,7 @@ define_tree! {
     /// Used in struct, enum, trait, and function definitions.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct TyFnDef {
+    pub struct ImplicitFnDef {
         /// The type arguments of the function.
         pub params: Child!(TyParams),
 
@@ -1305,7 +1306,7 @@ define_tree! {
         pub return_ty: OptionalChild!(Ty),
 
         /// The body of the type function,
-        pub ty_fn_body: Child!(Expr),
+        pub fn_body: Child!(Expr),
     }
 
     /// A declaration, e.g. `x := 3;`.
@@ -1320,19 +1321,6 @@ define_tree! {
 
         /// Any value that is assigned to the binding, simply
         /// an expression.
-        pub value: OptionalChild!(Expr),
-    }
-
-    /// A merge declaration (adding implementations to traits/structs), e.g. `x ~=
-    /// impl T { ... };`.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct MergeDeclaration {
-        /// The expression to bind the right-hand side to.
-        pub decl: Child!(Expr),
-
-        /// Any value that is assigned to the binding, simply
-        /// an expression.
         pub value: Child!(Expr),
     }
 
@@ -1342,12 +1330,12 @@ define_tree! {
     pub enum UnOp {
         // Bitwise logical inversion
         BitNot,
+
         /// Logical inversion.
         Not,
+
         /// The operator '-' for negation
         Neg,
-        /// Get the type of an expression
-        TypeOf,
     }
 
     impl Display for UnOp {
@@ -1356,7 +1344,6 @@ define_tree! {
                 UnOp::BitNot => write!(f, "~"),
                 UnOp::Not => write!(f, "!"),
                 UnOp::Neg => write!(f, "-"),
-                UnOp::TypeOf => write!(f, "typeof"),
             }
         }
     }
@@ -1586,23 +1573,6 @@ define_tree! {
         pub entries: Children!(EnumDefEntry),
     }
 
-    /// A trait definition, e.g.
-    /// ```ignore
-    /// trait<T> {
-    ///     add: (T, T) -> T;
-    /// }
-    /// ```
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct TraitDef {
-        /// Type parameters that are attached to the definition.
-        pub ty_params: OptionalChild!(TyParams),
-
-        /// Members of the trait definition, which are constricted to
-        /// constant-block only allowed [Expr]s.
-        pub members: Children!(Expr),
-    }
-
     /// A return statement.
     ///
     /// Has an optional return expression, which becomes `void` if [None] is given.
@@ -1749,24 +1719,6 @@ define_tree! {
     #[derive(Debug, PartialEq, Clone)]
     #[node]
     pub struct ModDef {
-        /// Any type parameters that are applied to the `mod` block.
-        pub ty_params: OptionalChild!(TyParams),
-
-        /// The actual contents of the block.
-        pub block: Child!(BodyBlock),
-    }
-
-    /// An `impl` definition block, e.g.
-    ///
-    /// ```ignore
-    /// impl<T> {
-    ///     into := () -> T => {
-    ///     };
-    /// };
-    /// ```
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct ImplDef {
         /// Any type parameters that are applied to the `mod` block.
         pub ty_params: OptionalChild!(TyParams),
 
@@ -2008,19 +1960,13 @@ define_tree! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TyParamOrigin {
         /// This is a type function definition,
-        TyFn,
+        ImplicitFn,
 
         /// The definition is a `struct`.
         Struct,
 
         /// The definition is a `enum`.
         Enum,
-
-        /// The definition is a `trait`.
-        Trait,
-
-        /// The definition is a `impl` block.
-        Impl,
 
         /// The definition is a `mod` block.
         Mod,
@@ -2030,11 +1976,9 @@ define_tree! {
         /// Get the name of origin of the type parameter.
         pub fn name(&self) -> &'static str {
             match self {
-                TyParamOrigin::TyFn => "type function",
+                TyParamOrigin::ImplicitFn => "implicit function",
                 TyParamOrigin::Struct => "struct",
                 TyParamOrigin::Enum => "enum",
-                TyParamOrigin::Trait => "trait",
-                TyParamOrigin::Impl => "impl",
                 TyParamOrigin::Mod => "mod",
             }
         }
@@ -2075,11 +2019,11 @@ define_tree! {
     /// call, a struct instantiation or a enum variant instantiation.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct ConstructorCallExpr {
+    pub struct CallExpr {
         /// An expression which evaluates to a function value.
         pub subject: Child!(Expr),
 
-        /// Arguments to the function, a list of [ConstructorCallArg]s.
+        /// Arguments to the function, a list of [ExprArg]s.
         pub args: Children!(ExprArg),
     }
 
@@ -2207,16 +2151,6 @@ define_tree! {
         pub data: Child!(Import)
     }
 
-    /// A trait implementation.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct TraitImpl {
-        /// The referenced name to the trait
-        pub ty: Child!(Ty),
-        /// The implementation of the trait.
-        pub trait_body: Children!(Expr),
-    }
-
     /// A binary expression `2 + 2`.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
@@ -2266,7 +2200,10 @@ define_tree! {
     pub enum Expr {
         /// A constructor call which could be a struct/enum initialisation or a
         /// function call e.g. `foo(5)`.
-        ConstructorCall(ConstructorCallExpr),
+        Call(CallExpr),
+
+        /// A call to an implicit function, i.e. `cast<_, u32>(5)`.
+        ImplicitCall(ImplicitFnCall),
 
         /// A macro invocation on an expression.
         Macro(ExprMacroInvocation),
@@ -2310,14 +2247,8 @@ define_tree! {
         /// Struct definition expression e.g. `enum(Bar(u32), Baz(f32))`
         EnumDef(EnumDef),
 
-        /// Type function definition e.g. `<T> => ...`
-        TyFnDef(TyFnDef),
-
-        /// Trait definition e.g.  `trait { ... }`
-        TraitDef(TraitDef),
-
-        /// An implementation definition e.g. `impl { ... }`
-        ImplDef(ImplDef),
+        /// Implicit function definition e.g. `<T> => ...`
+        ImplicitFnDef(ImplicitFnDef),
 
         /// A `mod` definition e.g. `mod { ... }`
         ModDef(ModDef),
@@ -2351,13 +2282,6 @@ define_tree! {
         /// An expression that captures a variable or a pattern being assigned with
         /// the application of a binary operator, such as `x += 3`.
         AssignOp(AssignOpExpr),
-
-        /// A merge declaration is one that adds an implementation for a particular
-        /// trait/struct to an already declared item, such as `x ~= impl T { ... }`
-        MergeDeclaration(MergeDeclaration),
-
-        /// Trait implementation e.g. `impl Clone { ... }`
-        TraitImpl(TraitImpl),
 
         /// Binary Expression composed of a left and right hand-side with a binary
         /// operator

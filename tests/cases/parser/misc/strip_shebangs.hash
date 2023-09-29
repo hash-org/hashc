@@ -4,8 +4,7 @@
 Foo: i32 = 1;
 
 main := () => #scope {
-    k: char;
-
+    k: char = 'c';
     t : u32 = 2u32;
     t = 2u32;
 };
