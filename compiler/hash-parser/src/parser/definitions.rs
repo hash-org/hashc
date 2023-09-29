@@ -155,9 +155,9 @@ impl<'s> AstGen<'s> {
         // Now that we parse the bound, we're expecting a fat-arrow and then some
         // expression
         self.parse_token(TokenKind::FatArrow)?;
-        let ty_fn_body = self.parse_expr_with_precedence(0)?;
+        let fn_body = self.parse_expr_with_precedence(0)?;
 
-        Ok(ImplicitFnDef { params, return_ty, ty_fn_body })
+        Ok(ImplicitFnDef { params, return_ty, fn_body })
     }
 
     /// Parse a `mod` block, with optional type parameters.

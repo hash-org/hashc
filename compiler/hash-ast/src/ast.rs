@@ -758,12 +758,12 @@ define_tree! {
         pub return_ty: Child!(Ty),
     }
 
-    /// A type function call specifies a call to a type function with the specified
+    /// An implicit function call specifies a call to a implicit function with the specified
     /// function name in the form of a [Ty] (which can only be a [NamedTy] then
     /// followed by arguments. For example: `Conv<u32>` or `(Foo<bar>)<baz>`
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct TyFnCall {
+    pub struct ImplicitFnCall {
         /// The subject of the type function call
         pub subject: Child!(Expr),
         /// Arguments that are applied to the type function call
@@ -853,11 +853,11 @@ define_tree! {
         /// Union type, the union of two types
         Union(UnionTy),
 
-        /// Type function type
+        /// Implicit function type
         ImplicitFn(ImplicitFnTy),
 
-        /// Type function call
-        TyFnCall(TyFnCall),
+        /// Implicit function call
+        ImplicitCall(ImplicitFnCall),
 
         /// An expression within a type in the form of `{ <expr> }`
         Expr(ExprTy)
@@ -1305,7 +1305,7 @@ define_tree! {
         pub return_ty: OptionalChild!(Ty),
 
         /// The body of the type function,
-        pub ty_fn_body: Child!(Expr),
+        pub fn_body: Child!(Expr),
     }
 
     /// A declaration, e.g. `x := 3;`.

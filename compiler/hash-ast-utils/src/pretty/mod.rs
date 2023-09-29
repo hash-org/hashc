@@ -111,13 +111,13 @@ where
         self.visit_name(property.ast_ref())
     }
 
-    type TyFnCallRet = ();
+    type ImplicitFnCallRet = ();
 
-    fn visit_ty_fn_call(
+    fn visit_implicit_fn_call(
         &mut self,
-        node: ast::AstNodeRef<ast::TyFnCall>,
-    ) -> Result<Self::TyFnCallRet, Self::Error> {
-        let ast::TyFnCall { subject, args } = node.body();
+        node: ast::AstNodeRef<ast::ImplicitFnCall>,
+    ) -> Result<Self::ImplicitFnCallRet, Self::Error> {
+        let ast::ImplicitFnCall { subject, args } = node.body();
 
         self.visit_expr(subject.ast_ref())?;
 
@@ -728,7 +728,7 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::ImplicitFnDef>,
     ) -> Result<Self::ImplicitFnDefRet, Self::Error> {
-        let ast::ImplicitFnDef { params, return_ty, ty_fn_body } = node.body();
+        let ast::ImplicitFnDef { params, return_ty, fn_body } = node.body();
 
         self.visit_ty_params(params.ast_ref())?;
 
@@ -738,7 +738,7 @@ where
         }
 
         self.write(" => ")?;
-        self.visit_expr(ty_fn_body.ast_ref())
+        self.visit_expr(fn_body.ast_ref())
     }
 
     type ArrayLitRet = ();

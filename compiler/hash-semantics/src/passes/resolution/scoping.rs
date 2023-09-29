@@ -336,7 +336,7 @@ impl<'env, E: SemanticEnv + 'env> Scoping<'env, E> {
     }
 
     /// Enter the scope of a type function type
-    pub(super) fn enter_ty_fn_ty<T>(
+    pub(super) fn enter_implicit_fn_ty<T>(
         &self,
         node: ast::AstNodeRef<ast::ImplicitFnTy>,
         f: impl FnOnce(FnTy) -> T,

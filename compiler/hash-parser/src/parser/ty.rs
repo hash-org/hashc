@@ -188,7 +188,7 @@ impl<'s> AstGen<'s> {
                     self.skip_fast(TokenKind::Lt);
 
                     let ty = self.node_with_joined_span(ty, span);
-                    Ty::TyFnCall(TyFnCall {
+                    Ty::ImplicitCall(ImplicitFnCall {
                         subject: self.node_with_joined_span(
                             Expr::Ty(TyExpr { ty }),
                             span,
@@ -356,7 +356,7 @@ impl<'s> AstGen<'s> {
         }
     }
 
-    /// Parses a [Ty::TyFn] with the pre-condition that the initial
+    /// Parses a [Ty::ImplicitFn] with the pre-condition that the initial
     /// subject type is parsed and passed into the function. This function
     /// only deals with the argument part of the function.
     fn parse_implicit_fn(&mut self) -> ParseResult<Ty> {

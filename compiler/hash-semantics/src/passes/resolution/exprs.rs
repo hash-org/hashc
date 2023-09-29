@@ -159,8 +159,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::Block(block_expr) => {
                 self.make_term_from_ast_block_expr(node.with_body(block_expr))?
             }
-            ast::Expr::ImplicitFnDef(ty_fn_def) => {
-                self.make_term_from_ast_implicit_fn_def(node.with_body(ty_fn_def))?
+            ast::Expr::ImplicitFnDef(def) => {
+                self.make_term_from_ast_implicit_fn_def(node.with_body(def))?
             }
             ast::Expr::FnDef(fn_def) => self.make_term_from_ast_fn_def(node.with_body(fn_def))?,
             ast::Expr::AssignOp(assign_op_expr) => {
@@ -869,7 +869,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     ) -> SemanticResult<TermId> {
         self.make_term_from_some_ast_fn_def(
             AstParams::Ty(&node.params),
-            &node.ty_fn_body,
+            &node.fn_body,
             &node.return_ty,
             node.id(),
         )

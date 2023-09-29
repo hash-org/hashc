@@ -291,7 +291,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: Term::hole(NodeOrigin::Given(node.ty_fn_body.id())),
+                body: Term::hole(NodeOrigin::Given(node.fn_body.id())),
                 ty: FnTy {
                     implicit: true,
                     is_unsafe: false,
@@ -302,9 +302,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                         .return_ty
                         .as_ref()
                         .map(|ty| Ty::hole(NodeOrigin::Given(ty.id())))
-                        .unwrap_or_else(|| {
-                            Ty::hole(NodeOrigin::InferredFrom(node.ty_fn_body.id()))
-                        }),
+                        .unwrap_or_else(|| Ty::hole(NodeOrigin::InferredFrom(node.fn_body.id()))),
                 },
             },
             NodeOrigin::Given(node.id()),

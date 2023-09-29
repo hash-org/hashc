@@ -253,11 +253,11 @@ impl<'s> AstGen<'s> {
         })
     }
 
-    /// Parse a [TyFnCall] wrapped within a [TyExpr]. This function tries to
-    /// parse `ty_args` by using `parse_ty_args`. If this parsing fails,
+    /// Parse a [ImplicitFnCall] wrapped within a [TyExpr]. This function tries
+    /// to parse `ty_args` by using `parse_ty_args`. If this parsing fails,
     /// it could be that this isn't a type function call, but rather a
     /// simple binary expression which uses the `<` operator.
-    fn maybe_parse_ty_fn_call(
+    fn maybe_parse_implicit_call(
         &mut self,
         subject: AstNode<Expr>,
         subject_span: ByteRange,
@@ -271,7 +271,7 @@ impl<'s> AstGen<'s> {
                 match self.peek_resultant_fn_mut(|g| g.parse_ty_args(false)) {
                     Some(args) => {
                         let ty = self.node_with_joined_span(
-                            Ty::TyFnCall(TyFnCall { subject, args }),
+                            Ty::ImplicitCall(ImplicitFnCall { subject, args }),
                             subject_span,
                         );
 
@@ -370,7 +370,7 @@ impl<'s> AstGen<'s> {
                 // Property access or method call
                 TokenKind::Dot => self.parse_property_access(subject, subject_span)?,
                 TokenKind::Access => self.parse_ns_access(subject, subject_span)?,
-                TokenKind::Lt => match self.maybe_parse_ty_fn_call(subject, subject_span) {
+                TokenKind::Lt => match self.maybe_parse_implicit_call(subject, subject_span) {
                     (subject, true) => subject,
                     // Essentially break because the type_args failed
                     (subject, false) => return Ok(subject),

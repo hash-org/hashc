@@ -87,10 +87,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         Ok(root)
     }
 
-    /// Use the given [`ast::TyFnCall`] as a path.
-    fn ty_fn_call_as_ast_path<'a>(
+    /// Use the given [`ast::ImplicitFnCall`] as a path.
+    fn implicit_call_as_ast_path<'a>(
         &self,
-        node: AstNodeRef<'a, ast::TyFnCall>,
+        node: AstNodeRef<'a, ast::ImplicitFnCall>,
     ) -> SemanticResult<Option<AstPath<'a>>> {
         match self.expr_as_ast_path(node.body.subject.ast_ref())? {
             Some(mut path) => match path.last_mut() {
@@ -167,9 +167,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 let named_ref = node.with_body(named_ty);
                 Ok(Some(self.named_ty_as_ast_path(named_ref)?))
             }
-            ast::Ty::TyFnCall(ty_fn_call) => {
-                let ty_fn_call_ref = node.with_body(ty_fn_call);
-                self.ty_fn_call_as_ast_path(ty_fn_call_ref)
+            ast::Ty::ImplicitCall(implicit_call) => {
+                let call_ref = node.with_body(implicit_call);
+                self.implicit_call_as_ast_path(call_ref)
             }
             _ => Ok(None),
         }
@@ -195,10 +195,13 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         }
     }
 
-    /// Make a type from the given [`ast::TyFnCall`].
-    fn make_ty_from_ast_ty_fn_call(&self, node: AstNodeRef<ast::TyFnCall>) -> SemanticResult<TyId> {
+    /// Make a type from the given [`ast::ImplicitFnCall`].
+    fn make_ty_from_ast_implicit_fn_call(
+        &self,
+        node: AstNodeRef<ast::ImplicitFnCall>,
+    ) -> SemanticResult<TyId> {
         // This is either a path or a computed function call
-        match self.ty_fn_call_as_ast_path(node)? {
+        match self.implicit_call_as_ast_path(node)? {
             Some(path) => {
                 let resolved_path = self.resolve_ast_path(&path)?;
                 self.make_ty_from_resolved_ast_path(&resolved_path, node.id())
@@ -271,30 +274,30 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     }
 
     /// Make a type from the given [`ast::Ty`].
-    pub(super) fn make_ty_from_ast_ty_fn_ty(
+    pub(super) fn make_ty_from_ast_implicit_fn_ty(
         &self,
         node: AstNodeRef<ast::ImplicitFnTy>,
     ) -> SemanticResult<TyId> {
-        self.scoping().enter_ty_fn_ty(node, |mut ty_fn| {
+        self.scoping().enter_implicit_fn_ty(node, |mut implicit_fn_ty| {
             // First, make the params
             let params =
                 self.try_or_add_error(self.resolve_params_from_ast_ty_params(&node.params));
 
             // Add the params if they exist
             if let Some(params) = params {
-                ty_fn.params = params;
+                implicit_fn_ty.params = params;
             }
 
             // Make the return type if it exists
             let return_ty =
                 self.try_or_add_error(self.make_ty_from_ast_ty(node.return_ty.ast_ref()));
             if let Some(return_ty) = return_ty {
-                ty_fn.return_ty = return_ty;
+                implicit_fn_ty.return_ty = return_ty;
             }
 
             match (params, return_ty) {
                 (Some(_params), Some(_return_ty)) => {
-                    Ok(Ty::from(ty_fn, NodeOrigin::Given(node.id())))
+                    Ok(Ty::from(implicit_fn_ty, NodeOrigin::Given(node.id())))
                 }
                 _ => Err(SemanticError::Signal),
             }
@@ -357,15 +360,15 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 self.make_ty_from_ast_access_ty(node.with_body(access_ty))?
             }
             ast::Ty::Named(named_ty) => self.make_ty_from_ast_named_ty(node.with_body(named_ty))?,
-            ast::Ty::TyFnCall(ty_fn_call) => {
-                self.make_ty_from_ast_ty_fn_call(node.with_body(ty_fn_call))?
+            ast::Ty::ImplicitCall(implicit_call) => {
+                self.make_ty_from_ast_implicit_fn_call(node.with_body(implicit_call))?
             }
             ast::Ty::Tuple(tuple_ty) => self.make_ty_from_ast_tuple_ty(node.with_body(tuple_ty))?,
             ast::Ty::Array(list_ty) => self.make_ty_from_ast_array_ty(node.with_body(list_ty))?,
             ast::Ty::Ref(ref_ty) => self.make_ty_from_ref_ty(node.with_body(ref_ty))?,
             ast::Ty::Fn(fn_ty) => self.make_ty_from_ast_fn_ty(node.with_body(fn_ty))?,
-            ast::Ty::ImplicitFn(ty_fn_ty) => {
-                self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?
+            ast::Ty::ImplicitFn(implicit_fn_ty) => {
+                self.make_ty_from_ast_implicit_fn_ty(node.with_body(implicit_fn_ty))?
             }
             ast::Ty::Merge(merge_ty) => self.make_ty_from_merge_ty(node.with_body(merge_ty))?,
             ast::Ty::Macro(invocation) => self.make_ty_from_ast_ty(invocation.subject.ast_ref())?,
