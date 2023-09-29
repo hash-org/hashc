@@ -12,7 +12,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::{Context, ScopeKind},
+    context::{Context, HasContext, ScopeKind},
     dump::dump_tir,
     intrinsics::{
         definitions::{array_ty, bool_ty, list_def, list_ty, never_ty, usize_ty, Intrinsic},
@@ -34,10 +34,10 @@ use hash_tir::{
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
-use hash_utils::derive_more::{Constructor, Deref};
 use itertools::Itertools;
 
 use crate::{
+    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
     operations::{
@@ -54,12 +54,7 @@ pub enum FnInferMode {
     Body,
 }
 
-#[derive(Constructor, Deref)]
-pub struct InferenceOps<'a, T: TcEnv> {
-    env: &'a T,
-}
-
-impl<T: TcEnv> InferenceOps<'_, T> {
+impl<T: TcEnv> Tc<'_, T> {
     /// Create a new [ExhaustivenessChecker] so it can be used to check
     /// refutability or exhaustiveness of patterns.
     fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<T> {

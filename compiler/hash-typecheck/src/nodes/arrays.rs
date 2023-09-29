@@ -30,11 +30,10 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
         annotation_ty: Self::TyNode,
         _: Self::Node,
     ) -> TcResult<()> {
-        self.infer_ops().normalise_and_check_ty(annotation_ty)?;
+        self.normalise_and_check_ty(annotation_ty)?;
 
         let array_len_origin = array_term.length_origin();
         let (inner_ty, array_len) = self
-            .infer_ops()
             .use_ty_as_array(annotation_ty)?
             .unwrap_or_else(|| (Ty::hole(array_len_origin.inferred()), None));
 
@@ -42,12 +41,12 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
         // annotation type.
         let inferred_len_term = match *array_term {
             ArrayTerm::Normal(elements) => {
-                self.infer_ops().infer_unified_term_list(elements, inner_ty)?;
+                self.infer_unified_term_list(elements, inner_ty)?;
                 create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
             }
             ArrayTerm::Repeated(term, repeat) => {
-                self.infer_ops().infer_term(term, inner_ty)?;
-                self.infer_ops().infer_term(repeat, usize_ty(array_len_origin))?;
+                self.infer_term(term, inner_ty)?;
+                self.infer_term(repeat, usize_ty(array_len_origin))?;
                 repeat
             }
         };
@@ -75,7 +74,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
                 ArrayTerm::Repeated(_, repeat) => array_ty(inner_ty, *repeat, NodeOrigin::Expected),
             };
 
-            self.infer_ops().check_by_unify(default_annotation, annotation_ty)?
+            self.check_by_unify(default_annotation, annotation_ty)?
         };
 
         Ok(())

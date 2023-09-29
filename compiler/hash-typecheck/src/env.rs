@@ -9,7 +9,6 @@ use hash_utils::timing::HasMetrics;
 use crate::{
     checker::Tc,
     errors::TcError,
-    inference::InferenceOps,
     normalisation,
     operations::{normalisation::NormalisationOptions, unification::UnificationOptions},
     substitution::SubstitutionOps,
@@ -23,7 +22,7 @@ pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
 }
 
 pub trait TcEnv:
-    HasTcDiagnostics + HasTarget + HasContext + HasAtomInfo + HasCompilerSettings + HasMetrics + Sized
+    HasTcDiagnostics + HasTarget + HasAtomInfo + HasCompilerSettings + HasMetrics + HasContext + Sized
 {
     /// Get the entry point of the current compilation, if any.
     fn entry_point(&self) -> &EntryPointState<FnDefId>;
@@ -37,11 +36,7 @@ pub trait TcEnv:
     }
 
     fn checker(&self) -> Tc<Self> {
-        Tc::new(self)
-    }
-
-    fn infer_ops(&self) -> InferenceOps<Self> {
-        InferenceOps::new(self)
+        Tc::new_in(self, self.context())
     }
 
     fn sub_ops(&self) -> SubstitutionOps<Self> {
@@ -56,14 +51,20 @@ pub trait TcEnv:
         UnificationOps::new_with_opts(self, opts)
     }
 
-    fn norm_ops(&self) -> normalisation::NormalisationOps<Self> {
+    fn norm_ops(&self) -> normalisation::NormalisationOps<Self>
+    where
+        Self: HasContext,
+    {
         normalisation::NormalisationOps::new(self)
     }
 
     fn norm_ops_with<'a>(
         &'a self,
         opts: &'a NormalisationOptions,
-    ) -> normalisation::NormalisationOps<Self> {
+    ) -> normalisation::NormalisationOps<Self>
+    where
+        Self: HasContext,
+    {
         normalisation::NormalisationOps::new_with_opts(self, opts)
     }
 }

@@ -109,6 +109,11 @@ pub trait HasContext {
     fn context(&self) -> &Context;
 }
 
+/// Trait for types that have a context mutable available to them.
+pub trait HasContextMut {
+    fn context_mut(&mut self) -> &mut Context;
+}
+
 /// Data structure managing the typechecking context.
 ///
 /// The context is a stack of scopes, each scope being a stack in itself.

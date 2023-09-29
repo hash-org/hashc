@@ -31,7 +31,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
             Some(decl) => {
                 if let Some(ty) = decl.ty {
                     let ty = Visitor::new().copy(ty);
-                    self.infer_ops().check_ty(ty)?;
+                    self.check_ty(ty)?;
                     self.uni_ops().unify_terms(ty, annotation_ty)?;
                     Ok(())
                 } else if decl.value.is_some() {

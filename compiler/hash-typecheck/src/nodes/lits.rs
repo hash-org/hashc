@@ -29,7 +29,7 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
         lit: LitId,
         annotation_ty: Self::TyNode,
     ) -> TcResult<()> {
-        self.infer_ops().normalise_and_check_ty(annotation_ty)?;
+        self.normalise_and_check_ty(annotation_ty)?;
         let inferred_ty = Ty::data_ty(
             match *lit.value() {
                 Lit::Int(int_lit) => {
@@ -120,8 +120,8 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
             lit.origin(),
         );
 
-        self.infer_ops().check_by_unify(inferred_ty, annotation_ty)?;
-        self.infer_ops().bake_lit_repr(lit, inferred_ty)?;
+        self.check_by_unify(inferred_ty, annotation_ty)?;
+        self.bake_lit_repr(lit, inferred_ty)?;
         Ok(())
     }
 

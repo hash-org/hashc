@@ -30,7 +30,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
         item_node: Self::Node,
     ) -> TcResult<()> {
         let subject_ty = Ty::hole_for(access_term.subject);
-        self.infer_ops().infer_term(access_term.subject, subject_ty)?;
+        self.infer_term(access_term.subject, subject_ty)?;
 
         let params = match *subject_ty.value() {
             Ty::TupleTy(tuple_ty) => tuple_ty.data,
@@ -74,7 +74,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
             let param_access_sub =
                 self.sub_ops().create_sub_from_param_access(params, access_term.subject);
             let subbed_param_ty = self.sub_ops().apply_sub(param.borrow().ty, &param_access_sub);
-            self.infer_ops().check_by_unify(subbed_param_ty, annotation_ty)?;
+            self.check_by_unify(subbed_param_ty, annotation_ty)?;
             Ok(())
         } else {
             Err(TcError::PropertyNotFound {

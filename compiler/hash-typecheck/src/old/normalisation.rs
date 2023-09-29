@@ -8,7 +8,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::{Context, ScopeKind},
+    context::{Context, HasContext, ScopeKind},
     intrinsics::{
         make::IsIntrinsic,
         utils::{get_bool_ctor, try_use_term_as_integer_lit},
@@ -69,7 +69,7 @@ fn ctrl_map_full<T>(t: FullEvaluation<T>) -> NormaliseResult<ControlFlow<T>> {
     Ok(Some(ControlFlow::Break(t?)))
 }
 
-impl<'env, T: TcEnv + 'env> NormalisationOps<'env, T> {
+impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
     pub fn new(env: &'env T) -> Self {
         Self { env, opts: Cow::Owned(NormalisationOptions::new()) }
     }

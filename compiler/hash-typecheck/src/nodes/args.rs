@@ -36,12 +36,12 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
         self.register_new_atom(args, annotation_params);
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
-        let result = self.infer_ops().infer_some_args(
+        let result = self.infer_some_args(
             reordered_args_id.iter(),
             annotation_params,
             |arg, param_ty| {
                 let arg = arg.value();
-                self.infer_ops().infer_term(arg.value, param_ty)?;
+                self.infer_term(arg.value, param_ty)?;
                 Ok(())
             },
             |arg| {

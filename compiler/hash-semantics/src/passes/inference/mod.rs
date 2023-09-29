@@ -75,7 +75,7 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
             source,
             (term, Ty::hole_for(term)),
             |(term_id, ty_id)| {
-                tc.infer_ops().infer_term(term_id, ty_id)?;
+                tc.checker().infer_term(term_id, ty_id)?;
                 Ok((term_id, ty_id))
             },
             |(term_id, ty_id)| tc.sub_ops().has_holes(term_id).or(tc.sub_ops().has_holes(ty_id)),
@@ -95,7 +95,7 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
             source,
             self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap(),
             |mod_def_id| {
-                tc.infer_ops().infer_mod_def(
+                tc.checker().infer_mod_def(
                     mod_def_id,
                     match self.get_current_progress(source) {
                         AnalysisStage::HeaderInference => FnInferMode::Header,

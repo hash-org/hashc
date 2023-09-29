@@ -29,8 +29,8 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
         _: Self::Node,
     ) -> TcResult<()> {
         self.check_is_universe(item_ty)?;
-        self.infer_ops().infer_params(fn_ty.params, || {
-            self.infer_ops().infer_term(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
+        self.infer_params(fn_ty.params, || {
+            self.infer_term(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
         })?;
         Ok(())
     }
@@ -93,23 +93,22 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         let (fn_def_id, fn_mode) = *fn_def_id;
-        self.infer_ops().check_ty(annotation_ty)?;
-        if let Some(fn_ty) = self.infer_ops().try_get_inferred_ty(fn_def_id) {
+        self.check_ty(annotation_ty)?;
+        if let Some(fn_ty) = self.try_get_inferred_ty(fn_def_id) {
             let expected =
                 Ty::expect_is(original_term_id, Ty::from(fn_ty, fn_def_id.origin().inferred()));
-            self.infer_ops().check_by_unify(expected, annotation_ty)?;
+            self.check_by_unify(expected, annotation_ty)?;
             return Ok(());
         }
 
-        self.infer_ops().infer_fn_annotation_ty(fn_def_id, annotation_ty)?;
+        self.infer_fn_annotation_ty(fn_def_id, annotation_ty)?;
         let fn_def = fn_def_id.value();
 
         if fn_mode == FnInferMode::Header {
             // If we are only inferring the header, then we also want to check for
             // immediate body functions.
-            self.infer_ops().infer_params(fn_def.ty.params, || {
-                self.infer_ops()
-                    .infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+            self.infer_params(fn_def.ty.params, || {
+                self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let Term::Fn(immediate_body_fn) = *fn_def.body.value() {
                     self.check(
                         _ctx,
@@ -133,16 +132,15 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
         let fn_def = fn_def_id.value();
 
         self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
-            self.infer_ops().infer_params(fn_def.ty.params, || {
-                self.infer_ops()
-                    .infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
-                self.infer_ops().infer_term(fn_def.body, fn_def.ty.return_ty)
+            self.infer_params(fn_def.ty.params, || {
+                self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+                self.infer_term(fn_def.body, fn_def.ty.return_ty)
             })
         })?;
 
         let fn_ty_id =
             Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
-        self.infer_ops().check_by_unify(fn_ty_id, annotation_ty)?;
+        self.check_by_unify(fn_ty_id, annotation_ty)?;
 
         self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
 
