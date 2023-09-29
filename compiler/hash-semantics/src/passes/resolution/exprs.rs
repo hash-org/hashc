@@ -1011,10 +1011,6 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let typeof_a = Term::from(TyOfTerm { term: a }, origin);
 
         let (intrinsic, op_num): (Intrinsic, u8) = match node.operator.body() {
-            ast::UnOp::TypeOf => {
-                let inner = self.make_term_from_ast_expr(node.expr.ast_ref())?;
-                return Ok(Term::from(TyOfTerm { term: inner }, origin));
-            }
             ast::UnOp::BitNot => (Intrinsic::UnOp, UnOp::BitNot.into()),
             ast::UnOp::Not => (Intrinsic::UnOp, UnOp::Not.into()),
             ast::UnOp::Neg => (Intrinsic::UnOp, UnOp::Neg.into()),

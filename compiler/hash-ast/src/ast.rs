@@ -1329,12 +1329,12 @@ define_tree! {
     pub enum UnOp {
         // Bitwise logical inversion
         BitNot,
+
         /// Logical inversion.
         Not,
+
         /// The operator '-' for negation
         Neg,
-        /// Get the type of an expression
-        TypeOf,
     }
 
     impl Display for UnOp {
@@ -1343,7 +1343,6 @@ define_tree! {
                 UnOp::BitNot => write!(f, "~"),
                 UnOp::Not => write!(f, "!"),
                 UnOp::Neg => write!(f, "-"),
-                UnOp::TypeOf => write!(f, "typeof"),
             }
         }
     }
