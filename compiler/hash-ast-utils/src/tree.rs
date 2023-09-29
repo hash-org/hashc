@@ -161,13 +161,12 @@ impl AstVisitor for AstTreePrinter {
         }
     }
 
-    type ConstructorCallExprRet = TreeNode;
-    fn visit_constructor_call_expr(
+    type CallExprRet = TreeNode;
+    fn visit_call_expr(
         &self,
-        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
-    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        let walk::ConstructorCallExpr { subject, args } =
-            walk::walk_constructor_call_expr(self, node)?;
+        node: ast::AstNodeRef<ast::CallExpr>,
+    ) -> Result<Self::CallExprRet, Self::Error> {
+        let walk::CallExpr { subject, args } = walk::walk_call_expr(self, node)?;
 
         let children = if !node.args.is_empty() {
             vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("args", args)]
@@ -175,7 +174,7 @@ impl AstVisitor for AstTreePrinter {
             vec![TreeNode::branch("subject", vec![subject])]
         };
 
-        Ok(TreeNode::branch("constructor", children))
+        Ok(TreeNode::branch("call", children))
     }
 
     type PropertyKindRet = TreeNode;

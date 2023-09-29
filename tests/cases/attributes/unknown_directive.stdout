@@ -6,12 +6,12 @@ body
 │   │ └─binding
 │   │   └─name "k"
 │   └─value
-│     └─constructor
+│     └─call
 │       └─subject
 │         └─variable
 │           └─named "perform_operation"
 └─expr
-  └─constructor
+  └─call
     ├─subject
     │ └─variable
     │   └─named "unmerge"

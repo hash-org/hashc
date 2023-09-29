@@ -380,9 +380,7 @@ impl<'s> AstGen<'s> {
                     self.node_with_joined_span(Expr::Index(IndexExpr { subject, index_expr }), span)
                 }
                 // Function call
-                TokenKind::Tree(Delimiter::Paren, _) => {
-                    self.parse_constructor_call(subject, subject_span)?
-                }
+                TokenKind::Tree(Delimiter::Paren, _) => self.parse_call(subject, subject_span)?,
                 _ => break,
             }
         }
@@ -459,9 +457,9 @@ impl<'s> AstGen<'s> {
         Ok(self.node_with_span(ExprArg { name, value, macros }, start))
     }
 
-    /// Parse a [ConstructorCallExpr] which accepts the `subject` that the
+    /// Parse a [CallExpr] which accepts the `subject` that the
     /// constructor is being called on.
-    pub(crate) fn parse_constructor_call(
+    pub(crate) fn parse_call(
         &mut self,
         subject: AstNode<Expr>,
         subject_span: ByteRange,
@@ -470,10 +468,7 @@ impl<'s> AstGen<'s> {
             Ok(gen.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma)))
         })?;
 
-        Ok(self.node_with_joined_span(
-            Expr::ConstructorCall(ConstructorCallExpr { subject, args }),
-            subject_span,
-        ))
+        Ok(self.node_with_joined_span(Expr::Call(CallExpr { subject, args }), subject_span))
     }
 
     /// Parses a unary operator or expression modifier followed by a singular

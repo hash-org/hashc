@@ -870,13 +870,13 @@ where
         Ok(())
     }
 
-    type ConstructorCallExprRet = ();
+    type CallExprRet = ();
 
-    fn visit_constructor_call_expr(
+    fn visit_call_expr(
         &mut self,
-        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
-    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        let ast::ConstructorCallExpr { subject, args } = node.body();
+        node: ast::AstNodeRef<ast::CallExpr>,
+    ) -> Result<Self::CallExprRet, Self::Error> {
+        let ast::CallExpr { subject, args } = node.body();
 
         self.visit_expr(subject.ast_ref())?;
 

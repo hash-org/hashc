@@ -32,7 +32,7 @@ bitflags::bitflags! {
         const Expr = 1 << 1;
 
         /// Some function call, or a constructor initialisation.
-        const ConstructorCall = 1 << 2;
+        const Call = 1 << 2;
 
         /// A directive expression.
         const MacroInvocation = 1 << 3;
@@ -112,7 +112,7 @@ impl AttrTarget {
     /// Classify the given [ast::Expr] into a [AttrTarget].
     pub fn classify_expr(expr: &ast::Expr) -> Self {
         match expr {
-            ast::Expr::ConstructorCall(_) => AttrTarget::ConstructorCall,
+            ast::Expr::Call(_) => AttrTarget::Call,
             ast::Expr::Macro(_) => AttrTarget::MacroInvocation,
             ast::Expr::Unsafe(_) => AttrTarget::Unsafe,
             ast::Expr::Lit(_) => AttrTarget::Lit,
@@ -144,7 +144,7 @@ impl fmt::Display for AttrTarget {
         let allowed_argument_kinds = self
             .iter()
             .map(|item| match item {
-                AttrTarget::ConstructorCall => "constructor call",
+                AttrTarget::Call => "constructor call",
                 AttrTarget::MacroInvocation => "directive",
                 AttrTarget::Unsafe => "unsafe expression",
                 AttrTarget::Lit => "literal",

@@ -121,8 +121,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::ImplicitCall(implicit_call) => {
                 self.make_ty_from_ast_implicit_fn_call(node.with_body(implicit_call))?
             }
-            ast::Expr::ConstructorCall(ctor_expr) => {
-                self.make_term_from_ast_constructor_call_expr(node.with_body(ctor_expr))?
+            ast::Expr::Call(ctor_expr) => {
+                self.make_term_from_ast_call_expr(node.with_body(ctor_expr))?
             }
             ast::Expr::Access(access_expr) => {
                 self.make_term_from_ast_access_expr(node.with_body(access_expr))?
@@ -254,10 +254,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         }
     }
 
-    /// Use the given [`ast::ConstructorCallExpr`] as a path.
-    fn constructor_call_as_ast_path<'a>(
+    /// Use the given [`ast::CallExpr`] as a path.
+    fn call_as_ast_path<'a>(
         &self,
-        node: AstNodeRef<'a, ast::ConstructorCallExpr>,
+        node: AstNodeRef<'a, ast::CallExpr>,
     ) -> SemanticResult<Option<AstPath<'a>>> {
         match self.expr_as_ast_path(node.body.subject.ast_ref())? {
             Some(mut path) => match path.last_mut() {
@@ -284,9 +284,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 let variable_ref = node.with_body(variable_expr);
                 Ok(Some(self.variable_expr_as_ast_path(variable_ref)?))
             }
-            ast::Expr::ConstructorCall(ctor_expr) => {
-                let ctor_ref = node.with_body(ctor_expr);
-                self.constructor_call_as_ast_path(ctor_ref)
+            ast::Expr::Call(call_expr) => {
+                let call_ref = node.with_body(call_expr);
+                self.call_as_ast_path(call_ref)
             }
             ast::Expr::Access(access_expr) => {
                 let access_ref = node.with_body(access_expr);
@@ -367,13 +367,13 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         self.make_term_from_resolved_ast_path(&resolved_path, node.id())
     }
 
-    /// Make a term from an [`ast::ConstructorCallExpr`].
-    fn make_term_from_ast_constructor_call_expr(
+    /// Make a term from an [`ast::CallExpr`].
+    fn make_term_from_ast_call_expr(
         &self,
-        node: AstNodeRef<ast::ConstructorCallExpr>,
+        node: AstNodeRef<ast::CallExpr>,
     ) -> SemanticResult<TermId> {
         // This is either a path or a computed function call
-        match self.constructor_call_as_ast_path(node)? {
+        match self.call_as_ast_path(node)? {
             Some(path) => {
                 let resolved_path = self.resolve_ast_path(&path)?;
                 self.make_term_from_resolved_ast_path(&resolved_path, node.id())

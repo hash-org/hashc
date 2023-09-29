@@ -2018,11 +2018,11 @@ define_tree! {
     /// call, a struct instantiation or a enum variant instantiation.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct ConstructorCallExpr {
+    pub struct CallExpr {
         /// An expression which evaluates to a function value.
         pub subject: Child!(Expr),
 
-        /// Arguments to the function, a list of [ConstructorCallArg]s.
+        /// Arguments to the function, a list of [ExprArg]s.
         pub args: Children!(ExprArg),
     }
 
@@ -2199,7 +2199,7 @@ define_tree! {
     pub enum Expr {
         /// A constructor call which could be a struct/enum initialisation or a
         /// function call e.g. `foo(5)`.
-        ConstructorCall(ConstructorCallExpr),
+        Call(CallExpr),
 
         /// A call to an implicit function, i.e. `cast<_, u32>(5)`.
         ImplicitCall(ImplicitFnCall),
