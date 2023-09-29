@@ -1,7 +1,4 @@
-use hash_tir::{
-    context::Context,
-    tir::{CallTerm, TermId, TyId},
-};
+use hash_tir::tir::{CallTerm, TermId, TyId};
 
 use crate::{
     checker::Tc,
@@ -20,7 +17,7 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         _item: &mut CallTerm,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
@@ -30,7 +27,7 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: CallTerm,
         _item_node: Self::Node,
@@ -40,7 +37,7 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: &mut CallTerm,
         _target: &mut CallTerm,

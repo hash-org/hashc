@@ -4,7 +4,6 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::Context,
     tir::{validate_and_reorder_args_against_params, Arg, ArgsId, Node, NodeId, ParamsId},
 };
 
@@ -28,7 +27,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
 
     fn check_node_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
-        _: &mut Context,
+
         args: ArgsId,
         annotation_params: Self::TyNode,
         mut in_arg_scope: F,
@@ -56,7 +55,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
 
     fn normalise_node(
         &self,
-        _ctx: &mut Context,
+
         opts: &NormalisationOptions,
         args_id: ArgsId,
     ) -> NormaliseResult<ArgsId> {
@@ -86,7 +85,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
-        _ctx: &mut Context,
+
         opts: &UnificationOptions,
         src_id: ArgsId,
         target_id: ArgsId,

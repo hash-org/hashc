@@ -1,7 +1,4 @@
-use hash_tir::{
-    context::Context,
-    tir::{CtorTerm, DataTy, TermId, TyId},
-};
+use hash_tir::tir::{CtorTerm, DataTy, TermId, TyId};
 
 use crate::{
     checker::Tc,
@@ -20,7 +17,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         _item: &mut CtorTerm,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
@@ -30,7 +27,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: CtorTerm,
         _item_node: Self::Node,
@@ -40,7 +37,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: &mut CtorTerm,
         _target: &mut CtorTerm,
@@ -61,7 +58,7 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         _item: &mut DataTy,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
@@ -71,7 +68,7 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: DataTy,
         _item_node: Self::Node,
@@ -81,7 +78,7 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: &mut DataTy,
         _target: &mut DataTy,

@@ -21,7 +21,6 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut hash_tir::context::Context,
         term: &mut VarTerm,
         annotation_ty: Self::TyNode,
         _: Self::Node,
@@ -48,7 +47,6 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut hash_tir::context::Context,
         _opts: &NormalisationOptions,
         item: VarTerm,
         _: Self::Node,
@@ -69,7 +67,6 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut hash_tir::context::Context,
         opts: &UnificationOptions,
         src: &mut VarTerm,
         target: &mut VarTerm,

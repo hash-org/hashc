@@ -1,7 +1,4 @@
-use hash_tir::{
-    context::Context,
-    tir::{TermId, TupleTerm, TupleTy, TyId},
-};
+use hash_tir::tir::{TermId, TupleTerm, TupleTy, TyId};
 
 use crate::{
     checker::Tc,
@@ -20,7 +17,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         _item: &mut TupleTerm,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
@@ -30,7 +27,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: TupleTerm,
         _item_node: Self::Node,
@@ -40,7 +37,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: &mut TupleTerm,
         _target: &mut TupleTerm,
@@ -61,7 +58,7 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         _item: &mut TupleTy,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
@@ -71,7 +68,7 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: TupleTy,
         _item_node: Self::Node,
@@ -81,7 +78,7 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: &mut TupleTy,
         _target: &mut TupleTy,

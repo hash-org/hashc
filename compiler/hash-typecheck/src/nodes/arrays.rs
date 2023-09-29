@@ -1,6 +1,5 @@
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
-    context::Context,
     intrinsics::{
         definitions::{array_ty, list_ty, usize_ty},
         utils::create_term_from_usize_lit,
@@ -25,7 +24,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-        _: &mut Context,
+
         array_term: &mut ArrayTerm,
         annotation_ty: Self::TyNode,
         _: Self::Node,
@@ -82,7 +81,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: ArrayTerm,
         _item_node: Self::Node,
@@ -92,7 +91,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: &mut ArrayTerm,
         _target: &mut ArrayTerm,
@@ -113,7 +112,7 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         _item: &mut ArrayPat,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
@@ -123,7 +122,7 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: ArrayPat,
         _item_node: Self::Node,
@@ -133,7 +132,7 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: &mut ArrayPat,
         _target: &mut ArrayPat,

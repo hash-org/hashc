@@ -1,5 +1,4 @@
 use hash_tir::{
-    context::Context,
     scopes::BlockTerm,
     tir::{TermId, TyId},
 };
@@ -21,7 +20,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         _item: &mut BlockTerm,
         _item_ty: Self::TyNode,
         _item_node: Self::Node,
@@ -31,7 +30,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: BlockTerm,
         _item_node: Self::Node,
@@ -41,7 +40,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: &mut BlockTerm,
         _target: &mut BlockTerm,

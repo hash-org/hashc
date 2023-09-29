@@ -14,20 +14,13 @@ impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TyId;
 
-    fn check(
-        &self,
-        _: &mut hash_tir::context::Context,
-        _: &mut UniverseTy,
-        item_ty: Self::TyNode,
-        _: Self::Node,
-    ) -> TcResult<()> {
+    fn check(&self, _: &mut UniverseTy, item_ty: Self::TyNode, _: Self::Node) -> TcResult<()> {
         // Type: Type
         self.check_is_universe(item_ty)
     }
 
     fn normalise(
         &self,
-        _: &mut hash_tir::context::Context,
         _opts: &NormalisationOptions,
         _: UniverseTy,
         _: Self::Node,
@@ -37,7 +30,6 @@ impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _: &mut hash_tir::context::Context,
         _: &crate::operations::unification::UnificationOptions,
         _: &mut UniverseTy,
         _: &mut UniverseTy,

@@ -8,7 +8,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::{Context, HasContext, ScopeKind},
+    context::{HasContext, ScopeKind},
     intrinsics::{
         make::IsIntrinsic,
         utils::{get_bool_ctor, try_use_term_as_integer_lit},
@@ -346,7 +346,6 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
     /// Evaluate a variable.
     fn eval_var(&self, var: SymbolId, original_term_id: TermId) -> AtomEvaluation {
         normalisation_result_into(self.checker().normalise(
-            &mut Context::new(),
             &self.opts,
             VarTerm { symbol: var },
             original_term_id,
@@ -424,7 +423,6 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
     /// Evaluate an access term.
     fn eval_access(&self, access_term: AccessTerm, original_term_id: TermId) -> AtomEvaluation {
         normalisation_result_into(self.checker().normalise(
-            &mut Context::new(),
             &self.opts,
             access_term,
             original_term_id,
@@ -571,7 +569,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate some arguments
     fn eval_args(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
-        self.checker().normalise_node(&mut Context::new(), &self.opts, args_id)
+        self.checker().normalise_node(&self.opts, args_id)
     }
 
     /// Evaluate a function call.

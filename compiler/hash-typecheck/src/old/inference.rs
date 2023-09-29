@@ -12,7 +12,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::{Context, HasContext, ScopeKind},
+    context::{HasContext, ScopeKind},
     dump::dump_tir,
     intrinsics::{
         definitions::{array_ty, bool_ty, list_def, list_ty, never_ty, usize_ty, Intrinsic},
@@ -169,7 +169,7 @@ impl<T: TcEnv> Tc<'_, T> {
         annotation_params: ParamsId,
         in_arg_scope: impl FnMut(ArgsId) -> TcResult<U>,
     ) -> TcResult<U> {
-        self.checker().check_node_rec(&mut Context::new(), args, annotation_params, in_arg_scope)
+        self.checker().check_node_rec(args, annotation_params, in_arg_scope)
     }
 
     /// Infer the given pattern arguments, producing inferred parameters.
@@ -369,7 +369,7 @@ impl<T: TcEnv> Tc<'_, T> {
 
     /// Infer the type of a literal.
     pub fn infer_lit(&self, lit: LitId, annotation_ty: TyId) -> TcResult<()> {
-        self.checker().check_node(&mut Context::new(), lit, annotation_ty)
+        self.checker().check_node(lit, annotation_ty)
     }
 
     pub fn use_ty_as_array(&self, annotation_ty: TyId) -> TcResult<Option<(TyId, Option<TermId>)>> {
@@ -1173,20 +1173,17 @@ impl<T: TcEnv> Tc<'_, T> {
             }
             Term::Lit(lit_term) => self.infer_lit(lit_term, annotation_ty)?,
             Term::Array(mut prim_term) => {
-                self.checker().check(&mut Context::new(), &mut prim_term, annotation_ty, term_id)
-            }?,
+                { self.checker().check(&mut prim_term, annotation_ty, term_id) }?
+            }
             Term::Ctor(ctor_term) => self.infer_ctor_term(&ctor_term, annotation_ty, term_id)?,
             Term::Call(fn_call_term) => {
                 self.infer_fn_call_term(&fn_call_term, annotation_ty, term_id)?
             }
-            Term::Fn(fn_def_id) => self.checker().check(
-                &mut Context::new(),
-                &mut (fn_def_id, FnInferMode::Body),
-                annotation_ty,
-                term_id,
-            )?,
+            Term::Fn(fn_def_id) => {
+                self.checker().check(&mut (fn_def_id, FnInferMode::Body), annotation_ty, term_id)?
+            }
             Term::Var(mut var_term) => {
-                self.checker().check(&mut Context::new(), &mut var_term, annotation_ty, term_id)?
+                self.checker().check(&mut var_term, annotation_ty, term_id)?
             }
             Term::Return(return_term) => {
                 self.infer_return_term(&return_term, annotation_ty, term_id)?
@@ -1205,12 +1202,9 @@ impl<T: TcEnv> Tc<'_, T> {
             }
             Term::Ref(ref_term) => self.infer_ref_term(&ref_term, annotation_ty, term_id)?,
             Term::Cast(cast_term) => self.infer_cast_term(cast_term, annotation_ty)?,
-            Term::Access(mut access_term) => self.checker().check(
-                &mut Context::new(),
-                &mut access_term,
-                annotation_ty,
-                term_id,
-            )?,
+            Term::Access(mut access_term) => {
+                self.checker().check(&mut access_term, annotation_ty, term_id)?
+            }
             Term::Index(index_term) => {
                 self.infer_index_term(&index_term, annotation_ty, term_id)?
             }
@@ -1224,9 +1218,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 self.infer_params(tuple_ty.data, || Ok(()))?;
                 expects_ty(annotation_ty)?;
             }
-            Ty::FnTy(mut fn_ty) => {
-                self.checker().check(&mut Context::new(), &mut fn_ty, annotation_ty, term_id)?
-            }
+            Ty::FnTy(mut fn_ty) => self.checker().check(&mut fn_ty, annotation_ty, term_id)?,
             Ty::RefTy(ref_ty) => {
                 // Infer the inner type
                 self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
@@ -1242,12 +1234,9 @@ impl<T: TcEnv> Tc<'_, T> {
                 })?;
                 expects_ty(annotation_ty)?;
             }
-            Ty::Universe(mut universe_ty) => self.checker().check(
-                &mut Context::new(),
-                &mut universe_ty,
-                annotation_ty,
-                term_id,
-            )?,
+            Ty::Universe(mut universe_ty) => {
+                self.checker().check(&mut universe_ty, annotation_ty, term_id)?
+            }
         };
 
         self.check_ty(annotation_ty)?;
@@ -1614,7 +1603,6 @@ impl<T: TcEnv> Tc<'_, T> {
             }
             ModMemberValue::Fn(fn_def_id) => {
                 self.checker().check(
-                    &mut Context::new(),
                     &mut (fn_def_id, fn_mode),
                     Ty::hole(fn_def_id.origin().inferred()),
                     Term::hole(fn_def_id.origin()),

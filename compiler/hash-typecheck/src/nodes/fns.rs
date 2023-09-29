@@ -1,7 +1,7 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::{Context, ScopeKind},
+    context::ScopeKind,
     tir::{FnDefId, FnTy, NodeId, NodeOrigin, Term, TermId, Ty, TyId},
 };
 
@@ -21,13 +21,7 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TyId;
 
-    fn check(
-        &self,
-        _: &mut Context,
-        fn_ty: &mut FnTy,
-        item_ty: Self::TyNode,
-        _: Self::Node,
-    ) -> TcResult<()> {
+    fn check(&self, fn_ty: &mut FnTy, item_ty: Self::TyNode, _: Self::Node) -> TcResult<()> {
         self.check_is_universe(item_ty)?;
         self.infer_params(fn_ty.params, || {
             self.infer_term(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
@@ -37,7 +31,7 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: FnTy,
         _item_node: Self::Node,
@@ -47,7 +41,7 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         f1: &mut FnTy,
         f2: &mut FnTy,
@@ -87,7 +81,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         fn_def_id: &mut (FnDefId, FnInferMode),
         annotation_ty: Self::TyNode,
         original_term_id: Self::Node,
@@ -111,7 +105,6 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
                 self.infer_term(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let Term::Fn(immediate_body_fn) = *fn_def.body.value() {
                     self.check(
-                        _ctx,
                         &mut (immediate_body_fn, FnInferMode::Header),
                         Ty::hole_for(fn_def.body),
                         fn_def.body,
@@ -149,7 +142,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: (FnDefId, FnInferMode),
         _item_node: Self::Node,
@@ -159,7 +152,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         opts: &UnificationOptions,
         src: &mut (FnDefId, FnInferMode),
         target: &mut (FnDefId, FnInferMode),

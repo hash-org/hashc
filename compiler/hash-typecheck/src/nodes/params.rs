@@ -1,4 +1,4 @@
-use hash_tir::{context::Context, tir::ParamsId};
+use hash_tir::tir::ParamsId;
 
 use crate::{
     checker::Tc,
@@ -14,18 +14,13 @@ use crate::{
 impl<E: TcEnv> OperationsOnNode<ParamsId> for Tc<'_, E> {
     type TyNode = ();
 
-    fn check_node(
-        &self,
-        _ctx: &mut Context,
-        _item: ParamsId,
-        _item_ty: Self::TyNode,
-    ) -> TcResult<()> {
+    fn check_node(&self, _item: ParamsId, _item_ty: Self::TyNode) -> TcResult<()> {
         todo!()
     }
 
     fn normalise_node(
         &self,
-        _ctx: &mut Context,
+
         _opts: &NormalisationOptions,
         _item: ParamsId,
     ) -> NormaliseResult<ParamsId> {
@@ -34,7 +29,7 @@ impl<E: TcEnv> OperationsOnNode<ParamsId> for Tc<'_, E> {
 
     fn unify_nodes(
         &self,
-        _ctx: &mut Context,
+
         _opts: &UnificationOptions,
         _src: ParamsId,
         _target: ParamsId,

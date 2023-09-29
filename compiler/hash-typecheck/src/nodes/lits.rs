@@ -1,7 +1,6 @@
 use hash_storage::store::statics::StoreId;
 use hash_target::primitives::{BigIntTy, FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
-    context::Context,
     intrinsics::{
         definitions::{char_def, f32_def, f64_def, i32_def, str_def, Primitive},
         make::IsPrimitive,
@@ -23,12 +22,7 @@ use crate::{
 impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
     type TyNode = TyId;
 
-    fn check_node(
-        &self,
-        _ctx: &mut Context,
-        lit: LitId,
-        annotation_ty: Self::TyNode,
-    ) -> TcResult<()> {
+    fn check_node(&self, lit: LitId, annotation_ty: Self::TyNode) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
         let inferred_ty = Ty::data_ty(
             match *lit.value() {
@@ -125,22 +119,11 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise_node(
-        &self,
-        _ctx: &mut Context,
-        _opts: &NormalisationOptions,
-        _item: LitId,
-    ) -> NormaliseResult<LitId> {
+    fn normalise_node(&self, _opts: &NormalisationOptions, _item: LitId) -> NormaliseResult<LitId> {
         todo!()
     }
 
-    fn unify_nodes(
-        &self,
-        _ctx: &mut Context,
-        _opts: &UnificationOptions,
-        _src: LitId,
-        _target: LitId,
-    ) -> TcResult<()> {
+    fn unify_nodes(&self, _opts: &UnificationOptions, _src: LitId, _target: LitId) -> TcResult<()> {
         todo!()
     }
 

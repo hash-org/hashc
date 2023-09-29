@@ -1,8 +1,5 @@
 use hash_storage::store::statics::StoreId;
-use hash_tir::{
-    context::Context,
-    tir::{AccessTerm, CtorTerm, Term, TermId, TupleTerm, Ty, TyId},
-};
+use hash_tir::tir::{AccessTerm, CtorTerm, Term, TermId, TupleTerm, Ty, TyId};
 
 use crate::{
     checker::Tc,
@@ -24,7 +21,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-        _ctx: &mut Context,
+
         access_term: &mut AccessTerm,
         annotation_ty: Self::TyNode,
         item_node: Self::Node,
@@ -87,7 +84,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _: &mut Context,
+
         opts: &NormalisationOptions,
         mut access_term: AccessTerm,
         _: Self::Node,
@@ -112,7 +109,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _ctx: &mut Context,
+
         opts: &UnificationOptions,
         src: &mut AccessTerm,
         target: &mut AccessTerm,
