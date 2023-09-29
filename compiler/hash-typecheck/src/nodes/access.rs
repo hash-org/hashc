@@ -11,7 +11,7 @@ use crate::{
             NormaliseResult,
         },
         unification::UnificationOptions,
-        Operations,
+        Operations, OperationsOnNode,
     },
 };
 
@@ -27,7 +27,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
         item_node: Self::Node,
     ) -> TcResult<()> {
         let subject_ty = Ty::hole_for(access_term.subject);
-        self.infer_term(access_term.subject, subject_ty)?;
+        self.check_node(access_term.subject, subject_ty)?;
 
         let params = match *subject_ty.value() {
             Ty::TupleTy(tuple_ty) => tuple_ty.data,

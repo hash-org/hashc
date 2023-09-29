@@ -12,7 +12,7 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations,
+        Operations, OperationsOnNode,
     },
 };
 
@@ -29,7 +29,7 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
         self.context().enter_scope(ScopeKind::Sub, || {
             self.normalise_and_check_ty(annotation_ty)?;
             let inferred_subject_ty = Ty::hole_for(call_term.subject);
-            self.infer_term(call_term.subject, inferred_subject_ty)?;
+            self.check_node(call_term.subject, inferred_subject_ty)?;
 
             match *inferred_subject_ty.value() {
                 Ty::FnTy(fn_ty) => {

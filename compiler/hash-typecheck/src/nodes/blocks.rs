@@ -14,7 +14,7 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations,
+        Operations, OperationsOnNode,
     },
 };
 
@@ -46,7 +46,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                 let ty_to_check_divergence = match *statement.value() {
                     BlockStatement::Decl(decl) => {
                         self.check_ty(decl.ty)?;
-                        self.infer_term(decl.value, decl.ty)?;
+                        self.check_node(decl.value, decl.ty)?;
                         self.infer_pat(decl.bind_pat, decl.ty, Some(decl.value))?;
 
                         // Check that the binding pattern of the declaration is irrefutable.
@@ -61,7 +61,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                     }
                     BlockStatement::Expr(expr) => {
                         let statement_ty = Ty::hole_for(expr);
-                        self.infer_term(expr, statement_ty)?;
+                        self.check_node(expr, statement_ty)?;
                         statement_ty
                     }
                 };
@@ -83,12 +83,12 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                     _ => {
                         // Infer the return value
                         let return_value_ty = Ty::hole_for(block_term.expr);
-                        self.infer_term(block_term.expr, return_value_ty)?;
+                        self.check_node(block_term.expr, return_value_ty)?;
                     }
                 }
             } else {
                 // Infer the return value
-                self.infer_term(block_term.expr, annotation_ty)?;
+                self.check_node(block_term.expr, annotation_ty)?;
             };
 
             let sub = self.sub_ops().create_sub_from_current_scope();

@@ -1,6 +1,10 @@
 use hash_tir::tir::{CastTerm, TermId, TyId};
 
-use crate::{checker::Tc, env::TcEnv, operations::Operations};
+use crate::{
+    checker::Tc,
+    env::TcEnv,
+    operations::{Operations, OperationsOnNode},
+};
 
 impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
     type TyNode = TyId;
@@ -12,7 +16,7 @@ impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
         annotation_ty: Self::TyNode,
         _: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        self.infer_term(cast_term.subject_term, cast_term.target_ty)?;
+        self.check_node(cast_term.subject_term, cast_term.target_ty)?;
         self.check_by_unify(cast_term.target_ty, annotation_ty)?;
         Ok(())
     }

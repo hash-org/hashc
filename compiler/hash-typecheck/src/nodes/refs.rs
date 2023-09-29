@@ -1,7 +1,12 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{DerefTerm, NodeId, NodeOrigin, RefTerm, RefTy, TermId, Ty, TyId};
 
-use crate::{checker::Tc, env::TcEnv, errors::TcError, operations::Operations};
+use crate::{
+    checker::Tc,
+    env::TcEnv,
+    errors::TcError,
+    operations::{Operations, OperationsOnNode},
+};
 
 impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
     type TyNode = TyId;
@@ -36,7 +41,7 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
             }
         };
 
-        self.infer_term(ref_term.subject, annotation_ref_ty.ty)?;
+        self.check_node(ref_term.subject, annotation_ref_ty.ty)?;
 
         let ty =
             Ty::expect_is(original_term_id, Ty::from(annotation_ref_ty, annotation_ty.origin()));
@@ -80,7 +85,7 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
         _item_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
         let deref_inner_inferred = Ty::hole_for(deref_term.subject);
-        self.infer_term(deref_term.subject, deref_inner_inferred)?;
+        self.check_node(deref_term.subject, deref_inner_inferred)?;
 
         let dereferenced_ty = match *deref_inner_inferred.value() {
             Ty::RefTy(ref_ty) => ref_ty.ty,
@@ -132,7 +137,7 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
         _original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         // Infer the inner type
-        self.infer_term(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
+        self.check_node(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
         self.check_is_universe(annotation_ty)?;
         Ok(())
     }

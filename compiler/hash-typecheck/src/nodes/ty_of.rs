@@ -1,6 +1,10 @@
 use hash_tir::tir::{TermId, Ty, TyId, TyOfTerm};
 
-use crate::{checker::Tc, env::TcEnv, operations::Operations};
+use crate::{
+    checker::Tc,
+    env::TcEnv,
+    operations::{Operations, OperationsOnNode},
+};
 
 impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
     type TyNode = TyId;
@@ -13,8 +17,8 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         let inferred_ty = Ty::hole_for(ty_of_term.term);
-        self.infer_term(ty_of_term.term, inferred_ty)?;
-        self.infer_term(inferred_ty, annotation_ty)?;
+        self.check_node(ty_of_term.term, inferred_ty)?;
+        self.check_node(inferred_ty, annotation_ty)?;
         self.norm_ops().normalise_in_place(original_term_id.into())?;
         Ok(())
     }

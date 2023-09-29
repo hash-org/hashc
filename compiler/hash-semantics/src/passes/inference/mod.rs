@@ -10,6 +10,7 @@ use hash_typecheck::{
     env::TcEnv,
     errors::{TcError, TcResult},
     inference::FnInferMode,
+    operations::OperationsOnNode,
 };
 use hash_utils::derive_more::{Constructor, Deref};
 
@@ -75,7 +76,7 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
             source,
             (term, Ty::hole_for(term)),
             |(term_id, ty_id)| {
-                tc.checker().infer_term(term_id, ty_id)?;
+                tc.checker().check_node(term_id, ty_id)?;
                 Ok((term_id, ty_id))
             },
             |(term_id, ty_id)| tc.sub_ops().has_holes(term_id).or(tc.sub_ops().has_holes(ty_id)),

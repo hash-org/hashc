@@ -6,7 +6,11 @@ use hash_tir::{
     tir::{LoopControlTerm, LoopTerm, NodeId, NodeOrigin, ReturnTerm, TermId, Ty, TyId},
 };
 
-use crate::{checker::Tc, env::TcEnv, operations::Operations};
+use crate::{
+    checker::Tc,
+    env::TcEnv,
+    operations::{Operations, OperationsOnNode},
+};
 
 impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
     type TyNode = TyId;
@@ -25,7 +29,7 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
                 // inferred expression type with its return type.
                 // If successful, modify the fn def to set the return type to the inferred type.
                 let closest_fn_def_return_ty = closest_fn_def.borrow().ty.return_ty;
-                self.infer_term(return_term.expression, closest_fn_def_return_ty)?;
+                self.check_node(return_term.expression, closest_fn_def_return_ty)?;
 
                 let inferred_ty = Ty::expect_is(original_term_id, never_ty(NodeOrigin::Expected));
                 self.check_by_unify(inferred_ty, annotation_ty)?;
@@ -110,7 +114,7 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         // Forward to the inner term.
-        self.infer_term(loop_term.inner, Ty::hole(loop_term.inner.origin().inferred()))?;
+        self.check_node(loop_term.inner, Ty::hole(loop_term.inner.origin().inferred()))?;
         let loop_term =
             Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
         self.check_by_unify(loop_term, annotation_ty)?;
@@ -153,10 +157,10 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         let subject_ty = Ty::hole_for(assign_term.subject);
-        self.infer_term(assign_term.subject, subject_ty)?;
+        self.check_node(assign_term.subject, subject_ty)?;
 
         let value_ty = Ty::hole_for(assign_term.value);
-        self.infer_term(assign_term.value, value_ty)?;
+        self.check_node(assign_term.value, value_ty)?;
 
         self.check_by_unify(value_ty, subject_ty)?;
 

@@ -7,7 +7,7 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations,
+        Operations, OperationsOnNode,
     },
 };
 
@@ -22,7 +22,7 @@ impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
         _: Self::Node,
     ) -> TcResult<()> {
         // @@Todo: unsafe context
-        self.infer_term(unsafe_term.inner, annotation_ty)?;
+        self.check_node(unsafe_term.inner, annotation_ty)?;
         Ok(())
     }
 

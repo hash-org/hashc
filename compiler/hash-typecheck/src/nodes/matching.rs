@@ -8,7 +8,12 @@ use hash_tir::{
 };
 use itertools::Itertools;
 
-use crate::{checker::Tc, env::TcEnv, errors::TcResult, operations::Operations};
+use crate::{
+    checker::Tc,
+    env::TcEnv,
+    errors::TcResult,
+    operations::{Operations, OperationsOnNode},
+};
 
 impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
     type TyNode = TyId;
@@ -22,7 +27,7 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
     ) -> crate::errors::TcResult<()> {
         self.check_ty(annotation_ty)?;
         let match_subject_ty = Ty::hole_for(match_term.subject);
-        self.infer_term(match_term.subject, match_subject_ty)?;
+        self.check_node(match_term.subject, match_subject_ty)?;
 
         let match_subject_var = match *match_term.subject.value() {
             Term::Var(v) => Some(v),
@@ -58,17 +63,17 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
                 match match_annotation_ty {
                     _ if self.uni_ops().is_uninhabitable(subject_ty_copy)? => {
                         let new_unified_ty = Ty::hole_for(case_data.value);
-                        self.infer_term(case_data.value, new_unified_ty)?;
+                        self.check_node(case_data.value, new_unified_ty)?;
                         self.check_by_unify(new_unified_ty, never_ty(NodeOrigin::Expected))?;
                     }
                     Some(_) => {
-                        self.infer_term(case_data.value, new_unified_ty)?;
+                        self.check_node(case_data.value, new_unified_ty)?;
                         if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
                             inhabited.set(true);
                         }
                     }
                     None => {
-                        self.infer_term(case_data.value, new_unified_ty)?;
+                        self.check_node(case_data.value, new_unified_ty)?;
                         if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
                             inhabited.set(true);
                             self.uni_ops().unify_terms(new_unified_ty, unified_ty)?;

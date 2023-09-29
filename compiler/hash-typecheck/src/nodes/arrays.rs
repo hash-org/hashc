@@ -17,7 +17,7 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations,
+        Operations, OperationsOnNode,
     },
 };
 
@@ -46,8 +46,8 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
                 create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
             }
             ArrayTerm::Repeated(term, repeat) => {
-                self.infer_term(term, inner_ty)?;
-                self.infer_term(repeat, usize_ty(array_len_origin))?;
+                self.check_node(term, inner_ty)?;
+                self.check_node(repeat, usize_ty(array_len_origin))?;
                 repeat
             }
         };
@@ -158,13 +158,13 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
         self.check_ty(annotation_ty)?;
 
         let subject_ty = Ty::hole_for(index_term.subject);
-        self.infer_term(index_term.subject, subject_ty)?;
+        self.check_node(index_term.subject, subject_ty)?;
         self.normalise_and_check_ty(subject_ty)?;
 
         // Ensure the index is a usize
         let index_ty =
             Ty::expect_is(index_term.index, usize_ty(index_term.index.origin().inferred()));
-        self.infer_term(index_term.index, index_ty)?;
+        self.check_node(index_term.index, index_ty)?;
 
         let wrong_subject_ty = || {
             Err(TcError::WrongTy {

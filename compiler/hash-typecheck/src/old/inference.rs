@@ -135,7 +135,7 @@ impl<T: TcEnv> Tc<'_, T> {
     ) -> TcResult<()> {
         let terms = term_list_id.value();
         self.infer_unified_list(&terms.value(), element_annotation_ty, |term, ty| {
-            self.infer_term(term, ty)
+            self.check_node(term, ty)
         })?;
         Ok(())
     }
@@ -232,7 +232,7 @@ impl<T: TcEnv> Tc<'_, T> {
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for param_id in params.iter() {
                     let param = param_id.value();
-                    self.infer_term(param.ty, Ty::universe_of(param.ty))?;
+                    self.check_node(param.ty, Ty::universe_of(param.ty))?;
                     self.context().add_typing(param.name, param.ty);
                 }
 
@@ -261,7 +261,7 @@ impl<T: TcEnv> Tc<'_, T> {
     pub fn check_ty(&self, ty: TyId) -> TcResult<()> {
         match *ty.value() {
             Ty::Universe(_) | Ty::Hole(_) => Ok(()),
-            _ => self.infer_term(ty, Ty::universe_of(ty)),
+            _ => self.check_node(ty, Ty::universe_of(ty)),
         }
     }
 
@@ -270,7 +270,7 @@ impl<T: TcEnv> Tc<'_, T> {
         match *ty.value() {
             Ty::Hole(_) => Ok(()),
             _ => {
-                self.infer_term(ty, Ty::universe_of(ty))?;
+                self.check_node(ty, Ty::universe_of(ty))?;
                 let norm = self.norm_ops();
                 norm.normalise_in_place(ty.into())?;
                 Ok(())
@@ -375,8 +375,8 @@ impl<T: TcEnv> Tc<'_, T> {
                 create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
             }
             ArrayTerm::Repeated(term, repeat) => {
-                self.infer_term(term, inner_ty)?;
-                self.infer_term(repeat, usize_ty(array_len_origin))?;
+                self.check_node(term, inner_ty)?;
+                self.check_node(repeat, usize_ty(array_len_origin))?;
                 repeat
             }
         };
@@ -456,7 +456,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 let norm_ops = self.norm_ops();
                 norm_ops.with_mode(NormalisationMode::Full);
                 if norm_ops.normalise_in_place(expr.into())? {
-                    self.infer_term(expr, term_ty)?;
+                    self.check_node(expr, term_ty)?;
                 }
             }
         }
@@ -474,7 +474,7 @@ impl<T: TcEnv> Tc<'_, T> {
             let norm_ops = self.norm_ops();
             norm_ops.with_mode(NormalisationMode::Full);
             if norm_ops.normalise_in_place(fn_call.into())? {
-                self.infer_term(fn_call, fn_call_result_ty)?;
+                self.check_node(fn_call, fn_call_result_ty)?;
             }
         }
         Ok(())
@@ -518,7 +518,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 NodeOrigin::Generated,
             );
 
-            self.infer_term(call_term, Ty::hole_for(call_term))?;
+            self.check_node(call_term, Ty::hole_for(call_term))?;
 
             // If successful, flag it as an entry point.
             self.entry_point().set(fn_def_id, entry_point);
@@ -535,8 +535,8 @@ impl<T: TcEnv> Tc<'_, T> {
     ) -> TcResult<FnTy> {
         let fn_def = fn_def_id.value();
         let fn_ty = Ty::from(fn_def.ty, fn_def_id.origin());
-        self.infer_term(annotation_ty, Ty::universe_of(annotation_ty))?;
-        self.infer_term(fn_ty, Ty::universe_of(fn_ty))?;
+        self.check_node(annotation_ty, Ty::universe_of(annotation_ty))?;
+        self.check_node(fn_ty, Ty::universe_of(fn_ty))?;
         self.uni_ops().unify_terms(fn_ty, annotation_ty)?;
 
         let fn_ty_value = term_as_variant!(self, fn_ty.value(), FnTy);
@@ -549,67 +549,6 @@ impl<T: TcEnv> Tc<'_, T> {
     pub fn infer_intrinsic(&self, intrinsic: Intrinsic, annotation_ty: TyId) -> TcResult<()> {
         // ##GeneratedOrigin: intrinsics do not belong to the source code
         self.check_by_unify(Term::from(intrinsic.ty(), NodeOrigin::Generated), annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer a concrete type for a given term.
-    pub fn infer_term(&self, term_id: TermId, annotation_ty: TyId) -> TcResult<()> {
-        self.register_new_atom(term_id, annotation_ty);
-        match *term_id.value() {
-            Term::Tuple(mut tuple_term) => self.check(&mut tuple_term, annotation_ty, term_id)?,
-            Term::Lit(lit_term) => self.check_node(lit_term, annotation_ty)?,
-            Term::Array(mut prim_term) => { self.check(&mut prim_term, annotation_ty, term_id) }?,
-            Term::Ctor(mut ctor_term) => self.check(&mut ctor_term, annotation_ty, term_id)?,
-            Term::Call(mut call_term) => self.check(&mut call_term, annotation_ty, term_id)?,
-            Term::Fn(fn_def_id) => {
-                self.check(&mut (fn_def_id, FnInferMode::Body), annotation_ty, term_id)?
-            }
-            Term::Var(mut var_term) => self.check(&mut var_term, annotation_ty, term_id)?,
-            Term::Return(mut return_term) => {
-                self.check(&mut return_term, annotation_ty, term_id)?
-            }
-            Term::Deref(mut deref_term) => self.check(&mut deref_term, annotation_ty, term_id)?,
-            Term::LoopControl(mut loop_control_term) => {
-                self.check(&mut loop_control_term, annotation_ty, term_id)?
-            }
-            Term::Unsafe(mut unsafe_term) => {
-                self.check(&mut unsafe_term, annotation_ty, term_id)?
-            }
-            Term::Loop(mut loop_term) => self.check(&mut loop_term, annotation_ty, term_id)?,
-            Term::Block(mut block_term) => self.check(&mut block_term, annotation_ty, term_id)?,
-            Term::TyOf(mut ty_of_term) => self.check(&mut ty_of_term, annotation_ty, term_id)?,
-            Term::Ref(mut ref_term) => self.check(&mut ref_term, annotation_ty, term_id)?,
-            Term::Cast(mut cast_term) => self.check(&mut cast_term, annotation_ty, term_id)?,
-            Term::Access(mut access_term) => {
-                self.check(&mut access_term, annotation_ty, term_id)?
-            }
-            Term::Index(mut index_term) => self.check(&mut index_term, annotation_ty, term_id)?,
-            Term::Match(mut match_term) => self.check(&mut match_term, annotation_ty, term_id)?,
-            Term::Assign(mut assign_term) => {
-                self.check(&mut assign_term, annotation_ty, term_id)?
-            }
-            Term::Intrinsic(mut intrinsic) => self.check(&mut intrinsic, annotation_ty, term_id)?,
-            Term::Hole(mut hole) => self.check(&mut hole, annotation_ty, term_id)?,
-            Ty::TupleTy(mut tuple_ty) => self.check(&mut tuple_ty, annotation_ty, term_id)?,
-            Ty::FnTy(mut fn_ty) => self.check(&mut fn_ty, annotation_ty, term_id)?,
-            Ty::RefTy(mut ref_ty) => {
-                self.check(&mut ref_ty, annotation_ty, term_id)?;
-            }
-            Ty::DataTy(mut data_ty) => {
-                self.check(&mut data_ty, annotation_ty, term_id)?;
-            }
-            Ty::Universe(mut universe_ty) => {
-                self.check(&mut universe_ty, annotation_ty, term_id)?
-            }
-        };
-
-        self.check_ty(annotation_ty)?;
-        self.register_atom_inference(term_id, term_id, annotation_ty);
-
-        // Potentially evaluate the term.
-        self.potentially_run_expr(term_id, annotation_ty)?;
-        self.potentially_dump_tir(term_id);
-
         Ok(())
     }
 
@@ -831,7 +770,7 @@ impl<T: TcEnv> Tc<'_, T> {
     pub fn infer_if_pat(&self, pat: &IfPat, annotation_ty: TyId) -> TcResult<()> {
         self.infer_pat(pat.pat, annotation_ty, None)?;
         let expected_condition_ty = Ty::expect_is(pat.condition, bool_ty(NodeOrigin::Expected));
-        self.infer_term(pat.condition, expected_condition_ty)?;
+        self.check_node(pat.condition, expected_condition_ty)?;
         if let Term::Var(v) = *pat.condition.value() {
             self.context().add_assignment(
                 v.symbol,
@@ -890,7 +829,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args },
                 ctor.origin(),
             );
-            self.infer_term(return_ty, Ty::universe_of(return_ty))?;
+            self.check_node(return_ty, Ty::universe_of(return_ty))?;
             Ok(())
         })
     }
@@ -924,12 +863,12 @@ impl<T: TcEnv> Tc<'_, T> {
                         }
                         PrimitiveCtorInfo::Array(array_ctor_info) => {
                             // Infer the inner type and length
-                            self.infer_term(
+                            self.check_node(
                                 array_ctor_info.element_ty,
                                 Ty::universe_of(array_ctor_info.element_ty),
                             )?;
                             if let Some(length) = array_ctor_info.length {
-                                self.infer_term(length, usize_ty(NodeOrigin::Expected))?;
+                                self.check_node(length, usize_ty(NodeOrigin::Expected))?;
                             }
                             Ok(())
                         }

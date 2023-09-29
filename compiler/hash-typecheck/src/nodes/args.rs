@@ -17,7 +17,7 @@ use crate::{
             NormaliseSignal,
         },
         unification::UnificationOptions,
-        RecursiveOperationsOnNode,
+        OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
 
@@ -40,7 +40,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
             annotation_params,
             |arg, param_ty| {
                 let arg = arg.value();
-                self.infer_term(arg.value, param_ty)?;
+                self.check_node(arg.value, param_ty)?;
                 Ok(())
             },
             |arg| {
