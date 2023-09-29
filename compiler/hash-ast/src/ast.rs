@@ -751,7 +751,7 @@ define_tree! {
     /// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct TyFnTy {
+    pub struct ImplicitFnTy {
         /// The parameters of the type function
         pub params: Child!(TyParams),
         /// Return type of the function
@@ -854,7 +854,7 @@ define_tree! {
         Union(UnionTy),
 
         /// Type function type
-        TyFn(TyFnTy),
+        ImplicitFn(ImplicitFnTy),
 
         /// Type function call
         TyFnCall(TyFnCall),
@@ -1297,7 +1297,7 @@ define_tree! {
     /// Used in struct, enum, trait, and function definitions.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct TyFnDef {
+    pub struct ImplicitFnDef {
         /// The type arguments of the function.
         pub params: Child!(TyParams),
 
@@ -1960,7 +1960,7 @@ define_tree! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TyParamOrigin {
         /// This is a type function definition,
-        TyFn,
+        ImplicitFn,
 
         /// The definition is a `struct`.
         Struct,
@@ -1976,7 +1976,7 @@ define_tree! {
         /// Get the name of origin of the type parameter.
         pub fn name(&self) -> &'static str {
             match self {
-                TyParamOrigin::TyFn => "type function",
+                TyParamOrigin::ImplicitFn => "implicit function",
                 TyParamOrigin::Struct => "struct",
                 TyParamOrigin::Enum => "enum",
                 TyParamOrigin::Mod => "mod",
@@ -2244,8 +2244,8 @@ define_tree! {
         /// Struct definition expression e.g. `enum(Bar(u32), Baz(f32))`
         EnumDef(EnumDef),
 
-        /// Type function definition e.g. `<T> => ...`
-        TyFnDef(TyFnDef),
+        /// Implicit function definition e.g. `<T> => ...`
+        ImplicitFnDef(ImplicitFnDef),
 
         /// A `mod` definition e.g. `mod { ... }`
         ModDef(ModDef),

@@ -49,9 +49,6 @@ bitflags::bitflags! {
         /// A match block, represents for `match` and `if` expressions.
         const Match = 1 << 7;
 
-        /// An implementation definition block.
-        const ImplDef = 1 << 8;
-
         /// A top-level module.
         const Mod = 1 << 9;
 
@@ -65,7 +62,7 @@ bitflags::bitflags! {
         const Import = 1 << 12;
 
         /// A type function definition.
-        const TyFnDef = 1 << 13;
+        const ImplicitFnDef = 1 << 13;
 
         /// A `struct` definition.
         const StructDef = 1 << 14;
@@ -102,11 +99,12 @@ bitflags::bitflags! {
         /// A pattern argument.
         const PatArg  = 1 << 24;
 
-        /// A trait definition.
-        const TraitDef = 1 << 25;
-
-        /// A general item definition e.g. `struct`, `enum`, `impl`, `mod` and `fn`.
-        const Item = Self::StructDef.bits() | Self::EnumDef.bits() | Self::FnDef.bits() | Self::TyFnDef.bits() | Self::ImplDef.bits() | Self::ModDef.bits() | Self::TraitDef.bits();
+        /// A general item definition e.g. `struct`, `enum`, `mod`, and functions.
+        const Item = Self::StructDef.bits()
+                   | Self::EnumDef.bits()
+                   | Self::FnDef.bits()
+                   | Self::ImplicitFnDef.bits()
+                   | Self::ModDef.bits();
     }
 }
 
@@ -126,7 +124,7 @@ impl AttrTarget {
             ast::Expr::Import(_) => AttrTarget::Import,
             ast::Expr::StructDef(_) => AttrTarget::StructDef,
             ast::Expr::EnumDef(_) => AttrTarget::EnumDef,
-            ast::Expr::TyFnDef(_) => AttrTarget::TyFnDef,
+            ast::Expr::ImplicitFnDef(_) => AttrTarget::ImplicitFnDef,
             ast::Expr::ModDef(_) => AttrTarget::ModDef,
             ast::Expr::FnDef(_) => AttrTarget::FnDef,
             ast::Expr::Ty(_) => AttrTarget::Ty,
@@ -152,14 +150,13 @@ impl fmt::Display for AttrTarget {
                 AttrTarget::Lit => "literal",
                 AttrTarget::Loop => "loop block",
                 AttrTarget::Match => "match block",
-                AttrTarget::ImplDef => "impl block",
                 AttrTarget::Mod => "module",
                 AttrTarget::ModDef => "mod block",
                 AttrTarget::Block => "body block",
                 AttrTarget::Import => "import",
                 AttrTarget::StructDef => "`struct` definition",
                 AttrTarget::EnumDef => "`enum` definition",
-                AttrTarget::TyFnDef => "implicit function definition",
+                AttrTarget::ImplicitFnDef => "implicit function definition",
                 AttrTarget::FnDef => "`function` definition",
                 AttrTarget::Ty => "type",
                 AttrTarget::Expr => "expression",
@@ -168,7 +165,6 @@ impl fmt::Display for AttrTarget {
                 AttrTarget::Field => "field",
                 AttrTarget::EnumVariant => "enum variant",
                 AttrTarget::MatchCase => "match case",
-                AttrTarget::TraitDef => "trait definition",
                 _ => unreachable!(),
             })
             .collect_vec();

@@ -34,8 +34,8 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         EnumDef,
         FnDef,
         FnTy,
-        TyFnTy,
-        TyFnDef,
+        ImplicitFnTy,
+        ImplicitFnDef,
         TupleTy,
         BodyBlock,
         Expr,
@@ -277,11 +277,11 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         Ok(())
     }
 
-    type TyFnDefRet = ();
-    fn visit_ty_fn_def(
+    type ImplicitFnDefRet = ();
+    fn visit_implicit_fn_def(
         &self,
-        node: AstNodeRef<ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error> {
+        node: AstNodeRef<ast::ImplicitFnDef>,
+    ) -> Result<Self::ImplicitFnDefRet, Self::Error> {
         // Type functions are interpreted as functions that are implicit.
 
         // Get the function name from the name hint.
@@ -311,7 +311,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         );
 
         // Traverse the function body
-        self.enter_def(node, fn_def_id, || walk::walk_ty_fn_def(self, node))?;
+        self.enter_def(node, fn_def_id, || walk::walk_implicit_fn_def(self, node))?;
 
         Ok(())
     }
@@ -354,11 +354,11 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         }
     }
 
-    type TyFnTyRet = ();
-    fn visit_ty_fn_ty(
+    type ImplicitFnTyRet = ();
+    fn visit_implicit_fn_ty(
         &self,
-        node: AstNodeRef<ast::TyFnTy>,
-    ) -> Result<Self::TyFnTyRet, Self::Error> {
+        node: AstNodeRef<ast::ImplicitFnTy>,
+    ) -> Result<Self::ImplicitFnTyRet, Self::Error> {
         // This will be filled in during resolution
         let fn_ty_id = Ty::from(
             FnTy {
@@ -373,7 +373,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         );
 
         // Traverse the type function body
-        self.enter_item(node, fn_ty_id, || walk::walk_ty_fn_ty(self, node))?;
+        self.enter_item(node, fn_ty_id, || walk::walk_implicit_fn_ty(self, node))?;
 
         Ok(())
     }
@@ -422,7 +422,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         match node.body {
             ast::Expr::StructDef(_)
             | ast::Expr::EnumDef(_)
-            | ast::Expr::TyFnDef(_)
+            | ast::Expr::ImplicitFnDef(_)
             | ast::Expr::ModDef(_)
             | ast::Expr::FnDef(_)
             | ast::Expr::Macro(_) => {} // These accept a name hint

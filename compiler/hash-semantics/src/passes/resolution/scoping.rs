@@ -338,7 +338,7 @@ impl<'env, E: SemanticEnv + 'env> Scoping<'env, E> {
     /// Enter the scope of a type function type
     pub(super) fn enter_ty_fn_ty<T>(
         &self,
-        node: ast::AstNodeRef<ast::TyFnTy>,
+        node: ast::AstNodeRef<ast::ImplicitFnTy>,
         f: impl FnOnce(FnTy) -> T,
     ) -> T {
         let fn_ty_id = self.ast_info.tys().get_data_by_node(node.id()).unwrap();

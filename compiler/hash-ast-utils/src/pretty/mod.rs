@@ -356,13 +356,13 @@ where
         Ok(())
     }
 
-    type TyFnTyRet = ();
+    type ImplicitFnTyRet = ();
 
-    fn visit_ty_fn_ty(
+    fn visit_implicit_fn_ty(
         &mut self,
-        node: ast::AstNodeRef<ast::TyFnTy>,
-    ) -> Result<Self::TyFnTyRet, Self::Error> {
-        let ast::TyFnTy { params, return_ty } = node.body();
+        node: ast::AstNodeRef<ast::ImplicitFnTy>,
+    ) -> Result<Self::ImplicitFnTyRet, Self::Error> {
+        let ast::ImplicitFnTy { params, return_ty } = node.body();
 
         self.visit_ty_params(params.ast_ref())?;
         self.write(" -> ")?;
@@ -729,13 +729,13 @@ where
         Ok(())
     }
 
-    type TyFnDefRet = ();
+    type ImplicitFnDefRet = ();
 
-    fn visit_ty_fn_def(
+    fn visit_implicit_fn_def(
         &mut self,
-        node: ast::AstNodeRef<ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let ast::TyFnDef { params, return_ty, ty_fn_body } = node.body();
+        node: ast::AstNodeRef<ast::ImplicitFnDef>,
+    ) -> Result<Self::ImplicitFnDefRet, Self::Error> {
+        let ast::ImplicitFnDef { params, return_ty, ty_fn_body } = node.body();
 
         self.visit_ty_params(params.ast_ref())?;
 

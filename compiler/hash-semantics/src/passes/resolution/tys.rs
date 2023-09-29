@@ -273,7 +273,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     /// Make a type from the given [`ast::Ty`].
     pub(super) fn make_ty_from_ast_ty_fn_ty(
         &self,
-        node: AstNodeRef<ast::TyFnTy>,
+        node: AstNodeRef<ast::ImplicitFnTy>,
     ) -> SemanticResult<TyId> {
         self.scoping().enter_ty_fn_ty(node, |mut ty_fn| {
             // First, make the params
@@ -364,7 +364,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Ty::Array(list_ty) => self.make_ty_from_ast_array_ty(node.with_body(list_ty))?,
             ast::Ty::Ref(ref_ty) => self.make_ty_from_ref_ty(node.with_body(ref_ty))?,
             ast::Ty::Fn(fn_ty) => self.make_ty_from_ast_fn_ty(node.with_body(fn_ty))?,
-            ast::Ty::TyFn(ty_fn_ty) => self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?,
+            ast::Ty::ImplicitFn(ty_fn_ty) => {
+                self.make_ty_from_ast_ty_fn_ty(node.with_body(ty_fn_ty))?
+            }
             ast::Ty::Merge(merge_ty) => self.make_ty_from_merge_ty(node.with_body(merge_ty))?,
             ast::Ty::Macro(invocation) => self.make_ty_from_ast_ty(invocation.subject.ast_ref())?,
             ast::Ty::Expr(expr) => self.make_term_from_ast_expr(expr.expr.ast_ref())?,

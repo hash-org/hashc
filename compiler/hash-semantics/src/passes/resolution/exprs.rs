@@ -159,8 +159,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Expr::Block(block_expr) => {
                 self.make_term_from_ast_block_expr(node.with_body(block_expr))?
             }
-            ast::Expr::TyFnDef(ty_fn_def) => {
-                self.make_term_from_ast_ty_fn_def(node.with_body(ty_fn_def))?
+            ast::Expr::ImplicitFnDef(ty_fn_def) => {
+                self.make_term_from_ast_implicit_fn_def(node.with_body(ty_fn_def))?
             }
             ast::Expr::FnDef(fn_def) => self.make_term_from_ast_fn_def(node.with_body(fn_def))?,
             ast::Expr::AssignOp(assign_op_expr) => {
@@ -804,7 +804,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     }
 
     /// Make a function term from an AST function definition, which is either a
-    /// [`ast::TyFnDef`] or a [`ast::FnDef`].
+    /// [`ast::ImplicitFnDef`] or a [`ast::FnDef`].
     fn make_term_from_some_ast_fn_def(
         &self,
         params: AstParams<'_>,
@@ -869,10 +869,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         }
     }
 
-    /// Make a term from an [`ast::TyFnDef`].
-    pub(super) fn make_term_from_ast_ty_fn_def(
+    /// Make a term from an [`ast::ImplicitFnDef`].
+    pub(super) fn make_term_from_ast_implicit_fn_def(
         &self,
-        node: AstNodeRef<ast::TyFnDef>,
+        node: AstNodeRef<ast::ImplicitFnDef>,
     ) -> SemanticResult<TermId> {
         self.make_term_from_some_ast_fn_def(
             AstParams::Ty(&node.params),

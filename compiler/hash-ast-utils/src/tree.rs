@@ -372,15 +372,15 @@ impl AstVisitor for AstTreePrinter {
         Ok(TreeNode::branch("function", children))
     }
 
-    type TyFnTyRet = TreeNode;
-    fn visit_ty_fn_ty(
+    type ImplicitFnTyRet = TreeNode;
+    fn visit_implicit_fn_ty(
         &self,
-        node: ast::AstNodeRef<ast::TyFnTy>,
-    ) -> Result<Self::TyFnTyRet, Self::Error> {
-        let walk::TyFnTy { params, return_ty } = walk::walk_ty_fn_ty(self, node)?;
+        node: ast::AstNodeRef<ast::ImplicitFnTy>,
+    ) -> Result<Self::ImplicitFnTyRet, Self::Error> {
+        let walk::ImplicitFnTy { params, return_ty } = walk::walk_implicit_fn_ty(self, node)?;
 
         Ok(TreeNode::branch(
-            "type_function",
+            "implicit_fn_ty",
             vec![params, TreeNode::branch("return", vec![return_ty])],
         ))
     }
@@ -480,15 +480,16 @@ impl AstVisitor for AstTreePrinter {
         Ok(TreeNode::branch("expr", vec![expr]))
     }
 
-    type TyFnDefRet = TreeNode;
-    fn visit_ty_fn_def(
+    type ImplicitFnDefRet = TreeNode;
+    fn visit_implicit_fn_def(
         &self,
-        node: ast::AstNodeRef<ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let walk::TyFnDef { params, return_ty, ty_fn_body } = walk::walk_ty_fn_def(self, node)?;
+        node: ast::AstNodeRef<ast::ImplicitFnDef>,
+    ) -> Result<Self::ImplicitFnDefRet, Self::Error> {
+        let walk::ImplicitFnDef { params, return_ty, ty_fn_body } =
+            walk::walk_implicit_fn_def(self, node)?;
 
         Ok(TreeNode::branch(
-            "type_function",
+            "implicit_fn_def",
             iter::once(params)
                 .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
                 .chain(iter::once(TreeNode::branch("body", vec![ty_fn_body])))

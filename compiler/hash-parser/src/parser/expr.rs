@@ -150,8 +150,8 @@ impl<'s> AstGen<'s> {
                 self.node_with_span(Expr::Variable(VariableExpr { name }), token.span)
             }
             TokenKind::Lt => {
-                let def = self.parse_ty_fn_def()?;
-                self.node_with_joined_span(Expr::TyFnDef(def), token.span)
+                let def = self.parse_implicit_fn_def()?;
+                self.node_with_joined_span(Expr::ImplicitFnDef(def), token.span)
             }
             TokenKind::Keyword(Keyword::Struct) => {
                 let def = self.parse_struct_def()?;

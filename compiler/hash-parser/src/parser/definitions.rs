@@ -139,12 +139,12 @@ impl<'s> AstGen<'s> {
         Ok(self.node_with_joined_span(Param { name, ty, default, macros }, start))
     }
 
-    /// Parse a [TyFnDef]. Type functions specify logic at the type
+    /// Parse a [ImplicitFnDef]. Implicit functions specify logic at the type
     /// level on expressions such as struct, enum, function, and trait
     /// definitions.
-    pub fn parse_ty_fn_def(&mut self) -> ParseResult<TyFnDef> {
+    pub fn parse_implicit_fn_def(&mut self) -> ParseResult<ImplicitFnDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Lt));
-        let params = self.parse_ty_params(TyParamOrigin::TyFn)?;
+        let params = self.parse_ty_params(TyParamOrigin::ImplicitFn)?;
 
         // see if we need to add a return ty...
         let return_ty = match self.peek_resultant_fn(|g| g.parse_token(TokenKind::ThinArrow)) {
@@ -157,7 +157,7 @@ impl<'s> AstGen<'s> {
         self.parse_token(TokenKind::FatArrow)?;
         let ty_fn_body = self.parse_expr_with_precedence(0)?;
 
-        Ok(TyFnDef { params, return_ty, ty_fn_body })
+        Ok(ImplicitFnDef { params, return_ty, ty_fn_body })
     }
 
     /// Parse a `mod` block, with optional type parameters.
