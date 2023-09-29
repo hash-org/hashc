@@ -4,7 +4,7 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Checker,
+    checker::Tc,
     env::TcEnv,
     errors::TcResult,
     operations::{
@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-impl<E: TcEnv> OperationsOnNode<LitId> for Checker<'_, E> {
+impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
     type TyNode = TyId;
 
     fn check_node(&self, _ctx: &mut Context, _item: LitId, _item_ty: Self::TyNode) -> TcResult<()> {

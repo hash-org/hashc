@@ -5,7 +5,7 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Checker,
+    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
     operations::{
@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-impl<E: TcEnv> Operations<AccessTerm> for Checker<'_, E> {
+impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TermId;
 

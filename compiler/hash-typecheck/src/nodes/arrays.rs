@@ -9,7 +9,7 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Checker,
+    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
     operations::{
@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-impl<E: TcEnv> Operations<ArrayTerm> for Checker<'_, E> {
+impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TermId;
 
@@ -108,7 +108,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Checker<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<ArrayPat> for Checker<'_, E> {
+impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = PatId;
 

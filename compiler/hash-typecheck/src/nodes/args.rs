@@ -9,7 +9,7 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Checker,
+    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
     operations::{
@@ -22,7 +22,7 @@ use crate::{
     },
 };
 
-impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Checker<'_, E> {
+impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
     type TyNode = ParamsId;
     type RecursiveArg = ArgsId;
 

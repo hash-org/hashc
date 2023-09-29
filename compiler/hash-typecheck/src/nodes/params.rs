@@ -1,7 +1,7 @@
 use hash_tir::{context::Context, tir::ParamsId};
 
 use crate::{
-    checker::Checker,
+    checker::Tc,
     env::TcEnv,
     errors::TcResult,
     operations::{
@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-impl<E: TcEnv> OperationsOnNode<ParamsId> for Checker<'_, E> {
+impl<E: TcEnv> OperationsOnNode<ParamsId> for Tc<'_, E> {
     type TyNode = ();
 
     fn check_node(

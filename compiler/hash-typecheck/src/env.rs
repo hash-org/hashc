@@ -7,7 +7,7 @@ use hash_tir::{atom_info::HasAtomInfo, context::HasContext, tir::FnDefId};
 use hash_utils::timing::HasMetrics;
 
 use crate::{
-    checker::Checker,
+    checker::Tc,
     errors::TcError,
     inference::InferenceOps,
     normalisation,
@@ -36,8 +36,8 @@ pub trait TcEnv:
         self.settings().semantic_settings.mono_tir
     }
 
-    fn checker(&self) -> Checker<Self> {
-        Checker::new(self)
+    fn checker(&self) -> Tc<Self> {
+        Tc::new(self)
     }
 
     fn infer_ops(&self) -> InferenceOps<Self> {

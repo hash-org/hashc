@@ -1,7 +1,7 @@
 use hash_tir::tir::{TermId, TyId, UniverseTy};
 
 use crate::{
-    checker::Checker,
+    checker::Tc,
     env::TcEnv,
     errors::TcResult,
     operations::{
@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-impl<E: TcEnv> Operations<UniverseTy> for Checker<'_, E> {
+impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TyId;
 

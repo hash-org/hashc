@@ -6,7 +6,7 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Checker,
+    checker::Tc,
     env::TcEnv,
     errors::TcResult,
     inference::FnInferMode,
@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
+impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TyId;
 
@@ -81,7 +81,7 @@ impl<E: TcEnv> Operations<FnTy> for Checker<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Checker<'_, E> {
+impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TermId;
 
