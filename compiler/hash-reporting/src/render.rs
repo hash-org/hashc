@@ -173,6 +173,56 @@ impl ReportCodeBlock {
         (end - start).saturating_sub(combining_marks)
     }
 
+    /// Function which is responsible for rendering the span note which is
+    /// present at the end of the span view. This will print the initial
+    /// prefix to the span view, usually the highlighted part of the span,
+    /// and then the message.
+    ///
+    /// This function will automatically format the message to correctly align
+    /// all of the lines of the span message with the correct indentation.
+    fn render_span_label(
+        &self,
+        f: &mut fmt::Formatter,
+        offset: usize,
+        initial_prefix: String,
+        longest_indent_width: usize,
+        kind: ReportKind,
+    ) -> fmt::Result {
+        let mut write_line = |line: &str| {
+            writeln!(
+                f,
+                "{} {} {}",
+                " ".repeat(longest_indent_width),
+                highlight(Colour::Blue, "|"),
+                highlight(kind.as_colour(), line)
+            )
+        };
+
+        let line_count = self.code_message.lines().count();
+
+        // If the number of lines is zero, then we still want to print
+        // the initial prefix.
+        if line_count == 0 {
+            let line: String = once(initial_prefix.as_str())
+                .chain(once(" "))
+                .chain(once(self.code_message.as_str()))
+                .collect();
+            return write_line(&line);
+        }
+
+        for (index, line) in self.code_message.lines().enumerate() {
+            let message_line: String = if index == 0 {
+                once(initial_prefix.as_str()).chain(once(" ")).chain(once(line)).collect()
+            } else {
+                repeat(" ").take(offset).chain(once(line)).collect()
+            };
+
+            write_line(&message_line)?;
+        }
+
+        Ok(())
+    }
+
     /// Function that performs the rendering of the `line` view for a
     /// diagnostic. In this mode, only a single line is highlighted using
     /// the [LINE_DIAGNOSTIC_MARKER]. It will highlight the entire span
@@ -216,25 +266,23 @@ impl ReportCodeBlock {
             // If this is the error view. then we want to print the
             // the span label.
             if index == start_row && !line.is_empty() {
-                let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER)
-                    .take(self.get_line_display_width(line, start_column, end_column))
-                    .collect();
+                let dashes_length = self.get_line_display_width(line, start_column, end_column);
+                let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER).take(dashes_length).collect();
 
-                let mut code_note: String = repeat(" ")
-                    .take(self.get_line_display_width(line, 0, start_column))
-                    .chain(once(dashes.as_str()))
-                    .collect();
+                let highlight_offset = self.get_line_display_width(line, 0, start_column) + 2;
 
-                if index == end_row {
-                    code_note.extend(once(" ").chain(once(self.code_message.as_str())));
-                }
+                // Offset of the initial space between the start, then the dashes, then a space
+                let total_offset = highlight_offset + dashes_length + 1;
 
-                writeln!(
+                let initial_prefix =
+                    repeat(" ").take(highlight_offset).chain(once(dashes.as_str())).collect();
+
+                self.render_span_label(
                     f,
-                    "{} {}   {}",
-                    " ".repeat(longest_indent_width),
-                    highlight(Colour::Blue, "|"),
-                    highlight(kind.as_colour(), &code_note)
+                    total_offset,
+                    initial_prefix,
+                    longest_indent_width,
+                    kind,
                 )?;
             }
         }
@@ -272,7 +320,7 @@ impl ReportCodeBlock {
         f: &mut fmt::Formatter,
         source: &Source,
         longest_indent_width: usize,
-        report_kind: ReportKind,
+        kind: ReportKind,
     ) -> fmt::Result {
         let error_view = self.get_source_view(source);
         let ReportCodeBlockInfo { span, .. } = self.info(source);
@@ -300,7 +348,7 @@ impl ReportCodeBlock {
             let index_str = format!("{:<longest_indent_width$}", index + 1);
 
             let line_number = if (start_row..=end_row).contains(&index) {
-                highlight(report_kind.as_colour(), &index_str)
+                highlight(kind.as_colour(), &index_str)
             } else {
                 index_str
             };
@@ -329,8 +377,8 @@ impl ReportCodeBlock {
                     writeln!(
                         f,
                         "{} {}",
-                        highlight(report_kind.as_colour(), range_line_number),
-                        highlight(report_kind.as_colour(), connector),
+                        highlight(kind.as_colour(), range_line_number),
+                        highlight(kind.as_colour(), connector),
                     )?;
                 }
 
@@ -345,7 +393,7 @@ impl ReportCodeBlock {
                 "{} {} {}  {}",
                 line_number,
                 highlight(Colour::Blue, "|"),
-                highlight(report_kind.as_colour(), connector),
+                highlight(kind.as_colour(), connector),
                 line
             )?;
 
@@ -362,7 +410,7 @@ impl ReportCodeBlock {
                     "{} {}  {}",
                     " ".repeat(longest_indent_width),
                     highlight(Colour::Blue, "|"),
-                    highlight(report_kind.as_colour(), arrow)
+                    highlight(kind.as_colour(), arrow)
                 )?;
             }
 
@@ -373,17 +421,10 @@ impl ReportCodeBlock {
                 let arrow_length = self.get_line_display_width(line, 0, end_column + 1);
                 let arrow: String = once('|')
                     .chain(repeat('_').take(arrow_length))
-                    .chain(format!("{BLOCK_DIAGNOSTIC_MARKER} ").chars())
-                    .chain(self.code_message.as_str().chars())
+                    .chain(format!("{BLOCK_DIAGNOSTIC_MARKER}").chars())
                     .collect();
 
-                writeln!(
-                    f,
-                    "{} {} {}",
-                    " ".repeat(longest_indent_width),
-                    highlight(Colour::Blue, "|"),
-                    highlight(report_kind.as_colour(), arrow)
-                )?;
+                self.render_span_label(f, arrow_length, arrow, longest_indent_width, kind)?;
             }
         }
 
