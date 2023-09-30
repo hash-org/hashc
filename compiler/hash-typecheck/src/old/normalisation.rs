@@ -28,6 +28,7 @@ use hash_utils::{derive_more::Deref, itertools::Itertools, log::info};
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
+    inference::FnInferMode,
     intrinsic_abilities::IntrinsicAbilitiesImpl,
     operations::{
         normalisation::{
@@ -336,7 +337,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate a variable.
     fn eval_var(&self, var: SymbolId, original_term_id: TermId) -> AtomEvaluation {
-        normalisation_result_into(self.checker().normalise(
+        normalisation_result_into(self.checker(FnInferMode::Header).normalise(
             &self.opts,
             VarTerm { symbol: var },
             original_term_id,
@@ -413,7 +414,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate an access term.
     fn eval_access(&self, access_term: AccessTerm, original_term_id: TermId) -> AtomEvaluation {
-        normalisation_result_into(self.checker().normalise(
+        normalisation_result_into(self.checker(FnInferMode::Body).normalise(
             &self.opts,
             access_term,
             original_term_id,
@@ -560,7 +561,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate some arguments
     fn eval_args(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
-        self.checker().normalise_node(&self.opts, args_id)
+        self.checker(FnInferMode::Body).normalise_node(&self.opts, args_id)
     }
 
     /// Evaluate a function call.

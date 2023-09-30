@@ -15,20 +15,17 @@ use hash_tir::{
     context::{HasContext, ScopeKind},
     dump::dump_tir,
     intrinsics::{
-        definitions::{array_ty, bool_ty, list_def, list_ty, usize_ty, Intrinsic},
+        definitions::{bool_ty, list_def, list_ty, usize_ty, Intrinsic},
         make::IsIntrinsic,
-        utils::{
-            bool_term, create_term_from_usize_lit, try_use_ty_as_float_ty, try_use_ty_as_int_ty,
-        },
+        utils::{bool_term, try_use_ty_as_float_ty, try_use_ty_as_int_ty},
     },
     term_as_variant,
     tir::{
         validate_and_reorder_pat_args_against_params, validate_params, Arg, ArgId, ArgsId,
-        ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorPat, DataDefCtors, DataDefId, DataTy,
-        FnDefId, FnTy, HasAstNodeId, IfPat, Lit, LitId, ModDefId, ModMemberId, ModMemberValue,
-        Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId,
-        PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, Spread, SymbolId, Term, TermId,
-        TermListId, TuplePat, TupleTy, Ty, TyId,
+        ArrayPat, CallTerm, CtorDefId, CtorPat, DataDefCtors, DataDefId, DataTy, FnDefId, FnTy,
+        HasAstNodeId, IfPat, Lit, LitId, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId,
+        Pat, PatArgsId, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, Spread,
+        SymbolId, Term, TermId, TermListId, TuplePat, TupleTy, Ty, TyId,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -37,9 +34,7 @@ use crate::{
     checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{
-        normalisation::NormalisationMode, Operations, OperationsOnNode, RecursiveOperationsOnNode,
-    },
+    operations::{normalisation::NormalisationMode, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 /// The mode in which to infer the type of a function.
@@ -356,58 +351,6 @@ impl<T: TcEnv> Tc<'_, T> {
             Ty::Hole(_) => Ok(None),
             _ => mismatch(),
         }
-    }
-
-    /// Infer the type of a primitive term.
-    pub fn infer_array_term(&self, array_term: &ArrayTerm, annotation_ty: TyId) -> TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-
-        let array_len_origin = array_term.length_origin();
-        let (inner_ty, array_len) = self
-            .use_ty_as_array(annotation_ty)?
-            .unwrap_or_else(|| (Ty::hole(array_len_origin.inferred()), None));
-
-        // Now unify that the terms that are specified in the array match the
-        // annotation type.
-        let inferred_len_term = match *array_term {
-            ArrayTerm::Normal(elements) => {
-                self.infer_unified_term_list(elements, inner_ty)?;
-                create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
-            }
-            ArrayTerm::Repeated(term, repeat) => {
-                self.check_node(term, inner_ty)?;
-                self.check_node(repeat, usize_ty(array_len_origin))?;
-                repeat
-            }
-        };
-
-        // Ensure the array lengths match if given
-        if let Some(len) = array_len {
-            if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
-                return Err(TcError::MismatchingArrayLengths {
-                    expected_len: len,
-                    got_len: inferred_len_term,
-                });
-            }
-        }
-
-        // Either create  a default type, or apply a substitution to the annotation
-        // type.
-        //
-        // - If the array kind is "repeated", the default annotation that we use is an
-        //   array of the specified length.
-        //
-        // - Otherwise, we just default to a list type.
-        if let Ty::Hole(_) = *annotation_ty.value() {
-            let default_annotation = match array_term {
-                ArrayTerm::Normal(_) => list_ty(inner_ty, NodeOrigin::Expected),
-                ArrayTerm::Repeated(_, repeat) => array_ty(inner_ty, *repeat, NodeOrigin::Expected),
-            };
-
-            self.check_by_unify(default_annotation, annotation_ty)?
-        };
-
-        Ok(())
     }
 
     pub fn get_binds_in_pat_atom_once(
@@ -890,56 +833,5 @@ impl<T: TcEnv> Tc<'_, T> {
         if has_dump_dir {
             dump_tir(target);
         }
-    }
-
-    /// Infer the given module member.
-    pub fn infer_mod_member(&self, mod_member: ModMemberId, fn_mode: FnInferMode) -> TcResult<()> {
-        let value = mod_member.borrow().value;
-        match value {
-            ModMemberValue::Data(data_def_id) => {
-                self.infer_data_def(data_def_id)?;
-                Ok(())
-            }
-            ModMemberValue::Mod(mod_def_id) => {
-                self.infer_mod_def(mod_def_id, fn_mode)?;
-                Ok(())
-            }
-            ModMemberValue::Fn(fn_def_id) => {
-                self.check(
-                    &mut (fn_def_id, fn_mode),
-                    Ty::hole(fn_def_id.origin().inferred()),
-                    Term::hole(fn_def_id.origin()),
-                )?;
-                if fn_mode == FnInferMode::Body {
-                    // Dump TIR if necessary
-                    self.potentially_dump_tir(fn_def_id);
-
-                    // Check for entry point
-                    self.potentially_flag_fn_as_entry_point(fn_def_id)?;
-                }
-                Ok(())
-            }
-            ModMemberValue::Intrinsic(_) => {
-                // Nothing to do
-                Ok(())
-            }
-        }
-    }
-
-    /// Infer the given module definition.
-    pub fn infer_mod_def(&self, mod_def_id: ModDefId, fn_mode: FnInferMode) -> TcResult<()> {
-        self.context().enter_scope(mod_def_id.into(), || {
-            let members = mod_def_id.borrow().members;
-            let mut error_state = ErrorState::new();
-
-            // Infer each member signature
-            for member_idx in members.value().to_index_range() {
-                let _ = error_state.try_or_add_error(
-                    self.infer_mod_member(ModMemberId(members.elements(), member_idx), fn_mode),
-                );
-            }
-
-            error_state.into_error(|| Ok(()))
-        })
     }
 }

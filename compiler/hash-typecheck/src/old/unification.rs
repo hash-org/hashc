@@ -17,6 +17,7 @@ use hash_utils::derive_more::Deref;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
+    inference::FnInferMode,
     operations::{unification::UnificationOptions, Operations, RecursiveOperationsOnNode},
 };
 
@@ -130,7 +131,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
         src_id: TyId,
         target_id: TyId,
     ) -> TcResult<()> {
-        self.checker().unify(&self.opts, &mut f1, &mut f2, src_id, target_id)?;
+        self.checker(FnInferMode::Body).unify(&self.opts, &mut f1, &mut f2, src_id, target_id)?;
         Ok(())
     }
 
@@ -201,7 +202,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     pub fn unify_vars(&self, a: SymbolId, b: SymbolId, a_id: TermId, b_id: TermId) -> TcResult<()> {
         let mut src = VarTerm { symbol: a };
         let mut target = VarTerm { symbol: b };
-        self.checker().unify(&self.opts, &mut src, &mut target, a_id, b_id)?;
+        self.checker(FnInferMode::Body).unify(&self.opts, &mut src, &mut target, a_id, b_id)?;
         Ok(())
     }
 
@@ -276,7 +277,8 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             (Ty::DataTy(_), _) | (_, Ty::DataTy(_)) => self.mismatching_atoms(src_id, target_id),
 
             (Ty::Universe(mut u1), Ty::Universe(mut u2)) => {
-                self.checker().unify(&self.opts, &mut u1, &mut u2, src_id, target_id)?;
+                self.checker(FnInferMode::Body)
+                    .unify(&self.opts, &mut u1, &mut u2, src_id, target_id)?;
                 Ok(())
             }
 
@@ -298,7 +300,8 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             (Term::Lit(_), _) | (_, Term::Lit(_)) => self.mismatching_atoms(src_id, target_id),
 
             (Term::Access(mut a1), Term::Access(mut a2)) => {
-                self.checker().unify(&self.opts, &mut a1, &mut a2, src_id, target_id)?;
+                self.checker(FnInferMode::Body)
+                    .unify(&self.opts, &mut a1, &mut a2, src_id, target_id)?;
                 Ok(())
             }
 
@@ -380,7 +383,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
 
     /// Unify two argument lists.
     pub fn unify_args(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<()> {
-        self.checker().unify_nodes_rec(&self.opts, src_id, target_id, |_| Ok(()))
+        self.checker(FnInferMode::Body).unify_nodes_rec(&self.opts, src_id, target_id, |_| Ok(()))
     }
 
     /// Whether two function types match in terms of their modality.

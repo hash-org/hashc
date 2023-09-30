@@ -27,9 +27,9 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             Term::Array(mut prim_term) => { self.check(&mut prim_term, annotation_ty, term_id) }?,
             Term::Ctor(mut ctor_term) => self.check(&mut ctor_term, annotation_ty, term_id)?,
             Term::Call(mut call_term) => self.check(&mut call_term, annotation_ty, term_id)?,
-            Term::Fn(fn_def_id) => {
-                self.check(&mut (fn_def_id, FnInferMode::Body), annotation_ty, term_id)?
-            }
+            Term::Fn(mut fn_def_id) => self
+                .fn_infer_mode
+                .enter(FnInferMode::Body, || self.check(&mut fn_def_id, annotation_ty, term_id))?,
             Term::Var(mut var_term) => self.check(&mut var_term, annotation_ty, term_id)?,
             Term::Return(mut return_term) => {
                 self.check(&mut return_term, annotation_ty, term_id)?

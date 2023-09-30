@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    tir::{Arg, CtorTerm, DataTy, NodeId, TermId, Ty, TyId},
+    tir::{Arg, CtorTerm, DataDefId, DataTy, NodeId, TermId, Ty, TyId},
     visitor::{Atom, Map, Visitor},
 };
 
@@ -13,7 +13,7 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations,
+        Operations, OperationsOnNode,
     },
 };
 
@@ -209,6 +209,35 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut DataTy) {
+        todo!()
+    }
+}
+
+impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
+    type TyNode = ();
+
+    fn check_node(&self, _item: DataDefId, _item_ty: Self::TyNode) -> TcResult<()> {
+        todo!()
+    }
+
+    fn normalise_node(
+        &self,
+        _opts: &NormalisationOptions,
+        _item: DataDefId,
+    ) -> NormaliseResult<DataDefId> {
+        todo!()
+    }
+
+    fn unify_nodes(
+        &self,
+        _opts: &UnificationOptions,
+        _src: DataDefId,
+        _target: DataDefId,
+    ) -> TcResult<()> {
+        todo!()
+    }
+
+    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: DataDefId) {
         todo!()
     }
 }

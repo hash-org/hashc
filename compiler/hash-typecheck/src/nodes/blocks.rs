@@ -35,7 +35,8 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
             if let Some(local_mod_def) = stack.local_mod_def {
                 // @@Improvement: it would be nice to pass through local
                 // mod defs in two stages as well.
-                self.infer_mod_def(local_mod_def, FnInferMode::Body)?;
+                self.fn_infer_mode
+                    .enter(FnInferMode::Body, || self.check_node(local_mod_def, ()))?
             }
 
             // Keep track of statements diverging, so we can infer the appropriate return

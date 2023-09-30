@@ -75,18 +75,17 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
+impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
-
-        fn_def_id: &mut (FnDefId, FnInferMode),
+        fn_def_id: &mut FnDefId,
         annotation_ty: Self::TyNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
-        let (fn_def_id, fn_mode) = *fn_def_id;
+        let fn_def_id = *fn_def_id;
         self.check_ty(annotation_ty)?;
         if let Some(fn_ty) = self.try_get_inferred_ty(fn_def_id) {
             let expected =
@@ -98,17 +97,13 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
         self.infer_fn_annotation_ty(fn_def_id, annotation_ty)?;
         let fn_def = fn_def_id.value();
 
-        if fn_mode == FnInferMode::Header {
+        if self.fn_infer_mode.get() == FnInferMode::Header {
             // If we are only inferring the header, then we also want to check for
             // immediate body functions.
             self.infer_params(fn_def.ty.params, || {
                 self.check_node(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
-                if let Term::Fn(immediate_body_fn) = *fn_def.body.value() {
-                    self.check(
-                        &mut (immediate_body_fn, FnInferMode::Header),
-                        Ty::hole_for(fn_def.body),
-                        fn_def.body,
-                    )?;
+                if let Term::Fn(mut immediate_body_fn) = *fn_def.body.value() {
+                    self.check(&mut immediate_body_fn, Ty::hole_for(fn_def.body), fn_def.body)?;
                 }
                 Ok(())
             })?;
@@ -144,7 +139,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
         &self,
 
         _opts: &NormalisationOptions,
-        _item: (FnDefId, FnInferMode),
+        _item: FnDefId,
         _item_node: Self::Node,
     ) -> NormaliseResult<TermId> {
         already_normalised()
@@ -154,13 +149,13 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
         &self,
 
         opts: &UnificationOptions,
-        src: &mut (FnDefId, FnInferMode),
-        target: &mut (FnDefId, FnInferMode),
+        src: &mut FnDefId,
+        target: &mut FnDefId,
         src_node: Self::Node,
         target_node: Self::Node,
     ) -> TcResult<()> {
-        let (src_id, _) = *src;
-        let (target_id, _) = *target;
+        let src_id = *src;
+        let target_id = *target;
         if src_id == target_id {
             return Ok(());
         }
@@ -168,7 +163,7 @@ impl<E: TcEnv> Operations<(FnDefId, FnInferMode)> for Tc<'_, E> {
         self.uni_ops_with(opts).mismatching_atoms(src_node, target_node)
     }
 
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut (FnDefId, FnInferMode)) {
+    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut FnDefId) {
         todo!()
     }
 }

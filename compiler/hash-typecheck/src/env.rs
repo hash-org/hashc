@@ -9,6 +9,7 @@ use hash_utils::timing::HasMetrics;
 use crate::{
     checker::Tc,
     errors::TcError,
+    inference::FnInferMode,
     normalisation,
     operations::{normalisation::NormalisationOptions, unification::UnificationOptions},
     substitution::SubstitutionOps,
@@ -35,8 +36,8 @@ pub trait TcEnv:
         self.settings().semantic_settings.mono_tir
     }
 
-    fn checker(&self) -> Tc<Self> {
-        Tc::new_in(self, self.context())
+    fn checker(&self, fn_infer_mode: FnInferMode) -> Tc<Self> {
+        Tc::new_in(self, self.context(), fn_infer_mode)
     }
 
     fn sub_ops(&self) -> SubstitutionOps<Self> {

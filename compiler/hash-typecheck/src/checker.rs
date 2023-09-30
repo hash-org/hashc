@@ -1,7 +1,10 @@
 use hash_tir::context::{Context, HasContext};
-use hash_utils::derive_more::Deref;
+use hash_utils::{derive_more::Deref, state::LightState};
 
-use crate::env::{HasTcEnv, TcEnv};
+use crate::{
+    env::{HasTcEnv, TcEnv},
+    inference::FnInferMode,
+};
 
 /// This struct represents the typechecker.
 ///
@@ -15,11 +18,12 @@ pub struct Tc<'tc, E: TcEnv> {
     #[deref]
     pub env: &'tc E,
     pub context: &'tc Context,
+    pub fn_infer_mode: LightState<FnInferMode>,
 }
 
 impl<'tc, E: TcEnv> Tc<'tc, E> {
-    pub fn new_in(env: &'tc E, context: &'tc Context) -> Self {
-        Self { env, context }
+    pub fn new_in(env: &'tc E, context: &'tc Context, fn_infer_mode: FnInferMode) -> Self {
+        Self { env, context, fn_infer_mode: LightState::new(fn_infer_mode) }
     }
 }
 
