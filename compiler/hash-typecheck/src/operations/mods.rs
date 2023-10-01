@@ -8,10 +8,8 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     tc::{FnInferMode, Tc},
-    utils::{
-        dumping::potentially_dump_tir,
-        operation_traits::{Operations, OperationsOnNode},
-    },
+    traits::{Operations, OperationsOnNode},
+    utils::dumping::potentially_dump_tir,
 };
 
 impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
@@ -40,10 +38,6 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
     }
 
     fn unify_nodes(&self, _src: ModDefId, _target: ModDefId) -> crate::errors::TcResult<()> {
-        todo!()
-    }
-
-    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: ModDefId) {
         todo!()
     }
 }
@@ -94,10 +88,6 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
     }
 
     fn unify_nodes(&self, _src: ModMemberId, _target: ModMemberId) -> crate::errors::TcResult<()> {
-        todo!()
-    }
-
-    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: ModMemberId) {
         todo!()
     }
 }

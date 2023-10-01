@@ -9,10 +9,8 @@ use crate::{
     errors::TcResult,
     options::normalisation::NormaliseResult,
     tc::{FnInferMode, Tc},
-    utils::{
-        dumping::potentially_dump_tir,
-        operation_traits::{Operations, OperationsOnNode},
-    },
+    traits::{Operations, OperationsOnNode},
+    utils::dumping::potentially_dump_tir,
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -164,9 +162,5 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             // @@Todo: rest
             _ => self.mismatching_atoms(src_id, target_id),
         }
-    }
-
-    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: TermId) {
-        todo!()
     }
 }

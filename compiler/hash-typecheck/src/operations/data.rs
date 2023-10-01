@@ -16,7 +16,7 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::NormaliseResult,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
@@ -159,10 +159,6 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         self.unify_nodes_rec(src.ctor_args, target.ctor_args, |_| Ok(()))?;
         Ok(())
     }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut CtorTerm) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
@@ -202,10 +198,6 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
             return self.mismatching_atoms(src_node, target_node);
         }
         self.unify_nodes_rec(src.args, target.args, |_| Ok(()))
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut DataTy) {
-        todo!()
     }
 }
 
@@ -260,10 +252,6 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
     fn unify_nodes(&self, _src: DataDefId, _target: DataDefId) -> TcResult<()> {
         todo!()
     }
-
-    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: DataDefId) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
@@ -286,10 +274,6 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
     }
 
     fn unify_nodes(&self, _src: CtorDefId, _target: CtorDefId) -> TcResult<()> {
-        todo!()
-    }
-
-    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: CtorDefId) {
         todo!()
     }
 }
@@ -435,10 +419,6 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut CtorPat) {
         todo!()
     }
 }

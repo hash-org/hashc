@@ -5,7 +5,7 @@ use crate::{
     errors::TcResult,
     options::normalisation::NormaliseResult,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
@@ -35,10 +35,6 @@ impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut UnsafeTerm) {
         todo!()
     }
 }

@@ -10,7 +10,7 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::NormaliseResult,
     tc::Tc,
-    utils::operation_traits::{Operations, RecursiveOperationsOnNode},
+    traits::{Operations, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
@@ -73,10 +73,6 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         self.unify_nodes_rec(src.data, target.data, |_| Ok(()))
     }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut TupleTerm) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
@@ -107,10 +103,6 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
         _: Self::Node,
     ) -> TcResult<()> {
         self.unify_nodes_rec(src.data, target.data, |_| Ok(()))
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut TupleTy) {
-        todo!()
     }
 }
 
@@ -166,10 +158,6 @@ impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut TuplePat) {
         todo!()
     }
 }

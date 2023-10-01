@@ -28,14 +28,14 @@ use hash_utils::{itertools::Itertools, log::info};
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    intrinsic_abilities::IntrinsicAbilitiesImpl,
     options::normalisation::{
         already_normalised, ctrl_continue, ctrl_map, normalisation_result_into, normalised_if,
         normalised_option, normalised_to, stuck_normalising, NormalisationMode, NormalisationState,
         NormaliseResult, NormaliseSignal,
     },
     tc::Tc,
-    utils::operation_traits::{Operations, RecursiveOperationsOnNode},
+    traits::{Operations, RecursiveOperationsOnNode},
+    utils::intrinsic_abilities::IntrinsicAbilitiesImpl,
 };
 
 /// The result of matching a pattern against a term.

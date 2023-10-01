@@ -20,7 +20,7 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::{normalised_if, NormalisationState, NormaliseResult, NormaliseSignal},
     tc::Tc,
-    utils::operation_traits::{OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -138,15 +138,6 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
         }
         f(src_id)
     }
-
-    fn substitute_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
-        &self,
-        _sub: &hash_tir::sub::Sub,
-        _target: ArgsId,
-        _f: F,
-    ) -> T {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -222,15 +213,6 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
         _target: (PatArgsId, Option<Spread>),
         _f: F,
     ) -> TcResult<T> {
-        todo!()
-    }
-
-    fn substitute_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
-        &self,
-        _sub: &hash_tir::sub::Sub,
-        _target: (PatArgsId, Option<Spread>),
-        _f: F,
-    ) -> T {
         todo!()
     }
 }

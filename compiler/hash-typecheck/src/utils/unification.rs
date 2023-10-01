@@ -9,7 +9,7 @@ use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
     tc::Tc,
-    utils::operation_traits::OperationsOnNode,
+    traits::OperationsOnNode,
 };
 
 impl<E: TcEnv> Tc<'_, E> {

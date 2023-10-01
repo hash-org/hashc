@@ -3,7 +3,7 @@ use hash_tir::{
     tir::{NodeOrigin, Term, TermId, TyId},
 };
 
-use crate::{env::TcEnv, tc::Tc, utils::operation_traits::Operations};
+use crate::{env::TcEnv, tc::Tc, traits::Operations};
 
 impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
     type TyNode = TyId;
@@ -37,10 +37,6 @@ impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut Intrinsic) {
         todo!()
     }
 }

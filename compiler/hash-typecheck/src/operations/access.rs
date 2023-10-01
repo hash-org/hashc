@@ -8,7 +8,7 @@ use crate::{
         normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
@@ -108,9 +108,5 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
             return self.mismatching_atoms(src_node, target_node);
         }
         self.unify_nodes(src.subject, target.subject)
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut AccessTerm) {
-        todo!()
     }
 }

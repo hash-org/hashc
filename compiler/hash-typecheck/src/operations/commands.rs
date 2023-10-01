@@ -9,7 +9,7 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
@@ -58,10 +58,6 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
     ) -> crate::errors::TcResult<()> {
         todo!()
     }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut ReturnTerm) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
@@ -95,10 +91,6 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut LoopControlTerm) {
         todo!()
     }
 }
@@ -138,10 +130,6 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut LoopTerm) {
         todo!()
     }
 }
@@ -187,10 +175,6 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut AssignTerm) {
         todo!()
     }
 }

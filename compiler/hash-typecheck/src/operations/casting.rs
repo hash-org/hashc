@@ -3,7 +3,7 @@ use hash_tir::tir::{CastTerm, TermId, TyId};
 use crate::{
     env::TcEnv,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
@@ -36,10 +36,6 @@ impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut CastTerm) {
         todo!()
     }
 }

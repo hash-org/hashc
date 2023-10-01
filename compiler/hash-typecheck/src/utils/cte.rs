@@ -1,8 +1,10 @@
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_tir::tir::{FnTy, HasAstNodeId, TermId, TyId};
 
-use super::operation_traits::OperationsOnNode;
-use crate::{env::TcEnv, errors::TcResult, options::normalisation::NormalisationMode, tc::Tc};
+use crate::{
+    env::TcEnv, errors::TcResult, options::normalisation::NormalisationMode, tc::Tc,
+    traits::OperationsOnNode,
+};
 
 impl<E: TcEnv> Tc<'_, E> {
     /// Potentially run an expression at compile-time.

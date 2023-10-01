@@ -1,7 +1,7 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{Hole, TermId, TyId};
 
-use crate::{env::TcEnv, errors::TcResult, tc::Tc, utils::operation_traits::Operations};
+use crate::{env::TcEnv, errors::TcResult, tc::Tc, traits::Operations};
 
 impl<E: TcEnv> Tc<'_, E> {
     /// Unify two holes.
@@ -52,9 +52,5 @@ impl<E: TcEnv> Operations<Hole> for Tc<'_, E> {
             // We can't unify two holes, so we have to block
             self.unification_blocked(src_id, target_id)
         }
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut Hole) {
-        todo!()
     }
 }

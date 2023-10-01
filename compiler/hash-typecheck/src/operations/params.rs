@@ -9,7 +9,7 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::NormaliseResult,
     tc::Tc,
-    utils::operation_traits::{OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
@@ -102,14 +102,5 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
         self.add_unification_from_sub(&shadowed_sub);
 
         Ok(result)
-    }
-
-    fn substitute_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
-        &self,
-        _sub: &hash_tir::sub::Sub,
-        _target: ParamsId,
-        _f: F,
-    ) -> T {
-        todo!()
     }
 }

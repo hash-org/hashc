@@ -11,7 +11,7 @@ use crate::{
     errors::TcResult,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
-    utils::operation_traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
@@ -58,10 +58,6 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
 
             Ok(())
         }
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut FnTy) {
-        todo!()
     }
 }
 
@@ -161,9 +157,5 @@ impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
         target_node: Self::Node,
     ) -> TcResult<()> {
         self.unification_ok_or_mismatching_atoms(*src == *target, src_node, target_node)
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut FnDefId) {
-        todo!()
     }
 }

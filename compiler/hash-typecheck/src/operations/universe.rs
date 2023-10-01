@@ -5,7 +5,7 @@ use crate::{
     errors::TcResult,
     options::normalisation::already_normalised,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -40,6 +40,4 @@ impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
     ) -> TcResult<()> {
         Ok(())
     }
-
-    fn substitute(&self, _: &hash_tir::sub::Sub, _: &mut UniverseTy) {}
 }

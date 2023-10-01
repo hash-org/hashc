@@ -5,7 +5,7 @@ use crate::{
     env::TcEnv,
     errors::TcError,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
@@ -71,10 +71,6 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
         }
         self.unify_nodes(r1.subject, r2.subject)
     }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut RefTerm) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
@@ -123,10 +119,6 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
     ) -> crate::errors::TcResult<()> {
         todo!()
     }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut DerefTerm) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
@@ -166,9 +158,5 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
             return self.mismatching_atoms(src_node, target_node);
         }
         self.unify_nodes(r1.ty, r2.ty)
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut RefTy) {
-        todo!()
     }
 }

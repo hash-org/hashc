@@ -1,7 +1,7 @@
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::tir::{DataDefCtors, Ty, TyId};
 
-use crate::{env::TcEnv, errors::TcResult, tc::Tc, utils::operation_traits::OperationsOnNode};
+use crate::{env::TcEnv, errors::TcResult, tc::Tc, traits::OperationsOnNode};
 
 impl<E: TcEnv> Tc<'_, E> {
     /// Given an inferred type, and an optional annotation type, unify the two,

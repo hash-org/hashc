@@ -1,5 +1,3 @@
-use hash_tir::sub::Sub;
-
 use crate::{env::HasTcEnv, errors::TcResult, options::normalisation::NormaliseResult};
 
 pub trait Operations<X>: HasTcEnv {
@@ -17,8 +15,6 @@ pub trait Operations<X>: HasTcEnv {
         src_node: Self::Node,
         target_node: Self::Node,
     ) -> TcResult<()>;
-
-    fn substitute(&self, sub: &Sub, target: &mut X);
 }
 
 pub trait OperationsOnNode<X: Copy>: HasTcEnv {
@@ -29,8 +25,6 @@ pub trait OperationsOnNode<X: Copy>: HasTcEnv {
     fn normalise_node(&self, item: X) -> NormaliseResult<X>;
 
     fn unify_nodes(&self, src: X, target: X) -> TcResult<()>;
-
-    fn substitute_node(&self, sub: &Sub, target: X);
 }
 
 impl<X: Copy, T: HasTcEnv + OperationsOnNode<X>> Operations<X> for T {
@@ -47,10 +41,6 @@ impl<X: Copy, T: HasTcEnv + OperationsOnNode<X>> Operations<X> for T {
 
     fn unify(&self, src: &mut X, target: &mut X, _: Self::Node, _: Self::Node) -> TcResult<()> {
         self.unify_nodes(*src, *target)
-    }
-
-    fn substitute(&self, sub: &Sub, target: &mut X) {
-        self.substitute_node(sub, *target)
     }
 }
 
@@ -69,7 +59,6 @@ pub trait RecursiveOperations<X>: HasTcEnv {
 
     fn normalise(&self, item: X, item_node: Self::Node) -> NormaliseResult<X>;
 
-    #[allow(clippy::too_many_arguments)]
     fn unify_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
         src: &mut X,
@@ -78,13 +67,6 @@ pub trait RecursiveOperations<X>: HasTcEnv {
         target_node: Self::Node,
         f: F,
     ) -> TcResult<T>;
-
-    fn substitute_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
-        &self,
-        sub: &Sub,
-        target: &mut X,
-        f: F,
-    ) -> T;
 }
 
 pub trait RecursiveOperationsOnNode<X: Copy>: HasTcEnv {
@@ -106,13 +88,6 @@ pub trait RecursiveOperationsOnNode<X: Copy>: HasTcEnv {
         target: X,
         f: F,
     ) -> TcResult<T>;
-
-    fn substitute_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
-        &self,
-        sub: &Sub,
-        target: X,
-        f: F,
-    ) -> T;
 }
 
 impl<X: Copy, U: RecursiveOperationsOnNode<X> + HasTcEnv> RecursiveOperations<X> for U {
@@ -143,14 +118,5 @@ impl<X: Copy, U: RecursiveOperationsOnNode<X> + HasTcEnv> RecursiveOperations<X>
         f: F,
     ) -> TcResult<T> {
         self.unify_nodes_rec(*src, *target, f)
-    }
-
-    fn substitute_rec<T, F: FnMut(Self::RecursiveArg) -> T>(
-        &self,
-        sub: &Sub,
-        target: &mut X,
-        f: F,
-    ) -> T {
-        self.substitute_node_rec(sub, *target, f)
     }
 }

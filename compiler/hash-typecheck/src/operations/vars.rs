@@ -11,7 +11,7 @@ use crate::{
     errors::TcResult,
     options::normalisation::{already_normalised, normalised_to},
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
@@ -90,10 +90,6 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
             self.mismatching_atoms(a_id, b_id)
         }
     }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut VarTerm) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
@@ -135,10 +131,6 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut BindingPat) {
         todo!()
     }
 }

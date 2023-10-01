@@ -10,7 +10,7 @@ use hash_typecheck::{
     env::TcEnv,
     errors::{TcError, TcResult},
     tc::FnInferMode,
-    utils::operation_traits::OperationsOnNode,
+    traits::OperationsOnNode,
 };
 use hash_utils::derive_more::{Constructor, Deref};
 

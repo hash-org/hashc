@@ -11,7 +11,7 @@ use hash_tir::{
 
 use crate::{
     env::TcEnv, errors::TcResult, options::normalisation::NormaliseResult, tc::Tc,
-    utils::operation_traits::OperationsOnNode,
+    traits::OperationsOnNode,
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -175,9 +175,5 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
             src,
             target,
         )
-    }
-
-    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: LitId) {
-        todo!()
     }
 }

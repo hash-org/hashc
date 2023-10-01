@@ -10,7 +10,7 @@ use crate::{
     errors::{TcError, TcResult, WrongTermKind},
     options::normalisation::NormaliseResult,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
@@ -97,9 +97,5 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
         self.unify_nodes(src.subject, target.subject)?;
         self.unify_nodes_rec(src.args, target.args, |_| Ok(()))?;
         Ok(())
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut CallTerm) {
-        todo!()
     }
 }

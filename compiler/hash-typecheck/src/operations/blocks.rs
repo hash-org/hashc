@@ -11,7 +11,7 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::NormaliseResult,
     tc::{FnInferMode, Tc},
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
@@ -113,10 +113,6 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut BlockTerm) {
         todo!()
     }
 }

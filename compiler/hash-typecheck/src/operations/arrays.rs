@@ -16,7 +16,7 @@ use crate::{
     errors::{TcError, TcResult, WrongTermKind},
     options::normalisation::NormaliseResult,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -133,10 +133,6 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         todo!()
     }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut ArrayTerm) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
@@ -187,10 +183,6 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut ArrayPat) {
         todo!()
     }
 }
@@ -259,10 +251,6 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut IndexTerm) {
         todo!()
     }
 }

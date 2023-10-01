@@ -13,7 +13,7 @@ use crate::{
     env::TcEnv,
     errors::TcResult,
     tc::Tc,
-    utils::operation_traits::{Operations, OperationsOnNode},
+    traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -73,10 +73,6 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
     fn unify_nodes(&self, _src: PatId, _target: PatId) -> crate::errors::TcResult<()> {
         todo!()
     }
-
-    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: PatId) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
@@ -121,10 +117,6 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
     ) -> crate::errors::TcResult<()> {
         todo!()
     }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut IfPat) {
-        todo!()
-    }
 }
 
 impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
@@ -158,10 +150,6 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
-    }
-
-    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut OrPat) {
         todo!()
     }
 }
