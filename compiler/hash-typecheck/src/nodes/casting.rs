@@ -1,9 +1,9 @@
 use hash_tir::tir::{CastTerm, TermId, TyId};
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
-    operations::{Operations, OperationsOnNode},
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
@@ -25,7 +25,7 @@ impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
         &self,
         _item: CastTerm,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 

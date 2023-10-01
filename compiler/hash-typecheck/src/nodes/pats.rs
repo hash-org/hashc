@@ -10,10 +10,10 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::TcResult,
-    operations::{Operations, OperationsOnNode},
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -66,7 +66,7 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
         &self,
 
         _item: PatId,
-    ) -> crate::operations::normalisation::NormaliseResult<PatId> {
+    ) -> crate::options::normalisation::NormaliseResult<PatId> {
         todo!()
     }
 
@@ -107,7 +107,7 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
 
         _item: IfPat,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 
@@ -146,7 +146,7 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
 
         _item: OrPat,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 

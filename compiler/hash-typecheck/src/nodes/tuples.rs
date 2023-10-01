@@ -2,14 +2,15 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{HasContext, ScopeKind},
     tir::{NodeId, Param, PatId, TermId, TuplePat, TupleTerm, TupleTy, Ty, TyId},
-    visitor::{Map, Visitor},
+    visitor::Map,
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{normalisation::NormaliseResult, Operations, RecursiveOperationsOnNode},
+    options::normalisation::NormaliseResult,
+    tc::Tc,
+    utils::operation_traits::{Operations, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
@@ -25,7 +26,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
         self.context().enter_scope(ScopeKind::Sub, || {
             self.normalise_and_check_ty(annotation_ty)?;
             let params = match *annotation_ty.value() {
-                Ty::TupleTy(tuple_ty) => Visitor::new().copy(tuple_ty.data),
+                Ty::TupleTy(tuple_ty) => self.visitor().copy(tuple_ty.data),
                 Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_term.data),
                 _ => {
                     let inferred = Param::seq_from_args_with_hole_types(tuple_term.data);
@@ -53,7 +54,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
             self.check_by_unify(tuple_ty, annotation_ty)?;
             // @@Review: why is this needed? Shouldn't the substitution be applied during
             // `check_by_unify`?
-            self.sub_ops().apply_sub_from_context(annotation_ty);
+            self.substituter().apply_sub_from_context(annotation_ty);
             Ok(())
         })
     }

@@ -6,10 +6,12 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::{FnInferMode, Tc},
     env::TcEnv,
-    operations::{Operations, OperationsOnNode},
-    utils::dumping::potentially_dump_tir,
+    tc::{FnInferMode, Tc},
+    utils::{
+        dumping::potentially_dump_tir,
+        operation_traits::{Operations, OperationsOnNode},
+    },
 };
 
 impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
@@ -33,7 +35,7 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
         &self,
 
         _item: ModDefId,
-    ) -> crate::operations::normalisation::NormaliseResult<ModDefId> {
+    ) -> crate::options::normalisation::NormaliseResult<ModDefId> {
         todo!()
     }
 
@@ -87,7 +89,7 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
         &self,
 
         _item: ModMemberId,
-    ) -> crate::operations::normalisation::NormaliseResult<ModMemberId> {
+    ) -> crate::options::normalisation::NormaliseResult<ModMemberId> {
         todo!()
     }
 

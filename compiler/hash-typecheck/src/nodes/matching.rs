@@ -5,15 +5,15 @@ use hash_tir::{
     context::HasContext,
     intrinsics::definitions::never_ty,
     tir::{MatchTerm, NodeOrigin, NodesId, Term, TermId, Ty, TyId},
-    visitor::{Map, Visitor},
+    visitor::Map,
 };
 use itertools::Itertools;
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::TcResult,
-    operations::{Operations, OperationsOnNode},
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
@@ -45,11 +45,11 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
         for case in match_term.cases.iter() {
             let case_data = case.value();
             self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
-                let subject_ty_copy = Visitor::new().copy(match_subject_ty);
+                let subject_ty_copy = self.visitor().copy(match_subject_ty);
 
                 self.check_node(case_data.bind_pat, (subject_ty_copy, Some(match_term.subject)))?;
                 let new_unified_ty =
-                    Ty::expect_is(case_data.value, Visitor::new().copy(unified_ty));
+                    Ty::expect_is(case_data.value, self.visitor().copy(unified_ty));
 
                 if let Some(match_subject_var) = match_subject_var {
                     if let Some(pat_term) = case_data.bind_pat.try_use_as_term() {
@@ -116,7 +116,7 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
 
         _item: MatchTerm,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 

@@ -7,10 +7,10 @@ use hash_ast::ast;
 use hash_source::SourceId;
 use hash_tir::{context::Context, tir::Ty, visitor::Atom};
 use hash_typecheck::{
-    checker::FnInferMode,
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::OperationsOnNode,
+    tc::FnInferMode,
+    utils::operation_traits::OperationsOnNode,
 };
 use hash_utils::derive_more::{Constructor, Deref};
 
@@ -83,7 +83,9 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
                 tc.check_node(term_id, ty_id)?;
                 Ok((term_id, ty_id))
             },
-            |(term_id, ty_id)| tc.sub_ops().has_holes(term_id).or(tc.sub_ops().has_holes(ty_id)),
+            |(term_id, ty_id)| {
+                tc.substituter().has_holes(term_id).or(tc.substituter().has_holes(ty_id))
+            },
         )?;
         self.ast_info.terms().insert(node.id(), term);
         Ok(())
@@ -111,7 +113,7 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
                 tc.check_node(mod_def_id, ())?;
                 Ok(mod_def_id)
             },
-            |mod_def_id| tc.sub_ops().has_holes(mod_def_id),
+            |mod_def_id| tc.substituter().has_holes(mod_def_id),
         )?;
         // Mod def is already registered in the ast info
         Ok(())

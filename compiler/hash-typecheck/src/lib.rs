@@ -8,13 +8,13 @@
     if_let_guard
 )]
 
-pub mod checker;
 pub mod env;
+pub mod tc;
 
 pub mod errors;
 pub mod intrinsic_abilities;
 pub mod nodes;
-pub mod operations;
+pub mod options;
 
 pub mod old;
 pub mod utils;

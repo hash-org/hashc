@@ -7,10 +7,11 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{normalisation::NormaliseResult, Operations, OperationsOnNode},
+    options::normalisation::NormaliseResult,
+    tc::{FnInferMode, Tc},
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
@@ -87,10 +88,10 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                 self.check_node(block_term.expr, annotation_ty)?;
             };
 
-            let sub = self.sub_ops().create_sub_from_current_scope();
-            self.sub_ops().apply_sub_in_place(annotation_ty, &sub);
+            let sub = self.substituter().create_sub_from_current_scope();
+            self.substituter().apply_sub_in_place(annotation_ty, &sub);
 
-            let sub_ops = self.sub_ops();
+            let sub_ops = self.substituter();
             let vars_in_scope = sub_ops.get_unassigned_vars_in_current_scope();
             if sub_ops.atom_contains_vars(annotation_ty.into(), &vars_in_scope) {
                 return Err(TcError::TryingToReferenceLocalsInType { ty: annotation_ty });

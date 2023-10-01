@@ -2,7 +2,7 @@ use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_tir::tir::HasAstNodeId;
 
-use crate::{checker::Tc, env::TcEnv};
+use crate::{env::TcEnv, tc::Tc};
 
 impl<T: TcEnv> Tc<'_, T> {
     /// Create a new [ExhaustivenessChecker] so it can be used to check

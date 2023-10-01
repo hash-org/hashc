@@ -5,10 +5,11 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{normalisation::NormaliseResult, OperationsOnNode, RecursiveOperationsOnNode},
+    options::normalisation::NormaliseResult,
+    tc::Tc,
+    utils::operation_traits::{OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
@@ -35,8 +36,8 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
                 let result = in_param_scope(())?;
 
                 // Only keep the substitutions that do not refer to the parameters
-                let scope_sub = self.sub_ops().create_sub_from_current_scope();
-                let shadowed_sub = self.sub_ops().hide_param_binds(params.iter(), &scope_sub);
+                let scope_sub = self.substituter().create_sub_from_current_scope();
+                let shadowed_sub = self.substituter().hide_param_binds(params.iter(), &scope_sub);
                 Ok((result, shadowed_sub))
             })?;
 
@@ -64,8 +65,8 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
                 annotation_params_id: target_id,
             });
         }
-        let forward_sub = self.sub_ops().create_sub_from_param_names(src_id, target_id);
-        let backward_sub = self.sub_ops().create_sub_from_param_names(target_id, src_id);
+        let forward_sub = self.substituter().create_sub_from_param_names(src_id, target_id);
+        let backward_sub = self.substituter().create_sub_from_param_names(target_id, src_id);
 
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
@@ -82,17 +83,17 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
 
                     // Unify the types
                     self.unify_nodes(src_param.ty, target_param.ty)?;
-                    self.sub_ops().apply_sub_in_place(target_param.ty, &forward_sub);
-                    self.sub_ops().apply_sub_in_place(src_param.ty, &backward_sub);
+                    self.substituter().apply_sub_in_place(target_param.ty, &forward_sub);
+                    self.substituter().apply_sub_in_place(src_param.ty, &backward_sub);
                 }
 
                 // Run the in-scope closure
                 let result = in_param_scope(())?;
 
                 // Only keep the substitutions that do not refer to the parameters
-                let scope_sub = self.sub_ops().create_sub_from_current_scope();
+                let scope_sub = self.substituter().create_sub_from_current_scope();
                 let shadowed_sub = self
-                    .sub_ops()
+                    .substituter()
                     .hide_param_binds(src_id.iter().chain(target_id.iter()), &scope_sub);
                 Ok((result, shadowed_sub))
             })?;

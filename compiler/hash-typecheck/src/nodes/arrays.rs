@@ -8,16 +8,15 @@ use hash_tir::{
         ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, NodeId, NodeOrigin, PatId, PrimitiveCtorInfo,
         TermId, Ty, TyId,
     },
-    visitor::{Map, Visitor},
+    visitor::Map,
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    operations::{
-        normalisation::NormaliseResult, Operations, OperationsOnNode, RecursiveOperationsOnNode,
-    },
+    options::normalisation::NormaliseResult,
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -37,13 +36,14 @@ impl<E: TcEnv> Tc<'_, E> {
                     DataDefCtors::Primitive(primitive) => {
                         if let PrimitiveCtorInfo::Array(array_prim) = primitive {
                             // First infer the data arguments
-                            let copied_params = Visitor::new().copy(data_def.params);
+                            let copied_params = self.visitor().copy(data_def.params);
                             self.check_node_rec(data.args, copied_params, |_| {
-                                let sub = self.sub_ops().create_sub_from_current_scope();
+                                let sub = self.substituter().create_sub_from_current_scope();
                                 let subbed_element_ty =
-                                    self.sub_ops().apply_sub(array_prim.element_ty, &sub);
-                                let subbed_index =
-                                    array_prim.length.map(|l| self.sub_ops().apply_sub(l, &sub));
+                                    self.substituter().apply_sub(array_prim.element_ty, &sub);
+                                let subbed_index = array_prim
+                                    .length
+                                    .map(|l| self.substituter().apply_sub(l, &sub));
                                 Ok(Some((subbed_element_ty, subbed_index)))
                             })
                         } else {
@@ -232,9 +232,9 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
                     data_def.ctors
                 {
                     let sub = self
-                        .sub_ops()
+                        .substituter()
                         .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                    let array_ty = self.sub_ops().apply_sub(array_primitive.element_ty, &sub);
+                    let array_ty = self.substituter().apply_sub(array_primitive.element_ty, &sub);
                     Ok(array_ty)
                 } else {
                     wrong_subject_ty()

@@ -7,9 +7,9 @@ use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::FnDefId};
 use hash_utils::{state::LightState, timing::HasMetrics};
 
 use crate::{
-    checker::{FnInferMode, Tc},
     errors::TcError,
-    operations::{normalisation::NormalisationOptions, unification::UnificationOptions},
+    options::{normalisation::NormalisationOptions, unification::UnificationOptions},
+    tc::{FnInferMode, Tc},
 };
 
 pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {

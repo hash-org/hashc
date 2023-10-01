@@ -1,11 +1,14 @@
 use hash_target::HasTarget;
-use hash_tir::context::{Context, HasContext};
+use hash_tir::{
+    context::{Context, HasContext},
+    visitor::Visitor,
+};
 use hash_utils::{derive_more::Deref, state::LightState};
 
 use crate::{
     env::{HasTcEnv, TcEnv},
-    operations::{normalisation::NormalisationOptions, unification::UnificationOptions},
-    substitution::SubstitutionOps,
+    options::{normalisation::NormalisationOptions, unification::UnificationOptions},
+    utils::substitution::Substituter,
 };
 
 /// The mode in which to infer the type of a function.
@@ -35,8 +38,12 @@ pub struct Tc<'tc, E> {
 }
 
 impl<E: TcEnv> Tc<'_, E> {
-    pub fn sub_ops(&self) -> SubstitutionOps<E> {
-        SubstitutionOps::new(self)
+    pub fn visitor(&self) -> Visitor {
+        Visitor::new()
+    }
+
+    pub fn substituter(&self) -> Substituter<E> {
+        Substituter::new(self)
     }
 }
 

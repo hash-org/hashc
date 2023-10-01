@@ -12,17 +12,15 @@ use hash_tir::{
         Arg, ArgsId, Node, NodeId, ParamsId, Pat, PatArgsId, PatOrCapture, Spread, SymbolId,
         TermId, TyId,
     },
-    visitor::{Atom, Map, Visit, Visitor},
+    visitor::{Atom, Map, Visit},
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{
-        normalisation::{normalised_if, NormalisationState, NormaliseResult, NormaliseSignal},
-        OperationsOnNode, RecursiveOperationsOnNode,
-    },
+    options::normalisation::{normalised_if, NormalisationState, NormaliseResult, NormaliseSignal},
+    tc::Tc,
+    utils::operation_traits::{OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -42,9 +40,9 @@ impl<E: TcEnv> Tc<'_, E> {
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
                 for (arg, param_id) in args.zip(annotation_params.iter()) {
                     let param = param_id.value();
-                    let param_ty = Visitor::new().copy(param.ty);
+                    let param_ty = self.visitor().copy(param.ty);
                     infer_arg(&arg, param_ty)?;
-                    self.sub_ops().apply_sub_from_context(param_ty);
+                    self.substituter().apply_sub_from_context(param_ty);
                     if let Some(value) = get_arg_value(&arg) {
                         self.context().add_assignment(param.name, param_ty, value);
                     }
@@ -52,9 +50,9 @@ impl<E: TcEnv> Tc<'_, E> {
                 let result = in_arg_scope()?;
 
                 // Only keep the substitutions that do not refer to the parameters
-                let scope_sub = self.sub_ops().create_sub_from_current_scope();
+                let scope_sub = self.substituter().create_sub_from_current_scope();
                 let shadowed_sub =
-                    self.sub_ops().hide_param_binds(annotation_params.iter(), &scope_sub);
+                    self.substituter().hide_param_binds(annotation_params.iter(), &scope_sub);
                 Ok((result, shadowed_sub))
             })?;
 
@@ -151,10 +149,10 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
     }
 }
 
-impl<E> Tc<'_, E> {
+impl<E: TcEnv> Tc<'_, E> {
     pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
-        Visitor::new().visit(pat_args, &mut |atom| {
+        self.visitor().visit(pat_args, &mut |atom| {
             if let Atom::Pat(pat_id) = atom {
                 match *pat_id.value() {
                     Pat::Binding(var) => {

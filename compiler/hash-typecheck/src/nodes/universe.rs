@@ -1,10 +1,11 @@
 use hash_tir::tir::{NodeOrigin, TermId, Ty, TyId, UniverseTy};
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::TcResult,
-    operations::{normalisation::already_normalised, Operations, OperationsOnNode},
+    options::normalisation::already_normalised,
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -26,7 +27,7 @@ impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
         &self,
         _: UniverseTy,
         _: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<TermId> {
+    ) -> crate::options::normalisation::NormaliseResult<TermId> {
         already_normalised()
     }
 

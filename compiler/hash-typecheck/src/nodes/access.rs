@@ -2,13 +2,13 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{AccessTerm, CtorTerm, Term, TermId, TupleTerm, Ty, TyId};
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    operations::{
-        normalisation::{normalised_if, stuck_normalising, NormalisationState, NormaliseResult},
-        Operations, OperationsOnNode,
+    options::normalisation::{
+        normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
@@ -33,9 +33,9 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
                         let ctor = ctor.value();
                         let data_def = data_ty.data_def.value();
                         let sub = self
-                            .sub_ops()
+                            .substituter()
                             .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                        self.sub_ops().apply_sub(ctor.params, &sub)
+                        self.substituter().apply_sub(ctor.params, &sub)
                     }
                     None => {
                         // Not a record type because it has more than one constructor
@@ -65,8 +65,9 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
             //
             // i.e. `x: (T: Type, t: T);  x.t: x.T`
             let param_access_sub =
-                self.sub_ops().create_sub_from_param_access(params, access_term.subject);
-            let subbed_param_ty = self.sub_ops().apply_sub(param.borrow().ty, &param_access_sub);
+                self.substituter().create_sub_from_param_access(params, access_term.subject);
+            let subbed_param_ty =
+                self.substituter().apply_sub(param.borrow().ty, &param_access_sub);
             self.check_by_unify(subbed_param_ty, annotation_ty)?;
             Ok(())
         } else {

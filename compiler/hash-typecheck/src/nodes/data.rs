@@ -8,16 +8,15 @@ use hash_tir::{
         Arg, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin,
         PatId, PrimitiveCtorInfo, TermId, Ty, TyId,
     },
-    visitor::{Atom, Map, Visitor},
+    visitor::{Atom, Map},
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{
-        normalisation::NormaliseResult, Operations, OperationsOnNode, RecursiveOperationsOnNode,
-    },
+    options::normalisation::NormaliseResult,
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
@@ -76,13 +75,13 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         // From the given constructor data args, substitute the constructor params and
         // result arguments. In the process, infer the data args more if
         // possible.
-        let copied_params = Visitor::new().copy(data_def.params);
+        let copied_params = self.visitor().copy(data_def.params);
         let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
             .check_node_rec(ctor_data_args, copied_params, |inferred_data_args| {
-                let sub = self.sub_ops().create_sub_from_current_scope();
-                let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
-                let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
-                self.sub_ops().apply_sub_in_place(inferred_data_args, &sub);
+                let sub = self.substituter().create_sub_from_current_scope();
+                let subbed_ctor_params = self.substituter().apply_sub(ctor.params, &sub);
+                let subbed_ctor_result_args = self.substituter().apply_sub(ctor.result_args, &sub);
+                self.substituter().apply_sub_in_place(inferred_data_args, &sub);
                 Ok((inferred_data_args, subbed_ctor_params, subbed_ctor_result_args))
             })?;
 
@@ -92,10 +91,10 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         // arguments.
         let (final_result_args, resulting_sub, binds) =
             self.check_node_rec(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
-                let ctor_sub = self.sub_ops().create_sub_from_current_scope();
-                self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
-                self.sub_ops().apply_sub_in_place(inferred_term_ctor_args, &ctor_sub);
-                self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
+                let ctor_sub = self.substituter().create_sub_from_current_scope();
+                self.substituter().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
+                self.substituter().apply_sub_in_place(inferred_term_ctor_args, &ctor_sub);
+                self.substituter().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
 
                 // These arguments might have been updated so we need to set them
                 term.data_args = inferred_ctor_data_args;
@@ -104,7 +103,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
 
                 // We are exiting the constructor scope, so we need to hide the binds
                 let hidden_ctor_sub =
-                    self.sub_ops().hide_param_binds(ctor.params.iter(), &ctor_sub);
+                    self.substituter().hide_param_binds(ctor.params.iter(), &ctor_sub);
                 Ok((subbed_ctor_result_args, hidden_ctor_sub, HashSet::new()))
             })?;
 
@@ -121,13 +120,13 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         // Now we gather the final substitution, and apply it to the result
         // arguments, the constructor data arguments, and finally the annotation
         // type.
-        let final_sub = self.sub_ops().create_sub_from_current_scope();
-        self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
-        self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
+        let final_sub = self.substituter().create_sub_from_current_scope();
+        self.substituter().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
+        self.substituter().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
         // Set data args because they might have been updated again
         term.data_args = inferred_ctor_data_args;
         original_term_id.set(original_term_id.value().with_data(term.into()));
-        self.sub_ops().apply_sub_in_place(annotation_ty, &final_sub);
+        self.substituter().apply_sub_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in term.data_args.iter().zip(subbed_ctor_result_args.iter())
         {
@@ -177,7 +176,7 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
         term_id: Self::Node,
     ) -> TcResult<()> {
         let data_def = data_ty.data_def.value();
-        let copied_params = Visitor::new().copy(data_def.params);
+        let copied_params = self.visitor().copy(data_def.params);
         self.check_node_rec(data_ty.args, copied_params, |inferred_data_ty_args| {
             data_ty.args = inferred_data_ty_args;
             term_id.set(term_id.value().with_data((*data_ty).into()));
@@ -351,13 +350,13 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         // From the given constructor data args, substitute the constructor params and
         // result arguments. In the process, infer the data args more if
         // possible.
-        let copied_params = Visitor::new().copy(data_def.params);
+        let copied_params = self.visitor().copy(data_def.params);
         let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
             .check_node_rec(ctor_data_args, copied_params, |inferred_data_args| {
-                let sub = self.sub_ops().create_sub_from_current_scope();
-                let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
-                let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
-                self.sub_ops().apply_sub_in_place(inferred_data_args, &sub);
+                let sub = self.substituter().create_sub_from_current_scope();
+                let subbed_ctor_params = self.substituter().apply_sub(ctor.params, &sub);
+                let subbed_ctor_result_args = self.substituter().apply_sub(ctor.result_args, &sub);
+                self.substituter().apply_sub_in_place(inferred_data_args, &sub);
                 Ok((inferred_data_args, subbed_ctor_params, subbed_ctor_result_args))
             })?;
 
@@ -369,10 +368,10 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
             (pat.ctor_pat_args, pat.ctor_pat_args_spread),
             subbed_ctor_params,
             |inferred_pat_ctor_args| {
-                let ctor_sub = self.sub_ops().create_sub_from_current_scope();
-                self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
-                self.sub_ops().apply_sub_in_place(inferred_pat_ctor_args, &ctor_sub);
-                self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
+                let ctor_sub = self.substituter().create_sub_from_current_scope();
+                self.substituter().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
+                self.substituter().apply_sub_in_place(inferred_pat_ctor_args, &ctor_sub);
+                self.substituter().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
 
                 // These arguments might have been updated so we need to set them
                 pat.data_args = inferred_ctor_data_args;
@@ -381,7 +380,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
 
                 // We are exiting the constructor scope, so we need to hide the binds
                 let hidden_ctor_sub =
-                    self.sub_ops().hide_param_binds(ctor.params.iter(), &ctor_sub);
+                    self.substituter().hide_param_binds(ctor.params.iter(), &ctor_sub);
                 Ok((
                     subbed_ctor_result_args,
                     hidden_ctor_sub,
@@ -403,14 +402,14 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         // Now we gather the final substitution, and apply it to the result
         // arguments, the constructor data arguments, and finally the annotation
         // type.
-        let final_sub = self.sub_ops().create_sub_from_current_scope();
-        self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
-        self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
-        self.sub_ops().apply_sub_in_place(pat.ctor_pat_args, &final_sub);
+        let final_sub = self.substituter().create_sub_from_current_scope();
+        self.substituter().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
+        self.substituter().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
+        self.substituter().apply_sub_in_place(pat.ctor_pat_args, &final_sub);
         // Set data args because they might have been updated again
         pat.data_args = inferred_ctor_data_args;
         original_pat_id.set(original_pat_id.value().with_data(pat.into()));
-        self.sub_ops().apply_sub_in_place(annotation_ty, &final_sub);
+        self.substituter().apply_sub_in_place(annotation_ty, &final_sub);
 
         for (data_arg, result_data_arg) in pat.data_args.iter().zip(subbed_ctor_result_args.iter())
         {

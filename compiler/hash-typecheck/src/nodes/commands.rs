@@ -7,9 +7,9 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
-    operations::{Operations, OperationsOnNode},
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
@@ -44,7 +44,7 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
 
         _item: ReturnTerm,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 
@@ -83,7 +83,7 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
 
         _item: LoopControlTerm,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 
@@ -126,7 +126,7 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
 
         _item: LoopTerm,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 
@@ -175,7 +175,7 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
 
         _item: AssignTerm,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 

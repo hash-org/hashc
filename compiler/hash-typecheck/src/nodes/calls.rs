@@ -2,16 +2,15 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{HasContext, ScopeKind},
     tir::{Arg, CallTerm, Term, TermId, Ty, TyId},
-    visitor::{Map, Visitor},
+    visitor::Map,
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    operations::{
-        normalisation::NormaliseResult, Operations, OperationsOnNode, RecursiveOperationsOnNode,
-    },
+    options::normalisation::NormaliseResult,
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
@@ -53,20 +52,20 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
                         });
                     }
 
-                    let copied_params = Visitor::new().copy(fn_ty.params);
-                    let copied_return_ty = Visitor::new().copy(fn_ty.return_ty);
+                    let copied_params = self.visitor().copy(fn_ty.params);
+                    let copied_return_ty = self.visitor().copy(fn_ty.return_ty);
 
                     let mut fn_call_term = *call_term;
                     self.check_node_rec(fn_call_term.args, copied_params, |inferred_fn_call_args| {
                         fn_call_term.args = inferred_fn_call_args;
                         original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
 
-                        self.sub_ops().apply_sub_from_context(copied_return_ty);
+                        self.substituter().apply_sub_from_context(copied_return_ty);
                         self.check_by_unify(copied_return_ty, annotation_ty)?;
                         Ok(())
                     })?;
 
-                    self.sub_ops().apply_sub_from_context(fn_call_term.subject);
+                    self.substituter().apply_sub_from_context(fn_call_term.subject);
                     self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;
 
                     Ok(())

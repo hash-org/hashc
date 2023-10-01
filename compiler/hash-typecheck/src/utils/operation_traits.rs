@@ -1,10 +1,6 @@
-pub mod normalisation;
-pub mod unification;
-
 use hash_tir::sub::Sub;
 
-use self::normalisation::NormaliseResult;
-use crate::{env::HasTcEnv, errors::TcResult};
+use crate::{env::HasTcEnv, errors::TcResult, options::normalisation::NormaliseResult};
 
 pub trait Operations<X>: HasTcEnv {
     type TyNode;

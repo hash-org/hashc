@@ -1,9 +1,9 @@
 use hash_tir::tir::{PatId, RangePat, TyId};
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
-    operations::{Operations, OperationsOnNode},
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
@@ -29,7 +29,7 @@ impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
 
         _item: RangePat,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 

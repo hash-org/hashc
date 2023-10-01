@@ -2,10 +2,10 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{DerefTerm, NodeId, NodeOrigin, RefTerm, RefTy, TermId, Ty, TyId};
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::TcError,
-    operations::{Operations, OperationsOnNode},
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
@@ -54,7 +54,7 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
 
         _item: RefTerm,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 
@@ -109,7 +109,7 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
 
         _item: DerefTerm,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 
@@ -150,7 +150,7 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
 
         _item: RefTy,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 

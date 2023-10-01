@@ -7,7 +7,7 @@ use hash_tir::{
 };
 use hash_utils::derive_more::{Constructor, Deref};
 
-use crate::{checker::Tc, env::TcEnv};
+use crate::{env::TcEnv, tc::Tc};
 
 #[derive(Deref, Constructor)]
 pub struct IntrinsicAbilitiesImpl<'tc, T: TcEnv> {

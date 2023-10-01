@@ -5,11 +5,14 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::TcResult,
-    operations::{normalisation::NormaliseResult, Operations, OperationsOnNode},
-    utils::dumping::potentially_dump_tir,
+    options::normalisation::NormaliseResult,
+    tc::{FnInferMode, Tc},
+    utils::{
+        dumping::potentially_dump_tir,
+        operation_traits::{Operations, OperationsOnNode},
+    },
 };
 
 impl<E: TcEnv> Tc<'_, E> {

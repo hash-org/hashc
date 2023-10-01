@@ -26,18 +26,16 @@ use hash_tir::{
 use hash_utils::{itertools::Itertools, log::info};
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
     intrinsic_abilities::IntrinsicAbilitiesImpl,
-    operations::{
-        normalisation::{
-            already_normalised, ctrl_continue, ctrl_map, normalisation_result_into, normalised_if,
-            normalised_option, normalised_to, stuck_normalising, NormalisationMode,
-            NormalisationState, NormaliseResult, NormaliseSignal,
-        },
-        Operations, RecursiveOperationsOnNode,
+    options::normalisation::{
+        already_normalised, ctrl_continue, ctrl_map, normalisation_result_into, normalised_if,
+        normalised_option, normalised_to, stuck_normalising, NormalisationMode, NormalisationState,
+        NormaliseResult, NormaliseSignal,
     },
+    tc::Tc,
+    utils::operation_traits::{Operations, RecursiveOperationsOnNode},
 };
 
 /// The result of matching a pattern against a term.
@@ -223,7 +221,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
 
     /// Whether the given atom will produce effects when evaluated.
     pub fn atom_has_effects(&self, atom: Atom) -> Option<bool> {
-        self.atom_has_effects_with_traversing(atom, &Visitor::new())
+        self.atom_has_effects_with_traversing(atom, &self.visitor())
     }
 
     /// Evaluate an atom with the current mode, performing at least a single
@@ -304,9 +302,9 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
                 }
             }
 
-            let sub = self.sub_ops().create_sub_from_current_scope();
+            let sub = self.substituter().create_sub_from_current_scope();
             let result_term = self.eval_and_record(block_term.expr.into(), &st)?;
-            let subbed_result_term = self.sub_ops().apply_sub(result_term, &sub);
+            let subbed_result_term = self.substituter().apply_sub(result_term, &sub);
 
             normalised_to(subbed_result_term)
         })
@@ -557,8 +555,8 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
                     match self.eval(fn_def.body.into()) {
                         Err(NormaliseSignal::Return(result)) | Ok(result) => {
                             // Substitute remaining bindings:
-                            let sub = self.sub_ops().create_sub_from_current_scope();
-                            let result = self.sub_ops().apply_sub(result, &sub);
+                            let sub = self.substituter().create_sub_from_current_scope();
+                            let result = self.substituter().apply_sub(result, &sub);
                             normalised_to(result)
                         }
                         Err(e) => Err(e),
@@ -586,7 +584,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     ///
     /// Returns `None` if the atom is already normalised.
     fn potentially_eval(&self, atom: Atom) -> AtomEvaluation {
-        let mut traversal = Visitor::new();
+        let mut traversal = self.visitor();
         traversal.set_visit_fns_once(false);
 
         let st = NormalisationState::new();

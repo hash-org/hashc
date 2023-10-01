@@ -13,20 +13,24 @@ use hash_tir::{
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
-use hash_utils::{derive_more::Deref, log::warn};
+use hash_utils::log::warn;
 
-use crate::{checker::Tc, env::TcEnv};
+use crate::{env::TcEnv, tc::Tc};
 
-#[derive(Deref)]
-pub struct SubstitutionOps<'a, T: TcEnv> {
-    #[deref]
-    checker: &'a Tc<'a, T>,
+pub struct Substituter<'a, T: TcEnv> {
+    tc: &'a Tc<'a, T>,
     traversing_utils: Visitor,
 }
 
-impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
+impl<T: TcEnv> HasContext for Substituter<'_, T> {
+    fn context(&self) -> &hash_tir::context::Context {
+        self.tc.context()
+    }
+}
+
+impl<'a, T: TcEnv> Substituter<'a, T> {
     pub fn new(checker: &'a Tc<'a, T>) -> Self {
-        Self { checker, traversing_utils: Visitor::new() }
+        Self { tc: checker, traversing_utils: Visitor::new() }
     }
 
     fn params_contain_vars(
@@ -74,12 +78,12 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         // Apply to type as well if applicable
         match atom {
             Atom::Term(term) => {
-                if let Some(ty) = self.try_get_inferred_ty(term) {
+                if let Some(ty) = self.tc.try_get_inferred_ty(term) {
                     self.apply_sub_in_place(ty, sub);
                 }
             }
             Atom::Pat(pat) => {
-                if let Some(ty) = self.try_get_inferred_ty(pat) {
+                if let Some(ty) = self.tc.try_get_inferred_ty(pat) {
                     self.apply_sub_in_place(ty, sub);
                 }
             }

@@ -10,10 +10,8 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Tc,
-    env::TcEnv,
-    errors::TcResult,
-    operations::{normalisation::NormaliseResult, OperationsOnNode},
+    env::TcEnv, errors::TcResult, options::normalisation::NormaliseResult, tc::Tc,
+    utils::operation_traits::OperationsOnNode,
 };
 
 impl<E: TcEnv> Tc<'_, E> {

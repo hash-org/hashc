@@ -3,7 +3,7 @@ use hash_tir::{
     tir::{NodeOrigin, Term, TermId, TyId},
 };
 
-use crate::{checker::Tc, env::TcEnv, operations::Operations};
+use crate::{env::TcEnv, tc::Tc, utils::operation_traits::Operations};
 
 impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
     type TyNode = TyId;
@@ -25,7 +25,7 @@ impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
 
         _item: Intrinsic,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 

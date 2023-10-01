@@ -7,13 +7,11 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::TcResult,
-    operations::{
-        normalisation::{already_normalised, NormaliseResult},
-        Operations, OperationsOnNode, RecursiveOperationsOnNode,
-    },
+    options::normalisation::{already_normalised, NormaliseResult},
+    tc::{FnInferMode, Tc},
+    utils::operation_traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
@@ -49,11 +47,11 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
                 self.unify_nodes(f1.return_ty, f2.return_ty)
             })?;
 
-            let forward_sub = self.sub_ops().create_sub_from_param_names(f1.params, f2.params);
-            f2.return_ty = self.sub_ops().apply_sub(f2.return_ty, &forward_sub);
+            let forward_sub = self.substituter().create_sub_from_param_names(f1.params, f2.params);
+            f2.return_ty = self.substituter().apply_sub(f2.return_ty, &forward_sub);
 
-            let backward_sub = self.sub_ops().create_sub_from_param_names(f2.params, f1.params);
-            f1.return_ty = self.sub_ops().apply_sub(f1.return_ty, &backward_sub);
+            let backward_sub = self.substituter().create_sub_from_param_names(f2.params, f1.params);
+            f1.return_ty = self.substituter().apply_sub(f1.return_ty, &backward_sub);
 
             src_id.set(src_id.value().with_data((*f1).into()));
             target_id.set(target_id.value().with_data((*f2).into()));

@@ -1,7 +1,7 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{Hole, TermId, TyId};
 
-use crate::{checker::Tc, env::TcEnv, errors::TcResult, operations::Operations};
+use crate::{env::TcEnv, errors::TcResult, tc::Tc, utils::operation_traits::Operations};
 
 impl<E: TcEnv> Tc<'_, E> {
     /// Unify two holes.
@@ -35,7 +35,7 @@ impl<E: TcEnv> Operations<Hole> for Tc<'_, E> {
         &self,
         _item: Hole,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 

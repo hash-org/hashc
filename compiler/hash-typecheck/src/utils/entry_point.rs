@@ -3,7 +3,8 @@ use hash_source::{entry_point::EntryPointKind, identifier::IDENTS, ModuleKind};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::tir::{Arg, CallTerm, FnDefId, HasAstNodeId, Node, NodeOrigin, Term, Ty};
 
-use crate::{checker::Tc, env::TcEnv, errors::TcResult, operations::OperationsOnNode};
+use super::operation_traits::OperationsOnNode;
+use crate::{env::TcEnv, errors::TcResult, tc::Tc};
 
 impl<T: TcEnv> Tc<'_, T> {
     /// Flag the given function as an entry point if it is one.

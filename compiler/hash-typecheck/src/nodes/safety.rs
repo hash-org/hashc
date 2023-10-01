@@ -1,10 +1,11 @@
 use hash_tir::tir::{TermId, TyId, UnsafeTerm};
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::TcResult,
-    operations::{normalisation::NormaliseResult, Operations, OperationsOnNode},
+    options::normalisation::NormaliseResult,
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {

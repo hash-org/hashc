@@ -6,10 +6,10 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::OperationsOnNode,
+    tc::Tc,
+    utils::operation_traits::OperationsOnNode,
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -86,9 +86,9 @@ impl<E: TcEnv> Tc<'_, E> {
         let initial = target_id;
         let sub = self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
             self.unify_nodes(src_id, target_id)?;
-            Ok(self.sub_ops().create_sub_from_current_scope())
+            Ok(self.substituter().create_sub_from_current_scope())
         })?;
-        let subbed_initial = self.sub_ops().apply_sub(initial, &sub);
+        let subbed_initial = self.substituter().apply_sub(initial, &sub);
         self.add_unification_from_sub(&sub);
         Ok((subbed_initial, sub))
     }

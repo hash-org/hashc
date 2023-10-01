@@ -3,17 +3,15 @@ use hash_tir::{
     context::HasContext,
     scopes::BindingPat,
     tir::{PatId, Term, TermId, TyId, VarTerm},
-    visitor::{Map, Visitor},
+    visitor::Map,
 };
 
 use crate::{
-    checker::Tc,
     env::TcEnv,
     errors::TcResult,
-    operations::{
-        normalisation::{already_normalised, normalised_to},
-        Operations, OperationsOnNode,
-    },
+    options::normalisation::{already_normalised, normalised_to},
+    tc::Tc,
+    utils::operation_traits::{Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
@@ -30,7 +28,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
         match self.context().try_get_decl(term.symbol) {
             Some(decl) => {
                 if let Some(ty) = decl.ty {
-                    let ty = Visitor::new().copy(ty);
+                    let ty = self.visitor().copy(ty);
                     self.check_ty(ty)?;
                     self.unify_nodes(ty, annotation_ty)?;
                     Ok(())
@@ -51,7 +49,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
 
         item: VarTerm,
         _: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<TermId> {
+    ) -> crate::options::normalisation::NormaliseResult<TermId> {
         let var = item.symbol;
         match self.context().try_get_decl_value(var) {
             Some(result) => {
@@ -125,7 +123,7 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
 
         _item: BindingPat,
         _item_node: Self::Node,
-    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         todo!()
     }
 
