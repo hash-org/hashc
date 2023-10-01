@@ -2,6 +2,7 @@ use hash_tir::tir::{CastTerm, TermId, TyId};
 
 use crate::{
     env::TcEnv,
+    options::normalisation::normalised_option,
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -23,10 +24,13 @@ impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _item: CastTerm,
-        _item_node: Self::Node,
+        cast_term: CastTerm,
+        _: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+        // @@Todo: will not play well with typeof?;
+        normalised_option(
+            self.potentially_eval(cast_term.subject_term.into())?.map(|x| x.to_term()),
+        )
     }
 
     fn unify(

@@ -1,15 +1,17 @@
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
-    context::HasContext,
+    context::{HasContext, ScopeKind},
     intrinsics::definitions::never_ty,
     scopes::{BlockStatement, BlockTerm},
     tir::{NodeOrigin, TermId, Ty, TyId},
 };
+use hash_utils::log::info;
 
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    options::normalisation::NormaliseResult,
+    normalisation::MatchResult,
+    options::normalisation::{normalised_to, NormalisationState, NormaliseResult},
     tc::{FnInferMode, Tc},
     traits::{Operations, OperationsOnNode},
 };
@@ -100,8 +102,46 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
         })
     }
 
-    fn normalise(&self, _item: BlockTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
-        todo!()
+    fn normalise(&self, block_term: BlockTerm, _: Self::Node) -> NormaliseResult<TermId> {
+        self.context().enter_scope(ScopeKind::Stack(block_term.stack_id), || {
+            let st = NormalisationState::new();
+
+            for statement in block_term.statements.iter() {
+                match *statement.value() {
+                    BlockStatement::Decl(mut decl_term) => {
+                        decl_term.value =
+                            self.eval_nested_and_record(decl_term.value.into(), &st)?.to_term();
+
+                        match self.match_value_and_get_binds(
+                            decl_term.value,
+                            decl_term.bind_pat,
+                            &mut |name, term_id| {
+                                self.context().add_untyped_assignment(name, term_id)
+                            },
+                        )? {
+                            MatchResult::Successful => {
+                                // All good
+                            }
+                            MatchResult::Failed => {
+                                panic!("Non-exhaustive let-binding: {}", decl_term)
+                            }
+                            MatchResult::Stuck => {
+                                info!("Stuck evaluating let-binding: {}", decl_term);
+                            }
+                        }
+                    }
+                    BlockStatement::Expr(expr) => {
+                        let _ = self.eval_and_record(expr.into(), &st)?;
+                    }
+                }
+            }
+
+            let sub = self.substituter().create_sub_from_current_scope();
+            let result_term = self.eval_and_record(block_term.expr.into(), &st)?.to_term();
+            let subbed_result_term = self.substituter().apply_sub(result_term, &sub);
+
+            normalised_to(subbed_result_term)
+        })
     }
 
     fn unify(

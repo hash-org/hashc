@@ -1,16 +1,23 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
+    atom_info::ItemInAtomInfo,
     context::{HasContext, ScopeKind},
-    tir::{Arg, CallTerm, Term, TermId, Ty, TyId},
+    intrinsics::make::IsIntrinsic,
+    tir::{Arg, CallTerm, NodeId, NodesId, Term, TermId, Ty, TyId},
     visitor::Map,
 };
+use itertools::Itertools;
 
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    options::normalisation::NormaliseResult,
+    options::normalisation::{
+        normalised_if, normalised_option, normalised_to, NormalisationMode, NormalisationState,
+        NormaliseResult, NormaliseSignal,
+    },
     tc::Tc,
     traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    utils::intrinsic_abilities::IntrinsicAbilitiesImpl,
 };
 
 impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
@@ -82,8 +89,53 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
         })
     }
 
-    fn normalise(&self, _item: CallTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
-        todo!()
+    fn normalise(&self, mut fn_call: CallTerm, item_node: Self::Node) -> NormaliseResult<TermId> {
+        let st = NormalisationState::new();
+
+        fn_call.subject = (self.eval_and_record(fn_call.subject.into(), &st)?).to_term();
+        fn_call.args =
+            st.update_from_result(fn_call.args, self.normalise_node_rec(fn_call.args))?;
+
+        let subject = *fn_call.subject.value();
+
+        // Beta-reduce:
+        if let Term::Fn(fn_def_id) = subject {
+            let fn_def = fn_def_id.value();
+            if (fn_def.ty.pure
+                || matches!(self.normalisation_opts.mode.get(), NormalisationMode::Full))
+                && self.try_get_inferred_ty(fn_def_id).is_some()
+            {
+                return self.context().enter_scope(fn_def_id.into(), || {
+                    // Add argument bindings:
+                    self.context().add_arg_bindings(fn_def.ty.params, fn_call.args);
+
+                    // Evaluate result:
+                    match self.eval(fn_def.body.into()) {
+                        Err(NormaliseSignal::Return(result)) | Ok(result) => {
+                            // Substitute remaining bindings:
+                            let sub = self.substituter().create_sub_from_current_scope();
+                            let result = self.substituter().apply_sub(result.to_term(), &sub);
+                            normalised_to(result)
+                        }
+                        Err(e) => Err(e),
+                    }
+                });
+            }
+        } else if let Term::Intrinsic(intrinsic) = subject {
+            return self.context().enter_scope(intrinsic.into(), || {
+                let args_as_terms =
+                    fn_call.args.elements().borrow().iter().map(|arg| arg.value).collect_vec();
+
+                // Run intrinsic:
+                let result: Option<TermId> = intrinsic
+                    .call(IntrinsicAbilitiesImpl::new(self), &args_as_terms)
+                    .map_err(TcError::Intrinsic)?;
+
+                normalised_option(result)
+            });
+        }
+
+        normalised_if(|| Term::from(fn_call, item_node.origin().computed()), &st)
     }
 
     fn unify(

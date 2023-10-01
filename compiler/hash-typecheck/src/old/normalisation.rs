@@ -8,18 +8,12 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::{HasContext, ScopeKind},
-    intrinsics::{
-        make::IsIntrinsic,
-        utils::{get_bool_ctor, try_use_term_as_integer_lit},
-    },
-    scopes::{AssignTerm, BlockStatement, BlockTerm},
+    intrinsics::utils::{get_bool_ctor, try_use_term_as_integer_lit},
     stores::tir_stores,
     tir::{
-        AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, DerefTerm, Hole, IndexTerm, Lit,
-        LitPat, LoopControlTerm, LoopTerm, MatchTerm, Node, NodeId, NodesId, ParamIndex, Pat,
-        PatArgsId, PatId, PatListId, PatOrCapture, RangePat, ReturnTerm, Spread, SymbolId, Term,
-        TermId, TermListId, TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
+        Arg, ArgsId, ArrayTerm, Lit, LitPat, Node, NodeId, NodesId, ParamIndex, Pat, PatArgsId,
+        PatId, PatListId, PatOrCapture, RangePat, Spread, SymbolId, Term, TermId, TermListId,
+        TupleTerm, Ty,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -27,20 +21,18 @@ use hash_utils::{itertools::Itertools, log::info};
 
 use crate::{
     env::TcEnv,
-    errors::{TcError, TcResult},
+    errors::TcResult,
     options::normalisation::{
         already_normalised, ctrl_continue, ctrl_map, normalisation_result_into, normalised_if,
-        normalised_option, normalised_to, stuck_normalising, NormalisationMode, NormalisationState,
-        NormaliseResult, NormaliseSignal,
+        stuck_normalising, NormalisationMode, NormalisationState, NormaliseResult, NormaliseSignal,
     },
     tc::Tc,
-    traits::{Operations, RecursiveOperationsOnNode},
-    utils::intrinsic_abilities::IntrinsicAbilitiesImpl,
+    traits::Operations,
 };
 
 /// The result of matching a pattern against a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MatchResult {
+pub enum MatchResult {
     /// The pattern matched successfully.
     Successful,
     /// The pattern failed to match.
@@ -52,14 +44,6 @@ enum MatchResult {
 pub type FullEvaluation<T> = Result<T, NormaliseSignal>;
 
 pub type AtomEvaluation = NormaliseResult<Atom>;
-
-fn full_evaluation_to<T>(atom: impl Into<T>) -> FullEvaluation<T> {
-    Ok(atom.into())
-}
-
-fn ctrl_map_full<T>(t: FullEvaluation<T>) -> NormaliseResult<ControlFlow<T>> {
-    Ok(Some(ControlFlow::Break(t?)))
-}
 
 impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// Normalise the given atom, in-place.
@@ -267,74 +251,6 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         }
     }
 
-    /// Evaluate a block term.
-    fn eval_block(&self, block_term: BlockTerm) -> AtomEvaluation {
-        self.context().enter_scope(ScopeKind::Stack(block_term.stack_id), || {
-            let st = NormalisationState::new();
-
-            for statement in block_term.statements.iter() {
-                match *statement.value() {
-                    BlockStatement::Decl(mut decl_term) => {
-                        decl_term.value =
-                            self.eval_nested_and_record(decl_term.value.into(), &st)?.to_term();
-
-                        match self.match_value_and_get_binds(
-                            decl_term.value,
-                            decl_term.bind_pat,
-                            &mut |name, term_id| {
-                                self.context().add_untyped_assignment(name, term_id)
-                            },
-                        )? {
-                            MatchResult::Successful => {
-                                // All good
-                            }
-                            MatchResult::Failed => {
-                                panic!("Non-exhaustive let-binding: {}", decl_term)
-                            }
-                            MatchResult::Stuck => {
-                                info!("Stuck evaluating let-binding: {}", decl_term);
-                            }
-                        }
-                    }
-                    BlockStatement::Expr(expr) => {
-                        let _ = self.eval_and_record(expr.into(), &st)?;
-                    }
-                }
-            }
-
-            let sub = self.substituter().create_sub_from_current_scope();
-            let result_term = self.eval_and_record(block_term.expr.into(), &st)?;
-            let subbed_result_term = self.substituter().apply_sub(result_term, &sub);
-
-            normalised_to(subbed_result_term)
-        })
-    }
-
-    /// Evaluate a variable.
-    fn eval_var(&self, var: SymbolId, original_term_id: TermId) -> AtomEvaluation {
-        normalisation_result_into(self.normalise(VarTerm { symbol: var }, original_term_id))
-    }
-
-    /// Evaluate a cast term.
-    fn eval_cast(&self, cast_term: CastTerm) -> AtomEvaluation {
-        // @@Todo: will not play well with typeof?;
-        normalised_option(self.potentially_eval(cast_term.subject_term.into())?)
-    }
-
-    /// Evaluate a dereference term.
-    fn eval_deref(&self, mut deref_term: Node<DerefTerm>) -> AtomEvaluation {
-        let st = NormalisationState::new();
-        deref_term.subject = self.eval_and_record(deref_term.subject.into(), &st)?.to_term();
-
-        // Reduce:
-        if let Term::Ref(ref_expr) = *deref_term.subject.value() {
-            // Should never be effectful
-            return normalised_to(ref_expr.subject);
-        }
-
-        normalised_if(|| Term::from(*deref_term, deref_term.origin.computed()), &st)
-    }
-
     /// Get the parameter at the given index in the given argument list.
     pub fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
         for arg_i in args.iter() {
@@ -347,7 +263,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     }
 
     /// Set the parameter at the given index in the given argument list.
-    fn set_param_in_args(&self, args: ArgsId, target: ParamIndex, value: Atom) {
+    pub fn set_param_in_args(&self, args: ArgsId, target: ParamIndex, value: Atom) {
         let value = value.to_term();
         for arg_i in args.iter() {
             let arg = arg_i.value();
@@ -362,7 +278,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// Get the term at the given index in the given term list.
     ///
     /// Assumes that the index is normalised.
-    fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
+    pub fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
         try_use_term_as_integer_lit::<_, usize>(self, index)
             .map(|idx| elements.elements().at(idx).unwrap().into())
     }
@@ -372,7 +288,12 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// return the `subject`.
     ///
     /// Assumes that the index is normalised.
-    fn get_index_in_repeat(&self, subject: TermId, repeat: TermId, index: TermId) -> Option<Atom> {
+    pub fn get_index_in_repeat(
+        &self,
+        subject: TermId,
+        repeat: TermId,
+        index: TermId,
+    ) -> Option<Atom> {
         let subject = try_use_term_as_integer_lit::<_, usize>(self, subject)?;
         let index = try_use_term_as_integer_lit::<_, usize>(self, index)?;
 
@@ -383,207 +304,10 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         }
     }
 
-    /// Evaluate an access term.
-    fn eval_access(&self, access_term: AccessTerm, original_term_id: TermId) -> AtomEvaluation {
-        normalisation_result_into(self.normalise(access_term, original_term_id))
-    }
-
-    /// Evaluate an index term.
-    fn eval_index(&self, mut index_term: IndexTerm) -> AtomEvaluation {
-        let st = NormalisationState::new();
-        index_term.subject = (self.eval_and_record(index_term.subject.into(), &st)?).to_term();
-
-        if let Term::Array(array_term) = *index_term.subject.value() {
-            let result = match array_term {
-                ArrayTerm::Normal(elements) => self.get_index_in_array(elements, index_term.index),
-                ArrayTerm::Repeated(subject, count) => {
-                    // Evaluate the count, and the index terms to integers:
-                    self.get_index_in_repeat(subject, count, index_term.index)
-                }
-            };
-
-            // Check if we actually got the index when evaluating:
-            let Some(index) = result else { return stuck_normalising() };
-
-            let result = self.eval_and_record(index, &st)?;
-            normalised_if(|| result, &st)
-        } else {
-            stuck_normalising()
-        }
-    }
-
-    /// Evaluate an unsafe term.
-    fn eval_unsafe(&self, unsafe_term: UnsafeTerm) -> AtomEvaluation {
-        // @@Todo: handle unsafe safety
-        normalised_option(self.potentially_eval(unsafe_term.inner.into())?)
-    }
-
-    /// Evaluate a `typeof` term.
-    fn eval_type_of(&self, type_of_term: TyOfTerm) -> AtomEvaluation {
-        // Infer the type of the term:
-        match tir_stores().atom_info().try_get_inferred_ty(type_of_term.term) {
-            Some(ty) => normalised_to(ty),
-            None => {
-                // Not evaluated yet
-                stuck_normalising()
-            }
-        }
-    }
-
-    /// Evaluate a loop control term.
-    fn eval_loop_control(&self, loop_control_term: LoopControlTerm) -> NormaliseSignal {
-        match loop_control_term {
-            LoopControlTerm::Break => NormaliseSignal::Break,
-            LoopControlTerm::Continue => NormaliseSignal::Continue,
-        }
-    }
-
-    /// Evaluate an assignment term.
-    fn eval_assign(&self, mut assign_term: Node<AssignTerm>) -> FullEvaluation<Atom> {
-        assign_term.value = (self.eval(assign_term.value.into())?).to_term();
-
-        match *assign_term.subject.value() {
-            Term::Access(mut access_term) => {
-                access_term.subject = (self.eval(access_term.subject.into())?).to_term();
-                match *access_term.subject.value() {
-                    Term::Tuple(tuple) => self.set_param_in_args(
-                        tuple.data,
-                        access_term.field,
-                        assign_term.value.into(),
-                    ),
-                    Term::Ctor(ctor) => self.set_param_in_args(
-                        ctor.ctor_args,
-                        access_term.field,
-                        assign_term.value.into(),
-                    ),
-                    _ => panic!("Invalid access"),
-                }
-            }
-            Term::Var(var) => {
-                self.context().modify_assignment(var.symbol, assign_term.value);
-            }
-            _ => panic!("Invalid assign {}", &*assign_term),
-        }
-
-        full_evaluation_to(Term::unit(assign_term.origin.computed()))
-    }
-
-    /// Evaluate a match term.
-    fn eval_match(&self, mut match_term: MatchTerm) -> AtomEvaluation {
-        let st = NormalisationState::new();
-        match_term.subject = (self.eval_and_record(match_term.subject.into(), &st)?).to_term();
-
-        for case_id in match_term.cases.iter() {
-            let case = case_id.value();
-            let mut outcome = None;
-
-            self.context().enter_scope(
-                case.stack_id.into(),
-                || -> Result<(), NormaliseSignal> {
-                    match self.match_value_and_get_binds(
-                        match_term.subject,
-                        case.bind_pat,
-                        &mut |name, term_id| self.context().add_untyped_assignment(name, term_id),
-                    )? {
-                        MatchResult::Successful => {
-                            let result = self.eval_and_record(case.value.into(), &st)?;
-                            outcome = Some(normalised_to(result));
-                        }
-                        MatchResult::Failed => {}
-                        MatchResult::Stuck => {
-                            outcome = Some(stuck_normalising());
-                        }
-                    }
-
-                    Ok(())
-                },
-            )?;
-
-            match outcome {
-                Some(outcome) => return outcome,
-                None => continue,
-            }
-        }
-
-        panic!("Non-exhaustive match: {}", &match_term)
-    }
-
-    /// Evaluate a `return` term.
-    fn eval_return(&self, return_term: ReturnTerm) -> Result<!, NormaliseSignal> {
-        let normalised = self.eval(return_term.expression.into())?;
-        Err(NormaliseSignal::Return(normalised))
-    }
-
-    /// Evaluate a `loop` term.
-    fn eval_loop(&self, loop_term: Node<LoopTerm>) -> FullEvaluation<Atom> {
-        loop {
-            match self.eval(loop_term.inner.into()) {
-                Ok(_) | Err(NormaliseSignal::Continue) => continue,
-                Err(NormaliseSignal::Break) => break,
-                Err(e) => return Err(e),
-            }
-        }
-        full_evaluation_to(Term::unit(loop_term.origin.computed()))
-    }
-
-    /// Evaluate some arguments
-    fn eval_args(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
-        self.normalise_node(args_id)
-    }
-
-    /// Evaluate a function call.
-    fn eval_fn_call(&self, mut fn_call: Node<CallTerm>) -> AtomEvaluation {
-        let st = NormalisationState::new();
-
-        fn_call.subject = (self.eval_and_record(fn_call.subject.into(), &st)?).to_term();
-        fn_call.args = st.update_from_result(fn_call.args, self.eval_args(fn_call.args))?;
-
-        let subject = *fn_call.subject.value();
-
-        // Beta-reduce:
-        if let Term::Fn(fn_def_id) = subject {
-            let fn_def = fn_def_id.value();
-            if (fn_def.ty.pure
-                || matches!(self.normalisation_opts.mode.get(), NormalisationMode::Full))
-                && tir_stores().atom_info().try_get_inferred_ty(fn_def_id).is_some()
-            {
-                return self.context().enter_scope(fn_def_id.into(), || {
-                    // Add argument bindings:
-                    self.context().add_arg_bindings(fn_def.ty.params, fn_call.args);
-
-                    // Evaluate result:
-                    match self.eval(fn_def.body.into()) {
-                        Err(NormaliseSignal::Return(result)) | Ok(result) => {
-                            // Substitute remaining bindings:
-                            let sub = self.substituter().create_sub_from_current_scope();
-                            let result = self.substituter().apply_sub(result, &sub);
-                            normalised_to(result)
-                        }
-                        Err(e) => Err(e),
-                    }
-                });
-            }
-        } else if let Term::Intrinsic(intrinsic) = subject {
-            return self.context().enter_scope(intrinsic.into(), || {
-                let args_as_terms =
-                    fn_call.args.elements().borrow().iter().map(|arg| arg.value).collect_vec();
-
-                // Run intrinsic:
-                let result: Option<TermId> = intrinsic
-                    .call(IntrinsicAbilitiesImpl::new(self), &args_as_terms)
-                    .map_err(TcError::Intrinsic)?;
-
-                normalised_option::<Atom>(result)
-            });
-        }
-
-        normalised_if(|| Term::from(*fn_call, fn_call.origin.computed()), &st)
-    }
-
     /// Evaluate an atom, performing at least a single step of normalisation.
     ///
     /// Returns `None` if the atom is already normalised.
-    fn potentially_eval(&self, atom: Atom) -> AtomEvaluation {
+    pub fn potentially_eval(&self, atom: Atom) -> AtomEvaluation {
         let mut traversal = self.visitor();
         traversal.set_visit_fns_once(false);
 
@@ -634,21 +358,32 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
 
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::TyOf(term) => ctrl_map(self.eval_type_of(term)),
-                Term::Unsafe(unsafe_expr) => ctrl_map(self.eval_unsafe(unsafe_expr)),
-                Term::Match(match_term) => ctrl_map(self.eval_match(match_term)),
+                Term::TyOf(ty_of_term) => {
+                    ctrl_map(normalisation_result_into(self.normalise(ty_of_term, term)))
+                }
+                Term::Unsafe(unsafe_expr) => {
+                    ctrl_map(normalisation_result_into(self.normalise(unsafe_expr, term)))
+                }
+                Term::Match(match_term) => {
+                    ctrl_map(normalisation_result_into(self.normalise(match_term, term)))
+                }
                 Term::Call(fn_call) => {
-                    ctrl_map(self.eval_fn_call(term.origin().with_data(fn_call)))
+                    ctrl_map(normalisation_result_into(self.normalise(fn_call, term)))
                 }
-                Term::Cast(cast_term) => ctrl_map(self.eval_cast(cast_term)),
-                Term::Hole(Hole(var)) | Term::Var(VarTerm { symbol: var }) => {
-                    ctrl_map(self.eval_var(var, term))
+                Term::Cast(cast_term) => {
+                    ctrl_map(normalisation_result_into(self.normalise(cast_term, term)))
                 }
+                Term::Hole(h) => ctrl_map(normalisation_result_into(self.normalise(h, term))),
+                Term::Var(v) => ctrl_map(normalisation_result_into(self.normalise(v, term))),
                 Term::Deref(deref_term) => {
-                    ctrl_map(self.eval_deref(term.origin().with_data(deref_term)))
+                    ctrl_map(normalisation_result_into(self.normalise(deref_term, term)))
                 }
-                Term::Access(access_term) => ctrl_map(self.eval_access(access_term, term)),
-                Term::Index(index_term) => ctrl_map(self.eval_index(index_term)),
+                Term::Access(access_term) => {
+                    ctrl_map(normalisation_result_into(self.normalise(access_term, term)))
+                }
+                Term::Index(index_term) => {
+                    ctrl_map(normalisation_result_into(self.normalise(index_term, term)))
+                }
 
                 // Introduction forms:
                 Term::Ref(_)
@@ -660,14 +395,20 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
                 | Term::Ctor(_) => ctrl_continue(),
 
                 // Imperative:
-                Term::LoopControl(loop_control) => Err(self.eval_loop_control(loop_control)),
-                Term::Assign(assign_term) => {
-                    ctrl_map_full(self.eval_assign(term.origin().with_data(assign_term)))
+                Term::LoopControl(loop_control) => {
+                    ctrl_map(normalisation_result_into(self.normalise(loop_control, term)))
                 }
-                Term::Return(return_expr) => self.eval_return(return_expr)?,
-                Term::Block(block_term) => ctrl_map(self.eval_block(block_term)),
+                Term::Assign(assign_term) => {
+                    ctrl_map(normalisation_result_into(self.normalise(assign_term, term)))
+                }
+                Term::Return(return_expr) => {
+                    ctrl_map(normalisation_result_into(self.normalise(return_expr, term)))
+                }
+                Term::Block(block_term) => {
+                    ctrl_map(normalisation_result_into(self.normalise(block_term, term)))
+                }
                 Term::Loop(loop_term) => {
-                    ctrl_map_full(self.eval_loop(term.origin().with_data(loop_term)))
+                    ctrl_map(normalisation_result_into(self.normalise(loop_term, term)))
                 }
                 Ty::FnTy(_) | Ty::TupleTy(_) | Ty::DataTy(_) | Ty::Universe(_) | Ty::RefTy(_) => {
                     ctrl_continue()
@@ -875,7 +616,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// bind is discovered.
     ///
     /// The term must be normalised and well-typed with respect to the pattern.
-    fn match_value_and_get_binds(
+    pub fn match_value_and_get_binds(
         &self,
         term_id: TermId,
         pat_id: PatId,

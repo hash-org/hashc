@@ -6,7 +6,7 @@ use hash_tir::{
     },
     tir::{
         ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, NodeId, NodeOrigin, PatId, PrimitiveCtorInfo,
-        TermId, Ty, TyId,
+        Term, TermId, Ty, TyId,
     },
     visitor::Map,
 };
@@ -14,7 +14,9 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
-    options::normalisation::NormaliseResult,
+    options::normalisation::{
+        normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
+    },
     tc::Tc,
     traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
@@ -237,8 +239,27 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, _item: IndexTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
-        todo!()
+    fn normalise(&self, mut index_term: IndexTerm, _: Self::Node) -> NormaliseResult<TermId> {
+        let st = NormalisationState::new();
+        index_term.subject = (self.eval_and_record(index_term.subject.into(), &st)?).to_term();
+
+        if let Term::Array(array_term) = *index_term.subject.value() {
+            let result = match array_term {
+                ArrayTerm::Normal(elements) => self.get_index_in_array(elements, index_term.index),
+                ArrayTerm::Repeated(subject, count) => {
+                    // Evaluate the count, and the index terms to integers:
+                    self.get_index_in_repeat(subject, count, index_term.index)
+                }
+            };
+
+            // Check if we actually got the index when evaluating:
+            let Some(index) = result else { return stuck_normalising() };
+
+            let result = self.eval_and_record(index, &st)?.to_term();
+            normalised_if(|| result, &st)
+        } else {
+            stuck_normalising()
+        }
     }
 
     fn unify(

@@ -3,7 +3,7 @@ use hash_tir::tir::{TermId, TyId, UnsafeTerm};
 use crate::{
     env::TcEnv,
     errors::TcResult,
-    options::normalisation::NormaliseResult,
+    options::normalisation::{normalised_option, NormaliseResult},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -18,13 +18,14 @@ impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
         annotation_ty: Self::TyNode,
         _: Self::Node,
     ) -> TcResult<()> {
-        // @@Todo: unsafe context
+        // @@Todo
         self.check_node(unsafe_term.inner, annotation_ty)?;
         Ok(())
     }
 
-    fn normalise(&self, _item: UnsafeTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
-        todo!()
+    fn normalise(&self, unsafe_term: UnsafeTerm, _: Self::Node) -> NormaliseResult<TermId> {
+        // @@Todo
+        normalised_option(self.potentially_eval(unsafe_term.inner.into())?.map(|x| x.to_term()))
     }
 
     fn unify(

@@ -12,6 +12,10 @@ use itertools::Itertools;
 use crate::{
     env::TcEnv,
     errors::TcResult,
+    normalisation::MatchResult,
+    options::normalisation::{
+        normalised_to, stuck_normalising, NormalisationState, NormaliseSignal,
+    },
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -113,10 +117,45 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _item: MatchTerm,
-        _item_node: Self::Node,
+        mut match_term: MatchTerm,
+        _: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+        let st = NormalisationState::new();
+        match_term.subject = (self.eval_and_record(match_term.subject.into(), &st)?).to_term();
+
+        for case_id in match_term.cases.iter() {
+            let case = case_id.value();
+            let mut outcome = None;
+
+            self.context().enter_scope(
+                case.stack_id.into(),
+                || -> Result<(), NormaliseSignal> {
+                    match self.match_value_and_get_binds(
+                        match_term.subject,
+                        case.bind_pat,
+                        &mut |name, term_id| self.context().add_untyped_assignment(name, term_id),
+                    )? {
+                        MatchResult::Successful => {
+                            let result = self.eval_and_record(case.value.into(), &st)?.to_term();
+                            outcome = Some(normalised_to(result));
+                        }
+                        MatchResult::Failed => {}
+                        MatchResult::Stuck => {
+                            outcome = Some(stuck_normalising());
+                        }
+                    }
+
+                    Ok(())
+                },
+            )?;
+
+            match outcome {
+                Some(outcome) => return outcome,
+                None => continue,
+            }
+        }
+
+        panic!("Non-exhaustive match: {}", &match_term)
     }
 
     fn unify(

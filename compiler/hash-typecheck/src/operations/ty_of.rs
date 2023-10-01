@@ -1,7 +1,12 @@
-use hash_tir::tir::{TermId, Ty, TyId, TyOfTerm};
+use hash_tir::{
+    atom_info::ItemInAtomInfo,
+    tir::{TermId, Ty, TyId, TyOfTerm},
+};
 
 use crate::{
     env::TcEnv,
+    errors::TcResult,
+    options::normalisation::{normalised_to, stuck_normalising, NormaliseResult},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -15,7 +20,7 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
         ty_of_term: &mut TyOfTerm,
         annotation_ty: Self::TyNode,
         original_term_id: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> TcResult<()> {
         let inferred_ty = Ty::hole_for(ty_of_term.term);
         self.check_node(ty_of_term.term, inferred_ty)?;
         self.check_node(inferred_ty, annotation_ty)?;
@@ -23,12 +28,15 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _item: TyOfTerm,
-        _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+    fn normalise(&self, ty_of_term: TyOfTerm, _: Self::Node) -> NormaliseResult<Self::Node> {
+        // Infer the type of the term:
+        match self.try_get_inferred_ty(ty_of_term.term) {
+            Some(ty) => normalised_to(ty),
+            None => {
+                // Not evaluated yet
+                stuck_normalising()
+            }
+        }
     }
 
     fn unify(
@@ -37,7 +45,7 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
         _target: &mut TyOfTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> TcResult<()> {
         todo!()
     }
 }

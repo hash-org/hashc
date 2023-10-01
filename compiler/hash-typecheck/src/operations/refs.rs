@@ -1,9 +1,10 @@
 use hash_storage::store::statics::StoreId;
-use hash_tir::tir::{DerefTerm, NodeId, NodeOrigin, RefTerm, RefTy, TermId, Ty, TyId};
+use hash_tir::tir::{DerefTerm, NodeId, NodeOrigin, RefTerm, RefTy, Term, TermId, Ty, TyId};
 
 use crate::{
     env::TcEnv,
     errors::TcError,
+    options::normalisation::{normalised_if, normalised_to, NormalisationState},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -100,10 +101,19 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _item: DerefTerm,
-        _item_node: Self::Node,
+        mut deref_term: DerefTerm,
+        item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+        let st = NormalisationState::new();
+        deref_term.subject = self.eval_and_record(deref_term.subject.into(), &st)?.to_term();
+
+        // Reduce:
+        if let Term::Ref(ref_expr) = *deref_term.subject.value() {
+            // Should never be effectful
+            return normalised_to(ref_expr.subject);
+        }
+
+        normalised_if(|| Term::from(deref_term, item_node.origin().computed()), &st)
     }
 
     fn unify(

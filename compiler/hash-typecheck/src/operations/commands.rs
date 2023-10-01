@@ -3,11 +3,12 @@ use hash_tir::{
     context::HasContext,
     intrinsics::definitions::never_ty,
     scopes::AssignTerm,
-    tir::{LoopControlTerm, LoopTerm, NodeId, NodeOrigin, ReturnTerm, TermId, Ty, TyId},
+    tir::{LoopControlTerm, LoopTerm, NodeId, NodeOrigin, ReturnTerm, Term, TermId, Ty, TyId},
 };
 
 use crate::{
     env::TcEnv,
+    options::normalisation::{normalised_to, NormaliseResult, NormaliseSignal},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -39,12 +40,9 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
         }
     }
 
-    fn normalise(
-        &self,
-        _item: ReturnTerm,
-        _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+    fn normalise(&self, return_term: ReturnTerm, _: Self::Node) -> NormaliseResult<Self::Node> {
+        let normalised = self.eval(return_term.expression.into())?;
+        Err(NormaliseSignal::Return(normalised))
     }
 
     fn unify(
@@ -74,10 +72,13 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _item: LoopControlTerm,
-        _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+        loop_control_term: LoopControlTerm,
+        _: Self::Node,
+    ) -> NormaliseResult<Self::Node> {
+        match loop_control_term {
+            LoopControlTerm::Break => Err(NormaliseSignal::Break),
+            LoopControlTerm::Continue => Err(NormaliseSignal::Continue),
+        }
     }
 
     fn unify(
@@ -109,12 +110,15 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _item: LoopTerm,
-        _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+    fn normalise(&self, loop_term: LoopTerm, item_node: Self::Node) -> NormaliseResult<Self::Node> {
+        loop {
+            match self.eval(loop_term.inner.into()) {
+                Ok(_) | Err(NormaliseSignal::Continue) => continue,
+                Err(NormaliseSignal::Break) => break,
+                Err(e) => return Err(e),
+            }
+        }
+        normalised_to(Term::unit(item_node.origin().computed()))
     }
 
     fn unify(
@@ -154,10 +158,35 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _item: AssignTerm,
-        _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+        mut assign_term: AssignTerm,
+        item_node: Self::Node,
+    ) -> NormaliseResult<Self::Node> {
+        assign_term.value = (self.eval(assign_term.value.into())?).to_term();
+
+        match *assign_term.subject.value() {
+            Term::Access(mut access_term) => {
+                access_term.subject = (self.eval(access_term.subject.into())?).to_term();
+                match *access_term.subject.value() {
+                    Term::Tuple(tuple) => self.set_param_in_args(
+                        tuple.data,
+                        access_term.field,
+                        assign_term.value.into(),
+                    ),
+                    Term::Ctor(ctor) => self.set_param_in_args(
+                        ctor.ctor_args,
+                        access_term.field,
+                        assign_term.value.into(),
+                    ),
+                    _ => panic!("Invalid access"),
+                }
+            }
+            Term::Var(var) => {
+                self.context().modify_assignment(var.symbol, assign_term.value);
+            }
+            _ => panic!("Invalid assign {}", assign_term),
+        }
+
+        normalised_to(Term::unit(item_node.origin().computed()))
     }
 
     fn unify(

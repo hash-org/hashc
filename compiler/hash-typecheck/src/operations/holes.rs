@@ -1,5 +1,5 @@
 use hash_storage::store::statics::StoreId;
-use hash_tir::tir::{Hole, TermId, TyId};
+use hash_tir::tir::{Hole, TermId, TyId, VarTerm};
 
 use crate::{env::TcEnv, errors::TcResult, tc::Tc, traits::Operations};
 
@@ -33,10 +33,10 @@ impl<E: TcEnv> Operations<Hole> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _item: Hole,
-        _item_node: Self::Node,
+        hole: Hole,
+        item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        todo!()
+        self.normalise(VarTerm { symbol: hole.0 }, item_node)
     }
 
     fn unify(

@@ -93,7 +93,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
         Ok(result)
     }
 
-    fn normalise_node(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
+    fn normalise_node_rec(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
         let args = args_id.value();
         let st = NormalisationState::new();
 
@@ -196,7 +196,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
         )
     }
 
-    fn normalise_node(
+    fn normalise_node_rec(
         &self,
         _item: (PatArgsId, Option<Spread>),
     ) -> NormaliseResult<(PatArgsId, Option<Spread>)> {

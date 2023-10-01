@@ -80,7 +80,7 @@ pub trait RecursiveOperationsOnNode<X: Copy>: HasTcEnv {
         f: F,
     ) -> TcResult<T>;
 
-    fn normalise_node(&self, item: X) -> NormaliseResult<X>;
+    fn normalise_node_rec(&self, item: X) -> NormaliseResult<X>;
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
@@ -106,7 +106,7 @@ impl<X: Copy, U: RecursiveOperationsOnNode<X> + HasTcEnv> RecursiveOperations<X>
     }
 
     fn normalise(&self, item: X, _: Self::Node) -> NormaliseResult<X> {
-        self.normalise_node(item)
+        self.normalise_node_rec(item)
     }
 
     fn unify_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(

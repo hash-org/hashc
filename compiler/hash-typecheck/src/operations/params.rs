@@ -46,7 +46,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
         Ok(result)
     }
 
-    fn normalise_node(&self, _item: ParamsId) -> NormaliseResult<ParamsId> {
+    fn normalise_node_rec(&self, _item: ParamsId) -> NormaliseResult<ParamsId> {
         todo!()
     }
 
