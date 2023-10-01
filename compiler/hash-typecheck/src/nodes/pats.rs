@@ -1,6 +1,7 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
+    context::HasContext,
     intrinsics::{definitions::bool_ty, utils::bool_term},
     tir::{
         IfPat, NodeId, NodeOrigin, NodesId, OrPat, Pat, PatId, PatListId, PatOrCapture, Term,
@@ -63,18 +64,13 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
 
     fn normalise_node(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: PatId,
     ) -> crate::operations::normalisation::NormaliseResult<PatId> {
         todo!()
     }
 
-    fn unify_nodes(
-        &self,
-        _opts: &crate::operations::unification::UnificationOptions,
-        _src: PatId,
-        _target: PatId,
-    ) -> crate::errors::TcResult<()> {
+    fn unify_nodes(&self, _src: PatId, _target: PatId) -> crate::errors::TcResult<()> {
         todo!()
     }
 
@@ -108,7 +104,7 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: IfPat,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -117,7 +113,7 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut IfPat,
         _target: &mut IfPat,
         _src_node: Self::Node,
@@ -147,7 +143,7 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: OrPat,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -156,7 +152,7 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut OrPat,
         _target: &mut OrPat,
         _src_node: Self::Node,

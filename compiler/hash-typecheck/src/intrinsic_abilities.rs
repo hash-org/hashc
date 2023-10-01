@@ -7,11 +7,11 @@ use hash_tir::{
 };
 use hash_utils::derive_more::{Constructor, Deref};
 
-use crate::env::TcEnv;
+use crate::{checker::Tc, env::TcEnv};
 
 #[derive(Deref, Constructor)]
 pub struct IntrinsicAbilitiesImpl<'tc, T: TcEnv> {
-    tc: &'tc T,
+    tc: &'tc Tc<'tc, T>,
 }
 
 impl<T: TcEnv> HasContext for IntrinsicAbilitiesImpl<'_, T> {
@@ -28,14 +28,13 @@ impl<T: TcEnv> HasTarget for IntrinsicAbilitiesImpl<'_, T> {
 
 impl<T: TcEnv> IntrinsicAbilities for IntrinsicAbilitiesImpl<'_, T> {
     fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String> {
-        let norm = self.tc.norm_ops();
-
-        norm.potentially_normalise(term.into()).map(|result| result.map(|r| r.to_term())).map_err(
-            |e| {
+        self.tc
+            .potentially_normalise(term.into())
+            .map(|result| result.map(|r| r.to_term()))
+            .map_err(|e| {
                 self.tc.diagnostics().add_error(e.into());
                 "normalisation error".to_string()
-            },
-        )
+            })
     }
 
     fn resolve_from_prelude(

@@ -22,7 +22,7 @@ impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: Intrinsic,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -31,7 +31,7 @@ impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut Intrinsic,
         _target: &mut Intrinsic,
         _src_node: Self::Node,

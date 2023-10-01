@@ -6,11 +6,7 @@ use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
     operations::{
-        normalisation::{
-            normalised_if, stuck_normalising, NormalisationOptions, NormalisationState,
-            NormaliseResult,
-        },
-        unification::UnificationOptions,
+        normalisation::{normalised_if, stuck_normalising, NormalisationState, NormaliseResult},
         Operations, OperationsOnNode,
     },
 };
@@ -82,45 +78,35 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
         }
     }
 
-    fn normalise(
-        &self,
-
-        opts: &NormalisationOptions,
-        mut access_term: AccessTerm,
-        _: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    fn normalise(&self, mut access_term: AccessTerm, _: Self::Node) -> NormaliseResult<TermId> {
         let st = NormalisationState::new();
-        let norm_ops = self.norm_ops_with(opts);
-        access_term.subject =
-            (norm_ops.eval_and_record(access_term.subject.into(), &st)?).to_term();
+        access_term.subject = (self.eval_and_record(access_term.subject.into(), &st)?).to_term();
 
         let result = match *access_term.subject.value() {
             Term::Tuple(TupleTerm { data: args })
             | Term::Ctor(CtorTerm { ctor_args: args, .. }) => {
-                norm_ops.get_param_in_args(args, access_term.field)
+                self.get_param_in_args(args, access_term.field)
             }
             _ => {
                 return stuck_normalising();
             }
         };
-        let evaluated = norm_ops.eval_and_record(result, &st)?.to_term();
+        let evaluated = self.eval_and_record(result, &st)?.to_term();
         normalised_if(|| evaluated, &st)
     }
 
     fn unify(
         &self,
 
-        opts: &UnificationOptions,
         src: &mut AccessTerm,
         target: &mut AccessTerm,
         src_node: Self::Node,
         target_node: Self::Node,
     ) -> TcResult<()> {
-        let ops = self.uni_ops_with(opts);
         if src.field != target.field {
-            return ops.mismatching_atoms(src_node, target_node);
+            return self.mismatching_atoms(src_node, target_node);
         }
-        ops.unify_terms(src.subject, target.subject)
+        self.unify_nodes(src.subject, target.subject)
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut AccessTerm) {

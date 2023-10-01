@@ -10,9 +10,7 @@ use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
     operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        Operations, OperationsOnNode, RecursiveOperationsOnNode,
+        normalisation::NormaliseResult, Operations, OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
 
@@ -85,26 +83,21 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
         })
     }
 
-    fn normalise(
-        &self,
-
-        _opts: &NormalisationOptions,
-        _item: CallTerm,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    fn normalise(&self, _item: CallTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
     fn unify(
         &self,
 
-        _opts: &UnificationOptions,
-        _src: &mut CallTerm,
-        _target: &mut CallTerm,
+        src: &mut CallTerm,
+        target: &mut CallTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.unify_nodes(src.subject, target.subject)?;
+        self.unify_nodes_rec(src.args, target.args, |_| Ok(()))?;
+        Ok(())
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut CallTerm) {

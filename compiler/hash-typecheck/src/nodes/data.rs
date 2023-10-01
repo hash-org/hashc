@@ -16,9 +16,7 @@ use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
     operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        Operations, OperationsOnNode, RecursiveOperationsOnNode,
+        normalisation::NormaliseResult, Operations, OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
 
@@ -115,10 +113,10 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         annotation_data_ty.args = final_result_args;
         let expected_data_ty =
             Ty::expect_is(original_atom, Ty::from(annotation_data_ty, annotation_ty.origin()));
-        let uni_ops = self.uni_ops();
-        uni_ops.with_binds(binds);
-        uni_ops.add_unification_from_sub(&resulting_sub);
-        uni_ops.unify_terms(expected_data_ty, annotation_ty)?;
+        self.unification_opts.pat_binds.enter(Some(binds), || {
+            self.add_unification_from_sub(&resulting_sub);
+            self.unify_nodes(expected_data_ty, annotation_ty)
+        })?;
 
         // Now we gather the final substitution, and apply it to the result
         // arguments, the constructor data arguments, and finally the annotation
@@ -143,26 +141,24 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-
-        _opts: &NormalisationOptions,
-        _item: CtorTerm,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    fn normalise(&self, _item: CtorTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
     fn unify(
         &self,
 
-        _opts: &UnificationOptions,
-        _src: &mut CtorTerm,
-        _target: &mut CtorTerm,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src: &mut CtorTerm,
+        target: &mut CtorTerm,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        if src.ctor != target.ctor {
+            return self.mismatching_atoms(src_node, target_node);
+        }
+        self.unify_nodes_rec(src.data_args, target.data_args, |_| Ok(()))?;
+        self.unify_nodes_rec(src.ctor_args, target.ctor_args, |_| Ok(()))?;
+        Ok(())
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut CtorTerm) {
@@ -191,26 +187,22 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-
-        _opts: &NormalisationOptions,
-        _item: DataTy,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TyId> {
+    fn normalise(&self, _item: DataTy, _item_node: Self::Node) -> NormaliseResult<TyId> {
         todo!()
     }
 
     fn unify(
         &self,
 
-        _opts: &UnificationOptions,
-        _src: &mut DataTy,
-        _target: &mut DataTy,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src: &mut DataTy,
+        target: &mut DataTy,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        if src.data_def != target.data_def {
+            return self.mismatching_atoms(src_node, target_node);
+        }
+        self.unify_nodes_rec(src.args, target.args, |_| Ok(()))
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut DataTy) {
@@ -262,20 +254,11 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
         })
     }
 
-    fn normalise_node(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: DataDefId,
-    ) -> NormaliseResult<DataDefId> {
+    fn normalise_node(&self, _item: DataDefId) -> NormaliseResult<DataDefId> {
         todo!()
     }
 
-    fn unify_nodes(
-        &self,
-        _opts: &UnificationOptions,
-        _src: DataDefId,
-        _target: DataDefId,
-    ) -> TcResult<()> {
+    fn unify_nodes(&self, _src: DataDefId, _target: DataDefId) -> TcResult<()> {
         todo!()
     }
 
@@ -299,20 +282,11 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
         })
     }
 
-    fn normalise_node(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: CtorDefId,
-    ) -> NormaliseResult<CtorDefId> {
+    fn normalise_node(&self, _item: CtorDefId) -> NormaliseResult<CtorDefId> {
         todo!()
     }
 
-    fn unify_nodes(
-        &self,
-        _opts: &UnificationOptions,
-        _src: CtorDefId,
-        _target: CtorDefId,
-    ) -> TcResult<()> {
+    fn unify_nodes(&self, _src: CtorDefId, _target: CtorDefId) -> TcResult<()> {
         todo!()
     }
 
@@ -421,10 +395,10 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         annotation_data_ty.args = final_result_args;
         let expected_data_ty =
             Ty::expect_is(original_atom, Ty::from(annotation_data_ty, annotation_ty.origin()));
-        let uni_ops = self.uni_ops();
-        uni_ops.with_binds(binds);
-        uni_ops.add_unification_from_sub(&resulting_sub);
-        uni_ops.unify_terms(expected_data_ty, annotation_ty)?;
+        self.unification_opts.pat_binds.enter(Some(binds), || {
+            self.add_unification_from_sub(&resulting_sub);
+            self.unify_nodes(expected_data_ty, annotation_ty)
+        })?;
 
         // Now we gather the final substitution, and apply it to the result
         // arguments, the constructor data arguments, and finally the annotation
@@ -450,18 +424,13 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: CtorPat,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<Self::Node> {
+    fn normalise(&self, _item: CtorPat, _item_node: Self::Node) -> NormaliseResult<Self::Node> {
         todo!()
     }
 
     fn unify(
         &self,
-        _opts: &UnificationOptions,
+
         _src: &mut CtorPat,
         _target: &mut CtorPat,
         _src_node: Self::Node,

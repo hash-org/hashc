@@ -1,6 +1,9 @@
 use hash_reporting::diagnostic::ErrorState;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
-use hash_tir::tir::{ModDefId, ModMemberId, ModMemberValue, NodeId, Term, Ty};
+use hash_tir::{
+    context::HasContext,
+    tir::{ModDefId, ModMemberId, ModMemberValue, NodeId, Term, Ty},
+};
 
 use crate::{
     checker::{FnInferMode, Tc},
@@ -28,18 +31,13 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
 
     fn normalise_node(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: ModDefId,
     ) -> crate::operations::normalisation::NormaliseResult<ModDefId> {
         todo!()
     }
 
-    fn unify_nodes(
-        &self,
-        _opts: &crate::operations::unification::UnificationOptions,
-        _src: ModDefId,
-        _target: ModDefId,
-    ) -> crate::errors::TcResult<()> {
+    fn unify_nodes(&self, _src: ModDefId, _target: ModDefId) -> crate::errors::TcResult<()> {
         todo!()
     }
 
@@ -87,18 +85,13 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
 
     fn normalise_node(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: ModMemberId,
     ) -> crate::operations::normalisation::NormaliseResult<ModMemberId> {
         todo!()
     }
 
-    fn unify_nodes(
-        &self,
-        _opts: &crate::operations::unification::UnificationOptions,
-        _src: ModMemberId,
-        _target: ModMemberId,
-    ) -> crate::errors::TcResult<()> {
+    fn unify_nodes(&self, _src: ModMemberId, _target: ModMemberId) -> crate::errors::TcResult<()> {
         todo!()
     }
 

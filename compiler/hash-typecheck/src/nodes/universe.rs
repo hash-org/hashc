@@ -4,15 +4,12 @@ use crate::{
     checker::Tc,
     env::TcEnv,
     errors::TcResult,
-    operations::{
-        normalisation::{already_normalised, NormalisationOptions},
-        Operations,
-    },
+    operations::{normalisation::already_normalised, Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
     pub fn check_is_universe(&self, ty: TyId) -> TcResult<()> {
-        self.uni_ops().unify_terms(ty, Ty::universe(NodeOrigin::Expected))
+        self.unify_nodes(ty, Ty::universe(NodeOrigin::Expected))
     }
 }
 
@@ -27,7 +24,6 @@ impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &NormalisationOptions,
         _: UniverseTy,
         _: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<TermId> {
@@ -36,7 +32,6 @@ impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _: &crate::operations::unification::UnificationOptions,
         _: &mut UniverseTy,
         _: &mut UniverseTy,
         _: Self::Node,

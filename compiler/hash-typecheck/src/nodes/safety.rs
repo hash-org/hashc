@@ -4,11 +4,7 @@ use crate::{
     checker::Tc,
     env::TcEnv,
     errors::TcResult,
-    operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        Operations, OperationsOnNode,
-    },
+    operations::{normalisation::NormaliseResult, Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
@@ -26,18 +22,13 @@ impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: UnsafeTerm,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    fn normalise(&self, _item: UnsafeTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
     fn unify(
         &self,
-        _opts: &UnificationOptions,
+
         _src: &mut UnsafeTerm,
         _target: &mut UnsafeTerm,
         _src_node: Self::Node,

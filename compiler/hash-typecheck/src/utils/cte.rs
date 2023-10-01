@@ -21,11 +21,12 @@ impl<E: TcEnv> Tc<'_, E> {
             };
 
             if has_run_directive {
-                let norm_ops = self.norm_ops();
-                norm_ops.with_mode(NormalisationMode::Full);
-                if norm_ops.normalise_in_place(expr.into())? {
-                    self.check_node(expr, term_ty)?;
-                }
+                self.normalisation_opts.mode.enter(NormalisationMode::Full, || -> TcResult<_> {
+                    if self.normalise_in_place(expr.into())? {
+                        self.check_node(expr, term_ty)?;
+                    }
+                    Ok(())
+                })?
             }
         }
         Ok(())
@@ -39,11 +40,12 @@ impl<E: TcEnv> Tc<'_, E> {
         fn_call_result_ty: TyId,
     ) -> TcResult<()> {
         if self.should_monomorphise() && fn_ty.pure {
-            let norm_ops = self.norm_ops();
-            norm_ops.with_mode(NormalisationMode::Full);
-            if norm_ops.normalise_in_place(fn_call.into())? {
-                self.check_node(fn_call, fn_call_result_ty)?;
-            }
+            self.normalisation_opts.mode.enter(NormalisationMode::Full, || -> TcResult<_> {
+                if self.normalise_in_place(fn_call.into())? {
+                    self.check_node(fn_call, fn_call_result_ty)?;
+                }
+                Ok(())
+            })?
         }
         Ok(())
     }

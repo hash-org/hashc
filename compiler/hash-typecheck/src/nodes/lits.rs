@@ -13,11 +13,7 @@ use crate::{
     checker::Tc,
     env::TcEnv,
     errors::TcResult,
-    operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        OperationsOnNode,
-    },
+    operations::{normalisation::NormaliseResult, OperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -165,12 +161,22 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise_node(&self, _opts: &NormalisationOptions, _item: LitId) -> NormaliseResult<LitId> {
+    fn normalise_node(&self, _item: LitId) -> NormaliseResult<LitId> {
         todo!()
     }
 
-    fn unify_nodes(&self, _opts: &UnificationOptions, _src: LitId, _target: LitId) -> TcResult<()> {
-        todo!()
+    fn unify_nodes(&self, src: LitId, target: LitId) -> TcResult<()> {
+        self.unification_ok_or_mismatching_atoms(
+            match (*src.value(), *target.value()) {
+                (Lit::Int(i1), Lit::Int(i2)) => i1.value() == i2.value(),
+                (Lit::Str(s1), Lit::Str(s2)) => s1.value() == s2.value(),
+                (Lit::Char(c1), Lit::Char(c2)) => c1.value() == c2.value(),
+                (Lit::Float(f1), Lit::Float(f2)) => f1.value() == f2.value(),
+                _ => false,
+            },
+            src,
+            target,
+        )
     }
 
     fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: LitId) {

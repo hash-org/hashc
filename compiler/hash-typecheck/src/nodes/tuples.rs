@@ -9,11 +9,7 @@ use crate::{
     checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        Operations, RecursiveOperationsOnNode,
-    },
+    operations::{normalisation::NormaliseResult, Operations, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
@@ -62,24 +58,19 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
         })
     }
 
-    fn normalise(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: TupleTerm,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    fn normalise(&self, _item: TupleTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
     fn unify(
         &self,
-        _opts: &UnificationOptions,
-        _src: &mut TupleTerm,
-        _target: &mut TupleTerm,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+
+        src: &mut TupleTerm,
+        target: &mut TupleTerm,
+        _: Self::Node,
+        _: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.unify_nodes_rec(src.data, target.data, |_| Ok(()))
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut TupleTerm) {
@@ -102,24 +93,19 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: TupleTy,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TyId> {
+    fn normalise(&self, _item: TupleTy, _item_node: Self::Node) -> NormaliseResult<TyId> {
         todo!()
     }
 
     fn unify(
         &self,
-        _opts: &UnificationOptions,
-        _src: &mut TupleTy,
-        _target: &mut TupleTy,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+
+        src: &mut TupleTy,
+        target: &mut TupleTy,
+        _: Self::Node,
+        _: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.unify_nodes_rec(src.data, target.data, |_| Ok(()))
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut TupleTy) {
@@ -167,18 +153,13 @@ impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: TuplePat,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<PatId> {
+    fn normalise(&self, _item: TuplePat, _item_node: Self::Node) -> NormaliseResult<PatId> {
         todo!()
     }
 
     fn unify(
         &self,
-        _opts: &UnificationOptions,
+
         _src: &mut TuplePat,
         _target: &mut TuplePat,
         _src_node: Self::Node,

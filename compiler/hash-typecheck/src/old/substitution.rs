@@ -5,7 +5,7 @@ use std::{collections::HashSet, ops::ControlFlow};
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::ContextMember,
+    context::{ContextMember, HasContext},
     sub::Sub,
     tir::{
         AccessTerm, ArgsId, Hole, NodeId, ParamId, ParamIndex, ParamsId, Pat, SymbolId, Term,
@@ -15,18 +15,18 @@ use hash_tir::{
 };
 use hash_utils::{derive_more::Deref, log::warn};
 
-use crate::env::TcEnv;
+use crate::{checker::Tc, env::TcEnv};
 
 #[derive(Deref)]
 pub struct SubstitutionOps<'a, T: TcEnv> {
     #[deref]
-    env: &'a T,
+    checker: &'a Tc<'a, T>,
     traversing_utils: Visitor,
 }
 
 impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
-    pub fn new(env: &'a T) -> Self {
-        Self { env, traversing_utils: Visitor::new() }
+    pub fn new(checker: &'a Tc<'a, T>) -> Self {
+        Self { checker, traversing_utils: Visitor::new() }
     }
 
     fn params_contain_vars(
@@ -83,7 +83,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                     self.apply_sub_in_place(ty, sub);
                 }
             }
-            Atom::FnDef(_) => {}
+            Atom::Lit(_) | Atom::FnDef(_) => {}
         }
         match atom {
             Atom::Term(term) => match *term.value() {
@@ -117,6 +117,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                 ControlFlow::Break(())
             }
             Atom::Pat(_) => ControlFlow::Continue(()),
+            Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
 
@@ -168,6 +169,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                 ControlFlow::Break(())
             }
             Atom::Pat(_) => ControlFlow::Continue(()),
+            Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
 
@@ -248,6 +250,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                 _ => ControlFlow::Continue(()),
             },
             Atom::FnDef(_) => ControlFlow::Continue(()),
+            Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
 

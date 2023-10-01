@@ -1,18 +1,14 @@
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    context::ScopeKind,
-    tir::{validate_params, ParamsId, Ty},
+    context::{HasContext, ScopeKind},
+    tir::{validate_params, ParamsId, Term, Ty},
 };
 
 use crate::{
     checker::Tc,
     env::TcEnv,
-    errors::TcResult,
-    operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        OperationsOnNode, RecursiveOperationsOnNode,
-    },
+    errors::{TcError, TcResult},
+    operations::{normalisation::NormaliseResult, OperationsOnNode, RecursiveOperationsOnNode},
 };
 
 impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
@@ -45,26 +41,66 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
             })?;
 
         // Add the shadowed substitutions to the ambient scope
-        self.uni_ops().add_unification_from_sub(&shadowed_sub);
+        self.add_unification_from_sub(&shadowed_sub);
         Ok(result)
     }
 
-    fn normalise_node(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: ParamsId,
-    ) -> NormaliseResult<ParamsId> {
+    fn normalise_node(&self, _item: ParamsId) -> NormaliseResult<ParamsId> {
         todo!()
     }
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
-        _opts: &UnificationOptions,
-        _src: ParamsId,
-        _target: ParamsId,
-        _f: F,
+        src_id: ParamsId,
+        target_id: ParamsId,
+        mut in_param_scope: F,
     ) -> TcResult<T> {
-        todo!()
+        // Validate the parameters and ensure they are of the same length
+        validate_params(src_id)?;
+        validate_params(target_id)?;
+        if src_id.len() != target_id.len() {
+            return Err(TcError::WrongParamLength {
+                given_params_id: src_id,
+                annotation_params_id: target_id,
+            });
+        }
+        let forward_sub = self.sub_ops().create_sub_from_param_names(src_id, target_id);
+        let backward_sub = self.sub_ops().create_sub_from_param_names(target_id, src_id);
+
+        let (result, shadowed_sub) =
+            self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
+                for (src_param_id, target_param_id) in src_id.iter().zip(target_id.iter()) {
+                    let src_param = src_param_id.value();
+                    let target_param = target_param_id.value();
+
+                    // Substitute the names
+                    self.context().add_assignment(
+                        src_param.name,
+                        src_param.ty,
+                        Term::from(target_param.name, target_param.origin),
+                    );
+
+                    // Unify the types
+                    self.unify_nodes(src_param.ty, target_param.ty)?;
+                    self.sub_ops().apply_sub_in_place(target_param.ty, &forward_sub);
+                    self.sub_ops().apply_sub_in_place(src_param.ty, &backward_sub);
+                }
+
+                // Run the in-scope closure
+                let result = in_param_scope(())?;
+
+                // Only keep the substitutions that do not refer to the parameters
+                let scope_sub = self.sub_ops().create_sub_from_current_scope();
+                let shadowed_sub = self
+                    .sub_ops()
+                    .hide_param_binds(src_id.iter().chain(target_id.iter()), &scope_sub);
+                Ok((result, shadowed_sub))
+            })?;
+
+        // Add the shadowed substitutions to the ambient scope
+        self.add_unification_from_sub(&shadowed_sub);
+
+        Ok(result)
     }
 
     fn substitute_node_rec<T, F: FnMut(Self::RecursiveArg) -> T>(

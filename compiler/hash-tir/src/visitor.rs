@@ -14,10 +14,11 @@ use crate::{
     tir::{
         AccessTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat,
         CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId,
-        IfPat, IndexTerm, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
-        Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
-        PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
-        TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
+        IfPat, IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId,
+        ModMemberValue, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg,
+        PatArgsId, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm,
+        Term, TermId, TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy,
+        UnsafeTerm,
     },
 };
 
@@ -27,6 +28,7 @@ pub enum Atom {
     Term(TermId),
     FnDef(FnDefId), // @@Cleanup: remove this when functions are just normal terms
     Pat(PatId),
+    Lit(LitId),
 }
 
 impl Atom {
@@ -35,6 +37,7 @@ impl Atom {
             Atom::Term(t) => t.origin(),
             Atom::FnDef(f) => f.origin(),
             Atom::Pat(p) => p.origin(),
+            Atom::Lit(l) => l.origin(),
         }
     }
 
@@ -102,6 +105,7 @@ impl HasAstNodeId for Atom {
             Atom::Term(t) => t.node_id(),
             Atom::FnDef(f) => f.node_id(),
             Atom::Pat(p) => p.node_id(),
+            Atom::Lit(l) => l.node_id(),
         }
     }
 }
@@ -112,6 +116,7 @@ impl fmt::Display for Atom {
             Atom::Term(term_id) => write!(f, "{}", term_id),
             Atom::FnDef(fn_def_id) => write!(f, "{}", fn_def_id),
             Atom::Pat(pat_id) => write!(f, "{}", pat_id),
+            Atom::Lit(lit_id) => write!(f, "{}", lit_id),
         }
     }
 }
@@ -202,6 +207,7 @@ impl Visit<Atom> for Visitor {
             Atom::Term(term_id) => self.try_visit(term_id, f),
             Atom::FnDef(fn_def_id) => self.try_visit(fn_def_id, f),
             Atom::Pat(pat_id) => self.try_visit(pat_id, f),
+            Atom::Lit(lit_id) => self.try_visit(lit_id, f),
         }
     }
 }
@@ -212,6 +218,7 @@ impl Map<Atom> for Visitor {
             Atom::Term(term_id) => Ok(Atom::Term(self.try_map(term_id, f)?)),
             Atom::FnDef(fn_def_id) => Ok(Atom::FnDef(self.try_map(fn_def_id, f)?)),
             Atom::Pat(pat_id) => Ok(Atom::Pat(self.try_map(pat_id, f)?)),
+            Atom::Lit(lit_id) => Ok(Atom::Lit(self.try_map(lit_id, f)?)),
         }
     }
 }
@@ -294,7 +301,10 @@ impl Map<TermId> for Visitor {
             ControlFlow::Break(atom) => match atom {
                 Atom::Term(t) => Ok(t),
                 Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::Fn(fn_def_id), origin)),
-                Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
+                Atom::Lit(lit_id) => Ok(Node::create_at(Term::Lit(lit_id), origin)),
+                Atom::Pat(pat_id) => {
+                    Ok(pat_id.try_use_as_term().expect("cannot use this pattern as a term"))
+                }
             },
             ControlFlow::Continue(()) => match *term_id.value() {
                 Term::Tuple(tuple_term) => {
@@ -856,6 +866,18 @@ impl Visit<ModDefId> for Visitor {
         for member in mod_def_id.borrow().members.iter() {
             self.try_visit(member, f)?;
         }
+        Ok(())
+    }
+}
+
+impl Map<LitId> for Visitor {
+    fn try_map<E, F: TryMapFn<E>>(&self, x: LitId, _: F) -> Result<LitId, E> {
+        Ok(x)
+    }
+}
+
+impl Visit<LitId> for Visitor {
+    fn try_visit<E, F: TryVisitFn<E>>(&self, _: LitId, _: &mut F) -> Result<(), E> {
         Ok(())
     }
 }

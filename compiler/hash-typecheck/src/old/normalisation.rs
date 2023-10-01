@@ -1,5 +1,5 @@
 //! Operations for normalising terms and types.
-use std::{borrow::Cow, cell::Cell, ops::ControlFlow};
+use std::{cell::Cell, ops::ControlFlow};
 
 use hash_ast::ast::RangeEnd;
 use hash_storage::store::{
@@ -23,10 +23,10 @@ use hash_tir::{
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
-use hash_utils::{derive_more::Deref, itertools::Itertools, log::info};
+use hash_utils::{itertools::Itertools, log::info};
 
 use crate::{
-    checker::FnInferMode,
+    checker::Tc,
     env::TcEnv,
     errors::{TcError, TcResult},
     intrinsic_abilities::IntrinsicAbilitiesImpl,
@@ -34,18 +34,11 @@ use crate::{
         normalisation::{
             already_normalised, ctrl_continue, ctrl_map, normalisation_result_into, normalised_if,
             normalised_option, normalised_to, stuck_normalising, NormalisationMode,
-            NormalisationOptions, NormalisationState, NormaliseResult, NormaliseSignal,
+            NormalisationState, NormaliseResult, NormaliseSignal,
         },
         Operations, RecursiveOperationsOnNode,
     },
 };
-
-#[derive(Deref)]
-pub struct NormalisationOps<'env, T: TcEnv> {
-    #[deref]
-    env: &'env T,
-    opts: Cow<'env, NormalisationOptions>,
-}
 
 /// The result of matching a pattern against a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,21 +63,7 @@ fn ctrl_map_full<T>(t: FullEvaluation<T>) -> NormaliseResult<ControlFlow<T>> {
     Ok(Some(ControlFlow::Break(t?)))
 }
 
-impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
-    pub fn new(env: &'env T) -> Self {
-        Self { env, opts: Cow::Owned(NormalisationOptions::new()) }
-    }
-
-    pub fn new_with_opts(env: &'env T, opts: &'env NormalisationOptions) -> Self {
-        Self { env, opts: Cow::Borrowed(opts) }
-    }
-
-    /// Change the normalisation mode.
-    pub fn with_mode(&self, mode: NormalisationMode) -> &Self {
-        self.opts.mode.set(mode);
-        self
-    }
-
+impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// Normalise the given atom, in-place.
     ///
     /// returns `true` if the atom was normalised.
@@ -94,11 +73,11 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
                 Atom::Term(term_id) => {
                     term_id.set(result.to_term().value());
                 }
-                // Fn defs are already normalised.
-                Atom::FnDef(_) => return Ok(false),
                 Atom::Pat(pat_id) => {
                     pat_id.set(result.to_pat().value());
                 }
+                // Fn defs and literals are already normalised
+                Atom::FnDef(_) | Atom::Lit(_) => return Ok(false),
             }
             Ok(true)
         } else {
@@ -120,7 +99,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
     }
 
     /// Normalise the given atom.
-    pub fn normalise(&self, atom: Atom) -> TcResult<Atom> {
+    pub fn normalise_atom(&self, atom: Atom) -> TcResult<Atom> {
         match self.eval(atom) {
             Ok(t) => Ok(t),
             Err(e) => match e {
@@ -225,6 +204,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
                 ControlFlow::Break(())
             }
             Atom::Pat(_) => ControlFlow::Continue(()),
+            Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
 
@@ -274,10 +254,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
     /// Evaluate an atom in full, even if it has no effects, and including
     /// impure function calls.
     fn eval_fully(&self, atom: Atom) -> Result<Atom, NormaliseSignal> {
-        let old_mode = self.opts.mode.replace(NormalisationMode::Full);
-        let result = self.eval(atom);
-        self.opts.mode.set(old_mode);
-        result
+        self.normalisation_opts.mode.enter(NormalisationMode::Full, || self.eval(atom))
     }
 
     /// Same as `eval_nested`, but with a given evaluation state.
@@ -286,7 +263,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
         atom: Atom,
         state: &NormalisationState,
     ) -> Result<Atom, NormaliseSignal> {
-        match self.opts.mode.get() {
+        match self.normalisation_opts.mode.get() {
             NormalisationMode::Full => self.eval_and_record(atom, state),
             NormalisationMode::Weak => Ok(atom),
         }
@@ -337,11 +314,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate a variable.
     fn eval_var(&self, var: SymbolId, original_term_id: TermId) -> AtomEvaluation {
-        normalisation_result_into(self.checker(FnInferMode::Header).normalise(
-            &self.opts,
-            VarTerm { symbol: var },
-            original_term_id,
-        ))
+        normalisation_result_into(self.normalise(VarTerm { symbol: var }, original_term_id))
     }
 
     /// Evaluate a cast term.
@@ -392,7 +365,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
     ///
     /// Assumes that the index is normalised.
     fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
-        try_use_term_as_integer_lit::<_, usize>(self.env, index)
+        try_use_term_as_integer_lit::<_, usize>(self, index)
             .map(|idx| elements.elements().at(idx).unwrap().into())
     }
 
@@ -402,8 +375,8 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
     ///
     /// Assumes that the index is normalised.
     fn get_index_in_repeat(&self, subject: TermId, repeat: TermId, index: TermId) -> Option<Atom> {
-        let subject = try_use_term_as_integer_lit::<_, usize>(self.env, subject)?;
-        let index = try_use_term_as_integer_lit::<_, usize>(self.env, index)?;
+        let subject = try_use_term_as_integer_lit::<_, usize>(self, subject)?;
+        let index = try_use_term_as_integer_lit::<_, usize>(self, index)?;
 
         if index >= subject {
             None
@@ -414,11 +387,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate an access term.
     fn eval_access(&self, access_term: AccessTerm, original_term_id: TermId) -> AtomEvaluation {
-        normalisation_result_into(self.checker(FnInferMode::Body).normalise(
-            &self.opts,
-            access_term,
-            original_term_id,
-        ))
+        normalisation_result_into(self.normalise(access_term, original_term_id))
     }
 
     /// Evaluate an index term.
@@ -561,7 +530,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
     /// Evaluate some arguments
     fn eval_args(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
-        self.checker(FnInferMode::Body).normalise_node(&self.opts, args_id)
+        self.normalise_node(args_id)
     }
 
     /// Evaluate a function call.
@@ -576,7 +545,8 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
         // Beta-reduce:
         if let Term::Fn(fn_def_id) = subject {
             let fn_def = fn_def_id.value();
-            if (fn_def.ty.pure || matches!(self.opts.mode.get(), NormalisationMode::Full))
+            if (fn_def.ty.pure
+                || matches!(self.normalisation_opts.mode.get(), NormalisationMode::Full))
                 && tir_stores().atom_info().try_get_inferred_ty(fn_def_id).is_some()
             {
                 return self.context().enter_scope(fn_def_id.into(), || {
@@ -602,7 +572,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
 
                 // Run intrinsic:
                 let result: Option<TermId> = intrinsic
-                    .call(IntrinsicAbilitiesImpl::new(self.env), &args_as_terms)
+                    .call(IntrinsicAbilitiesImpl::new(self), &args_as_terms)
                     .map_err(TcError::Intrinsic)?;
 
                 normalised_option::<Atom>(result)
@@ -622,14 +592,16 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
         let st = NormalisationState::new();
         let nested = Cell::new(false);
         let result = traversal.try_map(atom, |atom| -> Result<_, NormaliseSignal> {
-            let old_mode = if self.opts.mode.get() == NormalisationMode::Weak
+            let old_mode = if self.normalisation_opts.mode.get() == NormalisationMode::Weak
                 && self.atom_has_effects(atom) == Some(true)
             {
                 // If the atom has effects, we need to evaluate it fully
-                self.opts.mode.replace(NormalisationMode::Full)
+                let old = self.normalisation_opts.mode.get();
+                self.normalisation_opts.mode.set(NormalisationMode::Full);
+                old
             } else {
                 // Otherwise, we can just evaluate it normally
-                self.opts.mode.get()
+                self.normalisation_opts.mode.get()
             };
 
             let result = match self.eval_once(atom, nested.get())? {
@@ -641,9 +613,9 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
                 None => Ok(ControlFlow::Break(atom)),
             };
 
-            self.opts.mode.set(old_mode);
+            self.normalisation_opts.mode.set(old_mode);
 
-            if self.opts.mode.get() == NormalisationMode::Weak {
+            if self.normalisation_opts.mode.get() == NormalisationMode::Weak {
                 nested.set(true);
             }
             result
@@ -657,7 +629,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
     /// Invariant: if `self.atom_has_effects(atom)`, then `self.eval_once(atom)
     /// != ctrl_continue()`.
     fn eval_once(&self, atom: Atom, nested: bool) -> NormaliseResult<ControlFlow<Atom>> {
-        if nested && self.opts.mode.get() == NormalisationMode::Weak {
+        if nested && self.normalisation_opts.mode.get() == NormalisationMode::Weak {
             // If we're in weak mode, we don't want to evaluate nested atoms
             return already_normalised();
         }
@@ -705,6 +677,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
             },
             Atom::FnDef(_) => already_normalised(),
             Atom::Pat(_) => ctrl_continue(),
+            Atom::Lit(_) => already_normalised(),
         }
     }
 
@@ -811,7 +784,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
                     return stuck_normalising();
                 };
 
-                let Some(length) = try_use_term_as_integer_lit::<_, usize>(self.env, term) else {
+                let Some(length) = try_use_term_as_integer_lit::<_, usize>(self, term) else {
                     return stuck_normalising();
                 };
 
@@ -866,7 +839,7 @@ impl<'env, T: TcEnv + HasContext + 'env> NormalisationOps<'env, T> {
                 Term::Ctor(ctor_term) => ctor_term.ctor == get_bool_ctor(true),
                 _ => false,
             },
-            Atom::FnDef(_) | Atom::Pat(_) => false,
+            Atom::Lit(_) | Atom::FnDef(_) | Atom::Pat(_) => false,
         }
     }
 

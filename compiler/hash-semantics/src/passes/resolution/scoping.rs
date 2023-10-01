@@ -159,7 +159,7 @@ impl<'env, E: SemanticEnv + 'env> Scoping<'env, E> {
 
     /// Run a function in a new scope, and then exit the scope.
     pub(super) fn enter_scope<T>(&self, context_kind: ContextKind, f: impl FnOnce() -> T) -> T {
-        self.bindings_by_name.enter(
+        self.bindings_by_name.enter_and_exit(
             |b| {
                 b.push((context_kind, HashMap::new()));
             },

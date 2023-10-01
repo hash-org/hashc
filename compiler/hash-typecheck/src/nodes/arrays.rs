@@ -16,9 +16,7 @@ use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
     operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        Operations, OperationsOnNode, RecursiveOperationsOnNode,
+        normalisation::NormaliseResult, Operations, OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
 
@@ -94,7 +92,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
         // Ensure the array lengths match if given
         if let Some(len) = array_len {
-            if !self.uni_ops().terms_are_equal(len, inferred_len_term) {
+            if !self.nodes_are_equal(len, inferred_len_term) {
                 return Err(TcError::MismatchingArrayLengths {
                     expected_len: len,
                     got_len: inferred_len_term,
@@ -121,18 +119,13 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: ArrayTerm,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    fn normalise(&self, _item: ArrayTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
     fn unify(
         &self,
-        _opts: &UnificationOptions,
+
         _src: &mut ArrayTerm,
         _target: &mut ArrayTerm,
         _src_node: Self::Node,
@@ -182,19 +175,13 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: ArrayPat,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<PatId> {
+    fn normalise(&self, _item: ArrayPat, _item_node: Self::Node) -> NormaliseResult<PatId> {
         todo!()
     }
 
     fn unify(
         &self,
 
-        _opts: &UnificationOptions,
         _src: &mut ArrayPat,
         _target: &mut ArrayPat,
         _src_node: Self::Node,
@@ -260,18 +247,13 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
-        &self,
-        _opts: &NormalisationOptions,
-        _item: IndexTerm,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    fn normalise(&self, _item: IndexTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
     fn unify(
         &self,
-        _opts: &UnificationOptions,
+
         _src: &mut IndexTerm,
         _target: &mut IndexTerm,
         _src_node: Self::Node,

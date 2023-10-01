@@ -5,7 +5,7 @@
 
 use hash_ast::ast;
 use hash_source::SourceId;
-use hash_tir::{tir::Ty, visitor::Atom};
+use hash_tir::{context::Context, tir::Ty, visitor::Atom};
 use hash_typecheck::{
     checker::FnInferMode,
     env::TcEnv,
@@ -69,14 +69,18 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
 
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::diagnostics::definitions::SemanticResult<()> {
-        let tc = TcEnvImpl::new(self.env, source);
+        let env = TcEnvImpl::new(self.env, source);
+        let context = Context::new();
+        let tc = env.checker(&context);
+        tc.fn_infer_mode.set(FnInferMode::Body);
+
         // Infer the expression
         let term = self.ast_info.terms().get_data_by_node(node.id()).unwrap();
         let (term, _) = self.infer_fully(
             source,
             (term, Ty::hole_for(term)),
             |(term_id, ty_id)| {
-                tc.checker(FnInferMode::Body).check_node(term_id, ty_id)?;
+                tc.check_node(term_id, ty_id)?;
                 Ok((term_id, ty_id))
             },
             |(term_id, ty_id)| tc.sub_ops().has_holes(term_id).or(tc.sub_ops().has_holes(ty_id)),
@@ -90,18 +94,21 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
         source: SourceId,
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::diagnostics::definitions::SemanticResult<()> {
-        let tc = TcEnvImpl::new(self.env, source);
+        let env = TcEnvImpl::new(self.env, source);
+        let context = Context::new();
+        let tc = env.checker(&context);
+        tc.fn_infer_mode.set(match self.get_current_progress(source) {
+            AnalysisStage::HeaderInference => FnInferMode::Header,
+            AnalysisStage::BodyInference => FnInferMode::Body,
+            _ => unreachable!(),
+        });
+
         // Infer the whole module
         let _ = self.infer_fully(
             source,
             self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap(),
             |mod_def_id| {
-                tc.checker(match self.get_current_progress(source) {
-                    AnalysisStage::HeaderInference => FnInferMode::Header,
-                    AnalysisStage::BodyInference => FnInferMode::Body,
-                    _ => unreachable!(),
-                })
-                .check_node(mod_def_id, ())?;
+                tc.check_node(mod_def_id, ())?;
                 Ok(mod_def_id)
             },
             |mod_def_id| tc.sub_ops().has_holes(mod_def_id),

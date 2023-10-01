@@ -2,6 +2,7 @@ use std::cell::Cell;
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
+    context::HasContext,
     intrinsics::definitions::never_ty,
     tir::{MatchTerm, NodeOrigin, NodesId, Term, TermId, Ty, TyId},
     visitor::{Map, Visitor},
@@ -61,22 +62,22 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
                 }
 
                 match match_annotation_ty {
-                    _ if self.uni_ops().is_uninhabitable(subject_ty_copy)? => {
+                    _ if self.is_uninhabitable(subject_ty_copy)? => {
                         let new_unified_ty = Ty::hole_for(case_data.value);
                         self.check_node(case_data.value, new_unified_ty)?;
                         self.check_by_unify(new_unified_ty, never_ty(NodeOrigin::Expected))?;
                     }
                     Some(_) => {
                         self.check_node(case_data.value, new_unified_ty)?;
-                        if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
+                        if !self.is_uninhabitable(new_unified_ty)? {
                             inhabited.set(true);
                         }
                     }
                     None => {
                         self.check_node(case_data.value, new_unified_ty)?;
-                        if !self.uni_ops().is_uninhabitable(new_unified_ty)? {
+                        if !self.is_uninhabitable(new_unified_ty)? {
                             inhabited.set(true);
-                            self.uni_ops().unify_terms(new_unified_ty, unified_ty)?;
+                            self.unify_nodes(new_unified_ty, unified_ty)?;
                             unified_ty = new_unified_ty;
                         }
                     }
@@ -112,7 +113,7 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: MatchTerm,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -121,7 +122,7 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut MatchTerm,
         _target: &mut MatchTerm,
         _src_node: Self::Node,

@@ -8,11 +8,7 @@ use crate::{
     checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::TcResult,
-    operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        Operations, OperationsOnNode,
-    },
+    operations::{normalisation::NormaliseResult, Operations, OperationsOnNode},
     utils::dumping::potentially_dump_tir,
 };
 
@@ -95,23 +91,76 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise_node(
-        &self,
-
-        _opts: &NormalisationOptions,
-        _item: TermId,
-    ) -> NormaliseResult<TermId> {
+    fn normalise_node(&self, _item: TermId) -> NormaliseResult<TermId> {
         todo!()
     }
 
-    fn unify_nodes(
-        &self,
+    fn unify_nodes(&self, src_id: TermId, target_id: TermId) -> TcResult<()> {
+        if src_id == target_id {
+            return Ok(());
+        }
 
-        _opts: &UnificationOptions,
-        _src: TermId,
-        _target: TermId,
-    ) -> TcResult<()> {
-        todo!()
+        self.normalise_in_place(src_id.into())?;
+        self.normalise_in_place(target_id.into())?;
+
+        let src = src_id.value();
+        let target = target_id.value();
+
+        match (*src, *target) {
+            (Term::Hole(mut h1), Term::Hole(mut h2)) => {
+                self.unify(&mut h1, &mut h2, src_id, target_id)
+            }
+            (Term::Hole(a), _) => self.unify_hole_with(a, src_id, target_id),
+            (_, Term::Hole(b)) => self.unify_hole_with(b, target_id, src_id),
+
+            (Term::Var(a), _) if self.unification_opts.pat_binds.get().is_some() => {
+                self.add_unification(a.symbol, target_id);
+                Ok(())
+            }
+            (_, Term::Var(b)) if self.unification_opts.pat_binds.get().is_some() => {
+                self.add_unification(b.symbol, src_id);
+                Ok(())
+            }
+            (Term::Var(mut a), Term::Var(mut b)) => self.unify(&mut a, &mut b, src_id, target_id),
+            (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
+
+            // If the source is uninhabitable, then we can unify it with
+            // anything
+            (_, _) if self.is_uninhabitable(src_id)? => Ok(()),
+
+            (Ty::TupleTy(mut t1), Ty::TupleTy(mut t2)) => {
+                self.unify(&mut t1, &mut t2, src_id, target_id)
+            }
+            (Ty::FnTy(mut f1), Ty::FnTy(mut f2)) => self.unify(&mut f1, &mut f2, src_id, target_id),
+            (Ty::RefTy(mut r1), Ty::RefTy(mut r2)) => {
+                self.unify(&mut r1, &mut r2, src_id, target_id)
+            }
+            (Ty::DataTy(mut d1), Ty::DataTy(mut d2)) => {
+                self.unify(&mut d1, &mut d2, src_id, target_id)
+            }
+            (Ty::Universe(mut u1), Ty::Universe(mut u2)) => {
+                self.unify(&mut u1, &mut u2, src_id, target_id)
+            }
+            (Term::Tuple(mut t1), Term::Tuple(mut t2)) => {
+                self.unify(&mut t1, &mut t2, src_id, target_id)
+            }
+            (Term::Ctor(mut c1), Term::Ctor(mut c2)) => {
+                self.unify(&mut c1, &mut c2, src_id, target_id)
+            }
+            (Term::Lit(l1), Term::Lit(l2)) => self.unify_nodes(l1, l2),
+            (Term::Access(mut a1), Term::Access(mut a2)) => {
+                self.unify(&mut a1, &mut a2, src_id, target_id)
+            }
+            (Term::Ref(mut r1), Term::Ref(mut r2)) => {
+                self.unify(&mut r1, &mut r2, src_id, target_id)
+            }
+            (Term::Call(mut c1), Term::Call(mut c2)) => {
+                self.unify(&mut c1, &mut c2, src_id, target_id)
+            }
+            (Term::Fn(mut f1), Term::Fn(mut f2)) => self.unify(&mut f1, &mut f2, src_id, target_id),
+            // @@Todo: rest
+            _ => self.mismatching_atoms(src_id, target_id),
+        }
     }
 
     fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: TermId) {

@@ -1,5 +1,6 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
+    context::HasContext,
     scopes::BindingPat,
     tir::{PatId, Term, TermId, TyId, VarTerm},
     visitor::{Map, Visitor},
@@ -10,9 +11,8 @@ use crate::{
     env::TcEnv,
     errors::TcResult,
     operations::{
-        normalisation::{already_normalised, normalised_to, NormalisationOptions},
-        unification::UnificationOptions,
-        Operations,
+        normalisation::{already_normalised, normalised_to},
+        Operations, OperationsOnNode,
     },
 };
 
@@ -32,7 +32,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
                 if let Some(ty) = decl.ty {
                     let ty = Visitor::new().copy(ty);
                     self.check_ty(ty)?;
-                    self.uni_ops().unify_terms(ty, annotation_ty)?;
+                    self.unify_nodes(ty, annotation_ty)?;
                     Ok(())
                 } else if decl.value.is_some() {
                     panic!("no type found for decl '{}'", decl)
@@ -48,7 +48,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &NormalisationOptions,
+
         item: VarTerm,
         _: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<TermId> {
@@ -58,7 +58,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
                 if matches!(*result.value(), Term::Var(v) if v.symbol == var) {
                     already_normalised()
                 } else {
-                    let actual = self.norm_ops().eval(result.into())?;
+                    let actual = self.eval(result.into())?;
                     normalised_to(actual.to_term())
                 }
             }
@@ -68,7 +68,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        opts: &UnificationOptions,
+
         src: &mut VarTerm,
         target: &mut VarTerm,
         a_id: Self::Node,
@@ -76,22 +76,20 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         let a = src.symbol;
         let b = target.symbol;
-        let uni_ops = self.uni_ops_with(opts);
-
-        if let Some(binds) = opts.pat_binds.get() {
+        if let Some(binds) = &*self.unification_opts.pat_binds.get() {
             if binds.contains(&a) {
-                uni_ops.add_unification(b, a_id);
+                self.add_unification(b, a_id);
                 return Ok(());
             }
             if binds.contains(&b) {
-                uni_ops.add_unification(a, b_id);
+                self.add_unification(a, b_id);
                 return Ok(());
             }
         }
         if a == b {
             Ok(())
         } else {
-            uni_ops.mismatching_atoms(a_id, b_id)
+            self.mismatching_atoms(a_id, b_id)
         }
     }
 
@@ -112,7 +110,7 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;
         match binds_to {
-            Some(value) if self.norm_ops().atom_has_effects(value.into()) == Some(false) => {
+            Some(value) if self.atom_has_effects(value.into()) == Some(false) => {
                 self.context().add_assignment_to_closest_stack(var.name, annotation_ty, value);
             }
             _ => {
@@ -124,7 +122,7 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &NormalisationOptions,
+
         _item: BindingPat,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -133,7 +131,7 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &UnificationOptions,
+
         _src: &mut BindingPat,
         _target: &mut BindingPat,
         _src_node: Self::Node,

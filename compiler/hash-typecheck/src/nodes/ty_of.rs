@@ -19,13 +19,13 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
         let inferred_ty = Ty::hole_for(ty_of_term.term);
         self.check_node(ty_of_term.term, inferred_ty)?;
         self.check_node(inferred_ty, annotation_ty)?;
-        self.norm_ops().normalise_in_place(original_term_id.into())?;
+        self.normalise_in_place(original_term_id.into())?;
         Ok(())
     }
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: TyOfTerm,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -34,7 +34,7 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut TyOfTerm,
         _target: &mut TyOfTerm,
         _src_node: Self::Node,

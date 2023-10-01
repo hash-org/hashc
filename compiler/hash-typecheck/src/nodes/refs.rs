@@ -51,7 +51,7 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: RefTerm,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -60,13 +60,16 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
-        _src: &mut RefTerm,
-        _target: &mut RefTerm,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+
+        r1: &mut RefTerm,
+        r2: &mut RefTerm,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        if r1.mutable != r2.mutable || r1.kind != r2.kind {
+            return self.mismatching_atoms(src_node, target_node);
+        }
+        self.unify_nodes(r1.subject, r2.subject)
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut RefTerm) {
@@ -103,7 +106,7 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: DerefTerm,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -112,7 +115,7 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut DerefTerm,
         _target: &mut DerefTerm,
         _src_node: Self::Node,
@@ -144,7 +147,7 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: RefTy,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -153,13 +156,16 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
-        _src: &mut RefTy,
-        _target: &mut RefTy,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+
+        r1: &mut RefTy,
+        r2: &mut RefTy,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        if r1.mutable != r2.mutable || r1.kind != r2.kind {
+            return self.mismatching_atoms(src_node, target_node);
+        }
+        self.unify_nodes(r1.ty, r2.ty)
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut RefTy) {

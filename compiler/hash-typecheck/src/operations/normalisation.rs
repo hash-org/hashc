@@ -1,7 +1,7 @@
 use std::{cell::Cell, ops::ControlFlow};
 
 use hash_tir::visitor::Atom;
-use hash_utils::derive_more::From;
+use hash_utils::{derive_more::From, state::LightState};
 
 use crate::errors::TcError;
 
@@ -144,7 +144,7 @@ pub enum NormalisationMode {
 #[derive(Clone, Debug)]
 pub struct NormalisationOptions {
     /// The mode in which to normalise terms.
-    pub mode: Cell<NormalisationMode>,
+    pub mode: LightState<NormalisationMode>,
 }
 
 impl Default for NormalisationOptions {
@@ -155,6 +155,6 @@ impl Default for NormalisationOptions {
 
 impl NormalisationOptions {
     pub fn new() -> Self {
-        Self { mode: Cell::new(NormalisationMode::Weak) }
+        Self { mode: LightState::new(NormalisationMode::Weak) }
     }
 }

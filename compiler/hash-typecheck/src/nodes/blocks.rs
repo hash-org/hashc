@@ -10,11 +10,7 @@ use crate::{
     checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::{TcError, TcResult},
-    operations::{
-        normalisation::{NormalisationOptions, NormaliseResult},
-        unification::UnificationOptions,
-        Operations, OperationsOnNode,
-    },
+    operations::{normalisation::NormaliseResult, Operations, OperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
@@ -67,7 +63,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                 };
 
                 // If the statement diverges, we can already exit
-                if self.uni_ops().is_uninhabitable(ty_to_check_divergence)? {
+                if self.is_uninhabitable(ty_to_check_divergence)? {
                     diverges = true;
                 }
             }
@@ -104,20 +100,13 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
         })
     }
 
-    fn normalise(
-        &self,
-
-        _opts: &NormalisationOptions,
-        _item: BlockTerm,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    fn normalise(&self, _item: BlockTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
     fn unify(
         &self,
 
-        _opts: &UnificationOptions,
         _src: &mut BlockTerm,
         _target: &mut BlockTerm,
         _src_node: Self::Node,

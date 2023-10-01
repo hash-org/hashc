@@ -6,7 +6,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::ScopeKind,
+    context::{HasContext, ScopeKind},
     tir::{
         validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
         Arg, ArgsId, Node, NodeId, ParamsId, Pat, PatArgsId, PatOrCapture, Spread, SymbolId,
@@ -20,11 +20,7 @@ use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
     operations::{
-        normalisation::{
-            normalised_if, NormalisationOptions, NormalisationState, NormaliseResult,
-            NormaliseSignal,
-        },
-        unification::UnificationOptions,
+        normalisation::{normalised_if, NormalisationState, NormaliseResult, NormaliseSignal},
         OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
@@ -63,7 +59,7 @@ impl<E: TcEnv> Tc<'_, E> {
             })?;
 
         // Add the shadowed substitutions to the ambient scope
-        self.uni_ops().add_unification_from_sub(&shadowed_sub);
+        self.add_unification_from_sub(&shadowed_sub);
         Ok(result)
     }
 }
@@ -100,15 +96,9 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
         Ok(result)
     }
 
-    fn normalise_node(
-        &self,
-
-        opts: &NormalisationOptions,
-        args_id: ArgsId,
-    ) -> NormaliseResult<ArgsId> {
+    fn normalise_node(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
         let args = args_id.value();
         let st = NormalisationState::new();
-        let ops = self.norm_ops_with(opts);
 
         let evaluated_arg_data = args
             .value()
@@ -117,7 +107,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
                 Ok(Node::at(
                     Arg {
                         target: arg.target,
-                        value: (ops.eval_nested_and_record(arg.value.into(), &st)?).to_term(),
+                        value: (self.eval_nested_and_record(arg.value.into(), &st)?).to_term(),
                     },
                     arg.origin,
                 ))
@@ -133,7 +123,6 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
 
-        opts: &UnificationOptions,
         src_id: ArgsId,
         target_id: ArgsId,
         mut f: F,
@@ -144,11 +133,10 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
                 b: target_id.into(),
             });
         }
-        let uni_ops = self.uni_ops_with(opts);
         for (src_arg_id, target_arg_id) in src_id.iter().zip(target_id.iter()) {
             let src_arg = src_arg_id.value();
             let target_arg = target_arg_id.value();
-            uni_ops.unify_terms(src_arg.value, target_arg.value)?;
+            self.unify_nodes(src_arg.value, target_arg.value)?;
         }
         f(src_id)
     }
@@ -223,7 +211,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
 
     fn normalise_node(
         &self,
-        _opts: &NormalisationOptions,
+
         _item: (PatArgsId, Option<Spread>),
     ) -> NormaliseResult<(PatArgsId, Option<Spread>)> {
         todo!()
@@ -231,7 +219,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
-        _opts: &UnificationOptions,
+
         _src: (PatArgsId, Option<Spread>),
         _target: (PatArgsId, Option<Spread>),
         _f: F,

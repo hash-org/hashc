@@ -41,7 +41,7 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: ReturnTerm,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -50,7 +50,7 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut ReturnTerm,
         _target: &mut ReturnTerm,
         _src_node: Self::Node,
@@ -80,7 +80,7 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: LoopControlTerm,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -89,7 +89,7 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut LoopControlTerm,
         _target: &mut LoopControlTerm,
         _src_node: Self::Node,
@@ -123,7 +123,7 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: LoopTerm,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -132,7 +132,7 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut LoopTerm,
         _target: &mut LoopTerm,
         _src_node: Self::Node,
@@ -172,7 +172,7 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-        _opts: &crate::operations::normalisation::NormalisationOptions,
+
         _item: AssignTerm,
         _item_node: Self::Node,
     ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
@@ -181,7 +181,7 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _opts: &crate::operations::unification::UnificationOptions,
+
         _src: &mut AssignTerm,
         _target: &mut AssignTerm,
         _src_node: Self::Node,

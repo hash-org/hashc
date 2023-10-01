@@ -1,5 +1,5 @@
-use hash_storage::store::statics::StoreId;
-use hash_tir::tir::{Ty, TyId};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_tir::tir::{DataDefCtors, Ty, TyId};
 
 use crate::{checker::Tc, env::TcEnv, errors::TcResult, operations::OperationsOnNode};
 
@@ -9,7 +9,7 @@ impl<E: TcEnv> Tc<'_, E> {
     /// annotation type and return it (or to the inferred type if the annotation
     /// type is not given).
     pub fn check_by_unify(&self, inferred_ty: TyId, annotation_ty: TyId) -> TcResult<()> {
-        self.uni_ops().unify_terms(inferred_ty, annotation_ty)
+        self.unify_nodes(inferred_ty, annotation_ty)
     }
 
     /// Check that the given type is well-formed.
@@ -26,10 +26,27 @@ impl<E: TcEnv> Tc<'_, E> {
             Ty::Hole(_) => Ok(()),
             _ => {
                 self.check_node(ty, Ty::universe_of(ty))?;
-                let norm = self.norm_ops();
-                norm.normalise_in_place(ty.into())?;
+                self.normalise_in_place(ty.into())?;
                 Ok(())
             }
+        }
+    }
+
+    /// Determine whether the given type is uninhabitable.
+    ///
+    /// This does not look too deeply into the type, so it may return false
+    /// for types that are actually uninhabitable.
+    pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
+        let ty = self.normalise_atom(ty.into())?.to_ty();
+        match *ty.value() {
+            Ty::DataTy(data_ty) => {
+                let data_def = data_ty.data_def.borrow();
+                match data_def.ctors {
+                    DataDefCtors::Defined(ctors) => Ok(ctors.len() == 0),
+                    DataDefCtors::Primitive(_) => Ok(false),
+                }
+            }
+            _ => Ok(false),
         }
     }
 }
