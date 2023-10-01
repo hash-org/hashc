@@ -12,7 +12,7 @@ impl<E: TcEnv> Tc<'_, E> {
         self.uni_ops().unify_terms(inferred_ty, annotation_ty)
     }
 
-    /// Check that the given type is well-formed, and normalise it.
+    /// Check that the given type is well-formed.
     pub fn check_ty(&self, ty: TyId) -> TcResult<()> {
         match *ty.value() {
             Ty::Universe(_) | Ty::Hole(_) => Ok(()),

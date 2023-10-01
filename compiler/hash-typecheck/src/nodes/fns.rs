@@ -31,7 +31,6 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _opts: &NormalisationOptions,
         _item: FnTy,
         _item_node: Self::Node,
@@ -41,7 +40,6 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _opts: &UnificationOptions,
         f1: &mut FnTy,
         f2: &mut FnTy,

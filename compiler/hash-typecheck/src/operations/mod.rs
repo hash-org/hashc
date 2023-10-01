@@ -1,4 +1,3 @@
-pub mod checking;
 pub mod normalisation;
 pub mod unification;
 

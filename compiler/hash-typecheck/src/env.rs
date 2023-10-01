@@ -44,11 +44,11 @@ pub trait TcEnv:
     }
 
     fn uni_ops(&self) -> UnificationOps<Self> {
-        UnificationOps::new(self)
+        UnificationOps::new(self.checker(FnInferMode::Body))
     }
 
     fn uni_ops_with<'a>(&'a self, opts: &'a UnificationOptions) -> UnificationOps<Self> {
-        UnificationOps::new_with_opts(self, opts)
+        UnificationOps::new_with_opts(self.checker(FnInferMode::Body), opts)
     }
 
     fn norm_ops(&self) -> normalisation::NormalisationOps<Self>

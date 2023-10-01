@@ -15,7 +15,7 @@ use hash_tir::{
 use hash_utils::derive_more::Deref;
 
 use crate::{
-    checker::FnInferMode,
+    checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::{TcError, TcResult},
     operations::{unification::UnificationOptions, Operations, RecursiveOperationsOnNode},
@@ -24,17 +24,17 @@ use crate::{
 #[derive(Deref)]
 pub struct UnificationOps<'a, T: TcEnv> {
     #[deref]
-    env: &'a T,
+    checker: Tc<'a, T>,
     opts: Cow<'a, UnificationOptions>,
 }
 
 impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
-    pub fn new(env: &'tc T) -> Self {
-        Self { env, opts: Cow::Owned(UnificationOptions::new()) }
+    pub fn new(checker: Tc<'tc, T>) -> Self {
+        Self { checker, opts: Cow::Owned(UnificationOptions::new()) }
     }
 
-    pub fn new_with_opts(env: &'tc T, opts: &'tc UnificationOptions) -> Self {
-        Self { env, opts: Cow::Borrowed(opts) }
+    pub fn new_with_opts(checker: Tc<'tc, T>, opts: &'tc UnificationOptions) -> Self {
+        Self { checker, opts: Cow::Borrowed(opts) }
     }
 
     /// Disable modifying terms
@@ -47,34 +47,6 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
     pub fn with_binds(&self, binds: HashSet<SymbolId>) -> &Self {
         self.opts.pat_binds.set(binds).unwrap();
         self
-    }
-
-    /// Unify two atoms.
-    pub fn unify_atoms(&self, src: Atom, target: Atom) -> TcResult<()> {
-        match (src, target) {
-            (Atom::Term(src_id), Atom::Term(target_id)) => {
-                self.unify_terms(src_id, target_id)?;
-                Ok(())
-            }
-            (Atom::Pat(_src_id), Atom::Pat(_target_id)) => {
-                // self.unify_pats(src_id, target_id)?;
-                Ok(())
-            }
-            _ => panic!("unify_atoms: mismatching atoms"),
-        }
-    }
-
-    /// Add the given substitutions to the context.
-    pub fn add_unification_from_sub(&self, sub: &Sub) {
-        self.context().add_sub_to_scope(sub);
-    }
-
-    /// Add the given unification to the context, and create a substitution
-    /// from it.
-    pub fn add_unification(&self, src: SymbolId, target: impl Into<Atom>) -> Sub {
-        let sub = Sub::from_pairs([(src, (target.into()).to_term())]);
-        self.add_unification_from_sub(&sub);
-        sub
     }
 
     /// Emit an error that the unification cannot continue because it is
@@ -121,51 +93,6 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             (Atom::Pat(a), Atom::Pat(b)) => Err(TcError::MismatchingPats { a, b }),
             _ => unreachable!(),
         }
-    }
-
-    /// Unify two function types.
-    pub fn unify_fn_tys(
-        &self,
-        mut f1: FnTy,
-        mut f2: FnTy,
-        src_id: TyId,
-        target_id: TyId,
-    ) -> TcResult<()> {
-        self.checker(FnInferMode::Body).unify(&self.opts, &mut f1, &mut f2, src_id, target_id)?;
-        Ok(())
-    }
-
-    /// Unify two holes.
-    ///
-    /// This modifies src to have the contents of dest, and adds a unification
-    /// to the context.
-    pub fn unify_hole_with(
-        &self,
-        hole_src: impl Into<Atom>,
-        sub_dest: impl Into<Atom>,
-    ) -> TcResult<()> {
-        let hole_atom: Atom = hole_src.into();
-        let sub_dest_atom: Atom = sub_dest.into();
-
-        let hole_symbol = match hole_atom {
-            Atom::Term(term_id) => {
-                let dest_term = (sub_dest_atom.to_term()).value();
-                match *term_id.value() {
-                    Term::Hole(Hole(h)) => {
-                        if self.opts.modify_terms.get() {
-                            term_id.set(dest_term);
-                        }
-                        h
-                    }
-                    _ => panic!("unify_hole_with: expected hole for hole src"),
-                }
-            }
-            Atom::FnDef(_) | Atom::Pat(_) => {
-                panic!("unify_hole_with: expected term or ty for hole src")
-            }
-        };
-        self.add_unification(hole_symbol, sub_dest_atom);
-        Ok(())
     }
 
     /// Unify two holes.
@@ -242,15 +169,15 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
 
         match (*src, *target) {
             (Term::Hole(h1), Term::Hole(h2)) => self.unify_holes(h1, h2, src_id, target_id),
-            (Term::Hole(_a), _) => self.unify_hole_with(src_id, target_id),
-            (_, Term::Hole(_b)) => self.unify_hole_with(target_id, src_id),
+            (Term::Hole(a), _) => self.checker.unify_hole_with(&self.opts, a, src_id, target_id),
+            (_, Term::Hole(b)) => self.checker.unify_hole_with(&self.opts, b, target_id, src_id),
 
             (Term::Var(a), _) if self.opts.pat_binds.get().is_some() => {
-                self.add_unification(a.symbol, target_id);
+                self.checker.add_unification(a.symbol, target_id);
                 Ok(())
             }
             (_, Term::Var(b)) if self.opts.pat_binds.get().is_some() => {
-                self.add_unification(b.symbol, src_id);
+                self.checker.add_unification(b.symbol, src_id);
                 Ok(())
             }
             (Term::Var(a), Term::Var(b)) => self.unify_vars(a.symbol, b.symbol, src_id, target_id),
@@ -263,7 +190,9 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             (Ty::TupleTy(t1), Ty::TupleTy(t2)) => self.unify_params(t1.data, t2.data, || Ok(())),
             (Ty::TupleTy(_), _) | (_, Ty::TupleTy(_)) => self.mismatching_atoms(src_id, target_id),
 
-            (Ty::FnTy(f1), Ty::FnTy(f2)) => self.unify_fn_tys(f1, f2, src_id, target_id),
+            (Ty::FnTy(mut f1), Ty::FnTy(mut f2)) => {
+                self.checker.unify(&self.opts, &mut f1, &mut f2, src_id, target_id)
+            }
             (Ty::FnTy(_), _) | (_, Ty::FnTy(_)) => self.mismatching_atoms(src_id, target_id),
 
             (Ty::RefTy(r1), Ty::RefTy(r2)) if r1.mutable == r2.mutable && r1.kind == r2.kind => {
@@ -277,8 +206,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             (Ty::DataTy(_), _) | (_, Ty::DataTy(_)) => self.mismatching_atoms(src_id, target_id),
 
             (Ty::Universe(mut u1), Ty::Universe(mut u2)) => {
-                self.checker(FnInferMode::Body)
-                    .unify(&self.opts, &mut u1, &mut u2, src_id, target_id)?;
+                self.checker.unify(&self.opts, &mut u1, &mut u2, src_id, target_id)?;
                 Ok(())
             }
 
@@ -300,8 +228,7 @@ impl<'tc, T: TcEnv> UnificationOps<'tc, T> {
             (Term::Lit(_), _) | (_, Term::Lit(_)) => self.mismatching_atoms(src_id, target_id),
 
             (Term::Access(mut a1), Term::Access(mut a2)) => {
-                self.checker(FnInferMode::Body)
-                    .unify(&self.opts, &mut a1, &mut a2, src_id, target_id)?;
+                self.checker.unify(&self.opts, &mut a1, &mut a2, src_id, target_id)?;
                 Ok(())
             }
 

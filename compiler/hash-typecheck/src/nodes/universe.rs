@@ -1,4 +1,4 @@
-use hash_tir::tir::{TermId, TyId, UniverseTy};
+use hash_tir::tir::{NodeOrigin, TermId, Ty, TyId, UniverseTy};
 
 use crate::{
     checker::Tc,
@@ -9,6 +9,12 @@ use crate::{
         Operations,
     },
 };
+
+impl<E: TcEnv> Tc<'_, E> {
+    pub fn check_is_universe(&self, ty: TyId) -> TcResult<()> {
+        self.uni_ops().unify_terms(ty, Ty::universe(NodeOrigin::Expected))
+    }
+}
 
 impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
     type TyNode = TyId;
