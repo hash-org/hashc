@@ -7,9 +7,8 @@ use hash_tir::{atom_info::HasAtomInfo, context::HasContext, tir::FnDefId};
 use hash_utils::timing::HasMetrics;
 
 use crate::{
-    checker::Tc,
+    checker::{FnInferMode, Tc},
     errors::TcError,
-    inference::FnInferMode,
     normalisation,
     operations::{normalisation::NormalisationOptions, unification::UnificationOptions},
     substitution::SubstitutionOps,

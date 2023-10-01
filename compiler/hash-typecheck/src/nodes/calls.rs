@@ -12,7 +12,7 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations, OperationsOnNode,
+        Operations, OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
 
@@ -59,7 +59,7 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
                     let copied_return_ty = Visitor::new().copy(fn_ty.return_ty);
 
                     let mut fn_call_term = *call_term;
-                    self.infer_args(fn_call_term.args, copied_params, |inferred_fn_call_args| {
+                    self.check_node_rec(fn_call_term.args, copied_params, |inferred_fn_call_args| {
                         fn_call_term.args = inferred_fn_call_args;
                         original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
 

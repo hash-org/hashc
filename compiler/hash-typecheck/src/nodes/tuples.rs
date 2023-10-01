@@ -12,7 +12,7 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations,
+        Operations, RecursiveOperationsOnNode,
     },
 };
 
@@ -44,7 +44,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
             };
 
             let mut tuple_term = *tuple_term;
-            self.infer_args(tuple_term.data, params, |new_args| {
+            self.check_node_rec(tuple_term.data, params, |new_args| {
                 tuple_term.data = new_args;
                 original_term_id.set(original_term_id.value().with_data(tuple_term.into()));
                 Ok(())
@@ -97,7 +97,7 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
         annotation_ty: Self::TyNode,
         _original_term_id: Self::Node,
     ) -> TcResult<()> {
-        self.infer_params(tuple_ty.data, || Ok(()))?;
+        self.check_node_rec(tuple_ty.data, (), |()| Ok(()))?;
         self.check_is_universe(annotation_ty)?;
         Ok(())
     }
@@ -153,7 +153,7 @@ impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
             }
         };
         let mut tuple_pat = *tuple_pat;
-        self.infer_pat_args(tuple_pat.data, tuple_pat.data_spread, params, |new_args| {
+        self.check_node_rec((tuple_pat.data, tuple_pat.data_spread), params, |new_args| {
             tuple_pat.data = new_args;
             original_pat_id.set(original_pat_id.value().with_data(tuple_pat.into()));
             Ok(())

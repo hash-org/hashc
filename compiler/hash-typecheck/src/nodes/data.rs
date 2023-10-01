@@ -18,7 +18,7 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations, OperationsOnNode,
+        Operations, OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
 
@@ -80,7 +80,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         // possible.
         let copied_params = Visitor::new().copy(data_def.params);
         let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
-            .infer_args(ctor_data_args, copied_params, |inferred_data_args| {
+            .check_node_rec(ctor_data_args, copied_params, |inferred_data_args| {
                 let sub = self.sub_ops().create_sub_from_current_scope();
                 let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
                 let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
@@ -93,7 +93,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         // result arguments of the constructor, and the constructor data
         // arguments.
         let (final_result_args, resulting_sub, binds) =
-            self.infer_args(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
+            self.check_node_rec(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
                 let ctor_sub = self.sub_ops().create_sub_from_current_scope();
                 self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
                 self.sub_ops().apply_sub_in_place(inferred_term_ctor_args, &ctor_sub);
@@ -182,7 +182,7 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
     ) -> TcResult<()> {
         let data_def = data_ty.data_def.value();
         let copied_params = Visitor::new().copy(data_def.params);
-        self.infer_args(data_ty.args, copied_params, |inferred_data_ty_args| {
+        self.check_node_rec(data_ty.args, copied_params, |inferred_data_ty_args| {
             data_ty.args = inferred_data_ty_args;
             term_id.set(term_id.value().with_data((*data_ty).into()));
             Ok(())
@@ -225,7 +225,7 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
         let (data_def_params, data_def_ctors) =
             data_def_id.map(|data_def| (data_def.params, data_def.ctors));
 
-        self.infer_params(data_def_params, || {
+        self.check_node_rec(data_def_params, (), |_| {
             match data_def_ctors {
                 DataDefCtors::Defined(data_def_ctors_id) => {
                     let mut error_state = ErrorState::new();
@@ -289,7 +289,7 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
 
     fn check_node(&self, ctor: CtorDefId, _: Self::TyNode) -> TcResult<()> {
         let ctor_def = ctor.value();
-        self.infer_params(ctor_def.params, || {
+        self.check_node_rec(ctor_def.params, (), |()| {
             let return_ty = Ty::from(
                 DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args },
                 ctor.origin(),
@@ -379,7 +379,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         // possible.
         let copied_params = Visitor::new().copy(data_def.params);
         let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
-            .infer_args(ctor_data_args, copied_params, |inferred_data_args| {
+            .check_node_rec(ctor_data_args, copied_params, |inferred_data_args| {
                 let sub = self.sub_ops().create_sub_from_current_scope();
                 let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
                 let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
@@ -391,9 +391,8 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         // parameters. Substitute any results to the constructor arguments, the
         // result arguments of the constructor, and the constructor data
         // arguments.
-        let (final_result_args, resulting_sub, binds) = self.infer_pat_args(
-            pat.ctor_pat_args,
-            pat.ctor_pat_args_spread,
+        let (final_result_args, resulting_sub, binds) = self.check_node_rec(
+            (pat.ctor_pat_args, pat.ctor_pat_args_spread),
             subbed_ctor_params,
             |inferred_pat_ctor_args| {
                 let ctor_sub = self.sub_ops().create_sub_from_current_scope();

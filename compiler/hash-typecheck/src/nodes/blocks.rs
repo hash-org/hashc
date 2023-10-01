@@ -7,10 +7,9 @@ use hash_tir::{
 };
 
 use crate::{
-    checker::Tc,
+    checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::{TcError, TcResult},
-    inference::FnInferMode,
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,

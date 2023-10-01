@@ -8,6 +8,7 @@ use hash_tir::{
         ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, NodeId, NodeOrigin, PatId, PrimitiveCtorInfo,
         TermId, Ty, TyId,
     },
+    visitor::{Map, Visitor},
 };
 
 use crate::{
@@ -17,9 +18,48 @@ use crate::{
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations, OperationsOnNode,
+        Operations, OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
+
+impl<E: TcEnv> Tc<'_, E> {
+    fn use_ty_as_array_ty(&self, annotation_ty: TyId) -> TcResult<Option<(TyId, Option<TermId>)>> {
+        let mismatch = || {
+            Err(TcError::MismatchingTypes {
+                expected: annotation_ty,
+                actual: list_ty(Ty::hole(NodeOrigin::Expected), NodeOrigin::Expected),
+            })
+        };
+
+        match *annotation_ty.value() {
+            Ty::DataTy(data) => {
+                let data_def = data.data_def.value();
+
+                match data_def.ctors {
+                    DataDefCtors::Primitive(primitive) => {
+                        if let PrimitiveCtorInfo::Array(array_prim) = primitive {
+                            // First infer the data arguments
+                            let copied_params = Visitor::new().copy(data_def.params);
+                            self.check_node_rec(data.args, copied_params, |_| {
+                                let sub = self.sub_ops().create_sub_from_current_scope();
+                                let subbed_element_ty =
+                                    self.sub_ops().apply_sub(array_prim.element_ty, &sub);
+                                let subbed_index =
+                                    array_prim.length.map(|l| self.sub_ops().apply_sub(l, &sub));
+                                Ok(Some((subbed_element_ty, subbed_index)))
+                            })
+                        } else {
+                            mismatch()
+                        }
+                    }
+                    _ => mismatch(),
+                }
+            }
+            Ty::Hole(_) => Ok(None),
+            _ => mismatch(),
+        }
+    }
+}
 
 impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
     type TyNode = TyId;
@@ -35,14 +75,14 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
         let array_len_origin = array_term.length_origin();
         let (inner_ty, array_len) = self
-            .use_ty_as_array(annotation_ty)?
+            .use_ty_as_array_ty(annotation_ty)?
             .unwrap_or_else(|| (Ty::hole(array_len_origin.inferred()), None));
 
         // Now unify that the terms that are specified in the array match the
         // annotation type.
         let inferred_len_term = match *array_term {
             ArrayTerm::Normal(elements) => {
-                self.infer_unified_term_list(elements, inner_ty)?;
+                self.check_unified_term_list(elements, inner_ty)?;
                 create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
             }
             ArrayTerm::Repeated(term, repeat) => {
@@ -136,7 +176,7 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
             }
         };
 
-        self.infer_unified_pat_list(list_pat.pats, list_annotation_inner_ty)?;
+        self.check_unified_pat_list(list_pat.pats, list_annotation_inner_ty)?;
         let list_ty = list_ty(list_annotation_inner_ty, NodeOrigin::Expected);
         self.check_by_unify(list_ty, annotation_ty)?;
         Ok(())

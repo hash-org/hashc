@@ -26,9 +26,9 @@ use hash_tir::{
 use hash_utils::{derive_more::Deref, itertools::Itertools, log::info};
 
 use crate::{
+    checker::FnInferMode,
     env::TcEnv,
     errors::{TcError, TcResult},
-    inference::FnInferMode,
     intrinsic_abilities::IntrinsicAbilitiesImpl,
     operations::{
         normalisation::{

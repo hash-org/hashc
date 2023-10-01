@@ -1,20 +1,36 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{Term, TermId, Ty, TyId},
+    tir::{NodesId, Term, TermId, TermListId, Ty, TyId},
 };
 
 use crate::{
-    checker::Tc,
+    checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::TcResult,
-    inference::FnInferMode,
     operations::{
         normalisation::{NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
         Operations, OperationsOnNode,
     },
+    utils::dumping::potentially_dump_tir,
 };
+
+impl<E: TcEnv> Tc<'_, E> {
+    /// Infer the given term list as one type.
+    ///
+    /// Returns the inferred list, and its inferred type.
+    pub fn check_unified_term_list(
+        &self,
+        term_list_id: TermListId,
+        element_annotation_ty: TyId,
+    ) -> TcResult<()> {
+        for item in term_list_id.elements().value() {
+            self.check_node(item, element_annotation_ty)?;
+        }
+        Ok(())
+    }
+}
 
 impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
     type TyNode = TyId;
@@ -74,7 +90,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
 
         // Potentially evaluate the term.
         self.potentially_run_expr(term_id, annotation_ty)?;
-        self.potentially_dump_tir(term_id);
+        potentially_dump_tir(term_id);
 
         Ok(())
     }

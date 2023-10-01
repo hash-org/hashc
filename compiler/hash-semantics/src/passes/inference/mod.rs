@@ -7,9 +7,9 @@ use hash_ast::ast;
 use hash_source::SourceId;
 use hash_tir::{tir::Ty, visitor::Atom};
 use hash_typecheck::{
+    checker::FnInferMode,
     env::TcEnv,
     errors::{TcError, TcResult},
-    inference::FnInferMode,
     operations::OperationsOnNode,
 };
 use hash_utils::derive_more::{Constructor, Deref};

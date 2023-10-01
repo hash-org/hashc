@@ -2,18 +2,18 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::ScopeKind,
+    term_as_variant,
     tir::{FnDefId, FnTy, NodeId, NodeOrigin, Term, TermId, Ty, TyId},
 };
 
 use crate::{
-    checker::Tc,
+    checker::{FnInferMode, Tc},
     env::TcEnv,
     errors::TcResult,
-    inference::FnInferMode,
     operations::{
         normalisation::{already_normalised, NormalisationOptions, NormaliseResult},
         unification::UnificationOptions,
-        Operations, OperationsOnNode,
+        Operations, OperationsOnNode, RecursiveOperationsOnNode,
     },
 };
 
@@ -23,7 +23,7 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
 
     fn check(&self, fn_ty: &mut FnTy, item_ty: Self::TyNode, _: Self::Node) -> TcResult<()> {
         self.check_is_universe(item_ty)?;
-        self.infer_params(fn_ty.params, || {
+        self.check_node_rec(fn_ty.params, (), |()| {
             self.check_node(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
         })?;
         Ok(())
@@ -75,6 +75,25 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
     }
 }
 
+impl<E: TcEnv> Tc<'_, E> {
+    fn check_fn_def_id_annotation(
+        &self,
+        fn_def_id: FnDefId,
+        annotation_ty: TyId,
+    ) -> TcResult<FnTy> {
+        let fn_def = fn_def_id.value();
+        let fn_ty = Ty::from(fn_def.ty, fn_def_id.origin());
+        self.check_node(annotation_ty, Ty::universe_of(annotation_ty))?;
+        self.check_node(fn_ty, Ty::universe_of(fn_ty))?;
+        self.uni_ops().unify_terms(fn_ty, annotation_ty)?;
+
+        let fn_ty_value = term_as_variant!(self, fn_ty.value(), FnTy);
+        fn_def_id.borrow_mut().ty = fn_ty_value;
+
+        Ok(fn_ty_value)
+    }
+}
+
 impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
     type TyNode = TyId;
     type Node = TermId;
@@ -94,13 +113,13 @@ impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
             return Ok(());
         }
 
-        self.infer_fn_annotation_ty(fn_def_id, annotation_ty)?;
+        self.check_fn_def_id_annotation(fn_def_id, annotation_ty)?;
         let fn_def = fn_def_id.value();
 
         if self.fn_infer_mode.get() == FnInferMode::Header {
             // If we are only inferring the header, then we also want to check for
             // immediate body functions.
-            self.infer_params(fn_def.ty.params, || {
+            self.check_node_rec(fn_def.ty.params, (), |()| {
                 self.check_node(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let Term::Fn(mut immediate_body_fn) = *fn_def.body.value() {
                     self.check(&mut immediate_body_fn, Ty::hole_for(fn_def.body), fn_def.body)?;
@@ -120,7 +139,7 @@ impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
         let fn_def = fn_def_id.value();
 
         self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
-            self.infer_params(fn_def.ty.params, || {
+            self.check_node_rec(fn_def.ty.params, (), |()| {
                 self.check_node(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 self.check_node(fn_def.body, fn_def.ty.return_ty)
             })

@@ -1,10 +1,16 @@
 use hash_tir::context::{Context, HasContext};
 use hash_utils::{derive_more::Deref, state::LightState};
 
-use crate::{
-    env::{HasTcEnv, TcEnv},
-    inference::FnInferMode,
-};
+use crate::env::{HasTcEnv, TcEnv};
+
+/// The mode in which to infer the type of a function.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FnInferMode {
+    /// Infer the type of a function but do not look at its body.
+    Header,
+    /// Infer the type of a function and its body.
+    Body,
+}
 
 /// This struct represents the typechecker.
 ///
@@ -14,7 +20,7 @@ use crate::{
 /// - the `Context`, which is the current set of bindings the typechecker should
 ///   operate on.
 #[derive(Deref)]
-pub struct Tc<'tc, E: TcEnv> {
+pub struct Tc<'tc, E> {
     #[deref]
     pub env: &'tc E,
     pub context: &'tc Context,

@@ -20,5 +20,6 @@ pub mod safety;
 pub mod terms;
 pub mod tuples;
 pub mod ty_of;
+pub mod tys;
 pub mod universe;
 pub mod vars;

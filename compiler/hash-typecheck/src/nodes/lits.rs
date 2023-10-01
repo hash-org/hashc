@@ -4,6 +4,7 @@ use hash_tir::{
     intrinsics::{
         definitions::{char_def, f32_def, f64_def, i32_def, str_def, Primitive},
         make::IsPrimitive,
+        utils::{try_use_ty_as_float_ty, try_use_ty_as_int_ty},
     },
     tir::{DataDefCtors, Lit, LitId, NodeId, PrimitiveCtorInfo, Ty, TyId},
 };
@@ -18,6 +19,51 @@ use crate::{
         OperationsOnNode,
     },
 };
+
+impl<E: TcEnv> Tc<'_, E> {
+    /// Potentially adjust the underlying constant of a literal after its type
+    /// has been inferred.
+    ///
+    /// This might be needed if a literal is unsuffixed in the original source,
+    /// and thus represented as something other than its true type in the
+    /// `CONSTS`. After `infer_lit`, its true type will be known, and
+    /// we can then adjust the underlying constant to match the true type.
+    fn bake_lit_repr(&self, lit: LitId, inferred_ty: TyId) -> TcResult<()> {
+        match *lit.value() {
+            Lit::Float(float_lit) => {
+                // If the float is already baked, then we don't do anything.
+                if float_lit.has_value() {
+                    return Ok(());
+                }
+
+                if let Some(float_ty) = try_use_ty_as_float_ty(inferred_ty) {
+                    lit.modify(|float| match &mut float.data {
+                        Lit::Float(fl) => fl.bake(float_ty),
+                        _ => unreachable!(),
+                    })?;
+                }
+                // @@Incomplete: it is possible that exotic literal
+                // types are defined, what happens then?
+            }
+            Lit::Int(int_lit) => {
+                // If the float is already baked, then we don't do anything.
+                if int_lit.has_value() {
+                    return Ok(());
+                }
+
+                if let Some(int_ty) = try_use_ty_as_int_ty(inferred_ty) {
+                    lit.modify(|int| match &mut int.data {
+                        Lit::Int(fl) => fl.bake(self.target(), int_ty),
+                        _ => unreachable!(),
+                    })?;
+                }
+                // @@Incomplete: as above
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
 
 impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
     type TyNode = TyId;

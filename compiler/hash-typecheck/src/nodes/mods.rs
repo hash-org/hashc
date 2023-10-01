@@ -3,10 +3,10 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::tir::{ModDefId, ModMemberId, ModMemberValue, NodeId, Term, Ty};
 
 use crate::{
-    checker::Tc,
+    checker::{FnInferMode, Tc},
     env::TcEnv,
-    inference::FnInferMode,
     operations::{Operations, OperationsOnNode},
+    utils::dumping::potentially_dump_tir,
 };
 
 impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
@@ -71,7 +71,7 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
                 )?;
                 if self.fn_infer_mode.get() == FnInferMode::Body {
                     // Dump TIR if necessary
-                    self.potentially_dump_tir(fn_def_id);
+                    potentially_dump_tir(fn_def_id);
 
                     // Check for entry point
                     self.potentially_flag_fn_as_entry_point(fn_def_id)?;

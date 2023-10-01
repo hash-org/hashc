@@ -17,4 +17,5 @@ pub mod nodes;
 pub mod operations;
 
 pub mod old;
+pub mod utils;
 pub use old::*;
