@@ -14,6 +14,7 @@ pub mod matching;
 pub mod mods;
 pub mod params;
 pub mod pats;
+pub mod range;
 pub mod refs;
 pub mod safety;
 pub mod terms;

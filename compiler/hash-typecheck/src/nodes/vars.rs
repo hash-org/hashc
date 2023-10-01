@@ -1,6 +1,7 @@
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
-    tir::{Term, TermId, TyId, VarTerm},
+    scopes::BindingPat,
+    tir::{PatId, Term, TermId, TyId, VarTerm},
     visitor::{Map, Visitor},
 };
 
@@ -95,6 +96,53 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
     }
 
     fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut VarTerm) {
+        todo!()
+    }
+}
+
+impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
+    type TyNode = (TyId, Option<TermId>);
+    type Node = PatId;
+
+    fn check(
+        &self,
+        var: &mut BindingPat,
+        (annotation_ty, binds_to): Self::TyNode,
+        _: Self::Node,
+    ) -> TcResult<()> {
+        self.check_ty(annotation_ty)?;
+        match binds_to {
+            Some(value) if self.norm_ops().atom_has_effects(value.into()) == Some(false) => {
+                self.context().add_assignment_to_closest_stack(var.name, annotation_ty, value);
+            }
+            _ => {
+                self.context().add_typing_to_closest_stack(var.name, annotation_ty);
+            }
+        }
+        Ok(())
+    }
+
+    fn normalise(
+        &self,
+        _opts: &NormalisationOptions,
+        _item: BindingPat,
+        _item_node: Self::Node,
+    ) -> crate::operations::normalisation::NormaliseResult<Self::Node> {
+        todo!()
+    }
+
+    fn unify(
+        &self,
+        _opts: &UnificationOptions,
+        _src: &mut BindingPat,
+        _target: &mut BindingPat,
+        _src_node: Self::Node,
+        _target_node: Self::Node,
+    ) -> TcResult<()> {
+        todo!()
+    }
+
+    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut BindingPat) {
         todo!()
     }
 }

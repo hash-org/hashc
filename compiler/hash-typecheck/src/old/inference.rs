@@ -4,28 +4,26 @@ use std::{collections::HashSet, ops::ControlFlow};
 
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_exhaustiveness::ExhaustivenessChecker;
-use hash_reporting::diagnostic::{Diagnostics, ErrorState};
+use hash_reporting::diagnostic::Diagnostics;
 use hash_source::{entry_point::EntryPointKind, identifier::IDENTS, ModuleKind};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
-    SequenceStoreKey, TrivialSequenceStoreKey,
+    TrivialSequenceStoreKey,
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::{HasContext, ScopeKind},
     dump::dump_tir,
     intrinsics::{
-        definitions::{bool_ty, list_def, list_ty, usize_ty, Intrinsic},
-        make::IsIntrinsic,
-        utils::{bool_term, try_use_ty_as_float_ty, try_use_ty_as_int_ty},
+        definitions::list_ty,
+        utils::{try_use_ty_as_float_ty, try_use_ty_as_int_ty},
     },
     term_as_variant,
     tir::{
-        validate_and_reorder_pat_args_against_params, validate_params, Arg, ArgId, ArgsId,
-        ArrayPat, CallTerm, CtorDefId, CtorPat, DataDefCtors, DataDefId, DataTy, FnDefId, FnTy,
-        HasAstNodeId, IfPat, Lit, LitId, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId,
-        Pat, PatArgsId, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RangePat, Spread,
-        SymbolId, Term, TermId, TermListId, TuplePat, TupleTy, Ty, TyId,
+        validate_and_reorder_pat_args_against_params, validate_params, Arg, ArgsId, CallTerm,
+        DataDefCtors, FnDefId, FnTy, HasAstNodeId, Lit, LitId, Node, NodeId, NodeOrigin, NodesId,
+        ParamsId, Pat, PatArgsId, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, Spread,
+        SymbolId, Term, TermId, TermListId, Ty, TyId,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -146,7 +144,7 @@ impl<T: TcEnv> Tc<'_, T> {
         let pats = pat_list_id.elements().value();
         self.infer_unified_list(&pats, element_annotation_ty, |pat, ty| match pat {
             PatOrCapture::Pat(pat) => {
-                self.infer_pat(pat, ty, None)?;
+                self.check_node(pat, (ty, None))?;
                 Ok(())
             }
             PatOrCapture::Capture(_) => Ok(()),
@@ -183,7 +181,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 let pat_arg = pat_arg.value();
                 match pat_arg.pat {
                     PatOrCapture::Pat(pat) => {
-                        self.infer_pat(pat, param_ty, None)?;
+                        self.check_node(pat, (param_ty, None))?;
                         Ok(())
                     }
                     PatOrCapture::Capture(_) => Ok(()),
@@ -486,339 +484,6 @@ impl<T: TcEnv> Tc<'_, T> {
         fn_def_id.borrow_mut().ty = fn_ty_value;
 
         Ok(fn_ty_value)
-    }
-
-    /// Infer an intrinsic term, and return it.
-    pub fn infer_intrinsic(&self, intrinsic: Intrinsic, annotation_ty: TyId) -> TcResult<()> {
-        // ##GeneratedOrigin: intrinsics do not belong to the source code
-        self.check_by_unify(Term::from(intrinsic.ty(), NodeOrigin::Generated), annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer a range pattern.
-    pub fn infer_range_pat(&self, range_pat: RangePat, annotation_ty: TyId) -> TcResult<()> {
-        let RangePat { lo, hi, .. } = range_pat;
-
-        lo.map(|lo| self.check_node(*lo, annotation_ty)).transpose()?;
-        hi.map(|hi| self.check_node(*hi, annotation_ty)).transpose()?;
-
-        Ok(())
-    }
-
-    /// Infer a tuple pattern.
-    pub fn infer_tuple_pat(
-        &self,
-        tuple_pat: &TuplePat,
-        annotation_ty: TyId,
-        original_pat_id: PatId,
-    ) -> TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-        let params = match *annotation_ty.value() {
-            Ty::TupleTy(tuple_ty) => tuple_ty.data,
-            Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_pat.data),
-            _ => {
-                let inferred = Param::seq_from_args_with_hole_types(tuple_pat.data);
-                return Err(TcError::MismatchingTypes {
-                    expected: annotation_ty,
-                    actual: Ty::expect_is(
-                        original_pat_id,
-                        Ty::from(TupleTy { data: inferred }, original_pat_id.origin().inferred()),
-                    ),
-                });
-            }
-        };
-        let mut tuple_pat = *tuple_pat;
-        self.infer_pat_args(tuple_pat.data, tuple_pat.data_spread, params, |new_args| {
-            tuple_pat.data = new_args;
-            original_pat_id.set(original_pat_id.value().with_data(tuple_pat.into()));
-            Ok(())
-        })?;
-
-        let tuple_ty = Ty::expect_is(
-            original_pat_id,
-            Ty::from(TupleTy { data: params }, annotation_ty.origin()),
-        );
-        self.check_by_unify(tuple_ty, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer a list pattern
-    pub fn infer_array_pat(
-        &self,
-        list_pat: &ArrayPat,
-        annotation_ty: TyId,
-        original_pat_id: PatId,
-    ) -> TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-        // @@Todo: `use_ty_as_array` instead of this manual match:
-        let list_annotation_inner_ty = match *annotation_ty.value() {
-            Ty::DataTy(data) if data.data_def == list_def() => {
-                // Type is already checked
-                assert!(data.args.len() == 1);
-
-                ArgId(data.args.elements(), 0).borrow().value
-            }
-            Ty::Hole(_) => Ty::hole(list_pat.pats.origin()),
-            _ => {
-                return Err(TcError::MismatchingTypes {
-                    expected: annotation_ty,
-                    actual: list_ty(
-                        Ty::hole(NodeOrigin::Generated),
-                        original_pat_id.origin().inferred(),
-                    ),
-                });
-            }
-        };
-
-        self.infer_unified_pat_list(list_pat.pats, list_annotation_inner_ty)?;
-        let list_ty = list_ty(list_annotation_inner_ty, NodeOrigin::Expected);
-        self.check_by_unify(list_ty, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer a constructor pattern
-    pub fn infer_ctor_pat(
-        &self,
-        pat: &CtorPat,
-        annotation_ty: TyId,
-        original_pat_id: PatId,
-    ) -> TcResult<()> {
-        let mut pat = *pat;
-        let ctor_def_id = pat.ctor;
-        let data_args = pat.data_args;
-        let original_atom: Atom = original_pat_id.into();
-        let ctor = ctor_def_id.value();
-        let data_def = ctor.data_def_id.value();
-
-        // Ensure the annotation is valid
-        self.normalise_and_check_ty(annotation_ty)?;
-
-        // Get the annotation as a DataTy, or create a hole one if not given
-        let mut annotation_data_ty = match *annotation_ty.value() {
-            Ty::DataTy(data) if data.data_def == ctor.data_def_id => DataTy {
-                data_def: ctor.data_def_id,
-                args: if data.args.len() == 0 {
-                    Arg::seq_from_params_as_holes(data_def.params)
-                } else {
-                    data.args
-                },
-            },
-            Ty::Hole(_) => DataTy {
-                data_def: ctor.data_def_id,
-                args: Arg::seq_from_params_as_holes(data_def.params),
-            },
-            _ => {
-                return Err(TcError::MismatchingTypes {
-                    expected: annotation_ty,
-                    actual: Ty::from(
-                        DataTy { args: data_args, data_def: ctor.data_def_id },
-                        original_atom.origin().inferred(),
-                    ),
-                });
-            }
-        };
-
-        // Get the data arguments given to the constructor, like Equal<...>::Refl(...)
-        //                                                             ^^^ these
-        let ctor_data_args = if data_args.len() == 0 {
-            Arg::seq_from_params_as_holes(data_def.params)
-        } else {
-            data_args
-        };
-
-        // From the given constructor data args, substitute the constructor params and
-        // result arguments. In the process, infer the data args more if
-        // possible.
-        let copied_params = Visitor::new().copy(data_def.params);
-        let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
-            .infer_args(ctor_data_args, copied_params, |inferred_data_args| {
-                let sub = self.sub_ops().create_sub_from_current_scope();
-                let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
-                let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
-                self.sub_ops().apply_sub_in_place(inferred_data_args, &sub);
-                Ok((inferred_data_args, subbed_ctor_params, subbed_ctor_result_args))
-            })?;
-
-        // Infer the constructor arguments from the term, using the substituted
-        // parameters. Substitute any results to the constructor arguments, the
-        // result arguments of the constructor, and the constructor data
-        // arguments.
-        let (final_result_args, resulting_sub, binds) = self.infer_pat_args(
-            pat.ctor_pat_args,
-            pat.ctor_pat_args_spread,
-            subbed_ctor_params,
-            |inferred_pat_ctor_args| {
-                let ctor_sub = self.sub_ops().create_sub_from_current_scope();
-                self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
-                self.sub_ops().apply_sub_in_place(inferred_pat_ctor_args, &ctor_sub);
-                self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
-
-                // These arguments might have been updated so we need to set them
-                pat.data_args = inferred_ctor_data_args;
-                pat.ctor_pat_args = inferred_pat_ctor_args;
-                original_pat_id.set(original_pat_id.value().with_data(pat.into()));
-
-                // We are exiting the constructor scope, so we need to hide the binds
-                let hidden_ctor_sub =
-                    self.sub_ops().hide_param_binds(ctor.params.iter(), &ctor_sub);
-                Ok((
-                    subbed_ctor_result_args,
-                    hidden_ctor_sub,
-                    self.get_binds_in_pat_args(inferred_pat_ctor_args),
-                ))
-            },
-        )?;
-
-        // Set the annotation data type to the final result arguments, and unify
-        // the annotation type with the expected type.
-        annotation_data_ty.args = final_result_args;
-        let expected_data_ty =
-            Ty::expect_is(original_atom, Ty::from(annotation_data_ty, annotation_ty.origin()));
-        let uni_ops = self.uni_ops();
-        uni_ops.with_binds(binds);
-        uni_ops.add_unification_from_sub(&resulting_sub);
-        uni_ops.unify_terms(expected_data_ty, annotation_ty)?;
-
-        // Now we gather the final substitution, and apply it to the result
-        // arguments, the constructor data arguments, and finally the annotation
-        // type.
-        let final_sub = self.sub_ops().create_sub_from_current_scope();
-        self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
-        self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
-        self.sub_ops().apply_sub_in_place(pat.ctor_pat_args, &final_sub);
-        // Set data args because they might have been updated again
-        pat.data_args = inferred_ctor_data_args;
-        original_pat_id.set(original_pat_id.value().with_data(pat.into()));
-        self.sub_ops().apply_sub_in_place(annotation_ty, &final_sub);
-
-        for (data_arg, result_data_arg) in pat.data_args.iter().zip(subbed_ctor_result_args.iter())
-        {
-            let data_arg = data_arg.value();
-            let result_data_arg = result_data_arg.value();
-            if let Ty::Hole(_) = *data_arg.value.value() {
-                data_arg.value.set(result_data_arg.value.value());
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Infer an or-pattern
-    pub fn infer_or_pat(&self, pat: &OrPat, annotation_ty: TyId) -> TcResult<()> {
-        self.infer_unified_pat_list(pat.alternatives, annotation_ty)?;
-        Ok(())
-    }
-
-    /// Infer an if-pattern
-    pub fn infer_if_pat(&self, pat: &IfPat, annotation_ty: TyId) -> TcResult<()> {
-        self.infer_pat(pat.pat, annotation_ty, None)?;
-        let expected_condition_ty = Ty::expect_is(pat.condition, bool_ty(NodeOrigin::Expected));
-        self.check_node(pat.condition, expected_condition_ty)?;
-        if let Term::Var(v) = *pat.condition.value() {
-            self.context().add_assignment(
-                v.symbol,
-                expected_condition_ty,
-                bool_term(true, pat.condition.origin().inferred()),
-            );
-        }
-        Ok(())
-    }
-
-    /// Infer the type of a pattern, and return it.
-    pub fn infer_pat(
-        &self,
-        pat_id: PatId,
-        annotation_ty: TyId,
-        binds_to: Option<TermId>,
-    ) -> TcResult<()> {
-        self.register_new_atom(pat_id, annotation_ty);
-
-        match *pat_id.value() {
-            Pat::Binding(var) => {
-                self.check_ty(annotation_ty)?;
-                match binds_to {
-                    Some(value)
-                        if self.norm_ops().atom_has_effects(value.into()) == Some(false) =>
-                    {
-                        self.context().add_assignment_to_closest_stack(
-                            var.name,
-                            annotation_ty,
-                            value,
-                        );
-                    }
-                    _ => {
-                        self.context().add_typing_to_closest_stack(var.name, annotation_ty);
-                    }
-                }
-            }
-            Pat::Range(range_pat) => self.infer_range_pat(range_pat, annotation_ty)?,
-            Pat::Lit(lit) => self.check_node(*lit, annotation_ty)?,
-            Pat::Tuple(tuple_pat) => self.infer_tuple_pat(&tuple_pat, annotation_ty, pat_id)?,
-            Pat::Array(list_term) => self.infer_array_pat(&list_term, annotation_ty, pat_id)?,
-            Pat::Ctor(ctor_pat) => self.infer_ctor_pat(&ctor_pat, annotation_ty, pat_id)?,
-            Pat::Or(or_pat) => self.infer_or_pat(&or_pat, annotation_ty)?,
-            Pat::If(if_pat) => self.infer_if_pat(&if_pat, annotation_ty)?,
-        };
-
-        self.register_atom_inference(pat_id, pat_id, annotation_ty);
-        Ok(())
-    }
-
-    /// Infer the given constructor definition.
-    pub fn infer_ctor_def(&self, ctor: CtorDefId) -> TcResult<()> {
-        let ctor_def = ctor.value();
-        self.infer_params(ctor_def.params, || {
-            let return_ty = Ty::from(
-                DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args },
-                ctor.origin(),
-            );
-            self.check_node(return_ty, Ty::universe_of(return_ty))?;
-            Ok(())
-        })
-    }
-
-    /// Infer the given data definition.
-    pub fn infer_data_def(&self, data_def_id: DataDefId) -> TcResult<()> {
-        let (data_def_params, data_def_ctors) =
-            data_def_id.map(|data_def| (data_def.params, data_def.ctors));
-
-        self.infer_params(data_def_params, || {
-            match data_def_ctors {
-                DataDefCtors::Defined(data_def_ctors_id) => {
-                    let mut error_state = ErrorState::new();
-
-                    // Infer each member
-                    for ctor_idx in data_def_ctors_id.value().to_index_range() {
-                        let _ = error_state.try_or_add_error(
-                            self.infer_ctor_def(CtorDefId(data_def_ctors_id.elements(), ctor_idx)),
-                        );
-                    }
-
-                    error_state.into_error(|| Ok(()))
-                }
-                DataDefCtors::Primitive(primitive) => {
-                    match primitive {
-                        PrimitiveCtorInfo::Numeric(_)
-                        | PrimitiveCtorInfo::Str
-                        | PrimitiveCtorInfo::Char => {
-                            // Nothing to do
-                            Ok(())
-                        }
-                        PrimitiveCtorInfo::Array(array_ctor_info) => {
-                            // Infer the inner type and length
-                            self.check_node(
-                                array_ctor_info.element_ty,
-                                Ty::universe_of(array_ctor_info.element_ty),
-                            )?;
-                            if let Some(length) = array_ctor_info.length {
-                                self.check_node(length, usize_ty(NodeOrigin::Expected))?;
-                            }
-                            Ok(())
-                        }
-                    }
-                }
-            }
-        })
     }
 
     /// Dump the TIR for the given target if it has a `#dump_tir` directive

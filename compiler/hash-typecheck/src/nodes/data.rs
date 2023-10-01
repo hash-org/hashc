@@ -1,8 +1,13 @@
 use std::collections::HashSet;
 
+use hash_reporting::diagnostic::ErrorState;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    tir::{Arg, CtorTerm, DataDefId, DataTy, NodeId, TermId, Ty, TyId},
+    intrinsics::definitions::usize_ty,
+    tir::{
+        Arg, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin,
+        PatId, PrimitiveCtorInfo, TermId, Ty, TyId,
+    },
     visitor::{Atom, Map, Visitor},
 };
 
@@ -216,8 +221,45 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
 impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
     type TyNode = ();
 
-    fn check_node(&self, _item: DataDefId, _item_ty: Self::TyNode) -> TcResult<()> {
-        todo!()
+    fn check_node(&self, data_def_id: DataDefId, _: Self::TyNode) -> TcResult<()> {
+        let (data_def_params, data_def_ctors) =
+            data_def_id.map(|data_def| (data_def.params, data_def.ctors));
+
+        self.infer_params(data_def_params, || {
+            match data_def_ctors {
+                DataDefCtors::Defined(data_def_ctors_id) => {
+                    let mut error_state = ErrorState::new();
+
+                    // Infer each member
+                    for ctor in data_def_ctors_id.value().iter() {
+                        let _ = error_state.try_or_add_error(self.check_node(ctor, ()));
+                    }
+
+                    error_state.into_error(|| Ok(()))
+                }
+                DataDefCtors::Primitive(primitive) => {
+                    match primitive {
+                        PrimitiveCtorInfo::Numeric(_)
+                        | PrimitiveCtorInfo::Str
+                        | PrimitiveCtorInfo::Char => {
+                            // Nothing to do
+                            Ok(())
+                        }
+                        PrimitiveCtorInfo::Array(array_ctor_info) => {
+                            // Infer the inner type and length
+                            self.check_node(
+                                array_ctor_info.element_ty,
+                                Ty::universe_of(array_ctor_info.element_ty),
+                            )?;
+                            if let Some(length) = array_ctor_info.length {
+                                self.check_node(length, usize_ty(NodeOrigin::Expected))?;
+                            }
+                            Ok(())
+                        }
+                    }
+                }
+            }
+        })
     }
 
     fn normalise_node(
@@ -238,6 +280,198 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
     }
 
     fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: DataDefId) {
+        todo!()
+    }
+}
+
+impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
+    type TyNode = ();
+
+    fn check_node(&self, ctor: CtorDefId, _: Self::TyNode) -> TcResult<()> {
+        let ctor_def = ctor.value();
+        self.infer_params(ctor_def.params, || {
+            let return_ty = Ty::from(
+                DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args },
+                ctor.origin(),
+            );
+            self.check_node(return_ty, Ty::universe_of(return_ty))?;
+            Ok(())
+        })
+    }
+
+    fn normalise_node(
+        &self,
+        _opts: &NormalisationOptions,
+        _item: CtorDefId,
+    ) -> NormaliseResult<CtorDefId> {
+        todo!()
+    }
+
+    fn unify_nodes(
+        &self,
+        _opts: &UnificationOptions,
+        _src: CtorDefId,
+        _target: CtorDefId,
+    ) -> TcResult<()> {
+        todo!()
+    }
+
+    fn substitute_node(&self, _sub: &hash_tir::sub::Sub, _target: CtorDefId) {
+        todo!()
+    }
+}
+
+impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
+    type TyNode = TyId;
+    type Node = PatId;
+
+    fn check(
+        &self,
+        pat: &mut CtorPat,
+        annotation_ty: Self::TyNode,
+        original_pat_id: Self::Node,
+    ) -> TcResult<()> {
+        let mut pat = *pat;
+        let ctor_def_id = pat.ctor;
+        let data_args = pat.data_args;
+        let original_atom: Atom = original_pat_id.into();
+        let ctor = ctor_def_id.value();
+        let data_def = ctor.data_def_id.value();
+
+        // Ensure the annotation is valid
+        self.normalise_and_check_ty(annotation_ty)?;
+
+        // Get the annotation as a DataTy, or create a hole one if not given
+        let mut annotation_data_ty = match *annotation_ty.value() {
+            Ty::DataTy(data) if data.data_def == ctor.data_def_id => DataTy {
+                data_def: ctor.data_def_id,
+                args: if data.args.len() == 0 {
+                    Arg::seq_from_params_as_holes(data_def.params)
+                } else {
+                    data.args
+                },
+            },
+            Ty::Hole(_) => DataTy {
+                data_def: ctor.data_def_id,
+                args: Arg::seq_from_params_as_holes(data_def.params),
+            },
+            _ => {
+                return Err(TcError::MismatchingTypes {
+                    expected: annotation_ty,
+                    actual: Ty::from(
+                        DataTy { args: data_args, data_def: ctor.data_def_id },
+                        original_atom.origin().inferred(),
+                    ),
+                });
+            }
+        };
+
+        // Get the data arguments given to the constructor, like Equal<...>::Refl(...)
+        //                                                             ^^^ these
+        let ctor_data_args = if data_args.len() == 0 {
+            Arg::seq_from_params_as_holes(data_def.params)
+        } else {
+            data_args
+        };
+
+        // From the given constructor data args, substitute the constructor params and
+        // result arguments. In the process, infer the data args more if
+        // possible.
+        let copied_params = Visitor::new().copy(data_def.params);
+        let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
+            .infer_args(ctor_data_args, copied_params, |inferred_data_args| {
+                let sub = self.sub_ops().create_sub_from_current_scope();
+                let subbed_ctor_params = self.sub_ops().apply_sub(ctor.params, &sub);
+                let subbed_ctor_result_args = self.sub_ops().apply_sub(ctor.result_args, &sub);
+                self.sub_ops().apply_sub_in_place(inferred_data_args, &sub);
+                Ok((inferred_data_args, subbed_ctor_params, subbed_ctor_result_args))
+            })?;
+
+        // Infer the constructor arguments from the term, using the substituted
+        // parameters. Substitute any results to the constructor arguments, the
+        // result arguments of the constructor, and the constructor data
+        // arguments.
+        let (final_result_args, resulting_sub, binds) = self.infer_pat_args(
+            pat.ctor_pat_args,
+            pat.ctor_pat_args_spread,
+            subbed_ctor_params,
+            |inferred_pat_ctor_args| {
+                let ctor_sub = self.sub_ops().create_sub_from_current_scope();
+                self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
+                self.sub_ops().apply_sub_in_place(inferred_pat_ctor_args, &ctor_sub);
+                self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
+
+                // These arguments might have been updated so we need to set them
+                pat.data_args = inferred_ctor_data_args;
+                pat.ctor_pat_args = inferred_pat_ctor_args;
+                original_pat_id.set(original_pat_id.value().with_data(pat.into()));
+
+                // We are exiting the constructor scope, so we need to hide the binds
+                let hidden_ctor_sub =
+                    self.sub_ops().hide_param_binds(ctor.params.iter(), &ctor_sub);
+                Ok((
+                    subbed_ctor_result_args,
+                    hidden_ctor_sub,
+                    self.get_binds_in_pat_args(inferred_pat_ctor_args),
+                ))
+            },
+        )?;
+
+        // Set the annotation data type to the final result arguments, and unify
+        // the annotation type with the expected type.
+        annotation_data_ty.args = final_result_args;
+        let expected_data_ty =
+            Ty::expect_is(original_atom, Ty::from(annotation_data_ty, annotation_ty.origin()));
+        let uni_ops = self.uni_ops();
+        uni_ops.with_binds(binds);
+        uni_ops.add_unification_from_sub(&resulting_sub);
+        uni_ops.unify_terms(expected_data_ty, annotation_ty)?;
+
+        // Now we gather the final substitution, and apply it to the result
+        // arguments, the constructor data arguments, and finally the annotation
+        // type.
+        let final_sub = self.sub_ops().create_sub_from_current_scope();
+        self.sub_ops().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
+        self.sub_ops().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
+        self.sub_ops().apply_sub_in_place(pat.ctor_pat_args, &final_sub);
+        // Set data args because they might have been updated again
+        pat.data_args = inferred_ctor_data_args;
+        original_pat_id.set(original_pat_id.value().with_data(pat.into()));
+        self.sub_ops().apply_sub_in_place(annotation_ty, &final_sub);
+
+        for (data_arg, result_data_arg) in pat.data_args.iter().zip(subbed_ctor_result_args.iter())
+        {
+            let data_arg = data_arg.value();
+            let result_data_arg = result_data_arg.value();
+            if let Ty::Hole(_) = *data_arg.value.value() {
+                data_arg.value.set(result_data_arg.value.value());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn normalise(
+        &self,
+        _opts: &NormalisationOptions,
+        _item: CtorPat,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<Self::Node> {
+        todo!()
+    }
+
+    fn unify(
+        &self,
+        _opts: &UnificationOptions,
+        _src: &mut CtorPat,
+        _target: &mut CtorPat,
+        _src_node: Self::Node,
+        _target_node: Self::Node,
+    ) -> TcResult<()> {
+        todo!()
+    }
+
+    fn substitute(&self, _sub: &hash_tir::sub::Sub, _target: &mut CtorPat) {
         todo!()
     }
 }

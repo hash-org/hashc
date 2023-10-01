@@ -48,7 +48,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                     BlockStatement::Decl(decl) => {
                         self.check_ty(decl.ty)?;
                         self.check_node(decl.value, decl.ty)?;
-                        self.infer_pat(decl.bind_pat, decl.ty, Some(decl.value))?;
+                        self.check_node(decl.bind_pat, (decl.ty, Some(decl.value)))?;
 
                         // Check that the binding pattern of the declaration is irrefutable.
                         let mut eck = self.exhaustiveness_checker(decl.bind_pat);

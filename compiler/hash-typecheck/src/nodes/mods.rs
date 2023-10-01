@@ -55,7 +55,7 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
         let value = mod_member.borrow().value;
         match value {
             ModMemberValue::Data(data_def_id) => {
-                self.infer_data_def(data_def_id)?;
+                self.check_node(data_def_id, ())?;
                 Ok(())
             }
             ModMemberValue::Mod(mod_def_id) => {

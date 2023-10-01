@@ -1,7 +1,7 @@
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     intrinsics::{
-        definitions::{array_ty, list_ty, usize_ty},
+        definitions::{array_ty, list_def, list_ty, usize_ty},
         utils::create_term_from_usize_lit,
     },
     tir::{
@@ -112,11 +112,34 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
 
     fn check(
         &self,
-        _item: &mut ArrayPat,
-        _item_ty: Self::TyNode,
-        _item_node: Self::Node,
+        list_pat: &mut ArrayPat,
+        annotation_ty: Self::TyNode,
+        original_pat_id: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.normalise_and_check_ty(annotation_ty)?;
+        // @@Todo: `use_ty_as_array` instead of this manual match:
+        let list_annotation_inner_ty = match *annotation_ty.value() {
+            Ty::DataTy(data) if data.data_def == list_def() => {
+                // Type is already checked
+                assert!(data.args.len() == 1);
+                data.args.at(0).unwrap().borrow().value
+            }
+            Ty::Hole(_) => Ty::hole(list_pat.pats.origin()),
+            _ => {
+                return Err(TcError::MismatchingTypes {
+                    expected: annotation_ty,
+                    actual: list_ty(
+                        Ty::hole(NodeOrigin::Generated),
+                        original_pat_id.origin().inferred(),
+                    ),
+                });
+            }
+        };
+
+        self.infer_unified_pat_list(list_pat.pats, list_annotation_inner_ty)?;
+        let list_ty = list_ty(list_annotation_inner_ty, NodeOrigin::Expected);
+        self.check_by_unify(list_ty, annotation_ty)?;
+        Ok(())
     }
 
     fn normalise(
