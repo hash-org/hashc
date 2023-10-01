@@ -25,7 +25,6 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: TyOfTerm,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -34,7 +33,6 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut TyOfTerm,
         _target: &mut TyOfTerm,
         _src_node: Self::Node,

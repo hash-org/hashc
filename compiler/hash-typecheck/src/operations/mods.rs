@@ -31,7 +31,6 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
 
     fn normalise_node(
         &self,
-
         _item: ModDefId,
     ) -> crate::options::normalisation::NormaliseResult<ModDefId> {
         todo!()
@@ -81,7 +80,6 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
 
     fn normalise_node(
         &self,
-
         _item: ModMemberId,
     ) -> crate::options::normalisation::NormaliseResult<ModMemberId> {
         todo!()

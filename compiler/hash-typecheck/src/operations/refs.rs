@@ -51,7 +51,6 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: RefTerm,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -60,7 +59,6 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         r1: &mut RefTerm,
         r2: &mut RefTerm,
         src_node: Self::Node,
@@ -102,7 +100,6 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: DerefTerm,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -111,7 +108,6 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut DerefTerm,
         _target: &mut DerefTerm,
         _src_node: Self::Node,
@@ -139,7 +135,6 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: RefTy,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -148,7 +143,6 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         r1: &mut RefTy,
         r2: &mut RefTy,
         src_node: Self::Node,

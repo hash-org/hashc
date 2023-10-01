@@ -65,7 +65,6 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         src: &mut TupleTerm,
         target: &mut TupleTerm,
         _: Self::Node,
@@ -96,7 +95,6 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         src: &mut TupleTy,
         target: &mut TupleTy,
         _: Self::Node,
@@ -152,7 +150,6 @@ impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut TuplePat,
         _target: &mut TuplePat,
         _src_node: Self::Node,

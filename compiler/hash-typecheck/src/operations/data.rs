@@ -146,7 +146,6 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         src: &mut CtorTerm,
         target: &mut CtorTerm,
         src_node: Self::Node,
@@ -188,7 +187,6 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         src: &mut DataTy,
         target: &mut DataTy,
         src_node: Self::Node,
@@ -413,7 +411,6 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut CtorPat,
         _target: &mut CtorPat,
         _src_node: Self::Node,

@@ -17,7 +17,6 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-
         access_term: &mut AccessTerm,
         annotation_ty: Self::TyNode,
         item_node: Self::Node,
@@ -98,7 +97,6 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         src: &mut AccessTerm,
         target: &mut AccessTerm,
         src_node: Self::Node,

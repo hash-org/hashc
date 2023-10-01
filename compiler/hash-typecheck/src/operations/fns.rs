@@ -32,7 +32,6 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         f1: &mut FnTy,
         f2: &mut FnTy,
         src_id: Self::Node,

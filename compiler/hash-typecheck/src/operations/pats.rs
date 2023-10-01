@@ -64,7 +64,6 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
 
     fn normalise_node(
         &self,
-
         _item: PatId,
     ) -> crate::options::normalisation::NormaliseResult<PatId> {
         todo!()
@@ -100,7 +99,6 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: IfPat,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -109,7 +107,6 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut IfPat,
         _target: &mut IfPat,
         _src_node: Self::Node,
@@ -135,7 +132,6 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: OrPat,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -144,7 +140,6 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut OrPat,
         _target: &mut OrPat,
         _src_node: Self::Node,

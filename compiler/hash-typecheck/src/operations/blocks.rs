@@ -20,7 +20,6 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
 
     fn check(
         &self,
-
         block_term: &mut BlockTerm,
         annotation_ty: Self::TyNode,
         original_term_id: Self::Node,
@@ -107,7 +106,6 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut BlockTerm,
         _target: &mut BlockTerm,
         _src_node: Self::Node,

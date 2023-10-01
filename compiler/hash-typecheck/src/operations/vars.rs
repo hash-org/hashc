@@ -46,7 +46,6 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         item: VarTerm,
         _: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<TermId> {
@@ -66,7 +65,6 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         src: &mut VarTerm,
         target: &mut VarTerm,
         a_id: Self::Node,
@@ -116,7 +114,6 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: BindingPat,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -125,7 +122,6 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut BindingPat,
         _target: &mut BindingPat,
         _src_node: Self::Node,

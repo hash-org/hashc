@@ -68,7 +68,6 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
 
     fn check_node_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
-
         args: ArgsId,
         annotation_params: Self::TyNode,
         mut in_arg_scope: F,
@@ -120,7 +119,6 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
-
         src_id: ArgsId,
         target_id: ArgsId,
         mut f: F,
@@ -200,7 +198,6 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
 
     fn normalise_node(
         &self,
-
         _item: (PatArgsId, Option<Spread>),
     ) -> NormaliseResult<(PatArgsId, Option<Spread>)> {
         todo!()
@@ -208,7 +205,6 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
-
         _src: (PatArgsId, Option<Spread>),
         _target: (PatArgsId, Option<Spread>),
         _f: F,

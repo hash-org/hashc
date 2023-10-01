@@ -125,7 +125,6 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut ArrayTerm,
         _target: &mut ArrayTerm,
         _src_node: Self::Node,
@@ -177,7 +176,6 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut ArrayPat,
         _target: &mut ArrayPat,
         _src_node: Self::Node,
@@ -245,7 +243,6 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut IndexTerm,
         _target: &mut IndexTerm,
         _src_node: Self::Node,

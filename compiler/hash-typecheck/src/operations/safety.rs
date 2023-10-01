@@ -29,7 +29,6 @@ impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut UnsafeTerm,
         _target: &mut UnsafeTerm,
         _src_node: Self::Node,

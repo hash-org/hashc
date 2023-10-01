@@ -26,7 +26,6 @@ impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: RangePat,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -35,7 +34,6 @@ impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut RangePat,
         _target: &mut RangePat,
         _src_node: Self::Node,

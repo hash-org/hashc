@@ -88,7 +88,6 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         src: &mut CallTerm,
         target: &mut CallTerm,
         _src_node: Self::Node,

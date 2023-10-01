@@ -113,7 +113,6 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
 
     fn normalise(
         &self,
-
         _item: MatchTerm,
         _item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
@@ -122,7 +121,6 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-
         _src: &mut MatchTerm,
         _target: &mut MatchTerm,
         _src_node: Self::Node,
