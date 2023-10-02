@@ -22,7 +22,7 @@ use crate::{
     env::TcEnv,
     errors::{TcError, TcResult, WrongTermKind},
     options::normalisation::{
-        normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
+        normalise_nested, normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
     tc::Tc,
     traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
@@ -214,17 +214,18 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
         _item: ArrayTerm,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<TermId>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
         &self,
         _src: &mut ArrayTerm,
         _target: &mut ArrayTerm,
-        _src_node: Self::Node,
+        src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        // @@Todo
+        Err(TcError::Blocked(src_node.origin()))
     }
 }
 
@@ -269,17 +270,18 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
         _item: ArrayPat,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<PatId>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
         &self,
         _src: &mut ArrayPat,
         _target: &mut ArrayPat,
-        _src_node: Self::Node,
+        src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        // @@Todo
+        Err(TcError::Blocked(src_node.origin()))
     }
 }
 
@@ -364,11 +366,12 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut IndexTerm,
-        _target: &mut IndexTerm,
+        src: &mut IndexTerm,
+        target: &mut IndexTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.unify_nodes(src.subject, target.subject)?;
+        self.unify_nodes(src.index, target.index)
     }
 }

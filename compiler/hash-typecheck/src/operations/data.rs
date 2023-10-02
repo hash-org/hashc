@@ -14,7 +14,7 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    options::normalisation::NormaliseResult,
+    options::normalisation::{already_normalised, normalise_nested, NormaliseResult},
     tc::Tc,
     traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
 };
@@ -144,7 +144,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         _item: CtorTerm,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<TermId>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
@@ -189,7 +189,7 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
         _item: DataTy,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<TyId>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
@@ -251,11 +251,12 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
     }
 
     fn try_normalise_node(&self, _item: DataDefId) -> NormaliseResult<ControlFlow<DataDefId>> {
-        todo!()
+        already_normalised()
     }
 
-    fn unify_nodes(&self, _src: DataDefId, _target: DataDefId) -> TcResult<()> {
-        todo!()
+    fn unify_nodes(&self, src: DataDefId, _: DataDefId) -> TcResult<()> {
+        // @@Todo: implement unification of definitions
+        Err(TcError::Blocked(src.origin()))
     }
 }
 
@@ -275,11 +276,12 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
     }
 
     fn try_normalise_node(&self, _item: CtorDefId) -> NormaliseResult<ControlFlow<CtorDefId>> {
-        todo!()
+        already_normalised()
     }
 
-    fn unify_nodes(&self, _src: CtorDefId, _target: CtorDefId) -> TcResult<()> {
-        todo!()
+    fn unify_nodes(&self, src: CtorDefId, _target: CtorDefId) -> TcResult<()> {
+        // @@Todo: implement unification of definitions
+        Err(TcError::Blocked(src.origin()))
     }
 }
 
@@ -416,16 +418,17 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         _item: CtorPat,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
         &self,
         _src: &mut CtorPat,
         _target: &mut CtorPat,
-        _src_node: Self::Node,
+        src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        // @@Todo
+        Err(TcError::Blocked(src_node.origin()))
     }
 }

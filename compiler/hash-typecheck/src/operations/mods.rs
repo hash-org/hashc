@@ -9,7 +9,8 @@ use hash_tir::{
 
 use crate::{
     env::TcEnv,
-    options::normalisation::NormaliseResult,
+    errors::TcError,
+    options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
     traits::{Operations, OperationsOnNode},
     utils::dumping::potentially_dump_tir,
@@ -33,11 +34,12 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
     }
 
     fn try_normalise_node(&self, _item: ModDefId) -> NormaliseResult<ControlFlow<ModDefId>> {
-        todo!()
+        already_normalised()
     }
 
-    fn unify_nodes(&self, _src: ModDefId, _target: ModDefId) -> crate::errors::TcResult<()> {
-        todo!()
+    fn unify_nodes(&self, src: ModDefId, _target: ModDefId) -> crate::errors::TcResult<()> {
+        // @@Todo: unification of definitions
+        Err(TcError::Blocked(src.origin()))
     }
 }
 
@@ -79,10 +81,11 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
     }
 
     fn try_normalise_node(&self, _item: ModMemberId) -> NormaliseResult<ControlFlow<ModMemberId>> {
-        todo!()
+        already_normalised()
     }
 
-    fn unify_nodes(&self, _src: ModMemberId, _target: ModMemberId) -> crate::errors::TcResult<()> {
-        todo!()
+    fn unify_nodes(&self, src: ModMemberId, _target: ModMemberId) -> crate::errors::TcResult<()> {
+        // @@Todo: unification of definitions
+        Err(TcError::Blocked(src.origin()))
     }
 }

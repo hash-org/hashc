@@ -9,7 +9,7 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    options::normalisation::NormaliseResult,
+    options::normalisation::{already_normalised, NormaliseResult},
     tc::Tc,
     traits::{OperationsOnNode, RecursiveOperationsOnNode},
 };
@@ -49,7 +49,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
     }
 
     fn try_normalise_node_rec(&self, _item: ParamsId) -> NormaliseResult<ControlFlow<ParamsId>> {
-        todo!()
+        already_normalised()
     }
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(

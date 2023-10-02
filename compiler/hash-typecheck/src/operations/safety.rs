@@ -36,11 +36,11 @@ impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut UnsafeTerm,
-        _target: &mut UnsafeTerm,
+        src: &mut UnsafeTerm,
+        target: &mut UnsafeTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.unify_nodes(src.inner, target.inner)
     }
 }

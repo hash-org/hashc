@@ -12,8 +12,12 @@ use hash_tir::{
 };
 
 use crate::{
-    env::TcEnv, errors::TcResult, options::normalisation::NormaliseResult, tc::Tc,
-    traits::OperationsOnNode, utils::matching::MatchResult,
+    env::TcEnv,
+    errors::TcResult,
+    options::normalisation::{already_normalised, NormaliseResult},
+    tc::Tc,
+    traits::OperationsOnNode,
+    utils::matching::MatchResult,
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -171,7 +175,7 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
     }
 
     fn try_normalise_node(&self, _item: LitId) -> NormaliseResult<ControlFlow<LitId>> {
-        todo!()
+        already_normalised()
     }
 
     fn unify_nodes(&self, src: LitId, target: LitId) -> TcResult<()> {

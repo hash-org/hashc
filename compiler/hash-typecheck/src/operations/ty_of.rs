@@ -47,11 +47,11 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut TyOfTerm,
-        _target: &mut TyOfTerm,
+        src: &mut TyOfTerm,
+        target: &mut TyOfTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.unify_nodes(src.term, target.term)
     }
 }

@@ -114,16 +114,20 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
         _item: BindingPat,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        todo!()
+        already_normalised()
     }
 
     fn unify(
         &self,
-        _src: &mut BindingPat,
-        _target: &mut BindingPat,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src: &mut BindingPat,
+        target: &mut BindingPat,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        self.unification_ok_or_mismatching_atoms(
+            src.name == target.name && src.is_mutable == target.is_mutable,
+            src_node,
+            target_node,
+        )
     }
 }

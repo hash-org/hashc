@@ -6,7 +6,9 @@ use hash_tir::tir::{DerefTerm, NodeId, NodeOrigin, RefTerm, RefTy, Term, TermId,
 use crate::{
     env::TcEnv,
     errors::TcError,
-    options::normalisation::{normalised_if, normalised_to, NormalisationState, NormaliseResult},
+    options::normalisation::{
+        normalise_nested, normalised_if, normalised_to, NormalisationState, NormaliseResult,
+    },
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -57,7 +59,7 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
         _item: RefTerm,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
@@ -120,12 +122,12 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut DerefTerm,
-        _target: &mut DerefTerm,
+        src: &mut DerefTerm,
+        target: &mut DerefTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        self.unify_nodes(src.subject, target.subject)
     }
 }
 
@@ -145,12 +147,8 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(
-        &self,
-        _item: RefTy,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        todo!()
+    fn try_normalise(&self, _: RefTy, _: Self::Node) -> NormaliseResult<ControlFlow<Self::Node>> {
+        normalise_nested()
     }
 
     fn unify(

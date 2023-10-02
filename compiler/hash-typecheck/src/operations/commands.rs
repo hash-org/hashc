@@ -53,12 +53,12 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut ReturnTerm,
-        _target: &mut ReturnTerm,
+        src: &mut ReturnTerm,
+        target: &mut ReturnTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        self.unify_nodes(src.expression, target.expression)
     }
 }
 
@@ -89,12 +89,16 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut LoopControlTerm,
-        _target: &mut LoopControlTerm,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src: &mut LoopControlTerm,
+        target: &mut LoopControlTerm,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        match (src, target) {
+            (LoopControlTerm::Break, LoopControlTerm::Break) => Ok(()),
+            (LoopControlTerm::Continue, LoopControlTerm::Continue) => Ok(()),
+            _ => self.mismatching_atoms(src_node, target_node),
+        }
     }
 }
 
@@ -133,12 +137,12 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut LoopTerm,
-        _target: &mut LoopTerm,
+        src: &mut LoopTerm,
+        target: &mut LoopTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        self.unify_nodes(src.inner, target.inner)
     }
 }
 
@@ -197,11 +201,12 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut AssignTerm,
-        _target: &mut AssignTerm,
+        src: &mut AssignTerm,
+        target: &mut AssignTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        self.unify_nodes(src.subject, target.subject)?;
+        self.unify_nodes(src.value, target.value)
     }
 }

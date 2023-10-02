@@ -5,7 +5,12 @@ use hash_tir::{
     tir::{NodeOrigin, Term, TermId, TyId},
 };
 
-use crate::{env::TcEnv, options::normalisation::NormaliseResult, tc::Tc, traits::Operations};
+use crate::{
+    env::TcEnv,
+    options::normalisation::{already_normalised, NormaliseResult},
+    tc::Tc,
+    traits::Operations,
+};
 
 impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
     type TyNode = TyId;
@@ -27,16 +32,16 @@ impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
         _item: Intrinsic,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        todo!()
+        already_normalised()
     }
 
     fn unify(
         &self,
-        _src: &mut Intrinsic,
-        _target: &mut Intrinsic,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src: &mut Intrinsic,
+        target: &mut Intrinsic,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        self.unification_ok_or_mismatching_atoms(*src == *target, src_node, target_node)
     }
 }

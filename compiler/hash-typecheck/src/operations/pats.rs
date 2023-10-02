@@ -14,7 +14,7 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     errors::TcResult,
-    options::normalisation::NormaliseResult,
+    options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -65,12 +65,13 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise_node(&self, _item: PatId) -> NormaliseResult<ControlFlow<PatId>> {
-        todo!()
+    fn try_normalise_node(&self, _: PatId) -> NormaliseResult<ControlFlow<PatId>> {
+        normalise_nested()
     }
 
-    fn unify_nodes(&self, _src: PatId, _target: PatId) -> crate::errors::TcResult<()> {
-        todo!()
+    fn unify_nodes(&self, src: PatId, target: PatId) -> crate::errors::TcResult<()> {
+        // @@Todo: unification of patterns
+        self.mismatching_atoms(src, target)
     }
 }
 
@@ -102,17 +103,18 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
         _item: IfPat,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
         &self,
-        _src: &mut IfPat,
-        _target: &mut IfPat,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src: &mut IfPat,
+        target: &mut IfPat,
+        _: Self::Node,
+        _: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        self.unify_nodes(src.pat, target.pat)?;
+        self.unify_nodes(src.condition, target.condition)
     }
 }
 
@@ -135,16 +137,17 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
         _item: OrPat,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
         &self,
         _src: &mut OrPat,
         _target: &mut OrPat,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        // @@Todo: unification of patterns
+        self.mismatching_atoms(src_node, target_node)
     }
 }

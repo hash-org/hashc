@@ -5,7 +5,7 @@ use hash_tir::{
     context::{HasContext, ScopeKind},
     intrinsics::definitions::never_ty,
     scopes::{BlockStatement, BlockTerm},
-    tir::{NodeOrigin, TermId, Ty, TyId},
+    tir::{NodeId, NodeOrigin, TermId, Ty, TyId},
 };
 use hash_utils::log::info;
 
@@ -154,9 +154,10 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
         &self,
         _src: &mut BlockTerm,
         _target: &mut BlockTerm,
-        _src_node: Self::Node,
+        src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        // @@Todo
+        Err(TcError::Blocked(src_node.origin()))
     }
 }

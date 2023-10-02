@@ -5,7 +5,7 @@ use hash_tir::tir::{PatId, RangePat, TyId};
 
 use crate::{
     env::TcEnv,
-    options::normalisation::NormaliseResult,
+    options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
     utils::matching::MatchResult,
@@ -66,16 +66,17 @@ impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
         _item: RangePat,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
         &self,
-        _src: &mut RangePat,
-        _target: &mut RangePat,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        _: &mut RangePat,
+        _: &mut RangePat,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        // @@Todo: unification of range patterns
+        self.mismatching_atoms(src_node, target_node)
     }
 }

@@ -19,99 +19,13 @@ use itertools::Itertools;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    options::normalisation::{normalised_if, NormalisationState, NormaliseResult, NormaliseSignal},
+    options::normalisation::{
+        already_normalised, normalised_if, NormalisationState, NormaliseResult, NormaliseSignal,
+    },
     tc::Tc,
     traits::{OperationsOnNode, RecursiveOperationsOnNode},
     utils::matching::MatchResult,
 };
-
-impl<E: TcEnv> Tc<'_, E> {
-    /// Infer and check the given arguments (specialised
-    /// for args and pat args below).
-    ///
-    /// Assumes that they are validated against one another
-    pub fn check_some_args<U, Arg: Clone>(
-        &self,
-        args: impl Iterator<Item = Arg>,
-        annotation_params: ParamsId,
-        infer_arg: impl Fn(&Arg, TyId) -> TcResult<()>,
-        get_arg_value: impl Fn(&Arg) -> Option<TermId>,
-        in_arg_scope: impl FnOnce() -> TcResult<U>,
-    ) -> TcResult<U> {
-        let (result, shadowed_sub) =
-            self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
-                for (arg, param_id) in args.zip(annotation_params.iter()) {
-                    let param = param_id.value();
-                    let param_ty = self.visitor().copy(param.ty);
-                    infer_arg(&arg, param_ty)?;
-                    self.substituter().apply_sub_from_context(param_ty);
-                    if let Some(value) = get_arg_value(&arg) {
-                        self.context().add_assignment(param.name, param_ty, value);
-                    }
-                }
-                let result = in_arg_scope()?;
-
-                // Only keep the substitutions that do not refer to the parameters
-                let scope_sub = self.substituter().create_sub_from_current_scope();
-                let shadowed_sub =
-                    self.substituter().hide_param_binds(annotation_params.iter(), &scope_sub);
-                Ok((result, shadowed_sub))
-            })?;
-
-        // Add the shadowed substitutions to the ambient scope
-        self.add_unification_from_sub(&shadowed_sub);
-        Ok(result)
-    }
-
-    /// From the given arguments matching with the given parameters, extract the
-    /// arguments that are part of the given spread.
-    fn extract_spread_args(&self, term_args: ArgsId, pat_args: PatArgsId) -> ArgsId {
-        // Create a new tuple term with the spread elements
-        let spread_term_args = pat_args
-            .elements()
-            .borrow()
-            .iter()
-            .enumerate()
-            .filter_map(|(i, p)| match p.pat {
-                PatOrCapture::Pat(_) => None,
-                PatOrCapture::Capture(_) => {
-                    let arg = term_args.at(i).unwrap().value();
-                    Some(Node::at(Arg { target: arg.target, value: arg.value }, arg.origin))
-                }
-            })
-            .collect_vec();
-
-        Node::create_at(Node::<Arg>::seq(spread_term_args), term_args.origin().computed())
-    }
-
-    /// Match the given arguments with the given pattern arguments.
-    ///
-    /// Also takes into account the spread.
-    ///
-    /// If the pattern arguments match, the given closure is called with the
-    /// bindings.
-    pub fn match_args_and_get_binds(
-        &self,
-        term_args: ArgsId,
-        pat_args: PatArgsId,
-        spread: Option<Spread>,
-        f: &mut impl FnMut(SymbolId, TermId),
-    ) -> Result<MatchResult, NormaliseSignal> {
-        self.match_some_sequence_and_get_binds(
-            term_args.len(),
-            spread,
-            |sp| {
-                Term::from(
-                    TupleTerm { data: self.extract_spread_args(term_args, pat_args) },
-                    sp.name.origin().computed(),
-                )
-            },
-            |i| pat_args.at(i).unwrap().borrow().pat,
-            |i| term_args.at(i).unwrap().borrow().value,
-            f,
-        )
-    }
-}
 
 impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
     type TyNode = ParamsId;
@@ -251,15 +165,104 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
         &self,
         _item: (PatArgsId, Option<Spread>),
     ) -> NormaliseResult<ControlFlow<(PatArgsId, Option<Spread>)>> {
-        todo!()
+        already_normalised()
     }
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
-        _src: (PatArgsId, Option<Spread>),
-        _target: (PatArgsId, Option<Spread>),
+        (pat_args_id, _): (PatArgsId, Option<Spread>),
+        _: (PatArgsId, Option<Spread>),
         _f: F,
     ) -> TcResult<T> {
-        todo!()
+        // @@Todo
+        Err(TcError::Blocked(pat_args_id.origin()))
+    }
+}
+
+impl<E: TcEnv> Tc<'_, E> {
+    /// Infer and check the given arguments (specialised
+    /// for args and pat args below).
+    ///
+    /// Assumes that they are validated against one another
+    pub fn check_some_args<U, Arg: Clone>(
+        &self,
+        args: impl Iterator<Item = Arg>,
+        annotation_params: ParamsId,
+        infer_arg: impl Fn(&Arg, TyId) -> TcResult<()>,
+        get_arg_value: impl Fn(&Arg) -> Option<TermId>,
+        in_arg_scope: impl FnOnce() -> TcResult<U>,
+    ) -> TcResult<U> {
+        let (result, shadowed_sub) =
+            self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
+                for (arg, param_id) in args.zip(annotation_params.iter()) {
+                    let param = param_id.value();
+                    let param_ty = self.visitor().copy(param.ty);
+                    infer_arg(&arg, param_ty)?;
+                    self.substituter().apply_sub_from_context(param_ty);
+                    if let Some(value) = get_arg_value(&arg) {
+                        self.context().add_assignment(param.name, param_ty, value);
+                    }
+                }
+                let result = in_arg_scope()?;
+
+                // Only keep the substitutions that do not refer to the parameters
+                let scope_sub = self.substituter().create_sub_from_current_scope();
+                let shadowed_sub =
+                    self.substituter().hide_param_binds(annotation_params.iter(), &scope_sub);
+                Ok((result, shadowed_sub))
+            })?;
+
+        // Add the shadowed substitutions to the ambient scope
+        self.add_unification_from_sub(&shadowed_sub);
+        Ok(result)
+    }
+
+    /// From the given arguments matching with the given parameters, extract the
+    /// arguments that are part of the given spread.
+    fn extract_spread_args(&self, term_args: ArgsId, pat_args: PatArgsId) -> ArgsId {
+        // Create a new tuple term with the spread elements
+        let spread_term_args = pat_args
+            .elements()
+            .borrow()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| match p.pat {
+                PatOrCapture::Pat(_) => None,
+                PatOrCapture::Capture(_) => {
+                    let arg = term_args.at(i).unwrap().value();
+                    Some(Node::at(Arg { target: arg.target, value: arg.value }, arg.origin))
+                }
+            })
+            .collect_vec();
+
+        Node::create_at(Node::<Arg>::seq(spread_term_args), term_args.origin().computed())
+    }
+
+    /// Match the given arguments with the given pattern arguments.
+    ///
+    /// Also takes into account the spread.
+    ///
+    /// If the pattern arguments match, the given closure is called with the
+    /// bindings.
+    pub fn match_args_and_get_binds(
+        &self,
+        term_args: ArgsId,
+        pat_args: PatArgsId,
+        spread: Option<Spread>,
+        f: &mut impl FnMut(SymbolId, TermId),
+    ) -> Result<MatchResult, NormaliseSignal> {
+        self.match_some_sequence_and_get_binds(
+            term_args.len(),
+            spread,
+            |sp| {
+                Term::from(
+                    TupleTerm { data: self.extract_spread_args(term_args, pat_args) },
+                    sp.name.origin().computed(),
+                )
+            },
+            |i| pat_args.at(i).unwrap().borrow().pat,
+            |i| term_args.at(i).unwrap().borrow().value,
+            f,
+        )
     }
 }

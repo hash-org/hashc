@@ -35,11 +35,12 @@ impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut CastTerm,
-        _target: &mut CastTerm,
+        src: &mut CastTerm,
+        target: &mut CastTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        self.unify_nodes(src.subject_term, target.subject_term)?;
+        self.unify_nodes(src.target_ty, target.target_ty)
     }
 }

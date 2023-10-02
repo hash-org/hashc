@@ -10,7 +10,7 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    options::normalisation::NormaliseResult,
+    options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
     traits::{Operations, RecursiveOperationsOnNode},
 };
@@ -66,7 +66,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
         _item: TupleTerm,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<TermId>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
@@ -100,7 +100,7 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
         _item: TupleTy,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<TyId>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
@@ -159,16 +159,17 @@ impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
         _item: TuplePat,
         _item_node: Self::Node,
     ) -> NormaliseResult<ControlFlow<PatId>> {
-        todo!()
+        normalise_nested()
     }
 
     fn unify(
         &self,
         _src: &mut TuplePat,
         _target: &mut TuplePat,
-        _src_node: Self::Node,
-        _target_node: Self::Node,
+        src_node: Self::Node,
+        target_node: Self::Node,
     ) -> TcResult<()> {
-        todo!()
+        // @@Todo: unification of tuple patterns
+        self.mismatching_atoms(src_node, target_node)
     }
 }

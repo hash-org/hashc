@@ -4,14 +4,14 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::HasContext,
     intrinsics::definitions::never_ty,
-    tir::{MatchTerm, NodeOrigin, NodesId, Term, TermId, Ty, TyId},
+    tir::{MatchTerm, NodeId, NodeOrigin, NodesId, Term, TermId, Ty, TyId},
     visitor::Map,
 };
 use itertools::Itertools;
 
 use crate::{
     env::TcEnv,
-    errors::TcResult,
+    errors::{TcError, TcResult},
     options::normalisation::{
         normalised_to, stuck_normalising, NormalisationState, NormaliseResult, NormaliseSignal,
     },
@@ -162,9 +162,10 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
         &self,
         _src: &mut MatchTerm,
         _target: &mut MatchTerm,
-        _src_node: Self::Node,
+        src_node: Self::Node,
         _target_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
-        todo!()
+        // @@Todo
+        Err(TcError::Blocked(src_node.origin()))
     }
 }
