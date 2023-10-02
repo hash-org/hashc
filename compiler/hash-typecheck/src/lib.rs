@@ -9,13 +9,9 @@
 )]
 
 pub mod env;
-pub mod tc;
-
 pub mod errors;
 pub mod operations;
 pub mod options;
-
-pub mod old;
+pub mod tc;
 pub mod traits;
 pub mod utils;
-pub use old::*;
