@@ -1,9 +1,11 @@
+use std::ops::ControlFlow;
+
 use hash_tir::{
     intrinsics::{definitions::Intrinsic, make::IsIntrinsic},
     tir::{NodeOrigin, Term, TermId, TyId},
 };
 
-use crate::{env::TcEnv, tc::Tc, traits::Operations};
+use crate::{env::TcEnv, options::normalisation::NormaliseResult, tc::Tc, traits::Operations};
 
 impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
     type TyNode = TyId;
@@ -24,7 +26,7 @@ impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
         &self,
         _item: Intrinsic,
         _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         todo!()
     }
 

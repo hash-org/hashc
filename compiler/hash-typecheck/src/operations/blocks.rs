@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{HasContext, ScopeKind},
@@ -10,10 +12,10 @@ use hash_utils::log::info;
 use crate::{
     env::TcEnv,
     errors::{TcError, TcResult},
-    normalisation::MatchResult,
     options::normalisation::{normalised_to, NormalisationState, NormaliseResult},
     tc::{FnInferMode, Tc},
     traits::{Operations, OperationsOnNode},
+    utils::matching::MatchResult,
 };
 
 impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
@@ -102,7 +104,11 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
         })
     }
 
-    fn try_normalise(&self, block_term: BlockTerm, _: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(
+        &self,
+        block_term: BlockTerm,
+        _: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TermId>> {
         self.context().enter_scope(ScopeKind::Stack(block_term.stack_id), || {
             let st = NormalisationState::new();
 

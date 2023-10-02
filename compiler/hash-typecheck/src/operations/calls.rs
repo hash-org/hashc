@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
@@ -93,12 +95,12 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
         &self,
         mut fn_call: CallTerm,
         item_node: Self::Node,
-    ) -> NormaliseResult<TermId> {
+    ) -> NormaliseResult<ControlFlow<TermId>> {
         let st = NormalisationState::new();
 
         fn_call.subject = self.normalise_node_and_record(fn_call.subject, &st)?;
         fn_call.args =
-            st.update_from_result(fn_call.args, self.try_normalise_node_rec(fn_call.args))?;
+            st.update_from_result(fn_call.args, self.potentially_normalise_node(fn_call.args))?;
 
         let subject = *fn_call.subject.value();
 

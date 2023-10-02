@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_reporting::diagnostic::ErrorState;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
@@ -7,6 +9,7 @@ use hash_tir::{
 
 use crate::{
     env::TcEnv,
+    options::normalisation::NormaliseResult,
     tc::{FnInferMode, Tc},
     traits::{Operations, OperationsOnNode},
     utils::dumping::potentially_dump_tir,
@@ -29,10 +32,7 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
         })
     }
 
-    fn try_normalise_node(
-        &self,
-        _item: ModDefId,
-    ) -> crate::options::normalisation::NormaliseResult<ModDefId> {
+    fn try_normalise_node(&self, _item: ModDefId) -> NormaliseResult<ControlFlow<ModDefId>> {
         todo!()
     }
 
@@ -78,10 +78,7 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
         }
     }
 
-    fn try_normalise_node(
-        &self,
-        _item: ModMemberId,
-    ) -> crate::options::normalisation::NormaliseResult<ModMemberId> {
+    fn try_normalise_node(&self, _item: ModMemberId) -> NormaliseResult<ControlFlow<ModMemberId>> {
         todo!()
     }
 

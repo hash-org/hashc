@@ -1,9 +1,11 @@
+use std::ops::ControlFlow;
+
 use hash_tir::tir::{NodeOrigin, TermId, Ty, TyId, UniverseTy};
 
 use crate::{
     env::TcEnv,
     errors::TcResult,
-    options::normalisation::already_normalised,
+    options::normalisation::{already_normalised, NormaliseResult},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -23,11 +25,7 @@ impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
         self.check_is_universe(item_ty)
     }
 
-    fn try_normalise(
-        &self,
-        _: UniverseTy,
-        _: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<TermId> {
+    fn try_normalise(&self, _: UniverseTy, _: Self::Node) -> NormaliseResult<ControlFlow<TermId>> {
         already_normalised()
     }
 

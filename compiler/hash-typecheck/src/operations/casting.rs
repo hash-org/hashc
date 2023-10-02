@@ -1,8 +1,10 @@
+use std::ops::ControlFlow;
+
 use hash_tir::tir::{CastTerm, TermId, TyId};
 
 use crate::{
     env::TcEnv,
-    options::normalisation::normalised_option,
+    options::normalisation::{normalised_option, NormaliseResult},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -26,7 +28,7 @@ impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
         &self,
         cast_term: CastTerm,
         _: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         // @@Todo: will not play well with typeof?;
         normalised_option(self.potentially_normalise_node_no_signals(cast_term.subject_term)?)
     }

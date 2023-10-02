@@ -9,11 +9,12 @@ use hash_tir::{
     context::{HasContext, ScopeKind},
     tir::{
         validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
-        Arg, ArgsId, Node, NodeId, ParamsId, Pat, PatArgsId, PatOrCapture, Spread, SymbolId,
-        TermId, TyId,
+        Arg, ArgsId, Node, NodeId, NodesId, ParamsId, Pat, PatArgsId, PatOrCapture, Spread,
+        SymbolId, Term, TermId, TupleTerm, TyId,
     },
     visitor::{Atom, Map, Visit},
 };
+use itertools::Itertools;
 
 use crate::{
     env::TcEnv,
@@ -21,6 +22,7 @@ use crate::{
     options::normalisation::{normalised_if, NormalisationState, NormaliseResult, NormaliseSignal},
     tc::Tc,
     traits::{OperationsOnNode, RecursiveOperationsOnNode},
+    utils::matching::MatchResult,
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -60,6 +62,55 @@ impl<E: TcEnv> Tc<'_, E> {
         self.add_unification_from_sub(&shadowed_sub);
         Ok(result)
     }
+
+    /// From the given arguments matching with the given parameters, extract the
+    /// arguments that are part of the given spread.
+    fn extract_spread_args(&self, term_args: ArgsId, pat_args: PatArgsId) -> ArgsId {
+        // Create a new tuple term with the spread elements
+        let spread_term_args = pat_args
+            .elements()
+            .borrow()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| match p.pat {
+                PatOrCapture::Pat(_) => None,
+                PatOrCapture::Capture(_) => {
+                    let arg = term_args.at(i).unwrap().value();
+                    Some(Node::at(Arg { target: arg.target, value: arg.value }, arg.origin))
+                }
+            })
+            .collect_vec();
+
+        Node::create_at(Node::<Arg>::seq(spread_term_args), term_args.origin().computed())
+    }
+
+    /// Match the given arguments with the given pattern arguments.
+    ///
+    /// Also takes into account the spread.
+    ///
+    /// If the pattern arguments match, the given closure is called with the
+    /// bindings.
+    pub fn match_args_and_get_binds(
+        &self,
+        term_args: ArgsId,
+        pat_args: PatArgsId,
+        spread: Option<Spread>,
+        f: &mut impl FnMut(SymbolId, TermId),
+    ) -> Result<MatchResult, NormaliseSignal> {
+        self.match_some_sequence_and_get_binds(
+            term_args.len(),
+            spread,
+            |sp| {
+                Term::from(
+                    TupleTerm { data: self.extract_spread_args(term_args, pat_args) },
+                    sp.name.origin().computed(),
+                )
+            },
+            |i| pat_args.at(i).unwrap().borrow().pat,
+            |i| term_args.at(i).unwrap().borrow().value,
+            f,
+        )
+    }
 }
 
 impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
@@ -93,7 +144,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
         Ok(result)
     }
 
-    fn try_normalise_node_rec(&self, args_id: ArgsId) -> NormaliseResult<ArgsId> {
+    fn try_normalise_node_rec(&self, args_id: ArgsId) -> NormaliseResult<ControlFlow<ArgsId>> {
         let args = args_id.value();
         let st = NormalisationState::new();
 
@@ -199,7 +250,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
     fn try_normalise_node_rec(
         &self,
         _item: (PatArgsId, Option<Spread>),
-    ) -> NormaliseResult<(PatArgsId, Option<Spread>)> {
+    ) -> NormaliseResult<ControlFlow<(PatArgsId, Option<Spread>)>> {
         todo!()
     }
 

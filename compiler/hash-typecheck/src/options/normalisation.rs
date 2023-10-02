@@ -31,9 +31,9 @@ pub fn stuck_normalising<T>() -> NormaliseResult<T> {
 pub fn normalised_if<T, I: Into<T>>(
     atom: impl FnOnce() -> I,
     state: &NormalisationState,
-) -> NormaliseResult<T> {
+) -> NormaliseResult<ControlFlow<T>> {
     if state.has_normalised() {
-        Ok(Some(atom().into()))
+        Ok(Some(ControlFlow::Break(atom().into())))
     } else {
         Ok(None)
     }
@@ -45,12 +45,12 @@ pub fn normalised() -> NormaliseResult<()> {
 }
 
 /// Signals that the normalisation produced the given atom.
-pub fn normalised_to<T>(atom: impl Into<T>) -> NormaliseResult<T> {
-    Ok(Some(atom.into()))
+pub fn normalised_to<T>(atom: impl Into<T>) -> NormaliseResult<ControlFlow<T>> {
+    Ok(Some(ControlFlow::Break(atom.into())))
 }
 
 /// Signals that the normalisation produced the given atom, if it is not `None`.
-pub fn normalised_option<T>(atom: Option<impl Into<T>>) -> NormaliseResult<T> {
+pub fn normalised_option<T>(atom: Option<impl Into<T>>) -> NormaliseResult<ControlFlow<T>> {
     match atom {
         Some(eval) => normalised_to(eval),
         None => already_normalised(),
@@ -68,6 +68,19 @@ pub fn ctrl_map<T>(t: NormaliseResult<T>) -> NormaliseResult<ControlFlow<T>> {
 /// Create a control-flow normalisation result to continue deeper.
 pub fn ctrl_continue<T>() -> NormaliseResult<ControlFlow<T>> {
     Ok(Some(ControlFlow::Continue(())))
+}
+
+/// Lift a `From` implementation into a conversion between normalisation
+/// results.
+pub fn normalisation_result_control_flow_into<T, U: From<T>>(
+    t: NormaliseResult<ControlFlow<T>>,
+) -> NormaliseResult<ControlFlow<U>> {
+    match t {
+        Ok(Some(ControlFlow::Break(t))) => Ok(Some(ControlFlow::Break(t.into()))),
+        Ok(Some(ControlFlow::Continue(()))) => Ok(Some(ControlFlow::Continue(()))),
+        Ok(None) => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 /// Lift a `From` implementation into a conversion between normalisation

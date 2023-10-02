@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     tir::{TermId, Ty, TyId, TyOfTerm},
@@ -28,7 +30,11 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, ty_of_term: TyOfTerm, _: Self::Node) -> NormaliseResult<Self::Node> {
+    fn try_normalise(
+        &self,
+        ty_of_term: TyOfTerm,
+        _: Self::Node,
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         // Infer the type of the term:
         match self.try_get_inferred_ty(ty_of_term.term) {
             Some(ty) => normalised_to(ty),

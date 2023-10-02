@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{HasContext, ScopeKind},
@@ -46,7 +48,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
         Ok(result)
     }
 
-    fn try_normalise_node_rec(&self, _item: ParamsId) -> NormaliseResult<ParamsId> {
+    fn try_normalise_node_rec(&self, _item: ParamsId) -> NormaliseResult<ControlFlow<ParamsId>> {
         todo!()
     }
 

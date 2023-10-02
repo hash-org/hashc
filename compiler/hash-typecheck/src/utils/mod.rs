@@ -3,6 +3,7 @@ pub mod dumping;
 pub mod entry_point;
 pub mod exhaustiveness;
 pub mod intrinsic_abilities;
+pub mod matching;
 pub mod purity;
 pub mod substitution;
 pub mod unification;

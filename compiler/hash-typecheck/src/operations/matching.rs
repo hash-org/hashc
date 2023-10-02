@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::{cell::Cell, ops::ControlFlow};
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
@@ -12,12 +12,12 @@ use itertools::Itertools;
 use crate::{
     env::TcEnv,
     errors::TcResult,
-    normalisation::MatchResult,
     options::normalisation::{
-        normalised_to, stuck_normalising, NormalisationState, NormaliseSignal,
+        normalised_to, stuck_normalising, NormalisationState, NormaliseResult, NormaliseSignal,
     },
     tc::Tc,
     traits::{Operations, OperationsOnNode},
+    utils::matching::MatchResult,
 };
 
 impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
@@ -119,7 +119,7 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
         &self,
         mut match_term: MatchTerm,
         _: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         let st = NormalisationState::new();
         match_term.subject = self.normalise_node_and_record(match_term.subject, &st)?;
 

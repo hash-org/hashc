@@ -1,10 +1,47 @@
+use std::ops::ControlFlow;
+
+use hash_ast::ast::RangeEnd;
 use hash_tir::tir::{PatId, RangePat, TyId};
 
 use crate::{
     env::TcEnv,
+    options::normalisation::NormaliseResult,
     tc::Tc,
     traits::{Operations, OperationsOnNode},
+    utils::matching::MatchResult,
 };
+
+impl<E: TcEnv> Tc<'_, E> {
+    /// Match a literal between two endpoints.
+    pub fn match_literal_to_range<U: PartialOrd>(
+        &self,
+        value: U,
+        maybe_start: Option<U>,
+        maybe_end: Option<U>,
+        range_end: RangeEnd,
+    ) -> MatchResult {
+        // If the start isn't provided, we don't need to check
+        // that the value is larger than the start, as it will
+        // always succeed.
+        if let Some(start) = maybe_start && start < value {
+            return MatchResult::Failed;
+        }
+
+        // If the end isn't provided, we can assume that the subject will
+        // always match.
+        if range_end == RangeEnd::Included {
+            if let Some(end) = maybe_end && end > value {
+                MatchResult::Failed
+            } else {
+                MatchResult::Successful
+            }
+        } else if let Some(end) = maybe_end && end >= value {
+            MatchResult::Failed
+        } else {
+            MatchResult::Successful
+        }
+    }
+}
 
 impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
     type TyNode = TyId;
@@ -28,7 +65,7 @@ impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
         &self,
         _item: RangePat,
         _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         todo!()
     }
 

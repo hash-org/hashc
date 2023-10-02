@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
@@ -92,10 +94,6 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise_node(&self, _item: TermId) -> NormaliseResult<TermId> {
-        todo!()
-    }
-
     fn unify_nodes(&self, src_id: TermId, target_id: TermId) -> TcResult<()> {
         if src_id == target_id {
             return Ok(());
@@ -161,6 +159,40 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             (Term::Fn(mut f1), Term::Fn(mut f2)) => self.unify(&mut f1, &mut f2, src_id, target_id),
             // @@Todo: rest
             _ => self.mismatching_atoms(src_id, target_id),
+        }
+    }
+
+    fn try_normalise_node(&self, term: TermId) -> NormaliseResult<ControlFlow<TermId>> {
+        match *term.value() {
+            Term::TyOf(ty_of_term) => self.try_normalise(ty_of_term, term),
+            Term::Unsafe(unsafe_expr) => self.try_normalise(unsafe_expr, term),
+            Term::Match(match_term) => self.try_normalise(match_term, term),
+            Term::Call(fn_call) => self.try_normalise(fn_call, term),
+            Term::Cast(cast_term) => self.try_normalise(cast_term, term),
+            Term::Hole(h) => self.try_normalise(h, term),
+            Term::Var(v) => self.try_normalise(v, term),
+            Term::Deref(deref_term) => self.try_normalise(deref_term, term),
+            Term::Access(access_term) => self.try_normalise(access_term, term),
+            Term::Index(index_term) => self.try_normalise(index_term, term),
+
+            // Introduction forms:
+            Term::Ref(_)
+            | Term::Intrinsic(_)
+            | Term::Fn(_)
+            | Term::Lit(_)
+            | Term::Array(_)
+            | Term::Tuple(_)
+            | Term::Ctor(_) => Ok(Some(ControlFlow::Continue(()))),
+
+            // Imperative:
+            Term::LoopControl(loop_control) => self.try_normalise(loop_control, term),
+            Term::Assign(assign_term) => self.try_normalise(assign_term, term),
+            Term::Return(return_expr) => self.try_normalise(return_expr, term),
+            Term::Block(block_term) => self.try_normalise(block_term, term),
+            Term::Loop(loop_term) => self.try_normalise(loop_term, term),
+            Ty::FnTy(_) | Ty::TupleTy(_) | Ty::DataTy(_) | Ty::Universe(_) | Ty::RefTy(_) => {
+                Ok(Some(ControlFlow::Continue(())))
+            }
         }
     }
 }

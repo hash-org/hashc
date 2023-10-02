@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_tir::tir::{TermId, TyId, UnsafeTerm};
 
 use crate::{
@@ -23,7 +25,11 @@ impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, unsafe_term: UnsafeTerm, _: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(
+        &self,
+        unsafe_term: UnsafeTerm,
+        _: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TermId>> {
         // @@Todo
         normalised_option(self.potentially_normalise_node_no_signals(unsafe_term.inner)?)
     }

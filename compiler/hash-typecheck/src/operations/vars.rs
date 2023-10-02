@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::HasContext,
@@ -9,7 +11,7 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     errors::TcResult,
-    options::normalisation::{already_normalised, normalised_to},
+    options::normalisation::{already_normalised, normalised_to, NormaliseResult},
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -44,11 +46,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
         }
     }
 
-    fn try_normalise(
-        &self,
-        item: VarTerm,
-        _: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<TermId> {
+    fn try_normalise(&self, item: VarTerm, _: Self::Node) -> NormaliseResult<ControlFlow<TermId>> {
         let var = item.symbol;
         match self.context().try_get_decl_value(var) {
             Some(result) => {
@@ -115,7 +113,7 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
         &self,
         _item: BindingPat,
         _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         todo!()
     }
 

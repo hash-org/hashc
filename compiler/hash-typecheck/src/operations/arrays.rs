@@ -1,15 +1,22 @@
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use std::ops::ControlFlow;
+
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    SequenceStoreKey, TrivialSequenceStoreKey,
+};
 use hash_tir::{
     intrinsics::{
         definitions::{array_ty, list_def, list_ty, usize_ty},
-        utils::create_term_from_usize_lit,
+        utils::{create_term_from_usize_lit, try_use_term_as_integer_lit},
     },
     tir::{
-        ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, NodeId, NodeOrigin, PatId, PrimitiveCtorInfo,
-        Term, TermId, Ty, TyId,
+        ArgsId, ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, Node, NodeId, NodeOrigin, NodesId,
+        ParamIndex, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, Term, TermId, TermListId,
+        Ty, TyId,
     },
     visitor::Map,
 };
+use itertools::Itertools;
 
 use crate::{
     env::TcEnv,
@@ -22,6 +29,74 @@ use crate::{
 };
 
 impl<E: TcEnv> Tc<'_, E> {
+    /// Get the parameter at the given index in the given argument list.
+    pub fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> TermId {
+        for arg_i in args.iter() {
+            let arg = arg_i.value();
+            if arg.target == target || ParamIndex::Position(arg_i.1) == target {
+                return arg.value;
+            }
+        }
+        panic!("Out of bounds index for access: {}", target)
+    }
+
+    /// Set the parameter at the given index in the given argument list.
+    pub fn set_param_in_args(&self, args: ArgsId, target: ParamIndex, value: TermId) {
+        for arg_i in args.iter() {
+            let arg = arg_i.value();
+            if arg.target == target || ParamIndex::Position(arg_i.1) == target {
+                arg_i.borrow_mut().value = value;
+                return;
+            }
+        }
+        panic!("Out of bounds index for access: {}", target)
+    }
+
+    /// Get the term at the given index in the given term list.
+    ///
+    /// Assumes that the index is normalised.
+    pub fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<TermId> {
+        try_use_term_as_integer_lit::<_, usize>(self, index)
+            .map(|idx| elements.elements().at(idx).unwrap())
+    }
+
+    /// Get the term at the given index in the given repeated array. If the
+    /// index term is larger than the `repeat` count, we fail, otherwise
+    /// return the `subject`.
+    ///
+    /// Assumes that the index is normalised.
+    fn get_index_in_repeat(
+        &self,
+        subject: TermId,
+        repeat: TermId,
+        index: TermId,
+    ) -> Option<TermId> {
+        let subject = try_use_term_as_integer_lit::<_, usize>(self, subject)?;
+        let index = try_use_term_as_integer_lit::<_, usize>(self, index)?;
+
+        if index >= subject {
+            None
+        } else {
+            Some(repeat)
+        }
+    }
+
+    /// From the given arguments matching with the given parameters, extract the
+    /// arguments that are part of the given spread.
+    pub fn extract_spread_list(&self, array_term: ArrayTerm, array_pat: PatListId) -> TermListId {
+        // Create a new list term with the spread elements
+        let spread_term_list = array_pat
+            .borrow()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| match p {
+                PatOrCapture::Pat(_) => None,
+                PatOrCapture::Capture(_) => Some(array_term.element_at(i).unwrap()),
+            })
+            .collect_vec();
+        Node::create_at(TermId::seq(spread_term_list), array_term.length_origin().computed())
+    }
+
     fn use_ty_as_array_ty(&self, annotation_ty: TyId) -> TcResult<Option<(TyId, Option<TermId>)>> {
         let mismatch = || {
             Err(TcError::MismatchingTypes {
@@ -57,6 +132,19 @@ impl<E: TcEnv> Tc<'_, E> {
             }
             Ty::Hole(_) => Ok(None),
             _ => mismatch(),
+        }
+    }
+
+    pub fn normalise_array_term_len(&self, array: ArrayTerm) -> NormaliseResult<usize> {
+        match array {
+            ArrayTerm::Normal(elements) => Ok(Some(elements.len())),
+            ArrayTerm::Repeated(_, repeat) => {
+                let term = self.normalise_node_fully(repeat)?;
+                let Some(length) = try_use_term_as_integer_lit::<_, usize>(self, term) else {
+                    return stuck_normalising();
+                };
+                Ok(Some(length))
+            }
         }
     }
 }
@@ -121,7 +209,11 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, _item: ArrayTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(
+        &self,
+        _item: ArrayTerm,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TermId>> {
         todo!()
     }
 
@@ -172,7 +264,11 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, _item: ArrayPat, _item_node: Self::Node) -> NormaliseResult<PatId> {
+    fn try_normalise(
+        &self,
+        _item: ArrayPat,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<ControlFlow<PatId>> {
         todo!()
     }
 
@@ -239,7 +335,11 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, mut index_term: IndexTerm, _: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(
+        &self,
+        mut index_term: IndexTerm,
+        _: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TermId>> {
         let st = NormalisationState::new();
         index_term.subject = self.normalise_node_and_record(index_term.subject, &st)?;
 

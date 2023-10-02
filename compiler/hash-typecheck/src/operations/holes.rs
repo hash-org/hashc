@@ -1,7 +1,12 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{Hole, TermId, TyId, VarTerm};
 
-use crate::{env::TcEnv, errors::TcResult, tc::Tc, traits::Operations};
+use crate::{
+    env::TcEnv, errors::TcResult, options::normalisation::NormaliseResult, tc::Tc,
+    traits::Operations,
+};
 
 impl<E: TcEnv> Tc<'_, E> {
     /// Unify two holes.
@@ -35,7 +40,7 @@ impl<E: TcEnv> Operations<Hole> for Tc<'_, E> {
         &self,
         hole: Hole,
         item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         self.try_normalise(VarTerm { symbol: hole.0 }, item_node)
     }
 

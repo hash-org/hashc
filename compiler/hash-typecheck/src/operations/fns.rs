@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
@@ -26,7 +28,11 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, _item: FnTy, _item_node: Self::Node) -> NormaliseResult<TyId> {
+    fn try_normalise(
+        &self,
+        _item: FnTy,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TyId>> {
         already_normalised()
     }
 
@@ -144,7 +150,11 @@ impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, _item: FnDefId, _item_node: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(
+        &self,
+        _item: FnDefId,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TermId>> {
         already_normalised()
     }
 

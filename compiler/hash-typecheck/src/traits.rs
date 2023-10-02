@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use crate::{env::HasTcEnv, errors::TcResult, options::normalisation::NormaliseResult};
 
 pub trait Operations<X>: HasTcEnv {
@@ -6,7 +8,11 @@ pub trait Operations<X>: HasTcEnv {
 
     fn check(&self, item: &mut X, item_ty: Self::TyNode, item_node: Self::Node) -> TcResult<()>;
 
-    fn try_normalise(&self, item: X, item_node: Self::Node) -> NormaliseResult<Self::Node>;
+    fn try_normalise(
+        &self,
+        item: X,
+        item_node: Self::Node,
+    ) -> NormaliseResult<ControlFlow<Self::Node>>;
 
     fn unify(
         &self,
@@ -22,7 +28,7 @@ pub trait OperationsOnNode<X: Copy>: HasTcEnv {
 
     fn check_node(&self, item: X, item_ty: Self::TyNode) -> TcResult<()>;
 
-    fn try_normalise_node(&self, item: X) -> NormaliseResult<X>;
+    fn try_normalise_node(&self, item: X) -> NormaliseResult<ControlFlow<X>>;
 
     fn unify_nodes(&self, src: X, target: X) -> TcResult<()>;
 }
@@ -35,7 +41,7 @@ impl<X: Copy, T: HasTcEnv + OperationsOnNode<X>> Operations<X> for T {
         self.check_node(*item, item_ty)
     }
 
-    fn try_normalise(&self, item: X, _: Self::Node) -> NormaliseResult<X> {
+    fn try_normalise(&self, item: X, _: Self::Node) -> NormaliseResult<ControlFlow<X>> {
         self.try_normalise_node(item)
     }
 
@@ -57,7 +63,7 @@ pub trait RecursiveOperations<X>: HasTcEnv {
         f: F,
     ) -> TcResult<T>;
 
-    fn try_normalise(&self, item: X, item_node: Self::Node) -> NormaliseResult<X>;
+    fn try_normalise(&self, item: X, item_node: Self::Node) -> NormaliseResult<ControlFlow<X>>;
 
     fn unify_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
@@ -80,7 +86,7 @@ pub trait RecursiveOperationsOnNode<X: Copy>: HasTcEnv {
         f: F,
     ) -> TcResult<T>;
 
-    fn try_normalise_node_rec(&self, item: X) -> NormaliseResult<X>;
+    fn try_normalise_node_rec(&self, item: X) -> NormaliseResult<ControlFlow<X>>;
 
     fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
         &self,
@@ -105,7 +111,7 @@ impl<X: Copy, U: RecursiveOperationsOnNode<X> + HasTcEnv> RecursiveOperations<X>
         self.check_node_rec(*item, item_ty, f)
     }
 
-    fn try_normalise(&self, item: X, _: Self::Node) -> NormaliseResult<X> {
+    fn try_normalise(&self, item: X, _: Self::Node) -> NormaliseResult<ControlFlow<X>> {
         self.try_normalise_node_rec(item)
     }
 

@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
@@ -12,6 +14,7 @@ use hash_tir::{
 use crate::{
     env::TcEnv,
     errors::TcResult,
+    options::normalisation::NormaliseResult,
     tc::Tc,
     traits::{Operations, OperationsOnNode},
 };
@@ -62,10 +65,7 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise_node(
-        &self,
-        _item: PatId,
-    ) -> crate::options::normalisation::NormaliseResult<PatId> {
+    fn try_normalise_node(&self, _item: PatId) -> NormaliseResult<ControlFlow<PatId>> {
         todo!()
     }
 
@@ -101,7 +101,7 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
         &self,
         _item: IfPat,
         _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         todo!()
     }
 
@@ -134,7 +134,7 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
         &self,
         _item: OrPat,
         _item_node: Self::Node,
-    ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         todo!()
     }
 

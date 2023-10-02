@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_target::primitives::{BigIntTy, FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
@@ -11,7 +13,7 @@ use hash_tir::{
 
 use crate::{
     env::TcEnv, errors::TcResult, options::normalisation::NormaliseResult, tc::Tc,
-    traits::OperationsOnNode,
+    traits::OperationsOnNode, utils::matching::MatchResult,
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -56,6 +58,15 @@ impl<E: TcEnv> Tc<'_, E> {
             _ => {}
         }
         Ok(())
+    }
+
+    /// Match a literal with another.
+    pub fn match_literal_to_literal<U: PartialEq>(&self, value: U, pat: U) -> MatchResult {
+        if value == pat {
+            MatchResult::Successful
+        } else {
+            MatchResult::Failed
+        }
     }
 }
 
@@ -159,7 +170,7 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise_node(&self, _item: LitId) -> NormaliseResult<LitId> {
+    fn try_normalise_node(&self, _item: LitId) -> NormaliseResult<ControlFlow<LitId>> {
         todo!()
     }
 

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::ControlFlow};
 
 use hash_reporting::diagnostic::ErrorState;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
@@ -139,7 +139,11 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, _item: CtorTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(
+        &self,
+        _item: CtorTerm,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TermId>> {
         todo!()
     }
 
@@ -180,7 +184,11 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, _item: DataTy, _item_node: Self::Node) -> NormaliseResult<TyId> {
+    fn try_normalise(
+        &self,
+        _item: DataTy,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TyId>> {
         todo!()
     }
 
@@ -242,7 +250,7 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
         })
     }
 
-    fn try_normalise_node(&self, _item: DataDefId) -> NormaliseResult<DataDefId> {
+    fn try_normalise_node(&self, _item: DataDefId) -> NormaliseResult<ControlFlow<DataDefId>> {
         todo!()
     }
 
@@ -266,7 +274,7 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
         })
     }
 
-    fn try_normalise_node(&self, _item: CtorDefId) -> NormaliseResult<CtorDefId> {
+    fn try_normalise_node(&self, _item: CtorDefId) -> NormaliseResult<ControlFlow<CtorDefId>> {
         todo!()
     }
 
@@ -403,7 +411,11 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(&self, _item: CtorPat, _item_node: Self::Node) -> NormaliseResult<Self::Node> {
+    fn try_normalise(
+        &self,
+        _item: CtorPat,
+        _item_node: Self::Node,
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         todo!()
     }
 

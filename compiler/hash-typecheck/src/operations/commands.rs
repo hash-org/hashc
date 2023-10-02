@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::HasContext,
@@ -40,7 +42,11 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
         }
     }
 
-    fn try_normalise(&self, return_term: ReturnTerm, _: Self::Node) -> NormaliseResult<Self::Node> {
+    fn try_normalise(
+        &self,
+        return_term: ReturnTerm,
+        _: Self::Node,
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         let normalised = self.normalise_node(return_term.expression)?;
         Err(NormaliseSignal::Return(normalised))
     }
@@ -74,7 +80,7 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
         &self,
         loop_control_term: LoopControlTerm,
         _: Self::Node,
-    ) -> NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         match loop_control_term {
             LoopControlTerm::Break => Err(NormaliseSignal::Break),
             LoopControlTerm::Continue => Err(NormaliseSignal::Continue),
@@ -114,7 +120,7 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
         &self,
         loop_term: LoopTerm,
         item_node: Self::Node,
-    ) -> NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         loop {
             match self.normalise_node(loop_term.inner) {
                 Ok(_) | Err(NormaliseSignal::Continue) => continue,
@@ -164,7 +170,7 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
         &self,
         mut assign_term: AssignTerm,
         item_node: Self::Node,
-    ) -> NormaliseResult<Self::Node> {
+    ) -> NormaliseResult<ControlFlow<Self::Node>> {
         assign_term.value = self.normalise_node(assign_term.value)?;
 
         match *assign_term.subject.value() {

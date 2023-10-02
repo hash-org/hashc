@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{AccessTerm, CtorTerm, Term, TermId, TupleTerm, Ty, TyId};
 
@@ -78,7 +80,11 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
         }
     }
 
-    fn try_normalise(&self, mut access_term: AccessTerm, _: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(
+        &self,
+        mut access_term: AccessTerm,
+        _: Self::Node,
+    ) -> NormaliseResult<ControlFlow<TermId>> {
         let st = NormalisationState::new();
         access_term.subject = self.normalise_node_and_record(access_term.subject, &st)?;
 
