@@ -28,13 +28,10 @@ impl<T: TcEnv> HasTarget for IntrinsicAbilitiesImpl<'_, T> {
 
 impl<T: TcEnv> IntrinsicAbilities for IntrinsicAbilitiesImpl<'_, T> {
     fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String> {
-        self.tc
-            .potentially_normalise(term.into())
-            .map(|result| result.map(|r| r.to_term()))
-            .map_err(|e| {
-                self.tc.diagnostics().add_error(e.into());
-                "normalisation error".to_string()
-            })
+        self.tc.potentially_normalise(term).map_err(|e| {
+            self.tc.diagnostics().add_error(e.into());
+            "normalisation error".to_string()
+        })
     }
 
     fn resolve_from_prelude(

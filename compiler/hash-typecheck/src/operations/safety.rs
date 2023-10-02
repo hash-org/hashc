@@ -25,7 +25,7 @@ impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
 
     fn normalise(&self, unsafe_term: UnsafeTerm, _: Self::Node) -> NormaliseResult<TermId> {
         // @@Todo
-        normalised_option(self.potentially_eval(unsafe_term.inner.into())?.map(|x| x.to_term()))
+        normalised_option(self.potentially_normalise(unsafe_term.inner)?)
     }
 
     fn unify(

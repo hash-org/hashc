@@ -103,7 +103,7 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
         let context = Context::new();
         let tc = env.checker(&context);
         tc.normalisation_opts.mode.set(NormalisationMode::Full);
-        let result = tc.normalise_atom(term.into())?;
+        let result = tc.normalise_atom(term)?;
 
         stream_less_writeln!("{}", result);
 
@@ -131,7 +131,7 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
                 let context = Context::new();
                 let tc = env.checker(&context);
                 tc.normalisation_opts.mode.set(NormalisationMode::Full);
-                let _ = tc.normalise_atom(term.into())?;
+                let _ = tc.normalise_atom(term)?;
             }
         }
 

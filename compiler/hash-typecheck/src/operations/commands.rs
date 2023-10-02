@@ -112,7 +112,7 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
 
     fn normalise(&self, loop_term: LoopTerm, item_node: Self::Node) -> NormaliseResult<Self::Node> {
         loop {
-            match self.eval(loop_term.inner.into()) {
+            match self.eval(loop_term.inner) {
                 Ok(_) | Err(NormaliseSignal::Continue) => continue,
                 Err(NormaliseSignal::Break) => break,
                 Err(e) => return Err(e),
@@ -161,11 +161,11 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
         mut assign_term: AssignTerm,
         item_node: Self::Node,
     ) -> NormaliseResult<Self::Node> {
-        assign_term.value = (self.eval(assign_term.value.into())?).to_term();
+        assign_term.value = self.eval(assign_term.value)?;
 
         match *assign_term.subject.value() {
             Term::Access(mut access_term) => {
-                access_term.subject = (self.eval(access_term.subject.into())?).to_term();
+                access_term.subject = self.eval(access_term.subject)?;
                 match *access_term.subject.value() {
                     Term::Tuple(tuple) => self.set_param_in_args(
                         tuple.data,

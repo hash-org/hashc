@@ -28,9 +28,7 @@ impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
         _: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         // @@Todo: will not play well with typeof?;
-        normalised_option(
-            self.potentially_eval(cast_term.subject_term.into())?.map(|x| x.to_term()),
-        )
+        normalised_option(self.potentially_normalise(cast_term.subject_term)?)
     }
 
     fn unify(

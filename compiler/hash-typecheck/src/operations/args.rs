@@ -102,10 +102,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
             .into_iter()
             .map(|arg| -> Result<_, NormaliseSignal> {
                 Ok(Node::at(
-                    Arg {
-                        target: arg.target,
-                        value: (self.eval_nested_and_record(arg.value.into(), &st)?).to_term(),
-                    },
+                    Arg { target: arg.target, value: self.eval_nested_and_record(arg.value, &st)? },
                     arg.origin,
                 ))
             })

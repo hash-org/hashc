@@ -241,7 +241,7 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
 
     fn normalise(&self, mut index_term: IndexTerm, _: Self::Node) -> NormaliseResult<TermId> {
         let st = NormalisationState::new();
-        index_term.subject = (self.eval_and_record(index_term.subject.into(), &st)?).to_term();
+        index_term.subject = self.eval_and_record(index_term.subject, &st)?;
 
         if let Term::Array(array_term) = *index_term.subject.value() {
             let result = match array_term {

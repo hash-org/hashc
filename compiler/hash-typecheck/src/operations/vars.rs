@@ -55,8 +55,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
                 if matches!(*result.value(), Term::Var(v) if v.symbol == var) {
                     already_normalised()
                 } else {
-                    let actual = self.eval(result.into())?;
-                    normalised_to(actual.to_term())
+                    normalised_to(self.eval(result)?)
                 }
             }
             None => already_normalised(),
@@ -102,7 +101,7 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;
         match binds_to {
-            Some(value) if self.atom_has_effects(value.into()) == Some(false) => {
+            Some(value) if self.has_effects(value) == Some(false) => {
                 self.context().add_assignment_to_closest_stack(var.name, annotation_ty, value);
             }
             _ => {

@@ -20,7 +20,7 @@ impl<E: TcEnv> Tc<'_, E> {
 
             if has_run_directive {
                 self.normalisation_opts.mode.enter(NormalisationMode::Full, || -> TcResult<_> {
-                    if self.normalise_in_place(expr.into())? {
+                    if self.normalise_in_place(expr)? {
                         self.check_node(expr, term_ty)?;
                     }
                     Ok(())
@@ -39,7 +39,7 @@ impl<E: TcEnv> Tc<'_, E> {
     ) -> TcResult<()> {
         if self.should_monomorphise() && fn_ty.pure {
             self.normalisation_opts.mode.enter(NormalisationMode::Full, || -> TcResult<_> {
-                if self.normalise_in_place(fn_call.into())? {
+                if self.normalise_in_place(fn_call)? {
                     self.check_node(fn_call, fn_call_result_ty)?;
                 }
                 Ok(())

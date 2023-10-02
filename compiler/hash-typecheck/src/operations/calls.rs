@@ -92,7 +92,7 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
     fn normalise(&self, mut fn_call: CallTerm, item_node: Self::Node) -> NormaliseResult<TermId> {
         let st = NormalisationState::new();
 
-        fn_call.subject = (self.eval_and_record(fn_call.subject.into(), &st)?).to_term();
+        fn_call.subject = self.eval_and_record(fn_call.subject, &st)?;
         fn_call.args =
             st.update_from_result(fn_call.args, self.normalise_node_rec(fn_call.args))?;
 

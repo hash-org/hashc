@@ -105,7 +105,7 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
         item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         let st = NormalisationState::new();
-        deref_term.subject = self.eval_and_record(deref_term.subject.into(), &st)?.to_term();
+        deref_term.subject = self.eval_and_record(deref_term.subject, &st)?;
 
         // Reduce:
         if let Term::Ref(ref_expr) = *deref_term.subject.value() {

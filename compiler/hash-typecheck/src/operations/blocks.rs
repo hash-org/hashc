@@ -109,8 +109,7 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
             for statement in block_term.statements.iter() {
                 match *statement.value() {
                     BlockStatement::Decl(mut decl_term) => {
-                        decl_term.value =
-                            self.eval_nested_and_record(decl_term.value.into(), &st)?.to_term();
+                        decl_term.value = self.eval_nested_and_record(decl_term.value, &st)?;
 
                         match self.match_value_and_get_binds(
                             decl_term.value,
@@ -131,13 +130,13 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                         }
                     }
                     BlockStatement::Expr(expr) => {
-                        let _ = self.eval_and_record(expr.into(), &st)?;
+                        let _ = self.eval_and_record(expr, &st)?;
                     }
                 }
             }
 
             let sub = self.substituter().create_sub_from_current_scope();
-            let result_term = self.eval_and_record(block_term.expr.into(), &st)?.to_term();
+            let result_term = self.eval_and_record(block_term.expr, &st)?;
             let subbed_result_term = self.substituter().apply_sub(result_term, &sub);
 
             normalised_to(subbed_result_term)

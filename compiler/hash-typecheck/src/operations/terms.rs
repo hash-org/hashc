@@ -101,8 +101,8 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             return Ok(());
         }
 
-        self.normalise_in_place(src_id.into())?;
-        self.normalise_in_place(target_id.into())?;
+        self.normalise_in_place(src_id)?;
+        self.normalise_in_place(target_id)?;
 
         let src = src_id.value();
         let target = target_id.value();

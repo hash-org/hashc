@@ -3,21 +3,19 @@ use std::{cell::Cell, ops::ControlFlow};
 
 use hash_ast::ast::RangeEnd;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
+    statics::{SequenceStoreValue, SingleStoreId, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
-    atom_info::ItemInAtomInfo,
     intrinsics::utils::{get_bool_ctor, try_use_term_as_integer_lit},
-    stores::tir_stores,
     tir::{
         Arg, ArgsId, ArrayTerm, Lit, LitPat, Node, NodeId, NodesId, ParamIndex, Pat, PatArgsId,
         PatId, PatListId, PatOrCapture, RangePat, Spread, SymbolId, Term, TermId, TermListId,
         TupleTerm, Ty,
     },
-    visitor::{Atom, Map, Visit, Visitor},
+    visitor::{Atom, Map, Visitor},
 };
-use hash_utils::{itertools::Itertools, log::info};
+use hash_utils::itertools::Itertools;
 
 use crate::{
     env::TcEnv,
@@ -49,18 +47,13 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// Normalise the given atom, in-place.
     ///
     /// returns `true` if the atom was normalised.
-    pub fn normalise_in_place(&self, atom: Atom) -> TcResult<bool> {
+    pub fn normalise_in_place<N>(&self, atom: N) -> TcResult<bool>
+    where
+        Visitor: Map<N>,
+        N: SingleStoreId,
+    {
         if let Some(result) = self.potentially_normalise(atom)? {
-            match atom {
-                Atom::Term(term_id) => {
-                    term_id.set(result.to_term().value());
-                }
-                Atom::Pat(pat_id) => {
-                    pat_id.set(result.to_pat().value());
-                }
-                // Fn defs and literals are already normalised
-                Atom::FnDef(_) | Atom::Lit(_) => return Ok(false),
-            }
+            atom.set(result.value());
             Ok(true)
         } else {
             Ok(false)
@@ -68,7 +61,10 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     }
 
     /// Normalise the given atom.
-    pub fn potentially_normalise(&self, atom: Atom) -> TcResult<Option<Atom>> {
+    pub fn potentially_normalise<N>(&self, atom: N) -> TcResult<Option<N>>
+    where
+        Visitor: Map<N>,
+    {
         match self.potentially_eval(atom) {
             Ok(t) => Ok(t),
             Err(e) => match e {
@@ -81,7 +77,10 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     }
 
     /// Normalise the given atom.
-    pub fn normalise_atom(&self, atom: Atom) -> TcResult<Atom> {
+    pub fn normalise_atom<N: Copy>(&self, atom: N) -> TcResult<N>
+    where
+        Visitor: Map<N>,
+    {
         match self.eval(atom) {
             Ok(t) => Ok(t),
             Err(e) => match e {
@@ -93,124 +92,12 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         }
     }
 
-    fn atom_has_effects_once(
-        traversing_utils: &Visitor,
-        atom: Atom,
-        has_effects: &mut Option<bool>,
-    ) -> ControlFlow<()> {
-        match atom {
-            Atom::Term(term) => match *term.value() {
-                // Never has effects
-                Term::Intrinsic(_) | Term::Hole(_) | Term::Fn(_) => ControlFlow::Break(()),
-
-                // These have effects if their constituents do
-                Term::Lit(_)
-                | Term::Ctor(_)
-                | Term::Tuple(_)
-                | Term::Var(_)
-                | Term::Match(_)
-                | Term::Unsafe(_)
-                | Term::Access(_)
-                | Term::Array(_)
-                | Term::Index(_)
-                | Term::Cast(_)
-                | Term::TyOf(_)
-                | Term::DataTy(_)
-                | Term::RefTy(_)
-                | Term::Universe(_)
-                | Term::TupleTy(_)
-                | Term::FnTy(_)
-                | Term::Block(_) => ControlFlow::Continue(()),
-
-                Term::Call(fn_call) => {
-                    // Get its inferred type and check if it is pure
-                    match tir_stores().atom_info().try_get_inferred_ty(fn_call.subject) {
-                        Some(fn_ty) => {
-                            match *fn_ty.value() {
-                                Ty::FnTy(fn_ty) => {
-                                    // If it is a function, check if it is pure
-                                    if fn_ty.pure {
-                                        // Check its args too
-                                        traversing_utils.visit(fn_call.args, &mut |atom| {
-                                            Self::atom_has_effects_once(
-                                                traversing_utils,
-                                                atom,
-                                                has_effects,
-                                            )
-                                        });
-                                        ControlFlow::Break(())
-                                    } else {
-                                        *has_effects = Some(true);
-                                        ControlFlow::Break(())
-                                    }
-                                }
-                                _ => {
-                                    // If it is not a function, it is a function reference, which is
-                                    // pure
-                                    info!(
-                                        "Found a function term that is not typed as a function: {}",
-                                        fn_call.subject
-                                    );
-                                    ControlFlow::Break(())
-                                }
-                            }
-                        }
-                        None => {
-                            // Unknown
-                            *has_effects = None;
-                            ControlFlow::Break(())
-                        }
-                    }
-                }
-
-                // These always have effects
-                Term::Ref(_)
-                | Term::Deref(_)
-                | Term::Assign(_)
-                | Term::Loop(_)
-                | Term::LoopControl(_)
-                | Term::Return(_) => {
-                    *has_effects = Some(true);
-                    ControlFlow::Break(())
-                }
-            },
-            Atom::FnDef(fn_def_id) => {
-                let fn_ty = fn_def_id.value().ty;
-                // Check its params and return type only (no body)
-                traversing_utils.visit(fn_ty.params, &mut |atom| {
-                    Self::atom_has_effects_once(traversing_utils, atom, has_effects)
-                });
-                traversing_utils.visit(fn_ty.return_ty, &mut |atom| {
-                    Self::atom_has_effects_once(traversing_utils, atom, has_effects)
-                });
-                ControlFlow::Break(())
-            }
-            Atom::Pat(_) => ControlFlow::Continue(()),
-            Atom::Lit(_) => ControlFlow::Break(()),
-        }
-    }
-
-    /// Whether the given atom will produce effects when evaluated.
-    pub fn atom_has_effects_with_traversing(
-        &self,
-        atom: Atom,
-        traversing_utils: &Visitor,
-    ) -> Option<bool> {
-        let mut has_effects = Some(false);
-        traversing_utils.visit(atom, &mut |atom| {
-            Self::atom_has_effects_once(traversing_utils, atom, &mut has_effects)
-        });
-        has_effects
-    }
-
-    /// Whether the given atom will produce effects when evaluated.
-    pub fn atom_has_effects(&self, atom: Atom) -> Option<bool> {
-        self.atom_has_effects_with_traversing(atom, &self.visitor())
-    }
-
     /// Evaluate an atom with the current mode, performing at least a single
     /// step of normalisation.
-    pub fn eval(&self, atom: Atom) -> Result<Atom, NormaliseSignal> {
+    pub fn eval<N: Copy>(&self, atom: N) -> Result<N, NormaliseSignal>
+    where
+        Visitor: Map<N>,
+    {
         match self.potentially_eval(atom)? {
             Some(atom) => Ok(atom),
             None => Ok(atom),
@@ -219,11 +106,14 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
 
     /// Same as `eval`, but also sets the `evaluated` flag in the given
     /// `EvalState`.
-    pub fn eval_and_record(
+    pub fn eval_and_record<N: Copy>(
         &self,
-        atom: Atom,
+        atom: N,
         state: &NormalisationState,
-    ) -> Result<Atom, NormaliseSignal> {
+    ) -> Result<N, NormaliseSignal>
+    where
+        Visitor: Map<N>,
+    {
         match self.potentially_eval(atom)? {
             Some(atom) => {
                 state.set_normalised();
@@ -235,16 +125,22 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
 
     /// Evaluate an atom in full, even if it has no effects, and including
     /// impure function calls.
-    fn eval_fully(&self, atom: Atom) -> Result<Atom, NormaliseSignal> {
+    fn eval_fully<N: Copy>(&self, atom: N) -> Result<N, NormaliseSignal>
+    where
+        Visitor: Map<N>,
+    {
         self.normalisation_opts.mode.enter(NormalisationMode::Full, || self.eval(atom))
     }
 
     /// Same as `eval_nested`, but with a given evaluation state.
-    pub fn eval_nested_and_record(
+    pub fn eval_nested_and_record<N: Copy>(
         &self,
-        atom: Atom,
+        atom: N,
         state: &NormalisationState,
-    ) -> Result<Atom, NormaliseSignal> {
+    ) -> Result<N, NormaliseSignal>
+    where
+        Visitor: Map<N>,
+    {
         match self.normalisation_opts.mode.get() {
             NormalisationMode::Full => self.eval_and_record(atom, state),
             NormalisationMode::Weak => Ok(atom),
@@ -307,7 +203,10 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// Evaluate an atom, performing at least a single step of normalisation.
     ///
     /// Returns `None` if the atom is already normalised.
-    pub fn potentially_eval(&self, atom: Atom) -> AtomEvaluation {
+    pub fn potentially_eval<N>(&self, atom: N) -> NormaliseResult<N>
+    where
+        Visitor: Map<N>,
+    {
         let mut traversal = self.visitor();
         traversal.set_visit_fns_once(false);
 
@@ -315,7 +214,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         let nested = Cell::new(false);
         let result = traversal.try_map(atom, |atom| -> Result<_, NormaliseSignal> {
             let old_mode = if self.normalisation_opts.mode.get() == NormalisationMode::Weak
-                && self.atom_has_effects(atom) == Some(true)
+                && self.has_effects(atom) == Some(true)
             {
                 // If the atom has effects, we need to evaluate it fully
                 let old = self.normalisation_opts.mode.get();
@@ -622,7 +521,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         pat_id: PatId,
         f: &mut impl FnMut(SymbolId, TermId),
     ) -> Result<MatchResult, NormaliseSignal> {
-        let evaluated_id = (self.eval(term_id.into())?).to_term();
+        let evaluated_id = self.eval(term_id)?;
         let evaluated = *evaluated_id.value();
         match (evaluated, *pat_id.value()) {
             (_, Pat::Or(pats)) => {

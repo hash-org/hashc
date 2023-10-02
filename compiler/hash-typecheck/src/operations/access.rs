@@ -80,7 +80,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
 
     fn normalise(&self, mut access_term: AccessTerm, _: Self::Node) -> NormaliseResult<TermId> {
         let st = NormalisationState::new();
-        access_term.subject = (self.eval_and_record(access_term.subject.into(), &st)?).to_term();
+        access_term.subject = self.eval_and_record(access_term.subject, &st)?;
 
         let result = match *access_term.subject.value() {
             Term::Tuple(TupleTerm { data: args })
