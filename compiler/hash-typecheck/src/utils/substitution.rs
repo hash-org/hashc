@@ -42,13 +42,13 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
         let mut seen = var_matches.clone();
         for param in params.iter() {
             let param = param.value();
-            if self.atom_contains_vars(param.ty.into(), &seen) {
+            if self.contains_vars(param.ty, &seen) {
                 *can_apply = true;
                 return seen;
             }
             seen.remove(&param.name);
             if let Some(default) = param.default {
-                if self.atom_contains_vars(default.into(), &seen) {
+                if self.contains_vars(default, &seen) {
                     *can_apply = true;
                     return seen;
                 }
@@ -150,7 +150,7 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
                 }
                 Ty::FnTy(fn_ty) => {
                     let seen = self.params_contain_vars(fn_ty.params, var_matches, can_apply);
-                    if self.atom_contains_vars(fn_ty.return_ty.into(), &seen) {
+                    if self.contains_vars(fn_ty.return_ty, &seen) {
                         *can_apply = true;
                         return ControlFlow::Break(());
                     }
@@ -162,11 +162,11 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
                 let fn_def = fn_def_id.value();
                 let fn_ty = fn_def.ty;
                 let seen = self.params_contain_vars(fn_ty.params, var_matches, can_apply);
-                if self.atom_contains_vars(fn_ty.return_ty.into(), &seen) {
+                if self.contains_vars(fn_ty.return_ty, &seen) {
                     *can_apply = true;
                     return ControlFlow::Break(());
                 }
-                if self.atom_contains_vars(fn_def.body.into(), &seen) {
+                if self.contains_vars(fn_def.body, &seen) {
                     *can_apply = true;
                     return ControlFlow::Break(());
                 }
@@ -191,16 +191,20 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
         self.atom_contains_vars_once(atom, &domain, can_apply)
     }
 
-    /// Below are convenience methods for specific atoms:
-    pub fn atom_contains_vars(&self, atom: Atom, filter: &HashSet<SymbolId>) -> bool {
+    pub fn contains_vars<N>(&self, atom: N, filter: &HashSet<SymbolId>) -> bool
+    where
+        Visitor: Visit<N>,
+    {
         let mut can_apply = false;
         self.traversing_utils
             .visit(atom, &mut |atom| self.atom_contains_vars_once(atom, filter, &mut can_apply));
         can_apply
     }
 
-    /// Below are convenience methods for specific atoms:
-    pub fn can_apply_sub_to_atom(&self, atom: Atom, sub: &Sub) -> bool {
+    pub fn can_apply_sub<N>(&self, atom: N, sub: &Sub) -> bool
+    where
+        Visitor: Visit<N>,
+    {
         let mut can_apply = false;
         self.traversing_utils
             .visit(atom, &mut |atom| self.can_apply_sub_to_atom_once(atom, sub, &mut can_apply));
@@ -400,7 +404,7 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
                 continue;
             }
             // If the substitution is to that parameter, skip it.
-            if self.atom_contains_vars(value.into(), &param_names) {
+            if self.contains_vars(value, &param_names) {
                 continue;
             }
 

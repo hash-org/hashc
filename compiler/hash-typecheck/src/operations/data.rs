@@ -8,7 +8,7 @@ use hash_tir::{
         Arg, CtorDefId, CtorPat, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin,
         PatId, PrimitiveCtorInfo, TermId, Ty, TyId,
     },
-    visitor::{Atom, Map},
+    visitor::Map,
 };
 
 use crate::{
@@ -32,7 +32,6 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         let mut term = *term;
         let ctor_def_id = term.ctor;
         let data_args = term.data_args;
-        let original_atom: Atom = original_term_id.into();
         let ctor = ctor_def_id.value();
         let data_def = ctor.data_def_id.value();
 
@@ -111,7 +110,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         // the annotation type with the expected type.
         annotation_data_ty.args = final_result_args;
         let expected_data_ty =
-            Ty::expect_is(original_atom, Ty::from(annotation_data_ty, annotation_ty.origin()));
+            Ty::expect_is(original_term_id, Ty::from(annotation_data_ty, annotation_ty.origin()));
         self.unification_opts.pat_binds.enter(Some(binds), || {
             self.add_unification_from_sub(&resulting_sub);
             self.unify_nodes(expected_data_ty, annotation_ty)
@@ -289,7 +288,6 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         let mut pat = *pat;
         let ctor_def_id = pat.ctor;
         let data_args = pat.data_args;
-        let original_atom: Atom = original_pat_id.into();
         let ctor = ctor_def_id.value();
         let data_def = ctor.data_def_id.value();
 
@@ -315,7 +313,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
                     expected: annotation_ty,
                     actual: Ty::from(
                         DataTy { args: data_args, data_def: ctor.data_def_id },
-                        original_atom.origin().inferred(),
+                        original_pat_id.origin().inferred(),
                     ),
                 });
             }
@@ -375,7 +373,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         // the annotation type with the expected type.
         annotation_data_ty.args = final_result_args;
         let expected_data_ty =
-            Ty::expect_is(original_atom, Ty::from(annotation_data_ty, annotation_ty.origin()));
+            Ty::expect_is(original_pat_id, Ty::from(annotation_data_ty, annotation_ty.origin()));
         self.unification_opts.pat_binds.enter(Some(binds), || {
             self.add_unification_from_sub(&resulting_sub);
             self.unify_nodes(expected_data_ty, annotation_ty)

@@ -100,6 +100,14 @@ pub fn get_bool_ctor(value: bool) -> CtorDefId {
     }
 }
 
+/// Check if the given term is the `true` constructor.
+pub fn is_true_bool_ctor(term: TermId) -> bool {
+    match *term.value() {
+        Term::Ctor(ctor_term) => ctor_term.ctor == get_bool_ctor(true),
+        _ => false,
+    }
+}
+
 /// Create a boolean term of the given value.
 pub fn bool_term(value: bool, origin: NodeOrigin) -> TermId {
     Node::create_at(

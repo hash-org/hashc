@@ -91,7 +91,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
                 return stuck_normalising();
             }
         };
-        let evaluated = self.normalise_node_and_record(result, &st)?.to_term();
+        let evaluated = self.normalise_node_and_record(result, &st)?;
         normalised_if(|| evaluated, &st)
     }
 

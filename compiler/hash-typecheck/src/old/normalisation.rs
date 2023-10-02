@@ -7,7 +7,7 @@ use hash_storage::store::{
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_tir::{
-    intrinsics::utils::{get_bool_ctor, try_use_term_as_integer_lit},
+    intrinsics::utils::{is_true_bool_ctor, try_use_term_as_integer_lit},
     tir::{
         Arg, ArgsId, ArrayTerm, Lit, LitPat, Node, NodeId, NodesId, ParamIndex, Pat, PatArgsId,
         PatId, PatListId, PatOrCapture, RangePat, Spread, SymbolId, Term, TermId, TermListId,
@@ -146,19 +146,18 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     }
 
     /// Get the parameter at the given index in the given argument list.
-    pub fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> Atom {
+    pub fn get_param_in_args(&self, args: ArgsId, target: ParamIndex) -> TermId {
         for arg_i in args.iter() {
             let arg = arg_i.value();
             if arg.target == target || ParamIndex::Position(arg_i.1) == target {
-                return arg.value.into();
+                return arg.value;
             }
         }
         panic!("Out of bounds index for access: {}", target)
     }
 
     /// Set the parameter at the given index in the given argument list.
-    pub fn set_param_in_args(&self, args: ArgsId, target: ParamIndex, value: Atom) {
-        let value = value.to_term();
+    pub fn set_param_in_args(&self, args: ArgsId, target: ParamIndex, value: TermId) {
         for arg_i in args.iter() {
             let arg = arg_i.value();
             if arg.target == target || ParamIndex::Position(arg_i.1) == target {
@@ -172,9 +171,9 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// Get the term at the given index in the given term list.
     ///
     /// Assumes that the index is normalised.
-    pub fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<Atom> {
+    pub fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<TermId> {
         try_use_term_as_integer_lit::<_, usize>(self, index)
-            .map(|idx| elements.elements().at(idx).unwrap().into())
+            .map(|idx| elements.elements().at(idx).unwrap())
     }
 
     /// Get the term at the given index in the given repeated array. If the
@@ -187,14 +186,14 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         subject: TermId,
         repeat: TermId,
         index: TermId,
-    ) -> Option<Atom> {
+    ) -> Option<TermId> {
         let subject = try_use_term_as_integer_lit::<_, usize>(self, subject)?;
         let index = try_use_term_as_integer_lit::<_, usize>(self, index)?;
 
         if index >= subject {
             None
         } else {
-            Some(repeat.into())
+            Some(repeat)
         }
     }
 
@@ -415,15 +414,10 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         match array {
             ArrayTerm::Normal(elements) => normalised_if(|| elements.len(), &st),
             ArrayTerm::Repeated(_, repeat) => {
-                let evaluated = self.normalise_node_fully(repeat.into())?;
-                let Atom::Term(term) = evaluated else {
-                    return stuck_normalising();
-                };
-
+                let term = self.normalise_node_fully(repeat)?;
                 let Some(length) = try_use_term_as_integer_lit::<_, usize>(self, term) else {
                     return stuck_normalising();
                 };
-
                 normalised_if(|| length, &st)
             }
         }
@@ -463,19 +457,6 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
             MatchResult::Successful
         } else {
             MatchResult::Failed
-        }
-    }
-
-    /// Check if the given atom is the `true` constructor.
-    ///
-    /// Assumes that the atom is normalised.
-    fn is_true(&self, atom: Atom) -> bool {
-        match atom {
-            Atom::Term(term) => match **term.borrow() {
-                Term::Ctor(ctor_term) => ctor_term.ctor == get_bool_ctor(true),
-                _ => false,
-            },
-            Atom::Lit(_) | Atom::FnDef(_) | Atom::Pat(_) => false,
         }
     }
 
@@ -548,8 +529,8 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
                     self.match_value_and_get_binds(term_id, if_pat.pat, f)?
                 {
                     // Check the condition:
-                    let cond = self.normalise_node_fully(if_pat.condition.into())?;
-                    if self.is_true(cond) {
+                    let cond = self.normalise_node_fully(if_pat.condition)?;
+                    if is_true_bool_ctor(cond) {
                         return Ok(MatchResult::Successful);
                     }
                 }

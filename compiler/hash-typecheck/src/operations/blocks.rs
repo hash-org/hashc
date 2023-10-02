@@ -92,9 +92,9 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
             let sub = self.substituter().create_sub_from_current_scope();
             self.substituter().apply_sub_in_place(annotation_ty, &sub);
 
-            let sub_ops = self.substituter();
-            let vars_in_scope = sub_ops.get_unassigned_vars_in_current_scope();
-            if sub_ops.atom_contains_vars(annotation_ty.into(), &vars_in_scope) {
+            let subber = self.substituter();
+            let vars_in_scope = subber.get_unassigned_vars_in_current_scope();
+            if subber.contains_vars(annotation_ty, &vars_in_scope) {
                 return Err(TcError::TryingToReferenceLocalsInType { ty: annotation_ty });
             }
 

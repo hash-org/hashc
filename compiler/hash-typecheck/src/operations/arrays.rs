@@ -255,7 +255,7 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
             // Check if we actually got the index when evaluating:
             let Some(index) = result else { return stuck_normalising() };
 
-            let result = self.normalise_node_and_record(index, &st)?.to_term();
+            let result = self.normalise_node_and_record(index, &st)?;
             normalised_if(|| result, &st)
         } else {
             stuck_normalising()

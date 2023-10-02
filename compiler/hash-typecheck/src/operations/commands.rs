@@ -171,16 +171,12 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
             Term::Access(mut access_term) => {
                 access_term.subject = self.normalise_node(access_term.subject)?;
                 match *access_term.subject.value() {
-                    Term::Tuple(tuple) => self.set_param_in_args(
-                        tuple.data,
-                        access_term.field,
-                        assign_term.value.into(),
-                    ),
-                    Term::Ctor(ctor) => self.set_param_in_args(
-                        ctor.ctor_args,
-                        access_term.field,
-                        assign_term.value.into(),
-                    ),
+                    Term::Tuple(tuple) => {
+                        self.set_param_in_args(tuple.data, access_term.field, assign_term.value)
+                    }
+                    Term::Ctor(ctor) => {
+                        self.set_param_in_args(ctor.ctor_args, access_term.field, assign_term.value)
+                    }
                     _ => panic!("Invalid access"),
                 }
             }
