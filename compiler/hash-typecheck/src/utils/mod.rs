@@ -1,3 +1,6 @@
+//! Contains various utilities used by the type checker, which do not fit into
+//! any of the `operations` modules.
+
 pub mod cte;
 pub mod dumping;
 pub mod entry_point;
