@@ -12,6 +12,11 @@ use crate::{
 };
 
 /// The mode in which to infer the type of a function.
+// @@Hack: this is currently a hack to get around the insufficient hole-filling
+// mechanism of the typechecker. Ideally, we should eventually have a proper
+// hole-filling mechanism which re-unifies things until everything is filled
+// in. Then we can remove these two "inference passes" which are rather ad-hoc
+// at the moment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FnInferMode {
     /// Infer the type of a function but do not look at its body.
@@ -38,10 +43,12 @@ pub struct Tc<'tc, E> {
 }
 
 impl<E: TcEnv> Tc<'_, E> {
+    /// Convenience function to create a new TIR visitor.
     pub fn visitor(&self) -> Visitor {
         Visitor::new()
     }
 
+    /// Create a substituter for this typechecker.
     pub fn substituter(&self) -> Substituter<E> {
         Substituter::new(self)
     }

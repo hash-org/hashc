@@ -12,12 +12,19 @@ use crate::{
     tc::{FnInferMode, Tc},
 };
 
+/// A wrapper trait around `HasDiagnostics` for specifically diagnostics that
+/// can accomodate `TcError`s, `ExhaustivenessError`s and
+/// `ExhaustivenessWarning`s. (and `TcWarning`s in the future.)
 pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
     type ForeignError: From<TcError> + From<ExhaustivenessError>;
     type ForeignWarning: From<ExhaustivenessWarning>;
     type TcDiagnostics: Diagnostics<Error = Self::ForeignError, Warning = Self::ForeignWarning>;
 }
 
+/// The typechecking environment.
+///
+/// This trait declares all the required information that the typechecking stage
+/// needs from the rest of the compiler in order to operate.
 pub trait TcEnv:
     HasTcDiagnostics + HasTarget + HasAtomInfo + HasCompilerSettings + HasMetrics + Sized
 {
@@ -32,6 +39,7 @@ pub trait TcEnv:
         self.settings().semantic_settings.mono_tir
     }
 
+    /// Create a new typechecker using the given context.
     fn checker<'a>(&'a self, context: &'a Context) -> Tc<Self> {
         Tc {
             env: self,
