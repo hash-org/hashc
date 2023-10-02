@@ -50,6 +50,24 @@ pub struct TyOfTerm {
     pub term: TermId,
 }
 
+/// The type representing the universe.
+///
+/// Every other type is typed by this type.
+#[derive(Debug, Clone, Copy)]
+pub struct UniverseTy;
+
+/// A variable, which is a symbol.
+#[derive(Debug, Clone, Copy)]
+pub struct VarTerm {
+    pub symbol: SymbolId,
+}
+
+impl From<VarTerm> for SymbolId {
+    fn from(var: VarTerm) -> Self {
+        var.symbol
+    }
+}
+
 /// A term in a Hash program.
 ///
 /// This is a narrowed down version of the AST whose structure is more suitable
@@ -63,7 +81,8 @@ pub struct TyOfTerm {
 pub enum Term {
     // -- General --
     // Variables
-    Var(SymbolId),
+    Var(VarTerm),
+
     // Scopes
     Block(BlockTerm),
 
@@ -103,7 +122,7 @@ pub enum Term {
 
     // Casting
     Cast(CastTerm),
-    TypeOf(TyOfTerm),
+    TyOf(TyOfTerm),
 
     // References
     Ref(RefTerm),
@@ -123,7 +142,7 @@ pub enum Term {
     DataTy(DataTy),
 
     /// The universe type
-    Universe,
+    Universe(UniverseTy),
 
     /// Holes
     Hole(Hole),
@@ -171,7 +190,7 @@ impl Term {
     }
 
     pub fn var(symbol: SymbolId) -> TermId {
-        Node::create(Node::at(Term::Var(symbol), symbol.origin()))
+        Node::create(Node::at(Term::Var(VarTerm { symbol }), symbol.origin()))
     }
 
     /// Create a new term with the given origin.
@@ -196,7 +215,7 @@ impl Term {
 
     /// Create a type of types.
     pub fn universe(origin: NodeOrigin) -> TyId {
-        Node::create(Node::at(Ty::Universe, origin))
+        Node::create(Node::at(Ty::Universe(UniverseTy), origin))
     }
 
     /// Create a new empty tuple type.
@@ -244,9 +263,21 @@ impl Term {
     }
 }
 
+impl From<SymbolId> for Term {
+    fn from(symbol: SymbolId) -> Self {
+        Term::Var(VarTerm { symbol })
+    }
+}
+
 impl fmt::Display for UnsafeTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "unsafe {}", self.inner)
+    }
+}
+
+impl fmt::Display for VarTerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.symbol)
     }
 }
 
@@ -267,7 +298,7 @@ impl fmt::Display for Term {
                 }
             ),
             Term::Block(block_term) => write!(f, "{}", block_term),
-            Term::Var(resolved_var) => write!(f, "{}", *resolved_var),
+            Term::Var(resolved_var) => write!(f, "{}", resolved_var),
             Term::Loop(loop_term) => write!(f, "{}", loop_term),
             Term::LoopControl(loop_control_term) => {
                 write!(f, "{}", loop_control_term)
@@ -278,7 +309,7 @@ impl fmt::Display for Term {
             Term::Unsafe(unsafe_term) => write!(f, "{}", unsafe_term),
             Term::Access(access_term) => write!(f, "{}", access_term),
             Term::Cast(cast_term) => write!(f, "{}", cast_term),
-            Term::TypeOf(type_of_term) => write!(f, "{}", type_of_term),
+            Term::TyOf(type_of_term) => write!(f, "{}", type_of_term),
             Term::Ref(ref_term) => write!(f, "{}", ref_term),
             Term::Deref(deref_term) => write!(f, "{}", deref_term),
             Term::Hole(hole) => write!(f, "{}", *hole),
@@ -295,8 +326,14 @@ impl fmt::Display for Term {
             Ty::FnTy(fn_ty) => write!(f, "{}", fn_ty),
             Ty::RefTy(ref_ty) => write!(f, "{}", ref_ty),
             Ty::DataTy(data_ty) => write!(f, "{}", data_ty),
-            Ty::Universe => write!(f, "Type"),
+            Ty::Universe(universe) => write!(f, "{}", universe),
         }
+    }
+}
+
+impl fmt::Display for UniverseTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Type")
     }
 }
 

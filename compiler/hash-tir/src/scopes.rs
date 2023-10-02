@@ -147,6 +147,7 @@ impl StoreId for StackMemberId {
     }
 }
 
+// @@Todo: move this to `tir` module
 /// A block term.
 ///
 /// Creates a new scope on the stack.

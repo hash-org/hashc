@@ -10,10 +10,14 @@ use hash_storage::{
 };
 use hash_utils::derive_more::From;
 
+use super::TermId;
 use crate::{
     scopes::BindingPat,
     stores::tir_stores,
-    tir::{ArrayPat, CtorPat, IfPat, LitPat, OrPat, PatArgsId, PatOrCapture, SymbolId, TuplePat},
+    tir::{
+        ArrayPat, CtorPat, CtorTerm, IfPat, LitPat, NodeId, OrPat, PatArgsId, PatOrCapture,
+        SymbolId, Term, TuplePat, TupleTerm,
+    },
     tir_node_sequence_store_indirect, tir_node_single_store,
 };
 
@@ -99,6 +103,34 @@ impl Pat {
         match self {
             Pat::Binding(pat) => Some(pat),
             _ => None,
+        }
+    }
+}
+
+impl PatId {
+    /// Try to use the pattern as a term.
+    ///
+    /// This is only possible for patterns that are not [`Pat::Or`].
+    pub fn try_use_as_term(&self) -> Option<TermId> {
+        let origin = self.origin();
+        match *self.value() {
+            Pat::Binding(var) => Some(Term::from(var.name, origin)),
+            Pat::Range(_) => Some(Term::from(SymbolId::fresh(origin), origin)),
+            Pat::Lit(lit) => Some(Term::from(Term::Lit(*lit), origin)),
+            Pat::Ctor(ctor_pat) => Some(Term::from(
+                CtorTerm {
+                    ctor: ctor_pat.ctor,
+                    data_args: ctor_pat.data_args,
+                    ctor_args: ctor_pat.ctor_pat_args.try_use_as_term_args()?,
+                },
+                origin,
+            )),
+            Pat::Tuple(tuple_pat) => {
+                Some(Term::from(TupleTerm { data: tuple_pat.data.try_use_as_term_args()? }, origin))
+            }
+            Pat::Array(_) => None, // @@Improvement: we can use this as a term too
+            Pat::Or(_) => None,
+            Pat::If(if_pat) => if_pat.pat.try_use_as_term(),
         }
     }
 }

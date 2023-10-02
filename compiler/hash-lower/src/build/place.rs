@@ -93,13 +93,13 @@ impl<'tcx> BodyBuilder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<PlaceBuilder> {
         match *term.value() {
-            Term::Var(variable) => {
+            Term::Var(var) => {
                 // Get the current scope, and resolve the variable within the scope. This will
                 // get us the scope that this variable comes from. Using the id and the name, we
                 // can then lookup the local that this variable is bound to.
                 let local = self
-                    .lookup_local(variable)
-                    .unwrap_or_else(|| panic!("failed to lookup local `{}`", variable.ident()));
+                    .lookup_local(var.symbol)
+                    .unwrap_or_else(|| panic!("failed to lookup local `{}`", var.symbol.ident()));
                 block.and(PlaceBuilder::from(local))
             }
             Term::Access(AccessTerm { subject, field }) => {
@@ -152,12 +152,12 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Assign(_)
             | Term::Unsafe(_)
             | Term::Cast(_)
-            | Term::TypeOf(_)
+            | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)
             | Ty::TupleTy(_)
             | Ty::RefTy(_)
-            | Ty::Universe
+            | Ty::Universe(_)
             | Term::Ref(_)
             | Term::Hole(_) => {
                 // These expressions are not places, so we need to create a temporary

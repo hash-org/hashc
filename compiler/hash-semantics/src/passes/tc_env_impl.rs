@@ -4,10 +4,9 @@ use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     atom_info::{AtomInfoStore, HasAtomInfo},
-    context::{Context, HasContext},
     stores::tir_stores,
 };
-use hash_typecheck::{HasTcDiagnostics, TcEnv};
+use hash_typecheck::env::{HasTcDiagnostics, TcEnv};
 use hash_utils::timing::{CellStageMetrics, HasMetrics};
 
 use crate::{
@@ -20,12 +19,11 @@ use crate::{
 pub struct TcEnvImpl<'env, E: SemanticEnv> {
     env: &'env E,
     source: SourceId,
-    context: Context,
 }
 
 impl<'env, E: SemanticEnv> TcEnvImpl<'env, E> {
     pub fn new(env: &'env E, source: SourceId) -> Self {
-        Self { env, source, context: Context::new() }
+        Self { env, source }
     }
 }
 
@@ -57,12 +55,6 @@ impl<E: SemanticEnv> HasTarget for TcEnvImpl<'_, E> {
 impl<E: SemanticEnv> HasCompilerSettings for TcEnvImpl<'_, E> {
     fn settings(&self) -> &CompilerSettings {
         self.env.settings()
-    }
-}
-
-impl<E: SemanticEnv> HasContext for TcEnvImpl<'_, E> {
-    fn context(&self) -> &Context {
-        &self.context
     }
 }
 

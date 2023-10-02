@@ -64,12 +64,12 @@ impl Category {
             | Term::Assign(_)
             | Term::Array(_)
             | Term::Cast(_)
-            | Term::TypeOf(_)
+            | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)
             | Ty::TupleTy(_)
             | Ty::RefTy(_)
-            | Ty::Universe
+            | Ty::Universe(_)
             | Term::Hole(_) => Category::RValue(RValueKind::As),
         }
     }

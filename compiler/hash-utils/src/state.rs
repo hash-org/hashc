@@ -76,11 +76,11 @@ impl<T: Default + Copy + fmt::Debug> LightState<T> {
 /// Heavy state is state which is large in size and cannot be copied cheaply.
 /// Internally uses a [`RefCell`] to store the state.
 #[derive(Debug)]
-pub struct HeavyState<T: fmt::Debug> {
+pub struct HeavyState<T> {
     current: RefCell<T>,
 }
 
-impl<T: fmt::Debug> HeavyState<T> {
+impl<T> HeavyState<T> {
     pub fn new(initial: T) -> Self {
         Self { current: RefCell::new(initial) }
     }
@@ -88,7 +88,7 @@ impl<T: fmt::Debug> HeavyState<T> {
     /// Run a function to modify the state, then run the given function with the
     /// new value, and then restore the old value on exit by running the other
     /// callback.
-    pub fn enter<U>(
+    pub fn enter_and_exit<U>(
         &self,
         modify_value: impl FnOnce(&mut T),
         undo_modification: impl FnOnce(&mut T),
@@ -113,5 +113,20 @@ impl<T: fmt::Debug> HeavyState<T> {
     /// Get a reference to the internal [`RefCell`].
     pub fn as_ref_cell(&self) -> &RefCell<T> {
         &self.current
+    }
+}
+
+impl<T: Clone> HeavyState<T> {
+    /// Run a function to modify the state, then run the given function with the
+    /// new value, and then restore the old value on exit by running the other
+    /// callback.
+    pub fn enter<U>(&self, new: T, f: impl FnOnce() -> U) -> U {
+        let old = {
+            let mut current = self.current.borrow_mut();
+            std::mem::replace(&mut *current, new)
+        };
+        let result = f();
+        *self.current.borrow_mut() = old;
+        result
     }
 }

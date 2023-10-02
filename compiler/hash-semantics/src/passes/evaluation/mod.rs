@@ -8,10 +8,11 @@ use hash_pipeline::settings::CompilerStageKind;
 use hash_source::{ModuleKind, SourceId};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
+    context::Context,
     dump::dump_tir,
     tir::{Arg, CallTerm, Node, NodeId, Term, TermId},
 };
-use hash_typecheck::{normalisation::NormalisationMode, TcEnv};
+use hash_typecheck::{env::TcEnv, options::normalisation::NormalisationMode};
 use hash_utils::{
     derive_more::{Constructor, Deref},
     stream_less_writeln,
@@ -90,7 +91,7 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
         source: SourceId,
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::diagnostics::definitions::SemanticResult<()> {
-        let tc = TcEnvImpl::new(self.env, source);
+        let env = TcEnvImpl::new(self.env, source);
         let term = self.ast_info.terms().get_data_by_node(node.id()).unwrap();
 
         // Potentially dump the TIR and evaluate it depending on flags.
@@ -99,7 +100,11 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
         }
 
         // Interactive mode is always evaluated.
-        let result = tc.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
+        let context = Context::new();
+        let tc = env.checker(&context);
+        tc.normalisation_opts.mode.set(NormalisationMode::Full);
+        let result = tc.normalise_node_no_signals(term)?;
+
         stream_less_writeln!("{}", result);
 
         Ok(())
@@ -110,7 +115,7 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
         source: SourceId,
         node: ast::AstNodeRef<ast::Module>,
     ) -> crate::diagnostics::definitions::SemanticResult<()> {
-        let tc = TcEnvImpl::new(self.env, source);
+        let env = TcEnvImpl::new(self.env, source);
         let mod_def_id = self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap();
         let main_call_term = self.find_and_construct_main_call(source)?;
 
@@ -123,7 +128,10 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
 
         if settings.eval_tir {
             if let Some(term) = main_call_term {
-                let _ = tc.norm_ops().with_mode(NormalisationMode::Full).normalise(term.into())?;
+                let context = Context::new();
+                let tc = env.checker(&context);
+                tc.normalisation_opts.mode.set(NormalisationMode::Full);
+                let _ = tc.normalise_node_no_signals(term)?;
             }
         }
 

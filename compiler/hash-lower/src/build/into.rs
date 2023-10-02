@@ -250,8 +250,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     }
                 }
             }
-            Term::Var(symbol) => {
-                let local = self.lookup_local(symbol).unwrap();
+            Term::Var(var) => {
+                let local = self.lookup_local(var.symbol).unwrap();
                 let place = Place::from_local(local);
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);
 
@@ -336,12 +336,12 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
 
             Term::Cast(_)
-            | Term::TypeOf(_)
+            | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)
             | Ty::TupleTy(_)
             | Ty::RefTy(_)
-            | Ty::Universe
+            | Ty::Universe(_)
             | Term::Hole(_)
             | Term::Intrinsic(_)
             | Term::Fn(_) => block.unit(),

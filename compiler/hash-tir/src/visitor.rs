@@ -14,10 +14,11 @@ use crate::{
     tir::{
         AccessTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat,
         CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId,
-        IfPat, IndexTerm, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
-        Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
-        PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
-        TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyOfTerm, UnsafeTerm,
+        IfPat, IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId,
+        ModMemberValue, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg,
+        PatArgsId, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm,
+        Term, TermId, TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy,
+        UnsafeTerm,
     },
 };
 
@@ -25,8 +26,9 @@ use crate::{
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, From, TryInto)]
 pub enum Atom {
     Term(TermId),
-    FnDef(FnDefId),
+    FnDef(FnDefId), // @@Cleanup: remove this when functions are just normal terms
     Pat(PatId),
+    Lit(LitId),
 }
 
 impl Atom {
@@ -35,7 +37,65 @@ impl Atom {
             Atom::Term(t) => t.origin(),
             Atom::FnDef(f) => f.origin(),
             Atom::Pat(p) => p.origin(),
+            Atom::Lit(l) => l.origin(),
         }
+    }
+
+    /// Try to use the given atom as a type.
+    pub fn maybe_to_ty(&self) -> Option<TyId> {
+        match *self {
+            Atom::Term(term) => Some(term),
+            _ => None,
+        }
+    }
+
+    /// Normalise the given atom, and try to use it as a function definition.
+    pub fn maybe_to_fn_def(&self) -> Option<FnDefId> {
+        match *self {
+            Atom::Term(term) => match *term.value() {
+                Term::Fn(fn_def_id) => Some(fn_def_id),
+                _ => None,
+            },
+            Atom::FnDef(fn_def_id) => Some(fn_def_id),
+            _ => None,
+        }
+    }
+
+    /// Normalise the given atom, and try to use it as a term.
+    pub fn maybe_to_term(&self) -> Option<TermId> {
+        match *self {
+            Atom::Term(term) => Some(term),
+            Atom::FnDef(fn_def_id) => Some(Term::from(fn_def_id, fn_def_id.origin())),
+            _ => None,
+        }
+    }
+
+    /// Normalise the given atom, and try to use it as a pattern.
+    pub fn maybe_to_pat(&self) -> Option<PatId> {
+        match *self {
+            Atom::Pat(pat) => Some(pat),
+            _ => None,
+        }
+    }
+
+    /// Normalise the given atom, and try to use it as a term.
+    pub fn to_term(&self) -> TermId {
+        self.maybe_to_term().unwrap_or_else(|| panic!("Cannot convert {} to a term", *self))
+    }
+
+    /// Normalise the given atom, and try to use it as a function definition.
+    pub fn to_fn_def(&self) -> FnDefId {
+        self.maybe_to_fn_def().unwrap_or_else(|| panic!("Cannot convert {} to an fn def", *self))
+    }
+
+    /// Try to use the given atom as a type.
+    pub fn to_ty(&self) -> TyId {
+        self.maybe_to_ty().unwrap_or_else(|| panic!("Cannot convert {} to a type", *self))
+    }
+
+    /// Try to use the given atom as a pattern.
+    pub fn to_pat(&self) -> PatId {
+        self.maybe_to_pat().unwrap_or_else(|| panic!("Cannot convert {} to a pattern", *self))
     }
 }
 
@@ -45,6 +105,7 @@ impl HasAstNodeId for Atom {
             Atom::Term(t) => t.node_id(),
             Atom::FnDef(f) => f.node_id(),
             Atom::Pat(p) => p.node_id(),
+            Atom::Lit(l) => l.node_id(),
         }
     }
 }
@@ -55,6 +116,7 @@ impl fmt::Display for Atom {
             Atom::Term(term_id) => write!(f, "{}", term_id),
             Atom::FnDef(fn_def_id) => write!(f, "{}", fn_def_id),
             Atom::Pat(pat_id) => write!(f, "{}", pat_id),
+            Atom::Lit(lit_id) => write!(f, "{}", lit_id),
         }
     }
 }
@@ -145,6 +207,7 @@ impl Visit<Atom> for Visitor {
             Atom::Term(term_id) => self.try_visit(term_id, f),
             Atom::FnDef(fn_def_id) => self.try_visit(fn_def_id, f),
             Atom::Pat(pat_id) => self.try_visit(pat_id, f),
+            Atom::Lit(lit_id) => self.try_visit(lit_id, f),
         }
     }
 }
@@ -155,6 +218,7 @@ impl Map<Atom> for Visitor {
             Atom::Term(term_id) => Ok(Atom::Term(self.try_map(term_id, f)?)),
             Atom::FnDef(fn_def_id) => Ok(Atom::FnDef(self.try_map(fn_def_id, f)?)),
             Atom::Pat(pat_id) => Ok(Atom::Pat(self.try_map(pat_id, f)?)),
+            Atom::Lit(lit_id) => Ok(Atom::Lit(self.try_map(lit_id, f)?)),
         }
     }
 }
@@ -212,7 +276,7 @@ impl Visit<TermId> for Visitor {
                     self.try_visit(cast_term.subject_term, f)?;
                     self.try_visit(cast_term.target_ty, f)
                 }
-                Term::TypeOf(type_of_term) => self.try_visit(type_of_term.term, f),
+                Term::TyOf(type_of_term) => self.try_visit(type_of_term.term, f),
                 Term::Ref(ref_term) => self.try_visit(ref_term.subject, f),
                 Term::Deref(deref_term) => self.try_visit(deref_term.subject, f),
                 Term::Hole(_) => Ok(()),
@@ -224,7 +288,7 @@ impl Visit<TermId> for Visitor {
                 }
                 Ty::RefTy(ref_ty) => self.try_visit(ref_ty.ty, f),
                 Ty::DataTy(data_ty) => self.try_visit(data_ty.args, f),
-                Ty::Universe => Ok(()),
+                Ty::Universe(_) => Ok(()),
             },
         }
     }
@@ -237,7 +301,10 @@ impl Map<TermId> for Visitor {
             ControlFlow::Break(atom) => match atom {
                 Atom::Term(t) => Ok(t),
                 Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::Fn(fn_def_id), origin)),
-                Atom::Pat(_) => unreachable!("cannot use a pattern as a term"),
+                Atom::Lit(lit_id) => Ok(Node::create_at(Term::Lit(lit_id), origin)),
+                Atom::Pat(pat_id) => {
+                    Ok(pat_id.try_use_as_term().expect("cannot use this pattern as a term"))
+                }
             },
             ControlFlow::Continue(()) => match *term_id.value() {
                 Term::Tuple(tuple_term) => {
@@ -342,7 +409,7 @@ impl Map<TermId> for Visitor {
                     let target_ty = self.try_map(cast_term.target_ty, f)?;
                     Ok(Term::from(CastTerm { subject_term, target_ty }, origin))
                 }
-                Term::TypeOf(type_of_term) => {
+                Term::TyOf(type_of_term) => {
                     let term = self.try_map(type_of_term.term, f)?;
                     Ok(Term::from(TyOfTerm { term }, origin))
                 }
@@ -385,7 +452,7 @@ impl Map<TermId> for Visitor {
                     let args = self.try_map(data_ty.args, f)?;
                     Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }, origin))
                 }
-                Ty::Universe => Ok(Ty::from(Ty::Universe, origin)),
+                Ty::Universe(_) => Ok(Ty::from(Ty::Universe(UniverseTy), origin)),
             },
         }?;
 
@@ -799,6 +866,18 @@ impl Visit<ModDefId> for Visitor {
         for member in mod_def_id.borrow().members.iter() {
             self.try_visit(member, f)?;
         }
+        Ok(())
+    }
+}
+
+impl Map<LitId> for Visitor {
+    fn try_map<E, F: TryMapFn<E>>(&self, x: LitId, _: F) -> Result<LitId, E> {
+        Ok(x)
+    }
+}
+
+impl Visit<LitId> for Visitor {
+    fn try_visit<E, F: TryVisitFn<E>>(&self, _: LitId, _: &mut F) -> Result<(), E> {
         Ok(())
     }
 }

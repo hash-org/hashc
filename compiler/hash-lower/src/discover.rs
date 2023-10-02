@@ -140,7 +140,6 @@ impl FnDiscoverer<'_> {
     /// `self.get_inferred_value(term) = term`
     fn add_all_child_fns(&self, term: TermId, fns: &mut DiscoveredFns) {
         Visitor::new().visit(term, &mut |atom: Atom| match atom {
-            Atom::Term(_) => ControlFlow::Continue(()),
             Atom::FnDef(fn_def) => {
                 // @@Todo: this doesn't deal with captures.
                 if !fns.contains(fn_def) && self.queue_fn_and_body(fn_def).is_some() {
@@ -151,7 +150,7 @@ impl FnDiscoverer<'_> {
                     ControlFlow::Break(())
                 }
             }
-            Atom::Pat(_) => ControlFlow::Continue(()),
+            Atom::Term(_) | Atom::Lit(_) | Atom::Pat(_) => ControlFlow::Continue(()),
         });
     }
 }

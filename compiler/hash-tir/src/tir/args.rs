@@ -4,7 +4,7 @@ use core::fmt;
 use std::{fmt::Debug, option::Option};
 
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
@@ -55,10 +55,7 @@ impl Arg {
                         Node::at(
                             Arg {
                                 target: ParamIndex::Position(i),
-                                value: Node::create(Node::at(
-                                    Term::Var(param.value().name),
-                                    param.value().name.origin(),
-                                )),
+                                value: Term::var(param.value().name),
                             },
                             param.origin(),
                         )
@@ -156,6 +153,29 @@ pub struct PatArg {
 }
 
 tir_node_sequence_store_direct!(PatArg);
+
+impl PatArgsId {
+    /// Use the patterns in this argument list as terms, if possible.
+    ///
+    /// This invokes [`Pat::try_use_as_term`] on each pattern in the list.
+    pub fn try_use_as_term_args(&self) -> Option<ArgsId> {
+        let mut args = Vec::new();
+        for pat_arg in self.iter() {
+            let pat_arg = pat_arg.value();
+            match pat_arg.pat {
+                PatOrCapture::Pat(pat) => {
+                    let term = pat.try_use_as_term()?;
+                    args.push(Node::at(
+                        Arg { target: pat_arg.target, value: term },
+                        pat_arg.origin,
+                    ));
+                }
+                PatOrCapture::Capture(_) => return None,
+            }
+        }
+        Some(Node::create_at(Node::<Arg>::seq(args), self.origin()))
+    }
+}
 
 /// Some kind of arguments, either [`PatArgsId`] or [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]

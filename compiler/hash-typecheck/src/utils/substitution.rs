@@ -5,28 +5,32 @@ use std::{collections::HashSet, ops::ControlFlow};
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    context::ContextMember,
+    context::{ContextMember, HasContext},
     sub::Sub,
     tir::{
         AccessTerm, ArgsId, Hole, NodeId, ParamId, ParamIndex, ParamsId, Pat, SymbolId, Term,
-        TermId, Ty,
+        TermId, Ty, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
-use hash_utils::{derive_more::Deref, log::warn};
+use hash_utils::log::warn;
 
-use crate::TcEnv;
+use crate::{env::TcEnv, tc::Tc};
 
-#[derive(Deref)]
-pub struct SubstitutionOps<'a, T: TcEnv> {
-    #[deref]
-    env: &'a T,
+pub struct Substituter<'a, T: TcEnv> {
+    tc: &'a Tc<'a, T>,
     traversing_utils: Visitor,
 }
 
-impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
-    pub fn new(env: &'a T) -> Self {
-        Self { env, traversing_utils: Visitor::new() }
+impl<T: TcEnv> HasContext for Substituter<'_, T> {
+    fn context(&self) -> &hash_tir::context::Context {
+        self.tc.context()
+    }
+}
+
+impl<'a, T: TcEnv> Substituter<'a, T> {
+    pub fn new(checker: &'a Tc<'a, T>) -> Self {
+        Self { tc: checker, traversing_utils: Visitor::new() }
     }
 
     fn params_contain_vars(
@@ -38,13 +42,13 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         let mut seen = var_matches.clone();
         for param in params.iter() {
             let param = param.value();
-            if self.atom_contains_vars(param.ty.into(), &seen) {
+            if self.contains_vars(param.ty, &seen) {
                 *can_apply = true;
                 return seen;
             }
             seen.remove(&param.name);
             if let Some(default) = param.default {
-                if self.atom_contains_vars(default.into(), &seen) {
+                if self.contains_vars(default, &seen) {
                     *can_apply = true;
                     return seen;
                 }
@@ -74,27 +78,29 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         // Apply to type as well if applicable
         match atom {
             Atom::Term(term) => {
-                if let Some(ty) = self.try_get_inferred_ty(term) {
+                if let Some(ty) = self.tc.try_get_inferred_ty(term) {
                     self.apply_sub_in_place(ty, sub);
                 }
             }
             Atom::Pat(pat) => {
-                if let Some(ty) = self.try_get_inferred_ty(pat) {
+                if let Some(ty) = self.tc.try_get_inferred_ty(pat) {
                     self.apply_sub_in_place(ty, sub);
                 }
             }
-            Atom::FnDef(_) => {}
+            Atom::Lit(_) | Atom::FnDef(_) => {}
         }
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::Hole(Hole(symbol)) | Term::Var(symbol) => match sub.get_sub_for(symbol) {
-                    Some(subbed_term) => {
-                        let subbed_term_val = subbed_term.value();
-                        term.set(subbed_term_val);
-                        ControlFlow::Break(())
+                Term::Hole(Hole(symbol)) | Term::Var(VarTerm { symbol }) => {
+                    match sub.get_sub_for(symbol) {
+                        Some(subbed_term) => {
+                            let subbed_term_val = subbed_term.value();
+                            term.set(subbed_term_val);
+                            ControlFlow::Break(())
+                        }
+                        None => ControlFlow::Continue(()),
                     }
-                    None => ControlFlow::Continue(()),
-                },
+                }
                 Ty::TupleTy(tuple_ty) => {
                     let _ = self.apply_sub_to_params_and_get_shadowed(tuple_ty.data, sub);
                     ControlFlow::Break(())
@@ -115,6 +121,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                 ControlFlow::Break(())
             }
             Atom::Pat(_) => ControlFlow::Continue(()),
+            Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
 
@@ -131,7 +138,9 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         let var_matches = &var_matches;
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::Hole(Hole(symbol)) | Term::Var(symbol) if var_matches.contains(&symbol) => {
+                Term::Hole(Hole(symbol)) | Term::Var(VarTerm { symbol })
+                    if var_matches.contains(&symbol) =>
+                {
                     *can_apply = true;
                     ControlFlow::Break(())
                 }
@@ -141,7 +150,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                 }
                 Ty::FnTy(fn_ty) => {
                     let seen = self.params_contain_vars(fn_ty.params, var_matches, can_apply);
-                    if self.atom_contains_vars(fn_ty.return_ty.into(), &seen) {
+                    if self.contains_vars(fn_ty.return_ty, &seen) {
                         *can_apply = true;
                         return ControlFlow::Break(());
                     }
@@ -153,17 +162,18 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                 let fn_def = fn_def_id.value();
                 let fn_ty = fn_def.ty;
                 let seen = self.params_contain_vars(fn_ty.params, var_matches, can_apply);
-                if self.atom_contains_vars(fn_ty.return_ty.into(), &seen) {
+                if self.contains_vars(fn_ty.return_ty, &seen) {
                     *can_apply = true;
                     return ControlFlow::Break(());
                 }
-                if self.atom_contains_vars(fn_def.body.into(), &seen) {
+                if self.contains_vars(fn_def.body, &seen) {
                     *can_apply = true;
                     return ControlFlow::Break(());
                 }
                 ControlFlow::Break(())
             }
             Atom::Pat(_) => ControlFlow::Continue(()),
+            Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
 
@@ -181,16 +191,20 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         self.atom_contains_vars_once(atom, &domain, can_apply)
     }
 
-    /// Below are convenience methods for specific atoms:
-    pub fn atom_contains_vars(&self, atom: Atom, filter: &HashSet<SymbolId>) -> bool {
+    pub fn contains_vars<N>(&self, atom: N, filter: &HashSet<SymbolId>) -> bool
+    where
+        Visitor: Visit<N>,
+    {
         let mut can_apply = false;
         self.traversing_utils
             .visit(atom, &mut |atom| self.atom_contains_vars_once(atom, filter, &mut can_apply));
         can_apply
     }
 
-    /// Below are convenience methods for specific atoms:
-    pub fn can_apply_sub_to_atom(&self, atom: Atom, sub: &Sub) -> bool {
+    pub fn can_apply_sub<N>(&self, atom: N, sub: &Sub) -> bool
+    where
+        Visitor: Visit<N>,
+    {
         let mut can_apply = false;
         self.traversing_utils
             .visit(atom, &mut |atom| self.can_apply_sub_to_atom_once(atom, sub, &mut can_apply));
@@ -244,6 +258,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                 _ => ControlFlow::Continue(()),
             },
             Atom::FnDef(_) => ControlFlow::Continue(()),
+            Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
 
@@ -320,7 +335,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
     /// the value is not a variable with the same name.
     pub fn insert_to_sub_if_needed(&self, sub: &mut Sub, name: SymbolId, value: TermId) {
         let subbed_value = self.apply_sub(value, sub);
-        if !matches!(*subbed_value.value(), Term::Var(v) if v == name) {
+        if !matches!(*subbed_value.value(), Term::Var(v) if v.symbol == name) {
             sub.insert(name, subbed_value);
         }
     }
@@ -389,7 +404,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
                 continue;
             }
             // If the substitution is to that parameter, skip it.
-            if self.atom_contains_vars(value.into(), &param_names) {
+            if self.contains_vars(value, &param_names) {
                 continue;
             }
 
@@ -407,7 +422,7 @@ impl<'a, T: TcEnv> SubstitutionOps<'a, T> {
         for (name, value) in sub.iter() {
             match *value.value() {
                 Term::Var(v) => {
-                    reversed_sub.insert(v, Term::from(name, name.origin()));
+                    reversed_sub.insert(v.symbol, Term::from(name, name.origin()));
                 }
                 Term::Hole(h) => {
                     reversed_sub.insert(h.0, Term::from(name, name.origin()));

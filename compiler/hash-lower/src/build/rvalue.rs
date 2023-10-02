@@ -126,12 +126,12 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Access(_)
             | Term::Index(_)
             | Term::Cast(_)
-            | Term::TypeOf(_)
+            | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)
             | Ty::TupleTy(_)
             | Ty::RefTy(_)
-            | Ty::Universe
+            | Ty::Universe(_)
             | Term::Ref(_)
             | Term::Deref(_)
             | Term::Hole(_)) => as_operand(term, self),
