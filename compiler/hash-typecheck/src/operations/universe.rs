@@ -23,7 +23,7 @@ impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
         self.check_is_universe(item_ty)
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         _: UniverseTy,
         _: Self::Node,

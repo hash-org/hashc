@@ -24,7 +24,7 @@ impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         _item: RangePat,
         _item_node: Self::Node,

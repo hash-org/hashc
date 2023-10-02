@@ -89,12 +89,16 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
         })
     }
 
-    fn normalise(&self, mut fn_call: CallTerm, item_node: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(
+        &self,
+        mut fn_call: CallTerm,
+        item_node: Self::Node,
+    ) -> NormaliseResult<TermId> {
         let st = NormalisationState::new();
 
-        fn_call.subject = self.eval_and_record(fn_call.subject, &st)?;
+        fn_call.subject = self.normalise_node_and_record(fn_call.subject, &st)?;
         fn_call.args =
-            st.update_from_result(fn_call.args, self.normalise_node_rec(fn_call.args))?;
+            st.update_from_result(fn_call.args, self.try_normalise_node_rec(fn_call.args))?;
 
         let subject = *fn_call.subject.value();
 
@@ -110,11 +114,11 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
                     self.context().add_arg_bindings(fn_def.ty.params, fn_call.args);
 
                     // Evaluate result:
-                    match self.eval(fn_def.body.into()) {
+                    match self.normalise_node(fn_def.body) {
                         Err(NormaliseSignal::Return(result)) | Ok(result) => {
                             // Substitute remaining bindings:
                             let sub = self.substituter().create_sub_from_current_scope();
-                            let result = self.substituter().apply_sub(result.to_term(), &sub);
+                            let result = self.substituter().apply_sub(result, &sub);
                             normalised_to(result)
                         }
                         Err(e) => Err(e),

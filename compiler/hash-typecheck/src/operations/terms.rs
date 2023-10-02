@@ -92,7 +92,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise_node(&self, _item: TermId) -> NormaliseResult<TermId> {
+    fn try_normalise_node(&self, _item: TermId) -> NormaliseResult<TermId> {
         todo!()
     }
 
@@ -101,8 +101,8 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             return Ok(());
         }
 
-        self.normalise_in_place(src_id)?;
-        self.normalise_in_place(target_id)?;
+        self.normalise_node_in_place_no_signals(src_id)?;
+        self.normalise_node_in_place_no_signals(target_id)?;
 
         let src = src_id.value();
         let target = target_id.value();

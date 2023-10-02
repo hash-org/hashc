@@ -26,7 +26,7 @@ impl<E: TcEnv> Tc<'_, E> {
             Ty::Hole(_) => Ok(()),
             _ => {
                 self.check_node(ty, Ty::universe_of(ty))?;
-                self.normalise_in_place(ty)?;
+                self.normalise_node_in_place_no_signals(ty)?;
                 Ok(())
             }
         }
@@ -37,7 +37,7 @@ impl<E: TcEnv> Tc<'_, E> {
     /// This does not look too deeply into the type, so it may return false
     /// for types that are actually uninhabitable.
     pub fn is_uninhabitable(&self, ty: TyId) -> TcResult<bool> {
-        let ty = self.normalise_atom(ty)?;
+        let ty = self.normalise_node_no_signals(ty)?;
         match *ty.value() {
             Ty::DataTy(data_ty) => {
                 let data_def = data_ty.data_def.borrow();

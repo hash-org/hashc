@@ -22,13 +22,13 @@ impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         cast_term: CastTerm,
         _: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         // @@Todo: will not play well with typeof?;
-        normalised_option(self.potentially_normalise(cast_term.subject_term)?)
+        normalised_option(self.potentially_normalise_node_no_signals(cast_term.subject_term)?)
     }
 
     fn unify(

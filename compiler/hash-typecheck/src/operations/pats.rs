@@ -62,7 +62,7 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise_node(
+    fn try_normalise_node(
         &self,
         _item: PatId,
     ) -> crate::options::normalisation::NormaliseResult<PatId> {
@@ -97,7 +97,7 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         _item: IfPat,
         _item_node: Self::Node,
@@ -130,7 +130,7 @@ impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         _item: OrPat,
         _item_node: Self::Node,

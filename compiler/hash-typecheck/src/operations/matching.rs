@@ -115,13 +115,13 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         mut match_term: MatchTerm,
         _: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         let st = NormalisationState::new();
-        match_term.subject = self.eval_and_record(match_term.subject, &st)?;
+        match_term.subject = self.normalise_node_and_record(match_term.subject, &st)?;
 
         for case_id in match_term.cases.iter() {
             let case = case_id.value();
@@ -136,7 +136,7 @@ impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
                         &mut |name, term_id| self.context().add_untyped_assignment(name, term_id),
                     )? {
                         MatchResult::Successful => {
-                            let result = self.eval_and_record(case.value, &st)?;
+                            let result = self.normalise_node_and_record(case.value, &st)?;
                             outcome = Some(normalised_to(result));
                         }
                         MatchResult::Failed => {}

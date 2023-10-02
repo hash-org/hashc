@@ -59,7 +59,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
         })
     }
 
-    fn normalise(&self, _item: TupleTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(&self, _item: TupleTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
@@ -89,7 +89,7 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, _item: TupleTy, _item_node: Self::Node) -> NormaliseResult<TyId> {
+    fn try_normalise(&self, _item: TupleTy, _item_node: Self::Node) -> NormaliseResult<TyId> {
         todo!()
     }
 
@@ -144,7 +144,7 @@ impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, _item: TuplePat, _item_node: Self::Node) -> NormaliseResult<PatId> {
+    fn try_normalise(&self, _item: TuplePat, _item_node: Self::Node) -> NormaliseResult<PatId> {
         todo!()
     }
 

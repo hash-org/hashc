@@ -40,8 +40,8 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
         }
     }
 
-    fn normalise(&self, return_term: ReturnTerm, _: Self::Node) -> NormaliseResult<Self::Node> {
-        let normalised = self.eval(return_term.expression.into())?;
+    fn try_normalise(&self, return_term: ReturnTerm, _: Self::Node) -> NormaliseResult<Self::Node> {
+        let normalised = self.normalise_node(return_term.expression)?;
         Err(NormaliseSignal::Return(normalised))
     }
 
@@ -70,7 +70,7 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
         self.check_by_unify(never_ty(NodeOrigin::Expected), annotation_ty)
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         loop_control_term: LoopControlTerm,
         _: Self::Node,
@@ -110,9 +110,13 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, loop_term: LoopTerm, item_node: Self::Node) -> NormaliseResult<Self::Node> {
+    fn try_normalise(
+        &self,
+        loop_term: LoopTerm,
+        item_node: Self::Node,
+    ) -> NormaliseResult<Self::Node> {
         loop {
-            match self.eval(loop_term.inner) {
+            match self.normalise_node(loop_term.inner) {
                 Ok(_) | Err(NormaliseSignal::Continue) => continue,
                 Err(NormaliseSignal::Break) => break,
                 Err(e) => return Err(e),
@@ -156,16 +160,16 @@ impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         mut assign_term: AssignTerm,
         item_node: Self::Node,
     ) -> NormaliseResult<Self::Node> {
-        assign_term.value = self.eval(assign_term.value)?;
+        assign_term.value = self.normalise_node(assign_term.value)?;
 
         match *assign_term.subject.value() {
             Term::Access(mut access_term) => {
-                access_term.subject = self.eval(access_term.subject)?;
+                access_term.subject = self.normalise_node(access_term.subject)?;
                 match *access_term.subject.value() {
                     Term::Tuple(tuple) => self.set_param_in_args(
                         tuple.data,

@@ -24,11 +24,11 @@ impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
         let inferred_ty = Ty::hole_for(ty_of_term.term);
         self.check_node(ty_of_term.term, inferred_ty)?;
         self.check_node(inferred_ty, annotation_ty)?;
-        self.normalise_in_place(original_term_id)?;
+        self.normalise_node_in_place_no_signals(original_term_id)?;
         Ok(())
     }
 
-    fn normalise(&self, ty_of_term: TyOfTerm, _: Self::Node) -> NormaliseResult<Self::Node> {
+    fn try_normalise(&self, ty_of_term: TyOfTerm, _: Self::Node) -> NormaliseResult<Self::Node> {
         // Infer the type of the term:
         match self.try_get_inferred_ty(ty_of_term.term) {
             Some(ty) => normalised_to(ty),

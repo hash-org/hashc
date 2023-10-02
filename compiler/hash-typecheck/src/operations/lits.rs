@@ -159,7 +159,7 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise_node(&self, _item: LitId) -> NormaliseResult<LitId> {
+    fn try_normalise_node(&self, _item: LitId) -> NormaliseResult<LitId> {
         todo!()
     }
 

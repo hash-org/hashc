@@ -31,12 +31,12 @@ impl<E: TcEnv> Operations<Hole> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         hole: Hole,
         item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
-        self.normalise(VarTerm { symbol: hole.0 }, item_node)
+        self.try_normalise(VarTerm { symbol: hole.0 }, item_node)
     }
 
     fn unify(

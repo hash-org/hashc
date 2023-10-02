@@ -102,14 +102,15 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
         })
     }
 
-    fn normalise(&self, block_term: BlockTerm, _: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(&self, block_term: BlockTerm, _: Self::Node) -> NormaliseResult<TermId> {
         self.context().enter_scope(ScopeKind::Stack(block_term.stack_id), || {
             let st = NormalisationState::new();
 
             for statement in block_term.statements.iter() {
                 match *statement.value() {
                     BlockStatement::Decl(mut decl_term) => {
-                        decl_term.value = self.eval_nested_and_record(decl_term.value, &st)?;
+                        decl_term.value =
+                            self.normalise_nested_node_and_record(decl_term.value, &st)?;
 
                         match self.match_value_and_get_binds(
                             decl_term.value,
@@ -130,13 +131,13 @@ impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
                         }
                     }
                     BlockStatement::Expr(expr) => {
-                        let _ = self.eval_and_record(expr, &st)?;
+                        let _ = self.normalise_node_and_record(expr, &st)?;
                     }
                 }
             }
 
             let sub = self.substituter().create_sub_from_current_scope();
-            let result_term = self.eval_and_record(block_term.expr, &st)?;
+            let result_term = self.normalise_node_and_record(block_term.expr, &st)?;
             let subbed_result_term = self.substituter().apply_sub(result_term, &sub);
 
             normalised_to(subbed_result_term)

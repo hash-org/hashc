@@ -28,7 +28,7 @@ impl<T: TcEnv> HasTarget for IntrinsicAbilitiesImpl<'_, T> {
 
 impl<T: TcEnv> IntrinsicAbilities for IntrinsicAbilitiesImpl<'_, T> {
     fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String> {
-        self.tc.potentially_normalise(term).map_err(|e| {
+        self.tc.potentially_normalise_node_no_signals(term).map_err(|e| {
             self.tc.diagnostics().add_error(e.into());
             "normalisation error".to_string()
         })

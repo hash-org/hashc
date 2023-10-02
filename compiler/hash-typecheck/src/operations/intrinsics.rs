@@ -20,7 +20,7 @@ impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         _item: Intrinsic,
         _item_node: Self::Node,

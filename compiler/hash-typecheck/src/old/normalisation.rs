@@ -41,18 +41,16 @@ pub enum MatchResult {
 
 pub type FullEvaluation<T> = Result<T, NormaliseSignal>;
 
-pub type AtomEvaluation = NormaliseResult<Atom>;
-
 impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// Normalise the given atom, in-place.
     ///
     /// returns `true` if the atom was normalised.
-    pub fn normalise_in_place<N>(&self, atom: N) -> TcResult<bool>
+    pub fn normalise_node_in_place_no_signals<N>(&self, atom: N) -> TcResult<bool>
     where
         Visitor: Map<N>,
         N: SingleStoreId,
     {
-        if let Some(result) = self.potentially_normalise(atom)? {
+        if let Some(result) = self.potentially_normalise_node_no_signals(atom)? {
             atom.set(result.value());
             Ok(true)
         } else {
@@ -61,11 +59,11 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     }
 
     /// Normalise the given atom.
-    pub fn potentially_normalise<N>(&self, atom: N) -> TcResult<Option<N>>
+    pub fn potentially_normalise_node_no_signals<N>(&self, atom: N) -> TcResult<Option<N>>
     where
         Visitor: Map<N>,
     {
-        match self.potentially_eval(atom) {
+        match self.potentially_normalise_node(atom) {
             Ok(t) => Ok(t),
             Err(e) => match e {
                 NormaliseSignal::Break | NormaliseSignal::Continue | NormaliseSignal::Return(_) => {
@@ -77,11 +75,11 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     }
 
     /// Normalise the given atom.
-    pub fn normalise_atom<N: Copy>(&self, atom: N) -> TcResult<N>
+    pub fn normalise_node_no_signals<N: Copy>(&self, atom: N) -> TcResult<N>
     where
         Visitor: Map<N>,
     {
-        match self.eval(atom) {
+        match self.normalise_node(atom) {
             Ok(t) => Ok(t),
             Err(e) => match e {
                 NormaliseSignal::Break | NormaliseSignal::Continue | NormaliseSignal::Return(_) => {
@@ -94,11 +92,11 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
 
     /// Evaluate an atom with the current mode, performing at least a single
     /// step of normalisation.
-    pub fn eval<N: Copy>(&self, atom: N) -> Result<N, NormaliseSignal>
+    pub fn normalise_node<N: Copy>(&self, atom: N) -> Result<N, NormaliseSignal>
     where
         Visitor: Map<N>,
     {
-        match self.potentially_eval(atom)? {
+        match self.potentially_normalise_node(atom)? {
             Some(atom) => Ok(atom),
             None => Ok(atom),
         }
@@ -106,7 +104,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
 
     /// Same as `eval`, but also sets the `evaluated` flag in the given
     /// `EvalState`.
-    pub fn eval_and_record<N: Copy>(
+    pub fn normalise_node_and_record<N: Copy>(
         &self,
         atom: N,
         state: &NormalisationState,
@@ -114,7 +112,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     where
         Visitor: Map<N>,
     {
-        match self.potentially_eval(atom)? {
+        match self.potentially_normalise_node(atom)? {
             Some(atom) => {
                 state.set_normalised();
                 Ok(atom)
@@ -125,15 +123,15 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
 
     /// Evaluate an atom in full, even if it has no effects, and including
     /// impure function calls.
-    fn eval_fully<N: Copy>(&self, atom: N) -> Result<N, NormaliseSignal>
+    fn normalise_node_fully<N: Copy>(&self, atom: N) -> Result<N, NormaliseSignal>
     where
         Visitor: Map<N>,
     {
-        self.normalisation_opts.mode.enter(NormalisationMode::Full, || self.eval(atom))
+        self.normalisation_opts.mode.enter(NormalisationMode::Full, || self.normalise_node(atom))
     }
 
     /// Same as `eval_nested`, but with a given evaluation state.
-    pub fn eval_nested_and_record<N: Copy>(
+    pub fn normalise_nested_node_and_record<N: Copy>(
         &self,
         atom: N,
         state: &NormalisationState,
@@ -142,7 +140,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         Visitor: Map<N>,
     {
         match self.normalisation_opts.mode.get() {
-            NormalisationMode::Full => self.eval_and_record(atom, state),
+            NormalisationMode::Full => self.normalise_node_and_record(atom, state),
             NormalisationMode::Weak => Ok(atom),
         }
     }
@@ -203,7 +201,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     /// Evaluate an atom, performing at least a single step of normalisation.
     ///
     /// Returns `None` if the atom is already normalised.
-    pub fn potentially_eval<N>(&self, atom: N) -> NormaliseResult<N>
+    pub fn potentially_normalise_node<N>(&self, atom: N) -> NormaliseResult<N>
     where
         Visitor: Map<N>,
     {
@@ -225,7 +223,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
                 self.normalisation_opts.mode.get()
             };
 
-            let result = match self.eval_once(atom, nested.get())? {
+            let result = match self.normalise_atom_once(atom, nested.get())? {
                 Some(result @ ControlFlow::Break(_)) => {
                     st.set_normalised();
                     Ok(result)
@@ -249,7 +247,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
     ///
     /// Invariant: if `self.atom_has_effects(atom)`, then `self.eval_once(atom)
     /// != ctrl_continue()`.
-    fn eval_once(&self, atom: Atom, nested: bool) -> NormaliseResult<ControlFlow<Atom>> {
+    fn normalise_atom_once(&self, atom: Atom, nested: bool) -> NormaliseResult<ControlFlow<Atom>> {
         if nested && self.normalisation_opts.mode.get() == NormalisationMode::Weak {
             // If we're in weak mode, we don't want to evaluate nested atoms
             return already_normalised();
@@ -258,30 +256,30 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         match atom {
             Atom::Term(term) => match *term.value() {
                 Term::TyOf(ty_of_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(ty_of_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(ty_of_term, term)))
                 }
                 Term::Unsafe(unsafe_expr) => {
-                    ctrl_map(normalisation_result_into(self.normalise(unsafe_expr, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(unsafe_expr, term)))
                 }
                 Term::Match(match_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(match_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(match_term, term)))
                 }
                 Term::Call(fn_call) => {
-                    ctrl_map(normalisation_result_into(self.normalise(fn_call, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(fn_call, term)))
                 }
                 Term::Cast(cast_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(cast_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(cast_term, term)))
                 }
-                Term::Hole(h) => ctrl_map(normalisation_result_into(self.normalise(h, term))),
-                Term::Var(v) => ctrl_map(normalisation_result_into(self.normalise(v, term))),
+                Term::Hole(h) => ctrl_map(normalisation_result_into(self.try_normalise(h, term))),
+                Term::Var(v) => ctrl_map(normalisation_result_into(self.try_normalise(v, term))),
                 Term::Deref(deref_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(deref_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(deref_term, term)))
                 }
                 Term::Access(access_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(access_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(access_term, term)))
                 }
                 Term::Index(index_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(index_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(index_term, term)))
                 }
 
                 // Introduction forms:
@@ -295,19 +293,19 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
 
                 // Imperative:
                 Term::LoopControl(loop_control) => {
-                    ctrl_map(normalisation_result_into(self.normalise(loop_control, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(loop_control, term)))
                 }
                 Term::Assign(assign_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(assign_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(assign_term, term)))
                 }
                 Term::Return(return_expr) => {
-                    ctrl_map(normalisation_result_into(self.normalise(return_expr, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(return_expr, term)))
                 }
                 Term::Block(block_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(block_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(block_term, term)))
                 }
                 Term::Loop(loop_term) => {
-                    ctrl_map(normalisation_result_into(self.normalise(loop_term, term)))
+                    ctrl_map(normalisation_result_into(self.try_normalise(loop_term, term)))
                 }
                 Ty::FnTy(_) | Ty::TupleTy(_) | Ty::DataTy(_) | Ty::Universe(_) | Ty::RefTy(_) => {
                     ctrl_continue()
@@ -417,7 +415,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         match array {
             ArrayTerm::Normal(elements) => normalised_if(|| elements.len(), &st),
             ArrayTerm::Repeated(_, repeat) => {
-                let evaluated = self.eval_fully(repeat.into())?;
+                let evaluated = self.normalise_node_fully(repeat.into())?;
                 let Atom::Term(term) = evaluated else {
                     return stuck_normalising();
                 };
@@ -521,7 +519,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         pat_id: PatId,
         f: &mut impl FnMut(SymbolId, TermId),
     ) -> Result<MatchResult, NormaliseSignal> {
-        let evaluated_id = self.eval(term_id)?;
+        let evaluated_id = self.normalise_node(term_id)?;
         let evaluated = *evaluated_id.value();
         match (evaluated, *pat_id.value()) {
             (_, Pat::Or(pats)) => {
@@ -550,7 +548,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
                     self.match_value_and_get_binds(term_id, if_pat.pat, f)?
                 {
                     // Check the condition:
-                    let cond = self.eval_fully(if_pat.condition.into())?;
+                    let cond = self.normalise_node_fully(if_pat.condition.into())?;
                     if self.is_true(cond) {
                         return Ok(MatchResult::Successful);
                     }

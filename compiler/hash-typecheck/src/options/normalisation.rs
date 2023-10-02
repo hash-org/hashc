@@ -1,6 +1,6 @@
 use std::{cell::Cell, ops::ControlFlow};
 
-use hash_tir::visitor::Atom;
+use hash_tir::tir::TermId;
 use hash_utils::{derive_more::From, state::LightState};
 
 use crate::errors::TcError;
@@ -10,7 +10,7 @@ use crate::errors::TcError;
 pub enum NormaliseSignal {
     Break,
     Continue,
-    Return(Atom),
+    Return(TermId),
     Err(TcError),
 }
 

@@ -78,9 +78,9 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
         }
     }
 
-    fn normalise(&self, mut access_term: AccessTerm, _: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(&self, mut access_term: AccessTerm, _: Self::Node) -> NormaliseResult<TermId> {
         let st = NormalisationState::new();
-        access_term.subject = self.eval_and_record(access_term.subject, &st)?;
+        access_term.subject = self.normalise_node_and_record(access_term.subject, &st)?;
 
         let result = match *access_term.subject.value() {
             Term::Tuple(TupleTerm { data: args })
@@ -91,7 +91,7 @@ impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
                 return stuck_normalising();
             }
         };
-        let evaluated = self.eval_and_record(result, &st)?.to_term();
+        let evaluated = self.normalise_node_and_record(result, &st)?.to_term();
         normalised_if(|| evaluated, &st)
     }
 

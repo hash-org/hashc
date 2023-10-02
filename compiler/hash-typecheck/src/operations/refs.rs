@@ -50,7 +50,7 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         _item: RefTerm,
         _item_node: Self::Node,
@@ -99,13 +99,13 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         mut deref_term: DerefTerm,
         item_node: Self::Node,
     ) -> crate::options::normalisation::NormaliseResult<Self::Node> {
         let st = NormalisationState::new();
-        deref_term.subject = self.eval_and_record(deref_term.subject, &st)?;
+        deref_term.subject = self.normalise_node_and_record(deref_term.subject, &st)?;
 
         // Reduce:
         if let Term::Ref(ref_expr) = *deref_term.subject.value() {
@@ -143,7 +143,7 @@ impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         _item: RefTy,
         _item_node: Self::Node,

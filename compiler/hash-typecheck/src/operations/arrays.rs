@@ -121,7 +121,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, _item: ArrayTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(&self, _item: ArrayTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
@@ -172,7 +172,7 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, _item: ArrayPat, _item_node: Self::Node) -> NormaliseResult<PatId> {
+    fn try_normalise(&self, _item: ArrayPat, _item_node: Self::Node) -> NormaliseResult<PatId> {
         todo!()
     }
 
@@ -239,9 +239,9 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, mut index_term: IndexTerm, _: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(&self, mut index_term: IndexTerm, _: Self::Node) -> NormaliseResult<TermId> {
         let st = NormalisationState::new();
-        index_term.subject = self.eval_and_record(index_term.subject, &st)?;
+        index_term.subject = self.normalise_node_and_record(index_term.subject, &st)?;
 
         if let Term::Array(array_term) = *index_term.subject.value() {
             let result = match array_term {
@@ -255,7 +255,7 @@ impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
             // Check if we actually got the index when evaluating:
             let Some(index) = result else { return stuck_normalising() };
 
-            let result = self.eval_and_record(index, &st)?.to_term();
+            let result = self.normalise_node_and_record(index, &st)?.to_term();
             normalised_if(|| result, &st)
         } else {
             stuck_normalising()

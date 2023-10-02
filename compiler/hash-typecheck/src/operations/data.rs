@@ -140,7 +140,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, _item: CtorTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
+    fn try_normalise(&self, _item: CtorTerm, _item_node: Self::Node) -> NormaliseResult<TermId> {
         todo!()
     }
 
@@ -181,7 +181,7 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, _item: DataTy, _item_node: Self::Node) -> NormaliseResult<TyId> {
+    fn try_normalise(&self, _item: DataTy, _item_node: Self::Node) -> NormaliseResult<TyId> {
         todo!()
     }
 
@@ -243,7 +243,7 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
         })
     }
 
-    fn normalise_node(&self, _item: DataDefId) -> NormaliseResult<DataDefId> {
+    fn try_normalise_node(&self, _item: DataDefId) -> NormaliseResult<DataDefId> {
         todo!()
     }
 
@@ -267,7 +267,7 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
         })
     }
 
-    fn normalise_node(&self, _item: CtorDefId) -> NormaliseResult<CtorDefId> {
+    fn try_normalise_node(&self, _item: CtorDefId) -> NormaliseResult<CtorDefId> {
         todo!()
     }
 
@@ -405,7 +405,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(&self, _item: CtorPat, _item_node: Self::Node) -> NormaliseResult<Self::Node> {
+    fn try_normalise(&self, _item: CtorPat, _item_node: Self::Node) -> NormaliseResult<Self::Node> {
         todo!()
     }
 

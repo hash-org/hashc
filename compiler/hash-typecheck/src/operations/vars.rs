@@ -44,7 +44,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
         }
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         item: VarTerm,
         _: Self::Node,
@@ -55,7 +55,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
                 if matches!(*result.value(), Term::Var(v) if v.symbol == var) {
                     already_normalised()
                 } else {
-                    normalised_to(self.eval(result)?)
+                    normalised_to(self.normalise_node(result)?)
                 }
             }
             None => already_normalised(),
@@ -111,7 +111,7 @@ impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
         Ok(())
     }
 
-    fn normalise(
+    fn try_normalise(
         &self,
         _item: BindingPat,
         _item_node: Self::Node,
