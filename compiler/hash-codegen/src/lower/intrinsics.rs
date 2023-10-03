@@ -102,7 +102,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Emit code for transmuting from a given operand `src`, generating an
     /// operand value as the destination which will be the result of the
     /// transmute.
-    fn codegen_transmute_operand(
+    pub(super) fn codegen_transmute_operand(
         &mut self,
         builder: &mut Builder,
         src: OperandRef<Builder::Value>,

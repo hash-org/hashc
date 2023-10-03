@@ -147,9 +147,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         can_merge: bool,
     ) -> bool {
         // generate the operand as the function call...
-        let callee = self.codegen_operand(builder, op);
+        let call_subject = self.codegen_operand(builder, op);
 
-        let ty = callee.info.ty;
+        let ty = call_subject.info.ty;
         let instance = ty.borrow().as_instance();
         let is_intrinsic = instance.borrow().is_intrinsic();
         let mut maybe_intrinsic = None;
@@ -164,8 +164,24 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             if let Some(Intrinsic::Transmute) = maybe_intrinsic {
                 return if let Some(target) = target {
                     let src = self.codegen_operand(builder, &fn_args[2]);
-                    let dest = self.codegen_place(builder, destination);
-                    self.codegen_transmute(builder, src, dest);
+
+                    match self.locals[destination.local] {
+                        LocalRef::Place(_) => {
+                            let dest = self.codegen_place(builder, destination);
+                            self.codegen_transmute(builder, src, dest);
+                        }
+                        LocalRef::Operand(Some(op)) => {
+                            self.codegen_transmute_operand(builder, src, op.info);
+                        }
+                        LocalRef::Operand(None) => {
+                            let info = self.compute_place_ty_info(builder, destination);
+                            let operand =
+                                self.codegen_transmute_operand(builder, src, info).unwrap();
+                            let or = OperandRef { info, value: operand };
+
+                            self.locals[destination.local] = LocalRef::Operand(Some(or));
+                        }
+                    }
                     self.codegen_goto_terminator(builder, target, can_merge)
                 } else {
                     builder.unreachable();

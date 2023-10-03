@@ -2,6 +2,7 @@
 //! the target backend IR.
 
 use hash_ir::ir::{Statement, StatementKind};
+use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
 
 use super::{locals::LocalRef, FnBuilder};
