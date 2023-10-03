@@ -65,14 +65,7 @@ impl<'s> AstGen<'s> {
             None => None,
         };
 
-        // If the next token is a `=`, then we need to parse the discriminant.
-        let discriminant = match self.parse_token_fast(TokenKind::Eq) {
-            Some(_) => Some(self.parse_expr()?),
-            None => None,
-        };
-
-        Ok(self
-            .node_with_joined_span(EnumDefEntry { name, fields, ty, discriminant, macros }, start))
+        Ok(self.node_with_joined_span(EnumDefEntry { name, fields, ty, macros }, start))
     }
 
     pub(crate) fn parse_params(&mut self, origin: ParamOrigin) -> ParseResult<AstNode<Params>> {

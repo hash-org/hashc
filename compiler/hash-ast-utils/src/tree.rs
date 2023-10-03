@@ -877,13 +877,12 @@ impl AstVisitor for AstTreePrinter {
         &self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { name, fields, ty, discriminant, macros } =
+        let walk::EnumDefEntry { name, fields, ty, macros } =
             walk::walk_enum_def_entry(self, node)?;
 
         let children = iter::once(TreeNode::leaf("variant"))
             .chain(macros)
             .chain(fields)
-            .chain(discriminant)
             .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
             .collect_vec();
 

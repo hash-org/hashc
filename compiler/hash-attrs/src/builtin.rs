@@ -24,7 +24,7 @@ macro_rules! make_ty {
 
 macro_rules! define_attr {
     // @@Future: support for default values, via a literal. This would probably be
-    // better done usin a procedural macro, so that we can emit better errors.
+    // better done using a procedural macro, so that we can emit better errors.
     //
     // @@Improve: ensure that provided argument names are unique!
     ($table:expr, $name:ident, { ($($arg:ident : $ty:ident),*), $subject:expr }) => {
@@ -105,7 +105,8 @@ define_attrs!(
     link_name { (name: str), AttrTarget::FnDef },
 
     // ------------------------------------------
-    // Type attributes.
+    // Type representation attributes.
     // ------------------------------------------
-    repr { (abi: str), AttrTarget::StructDef | AttrTarget::EnumDef }
+    repr { (abi: str), AttrTarget::StructDef | AttrTarget::EnumDef },
+    discriminant { (value: u128), AttrTarget::EnumVariant }
 );

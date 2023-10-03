@@ -168,7 +168,7 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let ast::EnumDefEntry { name, fields, ty, discriminant, macros } = node.body();
+        let ast::EnumDefEntry { name, fields, ty, macros } = node.body();
 
         // We have to visit the macro args first...
         if let Some(macros) = macros {
@@ -185,11 +185,6 @@ where
         if let Some(ty) = ty {
             self.write(": ")?;
             self.visit_ty(ty.ast_ref())?;
-        }
-
-        if let Some(discriminant) = discriminant {
-            self.write(" = ")?;
-            self.visit_expr(discriminant.ast_ref())?;
         }
 
         Ok(())
