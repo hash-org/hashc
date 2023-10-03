@@ -48,10 +48,13 @@ pub mod gen {
     pub fn enum_def(
         name: SymbolId,
         params: ParamsId,
-        variants: impl IntoIterator<Item = (SymbolId, ParamsId)>,
+        variants: impl IntoIterator<Item = (SymbolId, ParamsId, Option<TermId>)>,
     ) -> DataDefId {
         let variants = Node::gen(
-            variants.into_iter().map(|(name, params)| Node::gen((name, params))).collect_vec(),
+            variants
+                .into_iter()
+                .map(|(name, params, discriminant)| Node::gen((name, params, discriminant)))
+                .collect_vec(),
         );
         DataDef::enum_def(name, params, move |_| variants, NodeOrigin::Generated)
     }
@@ -60,7 +63,7 @@ pub mod gen {
     pub fn indexed_enum_def(
         name: SymbolId,
         params: ParamsId,
-        variants: impl IntoIterator<Item = (SymbolId, ParamsId, Option<ArgsId>)>,
+        variants: impl IntoIterator<Item = (SymbolId, ParamsId, Option<ArgsId>, Option<TermId>)>,
     ) -> DataDefId {
         DataDef::indexed_enum_def(
             name,
@@ -69,7 +72,9 @@ pub mod gen {
                 Node::gen(
                     variants
                         .into_iter()
-                        .map(|(name, params, args)| Node::gen((name, params, args)))
+                        .map(|(name, params, args, discriminant)| {
+                            Node::gen((name, params, args, discriminant))
+                        })
                         .collect_vec(),
                 )
             },

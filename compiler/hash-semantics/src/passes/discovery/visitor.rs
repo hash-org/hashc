@@ -26,6 +26,7 @@ use crate::{
 
 impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
     type Error = SemanticError;
+
     ast_visitor_default_impl!(
         hiding: Declaration,
         Module,
@@ -227,6 +228,8 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                                         variant.fields.as_ref(),
                                         variant.id(),
                                     ),
+                                    None,
+                                    // @@Todo: fill in the discriminant
                                     None,
                                 ),
                                 NodeOrigin::Given(variant.id()),

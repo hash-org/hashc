@@ -38,14 +38,22 @@ pub struct CtorDef {
     /// The name of the constructor, for example `symbol("Red")` in `Red: Color`
     /// if given as a constructor to a `Colour := datatype...`.
     pub name: SymbolId,
+
     /// The `DataDefId` of the data-type that this constructor is a part of.
     pub data_def_id: DataDefId,
+
+    /// An optional value/term that is used for the discriminant of the
+    /// constructor.
+    pub discriminant: Option<TermId>,
+
     /// The index of this constructor in the original data-type's ordered
     /// constructor list (`ctors`).
     pub data_def_ctor_index: usize,
+
     /// The parameters of the constructor.
     // @@Todo: formalise positivity requirements
     pub params: ParamsId,
+
     /// The arguments given to the original data-type in the "return type" of
     /// the constructor.
     ///
@@ -205,6 +213,7 @@ impl CtorDef {
                     CtorDef {
                         name: data.name,
                         data_def_id,
+                        discriminant: data.discriminant,
                         data_def_ctor_index: index,
                         params: data.params,
                         result_args: data.result_args,
@@ -314,6 +323,8 @@ impl DataDef {
                         once({
                             Node::at(
                                 CtorDefData {
+                                    // Struct does't have a value for the discriminant.
+                                    discriminant: None,
                                     // Name of the constructor is the same as the data definition,
                                     // though we need to create a new
                                     // symbol for it
@@ -338,7 +349,10 @@ impl DataDef {
     pub fn indexed_enum_def(
         name: SymbolId,
         params: ParamsId,
-        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<(SymbolId, ParamsId, Option<ArgsId>)>>>,
+        variants: impl FnOnce(
+            DataDefId,
+        )
+            -> Node<Vec<Node<(SymbolId, ParamsId, Option<ArgsId>, Option<TermId>)>>>,
         enum_origin: NodeOrigin,
     ) -> DataDefId {
         // Create the data definition for the enum
@@ -352,18 +366,16 @@ impl DataDef {
                     .data
                     .into_iter()
                     .map(|node| {
-                        let (variant_name, fields_params, result_args) = *node;
+                        let (variant_name, fields_params, result_args, discriminant) = *node;
                         // Create a constructor for each variant
                         Node::at(
                             CtorDefData {
                                 name: variant_name,
                                 params: fields_params,
+                                discriminant,
                                 result_args: result_args.unwrap_or_else(|| {
                                     // Create the arguments for the constructor, which
-                                    // are
-                                    // the
-                                    // type parameters
-                                    // given.
+                                    // are the type parameters given.
                                     Arg::seq_from_param_names_as_vars(params)
                                 }),
                             },
@@ -389,7 +401,7 @@ impl DataDef {
     pub fn enum_def(
         name: SymbolId,
         params: ParamsId,
-        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<(SymbolId, ParamsId)>>>,
+        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<(SymbolId, ParamsId, Option<TermId>)>>>,
         enum_origin: NodeOrigin,
     ) -> DataDefId {
         Self::indexed_enum_def(
@@ -401,7 +413,7 @@ impl DataDef {
                     variants
                         .data
                         .into_iter()
-                        .map(|node| node.with_data((node.0, node.1, None)))
+                        .map(|node| node.with_data((node.0, node.1, None, node.2)))
                         .collect_vec(),
                     variants.origin,
                 )

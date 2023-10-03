@@ -586,7 +586,8 @@ macro_rules! make_primitives {
                                                             Some(args([$($($ctor_arg,)*)?]))
                                                         } else {
                                                             None
-                                                        }
+                                                        },
+                                                        None
                                                     )
                                                 })$(($(sym(stringify!($ctor_param_name))),*))?,
                                             )*
