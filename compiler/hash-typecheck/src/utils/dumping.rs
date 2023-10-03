@@ -1,3 +1,5 @@
+//! Utilities for dumping the TIR during typechecking.
+
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_tir::{dump::dump_tir, tir::HasAstNodeId};
 

@@ -1,3 +1,4 @@
+//! Utilities for checking if a term has effects, or if it is pure.
 use std::ops::ControlFlow;
 
 use hash_storage::store::statics::StoreId;
@@ -11,6 +12,16 @@ use hash_utils::log::info;
 use crate::{env::TcEnv, tc::Tc};
 
 impl<E: TcEnv> Tc<'_, E> {
+    /// Check if the given term has effects.
+    ///
+    /// Something is considered an effect if:
+    /// - It mutates a variable,
+    /// - It calls a function that is not pure,
+    /// - It performs some imperative control-flow like a loop,
+    /// - It operates on references.
+    // @@Formalise: this is still a very vague notion of "effect", ideally we
+    // want to have a very formal set of rules for this so that we don't lead into
+    // inconsistencies with pure function evaluation.
     pub fn has_effects<N>(&self, node: N) -> Option<bool>
     where
         Visitor: Visit<N>,
@@ -22,6 +33,8 @@ impl<E: TcEnv> Tc<'_, E> {
         has_effects
     }
 
+    /// Check if the given atom has effects, for use with TIR `Visitor`'s `Map`
+    /// trait.
     fn atom_has_effects_once(
         &self,
         visitor: &Visitor,

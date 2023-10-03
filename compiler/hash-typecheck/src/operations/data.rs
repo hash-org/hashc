@@ -112,7 +112,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         let expected_data_ty =
             Ty::expect_is(original_term_id, Ty::from(annotation_data_ty, annotation_ty.origin()));
         self.unification_opts.pat_binds.enter(Some(binds), || {
-            self.add_unification_from_sub(&resulting_sub);
+            self.add_sub_to_scope(&resulting_sub);
             self.unify_nodes(expected_data_ty, annotation_ty)
         })?;
 
@@ -385,7 +385,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         let expected_data_ty =
             Ty::expect_is(original_pat_id, Ty::from(annotation_data_ty, annotation_ty.origin()));
         self.unification_opts.pat_binds.enter(Some(binds), || {
-            self.add_unification_from_sub(&resulting_sub);
+            self.add_sub_to_scope(&resulting_sub);
             self.unify_nodes(expected_data_ty, annotation_ty)
         })?;
 

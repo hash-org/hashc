@@ -213,7 +213,7 @@ impl<E: TcEnv> Tc<'_, E> {
             })?;
 
         // Add the shadowed substitutions to the ambient scope
-        self.add_unification_from_sub(&shadowed_sub);
+        self.add_sub_to_scope(&shadowed_sub);
         Ok(result)
     }
 
