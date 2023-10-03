@@ -1,3 +1,5 @@
+//! Contains the main typechecker structure, which holds the state of the
+//! typechecker and is what all other `Operations` are implemented on.
 use hash_target::HasTarget;
 use hash_tir::{
     context::{Context, HasContext},

@@ -23,18 +23,18 @@ use crate::{
         already_normalised, normalised_if, NormalisationState, NormaliseResult, NormaliseSignal,
     },
     tc::Tc,
-    traits::{OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{OperationsOnNode, ScopedOperationsOnNode},
     utils::matching::MatchResult,
 };
 
-impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
-    type TyNode = ParamsId;
-    type RecursiveArg = ArgsId;
+impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
+    type AnnotNode = ParamsId;
+    type CallbackArg = ArgsId;
 
-    fn check_node_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+    fn check_node_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
         &self,
         args: ArgsId,
-        annotation_params: Self::TyNode,
+        annotation_params: Self::AnnotNode,
         mut in_arg_scope: F,
     ) -> TcResult<T> {
         self.register_new_atom(args, annotation_params);
@@ -58,7 +58,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
         Ok(result)
     }
 
-    fn try_normalise_node_rec(&self, args_id: ArgsId) -> NormaliseResult<ControlFlow<ArgsId>> {
+    fn try_normalise_node(&self, args_id: ArgsId) -> NormaliseResult<ControlFlow<ArgsId>> {
         let args = args_id.value();
         let st = NormalisationState::new();
 
@@ -82,7 +82,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ArgsId> for Tc<'_, E> {
         normalised_if(|| new_node, &st)
     }
 
-    fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+    fn unify_nodes_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
         &self,
         src_id: ArgsId,
         target_id: ArgsId,
@@ -123,14 +123,14 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_, E> {
-    type TyNode = ParamsId;
-    type RecursiveArg = PatArgsId;
+impl<E: TcEnv> ScopedOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_, E> {
+    type AnnotNode = ParamsId;
+    type CallbackArg = PatArgsId;
 
-    fn check_node_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+    fn check_node_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
         &self,
         (pat_args, spread): (PatArgsId, Option<Spread>),
-        annotation_params: Self::TyNode,
+        annotation_params: Self::AnnotNode,
         mut f: F,
     ) -> TcResult<T> {
         self.register_new_atom(pat_args, annotation_params);
@@ -161,14 +161,14 @@ impl<E: TcEnv> RecursiveOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_,
         )
     }
 
-    fn try_normalise_node_rec(
+    fn try_normalise_node(
         &self,
         _item: (PatArgsId, Option<Spread>),
     ) -> NormaliseResult<ControlFlow<(PatArgsId, Option<Spread>)>> {
         already_normalised()
     }
 
-    fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+    fn unify_nodes_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
         &self,
         (pat_args_id, _): (PatArgsId, Option<Spread>),
         _: (PatArgsId, Option<Spread>),

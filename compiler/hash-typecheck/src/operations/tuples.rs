@@ -12,17 +12,17 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
-    traits::{Operations, RecursiveOperationsOnNode},
+    traits::{Operations, ScopedOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         tuple_term: &mut TupleTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || {
@@ -43,7 +43,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
             };
 
             let mut tuple_term = *tuple_term;
-            self.check_node_rec(tuple_term.data, params, |new_args| {
+            self.check_node_scoped(tuple_term.data, params, |new_args| {
                 tuple_term.data = new_args;
                 original_term_id.set(original_term_id.value().with_data(tuple_term.into()));
                 Ok(())
@@ -76,21 +76,21 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
         _: Self::Node,
         _: Self::Node,
     ) -> TcResult<()> {
-        self.unify_nodes_rec(src.data, target.data, |_| Ok(()))
+        self.unify_nodes_scoped(src.data, target.data, |_| Ok(()))
     }
 }
 
 impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TyId;
 
     fn check(
         &self,
         tuple_ty: &mut TupleTy,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _original_term_id: Self::Node,
     ) -> TcResult<()> {
-        self.check_node_rec(tuple_ty.data, (), |()| Ok(()))?;
+        self.check_node_scoped(tuple_ty.data, (), |()| Ok(()))?;
         self.check_is_universe(annotation_ty)?;
         Ok(())
     }
@@ -110,18 +110,18 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
         _: Self::Node,
         _: Self::Node,
     ) -> TcResult<()> {
-        self.unify_nodes_rec(src.data, target.data, |_| Ok(()))
+        self.unify_nodes_scoped(src.data, target.data, |_| Ok(()))
     }
 }
 
 impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = PatId;
 
     fn check(
         &self,
         tuple_pat: &mut TuplePat,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_pat_id: Self::Node,
     ) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
@@ -140,7 +140,7 @@ impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
             }
         };
         let mut tuple_pat = *tuple_pat;
-        self.check_node_rec((tuple_pat.data, tuple_pat.data_spread), params, |new_args| {
+        self.check_node_scoped((tuple_pat.data, tuple_pat.data_spread), params, |new_args| {
             tuple_pat.data = new_args;
             original_pat_id.set(original_pat_id.value().with_data(tuple_pat.into()));
             Ok(())

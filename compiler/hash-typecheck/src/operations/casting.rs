@@ -10,13 +10,13 @@ use crate::{
 };
 
 impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         cast_term: &mut CastTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::errors::TcResult<()> {
         self.check_node(cast_term.subject_term, cast_term.target_ty)?;

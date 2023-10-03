@@ -17,10 +17,10 @@ impl<E: TcEnv> Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TyId;
 
-    fn check(&self, _: &mut UniverseTy, item_ty: Self::TyNode, _: Self::Node) -> TcResult<()> {
+    fn check(&self, _: &mut UniverseTy, item_ty: Self::AnnotNode, _: Self::Node) -> TcResult<()> {
         // Type: Type
         self.check_is_universe(item_ty)
     }

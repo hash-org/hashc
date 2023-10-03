@@ -32,9 +32,9 @@ impl<E: TcEnv> Tc<'_, E> {
 }
 
 impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
 
-    fn check_node(&self, term_id: TermId, annotation_ty: Self::TyNode) -> TcResult<()> {
+    fn check_node(&self, term_id: TermId, annotation_ty: Self::AnnotNode) -> TcResult<()> {
         self.register_new_atom(term_id, annotation_ty);
         match *term_id.value() {
             Term::Tuple(mut tuple_term) => self.check(&mut tuple_term, annotation_ty, term_id)?,

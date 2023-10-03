@@ -13,16 +13,16 @@ use crate::{
     errors::TcResult,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
-    traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{Operations, OperationsOnNode, ScopedOperationsOnNode},
 };
 
 impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TyId;
 
-    fn check(&self, fn_ty: &mut FnTy, item_ty: Self::TyNode, _: Self::Node) -> TcResult<()> {
+    fn check(&self, fn_ty: &mut FnTy, item_ty: Self::AnnotNode, _: Self::Node) -> TcResult<()> {
         self.check_is_universe(item_ty)?;
-        self.check_node_rec(fn_ty.params, (), |()| {
+        self.check_node_scoped(fn_ty.params, (), |()| {
             self.check_node(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
         })?;
         Ok(())
@@ -48,7 +48,7 @@ impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
             Ok(())
         } else {
             // Unify parameters and apply to return types
-            self.unify_nodes_rec(f1.params, f2.params, |()| {
+            self.unify_nodes_scoped(f1.params, f2.params, |()| {
                 self.unify_nodes(f1.return_ty, f2.return_ty)
             })?;
 
@@ -91,13 +91,13 @@ impl<E: TcEnv> Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         fn_def_id: &mut FnDefId,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         let fn_def_id = *fn_def_id;
@@ -115,7 +115,7 @@ impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
         if self.fn_infer_mode.get() == FnInferMode::Header {
             // If we are only inferring the header, then we also want to check for
             // immediate body functions.
-            self.check_node_rec(fn_def.ty.params, (), |()| {
+            self.check_node_scoped(fn_def.ty.params, (), |()| {
                 self.check_node(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let Term::Fn(mut immediate_body_fn) = *fn_def.body.value() {
                     self.check(&mut immediate_body_fn, Ty::hole_for(fn_def.body), fn_def.body)?;
@@ -135,7 +135,7 @@ impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
         let fn_def = fn_def_id.value();
 
         self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
-            self.check_node_rec(fn_def.ty.params, (), |()| {
+            self.check_node_scoped(fn_def.ty.params, (), |()| {
                 self.check_node(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 self.check_node(fn_def.body, fn_def.ty.return_ty)
             })

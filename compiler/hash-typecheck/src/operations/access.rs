@@ -14,13 +14,13 @@ use crate::{
 };
 
 impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         access_term: &mut AccessTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         item_node: Self::Node,
     ) -> TcResult<()> {
         let subject_ty = Ty::hole_for(access_term.subject);

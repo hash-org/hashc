@@ -13,13 +13,13 @@ use crate::{
 };
 
 impl<E: TcEnv> Operations<Intrinsic> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         intrinsic: &mut Intrinsic,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::errors::TcResult<()> {
         // ##GeneratedOrigin: intrinsics do not belong to the source code

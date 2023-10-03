@@ -14,13 +14,13 @@ use crate::{
 };
 
 impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         ref_term: &mut RefTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
@@ -77,13 +77,13 @@ impl<E: TcEnv> Operations<RefTerm> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         deref_term: &mut DerefTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _item_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
         let deref_inner_inferred = Ty::hole_for(deref_term.subject);
@@ -132,13 +132,13 @@ impl<E: TcEnv> Operations<DerefTerm> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<RefTy> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         ref_ty: &mut RefTy,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         // Infer the inner type

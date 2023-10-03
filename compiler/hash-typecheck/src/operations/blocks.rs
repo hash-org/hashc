@@ -19,13 +19,13 @@ use crate::{
 };
 
 impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         block_term: &mut BlockTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.context().enter_scope(block_term.stack_id.into(), || {

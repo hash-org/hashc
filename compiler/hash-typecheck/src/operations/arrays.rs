@@ -25,7 +25,7 @@ use crate::{
         normalise_nested, normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
     tc::Tc,
-    traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{Operations, OperationsOnNode, ScopedOperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -114,7 +114,7 @@ impl<E: TcEnv> Tc<'_, E> {
                         if let PrimitiveCtorInfo::Array(array_prim) = primitive {
                             // First infer the data arguments
                             let copied_params = self.visitor().copy(data_def.params);
-                            self.check_node_rec(data.args, copied_params, |_| {
+                            self.check_node_scoped(data.args, copied_params, |_| {
                                 let sub = self.substituter().create_sub_from_current_scope();
                                 let subbed_element_ty =
                                     self.substituter().apply_sub(array_prim.element_ty, &sub);
@@ -150,13 +150,13 @@ impl<E: TcEnv> Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         array_term: &mut ArrayTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
@@ -230,13 +230,13 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = PatId;
 
     fn check(
         &self,
         list_pat: &mut ArrayPat,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_pat_id: Self::Node,
     ) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
@@ -286,13 +286,13 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         index_term: &mut IndexTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;

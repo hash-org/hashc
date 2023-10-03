@@ -23,13 +23,13 @@ impl<E: TcEnv> Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<Hole> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         _item: &mut Hole,
-        _item_ty: Self::TyNode,
+        _item_ty: Self::AnnotNode,
         _item_node: Self::Node,
     ) -> crate::errors::TcResult<()> {
         // No-op

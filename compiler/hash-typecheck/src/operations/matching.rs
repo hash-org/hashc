@@ -21,13 +21,13 @@ use crate::{
 };
 
 impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         match_term: &mut MatchTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _original_node_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         self.check_ty(annotation_ty)?;

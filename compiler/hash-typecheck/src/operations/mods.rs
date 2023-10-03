@@ -17,7 +17,7 @@ use crate::{
 };
 
 impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
-    type TyNode = ();
+    type AnnotNode = ();
 
     fn check_node(&self, mod_def_id: ModDefId, _: ()) -> crate::errors::TcResult<()> {
         self.context().enter_scope(mod_def_id.into(), || {
@@ -44,9 +44,13 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
-    type TyNode = ();
+    type AnnotNode = ();
 
-    fn check_node(&self, mod_member: ModMemberId, _: Self::TyNode) -> crate::errors::TcResult<()> {
+    fn check_node(
+        &self,
+        mod_member: ModMemberId,
+        _: Self::AnnotNode,
+    ) -> crate::errors::TcResult<()> {
         let value = mod_member.borrow().value;
         match value {
             ModMemberValue::Data(data_def_id) => {

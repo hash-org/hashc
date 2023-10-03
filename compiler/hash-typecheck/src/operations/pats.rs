@@ -41,12 +41,12 @@ impl<E: TcEnv> Tc<'_, E> {
 }
 
 impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
-    type TyNode = (TyId, Option<TermId>);
+    type AnnotNode = (TyId, Option<TermId>);
 
     fn check_node(
         &self,
         pat_id: PatId,
-        (annotation_ty, binds_to): Self::TyNode,
+        (annotation_ty, binds_to): Self::AnnotNode,
     ) -> crate::errors::TcResult<()> {
         self.register_new_atom(pat_id, annotation_ty);
 
@@ -76,13 +76,13 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = PatId;
 
     fn check(
         &self,
         pat: &mut IfPat,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::errors::TcResult<()> {
         self.check_node(pat.pat, (annotation_ty, None))?;
@@ -119,13 +119,13 @@ impl<E: TcEnv> Operations<IfPat> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<OrPat> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = PatId;
 
     fn check(
         &self,
         pat: &mut OrPat,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::errors::TcResult<()> {
         self.check_unified_pat_list(pat.alternatives, annotation_ty)?;

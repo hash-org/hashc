@@ -14,13 +14,13 @@ use crate::{
 };
 
 impl<E: TcEnv> Operations<TyOfTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         ty_of_term: &mut TyOfTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         let inferred_ty = Ty::hole_for(ty_of_term.term);

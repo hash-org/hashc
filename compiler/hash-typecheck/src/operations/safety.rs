@@ -11,13 +11,13 @@ use crate::{
 };
 
 impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         unsafe_term: &mut UnsafeTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
         // @@Todo

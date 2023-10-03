@@ -44,13 +44,13 @@ impl<E: TcEnv> Tc<'_, E> {
 }
 
 impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
     type Node = PatId;
 
     fn check(
         &self,
         range_pat: &mut RangePat,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::errors::TcResult<()> {
         let RangePat { lo, hi, .. } = range_pat;
