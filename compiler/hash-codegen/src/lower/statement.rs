@@ -32,10 +32,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                             // ZST for which the rules are slightly bent). However, we
                             // must still codegen the rvalue.
                             if !is_zst {
-                                // @@PanicOnSpan: we should be able to provide a panic_on_span
-                                // by allowing the code generation to have access to the source
-                                // map.
-                                panic!("operand `{value:?}` already has an assignment")
+                                panic_on_span!(
+                                    statement.origin.span(),
+                                    "operand `{value:?}` already has an assignment"
+                                )
                             };
 
                             self.codegen_rvalue_operand(builder, value);
