@@ -1,8 +1,11 @@
+//! General utilities for unifying TIR terms.
+//!
+//! These are used from within `unify` procedures in `Operations`.
 use hash_tir::{
     context::{HasContext, ScopeKind},
     sub::Sub,
     tir::{SymbolId, TermId},
-    visitor::{Atom, Map, Visit, Visitor},
+    visitor::Atom,
 };
 
 use crate::{
@@ -14,7 +17,7 @@ use crate::{
 
 impl<E: TcEnv> Tc<'_, E> {
     /// Add the given substitutions to the context.
-    pub fn add_unification_from_sub(&self, sub: &Sub) {
+    pub fn add_sub_to_scope(&self, sub: &Sub) {
         self.context().add_sub_to_scope(sub);
     }
 
@@ -22,7 +25,7 @@ impl<E: TcEnv> Tc<'_, E> {
     /// from it.
     pub fn add_unification(&self, src: SymbolId, target: TermId) -> Sub {
         let sub = Sub::from_pairs([(src, target)]);
-        self.add_unification_from_sub(&sub);
+        self.add_sub_to_scope(&sub);
         sub
     }
 
@@ -76,24 +79,9 @@ impl<E: TcEnv> Tc<'_, E> {
         }
     }
 
-    /// Unify the source and target and produce a substitution instead of adding
-    /// it to the context.
-    pub fn unify_self_contained<N: Copy>(&self, src_id: N, target_id: N) -> TcResult<(N, Sub)>
-    where
-        Self: OperationsOnNode<N>,
-        Visitor: Visit<N> + Map<N>,
-    {
-        let initial = target_id;
-        let sub = self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
-            self.unify_nodes(src_id, target_id)?;
-            Ok(self.substituter().create_sub_from_current_scope())
-        })?;
-        let subbed_initial = self.substituter().apply_sub(initial, &sub);
-        self.add_unification_from_sub(&sub);
-        Ok((subbed_initial, sub))
-    }
-
-    /// Determine whether two nodes are equal.
+    /// Determine whether two nodes are equal, by unification.
+    // @@Formalise/@@Fixme: we should specify what equality means precisely.
+    // Additionally, we probably need bi-directional unification here.
     pub fn nodes_are_equal<N: Copy>(&self, t1: N, t2: N) -> bool
     where
         Self: OperationsOnNode<N>,

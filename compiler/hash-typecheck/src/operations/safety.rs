@@ -7,17 +7,17 @@ use crate::{
     errors::TcResult,
     options::normalisation::{normalised_option, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<UnsafeTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<UnsafeTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         unsafe_term: &mut UnsafeTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
         // @@Todo

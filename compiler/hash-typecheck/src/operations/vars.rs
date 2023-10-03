@@ -13,17 +13,17 @@ use crate::{
     errors::TcResult,
     options::normalisation::{already_normalised, normalised_to, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<VarTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         term: &mut VarTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
         let term = *term;
@@ -87,14 +87,14 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
-    type TyNode = (TyId, Option<TermId>);
+impl<E: TcEnv> OperationsOn<BindingPat> for Tc<'_, E> {
+    type AnnotNode = (TyId, Option<TermId>);
     type Node = PatId;
 
     fn check(
         &self,
         var: &mut BindingPat,
-        (annotation_ty, binds_to): Self::TyNode,
+        (annotation_ty, binds_to): Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;

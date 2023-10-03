@@ -1,3 +1,7 @@
+//! Helper functions that relate to compile-time evaluation of code.
+//!
+//! This includes monomorphisation of generics, as well as general compile-time
+//! evaluation through the `#run` directive.
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_tir::tir::{FnTy, HasAstNodeId, TermId, TyId};
 
@@ -31,6 +35,10 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 
     /// Potentially monomorphise a function call, if it is pure.
+    // @@Improvement: Ideally, we should have a different motive than just purity
+    // when deciding to monomorphise a function call. There could be some kind of
+    // flag such as `#cte` (that could be default for implicit functions), such that
+    // `pure` is an orthogonal concept.
     pub fn potentially_monomorphise_fn_call(
         &self,
         fn_call: TermId,

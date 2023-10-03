@@ -16,17 +16,17 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::{already_normalised, normalise_nested, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         term: &mut CtorTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         let mut term = *term;
@@ -76,7 +76,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         // possible.
         let copied_params = self.visitor().copy(data_def.params);
         let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
-            .check_node_rec(ctor_data_args, copied_params, |inferred_data_args| {
+            .check_node_scoped(ctor_data_args, copied_params, |inferred_data_args| {
                 let sub = self.substituter().create_sub_from_current_scope();
                 let subbed_ctor_params = self.substituter().apply_sub(ctor.params, &sub);
                 let subbed_ctor_result_args = self.substituter().apply_sub(ctor.result_args, &sub);
@@ -88,8 +88,10 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         // parameters. Substitute any results to the constructor arguments, the
         // result arguments of the constructor, and the constructor data
         // arguments.
-        let (final_result_args, resulting_sub, binds) =
-            self.check_node_rec(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
+        let (final_result_args, resulting_sub, binds) = self.check_node_scoped(
+            term.ctor_args,
+            subbed_ctor_params,
+            |inferred_term_ctor_args| {
                 let ctor_sub = self.substituter().create_sub_from_current_scope();
                 self.substituter().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
                 self.substituter().apply_sub_in_place(inferred_term_ctor_args, &ctor_sub);
@@ -104,7 +106,8 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
                 let hidden_ctor_sub =
                     self.substituter().hide_param_binds(ctor.params.iter(), &ctor_sub);
                 Ok((subbed_ctor_result_args, hidden_ctor_sub, HashSet::new()))
-            })?;
+            },
+        )?;
 
         // Set the annotation data type to the final result arguments, and unify
         // the annotation type with the expected type.
@@ -112,7 +115,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         let expected_data_ty =
             Ty::expect_is(original_term_id, Ty::from(annotation_data_ty, annotation_ty.origin()));
         self.unification_opts.pat_binds.enter(Some(binds), || {
-            self.add_unification_from_sub(&resulting_sub);
+            self.add_sub_to_scope(&resulting_sub);
             self.unify_nodes(expected_data_ty, annotation_ty)
         })?;
 
@@ -157,25 +160,25 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
         if src.ctor != target.ctor {
             return self.mismatching_atoms(src_node, target_node);
         }
-        self.unify_nodes_rec(src.data_args, target.data_args, |_| Ok(()))?;
-        self.unify_nodes_rec(src.ctor_args, target.ctor_args, |_| Ok(()))?;
+        self.unify_nodes_scoped(src.data_args, target.data_args, |_| Ok(()))?;
+        self.unify_nodes_scoped(src.ctor_args, target.ctor_args, |_| Ok(()))?;
         Ok(())
     }
 }
 
-impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<DataTy> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         data_ty: &mut DataTy,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         term_id: Self::Node,
     ) -> TcResult<()> {
         let data_def = data_ty.data_def.value();
         let copied_params = self.visitor().copy(data_def.params);
-        self.check_node_rec(data_ty.args, copied_params, |inferred_data_ty_args| {
+        self.check_node_scoped(data_ty.args, copied_params, |inferred_data_ty_args| {
             data_ty.args = inferred_data_ty_args;
             term_id.set(term_id.value().with_data((*data_ty).into()));
             Ok(())
@@ -202,18 +205,18 @@ impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
         if src.data_def != target.data_def {
             return self.mismatching_atoms(src_node, target_node);
         }
-        self.unify_nodes_rec(src.args, target.args, |_| Ok(()))
+        self.unify_nodes_scoped(src.args, target.args, |_| Ok(()))
     }
 }
 
 impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
-    type TyNode = ();
+    type AnnotNode = ();
 
-    fn check_node(&self, data_def_id: DataDefId, _: Self::TyNode) -> TcResult<()> {
+    fn check_node(&self, data_def_id: DataDefId, _: Self::AnnotNode) -> TcResult<()> {
         let (data_def_params, data_def_ctors) =
             data_def_id.map(|data_def| (data_def.params, data_def.ctors));
 
-        self.check_node_rec(data_def_params, (), |_| {
+        self.check_node_scoped(data_def_params, (), |_| {
             match data_def_ctors {
                 DataDefCtors::Defined(data_def_ctors_id) => {
                     let mut error_state = ErrorState::new();
@@ -261,11 +264,11 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
-    type TyNode = ();
+    type AnnotNode = ();
 
-    fn check_node(&self, ctor: CtorDefId, _: Self::TyNode) -> TcResult<()> {
+    fn check_node(&self, ctor: CtorDefId, _: Self::AnnotNode) -> TcResult<()> {
         let ctor_def = ctor.value();
-        self.check_node_rec(ctor_def.params, (), |()| {
+        self.check_node_scoped(ctor_def.params, (), |()| {
             let return_ty = Ty::from(
                 DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args },
                 ctor.origin(),
@@ -285,14 +288,14 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<CtorPat> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = PatId;
 
     fn check(
         &self,
         pat: &mut CtorPat,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_pat_id: Self::Node,
     ) -> TcResult<()> {
         let mut pat = *pat;
@@ -342,7 +345,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         // possible.
         let copied_params = self.visitor().copy(data_def.params);
         let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
-            .check_node_rec(ctor_data_args, copied_params, |inferred_data_args| {
+            .check_node_scoped(ctor_data_args, copied_params, |inferred_data_args| {
                 let sub = self.substituter().create_sub_from_current_scope();
                 let subbed_ctor_params = self.substituter().apply_sub(ctor.params, &sub);
                 let subbed_ctor_result_args = self.substituter().apply_sub(ctor.result_args, &sub);
@@ -354,7 +357,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         // parameters. Substitute any results to the constructor arguments, the
         // result arguments of the constructor, and the constructor data
         // arguments.
-        let (final_result_args, resulting_sub, binds) = self.check_node_rec(
+        let (final_result_args, resulting_sub, binds) = self.check_node_scoped(
             (pat.ctor_pat_args, pat.ctor_pat_args_spread),
             subbed_ctor_params,
             |inferred_pat_ctor_args| {
@@ -385,7 +388,7 @@ impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
         let expected_data_ty =
             Ty::expect_is(original_pat_id, Ty::from(annotation_data_ty, annotation_ty.origin()));
         self.unification_opts.pat_binds.enter(Some(binds), || {
-            self.add_unification_from_sub(&resulting_sub);
+            self.add_sub_to_scope(&resulting_sub);
             self.unify_nodes(expected_data_ty, annotation_ty)
         })?;
 

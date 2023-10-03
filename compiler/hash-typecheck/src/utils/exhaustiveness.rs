@@ -1,3 +1,6 @@
+//! Interaction with the `hash-exhaustiveness` crate for checking
+//! refutability and exhaustiveness of patterns.
+
 use hash_exhaustiveness::ExhaustivenessChecker;
 use hash_reporting::diagnostic::Diagnostics;
 use hash_tir::tir::HasAstNodeId;
@@ -15,7 +18,7 @@ impl<T: TcEnv> Tc<'_, T> {
     /// Merge all of the produced diagnostics into the current diagnostics.
     ///
     /// @@Hack: remove this when we have a better way to send exhaustiveness
-    /// jobs and add them to general tc diagnostics.
+    /// jobs and add them to general TC diagnostics.
     pub fn append_exhaustiveness_diagnostics(&self, checker: ExhaustivenessChecker<T>) {
         let (errors, warnings) = checker.into_diagnostics().into_diagnostics();
 

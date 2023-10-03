@@ -7,7 +7,7 @@ use crate::{
     env::TcEnv,
     options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
     utils::matching::MatchResult,
 };
 
@@ -43,14 +43,14 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<RangePat> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = PatId;
 
     fn check(
         &self,
         range_pat: &mut RangePat,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::errors::TcResult<()> {
         let RangePat { lo, hi, .. } = range_pat;

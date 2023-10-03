@@ -1,3 +1,4 @@
+//! Functionality relating to finding the entry point of a program.
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_source::{entry_point::EntryPointKind, identifier::IDENTS, ModuleKind};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
@@ -18,7 +19,7 @@ impl<T: TcEnv> Tc<'_, T> {
         let fn_def_symbol = fn_def_id.borrow().name;
         let fn_def_name = fn_def_symbol.borrow().name.unwrap();
 
-        // check if on item if it has `entry_point`
+        // Check if on item if it has `entry_point`
         let has_entry_point_attr =
             attr_store().node_has_attr(fn_def_id.node_id_or_default(), attrs::ENTRY_POINT);
 
@@ -33,8 +34,8 @@ impl<T: TcEnv> Tc<'_, T> {
         };
 
         if let Some(entry_point) = entry_point {
-            // @@MissingOrigin
-            // Maybe it is better to check this manually?
+            // @@MissingOrigin Maybe it is better to check this through a manual procedure
+            // rather than wrapping it in a function call?
             let call_term = Node::create_at(
                 Term::Call(CallTerm {
                     subject: Node::create_at(Term::Fn(fn_def_id), NodeOrigin::Generated),

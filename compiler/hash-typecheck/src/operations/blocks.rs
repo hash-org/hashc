@@ -14,18 +14,18 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::{normalised_to, NormalisationState, NormaliseResult},
     tc::{FnInferMode, Tc},
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
     utils::matching::MatchResult,
 };
 
-impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         block_term: &mut BlockTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.context().enter_scope(block_term.stack_id.into(), || {

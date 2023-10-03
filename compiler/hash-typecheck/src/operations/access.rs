@@ -10,17 +10,17 @@ use crate::{
         normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<AccessTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<AccessTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         access_term: &mut AccessTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         item_node: Self::Node,
     ) -> TcResult<()> {
         let subject_ty = Ty::hole_for(access_term.subject);

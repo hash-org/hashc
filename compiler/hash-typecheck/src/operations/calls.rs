@@ -18,18 +18,18 @@ use crate::{
         NormaliseResult, NormaliseSignal,
     },
     tc::Tc,
-    traits::{Operations, OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
     utils::intrinsic_abilities::IntrinsicAbilitiesImpl,
 };
 
-impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         call_term: &mut CallTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || {
@@ -65,7 +65,7 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
                     let copied_return_ty = self.visitor().copy(fn_ty.return_ty);
 
                     let mut fn_call_term = *call_term;
-                    self.check_node_rec(fn_call_term.args, copied_params, |inferred_fn_call_args| {
+                    self.check_node_scoped(fn_call_term.args, copied_params, |inferred_fn_call_args| {
                         fn_call_term.args = inferred_fn_call_args;
                         original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
 
@@ -152,7 +152,7 @@ impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
         _target_node: Self::Node,
     ) -> TcResult<()> {
         self.unify_nodes(src.subject, target.subject)?;
-        self.unify_nodes_rec(src.args, target.args, |_| Ok(()))?;
+        self.unify_nodes_scoped(src.args, target.args, |_| Ok(()))?;
         Ok(())
     }
 }

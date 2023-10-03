@@ -1,3 +1,8 @@
+//! Functions to perform pattern matching between terms and patterns. This is
+//! used for normalisation.
+// @@Improvement: perhaps the contents of this module should be reorganised into
+// traits similar to `Operations` which allow a node `X` to be matched against a
+// pattern `P`.
 use hash_ast::ast::RangeEnd;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{

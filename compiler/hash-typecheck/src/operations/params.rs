@@ -11,17 +11,17 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::{already_normalised, NormaliseResult},
     tc::Tc,
-    traits::{OperationsOnNode, RecursiveOperationsOnNode},
+    traits::{OperationsOnNode, ScopedOperationsOnNode},
 };
 
-impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
-    type TyNode = ();
-    type RecursiveArg = ();
+impl<E: TcEnv> ScopedOperationsOnNode<ParamsId> for Tc<'_, E> {
+    type AnnotNode = ();
+    type CallbackArg = ();
 
-    fn check_node_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+    fn check_node_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
         &self,
         params: ParamsId,
-        _: Self::TyNode,
+        _: Self::AnnotNode,
         mut in_param_scope: F,
     ) -> TcResult<T> {
         // Validate the parameters
@@ -44,15 +44,15 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
             })?;
 
         // Add the shadowed substitutions to the ambient scope
-        self.add_unification_from_sub(&shadowed_sub);
+        self.add_sub_to_scope(&shadowed_sub);
         Ok(result)
     }
 
-    fn try_normalise_node_rec(&self, _item: ParamsId) -> NormaliseResult<ControlFlow<ParamsId>> {
+    fn try_normalise_node(&self, _item: ParamsId) -> NormaliseResult<ControlFlow<ParamsId>> {
         already_normalised()
     }
 
-    fn unify_nodes_rec<T, F: FnMut(Self::RecursiveArg) -> TcResult<T>>(
+    fn unify_nodes_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
         &self,
         src_id: ParamsId,
         target_id: ParamsId,
@@ -101,7 +101,7 @@ impl<E: TcEnv> RecursiveOperationsOnNode<ParamsId> for Tc<'_, E> {
             })?;
 
         // Add the shadowed substitutions to the ambient scope
-        self.add_unification_from_sub(&shadowed_sub);
+        self.add_sub_to_scope(&shadowed_sub);
 
         Ok(result)
     }

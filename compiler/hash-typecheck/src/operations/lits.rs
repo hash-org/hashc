@@ -75,9 +75,9 @@ impl<E: TcEnv> Tc<'_, E> {
 }
 
 impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
-    type TyNode = TyId;
+    type AnnotNode = TyId;
 
-    fn check_node(&self, lit: LitId, annotation_ty: Self::TyNode) -> TcResult<()> {
+    fn check_node(&self, lit: LitId, annotation_ty: Self::AnnotNode) -> TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
         let inferred_ty = Ty::data_ty(
             match *lit.value() {

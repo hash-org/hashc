@@ -12,17 +12,17 @@ use crate::{
     env::TcEnv,
     options::normalisation::{normalised_to, NormaliseResult, NormaliseSignal},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<ReturnTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         return_term: &mut ReturnTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         let closest_fn_def = self.context().get_first_fn_def_in_scope();
@@ -62,14 +62,14 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<LoopControlTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         _: &mut LoopControlTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::errors::TcResult<()> {
         // Always `never`.
@@ -102,14 +102,14 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<LoopTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         loop_term: &mut LoopTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         // Forward to the inner term.
@@ -146,14 +146,14 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
-    type TyNode = TyId;
+impl<E: TcEnv> OperationsOn<AssignTerm> for Tc<'_, E> {
+    type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
         assign_term: &mut AssignTerm,
-        annotation_ty: Self::TyNode,
+        annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> crate::errors::TcResult<()> {
         let subject_ty = Ty::hole_for(assign_term.subject);

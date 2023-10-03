@@ -1,3 +1,5 @@
+//! Various structures that are used to keep track of normalisation progress and
+//! options that can be set for normalisation.
 use std::{cell::Cell, ops::ControlFlow};
 
 use hash_tir::tir::TermId;
@@ -8,13 +10,38 @@ use crate::errors::TcError;
 /// A signal which can be emitted during normalisation.
 #[derive(Debug, Clone, From)]
 pub enum NormaliseSignal {
+    /// A [`LoopControlTerm::Break`](hash_tir::tir::LoopControlTerm::Break) was
+    /// encountered in a loop.
     Break,
+    /// A [`LoopControlTerm::Continue`](`hash_tir::tir::LoopControlTerm::Continue`) was encountered in a
+    /// loop.
     Continue,
+    /// A `ReturnTerm` was encountered in a function, with the given return
+    /// value.
     Return(TermId),
+    /// An typechecking error occurred during normalisation.
     Err(TcError),
 }
 
 /// The result of a normalisation operation.
+///
+/// - `Err(e)` means that the normalisation has stopped with the given signal.
+///   This might be an error, or some other signal such as a loop break or a
+///   function return.
+///
+/// - `Ok(None)` means that the normalisation was completed but the atom was
+///   already normalised so nothing needed to be done.
+///
+/// - `Ok(Some(t))` means that the normalisation was completed and the atom was
+///   normalised to `t`
+///
+/// Usually this type is used with `T = ControlFlow<U>` for some `U`. In this
+/// case, `ControlFlow::Break` is used to signal that the normalisation was
+/// completed and the atom was normalised to some `u: U`, and
+/// `ControlFlow::Continue` is used to signal that the normalisation should
+/// continue by recursing into the input `U`.
+// @@Improvement: maybe we can make this into a custom enum and implement
+// `std::ops::Try` for it?
 pub type NormaliseResult<T = ()> = Result<Option<T>, NormaliseSignal>;
 
 /// Signals that the atom is already normalised.
@@ -23,6 +50,9 @@ pub fn already_normalised<T>() -> NormaliseResult<T> {
 }
 
 /// Signals that the normalisation is stuck.
+///
+/// This is equivalent to the atom being already normalised, since no more
+/// steps can be taken. The difference is mostly for visual clarity.
 pub fn stuck_normalising<T>() -> NormaliseResult<T> {
     Ok(None)
 }
@@ -76,7 +106,7 @@ pub fn ctrl_continue<T>() -> NormaliseResult<ControlFlow<T>> {
 }
 
 /// Lift a `From` implementation into a conversion between normalisation
-/// results.
+/// results containing `ControlFlow`.
 pub fn normalisation_result_control_flow_into<T, U: From<T>>(
     t: NormaliseResult<ControlFlow<T>>,
 ) -> NormaliseResult<ControlFlow<U>> {
@@ -98,7 +128,10 @@ pub fn normalisation_result_into<T, U: From<T>>(t: NormaliseResult<T>) -> Normal
     }
 }
 
-/// Whether an atom has been evaluated or not.
+/// Used to keep track of whether normalisation has occurred or not.
+///
+/// Multiple normalisation operations can update the state, and in the end
+/// the accumulated result can be read through `has_normalised()`.
 #[derive(Debug, Clone, Default)]
 pub struct NormalisationState {
     has_normalised: Cell<bool>,
@@ -148,13 +181,14 @@ impl NormalisationState {
 }
 
 /// The mode in which to normalise terms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum NormalisationMode {
     /// Normalise the term as much as possible.
     Full,
     /// Normalise the term to a single step.
     ///
     /// This will not execute any impure code.
+    #[default]
     Weak,
 }
 
@@ -173,6 +207,6 @@ impl Default for NormalisationOptions {
 
 impl NormalisationOptions {
     pub fn new() -> Self {
-        Self { mode: LightState::new(NormalisationMode::Weak) }
+        Self { mode: LightState::new(NormalisationMode::default()) }
     }
 }
