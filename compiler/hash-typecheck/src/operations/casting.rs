@@ -6,10 +6,10 @@ use crate::{
     env::TcEnv,
     options::normalisation::{normalised_option, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<CastTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<CastTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 

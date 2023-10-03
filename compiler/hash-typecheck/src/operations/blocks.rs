@@ -14,11 +14,11 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::{normalised_to, NormalisationState, NormaliseResult},
     tc::{FnInferMode, Tc},
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
     utils::matching::MatchResult,
 };
 
-impl<E: TcEnv> Operations<BlockTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 

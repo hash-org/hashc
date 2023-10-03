@@ -11,7 +11,7 @@ use crate::{
     errors::TcResult,
     options::normalisation::NormaliseResult,
     tc::{FnInferMode, Tc},
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
     utils::dumping::potentially_dump_tir,
 };
 

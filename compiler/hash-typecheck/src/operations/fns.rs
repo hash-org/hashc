@@ -13,10 +13,10 @@ use crate::{
     errors::TcResult,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
-    traits::{Operations, OperationsOnNode, ScopedOperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<FnTy> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<FnTy> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TyId;
 
@@ -90,7 +90,7 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<FnDefId> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 

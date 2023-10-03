@@ -5,7 +5,7 @@ use hash_tir::tir::{Hole, TermId, TyId, VarTerm};
 
 use crate::{
     env::TcEnv, errors::TcResult, options::normalisation::NormaliseResult, tc::Tc,
-    traits::Operations,
+    traits::OperationsOn,
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -22,7 +22,7 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<Hole> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<Hole> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 

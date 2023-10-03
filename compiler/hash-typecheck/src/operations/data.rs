@@ -16,10 +16,10 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::{already_normalised, normalise_nested, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode, ScopedOperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
@@ -166,7 +166,7 @@ impl<E: TcEnv> Operations<CtorTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<DataTy> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<DataTy> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
@@ -288,7 +288,7 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<CtorPat> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<CtorPat> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = PatId;
 

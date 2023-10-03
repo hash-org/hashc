@@ -10,9 +10,11 @@ use crate::errors::TcError;
 /// A signal which can be emitted during normalisation.
 #[derive(Debug, Clone, From)]
 pub enum NormaliseSignal {
-    /// A `LoopControlTerm::Break` was encountered in a loop.
+    /// A [`LoopControlTerm::Break`](hash_tir::tir::LoopControlTerm::Break) was
+    /// encountered in a loop.
     Break,
-    /// A `LoopControlTerm::Continue` was encountered in a loop.
+    /// A [`LoopControlTerm::Continue`](`hash_tir::tir::LoopControlTerm::Continue`) was encountered in a
+    /// loop.
     Continue,
     /// A `ReturnTerm` was encountered in a function, with the given return
     /// value.
@@ -179,13 +181,14 @@ impl NormalisationState {
 }
 
 /// The mode in which to normalise terms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum NormalisationMode {
     /// Normalise the term as much as possible.
     Full,
-    /// Normalise the term to a single step (default).
+    /// Normalise the term to a single step.
     ///
     /// This will not execute any impure code.
+    #[default]
     Weak,
 }
 
@@ -204,6 +207,6 @@ impl Default for NormalisationOptions {
 
 impl NormalisationOptions {
     pub fn new() -> Self {
-        Self { mode: LightState::new(NormalisationMode::Weak) }
+        Self { mode: LightState::new(NormalisationMode::default()) }
     }
 }

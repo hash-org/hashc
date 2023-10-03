@@ -13,10 +13,10 @@ use crate::{
     errors::TcResult,
     options::normalisation::{already_normalised, normalised_to, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<VarTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
@@ -87,7 +87,7 @@ impl<E: TcEnv> Operations<VarTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<BindingPat> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<BindingPat> for Tc<'_, E> {
     type AnnotNode = (TyId, Option<TermId>);
     type Node = PatId;
 

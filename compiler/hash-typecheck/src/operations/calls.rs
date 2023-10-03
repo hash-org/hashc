@@ -18,11 +18,11 @@ use crate::{
         NormaliseResult, NormaliseSignal,
     },
     tc::Tc,
-    traits::{Operations, OperationsOnNode, ScopedOperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
     utils::intrinsic_abilities::IntrinsicAbilitiesImpl,
 };
 
-impl<E: TcEnv> Operations<CallTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 

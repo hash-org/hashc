@@ -12,10 +12,10 @@ use crate::{
     env::TcEnv,
     options::normalisation::{normalised_to, NormaliseResult, NormaliseSignal},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<ReturnTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
@@ -62,7 +62,7 @@ impl<E: TcEnv> Operations<ReturnTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<LoopControlTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
@@ -102,7 +102,7 @@ impl<E: TcEnv> Operations<LoopControlTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<LoopTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
@@ -146,7 +146,7 @@ impl<E: TcEnv> Operations<LoopTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<AssignTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<AssignTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 

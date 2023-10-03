@@ -16,11 +16,11 @@ use crate::{
         normalised_to, stuck_normalising, NormalisationState, NormaliseResult, NormaliseSignal,
     },
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
     utils::matching::MatchResult,
 };
 
-impl<E: TcEnv> Operations<MatchTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 

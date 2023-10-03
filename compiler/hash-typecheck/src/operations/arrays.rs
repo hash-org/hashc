@@ -25,7 +25,7 @@ use crate::{
         normalise_nested, normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
     tc::Tc,
-    traits::{Operations, OperationsOnNode, ScopedOperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -149,7 +149,7 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
@@ -229,7 +229,7 @@ impl<E: TcEnv> Operations<ArrayTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<ArrayPat> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = PatId;
 
@@ -285,7 +285,7 @@ impl<E: TcEnv> Operations<ArrayPat> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<IndexTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 

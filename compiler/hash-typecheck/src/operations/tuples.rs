@@ -12,10 +12,10 @@ use crate::{
     errors::{TcError, TcResult},
     options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
-    traits::{Operations, ScopedOperationsOnNode},
+    traits::{OperationsOn, ScopedOperationsOnNode},
 };
 
-impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<TupleTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
@@ -80,7 +80,7 @@ impl<E: TcEnv> Operations<TupleTerm> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<TupleTy> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TyId;
 
@@ -114,7 +114,7 @@ impl<E: TcEnv> Operations<TupleTy> for Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<TuplePat> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<TuplePat> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = PatId;
 

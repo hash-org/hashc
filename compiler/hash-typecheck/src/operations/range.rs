@@ -7,7 +7,7 @@ use crate::{
     env::TcEnv,
     options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
     utils::matching::MatchResult,
 };
 
@@ -43,7 +43,7 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<RangePat> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<RangePat> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = PatId;
 

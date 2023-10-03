@@ -11,7 +11,7 @@ use crate::{env::HasTcEnv, errors::TcResult, options::normalisation::NormaliseRe
 /// Main trait for typechecking on TIR atoms.
 ///
 /// `X` is the TIR atom type.
-pub trait Operations<X>: HasTcEnv {
+pub trait OperationsOn<X>: HasTcEnv {
     /// The atom's annotation in the TIR.
     ///
     /// For example, if `X = MatchTerm`, `AnnotNode = TyId`.
@@ -72,7 +72,7 @@ pub trait OperationsOnNode<X: Copy>: HasTcEnv {
 }
 
 /// Each `OperationsOnNode` is also an `Operations`.
-impl<X: Copy, T: HasTcEnv + OperationsOnNode<X>> Operations<X> for T {
+impl<X: Copy, T: HasTcEnv + OperationsOnNode<X>> OperationsOn<X> for T {
     type AnnotNode = T::AnnotNode;
     type Node = X;
 
@@ -95,7 +95,7 @@ impl<X: Copy, T: HasTcEnv + OperationsOnNode<X>> Operations<X> for T {
 /// One example is `Params`, which adds the parameter names to the context. For
 /// this reason, each TC operation here also receives a closure to run inside
 /// the context created by the node.
-pub trait ScopedOperations<X>: HasTcEnv {
+pub trait ScopedOperationsOn<X>: HasTcEnv {
     /// The atom's annotation in the TIR.
     type AnnotNode;
 
@@ -170,7 +170,7 @@ pub trait ScopedOperationsOnNode<X: Copy>: HasTcEnv {
 }
 
 /// Each `ScopedOperationsOnNode` is also a `ScopedOperations`.
-impl<X: Copy, U: ScopedOperationsOnNode<X> + HasTcEnv> ScopedOperations<X> for U {
+impl<X: Copy, U: ScopedOperationsOnNode<X> + HasTcEnv> ScopedOperationsOn<X> for U {
     type AnnotNode = U::AnnotNode;
     type Node = X;
     type CallbackArg = U::CallbackArg;

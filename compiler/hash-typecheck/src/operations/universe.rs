@@ -7,7 +7,7 @@ use crate::{
     errors::TcResult,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::Tc,
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
 };
 
 impl<E: TcEnv> Tc<'_, E> {
@@ -16,7 +16,7 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 }
 
-impl<E: TcEnv> Operations<UniverseTy> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<UniverseTy> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TyId;
 

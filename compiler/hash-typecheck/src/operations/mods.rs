@@ -12,7 +12,7 @@ use crate::{
     errors::TcError,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
-    traits::{Operations, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
     utils::dumping::potentially_dump_tir,
 };
 
