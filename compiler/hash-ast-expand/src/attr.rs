@@ -99,13 +99,19 @@ impl AstExpander<'_> {
             matches
         };
 
+        use Primitive::*;
+
         match *param_ty.value() {
             Ty::DataTy(data) => match Primitive::try_from_def(data.data_def) {
-                Some(Primitive::I32) => maybe_emit_err(matches!(value, AttrValueKind::Int(_))),
-                Some(Primitive::F64) => maybe_emit_err(matches!(value, AttrValueKind::Float(_))),
+                Some(I8 | I16 | I32 | I64 | I128 | U8 | U16 | U32 | U64 | U128) => {
+                    maybe_emit_err(matches!(value, AttrValueKind::Int(_)))
+                }
+                Some(Primitive::F32 | Primitive::F64) => {
+                    maybe_emit_err(matches!(value, AttrValueKind::Float(_)))
+                }
                 Some(Primitive::Char) => maybe_emit_err(matches!(value, AttrValueKind::Char(_))),
                 Some(Primitive::Str) => maybe_emit_err(matches!(value, AttrValueKind::Str(_))),
-                _ => panic!("unexpected attribute parameter type"),
+                ty => panic!("unexpected attribute parameter type `{ty:?}`"),
             },
             _ => panic!("unexpected attribute parameter type"),
         }
