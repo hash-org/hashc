@@ -112,7 +112,7 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 /// which require access to other [Layout]s.
 #[derive(Clone, Copy, Constructor)]
 pub struct LayoutComputer<'l> {
-    /// A reference tot the [LayoutCtx].
+    /// A reference tot the [LayoutStorage].
     ctx: &'l LayoutStorage,
 }
 
@@ -123,7 +123,7 @@ impl HasDataLayout for LayoutComputer<'_> {
 }
 
 impl<'l> LayoutComputer<'l> {
-    /// Returns a reference to the [LayoutCtx].
+    /// Returns a reference to the [LayoutStorage].
     pub fn ctx(&self) -> &LayoutStorage {
         self.ctx
     }
@@ -645,7 +645,7 @@ impl<'l> LayoutComputer<'l> {
         let mut size = Size::ZERO;
 
         // Deal with the alignment of the prefix value
-        let prefix_ty = adt.discriminant_representation(dl);
+        let (prefix_ty, signed) = adt.discriminant_representation(dl);
         let mut prefix_alignment = prefix_ty.align(dl).abi;
 
         if adt.metadata.is_c_like() {
@@ -728,8 +728,7 @@ impl<'l> LayoutComputer<'l> {
         // smallest alignment amongst all of the variants, we can now see if
         // we can expand the size of the enum tag value to apply the aforementioned
         // optimisation at ##ExpandEnumTagSize.
-        let mut new_prefix_ty = if adt.metadata.is_c_like() {
-            // @@Todo: or used specified type value.
+        let mut new_prefix_ty = if adt.metadata.is_c_like() || adt.metadata.discriminant.is_some() {
             prefix_ty
         } else {
             // If the alignment is still greater than the maximum integer
@@ -769,7 +768,7 @@ impl<'l> LayoutComputer<'l> {
 
         // Create the tag value for the enum discriminant
         let tag = Scalar::Initialised {
-            kind: ScalarKind::Int { kind: new_prefix_ty, signed: false },
+            kind: ScalarKind::Int { kind: new_prefix_ty, signed },
 
             // @@Discriminants: since we don't yet have a way to assign
             // specific values to each enum variant which then assigns

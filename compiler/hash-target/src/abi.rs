@@ -211,9 +211,9 @@ impl ScalarKind {
         match self {
             ScalarKind::Int { kind, signed } => {
                 if *signed {
-                    IntTy::UInt(UIntTy::from_size(kind.size()))
-                } else {
                     IntTy::Int(SIntTy::from_size(kind.size()))
+                } else {
+                    IntTy::UInt(UIntTy::from_size(kind.size()))
                 }
             }
             ScalarKind::Pointer(_) => {

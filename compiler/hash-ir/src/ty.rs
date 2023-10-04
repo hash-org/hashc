@@ -973,11 +973,11 @@ impl Adt {
     /// - Using the minimum, we then determine the "fit" of the discriminant by
     ///   computing the maximum discriminant value, and then determining the
     ///   smallest integer type that can fit that value.
-    pub fn discriminant_representation<C: HasDataLayout>(&self, ctx: &C) -> abi::Integer {
+    pub fn discriminant_representation<C: HasDataLayout>(&self, ctx: &C) -> (abi::Integer, bool) {
         // If this representation specifies a `repr`, then we default to using that,
         // otherwise we fallback on trying to compute the size of the discriminant.
         if let Some(discriminant) = self.metadata.discriminant {
-            return abi::Integer::from_int_ty(discriminant, ctx);
+            return (abi::Integer::from_int_ty(discriminant, ctx), discriminant.is_signed());
         }
 
         // The user did not specify the representation, or no representation was deduced
@@ -994,7 +994,10 @@ impl Adt {
             Integer::I8
         };
 
-        cmp::max(computed_fit, minimum)
+        // @@Todo: actually get the signedness of the discriminant, we would have to
+        // compute the type of the discriminant, and then check if any of the the
+        // discriminant values are less than zero.
+        (cmp::max(computed_fit, minimum), false)
     }
 
     /// Compute the discriminant value for a particular variant.
