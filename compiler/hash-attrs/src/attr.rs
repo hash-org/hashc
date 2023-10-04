@@ -103,6 +103,15 @@ impl Attr {
     pub fn get_arg(&self, index: impl Into<AttrArgIdx>) -> Option<&AttrValue> {
         self.args.get(&index.into())
     }
+
+    /// Get an attribute value at the the given [AttrArgIdx], and assume that
+    /// the value of the argument is a integer.
+    pub fn get_arg_as_int(&self, index: impl Into<AttrArgIdx>) -> Option<InternedInt> {
+        self.get_arg_value_at(index).and_then(|value| match value {
+            AttrValueKind::Int(value) => Some(*value),
+            _ => None,
+        })
+    }
 }
 
 /// An index into an attribute's arguments. The index can either be

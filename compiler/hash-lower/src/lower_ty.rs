@@ -341,10 +341,19 @@ impl<'ir> BuilderCtx<'ir> {
                     })
                     .collect_vec();
 
+                // @@Hack: for now we just use the discriminant as the index of the 
+                // variant, this is not correct, but it will do for now.
+                let discriminant = if let Some(discriminant_term) = ctor.discriminant &&
+                                      let Some(value) = try_use_term_as_integer_lit(self, discriminant_term) {
+                    VariantDiscriminant(value)
+                } else {
+                    VariantDiscriminant(index as u128)
+                };
+
                 AdtVariant {
                     name: ctor.name.ident(),
                     fields,
-                    discriminant: VariantDiscriminant(index as u128),
+                    discriminant,
                 }
             })
             .collect::<AdtVariants>();

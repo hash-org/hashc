@@ -15,6 +15,7 @@ use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress
 
 pub mod defs;
 pub mod params;
+mod utils;
 pub mod visitor;
 
 #[derive(Deref)]

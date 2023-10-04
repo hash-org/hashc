@@ -572,8 +572,9 @@ impl IntConstant {
     ///
     /// N.B. The scalar value assumes that the values are in big
     /// endian order.
-    pub fn from_scalar(value: [u8; 16], ty: IntTy, ptr_width: Size) -> Self {
+    pub fn from_scalar(value: u128, ty: IntTy, ptr_width: Size) -> Self {
         let size = ty.size(ptr_width);
+        let value = value.to_be_bytes();
 
         // compute the correct slice that we need to use in order to
         // construct the correct integer value.
@@ -812,7 +813,7 @@ impl InternedInt {
     }
 
     /// Get the big-int representation of the value, this is as a
-    /// convience method.
+    /// convenience method.
     ///
     /// @@Future: remove this!
     pub fn big_value(&self) -> BigInt {

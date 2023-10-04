@@ -10,6 +10,7 @@ use hash_storage::{
         SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
+use hash_target::{primitives::IntTy, HasTarget};
 use hash_utils::{bitflags::bitflags, derive_more::Deref, itertools::Itertools};
 use textwrap::indent;
 use utility_types::omit;
@@ -67,6 +68,61 @@ pub struct CtorDef {
 }
 
 tir_node_sequence_store_direct!(CtorDef);
+
+/// A utility for working with constructor discriminants.
+#[derive(Debug, Clone, Copy)]
+pub struct Discriminant {
+    /// The actual value of the discriminant.
+    pub value: u128,
+
+    /// The annotated type of the discriminant.
+    pub ty: IntTy,
+}
+
+impl Discriminant {
+    /// Create an initial value for a [Discriminant].
+    pub fn initial(ty: IntTy) -> Self {
+        Self { value: 0, ty }
+    }
+
+    /// Implements checked addition onto the discriminant, accounting
+    /// for signedness of the discriminant and overflow.
+    pub fn checked_add<E: HasTarget>(self, env: &E, n: u128) -> (Self, bool) {
+        let size = self.ty.size(env.target().ptr_size());
+
+        let (value, overflow) = if self.ty.is_signed() {
+            let min = size.signed_int_min();
+            let max = size.signed_int_max();
+            let val = size.sign_extend(self.value) as i128;
+            debug_assert!(n < (i128::MAX as u128));
+
+            let n = n as i128;
+            let overflow = val > max - n;
+            let val = if overflow { min + (n - (max - val) - 1) } else { val + n };
+            let val = size.truncate(val as u128);
+            (val, overflow)
+        } else {
+            let max = size.unsigned_int_max();
+            let val = self.value;
+            let overflow = val > max - n;
+            let val = if overflow { n - (max - val) - 1 } else { val + n };
+            (val, overflow)
+        };
+
+        (Self { value, ty: self.ty }, overflow)
+    }
+
+    pub fn to_string<E: HasTarget>(&self, env: &E) -> String {
+        let size = self.ty.size(env.target().ptr_size());
+
+        if self.ty.is_signed() {
+            let val = size.sign_extend(self.value) as i128;
+            format!("{}", val)
+        } else {
+            format!("{}", self.value)
+        }
+    }
+}
 
 /// A constructor term.
 ///

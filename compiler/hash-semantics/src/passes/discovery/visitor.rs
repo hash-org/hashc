@@ -5,13 +5,16 @@ use hash_ast::{
     ast_visitor_default_impl,
     visitor::walk,
 };
+use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_reporting::macros::panic_on_span;
+use hash_source::constant::IntConstant;
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_tir::{
+    intrinsics::utils::create_term_from_integer_lit,
     scopes::Stack,
     tir::{
-        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId, Term,
-        TupleTy, Ty,
+        DataDef, Discriminant, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId,
+        Term, TupleTy, Ty,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -208,6 +211,8 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let enum_name = self.take_name_hint_or_create_internal_name(node.id());
+        let mut last_discriminant = None;
+        let discr_ty = self.compute_discriminant_ty(node)?;
 
         // Create a data definition for the enum
         let enum_def_id = DataDef::indexed_enum_def(
@@ -218,6 +223,41 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                     node.entries
                         .iter()
                         .map(|variant| {
+                            // Check if a variant has a registered discriminant.
+                            let prev = last_discriminant
+                                .unwrap_or_else(|| Discriminant::initial(discr_ty));
+
+                            let discriminant = if let Some(discr_annot) =
+                                attr_store().get_attr(variant.id(), attrs::DISCRIMINANT)
+                            {
+                                let origin = NodeOrigin::Given(discr_annot.origin);
+                                let value = discr_annot.get_arg_as_int(0).unwrap();
+                                let raw_value = value.value().value;
+                                last_discriminant =
+                                    Some(Discriminant { value: raw_value.as_u128(), ty: discr_ty });
+
+                                create_term_from_integer_lit(raw_value, origin)
+                            } else {
+                                let origin = NodeOrigin::Given(variant.id());
+                                let (next_discr, overflow) = prev.checked_add(self.env, 1);
+
+                                // If we overflowed, we need to emit an error!
+                                if overflow {
+                                    panic!("discriminant overflowed")
+                                }
+
+                                // @@Hack: we convert the `u128` into an int constant
+                                // with the given discriminant type, later this should be
+                                // replaced by the new constant representation.
+                                let constant = IntConstant::from_scalar(
+                                    next_discr.value,
+                                    discr_ty,
+                                    self.target().ptr_size(),
+                                );
+                                last_discriminant = Some(next_discr);
+                                create_term_from_integer_lit(constant.value, origin)
+                            };
+
                             Node::at(
                                 (
                                     SymbolId::from_name(
@@ -229,8 +269,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                                         variant.id(),
                                     ),
                                     None,
-                                    // @@Todo: fill in the discriminant
-                                    None,
+                                    Some(discriminant),
                                 ),
                                 NodeOrigin::Given(variant.id()),
                             )
