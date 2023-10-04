@@ -11,8 +11,8 @@ use hash_tir::{
 use itertools::Itertools;
 
 use crate::{
+    diagnostics::{TcError, TcResult, WrongTermKind},
     env::TcEnv,
-    errors::{TcError, TcResult, WrongTermKind},
     options::normalisation::{
         normalised_if, normalised_option, normalised_to, NormalisationMode, NormalisationState,
         NormaliseResult, NormaliseSignal,
@@ -81,7 +81,7 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
                 }
                 _ => {
                     // Not a function type.
-                    Err(TcError::WrongTy {
+                    Err(TcError::WrongTerm {
                         kind: WrongTermKind::NotAFunction,
                         inferred_term_ty: inferred_subject_ty,
                         term: original_term_id,

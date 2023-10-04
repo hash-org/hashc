@@ -1,11 +1,12 @@
+//! Typechecking for access terms `a.b`.
 use std::ops::ControlFlow;
 
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{AccessTerm, CtorTerm, Term, TermId, TupleTerm, Ty, TyId};
 
 use crate::{
+    diagnostics::{TcError, TcResult, WrongTermKind},
     env::TcEnv,
-    errors::{TcError, TcResult, WrongTermKind},
     options::normalisation::{
         normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
@@ -41,7 +42,7 @@ impl<E: TcEnv> OperationsOn<AccessTerm> for Tc<'_, E> {
                     None => {
                         // Not a record type because it has more than one constructor
                         // @@ErrorReporting: more information about the error
-                        return Err(TcError::WrongTy {
+                        return Err(TcError::WrongTerm {
                             kind: WrongTermKind::NotARecord,
                             inferred_term_ty: subject_ty,
                             term: item_node,
@@ -52,7 +53,7 @@ impl<E: TcEnv> OperationsOn<AccessTerm> for Tc<'_, E> {
 
             // Not a record type.
             _ => {
-                return Err(TcError::WrongTy {
+                return Err(TcError::WrongTerm {
                     kind: WrongTermKind::NotARecord,
                     inferred_term_ty: subject_ty,
                     term: item_node,

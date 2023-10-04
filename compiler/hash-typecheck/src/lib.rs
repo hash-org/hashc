@@ -13,8 +13,8 @@
 
 #![feature(control_flow_enum, let_chains)]
 
+pub mod diagnostics;
 pub mod env;
-pub mod errors;
 pub mod operations;
 pub mod options;
 pub mod tc;

@@ -10,8 +10,8 @@ use hash_tir::{
 use hash_utils::log::info;
 
 use crate::{
+    diagnostics::{TcError, TcResult},
     env::TcEnv,
-    errors::{TcError, TcResult},
     options::normalisation::{normalised_to, NormalisationState, NormaliseResult},
     tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode},

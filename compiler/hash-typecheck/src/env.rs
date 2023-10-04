@@ -7,7 +7,7 @@ use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::FnDefId};
 use hash_utils::{state::LightState, timing::HasMetrics};
 
 use crate::{
-    errors::TcError,
+    diagnostics::TcError,
     options::{normalisation::NormalisationOptions, unification::UnificationOptions},
     tc::{FnInferMode, Tc},
 };

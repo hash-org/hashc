@@ -5,7 +5,7 @@ use std::{cell::Cell, ops::ControlFlow};
 use hash_tir::tir::TermId;
 use hash_utils::{derive_more::From, state::LightState};
 
-use crate::errors::TcError;
+use crate::diagnostics::TcError;
 
 /// A signal which can be emitted during normalisation.
 #[derive(Debug, Clone, From)]

@@ -4,7 +4,7 @@ use hash_source::{entry_point::EntryPointKind, identifier::IDENTS, ModuleKind};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::tir::{Arg, CallTerm, FnDefId, HasAstNodeId, Node, NodeOrigin, Term, Ty};
 
-use crate::{env::TcEnv, errors::TcResult, tc::Tc, traits::OperationsOnNode};
+use crate::{diagnostics::TcResult, env::TcEnv, tc::Tc, traits::OperationsOnNode};
 
 impl<T: TcEnv> Tc<'_, T> {
     /// Flag the given function as an entry point if it is one.

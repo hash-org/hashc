@@ -18,7 +18,7 @@ impl<E: TcEnv> OperationsOn<CastTerm> for Tc<'_, E> {
         cast_term: &mut CastTerm,
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.check_node(cast_term.subject_term, cast_term.target_ty)?;
         self.check_by_unify(cast_term.target_ty, annotation_ty)?;
         Ok(())
@@ -39,7 +39,7 @@ impl<E: TcEnv> OperationsOn<CastTerm> for Tc<'_, E> {
         target: &mut CastTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.unify_nodes(src.subject_term, target.subject_term)?;
         self.unify_nodes(src.target_ty, target.target_ty)
     }

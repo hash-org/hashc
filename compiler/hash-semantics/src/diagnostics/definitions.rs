@@ -2,7 +2,7 @@
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_source::location::Span;
 use hash_tir::tir::{SymbolId, TermId};
-use hash_typecheck::errors::TcError;
+use hash_typecheck::diagnostics::TcError;
 use hash_utils::thin_vec::ThinVec;
 
 use crate::passes::resolution::{pat_binds::Bind, scoping::ContextKind};

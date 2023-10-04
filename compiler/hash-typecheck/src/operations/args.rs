@@ -17,8 +17,8 @@ use hash_tir::{
 use itertools::Itertools;
 
 use crate::{
+    diagnostics::{TcError, TcResult},
     env::TcEnv,
-    errors::{TcError, TcResult},
     options::normalisation::{
         already_normalised, normalised_if, NormalisationState, NormaliseResult, NormaliseSignal,
     },

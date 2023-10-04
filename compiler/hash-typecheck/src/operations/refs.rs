@@ -4,8 +4,8 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{DerefTerm, NodeId, NodeOrigin, RefTerm, RefTy, Term, TermId, Ty, TyId};
 
 use crate::{
+    diagnostics::TcError,
     env::TcEnv,
-    errors::TcError,
     options::normalisation::{
         normalise_nested, normalised_if, normalised_to, NormalisationState, NormaliseResult,
     },
@@ -22,7 +22,7 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
         ref_term: &mut RefTerm,
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.normalise_and_check_ty(annotation_ty)?;
         let annotation_ref_ty = match *annotation_ty.value() {
             Ty::RefTy(ref_ty) => ref_ty,
@@ -68,7 +68,7 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
         r2: &mut RefTerm,
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         if r1.mutable != r2.mutable || r1.kind != r2.kind {
             return self.mismatching_atoms(src_node, target_node);
         }
@@ -85,7 +85,7 @@ impl<E: TcEnv> OperationsOn<DerefTerm> for Tc<'_, E> {
         deref_term: &mut DerefTerm,
         annotation_ty: Self::AnnotNode,
         _item_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         let deref_inner_inferred = Ty::hole_for(deref_term.subject);
         self.check_node(deref_term.subject, deref_inner_inferred)?;
 
@@ -126,7 +126,7 @@ impl<E: TcEnv> OperationsOn<DerefTerm> for Tc<'_, E> {
         target: &mut DerefTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.unify_nodes(src.subject, target.subject)
     }
 }
@@ -140,7 +140,7 @@ impl<E: TcEnv> OperationsOn<RefTy> for Tc<'_, E> {
         ref_ty: &mut RefTy,
         annotation_ty: Self::AnnotNode,
         _original_term_id: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         // Infer the inner type
         self.check_node(ref_ty.ty, Ty::universe(NodeOrigin::Expected))?;
         self.check_is_universe(annotation_ty)?;
@@ -157,7 +157,7 @@ impl<E: TcEnv> OperationsOn<RefTy> for Tc<'_, E> {
         r2: &mut RefTy,
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         if r1.mutable != r2.mutable || r1.kind != r2.kind {
             return self.mismatching_atoms(src_node, target_node);
         }

@@ -3,8 +3,8 @@ use std::ops::ControlFlow;
 use hash_tir::tir::{NodeOrigin, TermId, Ty, TyId, UniverseTy};
 
 use crate::{
+    diagnostics::TcResult,
     env::TcEnv,
-    errors::TcResult,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},

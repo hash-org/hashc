@@ -12,8 +12,8 @@ use hash_tir::{
 };
 
 use crate::{
+    diagnostics::TcResult,
     env::TcEnv,
-    errors::TcResult,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::Tc,
     traits::OperationsOnNode,

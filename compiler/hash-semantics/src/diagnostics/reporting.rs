@@ -3,7 +3,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_tir::tir::HasAstNodeId;
-use hash_typecheck::errors::TcErrorReporter;
+use hash_typecheck::diagnostics::TcErrorReporter;
 
 use super::definitions::{SemanticError, SemanticWarning};
 use crate::passes::resolution::scoping::ContextKind;

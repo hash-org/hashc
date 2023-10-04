@@ -24,7 +24,7 @@ impl<E: TcEnv> OperationsOn<ReturnTerm> for Tc<'_, E> {
         return_term: &mut ReturnTerm,
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         let closest_fn_def = self.context().get_first_fn_def_in_scope();
         match closest_fn_def {
             Some(closest_fn_def) => {
@@ -57,7 +57,7 @@ impl<E: TcEnv> OperationsOn<ReturnTerm> for Tc<'_, E> {
         target: &mut ReturnTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.unify_nodes(src.expression, target.expression)
     }
 }
@@ -71,7 +71,7 @@ impl<E: TcEnv> OperationsOn<LoopControlTerm> for Tc<'_, E> {
         _: &mut LoopControlTerm,
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         // Always `never`.
         self.check_by_unify(never_ty(NodeOrigin::Expected), annotation_ty)
     }
@@ -93,7 +93,7 @@ impl<E: TcEnv> OperationsOn<LoopControlTerm> for Tc<'_, E> {
         target: &mut LoopControlTerm,
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         match (src, target) {
             (LoopControlTerm::Break, LoopControlTerm::Break) => Ok(()),
             (LoopControlTerm::Continue, LoopControlTerm::Continue) => Ok(()),
@@ -111,7 +111,7 @@ impl<E: TcEnv> OperationsOn<LoopTerm> for Tc<'_, E> {
         loop_term: &mut LoopTerm,
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         // Forward to the inner term.
         self.check_node(loop_term.inner, Ty::hole(loop_term.inner.origin().inferred()))?;
         let loop_term =
@@ -141,7 +141,7 @@ impl<E: TcEnv> OperationsOn<LoopTerm> for Tc<'_, E> {
         target: &mut LoopTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.unify_nodes(src.inner, target.inner)
     }
 }
@@ -155,7 +155,7 @@ impl<E: TcEnv> OperationsOn<AssignTerm> for Tc<'_, E> {
         assign_term: &mut AssignTerm,
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         let subject_ty = Ty::hole_for(assign_term.subject);
         self.check_node(assign_term.subject, subject_ty)?;
 
@@ -205,7 +205,7 @@ impl<E: TcEnv> OperationsOn<AssignTerm> for Tc<'_, E> {
         target: &mut AssignTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.unify_nodes(src.subject, target.subject)?;
         self.unify_nodes(src.value, target.value)
     }

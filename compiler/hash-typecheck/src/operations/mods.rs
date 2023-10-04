@@ -8,8 +8,8 @@ use hash_tir::{
 };
 
 use crate::{
+    diagnostics::TcError,
     env::TcEnv,
-    errors::TcError,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode},
@@ -19,7 +19,7 @@ use crate::{
 impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
     type AnnotNode = ();
 
-    fn check_node(&self, mod_def_id: ModDefId, _: ()) -> crate::errors::TcResult<()> {
+    fn check_node(&self, mod_def_id: ModDefId, _: ()) -> crate::diagnostics::TcResult<()> {
         self.context().enter_scope(mod_def_id.into(), || {
             let members = mod_def_id.borrow().members;
             let mut error_state = ErrorState::new();
@@ -37,7 +37,7 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
         already_normalised()
     }
 
-    fn unify_nodes(&self, src: ModDefId, _target: ModDefId) -> crate::errors::TcResult<()> {
+    fn unify_nodes(&self, src: ModDefId, _target: ModDefId) -> crate::diagnostics::TcResult<()> {
         // @@Todo: unification of definitions
         Err(TcError::Blocked(src.origin()))
     }
@@ -50,7 +50,7 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
         &self,
         mod_member: ModMemberId,
         _: Self::AnnotNode,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         let value = mod_member.borrow().value;
         match value {
             ModMemberValue::Data(data_def_id) => {
@@ -88,7 +88,11 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
         already_normalised()
     }
 
-    fn unify_nodes(&self, src: ModMemberId, _target: ModMemberId) -> crate::errors::TcResult<()> {
+    fn unify_nodes(
+        &self,
+        src: ModMemberId,
+        _target: ModMemberId,
+    ) -> crate::diagnostics::TcResult<()> {
         // @@Todo: unification of definitions
         Err(TcError::Blocked(src.origin()))
     }

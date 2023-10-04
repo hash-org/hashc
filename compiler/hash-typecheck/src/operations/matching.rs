@@ -10,8 +10,8 @@ use hash_tir::{
 use itertools::Itertools;
 
 use crate::{
+    diagnostics::{TcError, TcResult},
     env::TcEnv,
-    errors::{TcError, TcResult},
     options::normalisation::{
         normalised_to, stuck_normalising, NormalisationState, NormaliseResult, NormaliseSignal,
     },
@@ -29,7 +29,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
         match_term: &mut MatchTerm,
         annotation_ty: Self::AnnotNode,
         _original_node_id: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.check_ty(annotation_ty)?;
         let match_subject_ty = Ty::hole_for(match_term.subject);
         self.check_node(match_term.subject, match_subject_ty)?;
@@ -164,7 +164,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
         _target: &mut MatchTerm,
         src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         // @@Todo
         Err(TcError::Blocked(src_node.origin()))
     }

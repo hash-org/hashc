@@ -52,7 +52,7 @@ impl<E: TcEnv> OperationsOn<RangePat> for Tc<'_, E> {
         range_pat: &mut RangePat,
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         let RangePat { lo, hi, .. } = range_pat;
 
         lo.map(|lo| self.check_node(*lo, annotation_ty)).transpose()?;
@@ -75,7 +75,7 @@ impl<E: TcEnv> OperationsOn<RangePat> for Tc<'_, E> {
         _: &mut RangePat,
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         // @@Todo: unification of range patterns
         self.mismatching_atoms(src_node, target_node)
     }
