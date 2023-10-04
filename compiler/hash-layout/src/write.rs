@@ -23,7 +23,9 @@ use std::{fmt, iter};
 
 use hash_ir::ty::{IrTy, VariantIdx};
 use hash_storage::store::statics::StoreId;
-use hash_target::{abi::AbiRepresentation, data_layout::HasDataLayout, size::Size};
+use hash_target::{
+    abi::AbiRepresentation, data_layout::HasDataLayout, primitives::IntTy, size::Size,
+};
 use hash_utils::tree_writing::CharacterSet;
 
 use crate::{
@@ -600,6 +602,7 @@ impl<'l> LayoutWriter<'l> {
         &self,
         variant: VariantIdx,
         tag_size: Size,
+        tag_ty: IntTy,
         tag_box_width: usize,
         layout: LayoutId,
     ) -> BoxRow {
@@ -607,8 +610,19 @@ impl<'l> LayoutWriter<'l> {
             let mut contents = layout
                 .map(|layout| self.create_box_contents(ty, layout, Some((tag_size, variant))));
 
-            // we also insert an initial box with the variant name
-            contents.insert(0, BoxContent::new(variant.to_string(), "".to_string()));
+            // We want to read the discriminant value, and the variant name
+            // for the variant that we are printing.
+            let (name, discriminant) = ty.as_adt().map(|adt| {
+                let variant = adt.variant(variant);
+                (variant.name, variant.discriminant)
+            });
+
+            // Insert an initial box with the variant name and the value of the
+            // discriminant.
+            contents.insert(
+                0,
+                BoxContent::new(name.to_string(), discriminant.to_string(tag_ty, &self.ctx)),
+            );
 
             let mut row = BoxRow::new(contents);
             row.set_width_at(0, tag_box_width);
@@ -823,6 +837,7 @@ impl fmt::Display for LayoutWriter<'_> {
                     Ok(())
                 }
                 Variants::Multiple { tag, field: _, ref variants } => {
+                    let tag_ty = tag.kind().int_ty();
                     let tag_size = tag.size(self.ctx.data_layout());
                     let tag_row = self.compute_tag_box_row(tag_size, layout);
                     let tag_box_width = tag_row.width_at(0).unwrap();
@@ -835,6 +850,7 @@ impl fmt::Display for LayoutWriter<'_> {
                             self.create_box_contents_for_variant(
                                 index,
                                 tag_size,
+                                tag_ty,
                                 tag_box_width,
                                 *layout,
                             )

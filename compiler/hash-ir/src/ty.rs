@@ -1130,8 +1130,24 @@ impl AdtRepresentation {
 /// A [VariantDiscriminant] is a value that is used for the tag of a
 /// variant within an ADT. It can either be explicitly stated, or
 /// computed relatively to the previous variant.
+///
+/// @@Todo: perhaps just use the TIR Discriminant (and move the discriminant
+/// into a more general place, i.e. like `hash-target`?)
 #[derive(Clone, Copy, Debug)]
 pub struct VariantDiscriminant(pub u128);
+
+impl VariantDiscriminant {
+    pub fn to_string<C: HasDataLayout>(&self, ty: IntTy, ctx: &C) -> String {
+        let size = ty.size(ctx.data_layout().pointer_size);
+
+        if ty.is_signed() {
+            let val = size.sign_extend(self.0) as i128;
+            format!("{}", val)
+        } else {
+            format!("{}", self.0)
+        }
+    }
+}
 
 /// An [AdtVariant] is a potential variant of an ADT which contains all of the
 /// associated fields, and the name of the variant if any. If no names are
