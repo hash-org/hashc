@@ -12,7 +12,8 @@ pub mod gen {
 
     use crate::tir::{
         Arg, ArgsId, DataDef, DataDefCtors, DataDefId, Node, NodeOrigin, Param, ParamsId, Pat,
-        PatId, PrimitiveCtorInfo, RefKind, SymbolId, Term, TermId, Ty, TyId,
+        PatId, PrimitiveCtorInfo, RefKind, SymbolId, Term, TermId, Ty, TyId, VariantData,
+        VariantDataWithoutArgs,
     };
 
     /// Create a symbol with the given name.
@@ -48,14 +49,9 @@ pub mod gen {
     pub fn enum_def(
         name: SymbolId,
         params: ParamsId,
-        variants: impl IntoIterator<Item = (SymbolId, ParamsId, Option<TermId>)>,
+        variants: impl IntoIterator<Item = VariantDataWithoutArgs>,
     ) -> DataDefId {
-        let variants = Node::gen(
-            variants
-                .into_iter()
-                .map(|(name, params, discriminant)| Node::gen((name, params, discriminant)))
-                .collect_vec(),
-        );
+        let variants = Node::gen(variants.into_iter().map(Node::gen).collect_vec());
         DataDef::enum_def(name, params, move |_| variants, NodeOrigin::Generated)
     }
 
@@ -63,21 +59,12 @@ pub mod gen {
     pub fn indexed_enum_def(
         name: SymbolId,
         params: ParamsId,
-        variants: impl IntoIterator<Item = (SymbolId, ParamsId, Option<ArgsId>, Option<TermId>)>,
+        variants: impl IntoIterator<Item = VariantData>,
     ) -> DataDefId {
         DataDef::indexed_enum_def(
             name,
             params,
-            move |_| {
-                Node::gen(
-                    variants
-                        .into_iter()
-                        .map(|(name, params, args, discriminant)| {
-                            Node::gen((name, params, args, discriminant))
-                        })
-                        .collect_vec(),
-                )
-            },
+            move |_| Node::gen(variants.into_iter().map(Node::gen).collect_vec()),
             NodeOrigin::Generated,
         )
     }

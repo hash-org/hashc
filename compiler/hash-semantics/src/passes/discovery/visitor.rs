@@ -14,7 +14,7 @@ use hash_tir::{
     scopes::Stack,
     tir::{
         DataDef, Discriminant, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId,
-        Term, TupleTy, Ty,
+        Term, TupleTy, Ty, VariantData,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -259,18 +259,18 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                             };
 
                             Node::at(
-                                (
-                                    SymbolId::from_name(
+                                VariantData {
+                                    name: SymbolId::from_name(
                                         variant.name.ident,
                                         NodeOrigin::Given(variant.name.id()),
                                     ),
-                                    self.create_hole_params_from_params(
+                                    params: self.create_hole_params_from_params(
                                         variant.fields.as_ref(),
                                         variant.id(),
                                     ),
-                                    None,
-                                    Some(discriminant),
-                                ),
+                                    result_args: None,
+                                    discriminant: Some(discriminant),
+                                },
                                 NodeOrigin::Given(variant.id()),
                             )
                         })

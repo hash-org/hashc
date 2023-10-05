@@ -572,9 +572,9 @@ macro_rules! make_primitives {
                                                 #[allow(non_snake_case)]
                                                 #[allow(unused_variables)]
                                                 ($(|$($ctor_param_name,)*|)? {
-                                                    (
-                                                        sym(stringify!($ctor_name)),
-                                                        params([
+                                                    $crate::tir::VariantData {
+                                                        name: sym(stringify!($ctor_name)),
+                                                        params: params([
                                                             $(
                                                                 $(($ctor_param_name, $ctor_param_ty, None)),*
                                                             )?
@@ -582,13 +582,13 @@ macro_rules! make_primitives {
                                                         // ##Hack: count the number of characters
                                                         // in the stringified arguments to
                                                         // determine if there are any
-                                                        if stringify!($($($ctor_arg,)*)?).len() > 0 {
+                                                        result_args: if stringify!($($($ctor_arg,)*)?).len() > 0 {
                                                             Some(args([$($($ctor_arg,)*)?]))
                                                         } else {
                                                             None
                                                         },
-                                                        None
-                                                    )
+                                                        discriminant: None
+                                                    }
                                                 })$(($(sym(stringify!($ctor_param_name))),*))?,
                                             )*
                                         ]
