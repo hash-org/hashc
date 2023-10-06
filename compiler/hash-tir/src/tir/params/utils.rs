@@ -77,7 +77,7 @@ impl ParamError {
                     error.add_labelled_span(
                         location,
                         format!(
-                            "this definition expectes at most {} argument{}",
+                            "this definition expects at most {} argument{}",
                             expected.len(),
                             pluralise!(expected.len())
                         ),
