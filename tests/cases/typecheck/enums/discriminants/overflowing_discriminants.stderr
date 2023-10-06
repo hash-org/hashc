@@ -1,0 +1,12 @@
+error[0061]: discriminant value `0` assigned more than once
+  --> $DIR/overflowing_discriminants.hash:5:19
+ 4 |   Direction := enum(
+ 5 |       #[discriminant(0)]
+   |                     ^^^ `0` originally assigned here
+ 6 |       Up,
+
+  --> $DIR/overflowing_discriminants.hash:14:5
+13 |       // `255`
+14 |       Left,
+   |       ^^^^ `0` assigned here
+15 |   )

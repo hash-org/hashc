@@ -6,10 +6,14 @@ use hash_attrs::{
     builtin::attrs,
 };
 use hash_target::{abi::Integer, primitives::IntTy, size::Size};
+use hash_tir::tir::{Discriminant, HasAstNodeId, Node, NodeOrigin};
 use num_bigint::BigInt;
 
 use super::DiscoveryPass;
-use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv};
+use crate::{
+    diagnostics::definitions::{SemanticError, SemanticResult},
+    env::SemanticEnv,
+};
 
 impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
     /// Compute the type of the discriminant from a given
@@ -17,14 +21,14 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
     pub(super) fn compute_discriminant_ty(
         &self,
         def: ast::AstNodeRef<ast::EnumDef>,
-    ) -> SemanticResult<IntTy> {
+    ) -> SemanticResult<Node<IntTy>> {
         // Firstly, we check if the def has a `repr` attribute which indicates which
         // primitive integer type to use for the discriminant.
         if let Some(repr_hint) = attr_store().get_attr(def.id, attrs::REPR) {
             let repr = ReprAttr::parse(&repr_hint).unwrap(); // already checked earlier!
 
             if let ReprAttr::Int(ty) = repr {
-                return Ok(ty);
+                return Ok(Node::at(ty, NodeOrigin::Given(repr_hint.origin)));
             }
         }
 
@@ -37,15 +41,6 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
             if let Some(discr_annot) = attr_store().get_attr(variant.id(), attrs::DISCRIMINANT) {
                 let discr = discr_annot.get_arg_as_int(0).unwrap().big_value();
                 has_discriminant_attr = true;
-
-                // If we got a previous value, then we have to check
-                // whether it doesn't overlap with the previous discriminant.
-                if let Some(prev) = prev_discr {
-                    if discr <= prev {
-                        // Error!
-                        panic!("todo: error!")
-                    }
-                }
 
                 // Otherwise, we set the previous discriminant to the current one.
                 prev_discr = Some(discr);
@@ -67,7 +62,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
         // that we assume now, is it perhaps an i32 or isize?
         if has_discriminant_attr || min_bits == 0 {
             let int = Integer::fit_unsigned(def.entries.len() as u128);
-            return Ok(IntTy::from_integer(int, false));
+            return Ok(Node::at(IntTy::from_integer(int, false), NodeOrigin::Generated));
         }
 
         // Check whether the discriminant can fit in a `u8`, `u16`, `u32`, `u64`,
@@ -76,6 +71,54 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
             panic!("error: discriminant too large!")
         };
 
-        Ok(IntTy::from_integer(int, true))
+        Ok(Node::at(IntTy::from_integer(int, true), NodeOrigin::Generated))
+    }
+
+    /// Check if any of the discriminants that are assigned to a variant are
+    /// duplicated across the enum definition (whether by overflow or by
+    /// explicit means).
+    pub(super) fn check_enum_discriminants(
+        &self,
+        discrs: &[Node<Discriminant>],
+        discr_ty: Node<IntTy>,
+    ) -> SemanticResult<()> {
+        let discr_ty_size = discr_ty.data.size(self.target().ptr_size());
+
+        // Check if any of the discriminants have been used more than once.
+        let mut i = 0;
+        while i < discrs.len() {
+            let raw_value = discrs[i].value;
+            // @@Todo: maybe make this an error collector of sorts?
+
+            // @@Hack @@TIRConsts: we manually truncate the value of the discriminant to
+            // being a u128 so that we can detect whether it overflows
+            // or not. However, we should remove this when we can use
+            // the `Const` format in the TIR which will automatically perform
+            // the truncation.
+            if discr_ty_size.truncate(raw_value) != raw_value {
+                return Err(SemanticError::EnumDiscriminantOverflow {
+                    location: discrs[i].span().unwrap(),
+                    annotation_origin: discr_ty.span(),
+                    discriminant: *discrs[i],
+                });
+            }
+
+            let mut o = i + 1;
+            while o < discrs.len() {
+                if discrs[i].value == discrs[o].value {
+                    return Err(SemanticError::DuplicateEnumDiscriminant {
+                        original: discrs[i].origin.span().unwrap(),
+                        offending: discrs[o].origin.span().unwrap(),
+                        value: discrs[o].data,
+                    });
+                }
+
+                o += 1;
+            }
+
+            i += 1;
+        }
+
+        Ok(())
     }
 }

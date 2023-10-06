@@ -1,0 +1,15 @@
+// run=fail, stage=typecheck
+
+#[repr("u8")]
+Direction := enum(
+    #[discriminant(0)]
+    Up,
+    #[discriminant(63)]
+    Right,
+    #[discriminant(255)]
+    Down,
+    
+    // ~ERROR: discriminant value `0` is used twice, because it overflowed from
+    // `255`
+    Left,
+)

@@ -13,8 +13,8 @@ use hash_tir::{
     intrinsics::utils::create_term_from_integer_lit,
     scopes::Stack,
     tir::{
-        DataDef, Discriminant, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId,
-        Term, TupleTy, Ty, VariantData,
+        DataDef, Discriminant, DiscriminantKind, FnDef, FnTy, ModDef, ModKind, ModMember, Node,
+        NodeOrigin, SymbolId, Term, TupleTy, Ty, VariantData,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -211,8 +211,9 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let enum_name = self.take_name_hint_or_create_internal_name(node.id());
-        let mut last_discriminant = None;
+        let mut prev_discr = None;
         let discr_ty = self.compute_discriminant_ty(node)?;
+        let mut discrs = vec![];
 
         // Create a data definition for the enum
         let enum_def_id = DataDef::indexed_enum_def(
@@ -223,40 +224,56 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                     node.entries
                         .iter()
                         .map(|variant| {
-                            // Check if a variant has a registered discriminant.
-                            let prev = last_discriminant
-                                .unwrap_or_else(|| Discriminant::initial(discr_ty));
+                            // Default to using a `0` discriminant if none was specified.
+                            let prev =
+                                prev_discr.unwrap_or_else(|| Discriminant::initial(*discr_ty));
 
-                            let discriminant = if let Some(discr_annot) =
+                            // Lookup if there is a discriminant value for the given variant and
+                            // then set it as the last discriminant. If
+                            // the variant does not have an explicit
+                            // discriminant, then we simply use the last known discriminant and
+                            // increment it by one.
+                            let (discriminant, origin) = if let Some(discr_annot) =
                                 attr_store().get_attr(variant.id(), attrs::DISCRIMINANT)
                             {
                                 let origin = NodeOrigin::Given(discr_annot.origin);
                                 let value = discr_annot.get_arg_as_int(0).unwrap();
-                                let raw_value = value.value().value;
-                                last_discriminant =
-                                    Some(Discriminant { value: raw_value.as_u128(), ty: discr_ty });
+                                let const_val = value.value().value;
+                                let raw_val = const_val.as_u128();
+                                let discriminant = Discriminant {
+                                    value: raw_val,
+                                    ty: *discr_ty,
+                                    kind: DiscriminantKind::Explicit,
+                                };
 
-                                create_term_from_integer_lit(raw_value, origin)
+                                prev_discr = Some(discriminant);
+                                (create_term_from_integer_lit(const_val, origin), origin)
                             } else {
                                 let origin = NodeOrigin::Given(variant.id());
-                                let (next_discr, overflow) = prev.checked_add(self.env, 1);
 
-                                // If we overflowed, we need to emit an error!
-                                if overflow {
-                                    panic!("discriminant overflowed")
-                                }
+                                // We want to check if we are starting from the very beginning which
+                                // should actually use the zero discriminant.
+                                let (next_discr, _) = if prev_discr.is_some() {
+                                    prev.checked_add(self.env, 1)
+                                } else {
+                                    (prev, false)
+                                };
 
                                 // @@Hack: we convert the `u128` into an int constant
                                 // with the given discriminant type, later this should be
                                 // replaced by the new constant representation.
                                 let constant = IntConstant::from_scalar(
                                     next_discr.value,
-                                    discr_ty,
+                                    *discr_ty,
                                     self.target().ptr_size(),
                                 );
-                                last_discriminant = Some(next_discr);
-                                create_term_from_integer_lit(constant.value, origin)
+                                prev_discr = Some(next_discr);
+                                (create_term_from_integer_lit(constant.value, origin), origin)
                             };
+
+                            // we want to push the `prev` discriminant into the discriminant
+                            // list so that we can just check them later.
+                            discrs.push(Node::at(prev_discr.unwrap(), origin));
 
                             Node::at(
                                 VariantData {
@@ -283,6 +300,10 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
 
         // Traverse the enum; the variants have already been created.
         self.enter_item(node, ItemId::Def(enum_def_id.into()), || walk::walk_enum_def(self, node))?;
+
+        // We want to check that the enum discriminant don't violate any
+        // constraints, so we do that here.
+        self.check_enum_discriminants(&discrs, discr_ty)?;
 
         Ok(())
     }

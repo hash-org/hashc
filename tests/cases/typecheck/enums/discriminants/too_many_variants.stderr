@@ -1,0 +1,12 @@
+error[0061]: discriminant value `0` assigned more than once
+   --> $DIR/too_many_variants.hash:5:5
+  4 |   Variants := enum(
+  5 |       ALiTq0,
+    |       ^^^^^^ `0` originally assigned here
+  6 |       AmXCHA,
+
+   --> $DIR/too_many_variants.hash:261:5
+260 |       ABX7A,
+261 |       B // ~ERROR: discriminant overflowed
+    |       ^ `0` assigned here
+262 |   )

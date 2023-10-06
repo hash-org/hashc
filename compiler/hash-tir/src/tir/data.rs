@@ -77,12 +77,27 @@ pub struct Discriminant {
 
     /// The annotated type of the discriminant.
     pub ty: IntTy,
+
+    /// The kind of discriminant, whether it is an explicitly specified one, or
+    /// if it is relative to the previous discriminant.
+    pub kind: DiscriminantKind,
+}
+
+/// Denotes the way that the discriminant was computed/specified.
+#[derive(Debug, Clone, Copy)]
+pub enum DiscriminantKind {
+    /// If the relative index is set to `0`, then this means that the
+    /// discriminant has no previous discriminant to be relative to.
+    Relative(u32),
+
+    /// The discriminant was explicitly stated.
+    Explicit,
 }
 
 impl Discriminant {
     /// Create an initial value for a [Discriminant].
     pub fn initial(ty: IntTy) -> Self {
-        Self { value: 0, ty }
+        Self { value: 0, ty, kind: DiscriminantKind::Relative(0) }
     }
 
     /// Implements checked addition onto the discriminant, accounting
@@ -109,7 +124,13 @@ impl Discriminant {
             (val, overflow)
         };
 
-        (Self { value, ty: self.ty }, overflow)
+        let kind = match self.kind {
+            DiscriminantKind::Relative(0) => DiscriminantKind::Relative(0),
+            DiscriminantKind::Relative(n) => DiscriminantKind::Relative(n + 1),
+            DiscriminantKind::Explicit => DiscriminantKind::Relative(1),
+        };
+
+        (Self { value, ty: self.ty, kind }, overflow)
     }
 
     pub fn to_string<E: HasTarget>(&self, env: &E) -> String {
@@ -432,11 +453,12 @@ impl DataDef {
                     .data
                     .into_iter()
                     .map(|node| {
-                        let VariantData { name, params, result_args, discriminant } = *node;
+                        let VariantData { name, params: field_params, result_args, discriminant } =
+                            *node;
                         Node::at(
                             CtorDefData {
                                 name,
-                                params,
+                                params: field_params,
                                 discriminant,
                                 result_args: result_args.unwrap_or_else(|| {
                                     // Create the arguments for the constructor, which

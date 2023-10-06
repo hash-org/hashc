@@ -1,0 +1,12 @@
+error[0061]: discriminant value `0` assigned more than once
+ --> $DIR/duplicate_discriminants.hash:5:19
+4 |   Direction := enum(
+5 |       #[discriminant(0)]
+  |                     ^^^ `0` originally assigned here
+6 |       Up,
+
+ --> $DIR/duplicate_discriminants.hash:7:19
+6 |       Up,
+7 |       #[discriminant(0)]
+  |                     ^^^ `0` assigned here
+8 |       Right,
