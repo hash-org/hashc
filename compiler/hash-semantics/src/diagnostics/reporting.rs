@@ -264,7 +264,7 @@ impl SemanticReporter {
                 }
             }
             SemanticError::DuplicateEnumDiscriminant { original, offending, value } => {
-                let value_fmt = value.to_string(env);
+                let value_fmt = value.to_string(env.target().ptr_size());
 
                 reporter
                     .error()

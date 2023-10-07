@@ -9,12 +9,13 @@ use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_reporting::macros::panic_on_span;
 use hash_source::constant::IntConstant;
 use hash_storage::store::statics::SequenceStoreValue;
+use hash_target::discriminant::{Discriminant, DiscriminantKind};
 use hash_tir::{
     intrinsics::utils::create_term_from_integer_lit,
     scopes::Stack,
     tir::{
-        DataDef, Discriminant, DiscriminantKind, FnDef, FnTy, ModDef, ModKind, ModMember, Node,
-        NodeOrigin, SymbolId, Term, TupleTy, Ty, VariantData,
+        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId, Term,
+        TupleTy, Ty, VariantData,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -218,6 +219,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         // Create a data definition for the enum
         let enum_def_id = DataDef::indexed_enum_def(
             enum_name,
+            discr_ty.data,
             self.create_hole_params_from_ty_params(node.ty_params.as_ref(), node.id()),
             |_| {
                 Node::at(

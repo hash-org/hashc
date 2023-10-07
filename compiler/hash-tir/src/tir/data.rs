@@ -10,7 +10,7 @@ use hash_storage::{
         SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
-use hash_target::{primitives::IntTy, HasTarget};
+use hash_target::primitives::IntTy;
 use hash_utils::{bitflags::bitflags, derive_more::Deref, itertools::Itertools};
 use textwrap::indent;
 use utility_types::omit;
@@ -68,82 +68,6 @@ pub struct CtorDef {
 }
 
 tir_node_sequence_store_direct!(CtorDef);
-
-/// A utility for working with constructor discriminants.
-#[derive(Debug, Clone, Copy)]
-pub struct Discriminant {
-    /// The actual value of the discriminant.
-    pub value: u128,
-
-    /// The annotated type of the discriminant.
-    pub ty: IntTy,
-
-    /// The kind of discriminant, whether it is an explicitly specified one, or
-    /// if it is relative to the previous discriminant.
-    pub kind: DiscriminantKind,
-}
-
-/// Denotes the way that the discriminant was computed/specified.
-#[derive(Debug, Clone, Copy)]
-pub enum DiscriminantKind {
-    /// If the relative index is set to `0`, then this means that the
-    /// discriminant has no previous discriminant to be relative to.
-    Relative(u32),
-
-    /// The discriminant was explicitly stated.
-    Explicit,
-}
-
-impl Discriminant {
-    /// Create an initial value for a [Discriminant].
-    pub fn initial(ty: IntTy) -> Self {
-        Self { value: 0, ty, kind: DiscriminantKind::Relative(0) }
-    }
-
-    /// Implements checked addition onto the discriminant, accounting
-    /// for signedness of the discriminant and overflow.
-    pub fn checked_add<E: HasTarget>(self, env: &E, n: u128) -> (Self, bool) {
-        let size = self.ty.size(env.target().ptr_size());
-
-        let (value, overflow) = if self.ty.is_signed() {
-            let min = size.signed_int_min();
-            let max = size.signed_int_max();
-            let val = size.sign_extend(self.value) as i128;
-            debug_assert!(n < (i128::MAX as u128));
-
-            let n = n as i128;
-            let overflow = val > max - n;
-            let val = if overflow { min + (n - (max - val) - 1) } else { val + n };
-            let val = size.truncate(val as u128);
-            (val, overflow)
-        } else {
-            let max = size.unsigned_int_max();
-            let val = self.value;
-            let overflow = val > max - n;
-            let val = if overflow { n - (max - val) - 1 } else { val + n };
-            (val, overflow)
-        };
-
-        let kind = match self.kind {
-            DiscriminantKind::Relative(0) => DiscriminantKind::Relative(0),
-            DiscriminantKind::Relative(n) => DiscriminantKind::Relative(n + 1),
-            DiscriminantKind::Explicit => DiscriminantKind::Relative(1),
-        };
-
-        (Self { value, ty: self.ty, kind }, overflow)
-    }
-
-    pub fn to_string<E: HasTarget>(&self, env: &E) -> String {
-        let size = self.ty.size(env.target().ptr_size());
-
-        if self.ty.is_signed() {
-            let val = size.sign_extend(self.value) as i128;
-            format!("{}", val)
-        } else {
-            format!("{}", self.value)
-        }
-    }
-}
 
 /// A constructor term.
 ///
@@ -347,6 +271,10 @@ pub struct DataDef {
     /// This list is ordered so that a constructor can refer back to its
     /// location in this list using a `usize` index.
     pub ctors: DataDefCtors,
+
+    /// The type of the discriminant, this has no meaning to data definitions
+    /// that are not enums.
+    pub discriminant_ty: Option<IntTy>,
 }
 
 tir_node_single_store!(DataDef);
@@ -367,6 +295,7 @@ impl DataDef {
                     Node::<CtorDef>::empty_seq(),
                     ctors_origin,
                 ))),
+                discriminant_ty: None,
             },
             data_origin,
         )
@@ -407,6 +336,7 @@ impl DataDef {
                 DataDef {
                     name,
                     params,
+                    discriminant_ty: None,
                     ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
                         id,
                         once({
@@ -437,6 +367,7 @@ impl DataDef {
     /// specific result arguments.
     pub fn indexed_enum_def(
         name: SymbolId,
+        discriminant_ty: IntTy,
         params: ParamsId,
         variants: impl FnOnce(DataDefId) -> Node<Vec<Node<VariantData>>>,
         enum_origin: NodeOrigin,
@@ -473,7 +404,15 @@ impl DataDef {
                 variants_origin,
             );
 
-            Node::at(DataDef { name, params, ctors: DataDefCtors::Defined(ctor_defs) }, enum_origin)
+            Node::at(
+                DataDef {
+                    name,
+                    params,
+                    ctors: DataDefCtors::Defined(ctor_defs),
+                    discriminant_ty: Some(discriminant_ty),
+                },
+                enum_origin,
+            )
         })
     }
 
@@ -487,12 +426,14 @@ impl DataDef {
     /// type.
     pub fn enum_def(
         name: SymbolId,
+        discriminant_ty: IntTy,
         params: ParamsId,
         variants: impl FnOnce(DataDefId) -> Node<Vec<Node<VariantDataWithoutArgs>>>,
         enum_origin: NodeOrigin,
     ) -> DataDefId {
         Self::indexed_enum_def(
             name,
+            discriminant_ty,
             params,
             |def_id| {
                 let variants = variants(def_id);

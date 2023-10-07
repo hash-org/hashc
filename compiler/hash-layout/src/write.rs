@@ -602,7 +602,6 @@ impl<'l> LayoutWriter<'l> {
         &self,
         variant: VariantIdx,
         tag_size: Size,
-        tag_ty: IntTy,
         tag_box_width: usize,
         layout: LayoutId,
     ) -> BoxRow {
@@ -621,7 +620,10 @@ impl<'l> LayoutWriter<'l> {
             // discriminant.
             contents.insert(
                 0,
-                BoxContent::new(name.to_string(), discriminant.to_string(tag_ty, &self.ctx)),
+                BoxContent::new(
+                    name.to_string(),
+                    discriminant.to_string(self.ctx.data_layout().pointer_size),
+                ),
             );
 
             let mut row = BoxRow::new(contents);
@@ -850,7 +852,6 @@ impl fmt::Display for LayoutWriter<'_> {
                             self.create_box_contents_for_variant(
                                 index,
                                 tag_size,
-                                tag_ty,
                                 tag_box_width,
                                 *layout,
                             )

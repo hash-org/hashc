@@ -4,6 +4,7 @@
 pub mod abi;
 pub mod alignment;
 pub mod data_layout;
+pub mod discriminant;
 pub mod link;
 pub mod primitives;
 pub mod size;

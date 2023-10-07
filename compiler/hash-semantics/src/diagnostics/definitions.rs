@@ -1,7 +1,8 @@
 //! Error-related data structures for errors that occur during typechecking.
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_source::location::Span;
-use hash_tir::tir::{Discriminant, SymbolId, TermId};
+use hash_target::discriminant::Discriminant;
+use hash_tir::tir::{SymbolId, TermId};
 use hash_typecheck::errors::TcError;
 use hash_utils::thin_vec::ThinVec;
 

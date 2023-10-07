@@ -563,8 +563,12 @@ macro_rules! make_primitives {
                         $(
                             || (
                                 $(|$($param_name,)*|)? {
+                                    use hash_target::primitives::{IntTy, UIntTy};
+
                                     indexed_enum_def(
                                         sym(self.name()),
+                                        // @@Todo: add a way to specify discriminants on primitve definitions (but usaully a u8 is enough)?
+                                        IntTy::UInt(UIntTy::U8),
                                         params([$($(($param_name, $param_ty, None)),*)?]),
                                         [
                                             $(

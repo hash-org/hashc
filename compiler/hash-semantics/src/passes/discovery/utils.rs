@@ -5,8 +5,8 @@ use hash_attrs::{
     attr::{attr_store, ReprAttr},
     builtin::attrs,
 };
-use hash_target::{abi::Integer, primitives::IntTy, size::Size};
-use hash_tir::tir::{Discriminant, HasAstNodeId, Node, NodeOrigin};
+use hash_target::{abi::Integer, discriminant::Discriminant, primitives::IntTy, size::Size};
+use hash_tir::tir::{HasAstNodeId, Node, NodeOrigin};
 use num_bigint::BigInt;
 
 use super::DiscoveryPass;

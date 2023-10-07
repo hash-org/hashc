@@ -8,7 +8,7 @@ use hash_ir::{
     lang_items::LangItem,
     ty::{
         self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
-        IrTyListId, Mutability, VariantDiscriminant, COMMON_IR_TYS,
+        IrTyListId, Mutability, COMMON_IR_TYS,
     },
     TyCacheEntry,
 };
@@ -17,7 +17,11 @@ use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
     SequenceStoreKey,
 };
-use hash_target::size::Size;
+use hash_target::{
+    discriminant::{Discriminant, DiscriminantKind},
+    primitives::{IntTy, SIntTy},
+    size::Size,
+};
 use hash_tir::{
     context::HasContext,
     intrinsics::{
@@ -341,13 +345,17 @@ impl<'ir> BuilderCtx<'ir> {
                     })
                     .collect_vec();
 
-                // @@Hack: for now we just use the discriminant as the index of the 
-                // variant, this is not correct, but it will do for now.
+                let ty = def.discriminant_ty.unwrap_or(IntTy::Int(SIntTy::ISize));
+
+                // At discovery, if any of the variants have a discriminant, then all of them items
+                // after it will also have a discriminant, thus making the it consistent across the 
+                // entire enum. Otherwise, we can default to using the index of the variant as the 
+                // discriminant.
                 let discriminant = if let Some(discriminant_term) = ctor.discriminant &&
                                       let Some(value) = try_use_term_as_integer_lit(self, discriminant_term) {
-                    VariantDiscriminant(value)
+                    Discriminant { value, ty, kind: DiscriminantKind::Explicit }
                 } else {
-                    VariantDiscriminant(index as u128)
+                    Discriminant { value: index as u128, ty, kind: DiscriminantKind::implicit() }
                 };
 
                 AdtVariant {

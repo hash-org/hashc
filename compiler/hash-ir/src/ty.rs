@@ -30,6 +30,7 @@ use hash_storage::{
 use hash_target::{
     abi::{self, Abi, Integer, ScalarKind},
     data_layout::HasDataLayout,
+    discriminant::Discriminant,
     primitives::BigIntTy,
     size::Size,
 };
@@ -983,7 +984,7 @@ impl Adt {
         // The user did not specify the representation, or no representation was deduced
         // from the attributes, so we compute the discriminant size using the documented
         // rules.
-        let max = self.variants.iter().map(|variant| variant.discriminant.0).max().unwrap_or(0);
+        let max = self.variants.iter().map(|variant| variant.discriminant.value).max().unwrap_or(0);
         let computed_fit = abi::Integer::fit_unsigned(max);
 
         // If this is a C-like representation, then we always
@@ -1003,12 +1004,12 @@ impl Adt {
     /// Compute the discriminant value for a particular variant.
     pub fn discriminant_value_for(&self, variant: VariantIdx) -> u128 {
         debug_assert!(self.flags.is_enum());
-        self.variants[variant].discriminant.0
+        self.variants[variant].discriminant.value
     }
 
     /// Create an iterator of all of the discriminants of this ADT.
     pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> + '_ {
-        self.variants.indices().map(|idx| (idx, self.variants[idx].discriminant.0))
+        self.variants.indices().map(|idx| (idx, self.variants[idx].discriminant.value))
     }
 }
 
@@ -1127,28 +1128,6 @@ impl AdtRepresentation {
     }
 }
 
-/// A [VariantDiscriminant] is a value that is used for the tag of a
-/// variant within an ADT. It can either be explicitly stated, or
-/// computed relatively to the previous variant.
-///
-/// @@Todo: perhaps just use the TIR Discriminant (and move the discriminant
-/// into a more general place, i.e. like `hash-target`?)
-#[derive(Clone, Copy, Debug)]
-pub struct VariantDiscriminant(pub u128);
-
-impl VariantDiscriminant {
-    pub fn to_string<C: HasDataLayout>(&self, ty: IntTy, ctx: &C) -> String {
-        let size = ty.size(ctx.data_layout().pointer_size);
-
-        if ty.is_signed() {
-            let val = size.sign_extend(self.0) as i128;
-            format!("{}", val)
-        } else {
-            format!("{}", self.0)
-        }
-    }
-}
-
 /// An [AdtVariant] is a potential variant of an ADT which contains all of the
 /// associated fields, and the name of the variant if any. If no names are
 /// available, then the name will be the index of that variant.
@@ -1162,14 +1141,14 @@ pub struct AdtVariant {
     pub fields: Vec<AdtField>,
 
     /// The discriminant value of this variant.
-    pub discriminant: VariantDiscriminant,
+    pub discriminant: Discriminant,
 }
 
 impl AdtVariant {
     /// Make a singleton variant, implicitly setting the discriminant value
     /// as being `0`.
     pub fn singleton(name: Identifier, fields: Vec<AdtField>) -> Self {
-        Self { name, fields, discriminant: VariantDiscriminant(0) }
+        Self { name, fields, discriminant: Discriminant::initial(IntTy::Int(SIntTy::ISize)) }
     }
 
     /// Find the index of a field by name.
