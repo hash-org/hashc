@@ -30,26 +30,31 @@ pub macro panic_on_span {
 /// to quickly print the `span` of something and the `message` associated with
 /// it.
 pub macro note_on_span {
-    ($(@(no_prelude:ident))? $location:expr, $fmt: expr) => {
+    ($(@no_prelude: $no_prelude:expr,)? $location:expr, $fmt: expr) => {
         {
+            let mut print_it = true;
 
             // If the user specifies that they do not want to print the prelude
             $(
-                if !$location.is_prelude() {
-                    use hash_utils::stream_less_ewriteln;
-
-                    let mut reporter = $crate::reporter::Reporter::new();
-                    reporter.info()
-                        .title($fmt)
-                        .add_labelled_span($location, "here");
-
-                    stream_less_ewriteln!("{}", reporter);
-                }
+                if $no_prelude && $location.id.is_prelude() {
+                    print_it = false;
+               }
             )?
+
+            if print_it {
+                use hash_utils::stream_less_ewriteln;
+
+                let mut reporter = $crate::reporter::Reporter::new();
+                reporter.info()
+                    .title($fmt)
+                    .add_labelled_span($location, "here");
+
+                stream_less_ewriteln!("{}", reporter);
+            }
         }
     },
-    ($(@(no_prelude:ident))? $location:expr, $fmt: expr, $($arg:tt)*) => {
-        compiler_note!($(@no_prelude)? location, format!($fmt, $($arg)*))
+    ($(@no_prelude: $no_prelude:expr,)? $location:expr, $fmt: expr, $($arg:tt)*) => {
+        note_on_span!($(@no_prelude $no_prelude,)? location, format!($fmt, $($arg)*))
     }
 }
 
@@ -64,7 +69,7 @@ pub macro non_prelude_print {
     ($location:expr, $fmt: expr) => {
         {
             // If the user specifies that they do not want to print the prelude
-            if !$location.is_prelude() {
+            if !$location.id.is_prelude() {
                 stream_less_ewriteln!("{}", $fmt);
             }
         }

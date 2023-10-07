@@ -1,13 +1,13 @@
 error[0060]: enum discriminant overflowed
-  --> $DIR/explicitly_overflowing_discriminants.hash:9:19
+  --> $DIR/explicitly_overflowing_discriminants.hash:9:7
  8 |       Right,
  9 |       #[discriminant(256)]
-   |                     ^^^^^ 
+   |         ^^^^^^^^^^^^^^^^^ 
 10 |       Down,
    = note: the type of the discriminant is u8
 
-  --> $DIR/explicitly_overflowing_discriminants.hash:3:7
+  --> $DIR/explicitly_overflowing_discriminants.hash:3:3
  2 |   
  3 |   #[repr("u8")]
-   |         ^^^^^^ discriminant type was specified here
+   |     ^^^^^^^^^^ discriminant type was specified here
  4 |   Direction := enum(
