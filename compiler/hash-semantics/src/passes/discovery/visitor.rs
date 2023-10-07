@@ -237,8 +237,9 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                                 attr_store().get_attr(variant.id(), attrs::DISCRIMINANT)
                             {
                                 let origin = NodeOrigin::Given(discr_annot.origin);
-                                let value = discr_annot.get_arg_as_int(0).unwrap();
-                                let const_val = value.value().value;
+                                let arg = discr_annot.get_arg(0).unwrap();
+
+                                let const_val = arg.as_int().value().value;
                                 let raw_val = const_val.as_u128();
                                 let discriminant = Discriminant {
                                     value: raw_val,

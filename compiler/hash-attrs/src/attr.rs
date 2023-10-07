@@ -10,6 +10,7 @@ use hash_ast::{
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
+    location::Span,
 };
 use hash_storage::store::{DefaultPartialStore, PartialStore};
 use hash_target::{primitives::IntTy, size::Size};
@@ -103,15 +104,6 @@ impl Attr {
     pub fn get_arg(&self, index: impl Into<AttrArgIdx>) -> Option<&AttrValue> {
         self.args.get(&index.into())
     }
-
-    /// Get an attribute value at the the given [AttrArgIdx], and assume that
-    /// the value of the argument is a integer.
-    pub fn get_arg_as_int(&self, index: impl Into<AttrArgIdx>) -> Option<InternedInt> {
-        self.get_arg_value_at(index).and_then(|value| match value {
-            AttrValueKind::Int(value) => Some(*value),
-            _ => None,
-        })
-    }
 }
 
 /// An index into an attribute's arguments. The index can either be
@@ -148,6 +140,23 @@ pub struct AttrValue {
 
     /// The kind of value that this attribute is.
     pub value: AttrValueKind,
+}
+
+impl AttrValue {
+    /// Get the [Span] of the attribute value.
+    pub fn span(&self) -> Span {
+        self.origin.span()
+    }
+
+    /// Get the value of the [AttrValue] as an integer.
+    ///
+    /// **Panics** if the value is not an integer.
+    pub fn as_int(&self) -> InternedInt {
+        match self.value {
+            AttrValueKind::Int(value) => value,
+            value => panic!("value is not an integer, but a {}", value.ty_name()),
+        }
+    }
 }
 
 impl fmt::Display for AttrValue {

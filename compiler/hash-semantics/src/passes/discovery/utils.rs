@@ -39,7 +39,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
 
         for variant in def.entries.iter() {
             if let Some(discr_annot) = attr_store().get_attr(variant.id(), attrs::DISCRIMINANT) {
-                let discr = discr_annot.get_arg_as_int(0).unwrap().big_value();
+                let discr = discr_annot.get_arg(0).unwrap().as_int().big_value();
                 has_discriminant_attr = true;
 
                 // Otherwise, we set the previous discriminant to the current one.
