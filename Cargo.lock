@@ -663,6 +663,7 @@ dependencies = [
  "fixedbitset",
  "hash-ast",
  "hash-attrs",
+ "hash-reporting",
  "hash-source",
  "hash-storage",
  "hash-target",

@@ -617,6 +617,55 @@ impl<'l> LayoutComputer<'l> {
         })
     }
 
+    /// Compute the range of values that the discriminants of an [Adt]. This
+    /// will compute the minimum and maximum values that the discriminant
+    /// can take.
+    fn compute_discriminant_range(
+        &self,
+        adt: &Adt,
+        variant_layouts: &IndexVec<VariantIdx, Vec<LayoutId>>,
+    ) -> (i128, i128) {
+        let (mut min, mut max) = (i128::MAX, i128::MIN);
+
+        let discr_ty = adt.discriminant_ty();
+        let bits = discr_ty.size(self.data_layout().pointer_size).bits();
+
+        // Now we iterate through the variants, and compute the range of the
+        // discriminant whilst skipping uninhabited variants.
+        for (variant, mut value) in adt.discriminants().map(|(v, discr)| (v, discr as i128)) {
+            let is_uninhabited =
+                self.store().map_many_fast(variant_layouts[variant].iter().copied(), |fields| {
+                    fields.iter().any(|f| f.abi.is_uninhabited())
+                });
+
+            if is_uninhabited {
+                continue;
+            }
+
+            if discr_ty.is_signed() {
+                value = (value << (128 - bits)) >> (128 - bits);
+            }
+
+            if value < min {
+                min = value;
+            }
+
+            if value > max {
+                max = value;
+            }
+        }
+
+        // If we had no inhabited variants, we still pretend that there is atleast one
+        // variant.
+        if min == i128::MAX && max == i128::MIN {
+            min = 0;
+            max = 0;
+        }
+
+        assert!(min <= max, "discriminant range is {min}..{max}");
+        (min, max)
+    }
+
     /// Compute the layout of a `enum` type. The algorithm for computing an
     /// `enum` type layout is the following:
     ///
@@ -645,7 +694,8 @@ impl<'l> LayoutComputer<'l> {
         let mut size = Size::ZERO;
 
         // Deal with the alignment of the prefix value
-        let (prefix_ty, signed) = adt.discriminant_representation(dl);
+        let (min, max) = self.compute_discriminant_range(adt, &field_layout_table);
+        let (prefix_ty, signed) = adt.discriminant_representation(dl, min, max);
         let mut prefix_alignment = prefix_ty.align(dl).abi;
 
         if adt.metadata.is_c_like() {
@@ -767,18 +817,13 @@ impl<'l> LayoutComputer<'l> {
         }
 
         // Create the tag value for the enum discriminant
+        let tag_mask = new_prefix_ty.size().unsigned_int_max();
         let tag = Scalar::Initialised {
             kind: ScalarKind::Int { kind: new_prefix_ty, signed },
-
-            // @@Discriminants: since we don't yet have a way to assign
-            // specific values to each enum variant which then assigns
-            // a particular value to the enum variant, we always assume
-            // the valid range is from "0" to the number of variants the
-            // enum has.
-            //
-            // When this is added, we will be able to construct the valid
-            // discriminant range and use that here.
-            valid_range: ValidScalarRange { start: 0, end: field_layout_table.len() as u128 },
+            valid_range: ValidScalarRange {
+                start: (min as u128 & tag_mask),
+                end: (max as u128 & tag_mask),
+            },
         };
 
         let abi =

@@ -15,6 +15,7 @@ use hash_attrs::{
     builtin::attrs,
     ty::AttrId,
 };
+use hash_reporting::macros::panic_on_span;
 use hash_source::{
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
@@ -974,18 +975,32 @@ impl Adt {
     /// - Using the minimum, we then determine the "fit" of the discriminant by
     ///   computing the maximum discriminant value, and then determining the
     ///   smallest integer type that can fit that value.
-    pub fn discriminant_representation<C: HasDataLayout>(&self, ctx: &C) -> (abi::Integer, bool) {
+    pub fn discriminant_representation<C: HasDataLayout>(
+        &self,
+        ctx: &C,
+        min: i128,
+        max: i128,
+    ) -> (abi::Integer, bool) {
+        let unsigned_fit = Integer::fit_unsigned(cmp::max(min as u128, max as u128));
+        let signed_fit = cmp::max(Integer::fit_signed(min), Integer::fit_signed(max));
+
         // If this representation specifies a `repr`, then we default to using that,
         // otherwise we fallback on trying to compute the size of the discriminant.
-        if let Some(discriminant) = self.metadata.discriminant {
-            return (abi::Integer::from_int_ty(discriminant, ctx), discriminant.is_signed());
+        if let Some(discr_ty) = self.metadata.discriminant {
+            let discr = abi::Integer::from_int_ty(discr_ty, ctx);
+            let fit = if discr_ty.is_signed() { signed_fit } else { unsigned_fit };
+
+            // Ensure that the discr fits the fit.
+            if discr < fit {
+                panic_on_span!(self.origin().unwrap().span(), "Specified discriminant type is too small for the discriminant range of the enum")
+            }
+
+            return (discr, discr_ty.is_signed());
         }
 
         // The user did not specify the representation, or no representation was deduced
         // from the attributes, so we compute the discriminant size using the documented
         // rules.
-        let max = self.variants.iter().map(|variant| variant.discriminant.value).max().unwrap_or(0);
-        let computed_fit = abi::Integer::fit_unsigned(max);
 
         // If this is a C-like representation, then we always
         // default to the tag enum size specified by the target.
@@ -998,7 +1013,11 @@ impl Adt {
         // @@Todo: actually get the signedness of the discriminant, we would have to
         // compute the type of the discriminant, and then check if any of the the
         // discriminant values are less than zero.
-        (cmp::max(computed_fit, minimum), false)
+        if min >= 0 {
+            (cmp::max(unsigned_fit, minimum), false)
+        } else {
+            (cmp::max(signed_fit, minimum), true)
+        }
     }
 
     /// Compute the discriminant value for a particular variant.

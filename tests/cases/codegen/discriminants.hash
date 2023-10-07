@@ -1,0 +1,55 @@
+// stage=exe, run=pass
+
+#[repr("i8")]
+Direction := enum(
+    #[discriminant(0)]
+    Up,
+    #[discriminant(63)]
+    Right,
+    #[discriminant(127)]
+    Down,
+    Left,
+)
+
+main := () => {
+    east := Direction::Right;
+    foo(east);
+    south := Direction::Down;
+    bar(south);
+}
+
+
+bar := (dir: Direction) => {
+    t := transmute<_, i8>(dir);
+
+    if t == 127 {
+        println("127");
+    } else if t == 2 {
+        println("Its two!");
+    } else {
+        println("something else")
+    }
+}
+
+foo := (dir: Direction) => {
+    match dir {
+        Direction::Up => {
+            println("Up");
+        },
+        Direction::Right => {
+            t := transmute<_, i8>(dir);
+
+            if t == 63 {
+                println("63");
+            } else {
+                println("Not 63");
+            }
+        },
+        Direction::Down => {
+            println("Down");
+        },
+        Direction::Left => {
+            println("Left");
+        },
+    }
+}
