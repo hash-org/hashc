@@ -336,9 +336,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                     return None;
                 }
 
-                // @@Todo: when we switch to new patterns, we can look this up without
-                // the additional evaluation. However, we might need to modify the `Eq`
-                // on `ir::Const` to actually check if integer values are equal.
                 let value = self.eval_lit_pat(lit_pat);
                 let index = options.get_index_of(&value).unwrap();
 
@@ -703,9 +700,6 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let value = RValue::Len(place);
                 self.control_flow_graph.push_assign(block, actual, value, span);
 
-                // @@Todo: can we not just use the `value` directly, there should be no
-                // dependency on it in other places, and it will always be a
-                // `usize`.
                 let actual = actual.into();
 
                 // Now, we generate a temporary for the expected length, and then

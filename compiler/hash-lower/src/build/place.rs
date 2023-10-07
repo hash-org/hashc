@@ -127,7 +127,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // we need to check whether this is referring to a "list", or an array.
                 //
-                // @@AutoDeref: if the base place is behind a reference, then we dereference
+                // ##AutoDeref: if the base place is behind a reference, then we dereference
                 // it.
                 if ty.borrow().is_ref() {
                     base_place = base_place.deref()

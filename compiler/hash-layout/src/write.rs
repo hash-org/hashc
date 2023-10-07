@@ -15,9 +15,6 @@
 //!
 //!
 //! 2. Add unit tests for some layout printing
-//!
-//! 3. Scale each field in the layout print to the size of the largest field, to
-//! more accurately represent the layout of the type.
 
 use std::{fmt, iter};
 

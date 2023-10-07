@@ -221,7 +221,7 @@ pub(crate) fn build_linker_args<'a>(
 
     // ------------ Arbitrary order-independent options ------------
 
-    // @@PlatformDependant: This is where we add the platform dependant arguments,
+    // ##PlatformDependant: This is where we add the platform dependant arguments,
     // e.g. on macOSX targets we add the platform SDK,
 
     // ------------ Late order-dependent options ------------
