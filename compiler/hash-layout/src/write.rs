@@ -772,18 +772,18 @@ impl<'l> LayoutWriter<'l> {
     /// For multi-variant layouts, we want to create a row that represents
     /// the tag of the variant. This function will construct the tag variant
     /// and return the [BoxRow] for this.
-    fn compute_tag_box_row(&self, tag_size: Size, layout: &Layout) -> BoxRow {
+    fn compute_tag_box_row(&self, tag_ty: IntTy, tag_size: Size, layout: &Layout) -> BoxRow {
         let offset = layout.shape.offset(0);
 
         if tag_size < offset {
             // we need to print the tag box first, and then the
             // variants.
             BoxRow::new(vec![
-                BoxContent::new(format!("{tag_size} tag"), "".to_string()),
+                BoxContent::new(format!("{tag_size} tag ({tag_ty})"), "".to_string()),
                 BoxContent::new_pad(offset - tag_size),
             ])
         } else {
-            BoxRow::new(vec![BoxContent::new(format!("{tag_size} tag"), "".to_string())])
+            BoxRow::new(vec![BoxContent::new(format!("{tag_size} tag ({tag_ty})"), "".to_string())])
         }
     }
 }
@@ -841,7 +841,7 @@ impl fmt::Display for LayoutWriter<'_> {
                 Variants::Multiple { tag, field: _, ref variants } => {
                     let tag_ty = tag.kind().int_ty();
                     let tag_size = tag.size(self.ctx.data_layout());
-                    let tag_row = self.compute_tag_box_row(tag_size, layout);
+                    let tag_row = self.compute_tag_box_row(tag_ty, tag_size, layout);
                     let tag_box_width = tag_row.width_at(0).unwrap();
 
                     // firstly, deal with the tag box which is just essentially,
