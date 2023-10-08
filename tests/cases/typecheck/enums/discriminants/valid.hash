@@ -1,0 +1,50 @@
+// run=pass, stage=typecheck
+
+#layout_of
+#[repr("i8")]
+Direction := enum(
+    #[discriminant(-120)]
+    Up,
+    Right,
+    Down,
+    Left,
+)
+
+#layout_of
+ShipKind := enum(
+    #[discriminant(-120)]
+    Cruise,
+    Jet,
+    Steamer,
+    SpeedBoat,
+)
+
+#layout_of
+ModuleCode := enum(
+    #[discriminant(3050)]
+    Logic,
+    #[discriminant(3052)]
+    Complexity,
+    #[discriminant(4201)]
+    PLDI,
+)
+
+
+FloorId := struct(i8);
+
+#layout_of
+EmployeeKind := enum(
+    #[discriminant(7)]
+    FactoryWorker(FloorId),
+    #[discriminant(12)]
+    Engineer,
+    #[discriminant(83)]
+    Hardware,
+    #[discriminant(666)]
+    Manager,
+)
+
+
+
+
+main := () => {}

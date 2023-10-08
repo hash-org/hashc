@@ -16,8 +16,26 @@ use crate::{
 };
 
 impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
-    /// Compute the type of the discriminant from a given
-    /// [`ast::EnumDef`].
+    /// Compute the type of the discriminant from a given [`ast::EnumDef`].
+    ///
+    /// The algorithm follows the following rules:
+    ///
+    /// 1. If the enum has a `repr` attribute, then we use the type that is
+    ///   specified in the attribute.
+    ///
+    /// 2. Otherwise, loop over all of the variants, and find the largest
+    ///    discriminant value.
+    ///
+    /// 3. If no discriminant values are specified, then we assume that the
+    ///    discriminant type is the smallest unsigned integer that can represent
+    ///    the number of variants that the enum has.
+    ///
+    /// 4. Otherwise, we compute the minimum number of bits required to fit the
+    ///    discriminant value, and construct an integer type from it.
+    ///
+    /// @@Cleanup: ideally we should sync with using the algorithm specified in
+    /// compiler/hash-ir/src/ty.rs in function (compute_discriminant_ty).   
+    ///   
     pub(super) fn compute_discriminant_ty(
         &self,
         def: ast::AstNodeRef<ast::EnumDef>,
@@ -36,11 +54,13 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
         // a direct discriminant value...
         let mut prev_discr = None;
         let mut has_discriminant_attr = false;
+        let mut is_signed = false;
 
         for variant in def.entries.iter() {
             if let Some(discr_annot) = attr_store().get_attr(variant.id(), attrs::DISCRIMINANT) {
                 let discr = discr_annot.get_arg(0).unwrap().as_int().big_value();
                 has_discriminant_attr = true;
+                is_signed |= discr < BigInt::from(0);
 
                 // Otherwise, we set the previous discriminant to the current one.
                 prev_discr = Some(discr);
@@ -53,14 +73,16 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
             }
         }
 
-        let min_bits = prev_discr.unwrap().bits();
+        let max_discr = prev_discr.unwrap();
+        let min_bits = max_discr.bits();
+
         // If we didn't have any registered discriminants, then we assume that the
         // type of the discriminants is the smallest unsigned integer that can represent
         // the number of variants.
         //
         // @@NonExhaustive: if we add a `non_exhaustive` attribute, what is the type
         // that we assume now, is it perhaps an i32 or isize?
-        if has_discriminant_attr || min_bits == 0 {
+        if !has_discriminant_attr || min_bits == 0 {
             let int = Integer::fit_unsigned(def.entries.len() as u128);
             return Ok(Node::at(IntTy::from_integer(int, false), NodeOrigin::Generated));
         }
@@ -71,7 +93,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
             panic!("error: discriminant too large!")
         };
 
-        Ok(Node::at(IntTy::from_integer(int, true), NodeOrigin::Generated))
+        Ok(Node::at(IntTy::from_integer(int, is_signed), NodeOrigin::Generated))
     }
 
     /// Check if any of the discriminants that are assigned to a variant are
@@ -80,28 +102,13 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
     pub(super) fn check_enum_discriminants(
         &self,
         discrs: &[Node<Discriminant>],
-        discr_ty: Node<IntTy>,
+        _discr_ty: Node<IntTy>,
     ) -> SemanticResult<()> {
-        let discr_ty_size = discr_ty.data.size(self.target().ptr_size());
+        let mut i = 0;
 
         // Check if any of the discriminants have been used more than once.
-        let mut i = 0;
         while i < discrs.len() {
-            let raw_value = discrs[i].value;
             // @@Todo: maybe make this an error collector of sorts?
-
-            // @@Hack @@TIRConsts: we manually truncate the value of the discriminant to
-            // being a u128 so that we can detect whether it overflows
-            // or not. However, we should remove this when we can use
-            // the `Const` format in the TIR which will automatically perform
-            // the truncation.
-            if discr_ty_size.truncate(raw_value) != raw_value {
-                return Err(SemanticError::EnumDiscriminantOverflow {
-                    location: discrs[i].span().unwrap(),
-                    annotation_origin: discr_ty.span(),
-                    discriminant: *discrs[i],
-                });
-            }
 
             let mut o = i + 1;
             while o < discrs.len() {

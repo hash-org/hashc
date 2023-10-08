@@ -24,6 +24,26 @@ impl Discriminant {
         Self { value: 0, ty, kind: DiscriminantKind::Relative(0) }
     }
 
+    /// Check whether the value of the current [Discriminant] has overflowed
+    /// beyond the specified discriminant type.
+    ///
+    /// ##Hack: This function is stupid because it always assumes that the discriminant
+    /// value from expansion is parsed as a full i128, and hence we can actually
+    /// do the comparison of the signed min/max values.
+    pub fn has_overflowed<E: HasTarget>(&self, env: &E) -> bool {
+        let size = self.ty.size(env.target().ptr_size());
+
+        if self.ty.is_signed() {
+            let val = self.value as i128;
+            let min = size.signed_int_min();
+            let max = size.signed_int_max();
+            val < min || val > max
+        } else {
+            let max = size.unsigned_int_max();
+            self.value > max
+        }
+    }
+
     /// Implements checked addition onto the discriminant, accounting
     /// for signedness of the discriminant and overflow.
     pub fn checked_add<E: HasTarget>(self, env: &E, n: u128) -> (Self, bool) {

@@ -27,7 +27,7 @@ use hash_tir::{
     intrinsics::{
         definitions::{bool_def, Intrinsic as TirIntrinsic},
         make::IsIntrinsic,
-        utils::try_use_term_as_integer_lit,
+        utils::{try_use_term_as_int_const, try_use_term_as_integer_lit},
     },
     tir::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, FnDef, FnDefId, FnTy,
@@ -351,9 +351,11 @@ impl<'ir> BuilderCtx<'ir> {
                 // after it will also have a discriminant, thus making the it consistent across the 
                 // entire enum. Otherwise, we can default to using the index of the variant as the 
                 // discriminant.
+                //
+                // @@Hack @@TIRConsts
                 let discriminant = if let Some(discriminant_term) = ctor.discriminant &&
-                                      let Some(value) = try_use_term_as_integer_lit(self, discriminant_term) {
-                    Discriminant { value, ty, kind: DiscriminantKind::Explicit }
+                                      let Some(ref value) = try_use_term_as_int_const(self, discriminant_term) {
+                    Discriminant { value: value.value.as_u128(), ty, kind: DiscriminantKind::Explicit }
                 } else {
                     Discriminant { value: index as u128, ty, kind: DiscriminantKind::implicit() }
                 };
