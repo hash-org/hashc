@@ -1,4 +1,4 @@
-// run=pass, stage=typecheck
+// run=pass, stage=lowering
 
 // Should assign a `i8` for the tag.
 #layout_of
