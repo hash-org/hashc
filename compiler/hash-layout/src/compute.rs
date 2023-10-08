@@ -112,7 +112,7 @@ fn invert_memory_mapping(mapping: &[u32]) -> Vec<u32> {
 /// which require access to other [Layout]s.
 #[derive(Clone, Copy, Constructor)]
 pub struct LayoutComputer<'l> {
-    /// A reference tot the [LayoutStorage].
+    /// A reference to the [LayoutStorage].
     ctx: &'l LayoutStorage,
 }
 

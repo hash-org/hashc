@@ -36,8 +36,8 @@ use crate::{
 #[omit(CtorDefData, [data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
 
 pub struct CtorDef {
-    /// The name of the constructor, for example `symbol("Red")` in `Red:
-    /// Colour` if given as a constructor to a `Colour := datatype...`.
+    /// The name of the constructor, for example `symbol("Red")` in
+    /// `Red: Colour` if given as a constructor to a `Colour := datatype...`.
     pub name: SymbolId,
 
     /// The `DataDefId` of the data-type that this constructor is a part of.
