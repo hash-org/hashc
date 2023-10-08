@@ -817,10 +817,14 @@ impl InternedInt {
     ///
     /// @@Future: remove this!
     pub fn big_value(&self) -> BigInt {
-        let value = self.value();
+        let int_const = self.value();
+        let bytes = int_const.value.as_u128().to_be_bytes();
 
-        let sign = if value.is_signed() { Sign::Minus } else { Sign::Plus };
-        BigInt::from_bytes_be(sign, &value.value.as_u128().to_be_bytes())
+        if int_const.is_signed() {
+            BigInt::from_signed_bytes_be(&bytes)
+        } else {
+            BigInt::from_bytes_be(Sign::NoSign, &bytes)
+        }
     }
 
     /// Map a [InternedInt] to a value.

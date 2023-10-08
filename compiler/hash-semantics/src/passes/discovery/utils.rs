@@ -73,7 +73,9 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
             }
         }
 
-        let max_discr = prev_discr.unwrap();
+        // If we get no variants, we still assume that the discriminant will use the
+        // smallest unsigned integer.
+        let max_discr = prev_discr.unwrap_or_default();
         let min_bits = max_discr.bits();
 
         // If we didn't have any registered discriminants, then we assume that the

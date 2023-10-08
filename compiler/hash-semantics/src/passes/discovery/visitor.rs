@@ -211,8 +211,9 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let enum_name = self.take_name_hint_or_create_internal_name(node.id());
-        let mut prev_discr = None;
         let discr_ty = self.compute_discriminant_ty(node)?;
+
+        let mut prev_discr = None;
         let mut discrs = vec![];
 
         let entries = node
