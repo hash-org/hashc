@@ -108,5 +108,5 @@ define_attrs!(
     // Type representation attributes.
     // ------------------------------------------
     repr { (abi: str), AttrTarget::StructDef | AttrTarget::EnumDef },
-    discriminant { (value: u128), AttrTarget::EnumVariant }
+    discriminant { (value: i128), AttrTarget::EnumVariant }
 );

@@ -148,33 +148,35 @@ impl AstExpander<'_> {
                         ParamIndex::Position(index)
                     };
 
+                    let expected_ty = attr_ty.ty_of_param(target);
                     let ptr_size = self.settings.target().ptr_size();
 
                     // If we can't convert this into an attribute value, then we
                     // can't properly check the invocation.
-                    let attr_value = match AttrValueKind::try_from_expr(arg.value.body(), ptr_size)
-                    {
-                        Ok(Some(value)) => value,
-                        Ok(None) => {
-                            let expr_kind = AttrTarget::classify_expr(arg.value.body());
-                            self.add_error(ExpansionError::new(
-                                ExpansionErrorKind::InvalidAttributeArg(expr_kind),
-                                arg.id(),
-                            ));
+                    let attr_value =
+                        match AttrValueKind::try_from_expr(arg.value.body(), expected_ty, ptr_size)
+                        {
+                            Ok(Some(value)) => value,
+                            Ok(None) => {
+                                let expr_kind = AttrTarget::classify_expr(arg.value.body());
+                                self.add_error(ExpansionError::new(
+                                    ExpansionErrorKind::InvalidAttributeArg(expr_kind),
+                                    arg.id(),
+                                ));
 
-                            is_valid = false;
-                            break;
-                        }
+                                is_valid = false;
+                                break;
+                            }
 
-                        // Literal parsing failed, we just push the error into the
-                        // expansion diagnostics and let it be handled later.
-                        Err(err) => {
-                            self.add_error(ExpansionError::new(err.into(), node.id));
+                            // Literal parsing failed, we just push the error into the
+                            // expansion diagnostics and let it be handled later.
+                            Err(err) => {
+                                self.add_error(ExpansionError::new(err.into(), node.id));
 
-                            is_valid = false;
-                            break;
-                        }
-                    };
+                                is_valid = false;
+                                break;
+                            }
+                        };
 
                     macro_rules! lit_prim {
                         ($name:ident,$lit_name:ident, $contents:expr) => {
