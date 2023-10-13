@@ -1,4 +1,4 @@
-// run=pass, stage=lowering
+// run=pass, stage=ir
 
 // Should assign a `i8` for the tag.
 #layout_of
