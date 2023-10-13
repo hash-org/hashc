@@ -5,8 +5,17 @@ use hash_attrs::{
     attr::{attr_store, ReprAttr},
     builtin::attrs,
 };
-use hash_target::{abi::Integer, discriminant::Discriminant, primitives::IntTy, size::Size};
-use hash_tir::tir::{HasAstNodeId, Node, NodeOrigin};
+use hash_source::constant::IntConstant;
+use hash_target::{
+    abi::Integer,
+    discriminant::{Discriminant, DiscriminantKind},
+    primitives::IntTy,
+    size::Size,
+};
+use hash_tir::{
+    intrinsics::utils::create_term_from_integer_lit,
+    tir::{HasAstNodeId, Node, NodeOrigin, TermId},
+};
 use num_bigint::BigInt;
 
 use super::DiscoveryPass;
@@ -129,5 +138,69 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
         }
 
         Ok(())
+    }
+
+    /// Compute the value of the discriminant for a variant taking into account
+    /// the computed discriminant type, and an optional previous
+    /// discriminant value.
+    pub(super) fn compute_discriminant_for_variant(
+        &self,
+        variant: &ast::AstNode<ast::EnumDefEntry>,
+        discr_ty: Node<IntTy>,
+        prev_discr: &mut Option<Discriminant>,
+        discrs: &mut Vec<Node<Discriminant>>,
+    ) -> SemanticResult<TermId> {
+        // Default to using a `0` discriminant if none was specified.
+        let prev = prev_discr.unwrap_or_else(|| Discriminant::initial(*discr_ty));
+
+        // if there is a discriminant value for the given variant and
+        // then set it as the last discriminant. If the variant does not have an
+        // explicit discriminant, then we simply use the last known discriminant
+        // and increment it by one.
+        if let Some(discr_annot) = attr_store().get_attr(variant.id(), attrs::DISCRIMINANT) {
+            let origin = NodeOrigin::Given(discr_annot.origin);
+            let arg = discr_annot.get_arg(0).unwrap();
+
+            let const_val = arg.as_int().value().value;
+            let raw_val = const_val.as_u128();
+            let mut next_discr =
+                Discriminant { value: raw_val, ty: *discr_ty, kind: DiscriminantKind::Explicit };
+
+            if next_discr.has_overflowed(self.env) {
+                return Err(SemanticError::EnumDiscriminantOverflow {
+                    location: origin.span().unwrap(),
+                    annotation_origin: discr_ty.span(),
+                    discriminant: next_discr,
+                });
+            } else if discr_ty.is_signed() {
+                // @@Hack @@TIRConsts: we manually truncate the value of the discriminant to
+                // being a u128 so that we can detect whether it overflows
+                // or not. However, we should remove this when we can use
+                // the `Const` format in the TIR which will automatically perform
+                // the truncation.
+                next_discr.value = discr_ty.size(self.target().ptr_size()).sign_extend(raw_val);
+            }
+
+            *prev_discr = Some(next_discr);
+            discrs.push(Node::at(next_discr, origin));
+            Ok(create_term_from_integer_lit(const_val, origin))
+        } else {
+            let origin = NodeOrigin::Given(variant.id());
+
+            // We want to check if we are starting from the very beginning which
+            // should actually use the zero discriminant.
+            let (next_discr, _) =
+                if prev_discr.is_some() { prev.checked_add(self.env, 1) } else { (prev, false) };
+
+            // @@Hack: we convert the `u128` into an int constant
+            // with the given discriminant type, later this should be
+            // replaced by the new constant representation.
+            let constant =
+                IntConstant::from_scalar(next_discr.value, *discr_ty, self.target().ptr_size());
+
+            *prev_discr = Some(next_discr);
+            discrs.push(Node::at(next_discr, origin));
+            Ok(create_term_from_integer_lit(constant.value, origin))
+        }
     }
 }

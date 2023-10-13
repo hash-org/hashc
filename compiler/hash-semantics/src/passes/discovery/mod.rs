@@ -14,8 +14,8 @@ use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};
 use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
 pub mod defs;
+mod discriminants;
 pub mod params;
-mod utils;
 pub mod visitor;
 
 #[derive(Deref)]
