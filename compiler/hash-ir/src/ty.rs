@@ -992,7 +992,7 @@ impl Adt {
 
             // Ensure that the discr fits the fit.
             if discr < fit {
-                panic_on_span!(self.origin().unwrap().span(), "Specified discriminant type is too small for the discriminant range of the enum")
+                panic_on_span!(self.origin().unwrap().span(), format!("Specified discriminant type is too small for the discriminant range of the enum, fit={fit:?}, specified={discr:?}"))
             }
 
             return (discr, discr_ty.is_signed());

@@ -642,6 +642,11 @@ impl<'l> LayoutComputer<'l> {
                 continue;
             }
 
+            // Truncate the value in order so that we avoid over specifying the smallest
+            // minimum value in the range, this will effectively clamp the value as always
+            // being with the valid `discr_ty` range, which avoid
+            // `discriminant_representation()` miscalculating the smallest
+            // needed type to actually use for the discriminant in the layout.
             if discr_ty.is_signed() {
                 value = (value << (128 - bits)) >> (128 - bits);
             }
