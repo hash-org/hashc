@@ -281,7 +281,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     } else {
                         Mutability::Immutable
                     },
-                    source: pair.place.into_place(),
+                    source: pair.place.into_place(&mut self.projections),
                     name,
 
                     // @@Todo: introduce a way of specifying what the binding

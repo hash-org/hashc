@@ -33,7 +33,7 @@ use hash_tir::{
 };
 use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;
-use ir::{Body, ProjectionStore};
+use ir::Body;
 use lang_items::LangItems;
 use ty::{AdtStore, InstanceId, InstanceStore, IrTyId, IrTyListStore, IrTyStore};
 
@@ -158,7 +158,6 @@ stores!(
     tys: IrTyStore,
     ty_list: IrTyListStore,
     instances: InstanceStore,
-    projections: ProjectionStore,
     allocations: Allocations
 );
 

@@ -22,8 +22,8 @@ use const_utils::ConstUtils;
 use hash_ir::{
     constant::{Const, ConstKind, Scalar, ScalarInt},
     ir::{
-        AggregateKind, AssertKind, Body, Operand, RValue, Statement, StatementKind, Terminator,
-        TerminatorKind,
+        AggregateKind, AssertKind, BodyInfo, Operand, Place, PlaceProjection, RValue, Statement,
+        StatementKind, Terminator, TerminatorKind,
     },
     ty::{AdtFlags, IrTy, Mutability, VariantIdx, COMMON_IR_TYS},
 };
@@ -191,7 +191,7 @@ pub struct IrWriter<'ctx, T> {
     pub lc: LayoutComputer<'ctx>,
 
     /// The overall [Body] to which the IR belongs to.
-    pub body: &'ctx Body,
+    pub info: BodyInfo<'ctx>,
 
     /// Whether the formatting implementations should write
     /// edges for IR items, this mostly applies to [Terminator]s.
@@ -200,8 +200,8 @@ pub struct IrWriter<'ctx, T> {
 
 impl<'ctx, T> IrWriter<'ctx, T> {
     /// Create a new IR writer for the given body.
-    pub fn new(item: T, body: &'ctx Body, lc: LayoutComputer<'ctx>) -> Self {
-        Self { item, lc, body, with_edges: false }
+    pub fn new(item: T, info: BodyInfo<'ctx>, lc: LayoutComputer<'ctx>) -> Self {
+        Self { item, lc, info, with_edges: false }
     }
 }
 
@@ -223,15 +223,65 @@ pub trait WriteIr<'ctx>: Sized {
     #[inline]
     fn with_edges(
         self,
-        body: &'ctx Body,
+        info: BodyInfo<'ctx>,
         lc: LayoutComputer<'ctx>,
         with_edges: bool,
     ) -> IrWriter<'ctx, Self> {
-        IrWriter { item: self, body, lc, with_edges }
+        IrWriter { item: self, info, lc, with_edges }
     }
 
     fn with<U>(self, other: &IrWriter<'ctx, U>) -> IrWriter<'ctx, Self> {
-        IrWriter::new(self, other.body, other.lc)
+        IrWriter::new(self, other.info, other.lc)
+    }
+}
+
+impl WriteIr<'_> for &Place {}
+impl fmt::Display for IrWriter<'_, &Place> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (local, projections) = (self.item.local, self.item.projections);
+
+        // First we, need to deal with the `deref` projections, since
+        // they need to be printed in reverse
+        for projection in self.info.projections.borrow(projections).iter().rev() {
+            match projection {
+                PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
+                PlaceProjection::Deref => write!(f, "(*")?,
+                PlaceProjection::SubSlice { .. }
+                | PlaceProjection::ConstantIndex { .. }
+                | PlaceProjection::Index(_) => {}
+            }
+        }
+
+        write!(f, "{:?}", local)?;
+
+        for projection in self.info.projections.borrow(projections) {
+            match projection {
+                PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
+                PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
+                PlaceProjection::ConstantIndex { offset, min_length, from_end: true } => {
+                    write!(f, "[-{offset:?} of {min_length:?}]")?;
+                }
+                PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
+                    write!(f, "[{offset:?} of {min_length:?}]")?;
+                }
+                PlaceProjection::SubSlice { from, to, from_end: true } if *to == 0 => {
+                    write!(f, "[{from}:]")?;
+                }
+                PlaceProjection::SubSlice { from, to, from_end: false } if *from == 0 => {
+                    write!(f, "[:-{to:?}]")?;
+                }
+                PlaceProjection::SubSlice { from, to, from_end: true } => {
+                    write!(f, "[{from}:-{to:?}]")?;
+                }
+                PlaceProjection::SubSlice { from, to, from_end: false } => {
+                    write!(f, "[{from:?}:{to:?}]")?;
+                }
+                PlaceProjection::Field(index) => write!(f, ".{index})")?,
+                PlaceProjection::Deref => write!(f, ")")?,
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -239,7 +289,7 @@ impl WriteIr<'_> for &Operand {}
 impl fmt::Display for IrWriter<'_, &Operand> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.item {
-            Operand::Place(place) => write!(f, "{}", place),
+            Operand::Place(place) => write!(f, "{}", place.with(self)),
             Operand::Const(constant) => {
                 if !constant.is_zero() {
                     write!(f, "const ")?;
@@ -268,7 +318,7 @@ impl fmt::Display for IrWriter<'_, &RValue> {
 
                 write!(f, "Checked{op:?}({}, {})", lhs.with(self), rhs.with(self))
             }
-            RValue::Len(place) => write!(f, "len({})", place),
+            RValue::Len(place) => write!(f, "len({})", place.with(self)),
             RValue::Cast(_, op, ty) => {
                 // We write out the type fully for the cast.
                 write!(f, "cast({}, {})", ty, op.with(self))
@@ -278,11 +328,11 @@ impl fmt::Display for IrWriter<'_, &RValue> {
             }
             RValue::ConstOp(op, operand) => write!(f, "{op:?}({operand:?})"),
             RValue::Discriminant(place) => {
-                write!(f, "discriminant({})", place)
+                write!(f, "discriminant({})", place.with(self))
             }
             RValue::Ref(mutability, place, kind) => match mutability {
-                Mutability::Mutable => write!(f, "&mut {kind}{}", place),
-                Mutability::Immutable => write!(f, "&{kind}{}", place),
+                Mutability::Mutable => write!(f, "&mut {kind}{}", place.with(self)),
+                Mutability::Immutable => write!(f, "&{kind}{}", place.with(self)),
             },
             RValue::Aggregate(aggregate_kind, operands) => {
                 let fmt_operands = |f: &mut fmt::Formatter, start: char, end: char| {
@@ -325,10 +375,10 @@ impl fmt::Display for IrWriter<'_, &Statement> {
         match &self.kind {
             StatementKind::Nop => write!(f, "nop"),
             StatementKind::Assign(place, value) => {
-                write!(f, "{} = {}", place, value.with(self))
+                write!(f, "{} = {}", place.with(self), value.with(self))
             }
             StatementKind::Discriminate(place, index) => {
-                write!(f, "discriminant({}) = {index}", place)
+                write!(f, "discriminant({}) = {index}", place.with(self))
             }
             StatementKind::Live(local) => {
                 write!(f, "live({local:?})")
@@ -348,7 +398,7 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
             TerminatorKind::Goto(_) => write!(f, "goto"),
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Call { op, args, target, destination } => {
-                write!(f, "{} = {}(", destination, op.with(self))?;
+                write!(f, "{} = {}(", destination.with(self), op.with(self))?;
 
                 // write all of the arguments
                 for (i, arg) in args.iter().enumerate() {
@@ -374,7 +424,7 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
                 if self.with_edges {
                     write!(f, " [")?;
 
-                    let target_ty = value.ty(&self.body.declarations);
+                    let target_ty = value.ty(&self.info);
 
                     // Iterate over each value in the table, and add a arrow denoting
                     // that the CF will go to the specified block given the specified
@@ -451,5 +501,52 @@ impl fmt::Display for IrWriter<'_, &AssertKind> {
                 )
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hash_ir::{
+        ir::{BodyInfo, Local, LocalDecls, Place, PlaceProjection, Projections},
+        ty::VariantIdx,
+    };
+    use hash_layout::{compute::LayoutComputer, LayoutStorage};
+    use hash_target::data_layout::TargetDataLayout;
+
+    use crate::IrWriter;
+
+    #[test]
+    fn test_place_display() {
+        let lcx = LayoutStorage::new(TargetDataLayout::default());
+        let lc = LayoutComputer::new(&lcx);
+        let mut projections = Projections::new();
+        let locals = LocalDecls::new();
+
+        let place = Place {
+            local: Local::new(0),
+            projections: projections.create_from_slice(&[
+                PlaceProjection::Deref,
+                PlaceProjection::Field(0),
+                PlaceProjection::Index(Local::new(1)),
+                PlaceProjection::Downcast(VariantIdx::from_usize(0)),
+            ]),
+        };
+
+        let info = BodyInfo { locals: &locals, projections: &projections };
+        let item = IrWriter::new(&place, info, lc);
+        assert_eq!(format!("{}", item), "(((*_0).0)[_1] as variant#0)");
+
+        let place = Place {
+            local: Local::new(0),
+            projections: projections.create_from_slice(&[
+                PlaceProjection::Deref,
+                PlaceProjection::Deref,
+                PlaceProjection::Deref,
+            ]),
+        };
+
+        let info = BodyInfo { locals: &locals, projections: &projections };
+        let item = IrWriter::new(&place, info, lc);
+        assert_eq!(format!("{}", item), "(*(*(*_0)))");
     }
 }

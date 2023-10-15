@@ -232,7 +232,7 @@ impl SequenceStoreKey for SomeArgsId {
         }
     }
 
-    unsafe fn from_index_and_len_unchecked(_: usize, _: usize) -> Self {
+    unsafe fn from_raw_parts(_: usize, _: usize) -> Self {
         panic!("Creating SomeArgsId is not allowed")
     }
 }

@@ -651,7 +651,8 @@ impl<'tcx> BodyBuilder<'tcx> {
         self.control_flow_graph.push_assign(block, array_ptr, Operand::Place(ptr).into(), origin);
 
         // 2). Write data to allocation.
-        self.aggregate_into_dest(array_ptr.deref(), block, aggregate_kind, args, origin);
+        let dest = array_ptr.deref(&mut self.projections);
+        self.aggregate_into_dest(dest, block, aggregate_kind, args, origin);
 
         // 3).
         //

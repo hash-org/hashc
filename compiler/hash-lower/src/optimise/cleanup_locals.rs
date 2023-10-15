@@ -10,14 +10,13 @@
 
 use hash_ir::{
     ir::{
-        Body, IrRef, Local, LocalDecl, Place, PlaceProjection, RValue, Statement, StatementKind,
-        RETURN_PLACE,
+        Body, BodyInfo, IrRef, Local, LocalDecl, Place, PlaceProjection, RValue, Statement,
+        StatementKind, RETURN_PLACE,
     },
     visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor, PlaceContext},
     IrCtx,
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
-use hash_storage::store::statics::StoreId;
 use hash_utils::index_vec::{index_vec, IndexVec};
 
 use super::IrOptimisationPass;
@@ -45,14 +44,14 @@ impl IrOptimisationPass for CleanupLocalPass {
 
         // after the locals are simplified, we need to re-map all of the
         // ones so that we can trim all of them from the body declaration.
-        let local_remaps = local_map.remap_locals(&mut body.declarations);
+        let local_remaps = local_map.remap_locals(&mut body.locals);
 
         if local_remaps.iter().any(Option::is_none) {
             // create an updater, and then we can remap all of the places.
             let updater = LocalUpdater::new(local_remaps);
             updater.visit(body);
 
-            body.declarations.shrink_to_fit();
+            body.locals.shrink_to_fit();
         }
     }
 }
@@ -70,12 +69,14 @@ impl CleanupLocalPass {
     /// particular statement.
     fn simplify_locals(&self, body: &mut Body, local_map: &mut LocalUseMap) {
         let mut changed = true;
+        let Body { ref locals, ref projections, ref mut basic_blocks, .. } = body;
+        let info = BodyInfo { locals, projections };
 
         while changed {
             changed = false;
 
             // iterate all blocks and remove any dead local references
-            for block in body.basic_blocks.blocks_mut() {
+            for block in basic_blocks.blocks_mut() {
                 block.statements.retain(|statement| {
                     let (keep, is_nop) = match statement.kind {
                         StatementKind::Nop => (false, true),
@@ -94,7 +95,7 @@ impl CleanupLocalPass {
                         if !is_nop {
                             // we also need to perform an update to the local count
                             // since we just removed the assignment to this local.
-                            local_map.statement_removed(statement);
+                            local_map.statement_removed(&info, statement);
                             changed = true;
                         }
                     }
@@ -129,16 +130,18 @@ pub struct LocalUseMap {
 impl LocalUseMap {
     /// Create a new [LocalUseMap] for the specified [Body].
     pub fn new(body: &Body) -> Self {
-        let mut counts = vec![0; body.declarations.len()];
+        let mut counts = vec![0; body.locals.len()];
 
         // always set to `_0` to 1 since it is the return value and
         // is always used
         counts[RETURN_PLACE.index()] = 1;
         let mut this = Self { uses: counts, arg_count: body.arg_count, increment: true };
 
+        let mut visitor = LocalUseVisitor::new(&mut this);
+        visitor.visit(body);
+
         // visit the body and record the counts for each local, then
         // return the
-        this.visit(body);
         this
     }
 
@@ -162,12 +165,13 @@ impl LocalUseMap {
     /// traverse the statement again, and update the counts for each
     /// local as we see them. However, rather than incrementing the counts
     /// for each local, we know decrement each item that we see.
-    pub fn statement_removed(&mut self, statement: &Statement) {
+    pub fn statement_removed(&mut self, info: &BodyInfo, statement: &Statement) {
         self.increment = false;
 
         // re-visit this particular statement since we've just removed it, use a
         // dummy reference since we don't care here.
-        self.visit_statement(statement, IrRef::default());
+        let mut visitor = LocalUseVisitor::new(self);
+        visitor.visit_statement(statement, IrRef::default(), info);
     }
 
     /// Perform a remapping of the locals within the [Body] that was
@@ -203,28 +207,46 @@ impl LocalUseMap {
     }
 }
 
-impl<'ir> IrVisitorMut<'ir> for LocalUseMap {
+struct LocalUseVisitor<'ir> {
+    /// The [LocalUseMap] that is being updated.
+    map: &'ir mut LocalUseMap,
+}
+
+impl<'ir> LocalUseVisitor<'ir> {
+    /// Create a new [LocalUseVisitor].
+    pub fn new(map: &'ir mut LocalUseMap) -> Self {
+        Self { map }
+    }
+}
+
+impl<'ir> IrVisitorMut<'ir> for LocalUseVisitor<'ir> {
     /// Visit an assignment [Statement], we only visit the [RValue] part of the
     /// assignment fully, and only check the projections of the [Place] in case
     /// it is referenced within a [PlaceProjection::Index].
-    fn visit_assign_statement(&mut self, place: &Place, value: &RValue, reference: IrRef) {
-        for projection in place.projections.borrow().iter() {
+    fn visit_assign_statement(
+        &mut self,
+        place: &Place,
+        value: &RValue,
+        reference: IrRef,
+        info: &BodyInfo,
+    ) {
+        for projection in info.projections.borrow(place.projections) {
             if let PlaceProjection::Index(index_local) = projection {
-                self.update_count_for(*index_local);
+                self.map.update_count_for(*index_local);
             }
         }
 
         // @@Safety: currently it is safe to remove all variants of an RValue, however
-        // if we add more rvalues (specifically casts), then we might need to be
-        // more careful about whether the rvalue is safe to remove or not.
-        walk_mut::walk_rvalue(self, value, reference);
+        // if we add more [ir::RValue]s (specifically casts), then we might need to be
+        // more careful about whether the [RValue] is safe to remove or not.
+        walk_mut::walk_rvalue(self, value, reference, info);
     }
 
     /// This function will update the count for the referenced local in this
     /// place. We don't count places that "assign something" since this does
     /// not inherently use the local.
     fn visit_local(&mut self, local: Local, _: PlaceContext, _: IrRef) {
-        self.update_count_for(local);
+        self.map.update_count_for(local);
     }
 }
 

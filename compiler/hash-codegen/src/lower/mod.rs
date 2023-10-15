@@ -118,7 +118,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             fn_abi,
             function: func,
             block_map,
-            locals: IndexVec::with_capacity(body.declarations.len()),
+            locals: IndexVec::with_capacity(body.locals.len()),
         }
     }
 }
@@ -165,7 +165,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 
         let mut allocate = |local: Local| {
             // we need to get the type and layout from the local
-            let decl = &fn_builder.body.declarations[local];
+            let decl = &fn_builder.body.locals[local];
             let info = fn_builder.ctx.layout_of(decl.ty);
 
             if local == ir::RETURN_PLACE && is_return_indirect {

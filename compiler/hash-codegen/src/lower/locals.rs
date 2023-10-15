@@ -12,7 +12,7 @@ use hash_ir::{
     visitor::{ImmutablePlaceContext, IrVisitorMut, MutablePlaceContext, PlaceContext},
 };
 use hash_layout::TyInfo;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::SequenceStoreKey;
 use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
@@ -51,7 +51,7 @@ pub fn compute_non_ssa_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     // pre-compute an initial value for each declared local
     // based on the type and layout parameters of the local.
     let locals = body
-        .declarations
+        .locals
         .iter()
         .map(|local| {
             let ty = local.ty();
@@ -76,16 +76,18 @@ pub fn compute_non_ssa_locals<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
         analyser.assign(arg, reference)
     }
 
+    let info = body.aux();
+
     // If there exists a local definition that dominates all uses of that local,
     // the definition should be visited first. Traverse blocks in an order that
     // is a topological sort of dominance partial order.
     for (block, data) in traversal::ReversePostOrder::new_from_start(body) {
-        analyser.visit_basic_block(block, data);
+        analyser.visit_basic_block(block, data, &info);
     }
 
     // Create a map of all the locals that are used in the body and
     // whether they are SSA or not.
-    let mut non_ssa_locals = FixedBitSet::with_capacity(body.declarations.len());
+    let mut non_ssa_locals = FixedBitSet::with_capacity(body.locals.len());
 
     // now iterate over all of the locals and determine whether they are non-ssa
     // or not.
@@ -201,7 +203,13 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'ir, '
 impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
     for LocalKindAnalyser<'ir, 'a, 'b, Builder>
 {
-    fn visit_assign_statement(&mut self, place: &ir::Place, value: &ir::RValue, reference: IrRef) {
+    fn visit_assign_statement(
+        &mut self,
+        place: &ir::Place,
+        value: &ir::RValue,
+        reference: IrRef,
+        info: &ir::BodyInfo,
+    ) {
         if let Some(local) = place.as_local() {
             self.assign(local, reference);
 
@@ -216,20 +224,31 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         } else {
             // we need to go the long way since projections might affect
             // the kind of memory that is used.
-            self.visit_place(place, PlaceContext::Mutable(MutablePlaceContext::Store), reference);
+            self.visit_place(
+                place,
+                PlaceContext::Mutable(MutablePlaceContext::Store),
+                reference,
+                info,
+            );
         }
 
-        self.visit_rvalue(value, reference);
+        self.visit_rvalue(value, reference, info);
     }
 
-    fn visit_place(&mut self, place: &ir::Place, ctx: PlaceContext, reference: IrRef) {
+    fn visit_place(
+        &mut self,
+        place: &ir::Place,
+        ctx: PlaceContext,
+        reference: IrRef,
+        info: &ir::BodyInfo,
+    ) {
         if place.projections.is_empty() {
             return self.visit_local(place.local, ctx, reference);
         }
 
         // If the place base type is a ZST then we can short-circuit
         // since they don't require any memory accesses.
-        let base_ty = self.fn_builder.body.declarations[place.local].ty;
+        let base_ty = self.fn_builder.body.locals[place.local].ty;
         let base_layout = self.fn_builder.ctx.layout_of(base_ty);
 
         if base_layout.is_zst() {
@@ -248,7 +267,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         let mut index_locals = vec![];
 
         // loop over the projections in reverse order
-        for projection in place.projections.borrow().iter().rev() {
+        for projection in info.projections.borrow(place.projections).iter().rev() {
             // @@Todo: if the projection yields a ZST, then we can
             // also short-circuit here.
 
