@@ -13,7 +13,7 @@ use hash_ir::{
         Body, BodyInfo, IrRef, Local, LocalDecl, Place, PlaceProjection, RValue, Statement,
         StatementKind, RETURN_PLACE,
     },
-    visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor, PlaceCtx, VisitorCtx},
+    visitor::{walk_mut, IrVisitorCtx, IrVisitorMut, ModifyingIrVisitor, PlaceCtx},
     IrCtx,
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
@@ -171,7 +171,7 @@ impl LocalUseMap {
         // re-visit this particular statement since we've just removed it, use a
         // dummy reference since we don't care here.
         let mut visitor = LocalUseVisitor::new(self);
-        let ctx = VisitorCtx::new(IrRef::default(), info);
+        let ctx = IrVisitorCtx::new(IrRef::default(), info);
         visitor.visit_statement(statement, &ctx);
     }
 
@@ -224,7 +224,7 @@ impl<'ir> IrVisitorMut<'ir> for LocalUseVisitor<'ir> {
     /// Visit an assignment [Statement], we only visit the [RValue] part of the
     /// assignment fully, and only check the projections of the [Place] in case
     /// it is referenced within a [PlaceProjection::Index].
-    fn visit_assign_statement(&mut self, place: &Place, value: &RValue, ctx: &VisitorCtx<'_>) {
+    fn visit_assign_statement(&mut self, place: &Place, value: &RValue, ctx: &IrVisitorCtx<'_>) {
         for projection in ctx.info.projections.borrow(place.projections) {
             if let PlaceProjection::Index(index_local) = projection {
                 self.map.update_count_for(*index_local);

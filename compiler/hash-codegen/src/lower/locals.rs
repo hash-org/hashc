@@ -9,7 +9,7 @@ use fixedbitset::FixedBitSet;
 use hash_ir::{
     ir::{self, IrRef, Local, PlaceProjection, START_BLOCK},
     traversal,
-    visitor::{ImmutablePlaceCtx, IrVisitorMut, MutablePlaceCtx, PlaceCtx, VisitorCtx},
+    visitor::{ImmutablePlaceCtx, IrVisitorCtx, IrVisitorMut, MutablePlaceCtx, PlaceCtx},
 };
 use hash_layout::TyInfo;
 use hash_storage::store::SequenceStoreKey;
@@ -207,7 +207,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         &mut self,
         place: &ir::Place,
         value: &ir::RValue,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         if let Some(local) = place.as_local() {
             self.assign(local, ctx.location);
@@ -229,7 +229,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         self.visit_rvalue(value, ctx);
     }
 
-    fn visit_place(&mut self, place: &ir::Place, place_ctx: PlaceCtx, ctx: &VisitorCtx<'_>) {
+    fn visit_place(&mut self, place: &ir::Place, place_ctx: PlaceCtx, ctx: &IrVisitorCtx<'_>) {
         if place.projections.is_empty() {
             return self.visit_local(place.local, place_ctx, ctx.location);
         }

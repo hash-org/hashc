@@ -98,13 +98,24 @@ pub enum MetaPlaceCtx {
     Liveness,
 }
 
-pub struct VisitorCtx<'ctx> {
+pub struct IrVisitorCtx<'ctx> {
     pub location: IrRef,
     pub info: BodyInfo<'ctx>,
 }
 
-impl<'ctx> VisitorCtx<'ctx> {
+impl<'ctx> IrVisitorCtx<'ctx> {
     pub fn new(location: IrRef, info: BodyInfo<'ctx>) -> Self {
+        Self { location, info }
+    }
+}
+
+pub struct IrVisitorCtxMut<'ctx> {
+    pub location: IrRef,
+    pub info: BodyInfoMut<'ctx>,
+}
+
+impl<'ctx> IrVisitorCtxMut<'ctx> {
+    pub fn new(location: IrRef, info: BodyInfoMut<'ctx>) -> Self {
         Self { location, info }
     }
 }
@@ -122,11 +133,11 @@ pub trait IrVisitorMut<'ir>: Sized {
         walk_mut::walk_basic_block(self, block, data, info);
     }
 
-    fn visit_statement(&mut self, statement: &Statement, ctx: &VisitorCtx<'_>) {
+    fn visit_statement(&mut self, statement: &Statement, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_statement(self, statement, ctx);
     }
 
-    fn visit_assign_statement(&mut self, place: &Place, value: &RValue, ctx: &VisitorCtx<'_>) {
+    fn visit_assign_statement(&mut self, place: &Place, value: &RValue, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_assign_statement(self, place, value, ctx);
     }
 
@@ -134,24 +145,24 @@ pub trait IrVisitorMut<'ir>: Sized {
         &mut self,
         place: &Place,
         variant: VariantIdx,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         walk_mut::walk_discriminating_statement(self, place, variant, ctx);
     }
 
-    fn visit_rvalue(&mut self, value: &RValue, ctx: &VisitorCtx<'_>) {
+    fn visit_rvalue(&mut self, value: &RValue, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_rvalue(self, value, ctx);
     }
 
     fn visit_const_rvalue(&mut self, _: &Const, _: IrRef, _info: &BodyInfo<'_>) {}
 
-    fn visit_use_rvalue(&mut self, value: &Operand, ctx: &VisitorCtx<'_>) {
+    fn visit_use_rvalue(&mut self, value: &Operand, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_use_rvalue(self, value, ctx);
     }
 
-    fn visit_const_op_rvalue(&mut self, _: ConstOp, _: IrTyId, _: &VisitorCtx<'_>) {}
+    fn visit_const_op_rvalue(&mut self, _: ConstOp, _: IrTyId, _: &IrVisitorCtx<'_>) {}
 
-    fn visit_unary_op_rvalue(&mut self, op: UnaryOp, value: &Operand, ctx: &VisitorCtx<'_>) {
+    fn visit_unary_op_rvalue(&mut self, op: UnaryOp, value: &Operand, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_unary_op_rvalue(self, op, value, ctx);
     }
 
@@ -160,7 +171,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         op: BinOp,
         lhs: &Operand,
         rhs: &Operand,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         walk_mut::walk_binary_op_rvalue(self, op, lhs, rhs, ctx);
     }
@@ -170,12 +181,12 @@ pub trait IrVisitorMut<'ir>: Sized {
         op: BinOp,
         lhs: &Operand,
         rhs: &Operand,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         walk_mut::walk_checked_binary_op_rvalue(self, op, lhs, rhs, ctx);
     }
 
-    fn visit_len_rvalue(&mut self, value: &Place, ctx: &VisitorCtx<'_>) {
+    fn visit_len_rvalue(&mut self, value: &Place, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_len_rvalue(self, value, ctx);
     }
 
@@ -184,7 +195,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         mutability: Mutability,
         value: &Place,
         mode: RefKind,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         walk_mut::walk_ref_rvalue(self, mutability, value, mode, ctx);
     }
@@ -193,24 +204,24 @@ pub trait IrVisitorMut<'ir>: Sized {
         &mut self,
         kind: AggregateKind,
         values: &[Operand],
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         walk_mut::walk_aggregate_rvalue(self, kind, values, ctx);
     }
 
-    fn visit_discriminant_rvalue(&mut self, value: &Place, ctx: &VisitorCtx<'_>) {
+    fn visit_discriminant_rvalue(&mut self, value: &Place, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_discriminant_rvalue(self, value, ctx);
     }
 
-    fn visit_terminator(&mut self, terminator: &Terminator, ctx: &VisitorCtx<'_>) {
+    fn visit_terminator(&mut self, terminator: &Terminator, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_terminator(self, terminator, ctx);
     }
 
-    fn visit_goto_terminator(&mut self, _: BasicBlock, _: &VisitorCtx<'_>) {}
+    fn visit_goto_terminator(&mut self, _: BasicBlock, _: &IrVisitorCtx<'_>) {}
 
-    fn visit_unreachable_terminator(&mut self, _: &VisitorCtx<'_>) {}
+    fn visit_unreachable_terminator(&mut self, _: &IrVisitorCtx<'_>) {}
 
-    fn visit_return_terminator(&mut self, _: &VisitorCtx<'_>) {}
+    fn visit_return_terminator(&mut self, _: &IrVisitorCtx<'_>) {}
 
     fn visit_call_terminator(
         &mut self,
@@ -218,7 +229,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         args: &[Operand],
         destination: &Place,
         target: Option<BasicBlock>,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         walk_mut::walk_call_terminator(self, op, args, destination, target, ctx);
     }
@@ -227,7 +238,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         &mut self,
         value: &Operand,
         targets: &SwitchTargets,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         walk_mut::walk_switch_terminator(self, value, targets, ctx);
     }
@@ -238,12 +249,12 @@ pub trait IrVisitorMut<'ir>: Sized {
         expected: bool,
         kind: &AssertKind,
         target: BasicBlock,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         walk_mut::walk_assert_terminator(self, condition, expected, kind, target, ctx);
     }
 
-    fn visit_assert_kind(&mut self, kind: &AssertKind, ctx: &VisitorCtx<'_>) {
+    fn visit_assert_kind(&mut self, kind: &AssertKind, ctx: &IrVisitorCtx<'_>) {
         match kind {
             AssertKind::DivisionByZero { operand } => {
                 walk_mut::walk_operand(self, operand, ctx);
@@ -265,13 +276,13 @@ pub trait IrVisitorMut<'ir>: Sized {
         }
     }
 
-    fn visit_operand(&mut self, operand: &Operand, ctx: &VisitorCtx<'_>) {
+    fn visit_operand(&mut self, operand: &Operand, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_operand(self, operand, ctx);
     }
 
-    fn visit_const_value(&mut self, _: &Const, _: &VisitorCtx<'_>) {}
+    fn visit_const_value(&mut self, _: &Const, _: &IrVisitorCtx<'_>) {}
 
-    fn visit_place(&mut self, place: &Place, place_ctx: PlaceCtx, ctx: &VisitorCtx<'_>) {
+    fn visit_place(&mut self, place: &Place, place_ctx: PlaceCtx, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_place(self, place, place_ctx, ctx);
     }
 
@@ -312,14 +323,14 @@ pub mod walk_mut {
         let mut index = 0;
         for statement in data.statements.iter() {
             let reference = IrRef::new(block, index);
-            let ctx = VisitorCtx { location: reference, info: *info };
+            let ctx = IrVisitorCtx { location: reference, info: *info };
             visitor.visit_statement(statement, &ctx);
             index += 1;
         }
 
         if let Some(terminator) = &data.terminator {
             let reference = IrRef::new(block, index);
-            let ctx = VisitorCtx { location: reference, info: *info };
+            let ctx = IrVisitorCtx { location: reference, info: *info };
             visitor.visit_terminator(terminator, &ctx);
         }
     }
@@ -327,7 +338,7 @@ pub mod walk_mut {
     pub fn walk_statement<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         statement: &Statement,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         match &statement.kind {
             StatementKind::Nop => {}
@@ -348,7 +359,7 @@ pub mod walk_mut {
         visitor: &mut V,
         place: &Place,
         value: &RValue,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_place(place, PlaceCtx::Mutable(MutablePlaceCtx::Store), ctx);
         visitor.visit_rvalue(value, ctx);
@@ -358,7 +369,7 @@ pub mod walk_mut {
         visitor: &mut V,
         place: &Place,
         _: VariantIdx,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_place(place, PlaceCtx::Mutable(MutablePlaceCtx::Discriminant), ctx);
     }
@@ -366,7 +377,7 @@ pub mod walk_mut {
     pub fn walk_terminator<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         terminator: &Terminator,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         match &terminator.kind {
             TerminatorKind::Goto(target) => visitor.visit_goto_terminator(*target, ctx),
@@ -390,7 +401,7 @@ pub mod walk_mut {
         args: &[Operand],
         destination: &Place,
         _: Option<BasicBlock>,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_operand(op, ctx);
         args.iter().for_each(|arg| visitor.visit_operand(arg, ctx));
@@ -402,7 +413,7 @@ pub mod walk_mut {
         visitor: &mut V,
         value: &Operand,
         _: &SwitchTargets,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_operand(value, ctx)
     }
@@ -413,7 +424,7 @@ pub mod walk_mut {
         _: bool,
         kind: &AssertKind,
         _: BasicBlock,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_operand(condition, ctx);
         visitor.visit_assert_kind(kind, ctx);
@@ -422,7 +433,7 @@ pub mod walk_mut {
     pub fn walk_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         value: &RValue,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         match value {
             RValue::Use(place) => visitor.visit_use_rvalue(place, ctx),
@@ -448,7 +459,7 @@ pub mod walk_mut {
     pub fn walk_use_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         operand: &Operand,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_operand(operand, ctx)
     }
@@ -457,7 +468,7 @@ pub mod walk_mut {
         visitor: &mut V,
         _: UnaryOp,
         value: &Operand,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_operand(value, ctx)
     }
@@ -467,7 +478,7 @@ pub mod walk_mut {
         _: BinOp,
         lhs: &Operand,
         rhs: &Operand,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_operand(lhs, ctx);
         visitor.visit_operand(rhs, ctx);
@@ -478,7 +489,7 @@ pub mod walk_mut {
         _: BinOp,
         lhs: &Operand,
         rhs: &Operand,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_operand(lhs, ctx);
         visitor.visit_operand(rhs, ctx);
@@ -487,7 +498,7 @@ pub mod walk_mut {
     pub fn walk_len_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         place: &Place,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Inspect), ctx)
     }
@@ -497,7 +508,7 @@ pub mod walk_mut {
         mutability: Mutability,
         place: &Place,
         _: RefKind,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         // @@Todo: do we need to have different contexts for different
         // kinds of refs?
@@ -513,7 +524,7 @@ pub mod walk_mut {
         visitor: &mut V,
         _: AggregateKind,
         values: &[Operand],
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         values.iter().for_each(|value| visitor.visit_operand(value, ctx))
     }
@@ -521,7 +532,7 @@ pub mod walk_mut {
     pub fn walk_discriminant_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         place: &Place,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Inspect), ctx)
     }
@@ -529,7 +540,7 @@ pub mod walk_mut {
     pub fn walk_operand<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
         operand: &Operand,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         match operand {
             Operand::Place(place) => {
@@ -543,7 +554,7 @@ pub mod walk_mut {
         visitor: &mut V,
         place: &Place,
         place_ctx: PlaceCtx,
-        ctx: &VisitorCtx<'_>,
+        ctx: &IrVisitorCtx<'_>,
     ) {
         visitor.visit_local(place.local, place_ctx, ctx.location);
 
@@ -567,7 +578,7 @@ pub mod walk_mut {
 pub trait ModifyingIrVisitor<'ir>: Sized {
     /// The entry point of the visitor. This is called when the visitor
     /// is first initialised.
-    fn visit(&self, body: &mut Body) {
+    fn visit(&self, body: &'ir mut Body) {
         walk_modifying::walk_body(self, body);
     }
 
@@ -575,65 +586,50 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         &self,
         block: BasicBlock,
         data: &mut BasicBlockData,
-        info: &mut BodyInfoMut<'_>,
+        info: &mut BodyInfoMut<'ir>,
     ) {
         walk_modifying::walk_basic_block(self, block, data, info);
     }
 
-    fn visit_statement(
-        &self,
-        statement: &mut Statement,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
-    ) {
-        walk_modifying::walk_statement(self, statement, reference, info);
+    fn visit_statement(&self, statement: &mut Statement, ctx: &mut IrVisitorCtxMut<'_>) {
+        walk_modifying::walk_statement(self, statement, ctx);
     }
 
     fn visit_assign_statement(
         &self,
         place: &mut Place,
         value: &mut RValue,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_assign_statement(self, place, value, reference, info);
+        walk_modifying::walk_assign_statement(self, place, value, ctx);
     }
 
     fn visit_discriminator_statement(
         &self,
         place: &mut Place,
         variant: &mut VariantIdx,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_discriminating_statement(self, place, variant, reference, info);
+        walk_modifying::walk_discriminating_statement(self, place, variant, ctx);
     }
 
-    fn visit_rvalue(&self, value: &mut RValue, reference: IrRef, info: &mut BodyInfoMut<'_>) {
-        walk_modifying::walk_rvalue(self, value, reference, info);
+    fn visit_rvalue(&self, value: &mut RValue, ctx: &mut IrVisitorCtxMut<'_>) {
+        walk_modifying::walk_rvalue(self, value, ctx);
     }
 
-    fn visit_use_rvalue(&self, value: &mut Place, reference: IrRef, info: &mut BodyInfoMut<'_>) {
-        walk_modifying::walk_use_rvalue(self, value, reference, info);
+    fn visit_use_rvalue(&self, value: &mut Place, ctx: &mut IrVisitorCtxMut<'_>) {
+        walk_modifying::walk_use_rvalue(self, value, ctx);
     }
 
-    fn visit_const_op_rvalue(
-        &self,
-        _: &mut ConstOp,
-        _: &mut IrTyId,
-        _reference: IrRef,
-        _info: &mut BodyInfoMut<'_>,
-    ) {
-    }
+    fn visit_const_op_rvalue(&self, _: &mut ConstOp, _: &mut IrTyId, _: &mut IrVisitorCtxMut<'_>) {}
 
     fn visit_unary_op_rvalue(
         &self,
         op: &mut UnaryOp,
         value: &mut Operand,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_unary_op_rvalue(self, op, value, reference, info);
+        walk_modifying::walk_unary_op_rvalue(self, op, value, ctx);
     }
 
     fn visit_binary_op_rvalue(
@@ -641,10 +637,9 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         op: &mut BinOp,
         lhs: &mut Operand,
         rhs: &mut Operand,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_binary_op_rvalue(self, op, lhs, rhs, reference, info);
+        walk_modifying::walk_binary_op_rvalue(self, op, lhs, rhs, ctx);
     }
 
     fn visit_checked_binary_op_rvalue(
@@ -652,14 +647,13 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         op: &mut BinOp,
         lhs: &mut Operand,
         rhs: &mut Operand,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_checked_binary_op_rvalue(self, op, lhs, rhs, reference, info);
+        walk_modifying::walk_checked_binary_op_rvalue(self, op, lhs, rhs, ctx);
     }
 
-    fn visit_len_rvalue(&self, value: &mut Place, reference: IrRef, info: &mut BodyInfoMut<'_>) {
-        walk_modifying::walk_len_rvalue(self, value, reference, info);
+    fn visit_len_rvalue(&self, value: &mut Place, ctx: &mut IrVisitorCtxMut<'_>) {
+        walk_modifying::walk_len_rvalue(self, value, ctx);
     }
 
     fn visit_ref_rvalue(
@@ -667,51 +661,33 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         mutability: &mut Mutability,
         value: &mut Place,
         mode: &mut RefKind,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_ref_rvalue(self, mutability, value, mode, reference, info);
+        walk_modifying::walk_ref_rvalue(self, mutability, value, mode, ctx);
     }
 
     fn visit_aggregate_rvalue(
         &self,
         kind: &mut AggregateKind,
         values: &mut [Operand],
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_aggregate_rvalue(self, kind, values, reference, info);
+        walk_modifying::walk_aggregate_rvalue(self, kind, values, ctx);
     }
 
-    fn visit_discriminant_rvalue(
-        &self,
-        value: &mut Place,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
-    ) {
-        walk_modifying::walk_discriminant_rvalue(self, value, reference, info);
+    fn visit_discriminant_rvalue(&self, value: &mut Place, ctx: &mut IrVisitorCtxMut<'_>) {
+        walk_modifying::walk_discriminant_rvalue(self, value, ctx);
     }
 
-    fn visit_terminator(
-        &self,
-        terminator: &mut Terminator,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
-    ) {
-        walk_modifying::walk_terminator(self, terminator, reference, info);
+    fn visit_terminator(&self, terminator: &mut Terminator, ctx: &mut IrVisitorCtxMut<'_>) {
+        walk_modifying::walk_terminator(self, terminator, ctx);
     }
 
-    fn visit_goto_terminator(
-        &self,
-        _: &mut BasicBlock,
-        _reference: IrRef,
-        _info: &mut BodyInfoMut<'_>,
-    ) {
-    }
+    fn visit_goto_terminator(&self, _: &mut BasicBlock, _: &mut IrVisitorCtxMut<'_>) {}
 
-    fn visit_unreachable_terminator(&self, _reference: IrRef, _info: &mut BodyInfoMut<'_>) {}
+    fn visit_unreachable_terminator(&self, _: &mut IrVisitorCtxMut<'_>) {}
 
-    fn visit_return_terminator(&self, _reference: IrRef, _info: &mut BodyInfoMut<'_>) {}
+    fn visit_return_terminator(&self, _: &mut IrVisitorCtxMut<'_>) {}
 
     fn visit_call_terminator(
         &self,
@@ -719,20 +695,18 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         args: &mut [Operand],
         destination: &mut Place,
         target: &mut Option<BasicBlock>,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_call_terminator(self, op, args, destination, target, reference, info);
+        walk_modifying::walk_call_terminator(self, op, args, destination, target, ctx);
     }
 
     fn visit_switch_terminator(
         &self,
         value: &mut Operand,
         targets: &mut SwitchTargets,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_switch_terminator(self, value, targets, reference, info);
+        walk_modifying::walk_switch_terminator(self, value, targets, ctx);
     }
 
     fn visit_assert_terminator(
@@ -741,61 +715,52 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         expected: &mut bool,
         kind: &mut AssertKind,
         target: &mut BasicBlock,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        walk_modifying::walk_assert_terminator(
-            self, condition, expected, kind, target, reference, info,
-        );
+        walk_modifying::walk_assert_terminator(self, condition, expected, kind, target, ctx);
     }
 
-    fn visit_assert_kind(
-        &self,
-        kind: &mut AssertKind,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
-    ) {
+    fn visit_assert_kind(&self, kind: &mut AssertKind, ctx: &mut IrVisitorCtxMut<'_>) {
         match kind {
             AssertKind::DivisionByZero { operand } => {
-                walk_modifying::walk_operand(self, operand, reference, info);
+                walk_modifying::walk_operand(self, operand, ctx);
             }
             AssertKind::RemainderByZero { operand } => {
-                walk_modifying::walk_operand(self, operand, reference, info);
+                walk_modifying::walk_operand(self, operand, ctx);
             }
             AssertKind::Overflow { lhs, rhs, .. } => {
-                walk_modifying::walk_operand(self, lhs, reference, info);
-                walk_modifying::walk_operand(self, rhs, reference, info)
+                walk_modifying::walk_operand(self, lhs, ctx);
+                walk_modifying::walk_operand(self, rhs, ctx)
             }
             AssertKind::NegativeOverflow { operand } => {
-                walk_modifying::walk_operand(self, operand, reference, info);
+                walk_modifying::walk_operand(self, operand, ctx);
             }
             AssertKind::BoundsCheck { len, index } => {
-                walk_modifying::walk_operand(self, len, reference, info);
-                walk_modifying::walk_operand(self, index, reference, info);
+                walk_modifying::walk_operand(self, len, ctx);
+                walk_modifying::walk_operand(self, index, ctx);
             }
         }
     }
 
-    fn visit_operand(&self, operand: &mut Operand, reference: IrRef, info: &mut BodyInfoMut<'_>) {
-        walk_modifying::walk_operand(self, operand, reference, info);
+    fn visit_operand(&self, operand: &mut Operand, ctx: &mut IrVisitorCtxMut<'_>) {
+        walk_modifying::walk_operand(self, operand, ctx);
     }
 
-    fn visit_const_value(&self, _: &mut Const, _reference: IrRef, _info: &mut BodyInfoMut<'_>) {}
+    fn visit_const_value(&self, _: &mut Const, _: &mut IrVisitorCtxMut<'_>) {}
 
-    fn visit_place(
-        &self,
-        place: &mut Place,
-        ctx: PlaceCtx,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
-    ) {
-        walk_modifying::walk_place(self, place, ctx, reference, info);
+    fn visit_place(&self, place: &mut Place, place_ctx: PlaceCtx, ctx: &mut IrVisitorCtxMut<'_>) {
+        walk_modifying::walk_place(self, place, place_ctx, ctx);
     }
 
     fn visit_local(&self, _: &mut Local, _ctx: PlaceCtx, _reference: IrRef) {}
 
-    fn visit_projection(&self, projection: &mut PlaceProjection, ctx: PlaceCtx, reference: IrRef) {
-        walk_modifying::walk_projection(self, projection, ctx, reference);
+    fn visit_projection(
+        &self,
+        projection: &mut PlaceProjection,
+        place_ctx: PlaceCtx,
+        reference: IrRef,
+    ) {
+        walk_modifying::walk_projection(self, projection, place_ctx, reference);
     }
 }
 
@@ -806,7 +771,7 @@ pub mod walk_modifying {
 
     /// Walk over all the [BasicBlock]s in the [Body] of the given
     /// to the visitor.
-    pub fn walk_body<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, body: &mut Body) {
+    pub fn walk_body<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, body: &'ir mut Body) {
         let Body { ref mut basic_blocks, ref mut locals, ref mut projections, .. } = body;
         let mut info = BodyInfoMut { locals, projections };
 
@@ -823,36 +788,38 @@ pub mod walk_modifying {
         info: &mut BodyInfoMut<'_>,
     ) {
         let mut index = 0;
+        let BodyInfoMut { ref mut locals, ref mut projections } = *info;
 
         for statement in data.statements.iter_mut() {
-            let reference = IrRef::new(block, index);
-            visitor.visit_statement(statement, reference, info);
+            let location = IrRef::new(block, index);
+            let mut ctx = IrVisitorCtxMut::new(location, BodyInfoMut { locals, projections });
+            visitor.visit_statement(statement, &mut ctx);
             index += 1;
         }
 
         if let Some(terminator) = &mut data.terminator {
-            let reference = IrRef::new(block, index);
-            visitor.visit_terminator(terminator, reference, info);
+            let location = IrRef::new(block, index);
+            let mut ctx = IrVisitorCtxMut::new(location, BodyInfoMut { locals, projections });
+            visitor.visit_terminator(terminator, &mut ctx);
         }
     }
 
     pub fn walk_statement<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         statement: &mut Statement,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
         match &mut statement.kind {
             StatementKind::Nop => {}
             StatementKind::Assign(place, value) => {
-                visitor.visit_assign_statement(place, value, reference, info)
+                visitor.visit_assign_statement(place, value, ctx)
             }
 
             StatementKind::Discriminate(place, variant) => {
-                visitor.visit_discriminator_statement(place, variant, reference, info)
+                visitor.visit_discriminator_statement(place, variant, ctx)
             }
             StatementKind::Live(local) | StatementKind::Dead(local) => {
-                visitor.visit_local(local, PlaceCtx::Meta(MetaPlaceCtx::Liveness), reference)
+                visitor.visit_local(local, PlaceCtx::Meta(MetaPlaceCtx::Liveness), ctx.location)
             }
         }
     }
@@ -861,46 +828,38 @@ pub mod walk_modifying {
         visitor: &V,
         place: &mut Place,
         value: &mut RValue,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_place(place, PlaceCtx::Mutable(MutablePlaceCtx::Store), reference, info);
-        visitor.visit_rvalue(value, reference, info);
+        visitor.visit_place(place, PlaceCtx::Mutable(MutablePlaceCtx::Store), ctx);
+        visitor.visit_rvalue(value, ctx);
     }
 
     pub fn walk_discriminating_statement<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
         _: &mut VariantIdx,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_place(
-            place,
-            PlaceCtx::Mutable(MutablePlaceCtx::Discriminant),
-            reference,
-            info,
-        );
+        visitor.visit_place(place, PlaceCtx::Mutable(MutablePlaceCtx::Discriminant), ctx);
     }
 
     pub fn walk_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         terminator: &mut Terminator,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
         match &mut terminator.kind {
-            TerminatorKind::Goto(target) => visitor.visit_goto_terminator(target, reference, info),
-            TerminatorKind::Unreachable => visitor.visit_unreachable_terminator(reference, info),
-            TerminatorKind::Return => visitor.visit_return_terminator(reference, info),
+            TerminatorKind::Goto(target) => visitor.visit_goto_terminator(target, ctx),
+            TerminatorKind::Unreachable => visitor.visit_unreachable_terminator(ctx),
+            TerminatorKind::Return => visitor.visit_return_terminator(ctx),
             TerminatorKind::Call { op, args, destination, target } => {
-                visitor.visit_call_terminator(op, args, destination, target, reference, info)
+                visitor.visit_call_terminator(op, args, destination, target, ctx)
             }
             TerminatorKind::Switch { value, targets } => {
-                visitor.visit_switch_terminator(value, targets, reference, info)
+                visitor.visit_switch_terminator(value, targets, ctx)
             }
             TerminatorKind::Assert { condition, expected, kind, target } => {
-                visitor.visit_assert_terminator(condition, expected, kind, target, reference, info)
+                visitor.visit_assert_terminator(condition, expected, kind, target, ctx)
             }
         }
     }
@@ -911,25 +870,23 @@ pub mod walk_modifying {
         args: &mut [Operand],
         destination: &mut Place,
         _: &mut Option<BasicBlock>,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
         // visit the args and call operand
-        visitor.visit_operand(op, reference, info);
-        args.iter_mut().for_each(|arg| visitor.visit_operand(arg, reference, info));
+        visitor.visit_operand(op, ctx);
+        args.iter_mut().for_each(|arg| visitor.visit_operand(arg, ctx));
 
         // visit the call destination place
-        visitor.visit_place(destination, PlaceCtx::Mutable(MutablePlaceCtx::Call), reference, info);
+        visitor.visit_place(destination, PlaceCtx::Mutable(MutablePlaceCtx::Call), ctx);
     }
 
     pub fn walk_switch_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         value: &mut Operand,
         _: &mut SwitchTargets,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_operand(value, reference, info)
+        visitor.visit_operand(value, ctx)
     }
 
     pub fn walk_assert_terminator<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -938,65 +895,57 @@ pub mod walk_modifying {
         _: &mut bool,
         assert: &mut AssertKind,
         _: &mut BasicBlock,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_operand(condition, reference, info);
-        visitor.visit_assert_kind(assert, reference, info);
+        visitor.visit_operand(condition, ctx);
+        visitor.visit_assert_kind(assert, ctx);
     }
 
     pub fn walk_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         value: &mut RValue,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
         match value {
-            RValue::Use(place) => visitor.visit_operand(place, reference, info),
-            RValue::ConstOp(op, ty) => visitor.visit_const_op_rvalue(op, ty, reference, info),
-            RValue::UnaryOp(op, value) => visitor.visit_unary_op_rvalue(op, value, reference, info),
+            RValue::Use(place) => visitor.visit_operand(place, ctx),
+            RValue::ConstOp(op, ty) => visitor.visit_const_op_rvalue(op, ty, ctx),
+            RValue::UnaryOp(op, value) => visitor.visit_unary_op_rvalue(op, value, ctx),
 
             RValue::BinaryOp(op, val) => {
                 let (lhs, rhs) = val.as_mut();
-                visitor.visit_binary_op_rvalue(op, lhs, rhs, reference, info)
+                visitor.visit_binary_op_rvalue(op, lhs, rhs, ctx)
             }
             RValue::CheckedBinaryOp(op, val) => {
                 let (lhs, rhs) = val.as_mut();
-                visitor.visit_checked_binary_op_rvalue(op, lhs, rhs, reference, info)
+                visitor.visit_checked_binary_op_rvalue(op, lhs, rhs, ctx)
             }
-            RValue::Len(place) => visitor.visit_len_rvalue(place, reference, info),
+            RValue::Len(place) => visitor.visit_len_rvalue(place, ctx),
             RValue::Ref(mutability, place, mode) => {
-                visitor.visit_ref_rvalue(mutability, place, mode, reference, info)
+                visitor.visit_ref_rvalue(mutability, place, mode, ctx)
             }
-            RValue::Aggregate(kind, values) => {
-                visitor.visit_aggregate_rvalue(kind, values, reference, info)
-            }
+            RValue::Aggregate(kind, values) => visitor.visit_aggregate_rvalue(kind, values, ctx),
 
-            RValue::Discriminant(place) => {
-                visitor.visit_discriminant_rvalue(place, reference, info)
-            }
-            RValue::Cast(_, operand, _) => visitor.visit_operand(operand, reference, info),
-            RValue::Repeat(operand, _) => visitor.visit_operand(operand, reference, info),
+            RValue::Discriminant(place) => visitor.visit_discriminant_rvalue(place, ctx),
+            RValue::Cast(_, operand, _) => visitor.visit_operand(operand, ctx),
+            RValue::Repeat(operand, _) => visitor.visit_operand(operand, ctx),
         }
     }
 
     pub fn walk_use_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Operand), reference, info)
+        visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Operand), ctx)
     }
 
     pub fn walk_unary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut UnaryOp,
         value: &mut Operand,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_operand(value, reference, info)
+        visitor.visit_operand(value, ctx)
     }
 
     pub fn walk_binary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -1004,11 +953,10 @@ pub mod walk_modifying {
         _: &mut BinOp,
         lhs: &mut Operand,
         rhs: &mut Operand,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_operand(lhs, reference, info);
-        visitor.visit_operand(rhs, reference, info);
+        visitor.visit_operand(lhs, ctx);
+        visitor.visit_operand(rhs, ctx);
     }
 
     pub fn walk_checked_binary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -1016,20 +964,18 @@ pub mod walk_modifying {
         _: &mut BinOp,
         lhs: &mut Operand,
         rhs: &mut Operand,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_operand(lhs, reference, info);
-        visitor.visit_operand(rhs, reference, info);
+        visitor.visit_operand(lhs, ctx);
+        visitor.visit_operand(rhs, ctx);
     }
 
     pub fn walk_len_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Inspect), reference, info)
+        visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Inspect), ctx)
     }
 
     pub fn walk_ref_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
@@ -1037,66 +983,58 @@ pub mod walk_modifying {
         mutability: &mut Mutability,
         place: &mut Place,
         _: &mut RefKind,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
         // @@Todo: do we need to have different contexts for different
         // kinds of refs?
-        let ctx = match mutability {
+        let place_ctx = match mutability {
             Mutability::Mutable => PlaceCtx::Mutable(MutablePlaceCtx::Ref),
             Mutability::Immutable => PlaceCtx::Immutable(ImmutablePlaceCtx::Ref),
         };
 
-        visitor.visit_place(place, ctx, reference, info)
+        visitor.visit_place(place, place_ctx, ctx)
     }
 
     pub fn walk_aggregate_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         _: &mut AggregateKind,
         aggregate: &mut [Operand],
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        aggregate.iter_mut().for_each(|value| visitor.visit_operand(value, reference, info))
+        aggregate.iter_mut().for_each(|value| visitor.visit_operand(value, ctx))
     }
 
     pub fn walk_discriminant_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Inspect), reference, info)
+        visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Inspect), ctx)
     }
 
     pub fn walk_operand<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         operand: &mut Operand,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
         match operand {
-            Operand::Place(place) => visitor.visit_place(
-                place,
-                PlaceCtx::Immutable(ImmutablePlaceCtx::Operand),
-                reference,
-                info,
-            ),
-            Operand::Const(constant) => visitor.visit_const_value(constant, reference, info),
+            Operand::Place(place) => {
+                visitor.visit_place(place, PlaceCtx::Immutable(ImmutablePlaceCtx::Operand), ctx)
+            }
+            Operand::Const(constant) => visitor.visit_const_value(constant, ctx),
         }
     }
 
     pub fn walk_place<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
         place: &mut Place,
-        ctx: PlaceCtx,
-        reference: IrRef,
-        info: &mut BodyInfoMut<'_>,
+        place_ctx: PlaceCtx,
+        ctx: &mut IrVisitorCtxMut<'_>,
     ) {
-        visitor.visit_local(&mut place.local, ctx, reference);
+        visitor.visit_local(&mut place.local, place_ctx, ctx.location);
 
-        for projection in info.projections.borrow_mut(place.projections) {
-            visitor.visit_projection(projection, ctx, reference)
+        for projection in ctx.info.projections.borrow_mut(place.projections) {
+            visitor.visit_projection(projection, place_ctx, ctx.location)
         }
     }
 
