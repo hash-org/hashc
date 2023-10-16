@@ -9,7 +9,7 @@ use fixedbitset::FixedBitSet;
 use hash_ir::{
     ir::{self, IrRef, Local, PlaceProjection, START_BLOCK},
     traversal,
-    visitor::{ImmutablePlaceContext, IrVisitorMut, MutablePlaceContext, PlaceContext},
+    visitor::{ImmutablePlaceCtx, IrVisitorMut, MutablePlaceCtx, PlaceCtx, VisitorCtx},
 };
 use hash_layout::TyInfo;
 use hash_storage::store::SequenceStoreKey;
@@ -207,11 +207,10 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         &mut self,
         place: &ir::Place,
         value: &ir::RValue,
-        reference: IrRef,
-        info: &ir::BodyInfo,
+        ctx: &VisitorCtx<'_>,
     ) {
         if let Some(local) = place.as_local() {
-            self.assign(local, reference);
+            self.assign(local, ctx.location);
 
             // Short-circuit: if the RValue doesn't create an operand, i.e. an
             // aggregate value or a repeated value, then we can immediately
@@ -224,26 +223,15 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         } else {
             // we need to go the long way since projections might affect
             // the kind of memory that is used.
-            self.visit_place(
-                place,
-                PlaceContext::Mutable(MutablePlaceContext::Store),
-                reference,
-                info,
-            );
+            self.visit_place(place, PlaceCtx::Mutable(MutablePlaceCtx::Store), ctx);
         }
 
-        self.visit_rvalue(value, reference, info);
+        self.visit_rvalue(value, ctx);
     }
 
-    fn visit_place(
-        &mut self,
-        place: &ir::Place,
-        ctx: PlaceContext,
-        reference: IrRef,
-        info: &ir::BodyInfo,
-    ) {
+    fn visit_place(&mut self, place: &ir::Place, place_ctx: PlaceCtx, ctx: &VisitorCtx<'_>) {
         if place.projections.is_empty() {
-            return self.visit_local(place.local, ctx, reference);
+            return self.visit_local(place.local, place_ctx, ctx.location);
         }
 
         // If the place base type is a ZST then we can short-circuit
@@ -255,10 +243,10 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
             return;
         }
 
-        let mut base_ctx = if ctx.is_mutating() {
-            PlaceContext::Mutable(MutablePlaceContext::Projection)
+        let mut base_ctx = if place_ctx.is_mutating() {
+            PlaceCtx::Mutable(MutablePlaceCtx::Projection)
         } else {
-            PlaceContext::Immutable(ImmutablePlaceContext::Projection)
+            PlaceCtx::Immutable(ImmutablePlaceCtx::Projection)
         };
 
         // ##Hack: in order to preserve the order of the traversal, we
@@ -267,7 +255,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
         let mut index_locals = vec![];
 
         // loop over the projections in reverse order
-        for projection in info.projections.borrow(place.projections).iter().rev() {
+        for projection in ctx.info.projections.borrow(place.projections).iter().rev() {
             // @@Todo: if the projection yields a ZST, then we can
             // also short-circuit here.
 
@@ -276,9 +264,9 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
             // we use the `ctx` as the base context since this
             // is still an operand.
             match projection {
-                PlaceProjection::Field(_) if ctx.is_operand() => {
+                PlaceProjection::Field(_) if place_ctx.is_operand() => {
                     if self.fn_builder.ctx.is_backend_immediate(base_layout) {
-                        base_ctx = ctx;
+                        base_ctx = place_ctx;
                     }
                 }
                 PlaceProjection::Index(local) => {
@@ -294,32 +282,28 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
 
         // Once we have determined the base context, we can now visit
         // the local.
-        self.visit_local(place.local, base_ctx, reference);
+        self.visit_local(place.local, base_ctx, ctx.location);
 
         // now traverse the index locals, we set the `ctx` as being
         // an operand since they are always just being read in this
         // context.
         for local in index_locals {
-            self.visit_local(
-                local,
-                PlaceContext::Immutable(ImmutablePlaceContext::Operand),
-                reference,
-            );
+            self.visit_local(local, PlaceCtx::Immutable(ImmutablePlaceCtx::Operand), ctx.location);
         }
     }
 
-    fn visit_local(&mut self, local: Local, ctx: PlaceContext, reference: IrRef) {
+    fn visit_local(&mut self, local: Local, ctx: PlaceCtx, reference: IrRef) {
         match ctx {
             // If it is being used as a destination for a value, then treat
             // it as an assignment
-            PlaceContext::Mutable(MutablePlaceContext::Call) => {
+            PlaceCtx::Mutable(MutablePlaceCtx::Call) => {
                 self.assign(local, reference);
             }
 
             // Don't do anything for meta context.
-            PlaceContext::Meta(_) => {}
+            PlaceCtx::Meta(_) => {}
 
-            PlaceContext::Immutable(ImmutablePlaceContext::Operand) => {
+            PlaceCtx::Immutable(ImmutablePlaceCtx::Operand) => {
                 match &mut self.locals[local] {
                     // @@Investigate: do we need to deal with in any way here?
                     LocalMemoryKind::Unused => {}
@@ -337,16 +321,14 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> IrVisitorMut<'ir>
             }
 
             // Everything else is a memory value.
-            PlaceContext::Mutable(
-                MutablePlaceContext::Store
-                | MutablePlaceContext::Projection
-                | MutablePlaceContext::Ref
-                | MutablePlaceContext::Discriminant,
+            PlaceCtx::Mutable(
+                MutablePlaceCtx::Store
+                | MutablePlaceCtx::Projection
+                | MutablePlaceCtx::Ref
+                | MutablePlaceCtx::Discriminant,
             )
-            | PlaceContext::Immutable(
-                ImmutablePlaceContext::Inspect
-                | ImmutablePlaceContext::Ref
-                | ImmutablePlaceContext::Projection,
+            | PlaceCtx::Immutable(
+                ImmutablePlaceCtx::Inspect | ImmutablePlaceCtx::Ref | ImmutablePlaceCtx::Projection,
             ) => {
                 self.locals[local] = LocalMemoryKind::Memory;
             }

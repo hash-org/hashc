@@ -13,7 +13,7 @@ use hash_ir::{
         Body, BodyInfo, IrRef, Local, LocalDecl, Place, PlaceProjection, RValue, Statement,
         StatementKind, RETURN_PLACE,
     },
-    visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor, PlaceContext},
+    visitor::{walk_mut, IrVisitorMut, ModifyingIrVisitor, PlaceCtx, VisitorCtx},
     IrCtx,
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
@@ -95,7 +95,7 @@ impl CleanupLocalPass {
                         if !is_nop {
                             // we also need to perform an update to the local count
                             // since we just removed the assignment to this local.
-                            local_map.statement_removed(&info, statement);
+                            local_map.statement_removed(info, statement);
                             changed = true;
                         }
                     }
@@ -165,13 +165,14 @@ impl LocalUseMap {
     /// traverse the statement again, and update the counts for each
     /// local as we see them. However, rather than incrementing the counts
     /// for each local, we know decrement each item that we see.
-    pub fn statement_removed(&mut self, info: &BodyInfo, statement: &Statement) {
+    pub fn statement_removed(&mut self, info: BodyInfo, statement: &Statement) {
         self.increment = false;
 
         // re-visit this particular statement since we've just removed it, use a
         // dummy reference since we don't care here.
         let mut visitor = LocalUseVisitor::new(self);
-        visitor.visit_statement(statement, IrRef::default(), info);
+        let ctx = VisitorCtx::new(IrRef::default(), info);
+        visitor.visit_statement(statement, &ctx);
     }
 
     /// Perform a remapping of the locals within the [Body] that was
@@ -223,29 +224,23 @@ impl<'ir> IrVisitorMut<'ir> for LocalUseVisitor<'ir> {
     /// Visit an assignment [Statement], we only visit the [RValue] part of the
     /// assignment fully, and only check the projections of the [Place] in case
     /// it is referenced within a [PlaceProjection::Index].
-    fn visit_assign_statement(
-        &mut self,
-        place: &Place,
-        value: &RValue,
-        reference: IrRef,
-        info: &BodyInfo,
-    ) {
-        for projection in info.projections.borrow(place.projections) {
+    fn visit_assign_statement(&mut self, place: &Place, value: &RValue, ctx: &VisitorCtx<'_>) {
+        for projection in ctx.info.projections.borrow(place.projections) {
             if let PlaceProjection::Index(index_local) = projection {
                 self.map.update_count_for(*index_local);
             }
         }
 
         // @@Safety: currently it is safe to remove all variants of an RValue, however
-        // if we add more [ir::RValue]s (specifically casts), then we might need to be
-        // more careful about whether the [RValue] is safe to remove or not.
-        walk_mut::walk_rvalue(self, value, reference, info);
+        // if we add more RValues (specifically casts), then we might need to be
+        // more careful about whether the RValues is safe to remove or not.
+        walk_mut::walk_rvalue(self, value, ctx);
     }
 
     /// This function will update the count for the referenced local in this
     /// place. We don't count places that "assign something" since this does
     /// not inherently use the local.
-    fn visit_local(&mut self, local: Local, _: PlaceContext, _: IrRef) {
+    fn visit_local(&mut self, local: Local, _: PlaceCtx, _: IrRef) {
         self.map.update_count_for(local);
     }
 }
@@ -267,7 +262,7 @@ impl LocalUpdater {
 
 impl<'ir> ModifyingIrVisitor<'ir> for LocalUpdater {
     /// Perform a remapping of the [Local] within the [Place] to a new [Local].
-    fn visit_local(&self, local: &mut Local, _: PlaceContext, _: IrRef) {
+    fn visit_local(&self, local: &mut Local, _: PlaceCtx, _: IrRef) {
         if let Some(new_local) = self.remap[*local] {
             *local = new_local;
         }
