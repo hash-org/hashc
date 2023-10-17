@@ -8,7 +8,7 @@ use hash_storage::{
 use textwrap::indent;
 
 use crate::{
-    scopes::StackId,
+    stack::StackId,
     stores::tir_stores,
     tir::{Pat, PatId, Term, TermId, TyId},
     tir_node_sequence_store_direct,

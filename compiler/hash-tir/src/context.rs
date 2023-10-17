@@ -16,7 +16,7 @@ use hash_utils::{
 
 use crate::{
     intrinsics::definitions::Intrinsic,
-    scopes::StackId,
+    stack::StackId,
     sub::Sub,
     tir::{
         ArgId, ArgsId, CtorDefId, DataDefId, FnDefId, FnTy, ModDefId, ParamId, ParamsId, SymbolId,
