@@ -14,16 +14,17 @@ use hash_tir::tir::{HasAstNodeId, NodeId, NodeOrigin, ParamError, SomeParamsOrAr
 use super::definitions::WrongTermKind;
 use crate::diagnostics::definitions::TcError;
 
-pub struct TcErrorReporter;
+/// Unit struct that contains the typechecking reporting implementation.
+pub struct TcReporter;
 
-impl fmt::Display for TcErrorReporter {
+impl fmt::Display for TcReporter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let reports = Self::format_error(&TcError::Signal);
         write!(f, "{}", Reporter::from_reports(reports))
     }
 }
 
-impl TcErrorReporter {
+impl TcReporter {
     /// Format the error nicely and return it as a set of reports.
     pub fn format_error(error: &TcError) -> Reports {
         let mut builder = Reporter::new();

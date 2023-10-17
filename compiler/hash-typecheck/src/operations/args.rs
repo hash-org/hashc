@@ -1,3 +1,10 @@
+//! Typechecking for argument lists and pattern argument lists.
+//!
+//! These are scoped because the arguments are added into the context for the
+//! duration of the check, needed for resolving dependent names in constructors
+//! and functions.
+// @@DRY: the operations for arguments and pattern arguments are really similar,
+// maybe there is a way to abstract both of them into a single operation?
 use std::{collections::HashSet, ops::ControlFlow};
 
 use hash_storage::store::{
@@ -19,9 +26,7 @@ use itertools::Itertools;
 use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
-    options::normalisation::{
-        already_normalised, normalised_if, NormalisationState, NormaliseResult, NormaliseSignal,
-    },
+    options::normalisation::{normalise_nested, NormaliseResult, NormaliseSignal},
     tc::Tc,
     traits::{OperationsOnNode, ScopedOperationsOnNode},
     utils::matching::MatchResult,
@@ -38,12 +43,14 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
         mut in_arg_scope: F,
     ) -> TcResult<T> {
         self.register_new_atom(args, annotation_params);
+        // Reorder the arguments to match the annotation parameters:
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
         let result = self.check_some_args(
             reordered_args_id.iter(),
             annotation_params,
             |arg, param_ty| {
+                // Check each argument against the corresponding parameter type
                 let arg = arg.value();
                 self.check_node(arg.value, param_ty)?;
                 Ok(())
@@ -58,28 +65,10 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
         Ok(result)
     }
 
-    fn try_normalise_node(&self, args_id: ArgsId) -> NormaliseResult<ControlFlow<ArgsId>> {
-        let args = args_id.value();
-        let st = NormalisationState::new();
-
-        let evaluated_arg_data = args
-            .value()
-            .into_iter()
-            .map(|arg| -> Result<_, NormaliseSignal> {
-                Ok(Node::at(
-                    Arg {
-                        target: arg.target,
-                        value: self.normalise_nested_node_and_record(arg.value, &st)?,
-                    },
-                    arg.origin,
-                ))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let new_node =
-            Node::create_at(Node::<Arg>::seq(evaluated_arg_data), args_id.origin().computed());
-
-        normalised_if(|| new_node, &st)
+    fn try_normalise_node(&self, _: ArgsId) -> NormaliseResult<ControlFlow<ArgsId>> {
+        // Recurse to the argument values, the argument list itself does not get
+        // evaluated to anything
+        normalise_nested()
     }
 
     fn unify_nodes_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
@@ -94,6 +83,8 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
                 b: target_id.into(),
             });
         }
+        // Unify each argument individually
+        // @@Incomplete: do we not need to take into account dependent references here?
         for (src_arg_id, target_arg_id) in src_id.iter().zip(target_id.iter()) {
             let src_arg = src_arg_id.value();
             let target_arg = target_arg_id.value();
@@ -104,6 +95,7 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> Tc<'_, E> {
+    /// Get the pattern bindings in the given pattern arguments.
     pub fn get_binds_in_pat_args(&self, pat_args: PatArgsId) -> HashSet<SymbolId> {
         let mut binds = HashSet::new();
         self.visitor().visit(pat_args, &mut |atom| {
@@ -123,6 +115,9 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 }
 
+/// Pattern arguments might also contain a spread, which is included here.
+// @@Cleanup: the spread should probably be part of `PatArgs` rather than
+// carried around everywhere else..
 impl<E: TcEnv> ScopedOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_, E> {
     type AnnotNode = ParamsId;
     type CallbackArg = PatArgsId;
@@ -134,6 +129,7 @@ impl<E: TcEnv> ScopedOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_, E>
         mut f: F,
     ) -> TcResult<T> {
         self.register_new_atom(pat_args, annotation_params);
+        // Reorder the arguments to match the annotation parameters:
         let reordered_pat_args_id =
             validate_and_reorder_pat_args_against_params(pat_args, spread, annotation_params)?;
 
@@ -141,6 +137,8 @@ impl<E: TcEnv> ScopedOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_, E>
             reordered_pat_args_id.iter(),
             annotation_params,
             |pat_arg, param_ty| {
+                // Check each argument that isn't a capture, against the
+                // corresponding parameter type
                 let pat_arg = pat_arg.value();
                 match pat_arg.pat {
                     PatOrCapture::Pat(pat) => {
@@ -151,6 +149,8 @@ impl<E: TcEnv> ScopedOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_, E>
                 }
             },
             |arg| {
+                // For arguments that aren't captures, we might be able to use
+                // them as terms:
                 let arg = arg.value();
                 match arg.pat {
                     PatOrCapture::Pat(pat) => pat.try_use_as_term(),
@@ -165,7 +165,7 @@ impl<E: TcEnv> ScopedOperationsOnNode<(PatArgsId, Option<Spread>)> for Tc<'_, E>
         &self,
         _item: (PatArgsId, Option<Spread>),
     ) -> NormaliseResult<ControlFlow<(PatArgsId, Option<Spread>)>> {
-        already_normalised()
+        normalise_nested()
     }
 
     fn unify_nodes_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
