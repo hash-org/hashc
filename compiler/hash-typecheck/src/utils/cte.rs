@@ -6,7 +6,7 @@ use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_tir::tir::{FnTy, HasAstNodeId, TermId, TyId};
 
 use crate::{
-    env::TcEnv, errors::TcResult, options::normalisation::NormalisationMode, tc::Tc,
+    diagnostics::TcResult, env::TcEnv, options::normalisation::NormalisationMode, tc::Tc,
     traits::OperationsOnNode,
 };
 

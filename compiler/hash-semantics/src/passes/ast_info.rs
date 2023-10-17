@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 use hash_ast::ast::AstNodeId;
 use hash_tir::{
     context::ContextMember,
-    scopes::StackId,
+    stack::StackId,
     tir::{
         ArgId, ArgsSeqId, CtorDefId, CtorDefsSeqId, DataDefId, FnDefId, ModDefId, ModMemberId,
         ModMembersSeqId, ParamId, ParamsSeqId, PatArgId, PatArgsSeqId, PatId, TermId, TyId,

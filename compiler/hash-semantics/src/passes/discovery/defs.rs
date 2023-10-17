@@ -10,7 +10,7 @@ use hash_storage::store::{
 };
 use hash_tir::{
     context::ContextMember,
-    scopes::StackId,
+    stack::StackId,
     tir::{
         CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId, FnDefId, HasAstNodeId, ModDef,
         ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue, Node, NodeId, NodeOrigin,

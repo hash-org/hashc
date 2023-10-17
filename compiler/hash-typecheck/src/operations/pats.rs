@@ -12,8 +12,8 @@ use hash_tir::{
 };
 
 use crate::{
+    diagnostics::TcResult,
     env::TcEnv,
-    errors::TcResult,
     options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
@@ -47,7 +47,7 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
         &self,
         pat_id: PatId,
         (annotation_ty, binds_to): Self::AnnotNode,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.register_new_atom(pat_id, annotation_ty);
 
         match *pat_id.value() {
@@ -69,7 +69,7 @@ impl<E: TcEnv> OperationsOnNode<PatId> for Tc<'_, E> {
         normalise_nested()
     }
 
-    fn unify_nodes(&self, src: PatId, target: PatId) -> crate::errors::TcResult<()> {
+    fn unify_nodes(&self, src: PatId, target: PatId) -> crate::diagnostics::TcResult<()> {
         // @@Todo: unification of patterns
         self.mismatching_atoms(src, target)
     }
@@ -84,7 +84,7 @@ impl<E: TcEnv> OperationsOn<IfPat> for Tc<'_, E> {
         pat: &mut IfPat,
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.check_node(pat.pat, (annotation_ty, None))?;
         let expected_condition_ty = Ty::expect_is(pat.condition, bool_ty(NodeOrigin::Expected));
         self.check_node(pat.condition, expected_condition_ty)?;
@@ -112,7 +112,7 @@ impl<E: TcEnv> OperationsOn<IfPat> for Tc<'_, E> {
         target: &mut IfPat,
         _: Self::Node,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.unify_nodes(src.pat, target.pat)?;
         self.unify_nodes(src.condition, target.condition)
     }
@@ -127,7 +127,7 @@ impl<E: TcEnv> OperationsOn<OrPat> for Tc<'_, E> {
         pat: &mut OrPat,
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.check_unified_pat_list(pat.alternatives, annotation_ty)?;
         Ok(())
     }
@@ -146,7 +146,7 @@ impl<E: TcEnv> OperationsOn<OrPat> for Tc<'_, E> {
         _target: &mut OrPat,
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         // @@Todo: unification of patterns
         self.mismatching_atoms(src_node, target_node)
     }

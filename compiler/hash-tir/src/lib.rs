@@ -12,7 +12,7 @@ pub mod building;
 pub mod context;
 pub mod dump;
 pub mod intrinsics;
-pub mod scopes;
+pub mod stack;
 pub mod stores;
 pub mod sub;
 pub mod tir;

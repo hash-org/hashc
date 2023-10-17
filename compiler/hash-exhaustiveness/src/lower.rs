@@ -14,12 +14,12 @@ use hash_tir::{
         numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
         try_use_ty_as_int_ty, try_use_ty_as_lit_ty, LitTy,
     },
-    scopes::BindingPat,
     term_as_variant,
     tir::{
-        ArrayCtorInfo, ArrayPat, CharLit, CtorDefId, CtorPat, DataTy, IfPat, IntLit, Lit, LitPat,
-        Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId, Pat, PatArg, PatArgsId, PatId,
-        PatOrCapture, RangePat, Spread, StrLit, SymbolId, TuplePat, TupleTy, Ty, TyId,
+        pats::BindingPat, ArrayCtorInfo, ArrayPat, CharLit, CtorDefId, CtorPat, DataTy, IfPat,
+        IntLit, Lit, LitPat, Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId, Pat, PatArg,
+        PatArgsId, PatId, PatOrCapture, RangePat, Spread, StrLit, SymbolId, TuplePat, TupleTy, Ty,
+        TyId,
     },
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};

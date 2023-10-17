@@ -22,9 +22,9 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    scopes::BindingPat,
     tir::{
-        CtorPat, IfPat, MatchCase, ParamIndex, Pat, PatArgsId, PatId, RangePat, SymbolId, TuplePat,
+        BindingPat, CtorPat, IfPat, MatchCase, ParamIndex, Pat, PatArgsId, PatId, RangePat,
+        SymbolId, TuplePat,
     },
 };
 use hash_utils::{

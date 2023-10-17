@@ -1,3 +1,7 @@
+//! Reporting for typechecking diagnostics.
+//!
+//! This formats the diagnostics in `definitions.rs` nicely
+//! through the compiler's reporting system (`hash-reporting`).
 use std::fmt;
 
 use hash_reporting::{
@@ -8,18 +12,19 @@ use hash_storage::store::SequenceStoreKey;
 use hash_tir::tir::{HasAstNodeId, NodeId, NodeOrigin, ParamError, SomeParamsOrArgsId};
 
 use super::definitions::WrongTermKind;
-use crate::errors::definitions::TcError;
+use crate::diagnostics::definitions::TcError;
 
-pub struct TcErrorReporter;
+/// Unit struct that contains the typechecking reporting implementation.
+pub struct TcReporter;
 
-impl fmt::Display for TcErrorReporter {
+impl fmt::Display for TcReporter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let reports = Self::format_error(&TcError::Signal);
         write!(f, "{}", Reporter::from_reports(reports))
     }
 }
 
-impl TcErrorReporter {
+impl TcReporter {
     /// Format the error nicely and return it as a set of reports.
     pub fn format_error(error: &TcError) -> Reports {
         let mut builder = Reporter::new();
@@ -130,20 +135,13 @@ impl TcErrorReporter {
                     error.add_labelled_span(location, format!("`{}` from here", *b));
                 }
             }
-            TcError::InvalidRangePatternLiteral { location } => {
-                let error = reporter
-                    .error()
-                    .code(HashErrorCode::TypeMismatch)
-                    .title("range patterns should contain valid literals");
-                error.add_labelled_span(*location, "not a valid range literal");
-            }
             TcError::ParamMatch(err) => {
                 ParamError::add_to_reporter(err, reporter);
             }
             TcError::LitParseError(err) => {
                 err.add_to_reporter(reporter);
             }
-            TcError::WrongTy { term, inferred_term_ty, kind } => {
+            TcError::WrongTerm { term, inferred_term_ty, kind } => {
                 let kind_name = match kind {
                     WrongTermKind::NotAFunction => "function".to_string(),
                     WrongTermKind::NotARecord => "record".to_string(),
@@ -242,20 +240,6 @@ impl TcErrorReporter {
                 }
                 if let Some(location) = got_len.span() {
                     error.add_labelled_span(location, "got array length");
-                }
-            }
-            TcError::CannotUseInTyPos { location, inferred_ty } => {
-                let formatted_ty = (*inferred_ty).to_string();
-                let error = reporter.error().code(HashErrorCode::DisallowedType).title(format!(
-                    "cannot use a value of type `{formatted_ty}` in type position",
-                ));
-                if let Some(location) = location.span() {
-                    error.add_labelled_span(
-                        location,
-                        format!(
-                            "value of type `{formatted_ty}` used in type position. Only values of type `Type` can be used in type position",
-                        )
-                    );
                 }
             }
             TcError::MismatchingPats { a, b } => {

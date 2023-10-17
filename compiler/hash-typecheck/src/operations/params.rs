@@ -7,8 +7,8 @@ use hash_tir::{
 };
 
 use crate::{
+    diagnostics::{TcError, TcResult},
     env::TcEnv,
-    errors::{TcError, TcResult},
     options::normalisation::{already_normalised, NormaliseResult},
     tc::Tc,
     traits::{OperationsOnNode, ScopedOperationsOnNode},

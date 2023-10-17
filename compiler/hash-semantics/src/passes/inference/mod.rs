@@ -7,8 +7,8 @@ use hash_ast::ast;
 use hash_source::SourceId;
 use hash_tir::{context::Context, tir::Ty, visitor::Atom};
 use hash_typecheck::{
+    diagnostics::{TcError, TcResult},
     env::TcEnv,
-    errors::{TcError, TcResult},
     tc::FnInferMode,
     traits::OperationsOnNode,
 };

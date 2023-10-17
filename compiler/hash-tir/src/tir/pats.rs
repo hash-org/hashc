@@ -12,7 +12,6 @@ use hash_utils::derive_more::From;
 
 use super::TermId;
 use crate::{
-    scopes::BindingPat,
     stores::tir_stores,
     tir::{
         ArrayPat, CtorPat, CtorTerm, IfPat, LitPat, NodeId, OrPat, PatArgsId, PatOrCapture,
@@ -20,6 +19,23 @@ use crate::{
     },
     tir_node_sequence_store_indirect, tir_node_single_store,
 };
+
+/// A binding pattern, which is essentially a declaration left-hand side.
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+pub struct BindingPat {
+    /// The name of the bind.
+    /// If `name` does not map to a specific `Identifier` name, it means
+    /// that the pattern is actually a wildcard `_`.
+    pub name: SymbolId,
+    /// Whether the binding is declared as mutable.
+    pub is_mutable: bool,
+}
+
+impl fmt::Display for BindingPat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", if self.is_mutable { "mut " } else { "" }, self.name)
+    }
+}
 
 /// A spread "pattern" (not part of [`Pat`]), which can appear in list patterns,
 /// tuple patterns, and constructor patterns.

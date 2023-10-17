@@ -4,14 +4,16 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{HasContext, ScopeKind},
     intrinsics::definitions::never_ty,
-    scopes::{BlockStatement, BlockTerm},
-    tir::{NodeId, NodeOrigin, TermId, Ty, TyId},
+    tir::{
+        blocks::{BlockStatement, BlockTerm},
+        NodeId, NodeOrigin, TermId, Ty, TyId,
+    },
 };
 use hash_utils::log::info;
 
 use crate::{
+    diagnostics::{TcError, TcResult},
     env::TcEnv,
-    errors::{TcError, TcResult},
     options::normalisation::{normalised_to, NormalisationState, NormaliseResult},
     tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode},

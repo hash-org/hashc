@@ -7,9 +7,9 @@ use hash_ir::{
     ty::{IrTyId, Mutability},
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
-use hash_tir::{
-    scopes::{BindingPat, Decl},
-    tir::{ArrayPat, CtorPat, IfPat, NodesId, OrPat, Pat, PatId, SymbolId, TermId, TuplePat},
+use hash_tir::tir::{
+    blocks::Decl, ArrayPat, BindingPat, CtorPat, IfPat, NodesId, OrPat, Pat, PatId, SymbolId,
+    TermId, TuplePat,
 };
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};

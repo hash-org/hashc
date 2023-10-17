@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use hash_tir::tir::{CastTerm, TermId, TyId};
+use hash_tir::tir::{AnnotTerm, TermId, TyId};
 
 use crate::{
     env::TcEnv,
@@ -9,16 +9,16 @@ use crate::{
     traits::{OperationsOn, OperationsOnNode},
 };
 
-impl<E: TcEnv> OperationsOn<CastTerm> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOn<AnnotTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TermId;
 
     fn check(
         &self,
-        cast_term: &mut CastTerm,
+        cast_term: &mut AnnotTerm,
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.check_node(cast_term.subject_term, cast_term.target_ty)?;
         self.check_by_unify(cast_term.target_ty, annotation_ty)?;
         Ok(())
@@ -26,7 +26,7 @@ impl<E: TcEnv> OperationsOn<CastTerm> for Tc<'_, E> {
 
     fn try_normalise(
         &self,
-        cast_term: CastTerm,
+        cast_term: AnnotTerm,
         _: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
         // @@Todo: will not play well with typeof?;
@@ -35,11 +35,11 @@ impl<E: TcEnv> OperationsOn<CastTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        src: &mut CastTerm,
-        target: &mut CastTerm,
+        src: &mut AnnotTerm,
+        target: &mut AnnotTerm,
         _src_node: Self::Node,
         _target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.unify_nodes(src.subject_term, target.subject_term)?;
         self.unify_nodes(src.target_ty, target.target_ty)
     }

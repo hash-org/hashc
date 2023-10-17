@@ -7,8 +7,9 @@ use hash_storage::stores;
 
 use crate::{
     atom_info::AtomInfoStore,
-    scopes::{BlockStatementsSeqStore, BlockStatementsStore, StackStore},
+    stack::StackStore,
     tir::{
+        blocks::{BlockStatementsSeqStore, BlockStatementsStore},
         ArgsSeqStore, ArgsStore, CtorDefsSeqStore, CtorDefsStore, DataDefStore, FnDefStore,
         LitStore, MatchCasesSeqStore, MatchCasesStore, ModDefStore, ModMembersSeqStore,
         ModMembersStore, ParamsSeqStore, ParamsStore, PatArgsSeqStore, PatArgsStore,

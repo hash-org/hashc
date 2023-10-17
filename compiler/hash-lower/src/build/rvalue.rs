@@ -125,7 +125,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Unsafe(_)
             | Term::Access(_)
             | Term::Index(_)
-            | Term::Cast(_)
+            | Term::Annot(_)
             | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)

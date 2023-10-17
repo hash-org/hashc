@@ -7,8 +7,8 @@ use hash_tir::{
 };
 
 use crate::{
+    diagnostics::TcResult,
     env::TcEnv,
-    errors::TcResult,
     options::normalisation::NormaliseResult,
     tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode},
@@ -60,7 +60,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             Term::Block(mut block_term) => self.check(&mut block_term, annotation_ty, term_id)?,
             Term::TyOf(mut ty_of_term) => self.check(&mut ty_of_term, annotation_ty, term_id)?,
             Term::Ref(mut ref_term) => self.check(&mut ref_term, annotation_ty, term_id)?,
-            Term::Cast(mut cast_term) => self.check(&mut cast_term, annotation_ty, term_id)?,
+            Term::Annot(mut cast_term) => self.check(&mut cast_term, annotation_ty, term_id)?,
             Term::Access(mut access_term) => {
                 self.check(&mut access_term, annotation_ty, term_id)?
             }
@@ -168,7 +168,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             Term::Unsafe(unsafe_expr) => self.try_normalise(unsafe_expr, term),
             Term::Match(match_term) => self.try_normalise(match_term, term),
             Term::Call(fn_call) => self.try_normalise(fn_call, term),
-            Term::Cast(cast_term) => self.try_normalise(cast_term, term),
+            Term::Annot(cast_term) => self.try_normalise(cast_term, term),
             Term::Hole(h) => self.try_normalise(h, term),
             Term::Var(v) => self.try_normalise(v, term),
             Term::Deref(deref_term) => self.try_normalise(deref_term, term),

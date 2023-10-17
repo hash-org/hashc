@@ -19,8 +19,8 @@ use hash_tir::{
 use itertools::Itertools;
 
 use crate::{
+    diagnostics::{TcError, TcResult, WrongTermKind},
     env::TcEnv,
-    errors::{TcError, TcResult, WrongTermKind},
     options::normalisation::{
         normalise_nested, normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
@@ -307,7 +307,7 @@ impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
         self.check_node(index_term.index, index_ty)?;
 
         let wrong_subject_ty = || {
-            Err(TcError::WrongTy {
+            Err(TcError::WrongTerm {
                 term: original_term_id,
                 inferred_term_ty: subject_ty,
                 kind: WrongTermKind::NotAnArray,

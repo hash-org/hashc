@@ -8,8 +8,8 @@ use hash_storage::store::statics::SingleStoreId;
 use hash_tir::visitor::{Atom, Map, Visitor};
 
 use crate::{
+    diagnostics::TcResult,
     env::TcEnv,
-    errors::TcResult,
     options::normalisation::{
         already_normalised, normalisation_result_control_flow_into, NormalisationMode,
         NormalisationState, NormaliseResult, NormaliseSignal,

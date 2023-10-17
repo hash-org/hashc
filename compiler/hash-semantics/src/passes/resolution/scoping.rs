@@ -5,7 +5,7 @@ use hash_ast::ast::{self, AstNodeId};
 use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    scopes::StackId,
+    stack::StackId,
     term_as_variant,
     tir::{
         CtorDefId, DataDefCtors, DataDefId, FnTy, ModDefId, ModMemberId, NodeOrigin, NodesId,

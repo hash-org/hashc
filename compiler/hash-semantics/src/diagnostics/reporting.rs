@@ -3,7 +3,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_tir::tir::HasAstNodeId;
-use hash_typecheck::errors::TcErrorReporter;
+use hash_typecheck::diagnostics::TcReporter;
 
 use super::definitions::{SemanticError, SemanticWarning};
 use crate::{env::SemanticEnv, passes::resolution::scoping::ContextKind};
@@ -197,7 +197,7 @@ impl SemanticReporter {
                     .add_span(*location)
                     .add_info("cannot use this as a subject of a namespace access");
             }
-            SemanticError::TypeError { error } => TcErrorReporter::add_to_reporter(error, reporter),
+            SemanticError::TypeError { error } => TcReporter::add_to_reporter(error, reporter),
             SemanticError::UnexpectedArguments { location } => {
                 let error = reporter
                     .error()

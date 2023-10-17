@@ -3,14 +3,13 @@ use std::ops::ControlFlow;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::HasContext,
-    scopes::BindingPat,
-    tir::{PatId, Term, TermId, TyId, VarTerm},
+    tir::{pats::BindingPat, PatId, Term, TermId, TyId, VarTerm},
     visitor::Map,
 };
 
 use crate::{
+    diagnostics::TcResult,
     env::TcEnv,
-    errors::TcResult,
     options::normalisation::{already_normalised, normalised_to, NormaliseResult},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},

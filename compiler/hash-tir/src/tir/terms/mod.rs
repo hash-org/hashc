@@ -11,7 +11,6 @@ use hash_utils::derive_more::From;
 
 use crate::{
     intrinsics::definitions::Intrinsic,
-    scopes::{AssignTerm, BlockTerm},
     stores::tir_stores,
     tir::{
         Arg, ArgsId, CtorTerm, DataDefId, DataTy, LitId, Node, NodeId, NodeOrigin, Param, SymbolId,
@@ -21,8 +20,10 @@ use crate::{
 };
 
 pub mod access;
+pub mod annotation;
 pub mod arrays;
-pub mod casting;
+pub mod blocks;
+pub mod commands;
 pub mod control;
 pub mod fns;
 pub mod holes;
@@ -30,8 +31,10 @@ pub mod refs;
 pub mod tuples;
 
 pub use access::*;
+pub use annotation::*;
 pub use arrays::*;
-pub use casting::*;
+pub use blocks::*;
+pub use commands::*;
 pub use control::*;
 pub use fns::*;
 pub use holes::*;
@@ -83,7 +86,7 @@ pub enum Term {
     // Variables
     Var(VarTerm),
 
-    // Scopes
+    // Blocks
     Block(BlockTerm),
 
     // -- Values --
@@ -121,7 +124,7 @@ pub enum Term {
     Index(IndexTerm),
 
     // Casting
-    Cast(CastTerm),
+    Annot(AnnotTerm),
     TyOf(TyOfTerm),
 
     // References
@@ -308,7 +311,7 @@ impl fmt::Display for Term {
             Term::Assign(assign_term) => write!(f, "{}", assign_term),
             Term::Unsafe(unsafe_term) => write!(f, "{}", unsafe_term),
             Term::Access(access_term) => write!(f, "{}", access_term),
-            Term::Cast(cast_term) => write!(f, "{}", cast_term),
+            Term::Annot(cast_term) => write!(f, "{}", cast_term),
             Term::TyOf(type_of_term) => write!(f, "{}", type_of_term),
             Term::Ref(ref_term) => write!(f, "{}", ref_term),
             Term::Deref(deref_term) => write!(f, "{}", deref_term),

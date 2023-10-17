@@ -4,7 +4,7 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{Hole, TermId, TyId, VarTerm};
 
 use crate::{
-    env::TcEnv, errors::TcResult, options::normalisation::NormaliseResult, tc::Tc,
+    diagnostics::TcResult, env::TcEnv, options::normalisation::NormaliseResult, tc::Tc,
     traits::OperationsOn,
 };
 
@@ -31,7 +31,7 @@ impl<E: TcEnv> OperationsOn<Hole> for Tc<'_, E> {
         _item: &mut Hole,
         _item_ty: Self::AnnotNode,
         _item_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         // No-op
         Ok(())
     }
@@ -50,7 +50,7 @@ impl<E: TcEnv> OperationsOn<Hole> for Tc<'_, E> {
         h2: &mut Hole,
         src_id: Self::Node,
         target_id: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         if h1 == h2 {
             Ok(())
         } else {

@@ -6,7 +6,7 @@
 //! node.
 use std::ops::ControlFlow;
 
-use crate::{env::HasTcEnv, errors::TcResult, options::normalisation::NormaliseResult};
+use crate::{diagnostics::TcResult, env::HasTcEnv, options::normalisation::NormaliseResult};
 
 /// Main trait for typechecking on TIR atoms.
 ///

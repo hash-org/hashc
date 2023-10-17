@@ -21,7 +21,7 @@ impl<E: TcEnv> OperationsOn<Intrinsic> for Tc<'_, E> {
         intrinsic: &mut Intrinsic,
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         // ##GeneratedOrigin: intrinsics do not belong to the source code
         self.check_by_unify(Term::from(intrinsic.ty(), NodeOrigin::Generated), annotation_ty)?;
         Ok(())
@@ -41,7 +41,7 @@ impl<E: TcEnv> OperationsOn<Intrinsic> for Tc<'_, E> {
         target: &mut Intrinsic,
         src_node: Self::Node,
         target_node: Self::Node,
-    ) -> crate::errors::TcResult<()> {
+    ) -> crate::diagnostics::TcResult<()> {
         self.unification_ok_or_mismatching_atoms(*src == *target, src_node, target_node)
     }
 }
