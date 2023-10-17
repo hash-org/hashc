@@ -427,7 +427,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     }
 
     /// Generate code for consuming an "operand", i.e. generate code that
-    /// resolves the references [Place] and the load it from memory as
+    /// resolves the references [ir::Place] and the load it from memory as
     /// a [OperandRef].
     pub(super) fn codegen_consume_operand(
         &mut self,
@@ -463,7 +463,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) -> Option<OperandRef<Builder::Value>> {
         match self.locals[place.local] {
             LocalRef::Operand(Some(mut operand)) => {
-                for projection in place.projections.borrow().iter() {
+                for projection in self.body.projections().borrow(place.projections) {
                     match *projection {
                         ir::PlaceProjection::Field(index) => {
                             operand = operand.extract_field(builder, index);

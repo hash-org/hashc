@@ -22,7 +22,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// via the name of the local and the scope that it is in.
     pub(crate) fn push_local(&mut self, key: SymbolId, decl: LocalDecl) -> Local {
         let is_named = decl.name.is_some();
-        let index = self.declarations.push(decl);
+        let index = self.locals.push(decl);
 
         // If the declaration has a name i.e. not an auxiliary local, then
         // we can push it into the `declaration_map`.

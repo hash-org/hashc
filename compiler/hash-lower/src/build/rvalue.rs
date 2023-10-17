@@ -234,8 +234,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let temp = self.temp_place(ty);
                 let rvalue = RValue::CheckedBinaryOp(op, operands);
 
-                let result = temp.field(0);
-                let overflow = temp.field(1);
+                let result = temp.field(0, &mut self.projections);
+                let overflow = temp.field(1, &mut self.projections);
 
                 // Push an assignment to the tuple on the operation
                 self.control_flow_graph.push_assign(block, temp, rvalue, origin);

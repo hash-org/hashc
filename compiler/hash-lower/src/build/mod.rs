@@ -15,8 +15,8 @@ mod utils;
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_ir::{
     ir::{
-        BasicBlock, Body, BodyInfo, BodySource, Local, LocalDecl, Place, TerminatorKind,
-        START_BLOCK,
+        BasicBlock, Body, BodyMetadata, BodySource, Local, LocalDecl, LocalDecls, Place,
+        Projections, TerminatorKind, START_BLOCK,
     },
     ty::{IrTy, Mutability},
 };
@@ -136,7 +136,7 @@ pub(crate) struct BodyBuilder<'tcx> {
     ctx: BuilderCtx<'tcx>,
 
     /// Info that is derived during the lowering process of the type.
-    info: BodyInfo,
+    info: BodyMetadata,
 
     /// The item that is being lowered.
     item: BuildItem,
@@ -149,7 +149,11 @@ pub(crate) struct BodyBuilder<'tcx> {
     control_flow_graph: ControlFlowGraph,
 
     /// Any local declarations that have been made.
-    declarations: IndexVec<Local, LocalDecl>,
+    locals: LocalDecls,
+
+    /// Any projections that have been applied within the currently constructed
+    /// body.
+    projections: Projections,
 
     /// A map that is used by the [Builder] to lookup which variables correspond
     /// to which locals.
@@ -203,10 +207,11 @@ impl<'ctx> BodyBuilder<'ctx> {
         Self {
             item,
             ctx,
-            info: BodyInfo::new(name, source),
+            info: BodyMetadata::new(name, source),
             arg_count,
             control_flow_graph: ControlFlowGraph::new(),
-            declarations: IndexVec::new(),
+            locals: IndexVec::new(),
+            projections: Projections::new(),
             declaration_map: FxHashMap::default(),
             reached_terminator: false,
             loop_block_info: None,
@@ -231,7 +236,8 @@ impl<'ctx> BodyBuilder<'ctx> {
 
         let mut body = Body::new(
             self.control_flow_graph.basic_blocks,
-            self.declarations,
+            self.locals,
+            self.projections,
             self.info,
             self.arg_count,
             span,
@@ -265,7 +271,7 @@ impl<'ctx> BodyBuilder<'ctx> {
         // declaration is always mutable because it will be set at some point in
         // the end, not the beginning.
         let ret_local = LocalDecl::new_auxiliary(return_ty, Mutability::Mutable);
-        self.declarations.push(ret_local);
+        self.locals.push(ret_local);
 
         match self.item {
             BuildItem::FnDef(_) => self.build_fn(),

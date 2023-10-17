@@ -76,14 +76,14 @@ impl<'ir> IrGraphWriter<'ir> {
         // Now we write the `label` of the graph which is essentially the type of
         // the function and any local declarations that have been defined within the
         // body.
-        let mut declarations = self.body.declarations.iter();
+        let mut declarations = self.body.locals.iter();
 
         // return_type declaration, this is always located at `0`
         let return_ty_decl = declarations.next().unwrap();
 
-        match self.body.info().source() {
+        match self.body.metadata().source() {
             BodySource::Item => {
-                write!(w, "  label=<{}(", self.body.info().name,)?;
+                write!(w, "  label=<{}(", self.body.metadata().name,)?;
 
                 // Write the arguments of the function
                 for (i, param) in declarations.take(self.body.arg_count).enumerate() {
@@ -103,13 +103,13 @@ impl<'ir> IrGraphWriter<'ir> {
                 )?;
             }
             BodySource::Const => {
-                let header = format!("{}", self.body.info().ty());
+                let header = format!("{}", self.body.metadata().ty());
 
                 // @@Todo: maybe figure out a better format for this?
                 write!(
                     w,
                     "  label=<{}{}{}",
-                    self.body.info().name,
+                    self.body.metadata().name,
                     encode_text(&header),
                     LINE_SEPARATOR
                 )?;
@@ -118,7 +118,7 @@ impl<'ir> IrGraphWriter<'ir> {
 
         // Now we can emit the local declarations that have been defined within the
         // body...
-        let declarations = self.body.declarations.iter_enumerated();
+        let declarations = self.body.locals.iter_enumerated();
         let offset = 1 + self.body.arg_count;
 
         for (local, decl) in declarations.skip(offset) {
@@ -161,7 +161,7 @@ impl<'ir> IrGraphWriter<'ir> {
                         )?;
                     }
                     TerminatorKind::Switch { targets, value } => {
-                        let target_ty = value.ty(&self.body.declarations);
+                        let target_ty = value.ty(&self.body.aux());
 
                         // Add all of the table cases
                         for (value, target) in targets.iter() {
@@ -254,7 +254,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left" balign="left">{}</td></tr>"#,
-                encode_text(&format!("{}", statement.with_edges(self.body, self.lc, false)))
+                encode_text(&format!("{}", statement.with_edges(self.body.aux(), self.lc, false)))
             )?;
         }
 
@@ -263,7 +263,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left">{}</td></tr>"#,
-                encode_text(&format!("{}", terminator.with_edges(self.body, self.lc, false)))
+                encode_text(&format!("{}", terminator.with_edges(self.body.aux(), self.lc, false)))
             )?;
         }
 

@@ -43,14 +43,14 @@ impl<'ir> IrBodyWriter<'ir> {
     /// }
     /// ```
     fn write_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut declarations = self.body.declarations.iter();
+        let mut declarations = self.body.locals.iter();
 
         // return_type declaration, this is always located at `0`
         let return_ty_decl = declarations.next().unwrap();
 
-        match self.body.info().source() {
+        match self.body.metadata().source() {
             BodySource::Item => {
-                write!(f, "{} := (", self.body.info().name)?;
+                write!(f, "{} := (", self.body.metadata().name)?;
 
                 for (i, param) in declarations.take(self.body.arg_count).enumerate() {
                     if i > 0 {
@@ -64,7 +64,7 @@ impl<'ir> IrBodyWriter<'ir> {
                 writeln!(f, ") -> {} {{", return_ty_decl.ty())?;
             }
             BodySource::Const => {
-                writeln!(f, "const {} {{", self.body.info().name)?;
+                writeln!(f, "const {} {{", self.body.metadata().name)?;
             }
         }
 
@@ -76,7 +76,7 @@ impl<'ir> IrBodyWriter<'ir> {
     fn write_body(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.write_header(f)?;
 
-        let declarations = self.body.declarations.iter_enumerated().take(self.body.arg_count + 1);
+        let declarations = self.body.locals.iter_enumerated().take(self.body.arg_count + 1);
 
         // We write debug information about the parameters of the function in
         // the format of `// parameter <name> -> _index`
@@ -98,7 +98,7 @@ impl<'ir> IrBodyWriter<'ir> {
         // Next, we render the declarations and then we will render them in order
         // top properly align all of the comments on the right hand side.
         let offset = 1 + self.body.arg_count;
-        let declarations = self.body.declarations.iter_enumerated().skip(offset);
+        let declarations = self.body.locals.iter_enumerated().skip(offset);
 
         let mut longest_line = 0;
         let rendered_declarations = declarations
@@ -139,13 +139,25 @@ impl<'ir> IrBodyWriter<'ir> {
 
         // Write all of the statements within the block
         for statement in &block_data.statements {
-            writeln!(f, "{: <2$}{};", "", statement.with_edges(self.body, self.lc, false), 8)?;
+            writeln!(
+                f,
+                "{: <2$}{};",
+                "",
+                statement.with_edges(self.body.aux(), self.lc, false),
+                8
+            )?;
         }
 
         // Write the terminator of the block. If the terminator is
         // not present, this is an invariant but we don't care here.
         if let Some(terminator) = &block_data.terminator {
-            writeln!(f, "{: <2$}{};", "", terminator.with_edges(self.body, self.lc, true), 8)?;
+            writeln!(
+                f,
+                "{: <2$}{};",
+                "",
+                terminator.with_edges(self.body.aux(), self.lc, true),
+                8
+            )?;
         }
 
         writeln!(f, "{: <1$}}}", "", 4)
@@ -186,8 +198,8 @@ pub fn dump_ir_bodies(
         writeln!(
             writer,
             "IR dump for {} `{}` defined at {}\n{}",
-            body.info().source(),
-            body.info().name(),
+            body.metadata().source(),
+            body.metadata().name(),
             body.span().fmt_path(),
             IrBodyWriter::new(body, lc)
         )?;
