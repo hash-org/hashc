@@ -20,9 +20,9 @@ use crate::{
 };
 
 pub mod access;
+pub mod annotation;
 pub mod arrays;
 pub mod blocks;
-pub mod casting;
 pub mod commands;
 pub mod control;
 pub mod fns;
@@ -31,9 +31,9 @@ pub mod refs;
 pub mod tuples;
 
 pub use access::*;
+pub use annotation::*;
 pub use arrays::*;
 pub use blocks::*;
-pub use casting::*;
 pub use commands::*;
 pub use control::*;
 pub use fns::*;
@@ -124,7 +124,7 @@ pub enum Term {
     Index(IndexTerm),
 
     // Casting
-    Cast(CastTerm),
+    Annot(AnnotTerm),
     TyOf(TyOfTerm),
 
     // References
@@ -311,7 +311,7 @@ impl fmt::Display for Term {
             Term::Assign(assign_term) => write!(f, "{}", assign_term),
             Term::Unsafe(unsafe_term) => write!(f, "{}", unsafe_term),
             Term::Access(access_term) => write!(f, "{}", access_term),
-            Term::Cast(cast_term) => write!(f, "{}", cast_term),
+            Term::Annot(cast_term) => write!(f, "{}", cast_term),
             Term::TyOf(type_of_term) => write!(f, "{}", type_of_term),
             Term::Ref(ref_term) => write!(f, "{}", ref_term),
             Term::Deref(deref_term) => write!(f, "{}", deref_term),

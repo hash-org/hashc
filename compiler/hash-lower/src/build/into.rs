@@ -335,7 +335,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block.unit()
             }
 
-            Term::Cast(_)
+            Term::Annot(_)
             | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)

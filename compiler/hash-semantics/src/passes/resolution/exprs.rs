@@ -21,7 +21,7 @@ use hash_tir::{
     tir::{
         blocks::{BlockStatement, BlockTerm, Decl},
         commands::AssignTerm,
-        AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, CharLit, DataTy, DerefTerm,
+        AccessTerm, AnnotTerm, Arg, ArgsId, ArrayTerm, CallTerm, CharLit, DataTy, DerefTerm,
         FloatLit, IndexTerm, IntLit, Lit, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node,
         NodeId, NodeOrigin, ParamIndex, RefKind, RefTerm, ReturnTerm, StrLit, Term, TermId,
         TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
@@ -564,7 +564,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let ty = self.try_or_add_error(self.make_ty_from_ast_ty(node.ty.ast_ref()));
         match (subject, ty) {
             (Some(subject), Some(ty)) => Ok(Term::from(
-                Term::Cast(CastTerm { subject_term: subject, target_ty: ty }),
+                Term::Annot(AnnotTerm { subject_term: subject, target_ty: ty }),
                 NodeOrigin::Given(node.id()),
             )),
             _ => Err(SemanticError::Signal),
@@ -988,7 +988,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::BinOp::Div => (Intrinsic::BinOp, BinOp::Div.into()),
             ast::BinOp::Mod => (Intrinsic::BinOp, BinOp::Mod.into()),
             ast::BinOp::As => {
-                return Ok(Term::from(CastTerm { subject_term: lhs, target_ty: rhs }, origin));
+                return Ok(Term::from(AnnotTerm { subject_term: lhs, target_ty: rhs }, origin));
             }
             ast::BinOp::Merge => {
                 return Ok(equal_ty(typeof_lhs, lhs, rhs, origin));

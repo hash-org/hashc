@@ -56,7 +56,7 @@ impl<E: TcEnv> Tc<'_, E> {
                 | Term::Access(_)
                 | Term::Array(_)
                 | Term::Index(_)
-                | Term::Cast(_)
+                | Term::Annot(_)
                 | Term::TyOf(_)
                 | Term::DataTy(_)
                 | Term::RefTy(_)

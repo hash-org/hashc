@@ -12,12 +12,12 @@ use hash_utils::derive_more::{From, TryInto};
 use crate::tir::{
     blocks::{BlockStatement, BlockStatementsId, BlockTerm, Decl},
     commands::AssignTerm,
-    AccessTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat, CtorTerm,
-    DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId, IfPat,
-    IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue, Node,
-    NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId, PatListId,
-    PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId, TermListId,
-    TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
+    AccessTerm, AnnotTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorPat,
+    CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId,
+    IfPat, IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
+    Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
+    PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
+    TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
 };
 
 /// An atom in the TIR.
@@ -270,7 +270,7 @@ impl Visit<TermId> for Visitor {
                     self.try_visit(index_term.subject, f)?;
                     self.try_visit(index_term.index, f)
                 }
-                Term::Cast(cast_term) => {
+                Term::Annot(cast_term) => {
                     self.try_visit(cast_term.subject_term, f)?;
                     self.try_visit(cast_term.target_ty, f)
                 }
@@ -402,10 +402,10 @@ impl Map<TermId> for Visitor {
                     let index = self.try_map(index_term.index, f)?;
                     Ok(Term::from(IndexTerm { subject, index }, origin))
                 }
-                Term::Cast(cast_term) => {
+                Term::Annot(cast_term) => {
                     let subject_term = self.try_map(cast_term.subject_term, f)?;
                     let target_ty = self.try_map(cast_term.target_ty, f)?;
-                    Ok(Term::from(CastTerm { subject_term, target_ty }, origin))
+                    Ok(Term::from(AnnotTerm { subject_term, target_ty }, origin))
                 }
                 Term::TyOf(type_of_term) => {
                     let term = self.try_map(type_of_term.term, f)?;

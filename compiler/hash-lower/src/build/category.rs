@@ -63,7 +63,7 @@ impl Category {
             Term::Tuple(_)
             | Term::Assign(_)
             | Term::Array(_)
-            | Term::Cast(_)
+            | Term::Annot(_)
             | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)

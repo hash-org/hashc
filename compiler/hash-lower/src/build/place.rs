@@ -151,7 +151,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Return(_)
             | Term::Assign(_)
             | Term::Unsafe(_)
-            | Term::Cast(_)
+            | Term::Annot(_)
             | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)
