@@ -32,18 +32,22 @@ error_codes! {
     UnsupportedImplicitFnApplication = 26,
     InvalidUnionElement = 28,
     InvalidIndexSubject = 29,
+    InvalidCallSubject = 30,
 
-    // Errors in regard to parameter lists
+    // Errors in regard to parameters and arguments
     ParameterLengthMismatch = 35,
     ParameterNameMismatch = 36,
     ParameterInUse = 37,
     AmbiguousFieldOrder = 38,
-    InvalidCallSubject = 39,
 
     // traits
     InvalidMergeElement = 50,
     MultipleNominals = 51,
     InvalidPropertyAccessOfNonMethod = 54,
+
+    // Miscellaneous typechecking and semantic errors
+    EnumDiscriminantOverflowed = 60,
+    DuplicateEnumDiscriminant = 61,
 
     // Pattern errors
     MismatchingPatBind = 79,

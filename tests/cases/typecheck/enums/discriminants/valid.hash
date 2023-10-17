@@ -1,0 +1,66 @@
+// run=pass, stage=ir
+
+// Should assign a `i8` for the tag.
+#layout_of
+#[repr("i8")]
+Direction := enum(
+    #[discriminant(-120)]
+    Up,
+    Right,
+    Down,
+    Left,
+)
+
+// Should assign a `i8` for the tag.
+#layout_of
+ShipKind := enum(
+    #[discriminant(-120)]
+    Cruise,
+    Jet,
+    Steamer,
+    SpeedBoat,
+)
+
+// Should assign a `u16` for the tag.
+#layout_of
+ModuleCode := enum(
+    #[discriminant(3050)]
+    Logic,
+    #[discriminant(3052)]
+    Complexity,
+    #[discriminant(4201)]
+    PLDI,
+)
+
+
+FloorId := struct(i8);
+
+// Should assign a `i16` for the tag.
+#layout_of
+EmployeeKind := enum(
+    #[discriminant(7)]
+    FactoryWorker(FloorId),
+    #[discriminant(12)]
+    Engineer,
+    #[discriminant(83)]
+    Hardware,
+    #[discriminant(666)]
+    Manager,
+)
+
+// Should assign a `i16` for the tag.
+#layout_of
+Variants := enum(
+    #[discriminant(255)]
+    A,
+    B,
+)
+
+
+// Should assign a `i8` for the tag.
+#layout_of
+Empty := enum();
+
+
+
+main := () => {}

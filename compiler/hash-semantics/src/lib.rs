@@ -81,7 +81,7 @@ impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
         // Handle any diagnostics that were emitted
         if env.diagnostics().has_diagnostics() {
             Err(env.diagnostics().into_reports(
-                SemanticReporter::make_reports_from_error,
+                |err| SemanticReporter::make_reports_from_error(&env, err),
                 SemanticReporter::make_reports_from_warning,
             ))
         } else {

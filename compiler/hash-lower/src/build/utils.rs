@@ -138,7 +138,12 @@ impl<'tcx> BodyBuilder<'tcx> {
         self.control_flow_graph.terminate(
             block,
             origin,
-            TerminatorKind::Assert { condition, expected, kind, target: success_block },
+            TerminatorKind::Assert {
+                condition,
+                expected,
+                kind: Box::new(kind),
+                target: success_block,
+            },
         );
 
         success_block

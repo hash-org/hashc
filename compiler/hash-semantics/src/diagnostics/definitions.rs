@@ -1,6 +1,7 @@
 //! Error-related data structures for errors that occur during typechecking.
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_source::location::Span;
+use hash_target::discriminant::Discriminant;
 use hash_tir::tir::{SymbolId, TermId};
 use hash_typecheck::errors::TcError;
 use hash_utils::thin_vec::ThinVec;
@@ -71,6 +72,50 @@ pub enum SemanticError {
 
     /// Type error, forwarded from the typechecker.
     EnumTypeAnnotationMustBeOfDefiningType { location: Span },
+
+    /// Enum discriminant annotation overflowed for the specifying
+    /// type, e.g.
+    /// ```
+    /// #[repr("u8")]
+    /// Foo := enum(
+    ///     #[discriminant(256)]
+    ///     A
+    /// )
+    /// ```
+    EnumDiscriminantOverflow {
+        /// The location of the variant/variant discriminant assignment that
+        /// overflowed.
+        location: Span,
+
+        /// The location of a discriminant type annotation (if it was specified)
+        /// which caused the overflow.
+        annotation_origin: Option<Span>,
+
+        /// The discriminant, computed or specified.
+        discriminant: Discriminant,
+    },
+
+    /// When an explicit discriminant annotation on an enum is used
+    /// more than once implicitly or explicitly, e.g.
+    /// ```
+    /// Foo := enum(
+    ///    #[discriminant(1)]
+    ///    A,
+    ///    #[discriminant(1)]
+    ///    B,
+    /// )
+    /// ```
+    DuplicateEnumDiscriminant {
+        /// The original location of where the discriminant was assigned, if the
+        /// assignment is implicit, then it is the span of the variant.
+        original: Span,
+
+        // The location of the duplicate assignment.
+        offending: Span,
+
+        // The value that was duplicated.
+        value: Discriminant,
+    },
 
     /// Given data definition is not a singleton.
     DataDefIsNotSingleton { location: Span },

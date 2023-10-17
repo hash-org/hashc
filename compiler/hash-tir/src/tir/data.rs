@@ -10,6 +10,7 @@ use hash_storage::{
         SequenceStoreKey, TrivialSequenceStoreKey,
     },
 };
+use hash_target::primitives::IntTy;
 use hash_utils::{bitflags::bitflags, derive_more::Deref, itertools::Itertools};
 use textwrap::indent;
 use utility_types::omit;
@@ -35,21 +36,29 @@ use crate::{
 #[omit(CtorDefData, [data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
 
 pub struct CtorDef {
-    /// The name of the constructor, for example `symbol("Red")` in `Red: Color`
-    /// if given as a constructor to a `Colour := datatype...`.
+    /// The name of the constructor, for example `symbol("Red")` in
+    /// `Red: Colour` if given as a constructor to a `Colour := datatype...`.
     pub name: SymbolId,
+
     /// The `DataDefId` of the data-type that this constructor is a part of.
     pub data_def_id: DataDefId,
+
+    /// An optional value/term that is used for the discriminant of the
+    /// constructor.
+    pub discriminant: Option<TermId>,
+
     /// The index of this constructor in the original data-type's ordered
     /// constructor list (`ctors`).
     pub data_def_ctor_index: usize,
+
     /// The parameters of the constructor.
     // @@Todo: formalise positivity requirements
     pub params: ParamsId,
+
     /// The arguments given to the original data-type in the "return type" of
     /// the constructor.
     ///
-    /// For example, in `Red: Color`, the `args` would be empty.
+    /// For example, in `Red: Colour`, the `args` would be empty.
     /// In `Some: (t: T) -> Option<T>`, the `args` would be `<T>`.
     /// In `refl: (x: A) -> Id<A>(x, x)`, the `args` would be `<A>(x, x)`.
     ///
@@ -188,6 +197,18 @@ pub enum DataDefCtors {
     Primitive(PrimitiveCtorInfo),
 }
 
+/// A utility type describing all of the needed information to create
+/// an enum variant. [CtorDefData] is not used because the `args` are not
+/// optional, and here they are.
+#[derive(Debug, Copy, Clone)]
+#[omit(VariantDataWithoutArgs, [result_args], [Debug, Clone, Copy])]
+pub struct VariantData {
+    pub name: SymbolId,
+    pub params: ParamsId,
+    pub result_args: Option<ArgsId>,
+    pub discriminant: Option<TermId>,
+}
+
 impl CtorDef {
     /// Create data constructors from the given iterator, for the given data
     /// definition.
@@ -205,6 +226,7 @@ impl CtorDef {
                     CtorDef {
                         name: data.name,
                         data_def_id,
+                        discriminant: data.discriminant,
                         data_def_ctor_index: index,
                         params: data.params,
                         result_args: data.result_args,
@@ -249,6 +271,10 @@ pub struct DataDef {
     /// This list is ordered so that a constructor can refer back to its
     /// location in this list using a `usize` index.
     pub ctors: DataDefCtors,
+
+    /// The type of the discriminant, this has no meaning to data definitions
+    /// that are not enums.
+    pub discriminant_ty: Option<IntTy>,
 }
 
 tir_node_single_store!(DataDef);
@@ -269,6 +295,7 @@ impl DataDef {
                     Node::<CtorDef>::empty_seq(),
                     ctors_origin,
                 ))),
+                discriminant_ty: None,
             },
             data_origin,
         )
@@ -309,11 +336,14 @@ impl DataDef {
                 DataDef {
                     name,
                     params,
+                    discriminant_ty: None,
                     ctors: DataDefCtors::Defined(CtorDef::seq_from_data(
                         id,
                         once({
                             Node::at(
                                 CtorDefData {
+                                    // Struct does't have a value for the discriminant.
+                                    discriminant: None,
                                     // Name of the constructor is the same as the data definition,
                                     // though we need to create a new
                                     // symbol for it
@@ -337,8 +367,9 @@ impl DataDef {
     /// specific result arguments.
     pub fn indexed_enum_def(
         name: SymbolId,
+        discriminant_ty: IntTy,
         params: ParamsId,
-        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<(SymbolId, ParamsId, Option<ArgsId>)>>>,
+        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<VariantData>>>,
         enum_origin: NodeOrigin,
     ) -> DataDefId {
         // Create the data definition for the enum
@@ -346,24 +377,23 @@ impl DataDef {
             let variants = variants(id);
             let variants_origin = variants.origin;
 
+            // Create a constructor for each variant
             let ctor_defs = CtorDef::seq_from_data(
                 id,
                 variants
                     .data
                     .into_iter()
                     .map(|node| {
-                        let (variant_name, fields_params, result_args) = *node;
-                        // Create a constructor for each variant
+                        let VariantData { name, params: field_params, result_args, discriminant } =
+                            *node;
                         Node::at(
                             CtorDefData {
-                                name: variant_name,
-                                params: fields_params,
+                                name,
+                                params: field_params,
+                                discriminant,
                                 result_args: result_args.unwrap_or_else(|| {
                                     // Create the arguments for the constructor, which
-                                    // are
-                                    // the
-                                    // type parameters
-                                    // given.
+                                    // are the type parameters given.
                                     Arg::seq_from_param_names_as_vars(params)
                                 }),
                             },
@@ -374,7 +404,15 @@ impl DataDef {
                 variants_origin,
             );
 
-            Node::at(DataDef { name, params, ctors: DataDefCtors::Defined(ctor_defs) }, enum_origin)
+            Node::at(
+                DataDef {
+                    name,
+                    params,
+                    ctors: DataDefCtors::Defined(ctor_defs),
+                    discriminant_ty: Some(discriminant_ty),
+                },
+                enum_origin,
+            )
         })
     }
 
@@ -388,12 +426,14 @@ impl DataDef {
     /// type.
     pub fn enum_def(
         name: SymbolId,
+        discriminant_ty: IntTy,
         params: ParamsId,
-        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<(SymbolId, ParamsId)>>>,
+        variants: impl FnOnce(DataDefId) -> Node<Vec<Node<VariantDataWithoutArgs>>>,
         enum_origin: NodeOrigin,
     ) -> DataDefId {
         Self::indexed_enum_def(
             name,
+            discriminant_ty,
             params,
             |def_id| {
                 let variants = variants(def_id);
@@ -401,7 +441,14 @@ impl DataDef {
                     variants
                         .data
                         .into_iter()
-                        .map(|node| node.with_data((node.0, node.1, None)))
+                        .map(|node| {
+                            node.with_data(VariantData {
+                                name: node.name,
+                                params: node.params,
+                                result_args: None,
+                                discriminant: node.discriminant,
+                            })
+                        })
                         .collect_vec(),
                     variants.origin,
                 )

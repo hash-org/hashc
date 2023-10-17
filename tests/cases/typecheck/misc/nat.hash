@@ -1,4 +1,4 @@
-// stage=typecheck
+// stage=typecheck, run=pass
 
 /// The natural numbers, encoded as a recursive enum.
 Nat := enum(
@@ -13,6 +13,7 @@ add := (a: Nat, b: Nat) -> Nat => {
     Nat::Succ(a) => Nat::Succ(add(a, b))
   }
 }
+
 /// If a + 1 = b + 1, then a = b
 succ_id := <
   a: Nat,
@@ -23,6 +24,7 @@ succ_id := <
     Equal::Refl(_) => refl()
   }
 }
+
 /// Nat induction.
 nat_induction := (
   P: <n: Nat> -> Type,

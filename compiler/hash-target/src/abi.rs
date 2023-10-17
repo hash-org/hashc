@@ -83,6 +83,22 @@ impl Integer {
         }
     }
 
+    /// Finds the smallest [Integer] type which can represent the signed
+    /// value.
+    #[inline]
+    #[allow(clippy::match_overlapping_arm)]
+    pub fn fit_signed(value: i128) -> Integer {
+        use Integer::*;
+
+        match value {
+            -0x0000_0000_0000_0080..=0x0000_0000_0000_007f => I8,
+            -0x0000_0000_0000_8000..=0x0000_0000_0000_7fff => I16,
+            -0x0000_0000_8000_0000..=0x0000_0000_7fff_ffff => I32,
+            -0x8000_0000_0000_0000..=0x7fff_ffff_ffff_ffff => I64,
+            _ => I128,
+        }
+    }
+
     /// Finds the smallest [Integer] with the specified alignment.
     pub fn for_alignment<C: HasDataLayout>(ctx: &C, alignment: Alignment) -> Option<Self> {
         use Integer::*;
@@ -211,9 +227,9 @@ impl ScalarKind {
         match self {
             ScalarKind::Int { kind, signed } => {
                 if *signed {
-                    IntTy::UInt(UIntTy::from_size(kind.size()))
-                } else {
                     IntTy::Int(SIntTy::from_size(kind.size()))
+                } else {
+                    IntTy::UInt(UIntTy::from_size(kind.size()))
                 }
             }
             ScalarKind::Pointer(_) => {

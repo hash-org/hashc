@@ -2,6 +2,7 @@
 //! the target backend IR.
 
 use hash_ir::ir::{Statement, StatementKind};
+use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
 
 use super::{locals::LocalRef, FnBuilder};
@@ -32,10 +33,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                             // ZST for which the rules are slightly bent). However, we
                             // must still codegen the rvalue.
                             if !is_zst {
-                                // @@PanicOnSpan: we should be able to provide a panic_on_span
-                                // by allowing the code generation to have access to the source
-                                // map.
-                                panic!("operand `{value:?}` already has an assignment")
+                                panic_on_span!(
+                                    statement.origin.span(),
+                                    "operand `{value:?}` already has an assignment"
+                                )
                             };
 
                             self.codegen_rvalue_operand(builder, value);

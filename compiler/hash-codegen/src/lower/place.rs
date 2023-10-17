@@ -6,6 +6,7 @@ use hash_ir::{
     ty::{IrTyId, PlaceTy, VariantIdx},
 };
 use hash_layout::{LayoutShape, Variants};
+use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
@@ -309,6 +310,13 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
         let mut codegen_base = match self.locals[place.local] {
             LocalRef::Place(place) => place,
+            LocalRef::Operand(None) => {
+                panic_on_span!(
+                    self.body.span(),
+                    "using still-pending operand local `{:?}` as place",
+                    place.local
+                )
+            }
             LocalRef::Operand(..) => {
                 if projections.first() == Some(&ir::PlaceProjection::Deref) {
                     base = 1;

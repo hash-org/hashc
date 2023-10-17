@@ -139,13 +139,13 @@ impl<'ir> IrBodyWriter<'ir> {
 
         // Write all of the statements within the block
         for statement in &block_data.statements {
-            writeln!(f, "{: <2$}{};", "", statement.with(self.lc), 8)?;
+            writeln!(f, "{: <2$}{};", "", statement.with_edges(self.body, self.lc, false), 8)?;
         }
 
         // Write the terminator of the block. If the terminator is
         // not present, this is an invariant but we don't care here.
         if let Some(terminator) = &block_data.terminator {
-            writeln!(f, "{: <2$}{};", "", terminator.with_edges(self.lc, true), 8)?;
+            writeln!(f, "{: <2$}{};", "", terminator.with_edges(self.body, self.lc, true), 8)?;
         }
 
         writeln!(f, "{: <1$}}}", "", 4)
