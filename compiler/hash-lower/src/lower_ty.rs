@@ -267,7 +267,7 @@ impl<'ir> BuilderCtx<'ir> {
             params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
         );
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
-        let ident = name.ident();
+        let ident = name.ident_or_underscore();
 
         Instance::new(ident, source, params, ret_ty, attr_id)
     }
@@ -340,13 +340,13 @@ impl<'ir> BuilderCtx<'ir> {
                     })
                     .collect_vec();
 
-                AdtVariant { name: ctor.name.ident(), fields }
+                AdtVariant { name: ctor.name.ident_or_underscore(), fields }
             })
             .collect::<AdtVariants>();
 
         // Get the name of the data type, if no name exists we default to
         // using `_`.
-        let mut adt = Adt::new_with_flags(def.name.ident(), variants, flags);
+        let mut adt = Adt::new_with_flags(def.name.ident_or_underscore(), variants, flags);
         adt.substitutions = subs;
 
         // Deal with any specific attributes that were set on the type, i.e.

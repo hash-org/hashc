@@ -53,7 +53,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// pattern level.
     pub(super) fn declare_bindings(&mut self, pat: PatId) {
         self.visit_primary_pattern_bindings(pat, &mut |this, mutability, name, _span, ty| {
-            let local = LocalDecl::new(name.ident(), mutability, ty);
+            let local = LocalDecl::new(name.ident_or_underscore(), mutability, ty);
             this.push_local(name, local);
         })
     }

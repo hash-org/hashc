@@ -97,9 +97,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // Get the current scope, and resolve the variable within the scope. This will
                 // get us the scope that this variable comes from. Using the id and the name, we
                 // can then lookup the local that this variable is bound to.
-                let local = self
-                    .lookup_local(var.symbol)
-                    .unwrap_or_else(|| panic!("failed to lookup local `{}`", var.symbol.ident()));
+                let local = self.lookup_local(var.symbol).unwrap_or_else(|| {
+                    panic!("failed to lookup local `{}`", var.symbol.ident_or_underscore())
+                });
                 block.and(PlaceBuilder::from(local))
             }
             Term::Access(AccessTerm { subject, field }) => {

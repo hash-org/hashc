@@ -14,6 +14,7 @@ use hash_utils::{bitflags::bitflags, derive_more::Deref, itertools::Itertools};
 use textwrap::indent;
 use utility_types::omit;
 
+use super::Term;
 use crate::{
     stores::tir_stores,
     tir::{
@@ -408,6 +409,13 @@ impl DataDef {
             },
             enum_origin,
         )
+    }
+}
+
+impl DataDefId {
+    /// Get the data definition as a term.
+    pub fn as_term_id(&self) -> TermId {
+        Term::from(Term::DataDef(*self), self.origin())
     }
 }
 

@@ -285,7 +285,10 @@ impl<'ctx> BodyBuilder<'ctx> {
                 let ir_ty = this.ty_id_from_tir_ty(param.ty);
 
                 // @@Future: deal with parameter attributes that are mutable?
-                this.push_local(param.name, LocalDecl::new_immutable(param.name.ident(), ir_ty));
+                this.push_local(
+                    param.name,
+                    LocalDecl::new_immutable(param.name.ident_or_underscore(), ir_ty),
+                );
             });
 
             this.build_body(body)

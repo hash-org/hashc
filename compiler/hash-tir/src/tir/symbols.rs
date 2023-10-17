@@ -67,9 +67,14 @@ impl SymbolId {
         Node::create_at(Symbol { name: Some(IDENTS.underscore) }, origin)
     }
 
+    /// Get the [Identifier] name for this symbol, if any.
+    pub fn ident(&self) -> Option<Identifier> {
+        self.borrow().name
+    }
+
     /// Get an [Identifier] name for this symbol. If the symbol does not have a
     /// name, then a `_` is returned.
-    pub fn ident(&self) -> Identifier {
+    pub fn ident_or_underscore(&self) -> Identifier {
         match self.borrow().name {
             Some(name) => name,
             None => IDENTS.underscore,

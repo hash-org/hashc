@@ -116,7 +116,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
         self.time_item("build", |_| {
             for func in items.into_iter() {
-                let name = func.borrow().name.ident();
+                let name = func.borrow().name.ident_or_underscore();
 
                 let ctx = BuilderCtx::new(&data);
                 let mut builder = BodyBuilder::new(name, func.into(), ctx);

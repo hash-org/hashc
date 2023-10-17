@@ -5,9 +5,10 @@ use std::fmt::Display;
 use hash_storage::store::statics::StoreId;
 use typed_builder::TypedBuilder;
 
+use super::Term;
 use crate::{
     stores::tir_stores,
-    tir::{ArgsId, ParamsId, SymbolId, TermId, Ty, TyId},
+    tir::{ArgsId, NodeId, ParamsId, SymbolId, TermId, Ty, TyId},
     tir_node_single_store,
 };
 
@@ -73,6 +74,13 @@ pub struct FnDef {
 }
 
 tir_node_single_store!(FnDef);
+
+impl FnDefId {
+    /// Get the function definition as a term.
+    pub fn as_term_id(&self) -> TermId {
+        Term::from(Term::Fn(*self), self.origin())
+    }
+}
 
 /// A function call.
 #[derive(Debug, Clone, Copy)]
