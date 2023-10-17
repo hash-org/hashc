@@ -1,3 +1,7 @@
+//! A sister implementatiojn of [SequenceStore] which doesn't require being
+//! shared across thread boundaries, and hence avoiding any synchronisation
+//! overhead.
+
 use std::marker::PhantomData;
 
 use super::SequenceStoreKey;
@@ -48,19 +52,19 @@ impl<Key: SequenceStoreKey, V: Clone> LocalSequenceStore<Key, V> {
     /// Get the value sequence for the given key as an owned vector.
     pub fn get_vec(&self, key: Key) -> Vec<V> {
         let (index, len) = key.to_index_and_len();
-        self.data[index..index + len].to_vec()
+        unsafe { self.data.get_unchecked(index..index + len) }.to_vec()
     }
 
     /// Borrow a collection of items.
     pub fn borrow(&self, key: Key) -> &[V] {
         let (index, len) = key.to_index_and_len();
-        &self.data[index..index + len]
+        unsafe { self.data.get_unchecked(index..index + len) }
     }
 
     /// Borrow a mutable collection of items.
     pub fn borrow_mut(&mut self, key: Key) -> &mut [V] {
         let (index, len) = key.to_index_and_len();
-        &mut self.data[index..index + len]
+        unsafe { self.data.get_unchecked_mut(index..index + len) }
     }
 
     pub fn modify<T>(&mut self, key: Key, f: impl FnOnce(&mut [V]) -> T) -> T {
