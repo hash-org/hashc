@@ -70,6 +70,7 @@ impl Category {
             | Ty::TupleTy(_)
             | Ty::RefTy(_)
             | Ty::Universe(_)
+            | Term::DataDef(_)
             | Term::Hole(_) => Category::RValue(RValueKind::As),
         }
     }

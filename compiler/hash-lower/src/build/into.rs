@@ -336,6 +336,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
 
             Term::Annot(_)
+            | Term::DataDef(_)
             | Term::TyOf(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)

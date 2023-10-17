@@ -133,6 +133,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Ty::RefTy(_)
             | Ty::Universe(_)
             | Term::Ref(_)
+            | Term::DataDef(_)
             | Term::Deref(_)
             | Term::Hole(_)) => as_operand(term, self),
         }

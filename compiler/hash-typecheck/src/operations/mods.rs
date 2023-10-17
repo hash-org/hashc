@@ -54,7 +54,8 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
         let value = mod_member.borrow().value;
         match value {
             ModMemberValue::Data(data_def_id) => {
-                self.check_node(data_def_id, ())?;
+                let annotation = Ty::hole(data_def_id.origin().inferred());
+                self.check_node(data_def_id, annotation)?;
                 Ok(())
             }
             ModMemberValue::Mod(mod_def_id) => {

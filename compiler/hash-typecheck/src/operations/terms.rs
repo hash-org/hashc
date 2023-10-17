@@ -82,6 +82,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             Ty::Universe(mut universe_ty) => {
                 self.check(&mut universe_ty, annotation_ty, term_id)?
             }
+            Term::DataDef(data_def_id) => self.check_node(data_def_id, annotation_ty)?,
         };
 
         self.check_ty(annotation_ty)?;
@@ -182,6 +183,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             | Term::Lit(_)
             | Term::Array(_)
             | Term::Tuple(_)
+            | Term::DataDef(_)
             | Term::Ctor(_) => Ok(Some(ControlFlow::Continue(()))),
 
             // Imperative:

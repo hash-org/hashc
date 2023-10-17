@@ -143,6 +143,8 @@ pub enum Term {
 
     /// A user-defined data type
     DataTy(DataTy),
+    /// The definition of a user-defined data type
+    DataDef(DataDefId),
 
     /// The universe type
     Universe(UniverseTy),
@@ -324,6 +326,9 @@ impl fmt::Display for Term {
             }
             Term::Intrinsic(intrinsic) => {
                 write!(f, "{}", intrinsic)
+            }
+            Term::DataDef(data_def) => {
+                write!(f, "{}", data_def)
             }
             Ty::TupleTy(tuple_ty) => write!(f, "{}", tuple_ty),
             Ty::FnTy(fn_ty) => write!(f, "{}", fn_ty),

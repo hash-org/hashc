@@ -156,6 +156,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Ty::DataTy(_)
             | Ty::FnTy(_)
             | Ty::TupleTy(_)
+            | Term::DataDef(_)
             | Ty::RefTy(_)
             | Ty::Universe(_)
             | Term::Ref(_)

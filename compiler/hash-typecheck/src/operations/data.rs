@@ -210,9 +210,11 @@ impl<E: TcEnv> OperationsOn<DataTy> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
-    type AnnotNode = ();
+    type AnnotNode = TyId;
 
-    fn check_node(&self, data_def_id: DataDefId, _: Self::AnnotNode) -> TcResult<()> {
+    fn check_node(&self, data_def_id: DataDefId, _annotation: Self::AnnotNode) -> TcResult<()> {
+        // @@Todo: deal with annotation
+
         let (data_def_params, data_def_ctors) =
             data_def_id.map(|data_def| (data_def.params, data_def.ctors));
 

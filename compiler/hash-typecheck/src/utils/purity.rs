@@ -44,7 +44,9 @@ impl<E: TcEnv> Tc<'_, E> {
         match atom {
             Atom::Term(term) => match *term.value() {
                 // Never has effects
-                Term::Intrinsic(_) | Term::Hole(_) | Term::Fn(_) => ControlFlow::Break(()),
+                Term::DataDef(_) | Term::Intrinsic(_) | Term::Hole(_) | Term::Fn(_) => {
+                    ControlFlow::Break(())
+                }
 
                 // These have effects if their constituents do
                 Term::Lit(_)

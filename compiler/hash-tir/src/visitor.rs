@@ -287,6 +287,7 @@ impl Visit<TermId> for Visitor {
                 Ty::RefTy(ref_ty) => self.try_visit(ref_ty.ty, f),
                 Ty::DataTy(data_ty) => self.try_visit(data_ty.args, f),
                 Ty::Universe(_) => Ok(()),
+                Ty::DataDef(data_def) => self.try_visit(data_def, f),
             },
         }
     }
@@ -451,6 +452,8 @@ impl Map<TermId> for Visitor {
                     Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }, origin))
                 }
                 Ty::Universe(_) => Ok(Ty::from(Ty::Universe(UniverseTy), origin)),
+                // @@Rethink: do we need to map data defs?
+                Term::DataDef(data_def_id) => Ok(Ty::from(Ty::DataDef(data_def_id), origin)),
             },
         }?;
 
