@@ -17,7 +17,7 @@ use hash_tir::{
     tir::{
         validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
         Arg, ArgsId, Node, NodeId, NodesId, ParamsId, Pat, PatArgsId, PatOrCapture, Spread,
-        SymbolId, Term, TermId, TupleTerm, TyId,
+        SymbolId, Term, TermId, TupleKind, TupleTerm, TyId,
     },
     visitor::{Atom, Map, Visit},
 };
@@ -256,7 +256,10 @@ impl<E: TcEnv> Tc<'_, E> {
             spread,
             |sp| {
                 Term::from(
-                    TupleTerm { data: self.extract_spread_args(term_args, pat_args) },
+                    TupleTerm {
+                        data: self.extract_spread_args(term_args, pat_args),
+                        kind: TupleKind::Anon,
+                    },
                     sp.name.origin().computed(),
                 )
             },

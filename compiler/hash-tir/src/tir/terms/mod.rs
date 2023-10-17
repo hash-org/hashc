@@ -184,6 +184,7 @@ impl Term {
     pub fn unit(origin: NodeOrigin) -> TermId {
         Node::create(Node::at(
             Term::Tuple(TupleTerm {
+                kind: TupleKind::Anon,
                 data: Node::create(Node::at(Node::<Arg>::empty_seq(), origin)),
             }),
             origin,

@@ -308,7 +308,7 @@ impl Map<TermId> for Visitor {
             ControlFlow::Continue(()) => match *term_id.value() {
                 Term::Tuple(tuple_term) => {
                     let data = self.try_map(tuple_term.data, f)?;
-                    Ok(Term::from(Term::Tuple(TupleTerm { data }), origin))
+                    Ok(Term::from(Term::Tuple(TupleTerm { data, kind: tuple_term.kind }), origin))
                 }
                 Term::Lit(lit) => Ok(Term::from(Term::Lit(lit), origin)),
                 Term::Array(array_term) => match array_term {

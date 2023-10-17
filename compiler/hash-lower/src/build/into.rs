@@ -47,7 +47,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 self.block_into_dest(destination, block, term)
             }
 
-            Term::Tuple(TupleTerm { data }) => {
+            Term::Tuple(TupleTerm { data, .. }) => {
                 let ty = self.ty_id_from_tir_term(term);
 
                 let adt = ty.borrow().as_adt();

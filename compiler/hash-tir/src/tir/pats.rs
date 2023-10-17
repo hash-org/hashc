@@ -10,7 +10,7 @@ use hash_storage::{
 };
 use hash_utils::derive_more::From;
 
-use super::TermId;
+use super::{TermId, TupleKind};
 use crate::{
     stores::tir_stores,
     tir::{
@@ -141,9 +141,10 @@ impl PatId {
                 },
                 origin,
             )),
-            Pat::Tuple(tuple_pat) => {
-                Some(Term::from(TupleTerm { data: tuple_pat.data.try_use_as_term_args()? }, origin))
-            }
+            Pat::Tuple(tuple_pat) => Some(Term::from(
+                TupleTerm { data: tuple_pat.data.try_use_as_term_args()?, kind: TupleKind::Anon },
+                origin,
+            )),
             Pat::Array(_) => None, // @@Improvement: we can use this as a term too
             Pat::Or(_) => None,
             Pat::If(if_pat) => if_pat.pat.try_use_as_term(),

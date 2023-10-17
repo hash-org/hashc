@@ -95,7 +95,7 @@ impl<E: TcEnv> OperationsOn<AccessTerm> for Tc<'_, E> {
         // Try to resolve the value of the subject as an actual record,
         // and if successful extract the field from it.
         let result = match *access_term.subject.value() {
-            Term::Tuple(TupleTerm { data: args })
+            Term::Tuple(TupleTerm { data: args, .. })
             | Term::Ctor(CtorTerm { ctor_args: args, .. }) => {
                 self.get_param_in_args(args, access_term.field)
             }

@@ -24,7 +24,7 @@ use hash_tir::{
         AccessTerm, AnnotTerm, Arg, ArgsId, ArrayTerm, CallTerm, CharLit, DataTy, DerefTerm,
         FloatLit, IndexTerm, IntLit, Lit, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node,
         NodeId, NodeOrigin, ParamIndex, RefKind, RefTerm, ReturnTerm, StrLit, Term, TermId,
-        TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
+        TupleKind, TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -529,7 +529,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Lit::Bool(bool_lit) => Ok(bool_term(bool_lit.data, NodeOrigin::Given(node.id()))),
             ast::Lit::Tuple(tuple_lit) => {
                 let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
-                Ok(Term::from(Term::Tuple(TupleTerm { data: args }), NodeOrigin::Given(node.id())))
+                Ok(Term::from(
+                    Term::Tuple(TupleTerm { data: args, kind: TupleKind::Anon }),
+                    NodeOrigin::Given(node.id()),
+                ))
             }
             ast::Lit::Array(array_lit) => {
                 let element_vec: Vec<_> = array_lit
