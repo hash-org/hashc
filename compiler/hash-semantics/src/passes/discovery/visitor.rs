@@ -11,10 +11,9 @@ use hash_tir::{
     stack::Stack,
     tir::{
         DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId, Term,
-        TupleTy, Ty,
+        TupleTy, Ty, VariantData,
     },
 };
-use hash_utils::itertools::Itertools;
 
 use super::{
     defs::{DefId, ItemId},
@@ -26,6 +25,7 @@ use crate::{
 
 impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
     type Error = SemanticError;
+
     ast_visitor_default_impl!(
         hiding: Declaration,
         Module,
@@ -207,40 +207,53 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         let enum_name = self.take_name_hint_or_create_internal_name(node.id());
+        let discr_ty = self.compute_discriminant_ty(node)?;
+
+        let mut prev_discr = None;
+        let mut discrs = vec![];
+
+        let entries = node
+            .entries
+            .iter()
+            .map(|variant| {
+                let discriminant = self.compute_discriminant_for_variant(
+                    variant,
+                    discr_ty,
+                    &mut prev_discr,
+                    &mut discrs,
+                )?;
+
+                Ok(Node::at(
+                    VariantData {
+                        name: SymbolId::from_name(
+                            variant.name.ident,
+                            NodeOrigin::Given(variant.name.id()),
+                        ),
+                        params: self
+                            .create_hole_params_from_params(variant.fields.as_ref(), variant.id()),
+                        result_args: None,
+                        discriminant: Some(discriminant),
+                    },
+                    NodeOrigin::Given(variant.id()),
+                ))
+            })
+            .collect::<Result<Vec<_>, SemanticError>>()?;
 
         // Create a data definition for the enum
         let enum_def_id = DataDef::indexed_enum_def(
             enum_name,
+            discr_ty.data,
             self.create_hole_params_from_ty_params(node.ty_params.as_ref(), node.id()),
-            |_| {
-                Node::at(
-                    node.entries
-                        .iter()
-                        .map(|variant| {
-                            Node::at(
-                                (
-                                    SymbolId::from_name(
-                                        variant.name.ident,
-                                        NodeOrigin::Given(variant.name.id()),
-                                    ),
-                                    self.create_hole_params_from_params(
-                                        variant.fields.as_ref(),
-                                        variant.id(),
-                                    ),
-                                    None,
-                                ),
-                                NodeOrigin::Given(variant.id()),
-                            )
-                        })
-                        .collect_vec(),
-                    NodeOrigin::Given(node.entries.id()),
-                )
-            },
+            |_| Node::at(entries, NodeOrigin::Given(node.entries.id())),
             NodeOrigin::Given(node.id()),
         );
 
         // Traverse the enum; the variants have already been created.
         self.enter_item(node, ItemId::Def(enum_def_id.into()), || walk::walk_enum_def(self, node))?;
+
+        // We want to check that the enum discriminant don't violate any
+        // constraints, so we do that here.
+        self.check_enum_discriminants(&discrs, discr_ty)?;
 
         Ok(())
     }

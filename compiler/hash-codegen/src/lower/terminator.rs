@@ -80,12 +80,12 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             }
         };
 
-        match terminator.kind {
+        match &terminator.kind {
             ir::TerminatorKind::Goto(target) => {
-                self.codegen_goto_terminator(builder, target, can_merge())
+                self.codegen_goto_terminator(builder, *target, can_merge())
             }
             ir::TerminatorKind::Call { ref op, ref args, destination, target } => {
-                self.codegen_call_terminator(builder, op, args, destination, target, can_merge())
+                self.codegen_call_terminator(builder, op, args, *destination, *target, can_merge())
             }
             ir::TerminatorKind::Return => {
                 self.codegen_return_terminator(builder);
@@ -100,7 +100,14 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 false
             }
             ir::TerminatorKind::Assert { ref condition, expected, kind, target } => self
-                .codegen_assert_terminator(builder, condition, expected, kind, target, can_merge()),
+                .codegen_assert_terminator(
+                    builder,
+                    condition,
+                    *expected,
+                    kind.as_ref(),
+                    *target,
+                    can_merge(),
+                ),
         }
     }
 
@@ -140,9 +147,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         can_merge: bool,
     ) -> bool {
         // generate the operand as the function call...
-        let callee = self.codegen_operand(builder, op);
+        let call_subject = self.codegen_operand(builder, op);
 
-        let ty = callee.info.ty;
+        let ty = call_subject.info.ty;
         let instance = ty.borrow().as_instance();
         let is_intrinsic = instance.borrow().is_intrinsic();
         let mut maybe_intrinsic = None;
@@ -157,8 +164,24 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             if let Some(Intrinsic::Transmute) = maybe_intrinsic {
                 return if let Some(target) = target {
                     let src = self.codegen_operand(builder, &fn_args[2]);
-                    let dest = self.codegen_place(builder, destination);
-                    self.codegen_transmute(builder, src, dest);
+
+                    match self.locals[destination.local] {
+                        LocalRef::Place(_) => {
+                            let dest = self.codegen_place(builder, destination);
+                            self.codegen_transmute(builder, src, dest);
+                        }
+                        LocalRef::Operand(Some(op)) => {
+                            self.codegen_transmute_operand(builder, src, op.info);
+                        }
+                        LocalRef::Operand(None) => {
+                            let info = self.compute_place_ty_info(builder, destination);
+                            let operand =
+                                self.codegen_transmute_operand(builder, src, info).unwrap();
+                            let or = OperandRef { info, value: operand };
+
+                            self.locals[destination.local] = LocalRef::Operand(Some(or));
+                        }
+                    }
                     self.codegen_goto_terminator(builder, target, can_merge)
                 } else {
                     builder.unreachable();
@@ -560,7 +583,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         builder: &mut Builder,
         condition: &ir::Operand,
         expected: bool,
-        assert_kind: ir::AssertKind,
+        assert_kind: &ir::AssertKind,
         target: ir::BasicBlock,
         can_merge: bool,
     ) -> bool {

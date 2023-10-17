@@ -888,13 +888,6 @@ pub struct SwitchTargets {
     /// relative jump location that is used when performing the jump.
     pub targets: SmallVec<[BasicBlock; 1]>,
 
-    /// This is the type that is used to represent the values within
-    /// the jump table. This will be used to create the appropriate
-    /// value when actually reading from the jump table.
-    ///
-    /// N.B. This must be an integral type, `int`, `bool`, `char`.
-    pub ty: IrTyId,
-
     /// If none of the corresponding values match, then jump to this block. This
     /// is set to [None] if the switch is exhaustive.
     pub otherwise: Option<BasicBlock>,
@@ -905,12 +898,11 @@ impl SwitchTargets {
     /// an optional otherwise block.
     pub fn new(
         targets: impl Iterator<Item = (u128, BasicBlock)>,
-        ty: IrTyId,
         otherwise: Option<BasicBlock>,
     ) -> Self {
         let (values, targets): (SmallVec<[_; 1]>, SmallVec<[_; 1]>) = targets.unzip();
 
-        Self { values, targets, ty, otherwise }
+        Self { values, targets, otherwise }
     }
 
     /// Check if there is an `otherwise` block.
@@ -1027,7 +1019,7 @@ pub enum TerminatorKind {
         /// What the assert terminator expects the `condition` to be
         expected: bool,
         /// What condition is the assert verifying that it holds
-        kind: AssertKind,
+        kind: Box<AssertKind>,
         /// If the `condition` was verified, this is where the program should
         /// continue to.
         target: BasicBlock,
@@ -1039,11 +1031,8 @@ impl TerminatorKind {
     /// behaviour of an `if` branch where the `true` branch is the
     /// `true_block` and the `false` branch is the `false_block`.
     pub fn make_if(value: Operand, true_block: BasicBlock, false_block: BasicBlock) -> Self {
-        let targets = SwitchTargets::new(
-            std::iter::once((false.into(), false_block)),
-            COMMON_IR_TYS.bool,
-            Some(true_block),
-        );
+        let targets =
+            SwitchTargets::new(std::iter::once((false.into(), false_block)), Some(true_block));
 
         TerminatorKind::Switch { value, targets }
     }
@@ -1417,6 +1406,6 @@ mod size_asserts {
     use super::*;
 
     static_assert_size!(Statement, 72);
-    static_assert_size!(Terminator, 120);
+    static_assert_size!(Terminator, 104);
     static_assert_size!(RValue, 48);
 }

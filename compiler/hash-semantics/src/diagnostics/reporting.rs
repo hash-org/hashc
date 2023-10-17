@@ -6,14 +6,14 @@ use hash_tir::tir::HasAstNodeId;
 use hash_typecheck::diagnostics::TcReporter;
 
 use super::definitions::{SemanticError, SemanticWarning};
-use crate::passes::resolution::scoping::ContextKind;
+use crate::{env::SemanticEnv, passes::resolution::scoping::ContextKind};
 
 /// Builds [`Reports`] from semantic errors and warnings.
 pub struct SemanticReporter;
 impl SemanticReporter {
-    pub fn make_reports_from_error(error: SemanticError) -> Reports {
+    pub fn make_reports_from_error<E: SemanticEnv>(env: &E, error: SemanticError) -> Reports {
         let mut reporter = Reporter::new();
-        Self::add_error_to_reporter(&error, &mut reporter);
+        Self::add_error_to_reporter(env, &error, &mut reporter);
         reporter.into_reports()
     }
 
@@ -36,7 +36,11 @@ impl SemanticReporter {
         }
     }
 
-    fn add_error_to_reporter(error: &SemanticError, reporter: &mut Reporter) {
+    fn add_error_to_reporter<E: SemanticEnv>(
+        env: &E,
+        error: &SemanticError,
+        reporter: &mut Reporter,
+    ) {
         // @@ErrorReporting: improve error messages and locations
         match error {
             SemanticError::Signal => {}
@@ -54,7 +58,7 @@ impl SemanticReporter {
             }
             SemanticError::Compound { errors } => {
                 for error in errors {
-                    Self::add_error_to_reporter(error, reporter);
+                    Self::add_error_to_reporter(env, error, reporter);
                 }
             }
             SemanticError::SymbolNotFound { symbol, location, looking_in } => {
@@ -239,6 +243,35 @@ impl SemanticReporter {
                 error.add_span(*location).add_info(
                     "cannot use this type annotation as it is not the defining type of the enum",
                 );
+            }
+            SemanticError::EnumDiscriminantOverflow {
+                location,
+                discriminant,
+                annotation_origin,
+            } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::EnumDiscriminantOverflowed)
+                    .title("enum discriminant overflowed")
+                    .add_span(*location)
+                    .add_note(format!("the type of the discriminant is {}", discriminant.ty));
+
+                if let Some(annotation_origin) = annotation_origin {
+                    error.add_labelled_span(
+                        *annotation_origin,
+                        "discriminant type was specified here",
+                    );
+                }
+            }
+            SemanticError::DuplicateEnumDiscriminant { original, offending, value } => {
+                let value_fmt = value.to_string(env.target().ptr_size());
+
+                reporter
+                    .error()
+                    .code(HashErrorCode::DuplicateEnumDiscriminant)
+                    .title(format!("discriminant value `{value_fmt}` assigned more than once"))
+                    .add_labelled_span(*original, format!("`{value_fmt}` originally assigned here"))
+                    .add_labelled_span(*offending, format!("`{value_fmt}` assigned here"));
             }
             SemanticError::ExhaustivenessError { error } => error.add_to_reports(reporter),
             SemanticError::DuplicateBindInPat { offending, original } => {

@@ -15,16 +15,15 @@
 //!
 //!
 //! 2. Add unit tests for some layout printing
-//!
-//! 3. Scale each field in the layout print to the size of the largest field, to
-//! more accurately represent the layout of the type.
 
 use std::{fmt, iter};
 
 use hash_ir::ty::{IrTy, VariantIdx};
 use hash_storage::store::statics::StoreId;
-use hash_target::{abi::AbiRepresentation, data_layout::HasDataLayout, size::Size};
-use hash_utils::tree_writing::CharacterSet;
+use hash_target::{
+    abi::AbiRepresentation, data_layout::HasDataLayout, primitives::IntTy, size::Size,
+};
+use hash_utils::{index_vec::index_vec, tree_writing::CharacterSet};
 
 use crate::{
     compute::LayoutComputer, FieldLayout, Layout, LayoutId, LayoutShape, TyInfo, Variants,
@@ -134,7 +133,7 @@ impl LayoutWriterConfig {
 
 /// The content of the [Layout] drawing box produced by the
 /// [LayoutWriter].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BoxContent {
     Content {
         /// The title of the box.
@@ -600,18 +599,18 @@ impl<'l> LayoutWriter<'l> {
         &self,
         variant: VariantIdx,
         tag_size: Size,
-        tag_box_width: usize,
+        tag_box: BoxContent,
+        col_width: usize,
         layout: LayoutId,
     ) -> BoxRow {
         self.ty_info.ty.map(|ty| {
             let mut contents = layout
                 .map(|layout| self.create_box_contents(ty, layout, Some((tag_size, variant))));
 
-            // we also insert an initial box with the variant name
-            contents.insert(0, BoxContent::new(variant.to_string(), "".to_string()));
+            contents.insert(0, tag_box);
 
             let mut row = BoxRow::new(contents);
-            row.set_width_at(0, tag_box_width);
+            row.set_width_at(0, col_width);
             row
         })
     }
@@ -756,18 +755,18 @@ impl<'l> LayoutWriter<'l> {
     /// For multi-variant layouts, we want to create a row that represents
     /// the tag of the variant. This function will construct the tag variant
     /// and return the [BoxRow] for this.
-    fn compute_tag_box_row(&self, tag_size: Size, layout: &Layout) -> BoxRow {
+    fn compute_tag_box_row(&self, tag_ty: IntTy, tag_size: Size, layout: &Layout) -> BoxRow {
         let offset = layout.shape.offset(0);
 
         if tag_size < offset {
             // we need to print the tag box first, and then the
             // variants.
             BoxRow::new(vec![
-                BoxContent::new(format!("{tag_size} tag"), "".to_string()),
+                BoxContent::new(format!("{tag_size} tag ({tag_ty})"), "".to_string()),
                 BoxContent::new_pad(offset - tag_size),
             ])
         } else {
-            BoxRow::new(vec![BoxContent::new(format!("{tag_size} tag"), "".to_string())])
+            BoxRow::new(vec![BoxContent::new(format!("{tag_size} tag ({tag_ty})"), "".to_string())])
         }
     }
 }
@@ -823,9 +822,32 @@ impl fmt::Display for LayoutWriter<'_> {
                     Ok(())
                 }
                 Variants::Multiple { tag, field: _, ref variants } => {
+                    let tag_ty = tag.kind().int_ty();
                     let tag_size = tag.size(self.ctx.data_layout());
-                    let tag_row = self.compute_tag_box_row(tag_size, layout);
-                    let tag_box_width = tag_row.width_at(0).unwrap();
+                    let mut tag_row = self.compute_tag_box_row(tag_ty, tag_size, layout);
+                    let mut tag_boxes = index_vec![];
+
+                    // Compute the initial column width, accounting for the top
+                    // box, and for the all of the variants that are present.
+                    let mut tag_box_width = tag_row.width_at(0).unwrap();
+
+                    self.ty_info.ty.map(|ty| {
+                        for variant in ty.as_adt().borrow().variants.iter() {
+                            // We want to read the discriminant value, and the variant name
+                            // for the variant that we are printing.
+                            let tag_box = BoxContent::new(
+                                variant.name.to_string(),
+                                variant.discriminant.to_string(self.ctx.data_layout().pointer_size),
+                            );
+
+                            tag_box_width = tag_box_width.max(tag_box.width());
+                            tag_boxes.push(tag_box);
+                        }
+                    });
+
+                    // In the event that the children of the tag box were bigger, then we increase
+                    // the size of the box
+                    tag_row.set_width_at(0, tag_box_width);
 
                     // firstly, deal with the tag box which is just essentially,
                     // a title with the size of the tag, possible padding and then
@@ -835,6 +857,7 @@ impl fmt::Display for LayoutWriter<'_> {
                             self.create_box_contents_for_variant(
                                 index,
                                 tag_size,
+                                tag_boxes[index].clone(),
                                 tag_box_width,
                                 *layout,
                             )

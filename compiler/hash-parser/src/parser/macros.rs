@@ -49,12 +49,12 @@ impl<'s> AstGen<'s> {
 
         // Now here we expect an expression...
         let value = self.parse_expr_with_precedence(0)?;
-        Ok(self.node_with_span(MacroInvocationArg { name, value }, start))
+        Ok(self.node_with_joined_span(MacroInvocationArg { name, value }, start))
     }
 
     fn parse_macro_invocation_with_args(&mut self) -> ParseResult<AstNode<MacroInvocation>> {
-        let name = self.parse_name()?; // Parse a name for the macro invocation.
         let start = self.current_pos();
+        let name = self.parse_name()?; // Parse a name for the macro invocation.
 
         let args = match self.peek() {
             Some(token) if token.is_paren_tree() => {

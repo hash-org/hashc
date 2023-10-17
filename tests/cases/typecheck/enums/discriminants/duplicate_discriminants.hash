@@ -1,0 +1,11 @@
+// run=fail, stage=typecheck
+
+#[repr("u8")]
+Direction := enum(
+    #[discriminant(0)]
+    Up,
+    #[discriminant(0)]
+    Right,
+    Down,
+    Left,
+)

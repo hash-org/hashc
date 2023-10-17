@@ -99,13 +99,19 @@ impl AstExpander<'_> {
             matches
         };
 
+        use Primitive::*;
+
         match *param_ty.value() {
             Ty::DataTy(data) => match Primitive::try_from_def(data.data_def) {
-                Some(Primitive::I32) => maybe_emit_err(matches!(value, AttrValueKind::Int(_))),
-                Some(Primitive::F64) => maybe_emit_err(matches!(value, AttrValueKind::Float(_))),
+                Some(I8 | I16 | I32 | I64 | I128 | U8 | U16 | U32 | U64 | U128) => {
+                    maybe_emit_err(matches!(value, AttrValueKind::Int(_)))
+                }
+                Some(Primitive::F32 | Primitive::F64) => {
+                    maybe_emit_err(matches!(value, AttrValueKind::Float(_)))
+                }
                 Some(Primitive::Char) => maybe_emit_err(matches!(value, AttrValueKind::Char(_))),
                 Some(Primitive::Str) => maybe_emit_err(matches!(value, AttrValueKind::Str(_))),
-                _ => panic!("unexpected attribute parameter type"),
+                ty => panic!("unexpected attribute parameter type `{ty:?}`"),
             },
             _ => panic!("unexpected attribute parameter type"),
         }
@@ -142,33 +148,35 @@ impl AstExpander<'_> {
                         ParamIndex::Position(index)
                     };
 
+                    let expected_ty = attr_ty.ty_of_param(target);
                     let ptr_size = self.settings.target().ptr_size();
 
                     // If we can't convert this into an attribute value, then we
                     // can't properly check the invocation.
-                    let attr_value = match AttrValueKind::try_from_expr(arg.value.body(), ptr_size)
-                    {
-                        Ok(Some(value)) => value,
-                        Ok(None) => {
-                            let expr_kind = AttrTarget::classify_expr(arg.value.body());
-                            self.add_error(ExpansionError::new(
-                                ExpansionErrorKind::InvalidAttributeArg(expr_kind),
-                                arg.id(),
-                            ));
+                    let attr_value =
+                        match AttrValueKind::try_from_expr(arg.value.body(), expected_ty, ptr_size)
+                        {
+                            Ok(Some(value)) => value,
+                            Ok(None) => {
+                                let expr_kind = AttrTarget::classify_expr(arg.value.body());
+                                self.add_error(ExpansionError::new(
+                                    ExpansionErrorKind::InvalidAttributeArg(expr_kind),
+                                    arg.id(),
+                                ));
 
-                            is_valid = false;
-                            break;
-                        }
+                                is_valid = false;
+                                break;
+                            }
 
-                        // Literal parsing failed, we just push the error into the
-                        // expansion diagnostics and let it be handled later.
-                        Err(err) => {
-                            self.add_error(ExpansionError::new(err.into(), node.id));
+                            // Literal parsing failed, we just push the error into the
+                            // expansion diagnostics and let it be handled later.
+                            Err(err) => {
+                                self.add_error(ExpansionError::new(err.into(), node.id));
 
-                            is_valid = false;
-                            break;
-                        }
-                    };
+                                is_valid = false;
+                                break;
+                            }
+                        };
 
                     macro_rules! lit_prim {
                         ($name:ident,$lit_name:ident, $contents:expr) => {

@@ -512,8 +512,8 @@ impl<'tcx> BodyBuilder<'tcx> {
             let mut field_names = Vec::with_capacity(args.len());
 
             // @@Todo: deal with the situation where we need to fill in default
-            //  values for various parameters. For now, we ensure that all
-            //  values are specified for the particular definition, and ensure
+            // values for various parameters. For now, we ensure that all
+            // values are specified for the particular definition, and ensure
             // that the provided fields are equal. When we do add support for
             // default field values, it should be that the type checker
             // emits information about what fields need to be added to this

@@ -4,7 +4,8 @@
 
 use hash_ast_utils::attr::AttrTarget;
 use hash_source::identifier::Identifier;
-use hash_tir::tir::ParamsId;
+use hash_storage::store::statics::StoreId;
+use hash_tir::tir::{ParamIndex, ParamsId, TyId};
 use hash_utils::{
     fxhash::FxHashMap,
     index_vec::{define_index_type, IndexVec},
@@ -88,5 +89,12 @@ impl AttrTy {
     /// Create a new [AttrTy] with the given name, parameters and subject.
     pub fn new(name: impl Into<Identifier>, params: ParamsId, subject: AttrTarget) -> Self {
         Self { name: name.into(), params, subject }
+    }
+
+    /// Get the type of a parameter at a given [ParamIndex].
+    ///
+    /// If the parameter doesn't exist, then `None` is returned.
+    pub fn ty_of_param(&self, index: ParamIndex) -> Option<TyId> {
+        self.params.at_index(index).map(|param| param.borrow().ty)
     }
 }

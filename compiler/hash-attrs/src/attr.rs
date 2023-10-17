@@ -10,10 +10,14 @@ use hash_ast::{
 use hash_source::{
     constant::{InternedFloat, InternedInt, InternedStr},
     identifier::Identifier,
+    location::Span,
 };
 use hash_storage::store::{DefaultPartialStore, PartialStore};
-use hash_target::{abi::Integer, data_layout::HasDataLayout, primitives::IntTy, size::Size};
-use hash_tir::tir::ParamIndex;
+use hash_target::{primitives::IntTy, size::Size};
+use hash_tir::{
+    intrinsics::utils::{try_use_ty_as_float_ty, try_use_ty_as_int_ty},
+    tir::{ParamIndex, TyId},
+};
 use hash_utils::{derive_more::From, fxhash::FxHashMap, lazy_static::lazy_static};
 
 use crate::{
@@ -23,9 +27,10 @@ use crate::{
 
 /// Valid `#[repr(...)]` options, ideally we should be able to just generate
 /// this in the macro.
-pub(crate) const REPR_OPTIONS: &[&str] = &["c", "u8", "u16", "u32", "u64", "u128"];
+pub(crate) const REPR_OPTIONS: &[&str] =
+    &["c", "u8", "i8", "u16", "i16", "u32", "i32", "u64", "i64", "u128", "i128"];
 
-/// A rerpresnetation of the variants that the `repr` attribute
+/// A representation of the variants that the `repr` attribute
 /// can be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReprAttr {
@@ -35,12 +40,12 @@ pub enum ReprAttr {
 
     /// The representation is annotated with a `u8`, `u16`, `u32`, `u64`,
     /// `u128`, or `usize`.
-    Int(Integer),
+    Int(IntTy),
 }
 
 impl ReprAttr {
     /// Parse a [ReprAttr] from an [Attr].
-    pub fn parse<C: HasDataLayout>(attr: &Attr, ctx: &C) -> AttrResult<Self> {
+    pub fn parse(attr: &Attr) -> AttrResult<Self> {
         let arg = attr.get_arg(0).unwrap();
         let inner = arg.value.as_str_value();
 
@@ -52,11 +57,11 @@ impl ReprAttr {
                 };
 
                 // We reject the type if it is non-sized...
-                if !ty.is_big() {
+                if ty.is_big() {
                     return Err(AttrError::InvalidReprIntKind { arg: *arg });
                 }
 
-                Ok(ReprAttr::Int(Integer::from_int_ty(ty, ctx)))
+                Ok(ReprAttr::Int(ty))
             }
         }
     }
@@ -141,6 +146,23 @@ pub struct AttrValue {
     pub value: AttrValueKind,
 }
 
+impl AttrValue {
+    /// Get the [Span] of the attribute value.
+    pub fn span(&self) -> Span {
+        self.origin.span()
+    }
+
+    /// Get the value of the [AttrValue] as an integer.
+    ///
+    /// **Panics** if the value is not an integer.
+    pub fn as_int(&self) -> InternedInt {
+        match self.value {
+            AttrValueKind::Int(value) => value,
+            value => panic!("value is not an integer, but a {}", value.ty_name()),
+        }
+    }
+}
+
 impl fmt::Display for AttrValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
@@ -170,17 +192,25 @@ pub enum AttrValueKind {
 
 impl AttrValueKind {
     /// Try to convert an [ast::Expr] into an [AttrValue].
-    pub fn try_from_expr(expr: &ast::Expr, ptr_size: Size) -> LitParseResult<Option<Self>> {
+    pub fn try_from_expr(
+        expr: &ast::Expr,
+        expected_ty: Option<TyId>,
+        ptr_size: Size,
+    ) -> LitParseResult<Option<Self>> {
         match expr {
             ast::Expr::Lit(ast::LitExpr { data }) => match data.body() {
                 ast::Lit::Str(ast::StrLit { data }) => Ok(Some(Self::Str(*data))),
                 ast::Lit::Char(ast::CharLit { data }) => Ok(Some(Self::Char(*data))),
                 ast::Lit::Int(int_lit) => {
-                    let value = parse_int_const_from_lit(int_lit, None, ptr_size, false)?.small();
+                    // Try to convert the `expected_ty` into a `IntTy`
+                    let annotation = expected_ty.and_then(try_use_ty_as_int_ty);
+                    let value =
+                        parse_int_const_from_lit(int_lit, annotation, ptr_size, false)?.small();
                     Ok(Some(Self::Int(value)))
                 }
                 ast::Lit::Float(float_lit) => {
-                    let value = parse_float_const_from_lit(float_lit, None)?;
+                    let annotation = expected_ty.and_then(try_use_ty_as_float_ty);
+                    let value = parse_float_const_from_lit(float_lit, annotation)?;
                     Ok(Some(Self::Float(value)))
                 }
                 _ => Ok(None),

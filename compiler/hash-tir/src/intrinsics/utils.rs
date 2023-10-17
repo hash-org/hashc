@@ -296,6 +296,25 @@ pub fn create_term_from_char_lit(lit: char, origin: NodeOrigin) -> TermId {
     Node::create_at(Term::Lit(Node::create_at(val, origin)), origin)
 }
 
+/// Try to use a term as an integer literal, but returning the [IntConstant]
+/// instead of specifically casting to a type.
+pub fn try_use_term_as_int_const<T: HasContext + HasTarget>(
+    env: &T,
+    term: TermId,
+) -> Option<IntConstant> {
+    match *term.value() {
+        Term::Lit(lit) => match *lit.value() {
+            Lit::Int(i) => Some(i.value()),
+            _ => None,
+        },
+        Term::Var(var) => env
+            .context()
+            .try_get_decl_value(var.symbol)
+            .and_then(|result| try_use_term_as_int_const(env, result)),
+        _ => None,
+    }
+}
+
 /// Get the given term as an integer literal if possible.
 pub fn try_use_term_as_integer_lit<
     T: HasContext + HasTarget,
@@ -304,18 +323,7 @@ pub fn try_use_term_as_integer_lit<
     env: &T,
     term: TermId,
 ) -> Option<L> {
-    match *term.value() {
-        Term::Lit(lit) => match *lit.value() {
-            Lit::Int(i) => (&i.value()).try_into().ok(),
-            _ => None,
-        },
-        Term::Var(var) => env
-            .context()
-            .try_get_decl_value(var.symbol)
-            .and_then(|result| try_use_term_as_integer_lit(env, result)),
-
-        _ => None,
-    }
+    try_use_term_as_int_const(env, term).and_then(|val| (&val).try_into().ok())
 }
 
 /// Get the given term as a float literal if possible.

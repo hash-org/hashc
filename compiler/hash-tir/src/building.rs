@@ -8,11 +8,13 @@
 pub mod gen {
     use hash_source::identifier::Identifier;
     use hash_storage::store::statics::SequenceStoreValue;
+    use hash_target::primitives::IntTy;
     use hash_utils::itertools::Itertools;
 
     use crate::tir::{
         Arg, ArgsId, DataDef, DataDefCtors, DataDefId, Node, NodeOrigin, Param, ParamsId, Pat,
-        PatId, PrimitiveCtorInfo, RefKind, SymbolId, Term, TermId, Ty, TyId,
+        PatId, PrimitiveCtorInfo, RefKind, SymbolId, Term, TermId, Ty, TyId, VariantData,
+        VariantDataWithoutArgs,
     };
 
     /// Create a symbol with the given name.
@@ -47,32 +49,26 @@ pub mod gen {
     /// Create an enum definition.
     pub fn enum_def(
         name: SymbolId,
+        discriminant_ty: IntTy,
         params: ParamsId,
-        variants: impl IntoIterator<Item = (SymbolId, ParamsId)>,
+        variants: impl IntoIterator<Item = VariantDataWithoutArgs>,
     ) -> DataDefId {
-        let variants = Node::gen(
-            variants.into_iter().map(|(name, params)| Node::gen((name, params))).collect_vec(),
-        );
-        DataDef::enum_def(name, params, move |_| variants, NodeOrigin::Generated)
+        let variants = Node::gen(variants.into_iter().map(Node::gen).collect_vec());
+        DataDef::enum_def(name, discriminant_ty, params, move |_| variants, NodeOrigin::Generated)
     }
 
     /// Create an indexed enum definition.
     pub fn indexed_enum_def(
         name: SymbolId,
+        discriminant_ty: IntTy,
         params: ParamsId,
-        variants: impl IntoIterator<Item = (SymbolId, ParamsId, Option<ArgsId>)>,
+        variants: impl IntoIterator<Item = VariantData>,
     ) -> DataDefId {
         DataDef::indexed_enum_def(
             name,
+            discriminant_ty,
             params,
-            move |_| {
-                Node::gen(
-                    variants
-                        .into_iter()
-                        .map(|(name, params, args)| Node::gen((name, params, args)))
-                        .collect_vec(),
-                )
-            },
+            move |_| Node::gen(variants.into_iter().map(Node::gen).collect_vec()),
             NodeOrigin::Generated,
         )
     }
@@ -83,6 +79,7 @@ pub mod gen {
             name,
             params: Node::create_gen(Node::<Param>::empty_seq()),
             ctors: DataDefCtors::Primitive(info),
+            discriminant_ty: None,
         })
     }
 
@@ -94,7 +91,12 @@ pub mod gen {
         params: ParamsId,
         info: PrimitiveCtorInfo,
     ) -> DataDefId {
-        Node::create_gen(DataDef { name, params, ctors: DataDefCtors::Primitive(info) })
+        Node::create_gen(DataDef {
+            name,
+            params,
+            ctors: DataDefCtors::Primitive(info),
+            discriminant_ty: None,
+        })
     }
 
     /// Create a universe type.

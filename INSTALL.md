@@ -2,52 +2,56 @@
 
 ## Rust
 
-The Rust Programming language and `cargo` are required to build the Hash compiler. The easiest way to install Rust is using [rustup](https://rustup.rs/).
+The Rust Programming language and `cargo` are required to build the Hash
+compiler. The easiest way to install Rust is using [rustup](https://rustup.rs/).
 
 ## LLVM
 
-One of the Hash compiler code generation backends is LLVM, so you will need to install LLVM on your system.
-Currently, the compiler used LLVM 15.0.x, which can be installed using the following instructions 
-(specific to each OS):
+One of the Hash compiler code generation backends is LLVM, so you will need to
+install LLVM on your system. Currently, the compiler uses LLVM 15.0.6.
 
-### MacOS
+**Note**: Currently it requires some extra steps to install LLVM due to the
+specific version that `hashc` uses. We want to move away from this and bundle
+LLVM with `hashc` as a submodule, but for now these are the steps you need to
+follow.
 
-To install on MacOS, the simplest way to install it is using [Homebrew](https://brew.sh/):
+## Linux, macOS
 
-```bash
-brew install llvm@15
-``` 
-**Note**: If you are unsure of where LLVM has been installed, you can query 
-the installation path using `brew --prefix llvm@15`.
+You can download this version of LLVM from
+[here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-15.0.6) for
+your specific OS. Additionally, you need to install `zstd`  (which can be
+aquired using a package manager or from
+[here](https://github.com/facebook/zstd/releases/tag/v1.5.5)).
 
+Once LLVM 15.0.6 and `zstd` are installed, you need to set the following
+environment variables, replacing `$PATH_TO_LLVM` and `$PATH_TO_ZSTD`
+appropriately for your system depending on your installation:
 
-### Windows
+```sh
+# hashc-related
+export LIBRARY_PATH="$LIBRARY_PATH:$PATH_TO_ZSTD/lib"
+export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PATH_TO_LLVM/lib"
+export LDFLAGS="-L$PATH_TO_LLVM/lib"
+export CPPFLAGS="-I$PATH_TO_LLVM/include"
+export PATH="$PATH:$PATH_TO_LLVM/bin"
+export LLVM_SYS_150_PREFIX="$PATH_TO_LLVM"
+```
 
-To install on Windows, the simplest way to install it is using [Chocolatey](https://chocolatey.org/):
+This can be put in your shell script startup file
+(`.zprofile`/`.bash_profile`/etc), or in a shell script and you can `source` it
+whenever you want to use `hashc` (the former is recommended).
+
+Now, you should be able to run `cargo build` on `hashc` and it should work.
+
+## Windows
+
+To install on Windows, the simplest way to install it is using
+[Chocolatey](https://chocolatey.org/):
 
 ```pwsh
-choco install llvm --version 15.0.0
+choco install llvm --version 15.0.6
 ```
 
-Alternatively, you can download the pre-built binaries from the [LLVM website](https://releases.llvm.org/download.html).
+Alternatively, you can download the pre-built binaries from the [LLVM
+website](https://releases.llvm.org/download.html).
 
-### Linux
-
-To install on Linux, the simplest way to install it is using a package manager, such as `apt`, `yum`, `dnf`, etc. 
-
-With `apt` on Ubuntu it can be installed using the following command:
-```bash
-add-apt-repository -y "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main" # Add the LLVM repository
-apt update
-apt install llvm-15 llvm-15-* liblld-15* libpolly-15-dev libz-dev
-```
-
-### After installation
-
-Once the tools are installed, the LLVM binaries need to be either added to the `PATH` environment variable, or specified to `cargo` using the `LLVM_SYS_15_PREFIX` before the `cargo` command:
-```
-LLVM_SYS_15_PREFIX=<path_to_llvm> cargo run
-``` 
-
-However, if LLVM is added to the path, then building and testing
-can be done with a simple `cargo` invocation:

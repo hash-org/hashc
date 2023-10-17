@@ -160,12 +160,14 @@ impl<'ir> IrGraphWriter<'ir> {
                             target.unwrap()
                         )?;
                     }
-                    TerminatorKind::Switch { targets, .. } => {
+                    TerminatorKind::Switch { targets, value } => {
+                        let target_ty = value.ty(&self.body.declarations);
+
                         // Add all of the table cases
                         for (value, target) in targets.iter() {
                             // We want to create an a constant from this value
                             // with the type, and then print it.
-                            let value = Const::from_scalar_like(value, targets.ty, &self.lc);
+                            let value = Const::from_scalar_like(value, target_ty, &self.lc);
 
                             writeln!(w, r#"  {prefix}{id:?} -> {prefix}{target:?} [label=""#)?;
                             pretty_print_const(w, &value, self.lc).unwrap();
@@ -252,7 +254,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left" balign="left">{}</td></tr>"#,
-                encode_text(&format!("{}", statement.with(self.lc)))
+                encode_text(&format!("{}", statement.with_edges(self.body, self.lc, false)))
             )?;
         }
 
@@ -261,7 +263,7 @@ impl<'ir> IrGraphWriter<'ir> {
             write!(
                 w,
                 r#"<tr><td align="left">{}</td></tr>"#,
-                encode_text(&format!("{}", terminator.with_edges(self.lc, false)))
+                encode_text(&format!("{}", terminator.with_edges(self.body, self.lc, false)))
             )?;
         }
 

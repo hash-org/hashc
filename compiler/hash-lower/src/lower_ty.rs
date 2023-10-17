@@ -17,13 +17,17 @@ use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
     SequenceStoreKey,
 };
-use hash_target::size::Size;
+use hash_target::{
+    discriminant::{Discriminant, DiscriminantKind},
+    primitives::{IntTy, SIntTy},
+    size::Size,
+};
 use hash_tir::{
     context::HasContext,
     intrinsics::{
         definitions::{bool_def, Intrinsic as TirIntrinsic},
         make::IsIntrinsic,
-        utils::try_use_term_as_integer_lit,
+        utils::{try_use_term_as_int_const, try_use_term_as_integer_lit},
     },
     tir::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, FnDef, FnDefId, FnTy,
@@ -114,7 +118,7 @@ impl<'ir> BuilderCtx<'ir> {
                     .enumerate()
                     .map(|(index, ty)| AdtField { name: index.into(), ty })
                     .collect();
-                let variant = AdtVariant { name: "0".into(), fields };
+                let variant = AdtVariant::singleton("0".into(), fields);
 
                 let adt = Adt::new_with_flags("tuple".into(), index_vec![variant], flags);
                 IrTy::Adt(Adt::create(adt))
@@ -327,7 +331,8 @@ impl<'ir> BuilderCtx<'ir> {
             .elements()
             .borrow()
             .iter()
-            .map(|ctor| {
+            .enumerate()
+            .map(|(index, ctor)| {
                 let fields = ctor
                     .params
                     .elements()
@@ -340,7 +345,26 @@ impl<'ir> BuilderCtx<'ir> {
                     })
                     .collect_vec();
 
-                AdtVariant { name: ctor.name.ident_or_underscore(), fields }
+                let ty = def.discriminant_ty.unwrap_or(IntTy::Int(SIntTy::ISize));
+
+                // At discovery, if any of the variants have a discriminant, then all of them items
+                // after it will also have a discriminant, thus making the it consistent across the
+                // entire enum. Otherwise, we can default to using the index of the variant as the
+                // discriminant.
+                //
+                // @@Hack @@TIRConsts
+                let discriminant = if let Some(discriminant_term) = ctor.discriminant &&
+                                      let Some(ref value) = try_use_term_as_int_const(self, discriminant_term) {
+                    Discriminant { value: value.value.as_u128(), ty, kind: DiscriminantKind::Explicit }
+                } else {
+                    Discriminant { value: index as u128, ty, kind: DiscriminantKind::implicit() }
+                };
+
+                AdtVariant {
+                    name: ctor.name.ident_or_underscore(),
+                    fields,
+                    discriminant,
+                }
             })
             .collect::<AdtVariants>();
 
@@ -352,7 +376,7 @@ impl<'ir> BuilderCtx<'ir> {
         // Deal with any specific attributes that were set on the type, i.e.
         // `#repr`.
         if let Some(origin) = ty.data_def.node_id() {
-            adt.apply_origin(origin, self)
+            adt.apply_origin(origin)
         }
 
         // Update the type in the slot that was reserved for it.

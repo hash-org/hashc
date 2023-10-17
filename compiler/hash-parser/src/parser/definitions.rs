@@ -61,10 +61,7 @@ impl<'s> AstGen<'s> {
         // Attempt to parse an optional type for the variant
         // Now try and parse a type if the next token permits it...
         let ty = match self.parse_token_fast(TokenKind::Colon) {
-            Some(_) => match self.peek() {
-                Some(token) if matches!(token.kind, TokenKind::Comma) => None,
-                _ => Some(self.parse_ty()?),
-            },
+            Some(_) => Some(self.parse_ty()?),
             None => None,
         };
 
