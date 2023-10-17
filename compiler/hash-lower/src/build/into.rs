@@ -19,11 +19,11 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::Context,
     intrinsics::utils::try_use_term_as_integer_lit,
-    scopes::AssignTerm,
     term_as_variant,
     tir::{
-        self, ArgsId, ArrayTerm, CallTerm, CtorTerm, HasAstNodeId, LoopControlTerm, NodesId,
-        ParamIndex, RefTerm, ReturnTerm, Term, TermId, TupleTerm, Ty, UnsafeTerm,
+        self, commands::AssignTerm, ArgsId, ArrayTerm, CallTerm, CtorTerm, HasAstNodeId,
+        LoopControlTerm, NodesId, ParamIndex, RefTerm, ReturnTerm, Term, TermId, TupleTerm, Ty,
+        UnsafeTerm,
     },
 };
 use hash_utils::itertools::Itertools;

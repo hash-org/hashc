@@ -18,8 +18,9 @@ use hash_tir::{
         definitions::{equal_ty, BinOp, CondBinOp, Intrinsic, ShortCircuitingBoolOp, UnOp},
         utils::{bool_term, create_term_from_integer_lit},
     },
-    scopes::{AssignTerm, BlockStatement, BlockTerm, Decl},
     tir::{
+        blocks::{BlockStatement, BlockTerm, Decl},
+        commands::AssignTerm,
         AccessTerm, Arg, ArgsId, ArrayTerm, CallTerm, CastTerm, CharLit, DataTy, DerefTerm,
         FloatLit, IndexTerm, IntLit, Lit, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node,
         NodeId, NodeOrigin, ParamIndex, RefKind, RefTerm, ReturnTerm, StrLit, Term, TermId,

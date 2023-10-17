@@ -7,10 +7,7 @@ use core::fmt;
 
 use hash_storage::{
     get,
-    store::{
-        statics::{SingleStoreId, StoreId},
-        TrivialSequenceStoreKey,
-    },
+    store::statics::{SingleStoreId, StoreId},
 };
 use hash_utils::parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use textwrap::indent;
@@ -19,20 +16,9 @@ use utility_types::omit;
 use crate::{
     context::ContextMember,
     stores::tir_stores,
-    tir::{ModDefId, Node, NodeOrigin, Pat, PatId, SymbolId, Term, TermId, TyId},
-    tir_node_sequence_store_direct, tir_node_single_store,
+    tir::{ModDefId, Node, NodeOrigin, SymbolId, TyId},
+    tir_node_single_store,
 };
-
-/// A binding pattern, which is essentially a declaration left-hand side.
-#[derive(Clone, Debug, Copy, PartialEq, Eq)]
-pub struct BindingPat {
-    /// The name of the bind.
-    /// If `name` does not map to a specific `Identifier` name, it means
-    /// that the pattern is actually a wildcard `_`.
-    pub name: SymbolId,
-    /// Whether the binding is declared as mutable.
-    pub is_mutable: bool,
-}
 
 /// Indices into a stack, that represent a contiguous range of stack members.
 #[derive(Debug, Clone, Copy)]
@@ -62,27 +48,6 @@ impl StackIndices {
             }
         }
     }
-}
-
-/// Term to declare new variable(s) in the current stack scope.
-///
-/// Also contains the stack indices of the declared variables in the `bind_pat`.
-///
-/// Depending on the `bind_pat` used, this can be used to declare a single or
-/// multiple variables.
-#[derive(Debug, Clone, Copy)]
-pub struct Decl {
-    pub bind_pat: PatId,
-    pub ty: TyId,
-    pub value: TermId,
-}
-
-/// Term to assign a value to a subject.
-#[derive(Debug, Clone, Copy)]
-pub struct AssignTerm {
-    // If the subject is assign,
-    pub subject: TermId,
-    pub value: TermId,
 }
 
 /// A variable on the stack.
@@ -147,60 +112,6 @@ impl StoreId for StackMemberId {
     }
 }
 
-// @@Todo: move this to `tir` module
-/// A block term.
-///
-/// Creates a new scope on the stack.
-#[derive(Debug, Clone, Copy)]
-pub struct BlockTerm {
-    pub stack_id: StackId, // The associated stack ID for this block.
-    pub statements: BlockStatementsId,
-    pub expr: TermId,
-}
-
-/// A statement in a block.
-///
-/// This is either an expression, or a declaration.
-#[derive(Debug, Clone, Copy)]
-pub enum BlockStatement {
-    Decl(Decl),
-    Expr(TermId),
-}
-
-tir_node_sequence_store_direct!(BlockStatement);
-
-impl fmt::Display for BindingPat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", if self.is_mutable { "mut " } else { "" }, self.name)
-    }
-}
-
-impl fmt::Display for Decl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let value = match *self.bind_pat.value() {
-            Pat::Binding(binding_pat) => {
-                match *self.value.value() {
-                    // If a function is being declared, print the body, otherwise just
-                    // its name.
-                    Term::Fn(fn_def_id) if fn_def_id.map(|def| def.name == binding_pat.name) => {
-                        fn_def_id.to_string()
-                    }
-                    _ => self.value.to_string(),
-                }
-            }
-            _ => self.value.to_string(),
-        };
-
-        write!(f, "{}: {} = {}", self.bind_pat, self.ty, value,)
-    }
-}
-
-impl fmt::Display for AssignTerm {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = {}", self.subject, self.value)
-    }
-}
-
 impl fmt::Display for StackMember {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}: {}", if self.is_mutable { "mut " } else { "" }, self.name, self.ty)
@@ -236,52 +147,5 @@ impl fmt::Display for Stack {
 impl fmt::Display for StackId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", *self.value())
-    }
-}
-
-impl fmt::Display for BlockStatement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BlockStatement::Decl(d) => {
-                write!(f, "{}", d)
-            }
-            BlockStatement::Expr(e) => {
-                write!(f, "{}", e)
-            }
-        }
-    }
-}
-
-impl fmt::Display for BlockStatementId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", *self.value())
-    }
-}
-
-impl fmt::Display for BlockStatementsId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for term in self.iter() {
-            writeln!(f, "{};", term)?;
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for BlockTerm {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{{")?;
-
-        let stack_local_mod_def = get!(self.stack_id, local_mod_def);
-        if let Some(mod_def_members) =
-            stack_local_mod_def.map(|mod_def_id| get!(mod_def_id, members))
-        {
-            let members = mod_def_members.to_string();
-            write!(f, "{}", indent(&members, "  "))?;
-        }
-
-        write!(f, "{}", indent(&self.statements.to_string(), "  "))?;
-        writeln!(f, "{}", indent(&self.expr.to_string(), "  "))?;
-
-        write!(f, "}}")
     }
 }

@@ -9,17 +9,15 @@ use hash_storage::store::{
 };
 use hash_utils::derive_more::{From, TryInto};
 
-use crate::{
-    scopes::{AssignTerm, BlockStatement, BlockStatementsId, BlockTerm, Decl},
-    tir::{
-        AccessTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat,
-        CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId,
-        IfPat, IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId,
-        ModMemberValue, Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg,
-        PatArgsId, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm,
-        Term, TermId, TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy,
-        UnsafeTerm,
-    },
+use crate::tir::{
+    blocks::{BlockStatement, BlockStatementsId, BlockTerm, Decl},
+    commands::AssignTerm,
+    AccessTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CastTerm, CtorDefId, CtorPat, CtorTerm,
+    DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId, IfPat,
+    IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue, Node,
+    NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId, PatListId,
+    PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId, TermListId,
+    TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
 };
 
 /// An atom in the TIR.

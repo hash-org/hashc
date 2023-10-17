@@ -4,8 +4,10 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::HasContext,
     intrinsics::definitions::never_ty,
-    scopes::AssignTerm,
-    tir::{LoopControlTerm, LoopTerm, NodeId, NodeOrigin, ReturnTerm, Term, TermId, Ty, TyId},
+    tir::{
+        commands::AssignTerm, LoopControlTerm, LoopTerm, NodeId, NodeOrigin, ReturnTerm, Term,
+        TermId, Ty, TyId,
+    },
 };
 
 use crate::{

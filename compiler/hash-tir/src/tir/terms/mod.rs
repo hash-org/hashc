@@ -11,7 +11,6 @@ use hash_utils::derive_more::From;
 
 use crate::{
     intrinsics::definitions::Intrinsic,
-    scopes::{AssignTerm, BlockTerm},
     stores::tir_stores,
     tir::{
         Arg, ArgsId, CtorTerm, DataDefId, DataTy, LitId, Node, NodeId, NodeOrigin, Param, SymbolId,
@@ -22,7 +21,9 @@ use crate::{
 
 pub mod access;
 pub mod arrays;
+pub mod blocks;
 pub mod casting;
+pub mod commands;
 pub mod control;
 pub mod fns;
 pub mod holes;
@@ -31,7 +32,9 @@ pub mod tuples;
 
 pub use access::*;
 pub use arrays::*;
+pub use blocks::*;
 pub use casting::*;
+pub use commands::*;
 pub use control::*;
 pub use fns::*;
 pub use holes::*;
@@ -83,7 +86,7 @@ pub enum Term {
     // Variables
     Var(VarTerm),
 
-    // Scopes
+    // Blocks
     Block(BlockTerm),
 
     // -- Values --

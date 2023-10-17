@@ -11,11 +11,10 @@ use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
     intrinsics::utils::bool_pat,
-    scopes::BindingPat,
     tir::{
-        ArrayPat, CharLit, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin, OrPat,
-        ParamIndex, Pat, PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, Spread,
-        StrLit, SymbolId, TuplePat,
+        pats::BindingPat, ArrayPat, CharLit, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin,
+        OrPat, ParamIndex, Pat, PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat,
+        Spread, StrLit, SymbolId, TuplePat,
     },
 };
 
