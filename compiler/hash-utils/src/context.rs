@@ -384,4 +384,19 @@ mod test_super {
             assert_eq!(current_scope_index.data, 0);
         });
     }
+
+    #[test]
+    fn test_name_ordering() {
+        let name = |s, m| Name::<TestContextTypes> {
+            symbol: "foo",
+            scope_index: ScopeIndex { data: s },
+            member_index: MemberIndex { data: m },
+        };
+
+        assert!(name(0, 0) < name(0, 1));
+        assert!(name(0, 0) < name(1, 0));
+        assert!(name(1, 3) == name(1, 3));
+        assert!(name(1, 34) < name(2, 0));
+        assert!(name(2, 34) > name(2, 1));
+    }
 }
