@@ -638,7 +638,9 @@ impl AstVisitor for AstTreePrinter {
         &self,
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
-        let walk::ModDef { block, ty_params } = walk::walk_mod_def(self, node)?;
+        let walk::ModDef { entries, ty_params } = walk::walk_mod_def(self, node)?;
+
+        let block = TreeNode::branch("block", entries);
         let children = {
             if let Some(ty_params) = ty_params {
                 vec![ty_params, block]

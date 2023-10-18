@@ -809,4 +809,23 @@ impl<'s> AstGen<'s> {
 
         Ok(self.node_with_joined_span(Expr::FnDef(FnDef { params, return_ty, fn_body }), start))
     }
+
+    /// Function to parse a sequence of top-level [Expr]s from the current
+    /// context.
+    pub(crate) fn parse_exprs_from_brace_tree(&mut self) -> ParseResult<AstNodes<Expr>> {
+        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
+            let mut exprs = thin_vec![];
+
+            // Continue eating the generator until no more tokens are present
+            //
+            // @@ErrorRecovery: don't bail immediately...
+            while gen.has_token() {
+                if let Some((_, expr)) = gen.parse_top_level_expr()? {
+                    exprs.push(expr);
+                }
+            }
+
+            Ok(gen.nodes_with_span(exprs, gen.range()))
+        })
+    }
 }

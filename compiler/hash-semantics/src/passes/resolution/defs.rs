@@ -26,7 +26,7 @@ impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
         node: AstNodeRef<ast::ModDef>,
     ) -> SemanticResult<ModDefId> {
         let mod_def_id = self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap();
-        self.resolve_mod_def_inner_terms(mod_def_id, node.block.members())?;
+        self.resolve_mod_def_inner_terms(mod_def_id, node.entries.ast_ref_iter())?;
         Ok(mod_def_id)
     }
 
@@ -197,7 +197,7 @@ impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
                                 if self
                                     .try_or_add_error(self.resolve_mod_def_inner_terms(
                                         mod_def_id,
-                                        mod_def.block.members(),
+                                        mod_def.entries.ast_ref_iter(),
                                     ))
                                     .is_none()
                                 {
