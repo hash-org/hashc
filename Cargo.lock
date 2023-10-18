@@ -746,6 +746,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-namecheck"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-ast-utils",
+ "hash-reporting",
+ "hash-source",
+ "hash-target",
+ "hash-tree-def",
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [

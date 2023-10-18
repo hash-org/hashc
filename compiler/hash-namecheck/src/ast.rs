@@ -174,7 +174,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
     type VariableExprRet = ();
     fn visit_variable_expr(
         &mut self,
-        node: AstNodeRef<VariableExpr>,
+        _node: AstNodeRef<VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         todo!()
     }
@@ -182,7 +182,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
     type ImplicitFnDefRet = ();
     fn visit_implicit_fn_def(
         &mut self,
-        node: AstNodeRef<ImplicitFnDef>,
+        _node: AstNodeRef<ImplicitFnDef>,
     ) -> Result<Self::ImplicitFnDefRet, Self::Error> {
         todo!()
     }
@@ -190,26 +190,26 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
     type MatchCaseRet = ();
     fn visit_match_case(
         &mut self,
-        node: AstNodeRef<MatchCase>,
+        _node: AstNodeRef<MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         todo!()
     }
 
     type FnDefRet = ();
 
-    fn visit_fn_def(&mut self, node: AstNodeRef<FnDef>) -> Result<Self::FnDefRet, Self::Error> {
+    fn visit_fn_def(&mut self, _node: AstNodeRef<FnDef>) -> Result<Self::FnDefRet, Self::Error> {
         todo!()
     }
 
     type ModuleRet = ();
 
-    fn visit_module(&mut self, node: AstNodeRef<Module>) -> Result<Self::ModuleRet, Self::Error> {
+    fn visit_module(&mut self, _node: AstNodeRef<Module>) -> Result<Self::ModuleRet, Self::Error> {
         todo!()
     }
 
     type TyArgRet = ();
 
-    fn visit_ty_arg(&mut self, node: AstNodeRef<TyArg>) -> Result<Self::TyArgRet, Self::Error> {
+    fn visit_ty_arg(&mut self, _node: AstNodeRef<TyArg>) -> Result<Self::TyArgRet, Self::Error> {
         todo!()
     }
 
@@ -217,14 +217,14 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_ty_params(
         &mut self,
-        node: AstNodeRef<TyParams>,
+        _node: AstNodeRef<TyParams>,
     ) -> Result<Self::TyParamsRet, Self::Error> {
         todo!()
     }
 
     type ModDefRet = ();
 
-    fn visit_mod_def(&mut self, node: AstNodeRef<ModDef>) -> Result<Self::ModDefRet, Self::Error> {
+    fn visit_mod_def(&mut self, _node: AstNodeRef<ModDef>) -> Result<Self::ModDefRet, Self::Error> {
         todo!()
     }
 
@@ -232,7 +232,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_access_pat(
         &mut self,
-        node: AstNodeRef<AccessPat>,
+        _node: AstNodeRef<AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
         todo!()
     }
@@ -241,7 +241,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_tuple_lit(
         &mut self,
-        node: AstNodeRef<TupleLit>,
+        _node: AstNodeRef<TupleLit>,
     ) -> Result<Self::TupleLitRet, Self::Error> {
         todo!()
     }
@@ -250,7 +250,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_access_expr(
         &mut self,
-        node: AstNodeRef<AccessExpr>,
+        _node: AstNodeRef<AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
         todo!()
     }
@@ -259,7 +259,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_tuple_pat(
         &mut self,
-        node: AstNodeRef<TuplePat>,
+        _node: AstNodeRef<TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
         todo!()
     }
@@ -268,14 +268,14 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_struct_def(
         &mut self,
-        node: AstNodeRef<StructDef>,
+        _node: AstNodeRef<StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
         todo!()
     }
 
     type FnTyRet = ();
 
-    fn visit_fn_ty(&mut self, node: AstNodeRef<FnTy>) -> Result<Self::FnTyRet, Self::Error> {
+    fn visit_fn_ty(&mut self, _node: AstNodeRef<FnTy>) -> Result<Self::FnTyRet, Self::Error> {
         todo!()
     }
 
@@ -283,7 +283,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_access_ty(
         &mut self,
-        node: AstNodeRef<AccessTy>,
+        _node: AstNodeRef<AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
         todo!()
     }
@@ -292,7 +292,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_constructor_pat(
         &mut self,
-        node: AstNodeRef<ConstructorPat>,
+        _node: AstNodeRef<ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
         todo!()
     }
@@ -301,14 +301,14 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_declaration(
         &mut self,
-        node: AstNodeRef<Declaration>,
+        _node: AstNodeRef<Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
         todo!()
     }
 
     type ParamsRet = ();
 
-    fn visit_params(&mut self, node: AstNodeRef<Params>) -> Result<Self::ParamsRet, Self::Error> {
+    fn visit_params(&mut self, _node: AstNodeRef<Params>) -> Result<Self::ParamsRet, Self::Error> {
         todo!()
     }
 
@@ -316,7 +316,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_enum_def(
         &mut self,
-        node: AstNodeRef<EnumDef>,
+        _node: AstNodeRef<EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         todo!()
     }
@@ -325,7 +325,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_module_pat_entry(
         &mut self,
-        node: AstNodeRef<ModulePatEntry>,
+        _node: AstNodeRef<ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error> {
         todo!()
     }
@@ -334,7 +334,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_binding_pat(
         &mut self,
-        node: AstNodeRef<BindingPat>,
+        _node: AstNodeRef<BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
         todo!()
     }
@@ -343,7 +343,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_named_ty(
         &mut self,
-        node: AstNodeRef<NamedTy>,
+        _node: AstNodeRef<NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
         todo!()
     }
@@ -352,7 +352,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_implicit_fn_call(
         &mut self,
-        node: AstNodeRef<ImplicitFnCall>,
+        _node: AstNodeRef<ImplicitFnCall>,
     ) -> Result<Self::ImplicitFnCallRet, Self::Error> {
         todo!()
     }
@@ -361,7 +361,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_call_expr(
         &mut self,
-        node: AstNodeRef<CallExpr>,
+        _node: AstNodeRef<CallExpr>,
     ) -> Result<Self::CallExprRet, Self::Error> {
         todo!()
     }
@@ -370,7 +370,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_ty_param(
         &mut self,
-        node: AstNodeRef<TyParam>,
+        _node: AstNodeRef<TyParam>,
     ) -> Result<Self::TyParamRet, Self::Error> {
         todo!()
     }
@@ -379,7 +379,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_tuple_ty(
         &mut self,
-        node: AstNodeRef<TupleTy>,
+        _node: AstNodeRef<TupleTy>,
     ) -> Result<Self::TupleTyRet, Self::Error> {
         todo!()
     }
@@ -388,7 +388,7 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
 
     fn visit_body_block(
         &mut self,
-        node: AstNodeRef<BodyBlock>,
+        _node: AstNodeRef<BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         todo!()
     }
