@@ -75,7 +75,7 @@ impl std::fmt::Display for Token {
             TokenKind::Str(_) | TokenKind::Char(_) | TokenKind::Int(_, _) | TokenKind::Float(_) => {
                 panic!("cannot directly format literal token")
             }
-            kind => write!(f, "{kind:?}"),
+            kind => write!(f, "{kind}"),
         }
     }
 }

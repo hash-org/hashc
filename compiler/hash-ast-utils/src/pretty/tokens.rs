@@ -28,6 +28,9 @@ where
                 self.write_token(token, source)?;
             }
 
+            // @@Future: figure out the exact formatting for this. Currently, we will just
+            // pretty-print the tokens as they are separated by spaces, we might
+            // want to take in account token spacing in the future.
             self.write(" ")?;
         }
 
