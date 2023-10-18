@@ -718,8 +718,7 @@ impl<'s> AstGen<'s> {
             // Handle the empty tuple case
             if gen.len() < 2 {
                 let elements = gen.nodes_with_span(thin_vec![], start);
-                let data = gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), start);
-                let tuple = gen.node_with_joined_span(Expr::Lit(LitExpr { data }), start);
+                let tuple = gen.node_with_joined_span(Expr::Tuple(TupleExpr { elements }), start);
 
                 match gen.peek_kind() {
                     Some(TokenKind::Comma) => {
@@ -734,13 +733,13 @@ impl<'s> AstGen<'s> {
                 };
             }
 
-            let entry = gen.parse_tuple_lit_entry()?;
+            let entry = gen.parse_tuple_arg()?;
 
             // In the special case where this is just an expression that is wrapped within
             // parentheses, we can check that the 'name' and 'ty' parameters are
             // set to `None` and that there are no extra tokens that are left within
             // the token tree...
-            if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
+            if entry.name.is_none() && !gen.has_token() {
                 let expr = entry.into_body().value;
 
                 // We want to emit a redundant parentheses warning if it is not a binary-like
@@ -767,7 +766,7 @@ impl<'s> AstGen<'s> {
                             break;
                         }
 
-                        elements.push(gen.parse_tuple_lit_entry()?)
+                        elements.push(gen.parse_tuple_arg()?)
                     }
                     Some(token) => gen.err_with_location(
                         ParseErrorKind::ExpectedExpr,
@@ -781,8 +780,7 @@ impl<'s> AstGen<'s> {
 
             let span = gen.range();
             let elements = gen.nodes_with_span(elements, span);
-            let data = gen.node_with_span(Lit::Tuple(TupleLit { elements }), span);
-            Ok(gen.node_with_span(Expr::Lit(LitExpr { data }), span))
+            Ok(gen.node_with_span(Expr::Tuple(TupleExpr { elements }), span))
         })
     }
 

@@ -864,39 +864,20 @@ define_tree! {
         Expr(ExprTy)
     }
 
-    /// An array literal, e.g. `[1, 2, 3]`.
+    /// An array expression, e.g. `[1, 2, 3]`.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct ArrayLit {
+    pub struct ArrayExpr {
         /// The elements of the array literal.
         pub elements: Children!(Expr),
     }
 
-    /// An entry within a tuple type, which may contain an optional name
-    /// annotation and or a type annotation, for example:
-    ///
-    /// ```text
-    /// (foo : u32 = 2, ..., k = 2)
-    ///  ^^^   ^^^   ^
-    /// name   type  value
-    /// ```
+    /// A tuple expression, e.g. `(1, 'A', "foo")`.
     #[derive(Debug, PartialEq, Clone)]
     #[node]
-    pub struct TupleLitEntry {
-        /// If the entry has a bounded name
-        pub name: OptionalChild!(Name),
-        /// Optional type annotation on the tuple entry
-        pub ty: OptionalChild!(Ty),
-        /// Value of the tuple literal entry
-        pub value: Child!(Expr),
-    }
-
-    /// A tuple literal, e.g. `(1, 'A', "foo")`.
-    #[derive(Debug, PartialEq, Clone)]
-    #[node]
-    pub struct TupleLit {
+    pub struct TupleExpr {
         /// The elements of the tuple literal.
-        pub elements: Children!(TupleLitEntry),
+        pub elements: Children!(ExprArg),
     }
 
     /// A string literal.
@@ -972,49 +953,6 @@ define_tree! {
         Float(FloatLit),
         /// Boolean literals e.g. `false`
         Bool(BoolLit),
-        /// Array literals, e.g. `[1, 2, x + 4]`
-        Array(ArrayLit),
-        /// Tuple literals, e.g. `(1, a, 3)`
-        Tuple(TupleLit),
-    }
-
-    impl Lit {
-        /// This function is used to determine if the current literal tree only
-        /// contains constants. Constants are other literals that are not subject
-        /// to change, e.g. a number like `5` or a string `hello`. This function
-        /// implements short circuiting behaviour.
-        pub fn is_constant(&self) -> bool {
-            let is_expr_lit_and_const = |expr: &AstNode<Expr>| -> bool {
-                match expr.body() {
-                    Expr::Lit(LitExpr { data }) => data.is_constant(),
-                    _ => false,
-                }
-            };
-
-            // Recurse over the literals for `tuple` and `array` literals to see if they are
-            // constant.
-            match self {
-                Lit::Array(ArrayLit { elements }) => {
-                    !elements.iter().any(|expr| !is_expr_lit_and_const(expr))
-                }
-                Lit::Tuple(TupleLit { elements }) => {
-                    !elements.iter().any(|entry| !is_expr_lit_and_const(&entry.body().value))
-                }
-                _ => true,
-            }
-        }
-
-        /// Check whether the given literal is a primitive literal. Primitive
-        /// literals consist of the following:
-        ///
-        /// - `StrLit`
-        /// - `CharLit`
-        /// - `IntLit`
-        /// - `FloatLit`
-        /// - `BoolLit`
-        pub fn is_primitive(&self) -> bool {
-            matches!(self, Lit::Str(_) | Lit::Char(_) | Lit::Int(_) | Lit::Float(_) | Lit::Bool(_))
-        }
     }
 
     /// An alternative pattern, e.g. `Red | Blue`.
@@ -2231,6 +2169,12 @@ define_tree! {
 
         /// Literal expression e.g. `5`
         Lit(LitExpr),
+
+        /// Array expressions, e.g. `[1, 2, x + 4]`
+        Array(ArrayExpr),
+
+        /// Tuple expressions, e.g. `(1, a, 3)`
+        Tuple(TupleExpr),
 
         /// Cast expression e.g. `x as u32`
         Cast(CastExpr),

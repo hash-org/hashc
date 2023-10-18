@@ -288,32 +288,6 @@ where
         self.write("]")
     }
 
-    type TupleLitEntryRet = ();
-
-    fn visit_tuple_lit_entry(
-        &mut self,
-        node: ast::AstNodeRef<ast::TupleLitEntry>,
-    ) -> Result<Self::TupleLitEntryRet, Self::Error> {
-        let ast::TupleLitEntry { name, ty, value } = node.body();
-
-        if let Some(name) = name {
-            self.visit_name(name.ast_ref())?;
-
-            if ty.is_some() {
-                self.write(": ")?;
-            } else {
-                self.write(" = ")?;
-            }
-        }
-
-        if let Some(ty) = ty {
-            self.visit_ty(ty.ast_ref())?;
-            self.write(" = ")?;
-        }
-
-        self.visit_expr(value.ast_ref())
-    }
-
     type UnsafeExprRet = ();
 
     fn visit_unsafe_expr(
@@ -741,13 +715,13 @@ where
         self.visit_expr(fn_body.ast_ref())
     }
 
-    type ArrayLitRet = ();
+    type ArrayExprRet = ();
 
-    fn visit_array_lit(
+    fn visit_array_expr(
         &mut self,
-        node: ast::AstNodeRef<ast::ArrayLit>,
-    ) -> Result<Self::ArrayLitRet, Self::Error> {
-        let ast::ArrayLit { elements } = node.body();
+        node: ast::AstNodeRef<ast::ArrayExpr>,
+    ) -> Result<Self::ArrayExprRet, Self::Error> {
+        let ast::ArrayExpr { elements } = node.body();
 
         let opts = CollectionPrintingOptions::delimited(Delimiter::Bracket, ", ");
         self.print_separated_collection(elements, opts, |this, item| this.visit_expr(item))
@@ -828,18 +802,16 @@ where
         self.write(format!("import(\"{}\")", node.body.data.path))
     }
 
-    type TupleLitRet = ();
+    type TupleExprRet = ();
 
-    fn visit_tuple_lit(
+    fn visit_tuple_expr(
         &mut self,
-        node: ast::AstNodeRef<ast::TupleLit>,
-    ) -> Result<Self::TupleLitRet, Self::Error> {
-        let ast::TupleLit { elements } = node.body();
+        node: ast::AstNodeRef<ast::TupleExpr>,
+    ) -> Result<Self::TupleExprRet, Self::Error> {
+        let ast::TupleExpr { elements } = node.body();
 
         let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(elements, opts, |this, entry| {
-            this.visit_tuple_lit_entry(entry)
-        })
+        self.print_separated_collection(elements, opts, |this, entry| this.visit_expr_arg(entry))
     }
 
     type FnTyRet = ();

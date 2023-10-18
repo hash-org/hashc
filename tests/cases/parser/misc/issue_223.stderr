@@ -1,7 +1,7 @@
-error: expected value assignment after type annotation within named tuple
- --> $DIR/issue_223.hash:3:36
-2 |   
-3 |   wrap := (res: Result<T, (int, str)>): Result<T, IoError> => match res {
-  |                                      ^ 
-4 |   }
-  = help: expected a `=`
+error: expected an expression, however received a `:`
+ --> $DIR/issue_223.hash:7:13
+6 |   
+7 |   wrap := (res: Result<T, (int, str)>): Result<T, IoError> => match res {
+  |               ^ 
+8 |   }
+  = help: expected a `,`

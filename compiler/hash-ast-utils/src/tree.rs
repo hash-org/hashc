@@ -32,39 +32,22 @@ impl AstVisitor for AstTreePrinter {
         walk::walk_lit_same_children(self, node)
     }
 
-    type ArrayLitRet = TreeNode;
-    fn visit_array_lit(
+    type ArrayExprRet = TreeNode;
+    fn visit_array_expr(
         &self,
-        node: ast::AstNodeRef<ast::ArrayLit>,
-    ) -> Result<Self::ArrayLitRet, Self::Error> {
-        let children = walk::walk_array_lit(self, node)?;
+        node: ast::AstNodeRef<ast::ArrayExpr>,
+    ) -> Result<Self::ArrayExprRet, Self::Error> {
+        let children = walk::walk_array_expr(self, node)?;
         Ok(TreeNode::branch("array", children.elements))
     }
 
-    type TupleLitEntryRet = TreeNode;
-    fn visit_tuple_lit_entry(
+    type TupleExprRet = TreeNode;
+
+    fn visit_tuple_expr(
         &self,
-        node: ast::AstNodeRef<ast::TupleLitEntry>,
-    ) -> Result<Self::TupleLitRet, Self::Error> {
-        let walk::TupleLitEntry { name, ty, value } = walk::walk_tuple_lit_entry(self, node)?;
-
-        Ok(TreeNode::branch(
-            "entry",
-            name.map(|t| TreeNode::branch("name", vec![t]))
-                .into_iter()
-                .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
-                .chain(iter::once(TreeNode::branch("value", vec![value])))
-                .collect(),
-        ))
-    }
-
-    type TupleLitRet = TreeNode;
-
-    fn visit_tuple_lit(
-        &self,
-        node: ast::AstNodeRef<ast::TupleLit>,
-    ) -> Result<Self::TupleLitRet, Self::Error> {
-        let children = walk::walk_tuple_lit(self, node)?;
+        node: ast::AstNodeRef<ast::TupleExpr>,
+    ) -> Result<Self::TupleExprRet, Self::Error> {
+        let children = walk::walk_tuple_expr(self, node)?;
         Ok(TreeNode::branch("tuple", children.elements))
     }
 

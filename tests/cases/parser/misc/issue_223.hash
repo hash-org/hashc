@@ -1,4 +1,8 @@
 // run=fail, stage=parse
 
+// This fails to parse a function since adter the `(...)`, there is a `:` instead of a `->`.
+//
+// @@Future perhaps we should try to detect for this error case and suggest a fix?
+
 wrap := (res: Result<T, (int, str)>): Result<T, IoError> => match res {
 }

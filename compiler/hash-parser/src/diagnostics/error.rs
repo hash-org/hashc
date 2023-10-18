@@ -62,9 +62,6 @@ pub enum ParseErrorKind {
     /// Expected a type at the current location.
     ExpectedTy,
 
-    /// Expected an expression after a type annotation within named tuples
-    ExpectedValueAfterTyAnnotation,
-
     /// After a dot operator, the parser expects either a property access or an
     /// infix-like method call which is an extended version of a property
     /// access.
@@ -137,9 +134,6 @@ impl From<ParseError> for Reports {
             }
             ParseErrorKind::ExpectedBlock => {
                 "expected block body, which begins with a `{`".to_string()
-            }
-            ParseErrorKind::ExpectedValueAfterTyAnnotation => {
-                "expected value assignment after type annotation within named tuple".to_string()
             }
             ParseErrorKind::ExpectedExpr => "expected an expression".to_string(),
             ParseErrorKind::ExpectedName => "expected a name here".to_string(),
