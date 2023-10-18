@@ -165,7 +165,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                 kind: ModKind::ModBlock,
                 members: Node::create_at(
                     Node::<ModMember>::empty_seq(),
-                    NodeOrigin::Given(node.block.id()),
+                    NodeOrigin::Given(node.entries.id()),
                 ),
             },
             NodeOrigin::Given(node.id()),

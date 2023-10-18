@@ -1052,7 +1052,7 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
-        let ast::ModDef { ty_params, block } = node.body();
+        let ast::ModDef { ty_params, entries } = node.body();
 
         self.write("mod")?;
 
@@ -1061,7 +1061,11 @@ where
         }
 
         self.write(" ")?;
-        self.visit_body_block(block.ast_ref())
+
+        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Brace, "");
+        opts.per_line();
+
+        self.print_separated_collection(entries, opts, |this, item| this.visit_expr(item))
     }
 
     type MatchCaseRet = ();

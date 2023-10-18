@@ -150,7 +150,7 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         &mut self,
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
-        self.check_constant_body_block(&node.body().block, BlockOrigin::Mod);
+        self.check_constant_scope_members(&node.body().entries, BlockOrigin::Mod);
         Ok(())
     }
 

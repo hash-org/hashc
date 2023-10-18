@@ -1723,7 +1723,7 @@ define_tree! {
         pub ty_params: OptionalChild!(TyParams),
 
         /// The actual contents of the block.
-        pub block: Child!(BodyBlock),
+        pub entries: Children!(Expr),
     }
 
     /// A block.

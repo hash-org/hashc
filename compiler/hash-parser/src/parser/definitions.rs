@@ -162,8 +162,8 @@ impl<'s> AstGen<'s> {
         self.skip_fast(TokenKind::Keyword(Keyword::Mod)); // `mod`
 
         let ty_params = self.parse_optional_ty_params(TyParamOrigin::Mod)?;
-        let block = self.parse_body_block()?;
+        let entries = self.parse_exprs_from_brace_tree()?;
 
-        Ok(ModDef { block, ty_params })
+        Ok(ModDef { entries, ty_params })
     }
 }
