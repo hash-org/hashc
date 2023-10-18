@@ -281,3 +281,107 @@ impl<C: ContextTypes> Context<C> {
         (result, scope)
     }
 }
+
+#[cfg(test)]
+mod test_super {
+    use super::*;
+
+    struct TestContextTypes;
+    impl ContextTypes for TestContextTypes {
+        type ScopeKind = &'static str;
+        type Value = &'static str;
+        type Symbol = &'static str;
+    }
+
+    #[test]
+    fn test_scope_entering_current() {
+        let mut context = Context::<TestContextTypes>::empty();
+        let scope = Scope::empty("foo");
+        assert!(context.get_current_scope_index().is_none());
+        context.enter_scope(scope, |context| {
+            assert!(context.get_current_scope_index().is_some());
+        });
+        assert!(context.get_current_scope_index().is_none());
+    }
+
+    #[test]
+    fn test_member_search() {
+        let mut context = Context::<TestContextTypes>::empty();
+        let mut scope = Scope::empty("foo");
+        let member = Member { symbol: "bar", value: "bar value" };
+        let member_index = scope.push_member(member);
+
+        context.enter_scope(scope, |context| {
+            let name = context.search_member("bar").unwrap();
+            let current_scope_index = context.get_current_scope_index().unwrap();
+            assert_eq!(name.symbol, "bar");
+            assert_eq!(name.scope_index, current_scope_index);
+            assert_eq!(name.member_index, member_index);
+        });
+
+        assert!(context.search_member("bar").is_none());
+    }
+
+    #[test]
+    fn test_member_search_in() {
+        let mut context = Context::<TestContextTypes>::empty();
+        let mut scope = Scope::empty("foo");
+        let member = Member { symbol: "bar", value: "bar value" };
+        let member_index = scope.push_member(member);
+
+        let (scope_index, _) = context.enter_scope(scope, |context| {
+            let name = context
+                .search_member_in(context.get_current_scope_index().unwrap(), "bar")
+                .unwrap();
+            let current_scope_index = context.get_current_scope_index().unwrap();
+            assert_eq!(name.symbol, "bar");
+            assert_eq!(name.scope_index, current_scope_index);
+            assert_eq!(name.member_index, member_index);
+            current_scope_index
+        });
+
+        assert!(std::panic::catch_unwind(|| {
+            context.search_member_in(scope_index, "bar").is_none()
+        })
+        .is_err());
+    }
+
+    #[test]
+    fn test_has_scope_index() {
+        let mut context = Context::<TestContextTypes>::empty();
+        let scope = Scope::empty("foo");
+        let (prev_scope_index, _) = context.enter_scope(scope, |context| {
+            let current_scope_index = context.get_current_scope_index().unwrap();
+            assert!(context.has_scope_index(current_scope_index));
+            current_scope_index
+        });
+        assert!(!context.has_scope_index(prev_scope_index));
+    }
+
+    #[test]
+    fn test_has_member_index() {
+        let mut context = Context::<TestContextTypes>::empty();
+        let mut scope = Scope::empty("foo");
+        let member = Member { symbol: "bar", value: "bar value" };
+        let member_index = scope.push_member(member);
+        context.enter_scope(scope, |context| {
+            let current_scope = context.get_current_scope().unwrap();
+            assert!(current_scope.has_member_index(member_index));
+        });
+    }
+
+    #[test]
+    fn test_enter_nested_scopes() {
+        let mut context = Context::<TestContextTypes>::empty();
+        let scope = Scope::empty("foo");
+        context.enter_scope(scope, |context| {
+            let scope = Scope::empty("bar");
+            context.enter_scope(scope, |context| {
+                let current_scope_index = context.get_current_scope_index().unwrap();
+                assert_eq!(current_scope_index.data, 1);
+            });
+            let current_scope_index = context.get_current_scope_index().unwrap();
+            assert_eq!(current_scope_index.data, 0);
+        });
+    }
+}
