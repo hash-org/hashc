@@ -8,7 +8,6 @@
 )]
 
 pub mod assert;
-pub mod context;
 pub mod counter;
 pub mod crash;
 pub mod graph;
@@ -17,6 +16,7 @@ pub mod logging;
 pub mod path;
 pub mod printing;
 pub mod range_map;
+pub mod scoping;
 pub mod stack;
 pub mod state;
 pub mod timing;

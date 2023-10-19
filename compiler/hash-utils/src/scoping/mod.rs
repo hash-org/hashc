@@ -1,4 +1,4 @@
-//! An implementation of a two-level context using de-Bruijn levels.
+//! An implementation of a two-level scoping context using de-Bruijn levels.
 //!
 //! The context is a stack of scopes. Each scope is a list of members.
 //! Each member has a symbol and a value. The symbol need not be unique
