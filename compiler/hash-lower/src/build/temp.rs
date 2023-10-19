@@ -20,7 +20,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let ty = self.ty_id_from_tir_term(term);
         let local = LocalDecl::new_auxiliary(ty, mutability);
 
-        let temp = self.declarations.push(local);
+        let temp = self.locals.push(local);
         let temp_place = Place::from_local(temp);
 
         unpack!(block = self.term_into_dest(temp_place, block, term));
@@ -31,6 +31,6 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn temp_place(&mut self, ty: IrTyId) -> Place {
         let decl = LocalDecl::new_auxiliary(ty, Mutability::Immutable);
 
-        Place::from_local(self.declarations.push(decl))
+        Place::from_local(self.locals.push(decl))
     }
 }

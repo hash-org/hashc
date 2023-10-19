@@ -20,7 +20,7 @@ DefKind := enum (
     // }
 )
 
-@top_level { 
+@top_level {
     make, a, top, level, macro, from, these, tokens
 }
 
@@ -41,15 +41,15 @@ frobulate:= () => {
 
 main := () => {
     ty := (
-        first := @as_ty(Def),
-        second := @as_ty(DefKind),
+        first = @as_ty(Def),
+        second = @as_ty(DefKind),
     )
 
     match @as_ty { convert me into a ty } {
         (@make_pat { 1 + 1 }) => {},
         _ => {}
     }
-    
+
 }
 
 sums := () => {

@@ -1,3 +1,0 @@
-// run=fail, stage=parse
-
-k : (str, bar: u8) -> u32 = (k: );

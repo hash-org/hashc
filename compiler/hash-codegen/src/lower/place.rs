@@ -7,7 +7,7 @@ use hash_ir::{
 };
 use hash_layout::{LayoutShape, Variants};
 use hash_reporting::macros::panic_on_span;
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
     alignment::Alignment,
@@ -290,7 +290,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// Compute the type and layout of a [ir::Place]. This deals with
     /// all projections that occur on the [ir::Place].
     pub fn compute_place_ty_info(&self, builder: &Builder, place: ir::Place) -> TyInfo {
-        let place_ty = PlaceTy::from_place(place, &self.body.declarations);
+        let place_ty = PlaceTy::from_place(place, &self.body.aux());
         builder.layout_of(place_ty.ty)
     }
 
@@ -305,7 +305,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         place: ir::Place,
     ) -> PlaceRef<Builder::Value> {
         // copy the projections from the place.
-        let projections = place.projections.value();
+        let projections = self.body.projections().borrow(place.projections);
         let mut base = 0;
 
         let mut codegen_base = match self.locals[place.local] {
@@ -321,9 +321,14 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 if projections.first() == Some(&ir::PlaceProjection::Deref) {
                     base = 1;
 
-                    // we have to copy a slice of the projections where
-                    // we omit the first projection (which is a deref).
-                    let projections = ProjectionId::from_slice(&projections[1..]);
+                    // @@Hack: we adjust the projection ket to omit the first projection
+                    // which is the deref.
+                    let projections = unsafe {
+                        ProjectionId::from_raw_parts(
+                            place.projections.entry_index() + 1,
+                            projections.len() - 1,
+                        )
+                    };
 
                     let codegen_base = self.codegen_consume_operand(
                         builder,
@@ -332,7 +337,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                     codegen_base.deref(builder)
                 } else {
-                    panic!("using operand local `{place}` as place")
+                    panic!("using operand local `{place:?}` as place")
                 }
             }
         };

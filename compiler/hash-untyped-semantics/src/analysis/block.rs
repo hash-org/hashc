@@ -4,7 +4,7 @@
 use std::{cell::Cell, collections::HashSet, mem};
 
 use hash_ast::{
-    ast::{AstNodeRef, Block, BlockExpr, BodyBlock, Expr, ExprMacroInvocation},
+    ast::{self, AstNodeRef, Block, BlockExpr, Expr, ExprMacroInvocation},
     origin::BlockOrigin,
     visitor::AstVisitorMutSelf,
 };
@@ -22,9 +22,9 @@ impl SemanticAnalyser {
     /// the erroneous statements in the provided
     /// [hash_ast::ast::AstNodes<Expression>]. This is so that the caller can
     /// later 'skip' these statements when performing further checks.
-    pub(crate) fn check_members_are_declarative<'s>(
+    pub(crate) fn check_members_are_declarative<'a>(
         &mut self,
-        members: impl Iterator<Item = AstNodeRef<'s, Expr>>,
+        members: impl Iterator<Item = ast::AstNodeRef<'a, ast::Expr>>,
         origin: BlockOrigin,
     ) -> HashSet<usize> {
         let mut error_indices = HashSet::new();
@@ -86,21 +86,25 @@ impl SemanticAnalyser {
         error_indices
     }
 
-    /// This function is used that a given 'constant' block adheres to the
+    /// This function is used to check that members of a block scope adhere to
     /// specified semantic rules:
     ///
     /// - All members must be only declarative
     ///
     /// - No member can declare themselves to be `mutable`
-    pub(crate) fn check_constant_body_block(&mut self, body: &BodyBlock, origin: BlockOrigin) {
-        let errors = self.check_members_are_declarative(body.members(), origin);
+    pub(crate) fn check_constant_scope_members(
+        &mut self,
+        members: &ast::AstNodes<Expr>,
+        origin: BlockOrigin,
+    ) {
+        let errors = self.check_members_are_declarative(members.ast_ref_iter(), origin);
 
         // We need to set the block to being whatever the origin is set to!
         let old_block_origin = mem::replace(&mut self.current_block, origin);
 
         // We have to manually walk this block because we want to skip any erroneous
         // statements.
-        for (index, statement) in body.statements.iter().enumerate() {
+        for (index, statement) in members.iter().enumerate() {
             if errors.contains(&index) {
                 self.visit_expr(statement.ast_ref()).unwrap();
             }

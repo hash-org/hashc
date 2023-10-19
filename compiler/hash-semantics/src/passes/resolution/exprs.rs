@@ -53,9 +53,9 @@ pub enum AstParams<'ast> {
 /// to later resolve them into terms.
 impl<E: SemanticEnv> ResolutionPass<'_, E> {
     /// Make TC arguments from the given set of AST tuple arguments.
-    pub(super) fn make_args_from_ast_tuple_lit_args(
+    pub(super) fn make_args_from_ast_tuple_expr_args(
         &self,
-        args: &ast::AstNodes<ast::TupleLitEntry>,
+        args: &ast::AstNodes<ast::ExprArg>,
     ) -> SemanticResult<ArgsId> {
         // @@Todo: create type for the tuple as some annotations
         // might be given.
@@ -144,6 +144,20 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             }
             ast::Expr::Lit(lit_term) => {
                 self.make_term_from_ast_lit_expr(node.with_body(lit_term))?
+            }
+            ast::Expr::Tuple(tuple_lit) => {
+                let args = self.make_args_from_ast_tuple_expr_args(&tuple_lit.elements)?;
+                Term::from(Term::Tuple(TupleTerm { data: args }), NodeOrigin::Given(node.id()))
+            }
+            ast::Expr::Array(array_lit) => {
+                let element_vec: Vec<_> = array_lit
+                    .elements
+                    .ast_ref_iter()
+                    .map(|element| self.make_term_from_ast_expr(element))
+                    .collect::<SemanticResult<_>>()?;
+                let elements =
+                    Node::create_at(TermId::seq(element_vec), NodeOrigin::Given(node.id()));
+                Term::from(Term::Array(ArrayTerm::Normal(elements)), NodeOrigin::Given(node.id()))
             }
             ast::Expr::Cast(cast_expr) => {
                 self.make_term_from_ast_cast_expr(node.with_body(cast_expr))?
@@ -527,23 +541,6 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ast::Lit::Byte(byte_lit) => Ok(lit_prim!(Int, IntLit, *byte_lit)),
             ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
             ast::Lit::Bool(bool_lit) => Ok(bool_term(bool_lit.data, NodeOrigin::Given(node.id()))),
-            ast::Lit::Tuple(tuple_lit) => {
-                let args = self.make_args_from_ast_tuple_lit_args(&tuple_lit.elements)?;
-                Ok(Term::from(Term::Tuple(TupleTerm { data: args }), NodeOrigin::Given(node.id())))
-            }
-            ast::Lit::Array(array_lit) => {
-                let element_vec: Vec<_> = array_lit
-                    .elements
-                    .ast_ref_iter()
-                    .map(|element| self.make_term_from_ast_expr(element))
-                    .collect::<SemanticResult<_>>()?;
-                let elements =
-                    Node::create_at(TermId::seq(element_vec), NodeOrigin::Given(node.id()));
-                Ok(Term::from(
-                    Term::Array(ArrayTerm::Normal(elements)),
-                    NodeOrigin::Given(node.id()),
-                ))
-            }
         }
     }
 

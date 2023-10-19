@@ -42,7 +42,7 @@ use hash_utils::{
 };
 
 use crate::{
-    ir::{LocalDecls, Place, PlaceProjection},
+    ir::{BodyInfo, Place, PlaceProjection},
     ir_stores,
 };
 
@@ -758,11 +758,11 @@ impl PlaceTy {
     }
 
     /// Create a [PlaceTy] from a [Place].
-    pub fn from_place(place: Place, locals: &LocalDecls) -> Self {
+    pub fn from_place(place: Place, info: &BodyInfo) -> Self {
         // get the type of the local from the body.
-        let mut base = PlaceTy { ty: locals[place.local].ty, index: None };
+        let mut base = PlaceTy { ty: info.locals[place.local].ty, index: None };
 
-        for projection in place.projections.borrow().iter() {
+        for projection in info.projections.borrow(place.projections).iter() {
             base = base.apply_projection(*projection);
         }
 

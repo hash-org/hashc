@@ -251,12 +251,12 @@ impl<'b, 'm> LLVMBackend<'b> {
         // We perform an initial pass where we pre-define everything so that
         // we can get place all of the symbols in the symbol table first.
         for body in self.ir_storage.bodies.iter() {
-            if matches!(body.info().source(), BodySource::Const) {
+            if matches!(body.metadata().source(), BodySource::Const) {
                 continue;
             }
 
             // Get the instance of the function.
-            let instance = body.info().ty().borrow().as_instance();
+            let instance = body.metadata().ty().borrow().as_instance();
 
             // So, we create the mangled symbol name, and then call `predefine()` which
             // should create the function ABI from the instance, with the correct
@@ -281,12 +281,12 @@ impl<'b, 'm> LLVMBackend<'b> {
         for body in ir.bodies.iter() {
             // We don't need to generate anything for constants since they
             // should have already been dealt with...
-            if matches!(body.info().source(), BodySource::Const) {
+            if matches!(body.metadata().source(), BodySource::Const) {
                 continue;
             }
 
             // Get the instance of the function.
-            let instance = body.info().ty().borrow().as_instance();
+            let instance = body.metadata().ty().borrow().as_instance();
 
             // @@ErrorHandling: we should be able to handle the error here
             codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();
@@ -294,7 +294,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             // Check if we should dump the generated LLVM IR
             if instance.borrow().has_attr(attrs::DUMP_LLVM_IR) {
                 let mut stdout = self.stdout.clone();
-                let func = FunctionPrinter::new(body.info.name(), ctx.get_fn(instance));
+                let func = FunctionPrinter::new(body.meta.name(), ctx.get_fn(instance));
 
                 stream_writeln!(stdout, "{}", Report::from(func));
             }

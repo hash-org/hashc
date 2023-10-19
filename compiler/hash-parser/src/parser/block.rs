@@ -20,18 +20,6 @@ impl<'s> AstGen<'s> {
         Ok(self.node_with_span(Block::Body(block), span))
     }
 
-    /// Helper function to simply parse a body block without wrapping it in
-    /// [Block].
-    #[inline]
-    pub(crate) fn parse_body_block(&mut self) -> ParseResult<AstNode<BodyBlock>> {
-        let (block, span) =
-            self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
-                Ok((gen.parse_body_block_inner(), gen.range()))
-            })?;
-
-        Ok(self.node_with_span(block, span))
-    }
-
     /// Parse a body block that uses itself as the inner generator. This
     /// function will advance the current generator than expecting that the
     /// next token is a brace tree.
