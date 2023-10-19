@@ -1,3 +1,11 @@
+//! AST name checking.
+//!
+//! This module is responsible for performing lexical analysis on the Hash AST.
+//! This includes:
+//! - Resolving all names to their corresponding definitions.
+//! - Gathering scopes of definitions and indexing them by AST node IDs.
+//! - Checking for recursive definitions.
+//! - Ensuring that there are no free variables in the AST.
 use std::convert::Infallible;
 
 use hash_ast::{
@@ -15,20 +23,36 @@ use hash_utils::{
     fxhash::FxHashMap,
 };
 
+/// The kind of scope that an AST node creates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AstScopeKind {
+    /// A block `{}`.
+    Block,
+    /// A module.
+    Mod,
+    /// A match case.
+    Match,
+    /// Function parameters, tuple types, constructor types.
     Params,
+    /// A tuple literal or constructor.
     Args,
-    Fn,
+    /// A deferred body, for functions.
+    FnBody,
 }
 
+/// The referencing mode of a name in the AST.
+/// @@Todo: possibly move this to `hash-utils`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ReferencingMode {
+    /// The name is referenced immediately.
     Immediate,
+    /// The name is referenced in a deferred scope, so that recursive
+    /// referencing is allowed.
     Deferred,
-    None,
 }
 
+/// Container for the context types used for the AST.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AstContextTypes;
 impl ContextTypes for AstContextTypes {
     type ScopeKind = AstScopeKind;
@@ -36,6 +60,13 @@ impl ContextTypes for AstContextTypes {
     type Symbol = Identifier;
 }
 
+/// The AST name data.
+///
+/// This is the result of the name checking pass on the AST.
+///
+/// It contains a record of all the scopes, definitions, and references
+/// in the AST, indexed by the AST node ID of each relevant node.
+#[derive(Debug, Clone, Default)]
 pub struct AstNameData {
     /// Stores the declared members (as a `Scope`) of each scope-creating
     /// AST node.
@@ -132,11 +163,13 @@ impl AstNameDataVisitor {
         &mut self,
         originating_node_id: AstNodeId,
         name: &AstNode<ast::Name>,
-        mode: ReferencingMode,
     ) {
         let current_scope = self.context.get_current_scope_index().unwrap();
         let member = self.context.search_member_in(current_scope, name.ident).unwrap();
-        self.name_data.add_reference(originating_node_id, member, mode);
+
+        // @@Todo(mode): traverse delta-scopes and check if we are in a deferred scope
+        // or not
+        self.name_data.add_reference(originating_node_id, member, ReferencingMode::Immediate);
     }
 }
 
@@ -174,9 +207,10 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
     type VariableExprRet = ();
     fn visit_variable_expr(
         &mut self,
-        _node: AstNodeRef<VariableExpr>,
+        node: AstNodeRef<VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        todo!()
+        self.discover_reference_from_name(node.id(), &node.name);
+        Ok(())
     }
 
     type ImplicitFnDefRet = ();
