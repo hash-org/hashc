@@ -188,14 +188,8 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         // 'useless' expressions... a literal that is constant of made of other
         // constant literals
         for statement in node.statements.iter() {
-            match statement.body() {
-                ast::Expr::Lit(ast::LitExpr { data }) if data.body().is_constant() => {
-                    self.append_warning(
-                        AnalysisWarningKind::UselessExpression,
-                        statement.ast_ref(),
-                    );
-                }
-                _ => {}
+            if let ast::Expr::Lit(ast::LitExpr { .. }) = statement.body() {
+                self.append_warning(AnalysisWarningKind::UselessExpression, statement.ast_ref());
             }
         }
 

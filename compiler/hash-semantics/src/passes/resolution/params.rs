@@ -22,8 +22,6 @@ use crate::{
 pub enum AstArgGroup<'a> {
     /// A group of explicit `(a, b, c)` arguments.
     ExplicitArgs(&'a ast::AstNodes<ast::ExprArg>),
-    /// A group of tuple `(a, b, c)` arguments
-    TupleArgs(&'a ast::AstNodes<ast::TupleLitEntry>),
     /// A group of implicit `<a, b, c>` arguments.
     ImplicitArgs(&'a ast::AstNodes<ast::TyArg>),
     /// A group of explicit `(p, q, r)` pattern arguments
@@ -40,7 +38,6 @@ impl AstArgGroup<'_> {
             AstArgGroup::ExplicitPatArgs(args, spread) => spread
                 .as_ref()
                 .map_or_else(|| args.span(), |spread| args.span().join(spread.span())),
-            AstArgGroup::TupleArgs(args) => args.span(),
         }
     }
 
@@ -256,9 +253,6 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             }
             AstArgGroup::ImplicitArgs(args) => {
                 Ok(ResolvedArgs::Term(self.make_args_from_ast_ty_args(args)?))
-            }
-            AstArgGroup::TupleArgs(args) => {
-                Ok(ResolvedArgs::Term(self.make_args_from_ast_tuple_lit_args(args)?))
             }
             AstArgGroup::ExplicitPatArgs(pat_args, spread) => {
                 let pat_args =

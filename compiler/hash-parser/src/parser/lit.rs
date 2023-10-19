@@ -6,10 +6,7 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, FloatLitKind, IntLitKin
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
-use crate::diagnostics::{
-    error::{ParseErrorKind, ParseResult},
-    expected::ExpectedItem,
-};
+use crate::diagnostics::error::ParseResult;
 
 impl<'s> AstGen<'s> {
     /// Parse a primitive literal, which means it can be either a `char`,
@@ -80,83 +77,39 @@ impl<'s> AstGen<'s> {
         self.node_with_span(lit, token.span)
     }
 
-    /// Function to parse a [TupleLitEntry] with a name or parse a parenthesised
-    /// expression. In the event that the entry does not have a name `name =
-    /// ...`, or a name with a associated type `name : <type> = ...`, then
-    /// this will just parse the entry as a single expression rather than a
-    /// tuple entry with an associated name and type.
-    pub(crate) fn parse_tuple_lit_entry(&mut self) -> ParseResult<AstNode<TupleLitEntry>> {
+    /// Function to parse a tuple element, which is represented as an [ExprArg].
+    pub(crate) fn parse_tuple_arg(&mut self) -> ParseResult<AstNode<ExprArg>> {
+        let macros = self.parse_macro_invocations(MacroKind::Ast)?;
+
         let start = self.current_pos();
         let offset = self.position();
 
-        // Determine if this might have a tuple field name and optional type
-        let entry = if let Some(name) = self.peek_resultant_fn(|g| g.parse_name()) {
-            // Here we can identify if we need to backtrack and just parse an expression...
-            match self.peek_kind() {
-                // If this is an `=`, then we need to see if there is a second `=` after it to
-                // ensure that it isn't a binary expression.
-                Some(TokenKind::Eq)
-                    if self.peek_second().map_or(false, |t| t.has_kind(TokenKind::Eq)) =>
-                {
-                    self.set_pos(offset);
-                    None
-                }
-                Some(TokenKind::Access) => {
-                    self.set_pos(offset);
-                    None
-                }
-                Some(kind) if !matches!(kind, TokenKind::Colon | TokenKind::Eq) => {
-                    self.set_pos(offset);
-                    None
-                }
-                Some(_) => {
-                    // Try and parse an optional type...
-                    let ty = match self.peek_kind() {
-                        Some(TokenKind::Colon) => {
-                            self.skip_fast(TokenKind::Colon); // ':'
+        if let Some(name) = self.peek_resultant_fn(|g| g.parse_name()) {
+            // If the next item isn't a `=`, i.e. an assignment to a name, then
+            // we just parse this as an expression.
+            if self.peek_kind() != Some(TokenKind::Eq) {
+                self.set_pos(offset);
+            } else {
+                self.skip_fast(TokenKind::Eq);
 
-                            match self.peek_kind() {
-                                Some(TokenKind::Eq) => None,
-                                _ => Some(self.parse_ty()?),
-                            }
-                        }
-                        _ => None,
-                    };
-
-                    self.parse_token_fast(TokenKind::Eq).ok_or_else(|| {
-                        self.make_err(
-                            ParseErrorKind::ExpectedValueAfterTyAnnotation,
-                            ExpectedItem::Eq,
-                            None,
-                            Some(self.expected_pos()),
-                        )
-                    })?;
-
-                    let value = self.parse_expr_with_re_assignment()?.0;
+                // peek next to check if it is a `==`, @@Todo: perhaps we should
+                // introduce an `EqEq` token?
+                if self.peek_kind() == Some(TokenKind::Eq) {
+                    self.set_pos(offset); // backtrack...
+                } else {
+                    let value = self.parse_expr_with_precedence(0)?;
 
                     // Now we try and parse an expression that allows re-assignment operators...
-                    Some(self.node_with_joined_span(
-                        TupleLitEntry { name: Some(name), ty, value },
+                    return Ok(self.node_with_joined_span(
+                        ExprArg { name: Some(name), value, macros },
                         start,
-                    ))
+                    ));
                 }
-                None => {
-                    self.set_pos(offset);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
-        match entry {
-            Some(entry) => Ok(entry),
-            None => {
-                let value = self.parse_expr_with_re_assignment()?.0;
-
-                Ok(self.node_with_joined_span(TupleLitEntry { name: None, ty: None, value }, start))
             }
         }
+
+        let value = self.parse_expr_with_re_assignment()?.0;
+        Ok(self.node_with_joined_span(ExprArg { name: None, value, macros }, start))
     }
 
     /// Parse an array literal from a bracket token tree. This function
@@ -167,8 +120,7 @@ impl<'s> AstGen<'s> {
             macro_rules! make_arr {
                 ($elements:expr; $span:expr) => {{
                     let elements = gen.nodes_with_span($elements, $span);
-                    let data = gen.node_with_span(Lit::Array(ArrayLit { elements }), $span);
-                    Ok(gen.node_with_span(Expr::Lit(LitExpr { data }), $span))
+                    Ok(gen.node_with_span(Expr::Array(ArrayExpr { elements }), $span))
                 }};
             }
 
@@ -204,8 +156,7 @@ impl<'s> AstGen<'s> {
 
                     // Insert the first element into the array...
                     elements.insert(start, 0);
-                    let data = gen.node_with_span(Lit::Array(ArrayLit { elements }), span);
-                    Ok(gen.node_with_span(Expr::Lit(LitExpr { data }), span))
+                    Ok(gen.node_with_span(Expr::Array(ArrayExpr { elements }), span))
                 }
                 _ => {
                     make_arr!(thin_vec![start]; span)

@@ -2,7 +2,7 @@
 
 main := () -> i32 => {
   t := (1u32, 2);
-  b := (name := "str", data := 'c');
+  b := (name = "str", data = 'c');
 
   t1 := t.1;
   b0 := b.name;
@@ -13,4 +13,3 @@ main := () -> i32 => {
     _ => 3,
   }
 }
-
