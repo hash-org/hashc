@@ -240,7 +240,7 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
                         {
                             ast_info.mod_members().insert(
                                 *node_id,
-                                ModMemberId(mod_members.elements(), mod_member_index),
+                                ModMemberId::new(mod_members.elements(), mod_member_index),
                             );
                         }
                     }
@@ -273,9 +273,10 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
                         for ((node_id, _), data_ctor_index) in
                             members.iter().zip(ctors.to_index_range())
                         {
-                            ast_info
-                                .ctor_defs()
-                                .insert(*node_id, CtorDefId(ctors.elements(), data_ctor_index));
+                            ast_info.ctor_defs().insert(
+                                *node_id,
+                                CtorDefId::new(ctors.elements(), data_ctor_index),
+                            );
                         }
                     }
                 })

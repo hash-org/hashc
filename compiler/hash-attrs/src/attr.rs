@@ -123,7 +123,7 @@ impl From<ParamIndex> for AttrArgIdx {
     fn from(index: ParamIndex) -> Self {
         match index {
             ParamIndex::Name(name) => AttrArgIdx::Name(name),
-            ParamIndex::Position(index) => AttrArgIdx::Position(index as u32),
+            ParamIndex::Position(index) => AttrArgIdx::Position(index),
         }
     }
 }

@@ -810,7 +810,7 @@ impl Visit<DataDefId> for Visitor {
             DataDefCtors::Defined(data_def_ctors_id) => {
                 // Traverse the constructors
                 for ctor_idx in data_def_ctors_id.value().to_index_range() {
-                    self.try_visit(CtorDefId(data_def_ctors_id.elements(), ctor_idx), f)?;
+                    self.try_visit(CtorDefId::new(data_def_ctors_id.elements(), ctor_idx), f)?;
                 }
                 Ok(())
             }

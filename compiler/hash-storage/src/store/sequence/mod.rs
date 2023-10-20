@@ -148,17 +148,23 @@ macro_rules! new_sequence_store_key_direct {
         }
 
         #[derive(PartialEq, Eq, Clone, Copy, Hash, $($($extra_el_derives),*)?)]
-        $visibility struct $el_name(pub $name, pub usize);
+        $visibility struct $el_name(pub $name, pub u32);
+
+        impl $el_name {
+            pub fn new(a: $name, b: usize) -> Self {
+                Self(a, b as u32)
+            }
+        }
 
         impl From<$el_name> for ($name, usize) {
             fn from(value: $el_name) -> Self {
-                (value.0, value.1)
+                (value.0, value.1 as usize)
             }
         }
 
         impl From<($name, usize)> for $el_name {
             fn from(value: ($name, usize)) -> Self {
-                Self(value.0, value.1)
+                Self(value.0, value.1 as u32)
             }
         }
 

@@ -281,7 +281,7 @@ macro_rules! tir_node_sequence_store_direct {
         impl From<($id, usize)> for $el_id {
             fn from(value: ($id, usize)) -> Self {
                 use hash_storage::store::statics::StoreId;
-                $el_id(value.0.value().data, value.1)
+                $el_id::new(value.0.value().data, value.1)
             }
         }
     };

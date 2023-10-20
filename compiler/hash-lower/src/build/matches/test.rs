@@ -294,7 +294,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         return None;
                     }
 
-                    Some(VariantIdx::from_usize(ctor.1))
+                    Some(VariantIdx::from_raw(ctor.1))
                 })?;
 
                 self.candidate_after_variant_switch(
@@ -517,7 +517,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     .map(|arg| {
                         let field_index = match arg.target {
                             ParamIndex::Name(name) => variant.field_idx(name).unwrap(),
-                            ParamIndex::Position(index) => index,
+                            ParamIndex::Position(index) => index as usize,
                         };
 
                         let place =
@@ -819,7 +819,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // the variants...
         match *match_pair.pat.value() {
             Pat::Ctor(CtorPat { ctor, .. }) => {
-                variants.insert(ctor.1);
+                variants.insert(ctor.1 as usize);
                 true
             }
 

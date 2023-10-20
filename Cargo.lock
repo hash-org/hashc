@@ -678,6 +678,7 @@ version = "0.1.0"
 dependencies = [
  "fixedbitset",
  "hash-ir",
+ "hash-source",
  "hash-storage",
  "hash-target",
  "hash-utils",

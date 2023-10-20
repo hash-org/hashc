@@ -113,7 +113,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                         };
 
                         let ctor_id = data_def.borrow().ctors.assert_defined();
-                        CtorDefId(ctor_id.elements(), variant_idx).borrow().params.len()
+                        CtorDefId::new(ctor_id.elements(), variant_idx).borrow().params.len()
                     }
                     Ty::TupleTy(TupleTy { data }) => data.len(),
                     ty => panic!("Unexpected type `{ty:?}` when computing arity"),

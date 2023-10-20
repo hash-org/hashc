@@ -1993,7 +1993,7 @@ define_tree! {
         NamedField(Identifier),
 
         /// The numeric value of the index that's being accessed
-        NumericField(usize),
+        NumericField(u32),
     }
 
     /// A property access expression.

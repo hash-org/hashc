@@ -663,7 +663,7 @@ impl<'s> AstGen<'s> {
                 }
 
                 self.skip_fast(token.kind); // `int` literal
-                let value = self.source.hunk(token.span).parse::<usize>().map_err(|_| {
+                let value = self.source.hunk(token.span).parse::<u32>().map_err(|_| {
                     self.make_err(
                         ParseErrorKind::InvalidPropertyAccess,
                         ExpectedItem::empty(),

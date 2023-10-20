@@ -274,11 +274,11 @@ impl IrTy {
     /// Make a tuple type, i.e. `(T1, T2, T3, ...)`
     pub fn tuple(tys: &[IrTyId]) -> IrTy {
         let variants = index_vec![AdtVariant::singleton(
-            0usize.into(),
+            Identifier::num(0),
             tys.iter()
                 .copied()
                 .enumerate()
-                .map(|(idx, ty)| AdtField { name: idx.into(), ty })
+                .map(|(idx, ty)| AdtField { name: Identifier::num(idx), ty })
                 .collect(),
         )];
         let adt = Adt::new_with_flags("tuple".into(), variants, AdtFlags::TUPLE);
@@ -966,10 +966,10 @@ impl Adt {
     ///
     /// - We determine the "minimum" size of the discriminant by using the
     ///   rules:
-    ///  
+    ///
     ///    - If the ADT is a C-like type, then we use the minimum size specified
     ///      by the target, i.e. `c_style_enum_min_size` in the data layout.
-    ///   
+    ///
     ///    - default to using a `u8`.
     ///
     /// - Using the minimum, we then determine the "fit" of the discriminant by

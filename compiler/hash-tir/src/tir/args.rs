@@ -54,7 +54,7 @@ impl Arg {
                     .map(|(i, param)| {
                         Node::at(
                             Arg {
-                                target: ParamIndex::Position(i),
+                                target: ParamIndex::pos(i),
                                 value: Term::var(param.value().name),
                             },
                             param.origin(),
@@ -77,7 +77,7 @@ impl Arg {
                 args.into_iter()
                     .enumerate()
                     .map(|(i, arg)| {
-                        Node::at(Arg { target: ParamIndex::Position(i), value: arg }, arg.origin())
+                        Node::at(Arg { target: ParamIndex::pos(i), value: arg }, arg.origin())
                     })
                     .collect_vec(),
             ),
@@ -99,7 +99,7 @@ impl Arg {
                     .map(|(i, param)| {
                         Node::at(
                             Arg {
-                                target: ParamIndex::Position(i),
+                                target: ParamIndex::pos(i),
                                 value: Term::hole(param.origin().inferred()),
                             },
                             param.origin().inferred(),
@@ -240,8 +240,8 @@ impl SequenceStoreKey for SomeArgsId {
 impl From<(SomeArgsId, usize)> for SomeArgId {
     fn from(value: (SomeArgsId, usize)) -> Self {
         match value.0 {
-            SomeArgsId::PatArgs(id) => SomeArgId::PatArg(PatArgId(id.elements(), value.1)),
-            SomeArgsId::Args(id) => SomeArgId::Arg(ArgId(id.elements(), value.1)),
+            SomeArgsId::PatArgs(id) => SomeArgId::PatArg(PatArgId::new(id.elements(), value.1)),
+            SomeArgsId::Args(id) => SomeArgId::Arg(ArgId::new(id.elements(), value.1)),
         }
     }
 }

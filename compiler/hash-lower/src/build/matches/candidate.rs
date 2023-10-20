@@ -442,7 +442,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // and thus we use the index of the pattern in the argument.
                     let index = match arg.target {
                         ParamIndex::Name(name) => variant.field_idx(name).unwrap(),
-                        ParamIndex::Position(index) => index,
+                        ParamIndex::Position(index) => index as usize,
                     };
 
                     let place = place.clone_project(PlaceProjection::Field(index));

@@ -119,7 +119,7 @@ impl ParamsId {
                     None
                 }
             }),
-            ParamIndex::Position(pos) => Some(pos),
+            ParamIndex::Position(pos) => Some(pos as usize),
         }
     }
 }
@@ -131,8 +131,9 @@ impl ParamsId {
 pub enum ParamIndex {
     /// A named parameter, like `foo(value=3)`.
     Name(Identifier),
+
     /// A positional parameter, like `dot(x, y)`.
-    Position(usize),
+    Position(u32),
 }
 
 impl From<ParamId> for ParamIndex {
@@ -149,6 +150,11 @@ impl ParamIndex {
             ParamIndex::Name(name) => SymbolId::from_name(*name, origin),
             ParamIndex::Position(_) => SymbolId::fresh(origin),
         }
+    }
+
+    /// Create a new [ParamIndex::Position].
+    pub fn pos(item: usize) -> Self {
+        Self::Position(item as u32)
     }
 }
 
@@ -240,7 +246,7 @@ impl ParamsId {
                 .value()
                 .iter()
                 .find(|param| matches!(param.borrow().name.borrow().name, Some(n) if n == name)),
-            ParamIndex::Position(pos) => self.elements().at(pos),
+            ParamIndex::Position(pos) => self.elements().at(pos as usize),
         }
     }
 
