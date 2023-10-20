@@ -1,5 +1,6 @@
 //! Hash Compiler source locations utilities and definitions.
 use std::{
+    cmp,
     convert::TryInto,
     fmt::{self, Display},
     ops::{Deref, DerefMut},
@@ -235,7 +236,9 @@ impl<'s> SpannedSource<'s> {
 
     /// Get a hunk of the source by the specified [ByteRange].
     pub fn hunk(&self, range: ByteRange) -> &'s str {
-        &self.0[range.start()..(range.end() + 1)]
+        // clamp the end to the `length` of the contents
+        let end = cmp::min(self.0.len(), range.end() + 1);
+        &self.0[range.start()..end]
     }
 }
 
