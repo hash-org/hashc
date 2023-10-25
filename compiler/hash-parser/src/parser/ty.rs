@@ -190,10 +190,7 @@ impl<'s> AstGen<'s> {
 
                     let ty = self.node_with_joined_span(ty, span);
                     Ty::ImplicitCall(ImplicitFnCall {
-                        subject: self.node_with_joined_span(
-                            Expr::Ty(TyExpr { ty }),
-                            span,
-                        ),
+                        subject: self.node_with_joined_span(Expr::Ty(TyExpr { ty }), span),
                         args: self.parse_ty_args(true)?,
                     })
                 }
@@ -203,22 +200,23 @@ impl<'s> AstGen<'s> {
                     let return_ty = self.parse_ty()?;
 
                     let ty = self.node_with_joined_span(ty, span);
-                    let param = self.node_with_span(Param {
-                        name: None,
-                        default: None,
-                        ty: Some(ty),
-                        // ##Note: this will always be none since the above function
-                        // will parse the args and then apply it to us as the subject.
-                        //
-                        // So if `#foo U -> T` is present, we parse as `TyMacroInvocation { subject: U -> T, macros: #foo }`
-                        macros: None,
-                    }, span);
+                    let param = self.node_with_span(
+                        Param {
+                            name: None,
+                            default: None,
+                            ty: Some(ty),
+                            // ##Note: this will always be none since the above function
+                            // will parse the args and then apply it to us as the subject.
+                            //
+                            // So if `#foo U -> T` is present, we parse as `TyMacroInvocation {
+                            // subject: U -> T, macros: #foo }`
+                            macros: None,
+                        },
+                        span,
+                    );
 
                     let params = self.nodes_with_span(thin_vec![param], span);
-                    Ty::Fn(FnTy {
-                        params: self.make_params(params, ParamOrigin::Fn),
-                        return_ty,
-                    })
+                    Ty::Fn(FnTy { params: self.make_params(params, ParamOrigin::Fn), return_ty })
                 }
 
                 TokenKind::Access => {
@@ -226,10 +224,10 @@ impl<'s> AstGen<'s> {
 
                     Ty::Access(AccessTy {
                         subject: self.node_with_joined_span(ty, span),
-                        property: self.parse_name()?
+                        property: self.parse_name()?,
                     })
                 }
-                _ => break
+                _ => break,
             }
         }
 

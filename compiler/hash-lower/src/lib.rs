@@ -126,7 +126,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
 
                 // This is the entry point, so we need to record that this
                 // is the entry point.
-                if let Some(def) = entry_point.def() && def == func {
+                if let Some(def) = entry_point.def()
+                    && def == func
+                {
                     let instance = body.meta.ty().borrow().as_instance();
                     data.icx.entry_point.set(instance, entry_point.kind().unwrap());
                 }
@@ -157,7 +159,9 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // instead look at a queue of data defs which should have been constructed
         // earlier.
         tir_stores().data_def().for_each_entry(|data_def| {
-            if let Some(id) = data_def.node_id() && attr_store().node_has_attr(id, attrs::LAYOUT_OF) {
+            if let Some(id) = data_def.node_id()
+                && attr_store().node_has_attr(id, attrs::LAYOUT_OF)
+            {
                 builder.dump_ty_layout(data_def, data.stdout.clone())
             }
         })

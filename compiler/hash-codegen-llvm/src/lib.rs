@@ -181,7 +181,9 @@ impl<'b, 'm> LLVMBackend<'b> {
         let path = self.workspace.module_bitcode_path(id, "o");
 
         // Check if we need to create the "build" folder
-        if let Some(parent) = path.parent() && !parent.exists() {
+        if let Some(parent) = path.parent()
+            && !parent.exists()
+        {
             std::fs::create_dir_all(parent).unwrap();
         }
 

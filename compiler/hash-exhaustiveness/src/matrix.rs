@@ -34,7 +34,7 @@ impl Matrix {
 
     /// Number of columns of this matrix. `None` is the matrix is empty.
     pub fn column_count(&self) -> Option<usize> {
-        self.patterns.get(0).map(|r| r.len())
+        self.patterns.first().map(|r| r.len())
     }
 
     /// Iterate over the first component of each row

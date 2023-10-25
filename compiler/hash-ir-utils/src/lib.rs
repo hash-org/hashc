@@ -411,7 +411,9 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
 
                 // Only print the target if there is a target, and if the formatting
                 // specifies that edges should be printed.
-                if let Some(target) = target && self.with_edges {
+                if let Some(target) = target
+                    && self.with_edges
+                {
                     write!(f, ") -> {target:?}")
                 } else {
                     write!(f, ")")

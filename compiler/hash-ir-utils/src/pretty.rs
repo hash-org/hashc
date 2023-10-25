@@ -85,7 +85,9 @@ impl<'ir> IrBodyWriter<'ir> {
         }
 
         for (local, decl) in declarations {
-            if let Some(name) = decl.name && !decl.auxiliary() {
+            if let Some(name) = decl.name
+                && !decl.auxiliary()
+            {
                 writeln!(f, "    // parameter `{}` -> _{}", name, local.index())?;
             }
         }
@@ -105,12 +107,14 @@ impl<'ir> IrBodyWriter<'ir> {
             .map(|(local, decl)| {
                 let s = format!("{}{local:?}: {};", decl.mutability(), decl.ty());
 
-                if let Some(name) = decl.name && !decl.auxiliary() {
-                longest_line = longest_line.max(s.len());
-                (s, Some(format!("// parameter `{name}`")))
-            } else {
-                (s, None)
-            }
+                if let Some(name) = decl.name
+                    && !decl.auxiliary()
+                {
+                    longest_line = longest_line.max(s.len());
+                    (s, Some(format!("// parameter `{name}`")))
+                } else {
+                    (s, None)
+                }
             })
             .collect_vec();
 

@@ -210,15 +210,17 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     }
 
     fn const_to_optional_u128(&self, value: Self::Value, sign_extend: bool) -> Option<u128> {
-        if let AnyValueEnum::IntValue(val) = value && val.is_constant_int() {
+        if let AnyValueEnum::IntValue(val) = value
+            && val.is_constant_int()
+        {
             let value = val.get_type().get_bit_width();
             if value > 128 {
                 return None;
             }
 
             // ##Hack: this doesn't properly handle the full range of i128 values, however
-            // Inkwell doesn't support arbitrary precision integers, so we can't do much better...
-            // unless we @@PatchInkwell
+            // Inkwell doesn't support arbitrary precision integers, so we can't do much
+            // better... unless we @@PatchInkwell
             if sign_extend {
                 val.get_sign_extended_constant().map(|v| {
                     // upcast to i128, and then convert into u128
@@ -233,7 +235,9 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     }
 
     fn const_to_optional_uint(&self, value: Self::Value) -> Option<u64> {
-        if let AnyValueEnum::IntValue(val) = value && val.is_constant_int() {
+        if let AnyValueEnum::IntValue(val) = value
+            && val.is_constant_int()
+        {
             val.get_zero_extended_constant()
         } else {
             None

@@ -179,7 +179,9 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If this is indeed a function type, we emit a ZST to represent the operand
         // of the function.
-        if let Some(ty_id) = ty_id && ty_id.map(|ty| matches!(ty, IrTy::FnDef { .. })) {
+        if let Some(ty_id) = ty_id
+            && ty_id.map(|ty| matches!(ty, IrTy::FnDef { .. }))
+        {
             return block.and(Operand::Const(Const::zst(ty_id)));
         }
 
@@ -211,8 +213,9 @@ impl<'tcx> BodyBuilder<'tcx> {
         rhs: Operand,
     ) -> BlockAnd<RValue> {
         // try to constant fold the two operands
-        if let Operand::Const(ref lhs_value) = lhs &&
-           let Operand::Const(ref rhs_value) = rhs {
+        if let Operand::Const(ref lhs_value) = lhs
+            && let Operand::Const(ref rhs_value) = rhs
+        {
             let folder = ConstFolder::new(self.ctx.layout_computer());
 
             if let Some(folded) = folder.try_fold_bin_op(op, lhs_value, rhs_value) {

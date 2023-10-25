@@ -543,7 +543,7 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
                     Self::add_stack_members_in_pat_to_buf(field, buf);
                 }
             }
-            ast::Pat::Or(or_pat) => match or_pat.variants.get(0) {
+            ast::Pat::Or(or_pat) => match or_pat.variants.first() {
                 // @@Invariant: Here we assume that each branch of the or pattern has the same
                 // members This should have already been checked at pre-tc semantics.
                 Some(pat) => Self::add_stack_members_in_pat_to_buf(pat.ast_ref(), buf),
