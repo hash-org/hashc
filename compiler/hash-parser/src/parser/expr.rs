@@ -645,31 +645,39 @@ impl<'s> AstGen<'s> {
     ) -> ParseResult<AstNode<Expr>> {
         self.skip_fast(TokenKind::Dot); // `.`
 
-        if let Some(token) = self.peek() && token.kind.is_numeric() {
+        if let Some(token) = self.peek()
+            && token.kind.is_numeric()
+        {
             // If the next token kind is a integer with no sign, then we can assume
             // that this is a numeric field access, otherwise we can say that
             // `-` was an unexpected token here...
             if let TokenKind::Int(_, kind) = token.kind {
                 // Now read the value and verify that it has no numeric prefix
                 if let IntLitKind::Suffixed(ty) = kind {
-                    return self.err_with_location(ParseErrorKind::DisallowedSuffix(ty.into()), ExpectedItem::empty(), None, token.span)?;
+                    return self.err_with_location(
+                        ParseErrorKind::DisallowedSuffix(ty.into()),
+                        ExpectedItem::empty(),
+                        None,
+                        token.span,
+                    )?;
                 }
 
                 self.skip_fast(token.kind); // `int` literal
                 let value = self.source.hunk(token.span).parse::<usize>().map_err(|_| {
-                    self.make_err(ParseErrorKind::InvalidPropertyAccess, ExpectedItem::empty(), None, Some(token.span))
+                    self.make_err(
+                        ParseErrorKind::InvalidPropertyAccess,
+                        ExpectedItem::empty(),
+                        None,
+                        Some(token.span),
+                    )
                 })?;
 
                 let property = self.node_with_span(PropertyKind::NumericField(value), token.span);
 
                 return Ok(self.node_with_joined_span(
-                    Expr::Access(AccessExpr {
-                        subject,
-                        property,
-                        kind: AccessKind::Property,
-                    }),
+                    Expr::Access(AccessExpr { subject, property, kind: AccessKind::Property }),
                     subject_span,
-                ))
+                ));
             }
         }
 

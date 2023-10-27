@@ -423,12 +423,16 @@ impl<I: CompilerInterface> Driver<I> {
 
             // Now we have to read the contents of the `stdout` and `stderr` files, and
             // write them to our streams...
-            if let Some(stdout_file) = stdout_file && let Ok(mut file) = File::open(stdout_file) {
+            if let Some(stdout_file) = stdout_file
+                && let Ok(mut file) = File::open(stdout_file)
+            {
                 let mut stdout = self.compiler.output_stream();
                 std::io::copy(&mut file, &mut stdout).unwrap();
             }
 
-            if let Some(stderr_file) = stderr_file  && let Ok(mut file) = File::open(stderr_file) {
+            if let Some(stderr_file) = stderr_file
+                && let Ok(mut file) = File::open(stderr_file)
+            {
                 let mut stderr = self.compiler.error_stream();
                 std::io::copy(&mut file, &mut stderr).unwrap();
             }

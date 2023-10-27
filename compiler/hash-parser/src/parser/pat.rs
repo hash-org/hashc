@@ -77,7 +77,9 @@ impl<'s> AstGen<'s> {
         let span = self.current_pos();
         let (mut subject, can_continue) = self.parse_pat_component()?;
 
-        while let Some(token) = self.peek() && can_continue {
+        while let Some(token) = self.peek()
+            && can_continue
+        {
             subject = match token.kind {
                 // A constructor pattern which uses the `subject` to apply the constructor on
                 TokenKind::Tree(Delimiter::Paren, _) => {
@@ -90,8 +92,10 @@ impl<'s> AstGen<'s> {
                     let fields = self.in_tree(Delimiter::Paren, None, |gen| {
                         Ok(gen.parse_nodes_with_skips(
                             |g, pos| {
-                                // If the next token is an ellipsis, then we try to parse a spread pattern.
-                                if g.try_parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)? {
+                                // If the next token is an ellipsis, then we try to parse a spread
+                                // pattern.
+                                if g.try_parse_spread_pat(&mut spread, pos, PatOrigin::Constructor)?
+                                {
                                     Ok(None)
                                 } else {
                                     Ok(Some(g.parse_pat_arg()?))
@@ -108,14 +112,10 @@ impl<'s> AstGen<'s> {
                 }
                 // An access pattern which accesses the `subject` with a particular `property`
                 // denotes with a name.
-                TokenKind::Access =>
-                {
+                TokenKind::Access => {
                     self.skip_fast(TokenKind::Access); // `::`
                     let property = self.parse_name()?;
-                    self.node_with_joined_span(
-                        Pat::Access(AccessPat { subject, property }),
-                        span,
-                    )
+                    self.node_with_joined_span(Pat::Access(AccessPat { subject, property }), span)
                 }
                 _ => break,
             }
@@ -228,7 +228,9 @@ impl<'s> AstGen<'s> {
         // The only valid `range` pattern prefixes are either a bind, or a numeric
         // literal, bindings are later reported as erroneous anyway, but it's better
         // for error-reporting to defer this until later
-        let (pat, can_continue) = if let Pat::Lit(LitPat { data: lit }) = &pat && !has_range_pat {
+        let (pat, can_continue) = if let Pat::Lit(LitPat { data: lit }) = &pat
+            && !has_range_pat
+        {
             match self.peek_kind() {
                 Some(TokenKind::Range | TokenKind::RangeExclusive) => {
                     match self.maybe_parse_range_pat(Some(lit.clone())) {
@@ -569,7 +571,9 @@ impl<'s> AstGen<'s> {
                         self.skip_fast(kind); // '..' | '..<'
 
                         // Now we need to check that there is a literal after this range token
-                        if let Some(kind) = self.peek_kind() && kind.is_range_lit() {
+                        if let Some(kind) = self.peek_kind()
+                            && kind.is_range_lit()
+                        {
                             self.skip_fast(kind);
                             peek_colon!()
                         } else {

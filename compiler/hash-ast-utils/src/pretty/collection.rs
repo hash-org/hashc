@@ -180,7 +180,9 @@ where
 
             // For the spread pattern, we just insert it into the location that it needs to
             // be in.
-            if let Some(pos) = spread_pos && pos == i {
+            if let Some(pos) = spread_pos
+                && pos == i
+            {
                 self.visit_spread_pat(spread.as_ref().unwrap().ast_ref())?;
 
                 if i != collection.len() - 1 {

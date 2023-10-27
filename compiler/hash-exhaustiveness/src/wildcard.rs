@@ -90,7 +90,9 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                     }
                     DataDefCtors::Primitive(ctor) => match ctor {
                         PrimitiveCtorInfo::Numeric(ctor_info) => {
-                            if let NumericCtorBits::Bounded(bits) = ctor_info.bits && !ctor_info.flags.is_float() {
+                            if let NumericCtorBits::Bounded(bits) = ctor_info.bits
+                                && !ctor_info.flags.is_float()
+                            {
                                 if ctor_info.flags.is_signed() {
                                     let min = 1u128 << (bits - 1);
                                     let max = min - 1;

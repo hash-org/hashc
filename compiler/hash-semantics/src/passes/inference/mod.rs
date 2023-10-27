@@ -44,12 +44,11 @@ impl<E: SemanticEnv> InferencePass<'_, E> {
         }
 
         // If we have holes, error
-        if let Some(subject) = subject && let Some(hole) = subject_has_holes(subject)
+        if let Some(subject) = subject
+            && let Some(hole) = subject_has_holes(subject)
             && self.get_current_progress(source) == AnalysisStage::BodyInference
         {
-            self.add_error(TcError::NeedMoreTypeAnnotationsToInfer {
-                atom: hole,
-            }.into());
+            self.add_error(TcError::NeedMoreTypeAnnotationsToInfer { atom: hole }.into());
         }
 
         Ok(subject.unwrap_or(orig_subject))

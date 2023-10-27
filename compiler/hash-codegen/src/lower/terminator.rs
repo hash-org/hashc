@@ -68,9 +68,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         let can_merge = || {
             let mut successors = terminator.successors();
 
-            if let Some(successor) = successors.next() &&
-                successors.next().is_none() &&
-                let &[successor_pred] = self.body.basic_blocks.predecessors()[successor].as_slice()
+            if let Some(successor) = successors.next()
+                && successors.next().is_none()
+                && let &[successor_pred] =
+                    self.body.basic_blocks.predecessors()[successor].as_slice()
             {
                 // Ensure that the only predecessor of the successor is the current block.
                 assert_eq!(successor_pred, block);

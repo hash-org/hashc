@@ -347,24 +347,26 @@ impl<'ir> BuilderCtx<'ir> {
 
                 let ty = def.discriminant_ty.unwrap_or(IntTy::Int(SIntTy::ISize));
 
-                // At discovery, if any of the variants have a discriminant, then all of them items
-                // after it will also have a discriminant, thus making the it consistent across the 
-                // entire enum. Otherwise, we can default to using the index of the variant as the 
+                // At discovery, if any of the variants have a discriminant, then all of them
+                // items after it will also have a discriminant, thus making the
+                // it consistent across the entire enum. Otherwise, we can
+                // default to using the index of the variant as the
                 // discriminant.
                 //
                 // @@Hack @@TIRConsts
-                let discriminant = if let Some(discriminant_term) = ctor.discriminant &&
-                                      let Some(ref value) = try_use_term_as_int_const(self, discriminant_term) {
-                    Discriminant { value: value.value.as_u128(), ty, kind: DiscriminantKind::Explicit }
+                let discriminant = if let Some(discriminant_term) = ctor.discriminant
+                    && let Some(ref value) = try_use_term_as_int_const(self, discriminant_term)
+                {
+                    Discriminant {
+                        value: value.value.as_u128(),
+                        ty,
+                        kind: DiscriminantKind::Explicit,
+                    }
                 } else {
                     Discriminant { value: index as u128, ty, kind: DiscriminantKind::implicit() }
                 };
 
-                AdtVariant {
-                    name: ctor.name.ident(),
-                    fields,
-                    discriminant,
-                }
+                AdtVariant { name: ctor.name.ident(), fields, discriminant }
             })
             .collect::<AdtVariants>();
 

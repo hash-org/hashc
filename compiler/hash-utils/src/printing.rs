@@ -173,10 +173,10 @@ impl<'a, T: fmt::Display + 'a> fmt::Display for SequenceDisplay<'a, T> {
         match self.items.len() {
             0 => write!(f, ""),
             1 if self.options.mode == SequenceJoinMode::Either => {
-                write!(f, "a {quote}{}{quote}", self.items.get(0).unwrap())
+                write!(f, "a {quote}{}{quote}", self.items.first().unwrap())
             }
             1 => {
-                write!(f, "{quote}{}{quote}", self.items.get(0).unwrap())
+                write!(f, "{quote}{}{quote}", self.items.first().unwrap())
             }
             _ => {
                 // We essentially want to limit the number of elements to print

@@ -56,7 +56,9 @@ impl AstExpander<'_> {
 
             // Create a new attribute checker, and check that the attribute
             // is valid.
-            if let Some(attr) = maybe_attr && self.check_attrs(&attrs, &attr, subject) {
+            if let Some(attr) = maybe_attr
+                && self.check_attrs(&attrs, &attr, subject)
+            {
                 should_dump |= attr.id == attrs::DUMP_AST;
                 attrs.add_attr(attr);
             }
@@ -209,13 +211,11 @@ impl AstExpander<'_> {
                 Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Given(node.id()))
             };
 
-            if is_valid && let Err(param_err) =
-                validate_and_reorder_args_against_params(mac_args, attr_ty.params)
+            if is_valid
+                && let Err(param_err) =
+                    validate_and_reorder_args_against_params(mac_args, attr_ty.params)
             {
-                self.add_error(ExpansionError::new(
-                    param_err.into(),
-                    node.id,
-                ));
+                self.add_error(ExpansionError::new(param_err.into(), node.id));
 
                 is_valid = false;
             }

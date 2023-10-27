@@ -102,7 +102,9 @@ impl<'env> AttrChecker<'env> {
         // Check that the specified `#repr` attribute is valid.
         let repr = ReprAttr::parse(attr)?;
 
-        if let ReprAttr::Int(_) = repr && let AttrNode::StructDef(_) = node {
+        if let ReprAttr::Int(_) = repr
+            && let AttrNode::StructDef(_) = node
+        {
             return Err(AttrError::InvalidReprForItem {
                 origin: attr.origin,
                 item: AttrTarget::StructDef,
@@ -148,7 +150,9 @@ impl<'env> AttrChecker<'env> {
             _ => unreachable!("`#layout_of` attribute applied to non-struct/enum item"),
         };
 
-        if let Some(params) = maybe_params && !params.body().params.is_empty() {
+        if let Some(params) = maybe_params
+            && !params.body().params.is_empty()
+        {
             Err(AttrError::LayoutOfGenericItem { origin: node.id(), generics: params.id(), item })
         } else {
             Ok(())

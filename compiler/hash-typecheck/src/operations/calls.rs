@@ -40,15 +40,21 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
             match *inferred_subject_ty.value() {
                 Ty::FnTy(fn_ty) => {
                     // Potentially fill-in implicit args
-                    if let Ty::FnTy(_) = *fn_ty.return_ty.value() && fn_ty.implicit && !call_term.implicit {
+                    if let Ty::FnTy(_) = *fn_ty.return_ty.value()
+                        && fn_ty.implicit
+                        && !call_term.implicit
+                    {
                         let applied_args = Arg::seq_from_params_as_holes(fn_ty.params);
-                        let copied_subject = Term::inherited_from(call_term.subject, *call_term.subject.value());
+                        let copied_subject =
+                            Term::inherited_from(call_term.subject, *call_term.subject.value());
                         let new_subject = CallTerm {
                             args: applied_args,
                             subject: copied_subject,
                             implicit: fn_ty.implicit,
                         };
-                        call_term.subject.set(call_term.subject.value().with_data(new_subject.into()));
+                        call_term
+                            .subject
+                            .set(call_term.subject.value().with_data(new_subject.into()));
                         return self.check(call_term, annotation_ty, original_term_id);
                     }
 
@@ -65,14 +71,19 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
                     let copied_return_ty = self.visitor().copy(fn_ty.return_ty);
 
                     let mut fn_call_term = *call_term;
-                    self.check_node_scoped(fn_call_term.args, copied_params, |inferred_fn_call_args| {
-                        fn_call_term.args = inferred_fn_call_args;
-                        original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
+                    self.check_node_scoped(
+                        fn_call_term.args,
+                        copied_params,
+                        |inferred_fn_call_args| {
+                            fn_call_term.args = inferred_fn_call_args;
+                            original_term_id
+                                .set(original_term_id.value().with_data(fn_call_term.into()));
 
-                        self.substituter().apply_sub_from_context(copied_return_ty);
-                        self.check_by_unify(copied_return_ty, annotation_ty)?;
-                        Ok(())
-                    })?;
+                            self.substituter().apply_sub_from_context(copied_return_ty);
+                            self.check_by_unify(copied_return_ty, annotation_ty)?;
+                            Ok(())
+                        },
+                    )?;
 
                     self.substituter().apply_sub_from_context(fn_call_term.subject);
                     self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;

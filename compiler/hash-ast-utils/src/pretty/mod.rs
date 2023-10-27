@@ -772,11 +772,15 @@ where
     ) -> Result<Self::BindingPatRet, Self::Error> {
         let ast::BindingPat { name, visibility, mutability } = node.body();
 
-        if let Some(value) = visibility && *value.body() == ast::Visibility::Public {
+        if let Some(value) = visibility
+            && *value.body() == ast::Visibility::Public
+        {
             self.write("pub ")?;
         }
 
-        if let Some(value) = mutability && *value.body() == ast::Mutability::Mutable  {
+        if let Some(value) = mutability
+            && *value.body() == ast::Mutability::Mutable
+        {
             self.write("mut ")?;
         }
 
@@ -936,7 +940,9 @@ where
 
         self.write("&")?;
 
-        if let Some(ref_kind) = kind && *ref_kind.body() == ast::RefKind::Raw {
+        if let Some(ref_kind) = kind
+            && *ref_kind.body() == ast::RefKind::Raw
+        {
             self.write("raw ")?;
         }
 
@@ -1234,7 +1240,9 @@ where
             self.write("raw ")?;
         }
 
-        if let Some(value) = mutability && *value.body() == ast::Mutability::Mutable {
+        if let Some(value) = mutability
+            && *value.body() == ast::Mutability::Mutable
+        {
             self.write("mut ")?;
         }
 

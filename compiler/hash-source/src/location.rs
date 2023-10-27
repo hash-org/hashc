@@ -291,7 +291,9 @@ impl LineRanges {
             let line_range = ByteRange::new(key.start(), key.end());
             let mut indices = source.contents().hunk(line_range).char_indices();
 
-            while let Some((index, _)) = indices.next() && index < column_byte_offset {
+            while let Some((index, _)) = indices.next()
+                && index < column_byte_offset
+            {
                 column += 1;
             }
         });

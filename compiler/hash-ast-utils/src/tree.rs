@@ -847,7 +847,9 @@ impl AstVisitor for AstTreePrinter {
         let walk::StructDef { fields, ty_params } = walk::walk_struct_def(self, node)?;
 
         let children = {
-            if let Some(ty_params) = ty_params && !ty_params.children.is_empty() {
+            if let Some(ty_params) = ty_params
+                && !ty_params.children.is_empty()
+            {
                 vec![ty_params, fields]
             } else {
                 vec![fields]
@@ -883,7 +885,9 @@ impl AstVisitor for AstTreePrinter {
 
         let variants = TreeNode::branch("variants", entries);
         let children = {
-            if let Some(ty_params) = ty_params && !ty_params.children.is_empty() {
+            if let Some(ty_params) = ty_params
+                && !ty_params.children.is_empty()
+            {
                 vec![ty_params, variants]
             } else {
                 vec![variants]
@@ -923,7 +927,9 @@ impl AstVisitor for AstTreePrinter {
 
         // If the pattern contains a spread, place it in the position that it
         // was specified in the source.
-        if let Some(spread) = spread && let Some(spread_node) = &node.spread {
+        if let Some(spread) = spread
+            && let Some(spread_node) = &node.spread
+        {
             fields.insert(spread_node.position, TreeNode::branch("spread", vec![spread]));
         }
 
@@ -965,7 +971,9 @@ impl AstVisitor for AstTreePrinter {
 
         // If the pattern contains a spread, place it in the position that it
         // was specified in the source.
-        if let Some(spread) = spread && let Some(spread_node) = &node.spread {
+        if let Some(spread) = spread
+            && let Some(spread_node) = &node.spread
+        {
             fields.insert(spread_node.position, TreeNode::branch("spread", vec![spread]));
         }
 
@@ -981,7 +989,9 @@ impl AstVisitor for AstTreePrinter {
 
         // If the pattern contains a spread, place it in the position that it
         // was specified in the source.
-        if let Some(spread) = spread && let Some(spread_node) = node.spread.as_ref() {
+        if let Some(spread) = spread
+            && let Some(spread_node) = node.spread.as_ref()
+        {
             fields.insert(spread_node.position, spread)
         }
 

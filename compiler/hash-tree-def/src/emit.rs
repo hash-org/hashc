@@ -395,7 +395,7 @@ fn enum_variants_as_same_children(
                 return None;
             }
             // A node (either a direct child or a "phantom" child with no wrapper)
-            let member = &data.get(0).unwrap();
+            let member = data.first().unwrap();
             match member {
                 NodeFieldData::Child { node_name } => {
                     Some((node_name.clone(), variant.name.clone()))

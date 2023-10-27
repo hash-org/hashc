@@ -300,7 +300,9 @@ impl<'env, T: SemanticEnv> PatBindsChecker<'env, T> {
 
             match check {
                 PatCheckKind::Args(pats, spread) => {
-                    if let Some(spread) = spread && spread.name.is_some() {
+                    if let Some(spread) = spread
+                        && spread.name.is_some()
+                    {
                         unimplemented!("spread pattern binding checking isn't implemented yet.")
                     }
 
@@ -309,7 +311,9 @@ impl<'env, T: SemanticEnv> PatBindsChecker<'env, T> {
                     self.check_compound_pat(root, &pats)
                 }
                 PatCheckKind::List(pats, spread) => {
-                    if let Some(spread) = spread && spread.name.is_some() {
+                    if let Some(spread) = spread
+                        && spread.name.is_some()
+                    {
                         unimplemented!("spread pattern binding checking isn't implemented yet.")
                     }
 

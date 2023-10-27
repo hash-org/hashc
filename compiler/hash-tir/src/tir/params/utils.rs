@@ -497,11 +497,14 @@ pub fn validate_and_reorder_pat_args_against_params(
                 assert!(j_received == j);
 
                 // If the previous argument was a spread, this is an error
-                if let Some(spread) = spread && j != 0 && spread.index == j - 1 {
-                        error_state.add_error(ParamError::SpreadBeforePositionalArg {
-                            next_positional: arg_id.into(),
-                        });
-                    }
+                if let Some(spread) = spread
+                    && j != 0
+                    && spread.index == j - 1
+                {
+                    error_state.add_error(ParamError::SpreadBeforePositionalArg {
+                        next_positional: arg_id.into(),
+                    });
+                }
 
                 result[j] = Some(Node::at(
                     PatArg {

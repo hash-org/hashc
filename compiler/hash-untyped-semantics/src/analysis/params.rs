@@ -66,27 +66,30 @@ impl SemanticAnalyser {
         }
 
         match self.current_block {
-                // Check that `self` cannot be within a free standing functions
-                BlockOrigin::Root => {
-                    if let Some(name) = param.name.as_ref() && name.is(IDENTS.self_i) {
-                        self.append_error(AnalysisErrorKind::SelfInFreeStandingFn, param);
-                    }
+            // Check that `self` cannot be within a free standing functions
+            BlockOrigin::Root => {
+                if let Some(name) = param.name.as_ref()
+                    && name.is(IDENTS.self_i)
+                {
+                    self.append_error(AnalysisErrorKind::SelfInFreeStandingFn, param);
                 }
-                BlockOrigin::Mod  => {
-                    // If both the type definition is missing and the default expression assignment
-                    // to the struct-def field, then a type cannot be inferred and is thus
-                    // ambiguous.
-                    if let Some(name) = param.name.as_ref() && !name.is(IDENTS.self_i)
-                        && param.ty.is_none()
-                        && param.default.is_none()
-                    {
-                        self.append_error(
-                            AnalysisErrorKind::InsufficientTypeAnnotations { origin },
-                            param,
-                        );
-                    }
-                }
-                _ => {}
             }
+            BlockOrigin::Mod => {
+                // If both the type definition is missing and the default expression assignment
+                // to the struct-def field, then a type cannot be inferred and is thus
+                // ambiguous.
+                if let Some(name) = param.name.as_ref()
+                    && !name.is(IDENTS.self_i)
+                    && param.ty.is_none()
+                    && param.default.is_none()
+                {
+                    self.append_error(
+                        AnalysisErrorKind::InsufficientTypeAnnotations { origin },
+                        param,
+                    );
+                }
+            }
+            _ => {}
+        }
     }
 }

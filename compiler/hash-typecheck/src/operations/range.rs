@@ -23,19 +23,25 @@ impl<E: TcEnv> Tc<'_, E> {
         // If the start isn't provided, we don't need to check
         // that the value is larger than the start, as it will
         // always succeed.
-        if let Some(start) = maybe_start && start < value {
+        if let Some(start) = maybe_start
+            && start < value
+        {
             return MatchResult::Failed;
         }
 
         // If the end isn't provided, we can assume that the subject will
         // always match.
         if range_end == RangeEnd::Included {
-            if let Some(end) = maybe_end && end > value {
+            if let Some(end) = maybe_end
+                && end > value
+            {
                 MatchResult::Failed
             } else {
                 MatchResult::Successful
             }
-        } else if let Some(end) = maybe_end && end >= value {
+        } else if let Some(end) = maybe_end
+            && end >= value
+        {
             MatchResult::Failed
         } else {
             MatchResult::Successful

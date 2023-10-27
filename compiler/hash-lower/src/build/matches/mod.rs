@@ -636,11 +636,10 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If this has a guard, then we need to create more blocks for the event
         // that the guard does not succeed and we backtrack to the next patterns.
-        if candidate.has_guard && let Some(guard) = guard {
-            let bindings = parent_bindings
-                .iter()
-                .flatten()
-                .chain(&candidate.bindings);
+        if candidate.has_guard
+            && let Some(guard) = guard
+        {
+            let bindings = parent_bindings.iter().flatten().chain(&candidate.bindings);
 
             // bind everything necessary for the guard.
             self.bind_matched_candidate_for_guard(block, bindings);
@@ -654,11 +653,16 @@ impl<'tcx> BodyBuilder<'tcx> {
             // deal with the if-guard
             let post_guard_block = unpack!(self.then_else_break(block, otherwise_block, guard));
             self.bind_matched_candidate_for_arm_body(
-                post_guard_block, parent_bindings.iter().flatten().chain(&candidate.bindings));
+                post_guard_block,
+                parent_bindings.iter().flatten().chain(&candidate.bindings),
+            );
 
             post_guard_block
         } else {
-            self.bind_matched_candidate_for_arm_body(block, parent_bindings.iter().flatten().chain(&candidate.bindings));
+            self.bind_matched_candidate_for_arm_body(
+                block,
+                parent_bindings.iter().flatten().chain(&candidate.bindings),
+            );
             block
         }
     }

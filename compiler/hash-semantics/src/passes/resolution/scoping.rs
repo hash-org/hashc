@@ -303,7 +303,7 @@ impl<'env, E: SemanticEnv + 'env> Scoping<'env, E> {
                 }
             }
             ast::Pat::Or(or_pat) => {
-                if let Some(pat) = or_pat.variants.get(0) {
+                if let Some(pat) = or_pat.variants.first() {
                     self.for_each_stack_member_of_pat(pat.ast_ref(), f)
                 }
             }
