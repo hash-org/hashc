@@ -152,7 +152,9 @@ macro_rules! new_sequence_store_key_direct {
 
         impl $el_name {
             pub fn new(a: $name, b: usize) -> Self {
-                Self(a, b as u32)
+                let index = b as u32;
+                debug_assert!(index < a.len);
+                Self(a, index)
             }
         }
 
