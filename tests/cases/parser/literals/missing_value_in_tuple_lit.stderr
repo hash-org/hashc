@@ -1,7 +1,6 @@
-error: expected value assignment after type annotation within named tuple
- --> $DIR/missing_value_in_tuple_lit.hash:5:19
+error: expected an expression
+ --> $DIR/missing_value_in_tuple_lit.hash:5:17
 4 |       // ~ERROR: expecting value assignment after type annotation
-5 |       t := (name : 1, data := 2)
-  |                     ^ 
+5 |       t := (name =)
+  |                   ^ 
 6 |   }
-  = help: expected a `=`

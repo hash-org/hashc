@@ -225,7 +225,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
     /// Compute the type of an [RValue].
     pub fn ty_of_rvalue(&self, value: &RValue) -> IrTyId {
-        value.ty(&self.body.declarations)
+        value.ty(&self.body.aux())
     }
 
     /// Emit code for a [ir::RValue] that will return an [OperandRef].

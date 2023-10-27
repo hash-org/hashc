@@ -9,10 +9,10 @@ use std::{
 use hash_ast::ast::AstNodeId;
 use hash_source::{identifier::Identifier, location::Span, SourceId};
 use hash_storage::{
-    static_sequence_store_indirect,
+    new_sequence_store_key_indirect,
     store::{
         statics::{SingleStoreValue, StoreId},
-        SequenceStore, SequenceStoreKey,
+        LocalSequenceStore, SequenceStoreKey,
     },
 };
 use hash_tir::intrinsics::definitions::{
@@ -29,7 +29,6 @@ pub use crate::constant::{AllocId, Const, ConstKind, Scalar};
 use crate::{
     basic_blocks::BasicBlocks,
     cast::CastKind,
-    ir_stores,
     ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, VariantIdx, COMMON_IR_TYS},
 };
 
@@ -410,8 +409,8 @@ impl Place {
 
     /// Deduce the type of the [Place] from the [IrCtx] and the local
     /// declarations.
-    pub fn ty(&self, locals: &LocalDecls) -> IrTyId {
-        PlaceTy::from_place(*self, locals).ty
+    pub fn ty(&self, info: &BodyInfo) -> IrTyId {
+        PlaceTy::from_place(*self, info).ty
     }
 
     /// Create a new [Place] from a [Local] with no projections.
@@ -421,26 +420,25 @@ impl Place {
 
     /// Create a new [Place] from an existing [Place] whilst also
     /// applying a [`PlaceProjection::Deref`] on the old one.
-    pub fn deref(&self) -> Self {
+    pub fn deref(&self, store: &mut Projections) -> Self {
         // @@Todo: how can we just amend the existing projections?
-        let projections = self.projections.value();
+        let projections = store.get_vec(self.projections);
 
         Self {
             local: self.local,
-            projections: ProjectionId::seq(
-                projections.iter().copied().chain(once(PlaceProjection::Deref)),
-            ),
+            projections: store
+                .create_from_iter(projections.iter().copied().chain(once(PlaceProjection::Deref))),
         }
     }
 
     /// Create a new [Place] from an existing place whilst also
     /// applying a a [PlaceProjection::Field] on the old one.
-    pub fn field(&self, field: usize) -> Self {
-        let projections = self.projections.value();
+    pub fn field(&self, field: usize, store: &mut Projections) -> Self {
+        let projections = store.get_vec(self.projections);
 
         Self {
             local: self.local,
-            projections: ProjectionId::seq(
+            projections: store.create_from_iter(
                 projections.iter().copied().chain(once(PlaceProjection::Field(field))),
             ),
         }
@@ -469,61 +467,8 @@ impl From<Place> for RValue {
     }
 }
 
-impl fmt::Display for Place {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // First we, need to deal with the `deref` projections, since
-        // they need to be printed in reverse
-        for projection in self.projections.borrow().iter().rev() {
-            match projection {
-                PlaceProjection::Downcast(_) | PlaceProjection::Field(_) => write!(f, "(")?,
-                PlaceProjection::Deref => write!(f, "(*")?,
-                PlaceProjection::SubSlice { .. }
-                | PlaceProjection::ConstantIndex { .. }
-                | PlaceProjection::Index(_) => {}
-            }
-        }
-
-        write!(f, "{:?}", self.local)?;
-
-        for projection in self.projections.borrow().iter() {
-            match projection {
-                PlaceProjection::Downcast(index) => write!(f, " as variant#{index})")?,
-                PlaceProjection::Index(local) => write!(f, "[{local:?}]")?,
-                PlaceProjection::ConstantIndex { offset, min_length, from_end: true } => {
-                    write!(f, "[-{offset:?} of {min_length:?}]")?;
-                }
-                PlaceProjection::ConstantIndex { offset, min_length, from_end: false } => {
-                    write!(f, "[{offset:?} of {min_length:?}]")?;
-                }
-                PlaceProjection::SubSlice { from, to, from_end: true } if *to == 0 => {
-                    write!(f, "[{from}:]")?;
-                }
-                PlaceProjection::SubSlice { from, to, from_end: false } if *from == 0 => {
-                    write!(f, "[:-{to:?}]")?;
-                }
-                PlaceProjection::SubSlice { from, to, from_end: true } => {
-                    write!(f, "[{from}:-{to:?}]")?;
-                }
-                PlaceProjection::SubSlice { from, to, from_end: false } => {
-                    write!(f, "[{from:?}:{to:?}]")?;
-                }
-                PlaceProjection::Field(index) => write!(f, ".{index})")?,
-                PlaceProjection::Deref => write!(f, ")")?,
-            }
-        }
-
-        Ok(())
-    }
-}
-
 /// [AggregateKind] represent an initialisation process of a particular
 /// structure be it a tuple, array, struct, etc.
-///
-/// @@Todo: decide whether to keep this, or to stick with just immediately
-/// lowering items as setting values for each field within the aggregate
-/// data structure (as it). If we stick with initially generating
-/// aggregates, then we will have to de-aggregate them before lowering
-/// to bytecode/llvm.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AggregateKind {
     /// A tuple value initialisation.
@@ -577,10 +522,10 @@ pub enum Operand {
 impl Operand {
     /// Compute the type of the [Operand] based on
     /// the IrCtx.
-    pub fn ty(&self, locals: &LocalDecls) -> IrTyId {
+    pub fn ty(&self, info: &BodyInfo) -> IrTyId {
         match self {
             Operand::Const(kind) => kind.ty(),
-            Operand::Place(place) => place.ty(locals),
+            Operand::Place(place) => place.ty(info),
         }
     }
 }
@@ -661,20 +606,20 @@ impl RValue {
     }
 
     /// Get the [IrTy] of the [RValue].
-    pub fn ty(&self, locals: &LocalDecls) -> IrTyId {
+    pub fn ty(&self, info: &BodyInfo) -> IrTyId {
         match self {
-            RValue::Use(operand) => operand.ty(locals),
+            RValue::Use(operand) => operand.ty(info),
             RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => COMMON_IR_TYS.usize,
-            RValue::UnaryOp(_, operand) => operand.ty(locals),
-            RValue::BinaryOp(op, box (lhs, rhs)) => op.ty(lhs.ty(locals), rhs.ty(locals)),
+            RValue::UnaryOp(_, operand) => operand.ty(info),
+            RValue::BinaryOp(op, box (lhs, rhs)) => op.ty(lhs.ty(info), rhs.ty(info)),
             RValue::CheckedBinaryOp(op, box (lhs, rhs)) => {
-                let ty = op.ty(lhs.ty(locals), rhs.ty(locals));
+                let ty = op.ty(lhs.ty(info), rhs.ty(info));
                 IrTy::make_tuple(&[ty, COMMON_IR_TYS.bool])
             }
             RValue::Cast(_, _, ty) => *ty,
             RValue::Len(_) => COMMON_IR_TYS.usize,
             RValue::Ref(mutability, place, kind) => {
-                let ty = place.ty(locals);
+                let ty = place.ty(info);
                 IrTy::create(IrTy::Ref(ty, *mutability, *kind))
             }
             RValue::Aggregate(kind, _) => match kind {
@@ -684,11 +629,11 @@ impl RValue {
                 AggregateKind::Array(ty) => *ty,
             },
             RValue::Discriminant(place) => {
-                let ty = place.ty(locals);
+                let ty = place.ty(info);
                 ty.borrow().discriminant_ty()
             }
             RValue::Repeat(op, length) => {
-                IrTy::create(IrTy::Array { ty: op.ty(locals), length: *length })
+                IrTy::create(IrTy::Array { ty: op.ty(info), length: *length })
             }
         }
     }
@@ -1142,6 +1087,9 @@ impl fmt::Display for BodySource {
 /// All of the [LocalDecl]s that are used within a [Body].
 pub type LocalDecls = IndexVec<Local, LocalDecl>;
 
+/// All of the [PlaceProjection]s that are used within a [Body].
+pub type Projections = LocalSequenceStore<ProjectionId, PlaceProjection>;
+
 /// Represents a lowered IR body, which stores the created declarations,
 /// blocks and various other metadata about the lowered body.
 pub struct Body {
@@ -1157,11 +1105,14 @@ pub struct Body {
     ///   function arguments.
     ///
     /// - the remaining are temporaries that are used within the function.
-    pub declarations: LocalDecls,
+    pub locals: LocalDecls,
+
+    /// The interned projections that are used within the body.
+    pub projections: Projections,
 
     /// Information that is derived when the body in being
     /// lowered.
-    pub info: BodyInfo,
+    pub meta: BodyMetadata,
 
     /// Number of arguments to the function
     pub arg_count: usize,
@@ -1179,15 +1130,17 @@ impl Body {
     /// `span`.
     pub fn new(
         blocks: IndexVec<BasicBlock, BasicBlockData>,
-        declarations: IndexVec<Local, LocalDecl>,
-        info: BodyInfo,
+        locals: LocalDecls,
+        projections: Projections,
+        info: BodyMetadata,
         arg_count: usize,
         origin: AstNodeId,
     ) -> Self {
         Self {
             basic_blocks: BasicBlocks::new(blocks),
-            info,
-            declarations,
+            meta: info,
+            projections,
+            locals,
             arg_count,
             origin,
             dump: false,
@@ -1200,13 +1153,23 @@ impl Body {
         &self.basic_blocks.blocks
     }
 
+    /// Get a reference to the stored [Projections] of this [Body].
+    pub fn projections(&self) -> &Projections {
+        &self.projections
+    }
+
+    /// Get a mutable reference to the stored [Projections] of this [Body].
+    pub fn projections_mut(&mut self) -> &mut Projections {
+        &mut self.projections
+    }
+
     /// Compute the [LocalKind] of a [Local] in this [Body].
     pub fn local_kind(&self, local: Local) -> LocalKind {
         if local == RETURN_PLACE {
             LocalKind::Return
         } else if local.index() < self.arg_count + 1 {
             LocalKind::Arg
-        } else if self.declarations[local].auxiliary || self.declarations[local].name.is_none() {
+        } else if self.locals[local].auxiliary || self.locals[local].name.is_none() {
             LocalKind::Temp
         } else {
             LocalKind::Var
@@ -1223,7 +1186,7 @@ impl Body {
     /// excludes the return place and function arguments.
     #[inline]
     pub fn vars_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.arg_count + 1..self.declarations.len()).map(Local::new)
+        (self.arg_count + 1..self.locals.len()).map(Local::new)
     }
 
     /// Set the `dump` flag to `true` so that the IR Body that is generated
@@ -1237,9 +1200,19 @@ impl Body {
         self.dump
     }
 
-    /// Get the [BodyInfo] for the [Body]
-    pub fn info(&self) -> &BodyInfo {
-        &self.info
+    /// Get the [BodyMetadata] for the [Body].
+    pub fn metadata(&self) -> &BodyMetadata {
+        &self.meta
+    }
+
+    /// Get the auxiliary stores for the [Body].
+    pub fn aux(&self) -> BodyInfo<'_> {
+        BodyInfo { locals: &self.locals, projections: &self.projections }
+    }
+
+    /// Get a mutable reference to the auxiliary stores for the [Body].
+    pub fn aux_mut(&mut self) -> BodyInfoMut<'_> {
+        BodyInfoMut { locals: &mut self.locals, projections: &mut self.projections }
     }
 
     /// Get the [Span] of the [Body].
@@ -1262,7 +1235,7 @@ impl Body {
 /// during lowering and might not be initially available, so most of the fields
 /// are wrapped in a [Option], however any access method on the field
 /// **expects** that the value was computed.
-pub struct BodyInfo {
+pub struct BodyMetadata {
     /// The name of the body that was lowered. This is determined from the
     /// beginning of the lowering process.
     pub name: Identifier,
@@ -1274,8 +1247,8 @@ pub struct BodyInfo {
     ty: Option<IrTyId>,
 }
 
-impl BodyInfo {
-    /// Create a new [BodyInfo] with the given `name`.
+impl BodyMetadata {
+    /// Create a new [BodyMetadata] with the given `name`.
     pub fn new(name: Identifier, source: BodySource) -> Self {
         Self { name, ty: None, source }
     }
@@ -1301,26 +1274,27 @@ impl BodyInfo {
     }
 }
 
-static_sequence_store_indirect!(
-    store = pub ProjectionStore,
-    id = pub ProjectionId[PlaceProjection],
-    store_name = projections,
-    store_source = ir_stores()
-);
+/// All of the auxiliary stores that are used within a [Body]. This is useful
+/// for other functions that might need access to this information when reading
+/// items within the [Body].
+#[derive(Clone, Copy)]
+pub struct BodyInfo<'body> {
+    /// A reference to the local storage of the [Body].
+    pub locals: &'body LocalDecls,
 
-impl ProjectionId {
-    pub fn empty() -> Self {
-        ir_stores().projections().create_empty()
-    }
-
-    pub fn seq<I: IntoIterator<Item = PlaceProjection>>(values: I) -> Self {
-        ir_stores().projections().create_from_iter(values)
-    }
-
-    pub fn from_slice(values: &[PlaceProjection]) -> Self {
-        ir_stores().projections().create_from_slice(values)
-    }
+    /// A reference to the projection storage of the [Body].
+    pub projections: &'body Projections,
 }
+
+pub struct BodyInfoMut<'body> {
+    /// A reference to the local storage of the [Body].
+    pub locals: &'body mut LocalDecls,
+
+    /// A reference to the projection storage of the [Body].
+    pub projections: &'body mut Projections,
+}
+
+new_sequence_store_key_indirect!(pub ProjectionId, PlaceProjection, derives=Debug);
 
 /// An [IrRef] is a reference to where a particular item occurs within
 /// the [Body]. The [IrRef] stores an associated [BasicBlock] and an
@@ -1362,40 +1336,6 @@ impl IrRef {
         } else {
             dominators.is_dominated_by(self.block, other.block)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        ir::{Local, Place, PlaceProjection, ProjectionId},
-        ty::VariantIdx,
-    };
-
-    #[test]
-    fn test_place_display() {
-        let place = Place {
-            local: Local::new(0),
-            projections: ProjectionId::from_slice(&[
-                PlaceProjection::Deref,
-                PlaceProjection::Field(0),
-                PlaceProjection::Index(Local::new(1)),
-                PlaceProjection::Downcast(VariantIdx::from_usize(0)),
-            ]),
-        };
-
-        assert_eq!(format!("{}", place), "(((*_0).0)[_1] as variant#0)");
-
-        let place = Place {
-            local: Local::new(0),
-            projections: ProjectionId::from_slice(&[
-                PlaceProjection::Deref,
-                PlaceProjection::Deref,
-                PlaceProjection::Deref,
-            ]),
-        };
-
-        assert_eq!(format!("{}", place), "(*(*(*_0)))");
     }
 }
 

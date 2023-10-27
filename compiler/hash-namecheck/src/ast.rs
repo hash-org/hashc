@@ -13,7 +13,7 @@ use hash_ast::{
         self, AccessExpr, AccessPat, AccessTy, AstNode, AstNodeId, AstNodeRef, BindingPat,
         BodyBlock, CallExpr, ConstructorPat, Declaration, EnumDef, ExprArg, FnDef, FnTy,
         ImplicitFnCall, ImplicitFnDef, MatchCase, ModDef, Module, ModulePatEntry, NamedTy, Param,
-        Params, StructDef, TupleLit, TuplePat, TupleTy, TyArg, TyParam, TyParams, VariableExpr,
+        Params, StructDef, TuplePat, TupleTy, TyArg, TyParam, TyParams, VariableExpr,
     },
     ast_visitor_mut_self_default_impl,
 };
@@ -268,15 +268,6 @@ impl hash_ast::ast::AstVisitorMutSelf for AstNameDataVisitor {
         &mut self,
         _node: AstNodeRef<AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
-        todo!()
-    }
-
-    type TupleLitRet = ();
-
-    fn visit_tuple_lit(
-        &mut self,
-        _node: AstNodeRef<TupleLit>,
-    ) -> Result<Self::TupleLitRet, Self::Error> {
         todo!()
     }
 

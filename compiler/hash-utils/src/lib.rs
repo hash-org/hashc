@@ -17,6 +17,7 @@ pub mod logging;
 pub mod path;
 pub mod printing;
 pub mod range_map;
+pub mod scoping;
 pub mod stack;
 pub mod state;
 pub mod timing;

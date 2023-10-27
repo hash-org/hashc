@@ -8,7 +8,7 @@ mod tokens;
 use collection::CollectionPrintingOptions;
 use config::AstPrintingConfig;
 use hash_ast::{
-    ast::{self, walk_mut_self, AstVisitorMutSelf, ParamOrigin},
+    ast::{self, walk_mut_self, AstVisitorMutSelf, Hunk, ParamOrigin},
     ast_visitor_mut_self_default_impl,
 };
 use hash_source::SourceMapUtils;
@@ -57,9 +57,19 @@ where
         write!(self.fmt, "{}", contents.as_ref())
     }
 
+    /// Write a character to the output stream.
     fn write_char(&mut self, ch: char) -> FmtResult {
         self.state.width += 1;
         write!(self.fmt, "{}", ch)
+    }
+
+    /// Write an AST hunk to the output stream.
+    fn write_hunk(&mut self, hunk: Hunk) -> FmtResult {
+        SourceMapUtils::map(hunk.source(), |source| {
+            let raw_hunk = source.hunk(hunk.span().range);
+            self.state.width += raw_hunk.len() as u32;
+            write!(self.fmt, "{}", raw_hunk)
+        })
     }
 
     /// Write a line with applied indentation.
@@ -288,32 +298,6 @@ where
         self.write("]")
     }
 
-    type TupleLitEntryRet = ();
-
-    fn visit_tuple_lit_entry(
-        &mut self,
-        node: ast::AstNodeRef<ast::TupleLitEntry>,
-    ) -> Result<Self::TupleLitEntryRet, Self::Error> {
-        let ast::TupleLitEntry { name, ty, value } = node.body();
-
-        if let Some(name) = name {
-            self.visit_name(name.ast_ref())?;
-
-            if ty.is_some() {
-                self.write(": ")?;
-            } else {
-                self.write(" = ")?;
-            }
-        }
-
-        if let Some(ty) = ty {
-            self.visit_ty(ty.ast_ref())?;
-            self.write(" = ")?;
-        }
-
-        self.visit_expr(value.ast_ref())
-    }
-
     type UnsafeExprRet = ();
 
     fn visit_unsafe_expr(
@@ -478,8 +462,9 @@ where
     ) -> Result<Self::TyParamsRet, Self::Error> {
         let ast::Params { params, origin } = node.body();
 
-        // Return early if no params are specified.
-        if params.is_empty() {
+        // Return early if no params are specified for enum variants, since
+        // this is just a variant with no data.
+        if params.is_empty() && *origin == ParamOrigin::EnumVariant {
             return Ok(());
         }
 
@@ -697,10 +682,10 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::IntLit>,
     ) -> Result<Self::IntLitRet, Self::Error> {
-        // We have to write the hunk, but without any spaces.
-        // @@AddHunks
+        let ast::IntLit { hunk, kind, .. } = node.body();
+        self.write_hunk(*hunk)?;
 
-        if matches!(node.body.kind, IntLitKind::Suffixed(_)) {
+        if matches!(kind, IntLitKind::Suffixed(_)) {
             self.write(format!("_{}", node.body.kind))?;
         }
 
@@ -741,13 +726,13 @@ where
         self.visit_expr(fn_body.ast_ref())
     }
 
-    type ArrayLitRet = ();
+    type ArrayExprRet = ();
 
-    fn visit_array_lit(
+    fn visit_array_expr(
         &mut self,
-        node: ast::AstNodeRef<ast::ArrayLit>,
-    ) -> Result<Self::ArrayLitRet, Self::Error> {
-        let ast::ArrayLit { elements } = node.body();
+        node: ast::AstNodeRef<ast::ArrayExpr>,
+    ) -> Result<Self::ArrayExprRet, Self::Error> {
+        let ast::ArrayExpr { elements } = node.body();
 
         let opts = CollectionPrintingOptions::delimited(Delimiter::Bracket, ", ");
         self.print_separated_collection(elements, opts, |this, item| this.visit_expr(item))
@@ -828,18 +813,16 @@ where
         self.write(format!("import(\"{}\")", node.body.data.path))
     }
 
-    type TupleLitRet = ();
+    type TupleExprRet = ();
 
-    fn visit_tuple_lit(
+    fn visit_tuple_expr(
         &mut self,
-        node: ast::AstNodeRef<ast::TupleLit>,
-    ) -> Result<Self::TupleLitRet, Self::Error> {
-        let ast::TupleLit { elements } = node.body();
+        node: ast::AstNodeRef<ast::TupleExpr>,
+    ) -> Result<Self::TupleExprRet, Self::Error> {
+        let ast::TupleExpr { elements } = node.body();
 
         let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
-        self.print_separated_collection(elements, opts, |this, entry| {
-            this.visit_tuple_lit_entry(entry)
-        })
+        self.print_separated_collection(elements, opts, |this, entry| this.visit_expr_arg(entry))
     }
 
     type FnTyRet = ();
@@ -936,8 +919,11 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::ExprTy>,
     ) -> Result<Self::ExprTyRet, Self::Error> {
-        self.write("type ")?;
-        self.visit_expr(node.body().expr.ast_ref())
+        // @@Todo: we should deal with wrapping here if needed?
+
+        self.write("{ ")?;
+        self.visit_expr(node.body().expr.ast_ref())?;
+        self.write(" }")
     }
 
     type RefTyRet = ();
@@ -1052,7 +1038,7 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::ModDef>,
     ) -> Result<Self::ModDefRet, Self::Error> {
-        let ast::ModDef { ty_params, block } = node.body();
+        let ast::ModDef { ty_params, entries } = node.body();
 
         self.write("mod")?;
 
@@ -1061,7 +1047,11 @@ where
         }
 
         self.write(" ")?;
-        self.visit_body_block(block.ast_ref())
+
+        let mut opts = CollectionPrintingOptions::delimited(Delimiter::Brace, "\n");
+        opts.per_line().terminating_delimiters().indented();
+
+        self.print_separated_collection(entries, opts, |this, item| this.visit_expr(item))
     }
 
     type MatchCaseRet = ();
@@ -1089,10 +1079,10 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::FloatLit>,
     ) -> Result<Self::FloatLitRet, Self::Error> {
-        // We have to write the hunk, but without any spaces.
-        // @@AddHunks
+        let ast::FloatLit { kind, hunk } = node.body();
+        self.write_hunk(*hunk)?;
 
-        if matches!(node.body.kind, FloatLitKind::Suffixed(_)) {
+        if matches!(kind, FloatLitKind::Suffixed(_)) {
             self.write(format!("_{}", node.body.kind))?;
         }
 
@@ -1293,9 +1283,6 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::TokenStream>,
     ) -> Result<Self::TokenStreamRet, Self::Error> {
-        // @@Future: figure out the exact formatting for this. Currently, we will just
-        // pretty-print the tokens as they are separated by spaces, we might
-        // want to take in account token spacing in the future.
         let ast::TokenStream { tokens, delimiter } = node.body();
 
         SourceMapUtils::map(node.id().source(), |source| {
@@ -1423,7 +1410,11 @@ where
 
         if !macros.is_empty() {
             self.visit_macro_invocations(macros.ast_ref())?;
+
+            // We want to terminate the line, but also account for the
+            // indent if there is one...
             self.terminate_line("")?;
+            self.indent()?;
         }
 
         self.visit_expr(subject.ast_ref())

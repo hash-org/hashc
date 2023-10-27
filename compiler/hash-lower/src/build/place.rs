@@ -1,7 +1,7 @@
 //! Utilities for dealing with [Place]s when building up Hash IR.
 
 use hash_ir::{
-    ir::{BasicBlock, Local, Place, PlaceProjection, ProjectionId},
+    ir::{BasicBlock, Local, Place, PlaceProjection, Projections},
     ty::{IrTyId, Mutability, VariantIdx},
 };
 use hash_storage::store::statics::StoreId;
@@ -64,8 +64,8 @@ impl PlaceBuilder {
     }
 
     /// Build the [Place] from the [PlaceBuilder].
-    pub(crate) fn into_place(self) -> Place {
-        Place { local: self.base, projections: ProjectionId::seq(self.projections) }
+    pub(crate) fn into_place(self, store: &mut Projections) -> Place {
+        Place { local: self.base, projections: store.create_from_iter(self.projections) }
     }
 }
 
@@ -83,7 +83,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         mutability: Mutability,
     ) -> BlockAnd<Place> {
         let place_builder = unpack!(block = self.as_place_builder(block, term, mutability));
-        block.and(place_builder.into_place())
+        block.and(place_builder.into_place(&mut self.projections))
     }
 
     pub(crate) fn as_place_builder(

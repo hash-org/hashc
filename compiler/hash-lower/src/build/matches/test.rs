@@ -542,7 +542,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
     ) {
         // Build the place from the provided place builder
-        let place = place_builder.clone().into_place();
+        let place = place_builder.clone().into_place(&mut self.projections);
         let span = test.origin;
 
         match test.kind {
