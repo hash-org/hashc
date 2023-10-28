@@ -21,7 +21,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
                         Some(name) => {
                             ParamIndex::Name(name.ident).into_symbol(NodeOrigin::Given(name.id()))
                         }
-                        None => ParamIndex::Position(i).into_symbol(NodeOrigin::Given(param.id())),
+                        None => ParamIndex::pos(i).into_symbol(NodeOrigin::Given(param.id())),
                     }),
                     NodeOrigin::Given(param.id()),
                 )
@@ -30,7 +30,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
         );
 
         for (i, param) in params.iter().enumerate() {
-            self.ast_info.params().insert(param.id(), ParamId(params_id.elements(), i));
+            self.ast_info.params().insert(param.id(), ParamId::new(params_id.elements(), i));
         }
 
         params_id

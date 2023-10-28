@@ -153,7 +153,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
                 let CtorDefId(ctor_defs, index) = ctor;
                 let ctor = if index != 0 || ctor_defs.len() > 1 {
-                    DeconstructedCtor::Variant(ctor.1)
+                    DeconstructedCtor::Variant(ctor.1 as usize)
                 } else {
                     DeconstructedCtor::Single
                 };
@@ -245,7 +245,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                                     DeconstructedCtor::Variant(idx) => *idx,
                                     _ => unreachable!()
                                 };
-                                let ctor = CtorDefId(ctor_def_id.elements(), variant_idx);
+                                let ctor = CtorDefId::new(ctor_def_id.elements(), variant_idx);
                                 let (pats, spread) = self.construct_pat_args(fields, ctor.borrow().params);
 
                                 Pat::Ctor(CtorPat { ctor, ctor_pat_args: pats, ctor_pat_args_spread: spread, data_args: args })
@@ -297,7 +297,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             .map(|(index, p)| {
                 Node::at(
                     PatArg {
-                        target: ParamId(params.elements(), index).as_param_index(),
+                        target: ParamId::new(params.elements(), index).as_param_index(),
                         pat: self.construct_pat(p).into(),
                     },
                     NodeOrigin::Generated,

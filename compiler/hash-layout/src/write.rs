@@ -19,6 +19,7 @@
 use std::{fmt, iter};
 
 use hash_ir::ty::{IrTy, VariantIdx};
+use hash_source::identifier::Identifier;
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::AbiRepresentation, data_layout::HasDataLayout, primitives::IntTy, size::Size,
@@ -691,12 +692,12 @@ impl<'l> LayoutWriter<'l> {
                         })
                     }
                     (AbiRepresentation::Scalar(scalar), _) => {
-                        vec![(0usize.into(), format!("{scalar}"))]
+                        vec![(Identifier::num(0), format!("{scalar}"))]
                     }
                     (AbiRepresentation::Pair(scalar_1, scalar_2), _) => {
                         vec![
-                            (0usize.into(), format!("{scalar_1}")),
-                            (1usize.into(), format!("{scalar_2}")),
+                            (Identifier::num(0), format!("{scalar_1}")),
+                            (Identifier::num(1), format!("{scalar_2}")),
                         ]
                     }
                     _ => unreachable!(),

@@ -10,7 +10,8 @@ use hash_storage::{
     string::BrickString,
 };
 use hash_utils::{
-    counter, dashmap::DashMap, fnv::FnvBuildHasher, fxhash::FxBuildHasher, lazy_static::lazy_static,
+    counter, dashmap::DashMap, fnv::FnvBuildHasher, fxhash::FxBuildHasher,
+    lazy_static::lazy_static, num_traits::PrimInt,
 };
 
 counter! {
@@ -37,6 +38,15 @@ impl Identifier {
     /// Get the identifier as a static string.
     pub fn as_str(&self) -> &'static str {
         IDENTIFIER_MAP.get_ident(*self)
+    }
+
+    /// Create an [Identifier] from a numeric type.
+    ///
+    /// This will convert the numeric using the [fmt::Display]
+    /// implementation, and finally create a new identifier for
+    /// it.
+    pub fn num<N: PrimInt + ToString>(value: N) -> Self {
+        IDENTIFIER_MAP.create_ident(value.to_string().as_str())
     }
 }
 
@@ -66,12 +76,6 @@ impl From<&str> for Identifier {
 impl From<String> for Identifier {
     fn from(name: String) -> Self {
         IDENTIFIER_MAP.create_ident(name.as_str())
-    }
-}
-
-impl From<usize> for Identifier {
-    fn from(id: usize) -> Self {
-        IDENTIFIER_MAP.create_ident(id.to_string().as_str())
     }
 }
 

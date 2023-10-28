@@ -13,6 +13,7 @@ use hash_ir::{
     TyCacheEntry,
 };
 use hash_reporting::macros::panic_on_span;
+use hash_source::identifier::Identifier;
 use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
     SequenceStoreKey,
@@ -116,7 +117,7 @@ impl<'ir> BuilderCtx<'ir> {
                     .iter()
                     .map(|field| self.ty_id_from_tir_ty(field.ty))
                     .enumerate()
-                    .map(|(index, ty)| AdtField { name: index.into(), ty })
+                    .map(|(index, ty)| AdtField { name: Identifier::num(index), ty })
                     .collect();
                 let variant = AdtVariant::singleton("0".into(), fields);
 
@@ -340,7 +341,7 @@ impl<'ir> BuilderCtx<'ir> {
                     .iter()
                     .enumerate()
                     .map(|(index, field)| AdtField {
-                        name: field.name.borrow().name.unwrap_or(index.into()),
+                        name: field.name.borrow().name.unwrap_or_else(|| Identifier::num(index)),
                         ty: self.ty_id_from_tir_ty(field.ty),
                     })
                     .collect_vec();

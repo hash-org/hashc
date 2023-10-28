@@ -368,12 +368,12 @@ pub fn validate_and_reorder_args_against_params(
         match arg.target {
             // Invariant: all positional arguments are before named
             ParamIndex::Position(j_received) => {
-                assert!(j_received == j);
+                assert!(j_received as usize == j);
 
                 result[j] = Some(Node::at(
                     Arg {
                         // Add the name if present
-                        target: (ParamId(params_id.elements(), j).as_param_index()),
+                        target: (ParamId::new(params_id.elements(), j).as_param_index()),
                         value: arg.value,
                     },
                     arg.origin,
@@ -394,8 +394,8 @@ pub fn validate_and_reorder_args_against_params(
                             // Duplicate argument name, must be from positional
                             assert!(j != i);
                             error_state.add_error(ParamError::DuplicateArg {
-                                first: ArgId(args_id.elements(), i).into(),
-                                second: ArgId(args_id.elements(), j).into(),
+                                first: ArgId::new(args_id.elements(), i).into(),
+                                second: ArgId::new(args_id.elements(), j).into(),
                             });
                         } else {
                             // Found an uncrossed parameter, add it to the result
@@ -425,7 +425,7 @@ pub fn validate_and_reorder_args_against_params(
     // Populate default values and catch missing arguments
     for i in params_id.to_index_range() {
         if result[i].is_none() {
-            let param_id = ParamId(params_id.elements(), i);
+            let param_id = ParamId::new(params_id.elements(), i);
             let param = param_id.borrow();
             let default = param.default;
 
@@ -494,7 +494,7 @@ pub fn validate_and_reorder_pat_args_against_params(
         match arg.target {
             // Invariant: all positional arguments are before named
             ParamIndex::Position(j_received) => {
-                assert!(j_received == j);
+                assert!(j_received as usize == j);
 
                 // If the previous argument was a spread, this is an error
                 if let Some(spread) = spread
@@ -509,7 +509,7 @@ pub fn validate_and_reorder_pat_args_against_params(
                 result[j] = Some(Node::at(
                     PatArg {
                         // Add the name if present
-                        target: (ParamId(params_id.elements(), j)).as_param_index(),
+                        target: (ParamId::new(params_id.elements(), j)).as_param_index(),
                         pat: arg.pat,
                     },
                     arg.origin,
@@ -530,8 +530,8 @@ pub fn validate_and_reorder_pat_args_against_params(
                             // Duplicate argument name, must be from positional
                             assert!(j != i);
                             error_state.add_error(ParamError::DuplicateArg {
-                                first: PatArgId(args_id.elements(), i).into(),
-                                second: PatArgId(args_id.elements(), j).into(),
+                                first: PatArgId::new(args_id.elements(), i).into(),
+                                second: PatArgId::new(args_id.elements(), j).into(),
                             });
                         } else {
                             // Found an uncrossed parameter, add it to the result
@@ -561,7 +561,7 @@ pub fn validate_and_reorder_pat_args_against_params(
     // Populate missing arguments with captures
     for i in params_id.to_index_range() {
         if result[i].is_none() {
-            let param_id = ParamId(params_id.elements(), i);
+            let param_id = ParamId::new(params_id.elements(), i);
             if spread.is_some() {
                 result[i] = Some(Node::at(
                     PatArg {

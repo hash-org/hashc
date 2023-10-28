@@ -45,7 +45,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     PatArg {
                         target: match arg.name.as_ref() {
                             Some(name) => ParamIndex::Name(name.ident),
-                            None => ParamIndex::Position(i),
+                            None => ParamIndex::pos(i),
                         },
                         pat: PatOrCapture::Pat(self.make_pat_from_ast_pat(arg.pat.ast_ref())?),
                     },

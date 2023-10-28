@@ -214,7 +214,7 @@ impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, Deconstructed
                         // currently active.
                         if let DeconstructedCtor::Variant(index) = ctor {
                             let ctors = data_def.borrow().ctors.assert_defined();
-                            let ctor_name = CtorDefId(ctors.elements(), *index).borrow().name;
+                            let ctor_name = CtorDefId::new(ctors.elements(), *index).borrow().name;
                             write!(f, "::{ctor_name}")?;
                         }
                     }

@@ -186,7 +186,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // whole vector trying to find the field with the same name.
                         variant.fields.iter().position(|field| field.name == name).unwrap()
                     }
-                    ParamIndex::Position(index) => index,
+                    ParamIndex::Position(index) => index as usize,
                 }
             } else {
                 unreachable!("attempt to access a field of a non-struct or tuple type")

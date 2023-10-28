@@ -147,7 +147,7 @@ impl AstExpander<'_> {
                     let target = if let Some(name) = arg.name.as_ref() {
                         ParamIndex::Name(name.ident)
                     } else {
-                        ParamIndex::Position(index)
+                        ParamIndex::pos(index)
                     };
 
                     let expected_ty = attr_ty.ty_of_param(target);

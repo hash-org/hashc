@@ -60,7 +60,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     .map(|element| {
                         let name = match element.target {
                             ParamIndex::Name(name) => name,
-                            ParamIndex::Position(pos) => pos.into(),
+                            ParamIndex::Position(pos) => Identifier::num(pos),
                         };
 
                         (name, element.value)
@@ -88,7 +88,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         .iter()
                         .copied()
                         .enumerate()
-                        .map(|(index, element)| (index.into(), element))
+                        .map(|(index, element)| (Identifier::num(index), element))
                         .collect_vec(),
                     ArrayTerm::Repeated(operand, repeat) => {
                         // @@Semantics: When we need to deal with data drops, what do we do in the
@@ -449,7 +449,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         let aggregate_kind = adt_id.map(|adt| {
             if adt.flags.is_enum() || adt.flags.is_union() {
-                AggregateKind::Enum(adt_id, VariantIdx::from_usize(ctor.1))
+                AggregateKind::Enum(adt_id, VariantIdx::from_raw(ctor.1))
             } else {
                 debug_assert!(adt.flags.is_struct());
                 AggregateKind::Struct(adt_id)
@@ -477,7 +477,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             .map(|arg| {
                 let name = match arg.target {
                     ParamIndex::Name(name) => name,
-                    ParamIndex::Position(pos) => pos.into(),
+                    ParamIndex::Position(pos) => Identifier::num(pos),
                 };
 
                 (name, arg.value)

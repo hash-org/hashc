@@ -46,7 +46,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                             .name
                             .as_ref()
                             .map(|name| ParamIndex::Name(name.ident))
-                            .unwrap_or_else(|| ParamIndex::Position(i)),
+                            .unwrap_or_else(|| ParamIndex::pos(i)),
                         value: self.make_ty_from_ast_ty(arg.ty.ast_ref())?,
                     },
                     NodeOrigin::Given(arg.id()),

@@ -70,7 +70,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                             .name
                             .as_ref()
                             .map(|name| ParamIndex::Name(name.ident))
-                            .unwrap_or_else(|| ParamIndex::Position(i)),
+                            .unwrap_or_else(|| ParamIndex::pos(i)),
                         value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
                     },
                     NodeOrigin::Given(arg.id()),
@@ -96,7 +96,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                             .name
                             .as_ref()
                             .map(|name| ParamIndex::Name(name.ident))
-                            .unwrap_or_else(|| ParamIndex::Position(i)),
+                            .unwrap_or_else(|| ParamIndex::pos(i)),
                         value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
                     },
                     NodeOrigin::Given(arg.id()),
