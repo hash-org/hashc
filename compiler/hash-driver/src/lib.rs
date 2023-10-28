@@ -33,6 +33,7 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::report::Report;
+use hash_scope_check::{ast::AstNameData, ScopeCheck, ScopeCheckCtx, ScopeCheckCtxQuery};
 use hash_semantics::{
     storage::SemanticStorage, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery,
 };
@@ -66,6 +67,7 @@ impl CompilerBuilder {
                 Box::new(AstExpansionPass),
                 Box::new(AstDesugaringPass),
                 Box::new(UntypedSemanticAnalysis),
+                Box::<ScopeCheck>::default(),
                 Box::<SemanticAnalysis>::default(),
                 Box::<IrGen>::default(),
                 Box::<IrOptimiser>::default(),
@@ -143,6 +145,9 @@ pub struct Compiler {
 
     /// Compiler settings that are stored.
     pub settings: CompilerSettings,
+
+    // AST Name checking data
+    pub name_data: AstNameData,
 
     // Semantic analysis storage
     pub semantic_storage: SemanticStorage,
@@ -224,6 +229,7 @@ impl Compiler {
             expanded_sources: HashSet::new(),
             desugared_modules: HashSet::new(),
             semantically_checked_modules: HashSet::new(),
+            name_data: AstNameData::empty(),
         }
     }
 }
@@ -315,6 +321,16 @@ impl AstExpansionCtxQuery for Compiler {
     }
 }
 
+impl ScopeCheckCtxQuery for Compiler {
+    fn data(&mut self) -> ScopeCheckCtx {
+        ScopeCheckCtx {
+            workspace: &mut self.workspace,
+            name_data: &mut self.name_data,
+            settings: &self.settings,
+        }
+    }
+}
+
 impl SemanticAnalysisCtxQuery for Compiler {
     fn data(&mut self) -> SemanticAnalysisCtx {
         SemanticAnalysisCtx {
@@ -372,6 +388,7 @@ pub trait DefaultCtxQuery:
     + AstDesugaringCtxQuery
     + AstExpansionCtxQuery
     + UntypedSemanticAnalysisCtxQuery
+    + ScopeCheckCtxQuery
     + SemanticAnalysisCtxQuery
     + LoweringCtxQuery
     + BackendCtxQuery

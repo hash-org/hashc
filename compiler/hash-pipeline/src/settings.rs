@@ -574,6 +574,9 @@ pub enum CompilerStageKind {
     /// the typechecker runs.
     UntypedAnalysis,
 
+    /// Perform name checking analysis on the AST.
+    ScopeCheck,
+
     /// The general semantic pass, resolve types, normalise everything
     /// and prepare for IR generation.
     Analysis,
@@ -613,6 +616,7 @@ impl CompilerStageKind {
             CompilerStageKind::Parse => "parse",
             CompilerStageKind::Expand => "expand",
             CompilerStageKind::UntypedAnalysis => "untyped-analysis",
+            CompilerStageKind::ScopeCheck => "name-check",
             CompilerStageKind::Analysis => "analysis",
             CompilerStageKind::Lower => "lower",
             CompilerStageKind::CodeGen => "codegen",

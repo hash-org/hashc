@@ -617,6 +617,7 @@ dependencies = [
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
+ "hash-scope-check",
  "hash-semantics",
  "hash-source",
  "hash-tir",
@@ -733,19 +734,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-namecheck"
-version = "0.1.0"
-dependencies = [
- "hash-ast",
- "hash-ast-utils",
- "hash-reporting",
- "hash-source",
- "hash-target",
- "hash-tree-def",
- "hash-utils",
-]
-
-[[package]]
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
@@ -785,6 +773,20 @@ dependencies = [
  "hash-target",
  "hash-utils",
  "unicode-normalization",
+]
+
+[[package]]
+name = "hash-scope-check"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-ast-utils",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
+ "hash-target",
+ "hash-tree-def",
+ "hash-utils",
 ]
 
 [[package]]

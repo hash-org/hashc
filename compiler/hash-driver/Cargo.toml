@@ -30,3 +30,4 @@ hash-lower = { path = "../hash-lower" }
 hash-parser = { path = "../hash-parser" }
 hash-semantics = { path = "../hash-semantics" }
 hash-untyped-semantics = { path = "../hash-untyped-semantics" }
+hash-scope-check = { path = "../hash-scope-check" }

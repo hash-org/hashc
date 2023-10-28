@@ -8,7 +8,6 @@
 )]
 
 pub mod assert;
-pub mod context;
 pub mod counter;
 pub mod crash;
 pub mod graph;

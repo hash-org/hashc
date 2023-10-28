@@ -1,5 +1,5 @@
 [package]
-name = "hash-namecheck"
+name = "hash-scopecheck"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
@@ -15,3 +15,4 @@ hash-target = { path = "../hash-target" }
 hash-utils = { path = "../hash-utils" }
 hash-ast-utils = { path = "../hash-ast-utils" }
 hash-tree-def = { path = "../hash-tree-def" }
+hash-pipeline = { path = "../hash-pipeline" }
