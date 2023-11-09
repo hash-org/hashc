@@ -9,8 +9,8 @@
 use hash_ast::{
     ast::{
         self, AccessExpr, AccessPat, AccessTy, AstNode, AstNodeId, AstNodeRef, BindingPat,
-        BodyBlock, CallExpr, ConstructorPat, Declaration, EnumDef, ExprArg, FnDef, FnTy,
-        ImplicitFnCall, ImplicitFnDef, MatchCase, ModDef, Module, ModulePatEntry, NamedTy,
+        BodyBlock, CallExpr, ConstructorPat, Declaration, EnumDef, EnumDefEntry, ExprArg, FnDef,
+        FnTy, ImplicitFnCall, ImplicitFnDef, MatchCase, ModDef, Module, ModulePatEntry, NamedTy,
         OwnsAstNode, Param, Params, StructDef, TuplePat, TupleTy, TyArg, TyParam, TyParams,
         VariableExpr,
     },
@@ -213,7 +213,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
       hiding: VariableExpr, BodyBlock, Params, TyParams, Param, TyParam, TyArg, ExprArg, StructDef,
       EnumDef, ImplicitFnDef, ModDef, FnDef, Module, TupleLit, TupleTy, FnTy, NamedTy, ImplicitFn,
       AccessTy, AccessExpr, Declaration, CallExpr, ImplicitFnCall, MatchCase, BindingPat,
-      AccessPat, TuplePat, ConstructorPat, ModulePatEntry
+      AccessPat, TuplePat, ConstructorPat, ModulePatEntry, EnumDefEntry
     );
 
     // Definitions:
@@ -309,6 +309,17 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
                 Ok(())
             }
         }
+    }
+
+    type EnumDefEntryRet = ();
+    fn visit_enum_def_entry(
+        &mut self,
+        node: AstNodeRef<EnumDefEntry>,
+    ) -> Result<Self::EnumDefEntryRet, Self::Error> {
+        // Enum variants are treated as definitions because they can appear in patterns.
+        self.register_definition(&node.name);
+        let _ = walk_mut_self::walk_enum_def_entry(self, node)?;
+        Ok(())
     }
 
     // Scopes:
@@ -466,7 +477,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         Ok(())
     }
 
-    // @@Todo:
+    // @@Todo: what do we do about access?
 
     type AccessPatRet = ();
     fn visit_access_pat(
