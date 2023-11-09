@@ -56,6 +56,11 @@ impl Reporter {
     }
 }
 
+/// A trait for adding a diagnostic to a reporter.
+pub trait AddToReporter {
+    fn add_to_reporter(&self, reporter: &mut Reporter);
+}
+
 impl fmt::Display for Reporter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for report in &self.reports {

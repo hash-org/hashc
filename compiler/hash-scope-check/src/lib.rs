@@ -7,19 +7,23 @@
 //!
 //! This pass also checks for recursive definitions, and reports an error if
 //! a recursive definition is invalid.
-#![feature(unwrap_infallible, never_type)]
+#![feature(unwrap_infallible, never_type, let_chains)]
 
-use ast::{AstNameData, AstNameDataVisitor};
-use hash_ast::{ast::OwnsAstNode, node_map::SourceRef, visitor::AstVisitorMutSelf};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
 };
+use hash_reporting::diagnostic::DiagnosticsMut;
 use hash_source::SourceId;
 use hash_utils::timing::{CellStageMetrics, StageMetrics};
-pub mod ast;
+use scope::AllScopeData;
+use visitor::ScopeCheckVisitor;
+
+pub mod diagnostics;
 pub mod referencing;
+pub mod scope;
+pub mod visitor;
 
 /// The Hash name analysis and checking compiler stage.
 #[derive(Default)]
@@ -35,8 +39,8 @@ pub struct ScopeCheckCtx<'env> {
     /// information about the source.
     pub workspace: &'env Workspace,
 
-    /// The AST name checking output. This is managed by this crate.
-    pub name_data: &'env mut AstNameData,
+    /// The AST scope checking output. This is managed by this crate.
+    pub scope_data: &'env mut AllScopeData,
 
     /// The user-given settings to semantic analysis.
     pub settings: &'env CompilerSettings,
@@ -53,25 +57,16 @@ impl<Ctx: ScopeCheckCtxQuery> CompilerStage<Ctx> for ScopeCheck {
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
         let ctx = ctx.data();
-        let mut visitor =
-            AstNameDataVisitor { current_scopes: Vec::new(), name_data: ctx.name_data };
+        let scope_data = ctx.scope_data.get_for_source(entry_point);
+        let source = ctx.workspace.node_map.get_source(entry_point);
+        let mut visitor = ScopeCheckVisitor::run_on_source(source, scope_data);
 
-        let entry_point_source = ctx.workspace.node_map.get_source(entry_point);
-
-        match entry_point_source {
-            SourceRef::Interactive(interactive) => {
-                let node = interactive.node();
-                visitor.visit_body_block(node.ast_ref()).into_ok();
-            }
-            SourceRef::Module(module) => {
-                let node = module.node();
-                visitor.visit_module(node.ast_ref()).into_ok();
-            }
+        if visitor.diagnostics.has_diagnostics() {
+            let reports = visitor.diagnostics.into_reports_from_reporter();
+            Err(reports)
+        } else {
+            Ok(())
         }
-
-        println!("Finalised name tree: {:#?}", ctx.name_data);
-
-        Ok(())
     }
 
     fn metrics(&self) -> StageMetrics {

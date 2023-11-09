@@ -6,7 +6,7 @@ use std::{cell::RefCell, fmt, mem::take};
 
 use hash_utils::thin_vec::ThinVec;
 
-use crate::reporter::Reports;
+use crate::reporter::{AddToReporter, Reporter, Reports};
 
 /// This macro creates `Diagnostics{,Mut}` trait definitions, which provide
 /// access to an abstract store containing errors and warnings of some generic
@@ -43,6 +43,21 @@ macro_rules! make_diagnostic_traits {
             /// Check if the diagnostics has any errors or warnings.
             fn has_diagnostics(&self) -> bool {
                 self.has_errors() || self.has_warnings()
+            }
+
+            /// Convert the [Diagnostics] into a [`Vec<Report>`] through a `Reporter`.
+            fn into_reports_from_reporter(
+                self: $self_ref,
+            ) -> Reports where Self::Error: AddToReporter, Self::Warning: AddToReporter {
+                let (errors, warnings) = self.into_diagnostics();
+                let mut reporter = Reporter::new();
+                for error in errors {
+                    error.add_to_reporter(&mut reporter);
+                }
+                for warning in warnings {
+                    warning.add_to_reporter(&mut reporter);
+                }
+                reporter.into_reports()
             }
 
             /// Convert the [Diagnostics] into a [`Vec<Report>`].

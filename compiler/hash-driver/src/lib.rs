@@ -33,7 +33,7 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::report::Report;
-use hash_scope_check::{ast::AstNameData, ScopeCheck, ScopeCheckCtx, ScopeCheckCtxQuery};
+use hash_scope_check::{scope::AllScopeData, ScopeCheck, ScopeCheckCtx, ScopeCheckCtxQuery};
 use hash_semantics::{
     storage::SemanticStorage, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery,
 };
@@ -146,8 +146,8 @@ pub struct Compiler {
     /// Compiler settings that are stored.
     pub settings: CompilerSettings,
 
-    // AST Name checking data
-    pub name_data: AstNameData,
+    // Scope checking data
+    pub scope_data: AllScopeData,
 
     // Semantic analysis storage
     pub semantic_storage: SemanticStorage,
@@ -229,7 +229,7 @@ impl Compiler {
             expanded_sources: HashSet::new(),
             desugared_modules: HashSet::new(),
             semantically_checked_modules: HashSet::new(),
-            name_data: AstNameData::empty(),
+            scope_data: AllScopeData::default(),
         }
     }
 }
@@ -325,7 +325,7 @@ impl ScopeCheckCtxQuery for Compiler {
     fn data(&mut self) -> ScopeCheckCtx {
         ScopeCheckCtx {
             workspace: &mut self.workspace,
-            name_data: &mut self.name_data,
+            scope_data: &mut self.scope_data,
             settings: &self.settings,
         }
     }
