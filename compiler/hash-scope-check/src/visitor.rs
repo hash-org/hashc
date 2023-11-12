@@ -141,7 +141,7 @@ impl ScopeCheckVisitor<'_> {
     /// Register a definition.
     ///
     /// Runs in `DiscoverDefinitions` mode.
-    fn register_definition(&mut self, name: &AstNode<ast::Name>) {
+    fn register_definition_if_mode(&mut self, name: &AstNode<ast::Name>) {
         if self.mode == ScopeVisitMode::DiscoverDefinitions {
             let scope = self.current_scope_mut();
             scope.register_member(name.id(), name.ident)
@@ -151,7 +151,7 @@ impl ScopeCheckVisitor<'_> {
     /// Register a reference if it is found, otherwise report an error.
     ///
     /// Runs in `ResolveReferences` mode.
-    fn register_reference_or_error(&mut self, name: &AstNode<ast::Name>) {
+    fn register_reference_or_error_if_mode(&mut self, name: &AstNode<ast::Name>) {
         if self.mode == ScopeVisitMode::ResolveReferences {
             self.register_reference_or_else(
                 name,
@@ -172,7 +172,7 @@ impl ScopeCheckVisitor<'_> {
     ///
     /// This is meant to be used for `BindingPat`, which might refer to an
     /// existing struct/enum, or declare a new variable.
-    fn register_definition_reference_or_declare(&mut self, name: &AstNode<ast::Name>) {
+    fn register_definition_reference_or_declare_if_mode(&mut self, name: &AstNode<ast::Name>) {
         if self.mode == ScopeVisitMode::DiscoverDeclarations {
             self.register_reference_or_else(
                 name,
@@ -220,7 +220,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
     type ParamRet = ();
     fn visit_param(&mut self, node: AstNodeRef<Param>) -> Result<Self::ParamRet, Self::Error> {
         match &node.name {
-            Some(name) => self.register_definition(name),
+            Some(name) => self.register_definition_if_mode(name),
             None => {}
         }
         let _ = walk_mut_self::walk_param(self, node)?;
@@ -233,7 +233,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         node: AstNodeRef<TyParam>,
     ) -> Result<Self::TyParamRet, Self::Error> {
         match &node.name {
-            Some(name) => self.register_definition(name),
+            Some(name) => self.register_definition_if_mode(name),
             None => {}
         }
         let _ = walk_mut_self::walk_ty_param(self, node)?;
@@ -246,7 +246,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         node: AstNodeRef<ExprArg>,
     ) -> Result<Self::ExprArgRet, Self::Error> {
         match &node.name {
-            Some(name) => self.register_definition(name),
+            Some(name) => self.register_definition_if_mode(name),
             None => {}
         }
         let _ = walk_mut_self::walk_expr_arg(self, node)?;
@@ -256,7 +256,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
     type TyArgRet = ();
     fn visit_ty_arg(&mut self, node: AstNodeRef<TyArg>) -> Result<Self::TyArgRet, Self::Error> {
         match &node.name {
-            Some(name) => self.register_definition(name),
+            Some(name) => self.register_definition_if_mode(name),
             None => {}
         }
         let _ = walk_mut_self::walk_ty_arg(self, node)?;
@@ -269,7 +269,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         node: AstNodeRef<BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
         // This is either a definition or a reference.
-        self.register_definition_reference_or_declare(&node.name);
+        self.register_definition_reference_or_declare_if_mode(&node.name);
         let _ = walk_mut_self::walk_binding_pat(self, node)?;
         Ok(())
     }
@@ -285,7 +285,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
                 // Specially handle the binding pattern.
                 match node.pat.body() {
                     ast::Pat::Binding(binding) => {
-                        self.register_definition(&binding.name);
+                        self.register_definition_if_mode(&binding.name);
                     }
                     _ => {
                         if self.mode == ScopeVisitMode::DiscoverDefinitions {
@@ -317,7 +317,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         node: AstNodeRef<EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         // Enum variants are treated as definitions because they can appear in patterns.
-        self.register_definition(&node.name);
+        self.register_definition_if_mode(&node.name);
         let _ = walk_mut_self::walk_enum_def_entry(self, node)?;
         Ok(())
     }
@@ -462,7 +462,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         &mut self,
         node: AstNodeRef<VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        self.register_reference_or_error(&node.name);
+        self.register_reference_or_error_if_mode(&node.name);
         let _ = walk_mut_self::walk_variable_expr(self, node)?;
         Ok(())
     }
@@ -472,7 +472,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         &mut self,
         node: AstNodeRef<NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
-        self.register_reference_or_error(&node.name);
+        self.register_reference_or_error_if_mode(&node.name);
         let _ = walk_mut_self::walk_named_ty(self, node)?;
         Ok(())
     }

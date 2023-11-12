@@ -16,7 +16,10 @@ use hash_pipeline::{
 };
 use hash_reporting::diagnostic::DiagnosticsMut;
 use hash_source::SourceId;
-use hash_utils::timing::{CellStageMetrics, StageMetrics};
+use hash_utils::{
+    graph::visit,
+    timing::{CellStageMetrics, StageMetrics},
+};
 use scope::AllScopeData;
 use visitor::ScopeCheckVisitor;
 
@@ -56,17 +59,11 @@ impl<Ctx: ScopeCheckCtxQuery> CompilerStage<Ctx> for ScopeCheck {
     }
 
     fn run(&mut self, entry_point: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let ctx = ctx.data();
-        let scope_data = ctx.scope_data.get_for_source(entry_point);
-        let source = ctx.workspace.node_map.get_source(entry_point);
+        let ScopeCheckCtx { workspace, scope_data, .. } = ctx.data();
+        let source = workspace.node_map.get_source(entry_point);
+        let scope_data = scope_data.get_for_source(entry_point);
         let mut visitor = ScopeCheckVisitor::run_on_source(source, scope_data);
-
-        if visitor.diagnostics.has_diagnostics() {
-            let reports = visitor.diagnostics.into_reports_from_reporter();
-            Err(reports)
-        } else {
-            Ok(())
-        }
+        visitor.diagnostics.into_result(|| ())
     }
 
     fn metrics(&self) -> StageMetrics {

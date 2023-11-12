@@ -60,6 +60,26 @@ macro_rules! make_diagnostic_traits {
                 reporter.into_reports()
             }
 
+            /// Convert the [Diagnostics] into a [`Result<T, Reports>`] for some success type `T`.
+            fn into_result<T>(
+                self: $self_ref,
+                success: impl FnOnce() -> T
+            ) -> Result<T, Reports> where Self::Error: AddToReporter, Self::Warning: AddToReporter {
+                if self.has_diagnostics() {
+                    let (errors, warnings) = self.into_diagnostics();
+                    let mut reporter = Reporter::new();
+                    for error in errors {
+                        error.add_to_reporter(&mut reporter);
+                    }
+                    for warning in warnings {
+                        warning.add_to_reporter(&mut reporter);
+                    }
+                    Err(reporter.into_reports())
+                } else {
+                    Ok(success())
+                }
+            }
+
             /// Convert the [Diagnostics] into a [`Vec<Report>`].
             fn into_reports(
                 self: $self_ref,
