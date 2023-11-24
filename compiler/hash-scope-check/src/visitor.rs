@@ -19,9 +19,11 @@ use hash_ast::{
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
 use hash_reporting::diagnostic::{DiagnosticStore, HasDiagnosticsMut};
+use hash_utils::state::{LightState, MutState};
 
 use crate::{
     diagnostics::{ScopingDiagnostics, ScopingError},
+    referencing::Usage,
     scope::{Scope, ScopeData, ScopeMember, ScopeMemberKind},
 };
 
@@ -48,6 +50,7 @@ pub enum ScopeVisitMode {
 }
 
 /// Visitor for scope checking on the AST.
+#[derive(Debug)]
 pub(crate) struct ScopeCheckVisitor<'n> {
     /// What mode the visitor is in.
     pub(crate) mode: ScopeVisitMode,
@@ -57,6 +60,8 @@ pub(crate) struct ScopeCheckVisitor<'n> {
     pub(crate) scope_data: &'n mut ScopeData,
     /// The diagnostics for the scope checker.
     pub(crate) diagnostics: ScopingDiagnostics,
+    /// The current usage that is being requested for the current node.
+    pub(crate) usage: MutState<Usage>,
 }
 
 impl HasDiagnosticsMut for ScopeCheckVisitor<'_> {
@@ -83,6 +88,7 @@ impl ScopeCheckVisitor<'_> {
             current_scopes: Vec::new(),
             scope_data,
             diagnostics: DiagnosticStore::new(),
+            usage: MutState::new(Usage::Dereference),
         };
         for mode in modes.iter() {
             visitor.mode = *mode;
@@ -103,6 +109,11 @@ impl ScopeCheckVisitor<'_> {
                 self.visit_module(node.ast_ref()).into_ok();
             }
         }
+    }
+
+    /// Enter a usage
+    fn with_usage<T>(&mut self, usage: Usage, f: impl FnOnce(&mut Self) -> T) -> T {
+        MutState::enter(self, |this| &mut this.usage, usage, f)
     }
 
     /// Get the current scope, if there is one.
@@ -403,7 +414,8 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
     type FnDefRet = ();
     fn visit_fn_def(&mut self, node: AstNodeRef<FnDef>) -> Result<Self::FnDefRet, Self::Error> {
         self.enter_scope(node.id(), |this| {
-            let _ = walk_mut_self::walk_fn_def(this, node)?;
+            this.visit_params(node.params.ast_ref())?;
+            this.with_usage(Usage::Delay, |this| this.visit_expr(node.fn_body.ast_ref()))?;
             Ok(())
         })
     }

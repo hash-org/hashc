@@ -193,6 +193,7 @@ impl<E, W> Diagnostics for DiagnosticCellStore<E, W> {
 
 /// A standard implementation of [DiagnosticsMut] that stores errors and
 /// warnings directly, and thus is mutable.
+#[derive(Debug, Clone)]
 pub struct DiagnosticStore<E, W> {
     pub errors: ThinVec<E>,
     pub warnings: ThinVec<W>,

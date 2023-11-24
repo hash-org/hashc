@@ -130,3 +130,58 @@ impl<T: Clone> HeavyState<T> {
         result
     }
 }
+
+/// Helper struct for keeping track of some mutable state.
+///
+/// This does not use internal mutability and therefore requires having a
+/// mutable reference to perform operations on it.
+#[derive(Clone, Debug)]
+pub struct MutState<T: Clone> {
+    current: T,
+}
+
+impl<T: Clone> MutState<T> {
+    pub fn new(initial: T) -> Self {
+        Self { current: initial }
+    }
+
+    /// Run a function with a new value for the state, and then restore the old
+    /// value on exit.
+    pub fn enter<This, F: Fn(&mut This) -> &mut Self, U>(
+        this: &mut This,
+        get_state: F,
+        new_value: T,
+        f: impl FnOnce(&mut This) -> U,
+    ) -> U {
+        let st = get_state(this);
+        let old_value = st.to_owned();
+        st.set(new_value);
+
+        let result = f(this);
+
+        let st = get_state(this);
+        st.set(old_value);
+        result
+    }
+
+    /// Set the value of the state.
+    pub fn set(&mut self, value: T) {
+        self.current = value
+    }
+
+    /// Swap the value of the state with the given value.
+    /// Returns the old value.
+    pub fn swap(&mut self, value: T) -> T {
+        std::mem::replace(&mut self.current, value)
+    }
+
+    /// Get a reference to the internal value.
+    pub fn inner(&self) -> &T {
+        &self.current
+    }
+
+    /// Clone the internal value.
+    pub fn to_owned(&self) -> T {
+        self.current.clone()
+    }
+}

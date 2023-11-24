@@ -8,7 +8,7 @@
 /// The usage of some term in Hash.
 ///
 /// Usages are ordered by their appearance below.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Usage {
     /// The term is not used at all.
     Ignore,
