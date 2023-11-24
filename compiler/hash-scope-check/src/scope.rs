@@ -5,6 +5,21 @@ use hash_ast::ast::AstNodeId;
 use hash_source::{identifier::Identifier, SourceId};
 use hash_utils::fxhash::FxHashMap;
 
+/// The kind of a scope member.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ScopeMemberKind {
+    /// A data definition: either a struct or an enum.
+    Data,
+    /// A constructor (enum variant).
+    Constructor,
+    /// A module block.
+    Module,
+    /// A parameter.
+    Parameter,
+    /// A variable declared on the stack.
+    Variable,
+}
+
 /// A member of a scope.
 #[derive(Debug, Clone)]
 pub struct ScopeMember {
@@ -13,6 +28,8 @@ pub struct ScopeMember {
     defined_by: AstNodeId,
     /// The set of name nodes which reference this member.
     referenced_by: HashSet<AstNodeId>,
+    /// The kind of this scope member.
+    kind: ScopeMemberKind,
 }
 
 impl ScopeMember {
@@ -64,10 +81,15 @@ impl Scope {
     }
 
     /// Register a member in this scope.
-    pub(crate) fn register_member(&mut self, node_id: AstNodeId, ident: Identifier) {
+    pub(crate) fn register_member(
+        &mut self,
+        node_id: AstNodeId,
+        ident: Identifier,
+        kind: ScopeMemberKind,
+    ) {
         self.members.insert(
             ident,
-            ScopeMember { name: ident, defined_by: node_id, referenced_by: HashSet::new() },
+            ScopeMember { name: ident, defined_by: node_id, referenced_by: HashSet::new(), kind },
         );
     }
 

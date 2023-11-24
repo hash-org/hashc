@@ -22,7 +22,7 @@ use hash_reporting::diagnostic::{DiagnosticStore, HasDiagnosticsMut};
 
 use crate::{
     diagnostics::{ScopingDiagnostics, ScopingError},
-    scope::{Scope, ScopeData, ScopeMember},
+    scope::{Scope, ScopeData, ScopeMember, ScopeMemberKind},
 };
 
 /// The mode of visiting scopes.
@@ -30,18 +30,20 @@ use crate::{
 /// The visitor operates in three separate passes shown below.
 /// This is so that out-of-order references can be resolved.
 ///
-/// Definitions (structs/enums/modules) are discovered separately from
-/// other declarations, because they might appear inside patterns, so there
-/// needs to be a way of differentiating between a pattern binding and a
-/// pattern that refers to a definition.
+/// Definitions that do not get bound by pattterns (structs/enums/modules) are
+/// discovered separately from other definitions, because they might appear
+/// inside patterns, so there needs to be a way of differentiating between a
+/// pattern binding and a pattern that refers to a definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ScopeVisitMode {
-    /// Find all definitions, including struct/enum/module definitions.
-    DiscoverDefinitions,
-    /// Find all declarations, including variable declarations, and resolve
-    /// references to definitions.
-    DiscoverDeclarations,
-    /// Resolve all references to declarations.
+    /// Find all definitions that don't get bound a pattern, including
+    /// struct/enum/module definitions, parameters.
+    DiscoverNonPatternDefinitions,
+    /// Find all definitions that are bound by a pattern, including variable
+    /// declarations, and resolve references to non-pattern definitions in
+    /// patterns.
+    DiscoverPatternDefinitions,
+    /// Resolve all references to definitions.
     ResolveReferences,
 }
 
@@ -72,8 +74,8 @@ impl ScopeCheckVisitor<'_> {
         scope_data: &'s mut ScopeData,
     ) -> ScopeCheckVisitor<'s> {
         let modes = [
-            ScopeVisitMode::DiscoverDefinitions,
-            ScopeVisitMode::DiscoverDeclarations,
+            ScopeVisitMode::DiscoverNonPatternDefinitions,
+            ScopeVisitMode::DiscoverPatternDefinitions,
             ScopeVisitMode::ResolveReferences,
         ];
         let mut visitor = ScopeCheckVisitor {
@@ -116,7 +118,7 @@ impl ScopeCheckVisitor<'_> {
 
     /// Register a reference if it is found and `accept_origin(member) = true`,
     /// otherwise run the given function.
-    fn register_reference_or_else(
+    fn discover_reference_or_else(
         &mut self,
         name: &AstNode<ast::Name>,
         accept_origin: impl Fn(&ScopeMember) -> bool,
@@ -138,22 +140,45 @@ impl ScopeCheckVisitor<'_> {
         }
     }
 
-    /// Register a definition.
+    /// Declare a symbol at the given name node.
     ///
-    /// Runs in `DiscoverDefinitions` mode.
-    fn register_definition_if_mode(&mut self, name: &AstNode<ast::Name>) {
-        if self.mode == ScopeVisitMode::DiscoverDefinitions {
+    /// Runs in `DiscoverNonPatternDefinitions` mode.
+    fn discover_non_pattern_definition(
+        &mut self,
+        name: &AstNode<ast::Name>,
+        kind: ScopeMemberKind,
+    ) {
+        if self.mode == ScopeVisitMode::DiscoverNonPatternDefinitions {
             let scope = self.current_scope_mut();
-            scope.register_member(name.id(), name.ident)
+            scope.register_member(name.id(), name.ident, kind)
+        }
+    }
+
+    /// Register a definition reference if it is found, otherwise declare a
+    /// new variable. Runs in `DiscoverPatternDefinitions` mode.
+    ///
+    /// This is meant to be used for `BindingPat`, which might refer to an
+    /// existing struct/enum, or declare a new variable.
+    fn discover_pattern_definition(&mut self, name: &AstNode<ast::Name>, kind: ScopeMemberKind) {
+        if self.mode == ScopeVisitMode::DiscoverPatternDefinitions {
+            self.discover_reference_or_else(
+                name,
+                |_| true, // @@Todo: do not accept if it is just a variable
+                |this| {
+                    // If it's not found, then it's a variable declaration.
+                    let scope = this.current_scope_mut();
+                    scope.register_member(name.id(), name.ident, kind)
+                },
+            )
         }
     }
 
     /// Register a reference if it is found, otherwise report an error.
     ///
     /// Runs in `ResolveReferences` mode.
-    fn register_reference_or_error_if_mode(&mut self, name: &AstNode<ast::Name>) {
+    fn discover_reference(&mut self, name: &AstNode<ast::Name>) {
         if self.mode == ScopeVisitMode::ResolveReferences {
-            self.register_reference_or_else(
+            self.discover_reference_or_else(
                 name,
                 |_| true,
                 |this| {
@@ -162,25 +187,6 @@ impl ScopeCheckVisitor<'_> {
                         symbol: name.ident,
                         referencing_node: name.id(),
                     })
-                },
-            )
-        }
-    }
-
-    /// Register a definition reference if it is found, otherwise declare a
-    /// new variable. Runs in `DiscoverDeclarations` mode.
-    ///
-    /// This is meant to be used for `BindingPat`, which might refer to an
-    /// existing struct/enum, or declare a new variable.
-    fn register_definition_reference_or_declare_if_mode(&mut self, name: &AstNode<ast::Name>) {
-        if self.mode == ScopeVisitMode::DiscoverDeclarations {
-            self.register_reference_or_else(
-                name,
-                |_| true, // @@Todo: do not accept if it is just a variable
-                |this| {
-                    // If it's not found, then it's a definition.
-                    let scope = this.current_scope_mut();
-                    scope.register_member(name.id(), name.ident)
                 },
             )
         }
@@ -210,7 +216,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
     type Error = !;
 
     ast_visitor_mut_self_default_impl!(
-      hiding: VariableExpr, BodyBlock, Params, TyParams, Param, TyParam, TyArg, ExprArg, StructDef,
+      hiding: VariableExpr, BodyBlock, Params, TyParams, Param, TyParam, StructDef,
       EnumDef, ImplicitFnDef, ModDef, FnDef, Module, TupleLit, TupleTy, FnTy, NamedTy, ImplicitFn,
       AccessTy, AccessExpr, Declaration, CallExpr, ImplicitFnCall, MatchCase, BindingPat,
       AccessPat, TuplePat, ConstructorPat, ModulePatEntry, EnumDefEntry
@@ -220,7 +226,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
     type ParamRet = ();
     fn visit_param(&mut self, node: AstNodeRef<Param>) -> Result<Self::ParamRet, Self::Error> {
         match &node.name {
-            Some(name) => self.register_definition_if_mode(name),
+            Some(name) => self.discover_non_pattern_definition(name, ScopeMemberKind::Parameter),
             None => {}
         }
         let _ = walk_mut_self::walk_param(self, node)?;
@@ -233,33 +239,10 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         node: AstNodeRef<TyParam>,
     ) -> Result<Self::TyParamRet, Self::Error> {
         match &node.name {
-            Some(name) => self.register_definition_if_mode(name),
+            Some(name) => self.discover_non_pattern_definition(name, ScopeMemberKind::Parameter),
             None => {}
         }
         let _ = walk_mut_self::walk_ty_param(self, node)?;
-        Ok(())
-    }
-
-    type ExprArgRet = ();
-    fn visit_expr_arg(
-        &mut self,
-        node: AstNodeRef<ExprArg>,
-    ) -> Result<Self::ExprArgRet, Self::Error> {
-        match &node.name {
-            Some(name) => self.register_definition_if_mode(name),
-            None => {}
-        }
-        let _ = walk_mut_self::walk_expr_arg(self, node)?;
-        Ok(())
-    }
-
-    type TyArgRet = ();
-    fn visit_ty_arg(&mut self, node: AstNodeRef<TyArg>) -> Result<Self::TyArgRet, Self::Error> {
-        match &node.name {
-            Some(name) => self.register_definition_if_mode(name),
-            None => {}
-        }
-        let _ = walk_mut_self::walk_ty_arg(self, node)?;
         Ok(())
     }
 
@@ -269,7 +252,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         node: AstNodeRef<BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
         // This is either a definition or a reference.
-        self.register_definition_reference_or_declare_if_mode(&node.name);
+        self.discover_pattern_definition(&node.name, ScopeMemberKind::Variable);
         let _ = walk_mut_self::walk_binding_pat(self, node)?;
         Ok(())
     }
@@ -285,10 +268,21 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
                 // Specially handle the binding pattern.
                 match node.pat.body() {
                     ast::Pat::Binding(binding) => {
-                        self.register_definition_if_mode(&binding.name);
+                        self.discover_non_pattern_definition(
+                            &binding.name,
+                            // Choose the appropriate kind of scope member depending on the RHS
+                            // node.
+                            match node.value.body() {
+                                ast::Expr::ModDef(_) => ScopeMemberKind::Module,
+                                ast::Expr::StructDef(_) | ast::Expr::EnumDef(_) => {
+                                    ScopeMemberKind::Data
+                                }
+                                _ => unreachable!(),
+                            },
+                        );
                     }
                     _ => {
-                        if self.mode == ScopeVisitMode::DiscoverDefinitions {
+                        if self.mode == ScopeVisitMode::DiscoverNonPatternDefinitions {
                             self.add_error(ScopingError::NonSimpleBindingForDefinition {
                                 binding_node: node.pat.id(),
                                 definition_node: node.value.id(),
@@ -317,7 +311,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         node: AstNodeRef<EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         // Enum variants are treated as definitions because they can appear in patterns.
-        self.register_definition_if_mode(&node.name);
+        self.discover_non_pattern_definition(&node.name, ScopeMemberKind::Constructor);
         let _ = walk_mut_self::walk_enum_def_entry(self, node)?;
         Ok(())
     }
@@ -462,7 +456,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         &mut self,
         node: AstNodeRef<VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        self.register_reference_or_error_if_mode(&node.name);
+        self.discover_reference(&node.name);
         let _ = walk_mut_self::walk_variable_expr(self, node)?;
         Ok(())
     }
@@ -472,7 +466,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         &mut self,
         node: AstNodeRef<NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
-        self.register_reference_or_error_if_mode(&node.name);
+        self.discover_reference(&node.name);
         let _ = walk_mut_self::walk_named_ty(self, node)?;
         Ok(())
     }
