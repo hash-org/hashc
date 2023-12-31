@@ -20,8 +20,8 @@ use hash_target::{
 use hash_utils::{derive_more::Constructor, index_vec::IndexVec};
 
 use crate::{
-    representation_stores, CommonLayouts, FieldLayout, Layout, LayoutId, LayoutShape,
-    LayoutStorage, LayoutStore, PointeeInfo, PointerKind, TyInfo, Variants,
+    repr_stores, CommonLayouts, FieldLayout, Layout, LayoutId, LayoutShape, LayoutStorage,
+    LayoutStore, PointeeInfo, PointerKind, TyInfo, Variants,
 };
 
 /// This describes the collection of errors that can occur
@@ -130,7 +130,7 @@ impl<'l> LayoutComputer<'l> {
 
     /// Returns a reference to the layout store.
     pub fn store(&self) -> &LayoutStore {
-        representation_stores().layouts()
+        repr_stores().layouts()
     }
 
     /// Get a reference to the [CommonLayout]s that are available
