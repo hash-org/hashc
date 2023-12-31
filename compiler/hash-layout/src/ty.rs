@@ -33,7 +33,7 @@ use hash_utils::{
     lazy_static,
 };
 
-use crate::representation_stores;
+use crate::repr_stores;
 
 // use crate::{
 //     ir::{BodyInfo, Place, PlaceProjection},
@@ -179,7 +179,7 @@ static_single_store!(
     id = pub InstanceId,
     value = Instance,
     store_name = instances,
-    store_source = representation_stores(),
+    store_source = repr_stores(),
     derives = Debug
 );
 
@@ -479,7 +479,7 @@ static_single_store!(
     id = pub ReprTyId,
     value = ReprTy,
     store_name = tys,
-    store_source = representation_stores(),
+    store_source = repr_stores(),
     derives = Debug
 );
 
@@ -509,12 +509,12 @@ static_sequence_store_indirect!(
     store = pub ReprTyListStore,
     id = pub ReprTyListId[ReprTyId],
     store_name = ty_list,
-    store_source = representation_stores()
+    store_source = repr_stores()
 );
 
 impl ReprTyListId {
     pub fn seq<I: IntoIterator<Item = ReprTyId>>(values: I) -> Self {
-        representation_stores().ty_list().create_from_iter(values)
+        repr_stores().ty_list().create_from_iter(values)
     }
 }
 
@@ -1126,7 +1126,7 @@ static_single_store!(
     id = pub AdtId,
     value = Adt,
     store_name = adts,
-    store_source = representation_stores(),
+    store_source = repr_stores(),
     derives = Debug
 );
 

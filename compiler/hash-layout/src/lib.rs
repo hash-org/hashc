@@ -76,7 +76,7 @@ stores!(
 static STORES: OnceLock<RepresentationStores> = OnceLock::new();
 
 /// Access the global [`LayoutStores`] instance.
-pub(crate) fn representation_stores() -> &'static RepresentationStores {
+pub(crate) fn repr_stores() -> &'static RepresentationStores {
     STORES.get_or_init(RepresentationStores::new)
 }
 
@@ -126,7 +126,7 @@ impl LayoutStorage {
     }
 
     pub fn layouts(&self) -> &LayoutStore {
-        representation_stores().layouts()
+        repr_stores().layouts()
     }
 }
 
@@ -586,7 +586,7 @@ static_single_store!(
     id = pub LayoutId,
     value = Layout,
     store_name = layouts,
-    store_source = representation_stores(),
+    store_source = repr_stores(),
     derives = Debug
 );
 
