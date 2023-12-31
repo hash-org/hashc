@@ -677,7 +677,9 @@ name = "hash-layout"
 version = "0.1.0"
 dependencies = [
  "fixedbitset",
+ "hash-ast",
  "hash-ir",
+ "hash-reporting",
  "hash-source",
  "hash-storage",
  "hash-target",
