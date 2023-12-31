@@ -4,6 +4,7 @@
 #![feature(let_chains)]
 
 pub mod compute;
+pub mod ty;
 pub mod write;
 
 use std::{
@@ -27,6 +28,9 @@ use hash_target::{
     size::Size,
 };
 use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
+use ty::{AdtStore, ReprTyListStore, ReprTyStore};
+
+use crate::ty::InstanceStore;
 
 /// The [PointerKind] specifies what kind of pointer this is, whether
 /// it is a shared reference, or a unique reference. In the @@Future, more
@@ -60,16 +64,20 @@ pub struct PointeeInfo {
 }
 
 stores!(
-    LayoutStores;
-    layouts: LayoutStore
+    RepresentationStores;
+    layouts: LayoutStore,
+    instances: InstanceStore,
+    tys: ReprTyStore,
+    ty_list: ReprTyListStore,
+    adts: AdtStore,
 );
 
 /// The global [`LayoutStores`] instance.
-static STORES: OnceLock<LayoutStores> = OnceLock::new();
+static STORES: OnceLock<RepresentationStores> = OnceLock::new();
 
 /// Access the global [`LayoutStores`] instance.
-pub(crate) fn layout_store() -> &'static LayoutStores {
-    STORES.get_or_init(LayoutStores::new)
+pub(crate) fn representation_stores() -> &'static RepresentationStores {
+    STORES.get_or_init(RepresentationStores::new)
 }
 
 /// Used to cache the [Layout]s that are created from [IrTyId]s.
@@ -118,7 +126,7 @@ impl LayoutStorage {
     }
 
     pub fn layouts(&self) -> &LayoutStore {
-        layout_store().layouts()
+        representation_stores().layouts()
     }
 }
 
@@ -578,7 +586,7 @@ static_single_store!(
     id = pub LayoutId,
     value = Layout,
     store_name = layouts,
-    store_source = layout_store(),
+    store_source = representation_stores(),
     derives = Debug
 );
 
