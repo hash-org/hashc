@@ -7,7 +7,7 @@ use std::mem;
 use hash_ast::ast::AstNodeId;
 use hash_ir::{
     ir::PlaceProjection,
-    ty::{IrTy, IrTyId},
+    ty::{ReprTy, ReprTyId},
 };
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{PatId, Spread};
@@ -58,7 +58,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// the `rest` pattern projection is also adjusted.
     pub(super) fn adjust_list_pat_candidates(
         &mut self,
-        ty: IrTyId,
+        ty: ReprTyId,
         pairs: &mut SmallVec<[MatchPair; 1]>,
         place: &PlaceBuilder,
         prefix: &[PatId],
@@ -66,7 +66,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         suffix: &[PatId],
     ) {
         let (min_length, exact_size) = ty.map(|ty| match ty {
-            IrTy::Array { length: size, .. } => (*size, true),
+            ReprTy::Array { length: size, .. } => (*size, true),
             _ => (prefix.len() + suffix.len(), false),
         });
 

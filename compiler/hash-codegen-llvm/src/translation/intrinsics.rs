@@ -8,7 +8,7 @@ use hash_codegen::{
         intrinsics::IntrinsicBuilderMethods, ty::TypeBuilderMethods, BackendTypes,
     },
 };
-use hash_ir::ty::IrTyId;
+use hash_ir::ty::ReprTyId;
 use hash_source::identifier::{Identifier, IDENTS};
 use hash_storage::store::statics::StoreId;
 use inkwell::values::{AnyValueEnum, UnnamedAddress};
@@ -310,7 +310,7 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
 impl<'b, 'm> IntrinsicBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
     fn codegen_intrinsic_call(
         &mut self,
-        ty: IrTyId,
+        ty: ReprTyId,
         fn_abi: &FnAbi,
         args: &[Self::Value],
         result: Self::Value,

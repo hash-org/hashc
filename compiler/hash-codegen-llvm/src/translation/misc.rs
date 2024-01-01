@@ -7,7 +7,7 @@ use hash_codegen::{
     target::HasTarget,
     traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods},
 };
-use hash_ir::ty::InstanceId;
+use hash_ir::ty::{InstanceHelpers, InstanceId};
 use hash_storage::store::{statics::StoreId, Store};
 use inkwell::{
     module::Linkage,

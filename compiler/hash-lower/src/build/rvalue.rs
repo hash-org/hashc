@@ -5,7 +5,7 @@ use hash_ast::ast::AstNodeId;
 use hash_ir::{
     cast::CastKind,
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, Scalar, UnaryOp},
-    ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
+    ty::{Mutability, ReprTy, ReprTyId, COMMON_REPR_TYS},
 };
 use hash_source::constant::IntTy;
 use hash_storage::store::statics::StoreId;
@@ -63,7 +63,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                             && ty.borrow().is_signed()
                         {
                             let min_value = self.min_value_of_ty(ty);
-                            let is_min = self.temp_place(COMMON_IR_TYS.bool);
+                            let is_min = self.temp_place(COMMON_REPR_TYS.bool);
 
                             self.control_flow_graph.push_assign(
                                 block,
@@ -138,11 +138,11 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
     }
 
-    /// Compute the minimum value of an [IrTy] assuming that it is a
+    /// Compute the minimum value of an [ReprTy] assuming that it is a
     /// signed integer type.
-    fn min_value_of_ty(&self, ty_id: IrTyId) -> Operand {
+    fn min_value_of_ty(&self, ty_id: ReprTyId) -> Operand {
         let value = ty_id.map(|ty| match ty {
-            IrTy::Int(signed_ty) => {
+            ReprTy::Int(signed_ty) => {
                 // Create and intern the constant
                 let ptr_size = self.target().ptr_size();
                 let int_ty: IntTy = (*signed_ty).into();
@@ -180,7 +180,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // If this is indeed a function type, we emit a ZST to represent the operand
         // of the function.
         if let Some(ty_id) = ty_id
-            && ty_id.map(|ty| matches!(ty, IrTy::FnDef { .. }))
+            && ty_id.map(|ty| matches!(ty, ReprTy::FnDef { .. }))
         {
             return block.and(Operand::Const(Const::zst(ty_id)));
         }
@@ -206,7 +206,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn build_binary_op(
         &mut self,
         mut block: BasicBlock,
-        ty: IrTyId,
+        ty: ReprTyId,
         origin: AstNodeId,
         op: BinOp,
         lhs: Operand,
@@ -232,7 +232,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             if op.is_checkable() && is_integral {
                 // Create a new tuple that contains the result of the operation
-                let ty = IrTy::make_tuple(&[ty, COMMON_IR_TYS.bool]);
+                let ty = ReprTy::make_tuple(&[ty, COMMON_REPR_TYS.bool]);
 
                 let temp = self.temp_place(ty);
                 let rvalue = RValue::CheckedBinaryOp(op, operands);
@@ -264,7 +264,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 };
 
                 // Check for division/modulo of zero...
-                let is_zero = self.temp_place(COMMON_IR_TYS.bool);
+                let is_zero = self.temp_place(COMMON_REPR_TYS.bool);
 
                 let const_val = Const::from_scalar_like(0, ty, &self.ctx);
                 let zero_val = Operand::Const(const_val);
@@ -287,8 +287,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     let const_val: Operand = Const::new(ty, ConstKind::Scalar(scalar)).into();
                     let minimum_value = self.min_value_of_ty(ty);
 
-                    let is_negative_one = self.temp_place(COMMON_IR_TYS.bool);
-                    let is_minimum_value = self.temp_place(COMMON_IR_TYS.bool);
+                    let is_negative_one = self.temp_place(COMMON_REPR_TYS.bool);
+                    let is_minimum_value = self.temp_place(COMMON_REPR_TYS.bool);
 
                     // Push the values that have been created into the temporaries
                     self.control_flow_graph.push_assign(
@@ -309,7 +309,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     // which checks the condition `(rhs == -1) & (lhs == MIN)`, and then we
                     // emit an assert. Alternatively, this could short_circuit on the first
                     // check, but it would make control flow more complex.
-                    let is_overflow = self.temp_place(COMMON_IR_TYS.bool);
+                    let is_overflow = self.temp_place(COMMON_REPR_TYS.bool);
                     self.control_flow_graph.push_assign(
                         block,
                         is_overflow,

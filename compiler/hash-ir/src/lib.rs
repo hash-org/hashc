@@ -35,7 +35,7 @@ use hash_utils::fxhash::FxHashMap;
 use intrinsics::Intrinsics;
 use ir::Body;
 use lang_items::LangItems;
-use ty::{AdtStore, InstanceId, InstanceStore, IrTyId, IrTyListStore, IrTyStore};
+use ty::{AdtStore, InstanceId, InstanceStore, ReprTyId, ReprTyListStore, ReprTyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -44,7 +44,7 @@ pub struct IrStorage {
     pub bodies: Vec<Body>,
 
     /// All of the accompanying data for the bodies, such as [`ir::RValue`]s,
-    /// [`ty::IrTy`]s, etc. The bodies and the body data are stored separately
+    /// [`ty::ReprTy`]s, etc. The bodies and the body data are stored separately
     /// so that the data store can be passed into various passes that occur
     /// on a particular [Body] and may perform transformations on the
     /// data.
@@ -71,10 +71,10 @@ impl IrStorage {
     }
 }
 
-/// A [SemanticCacheEntry] is used to store the [IrTyId] that is created from
+/// A [SemanticCacheEntry] is used to store the [ReprTyId] that is created from
 /// a [TyId] or a [DataDefId]. It is then used by program logic
 /// to avoid re-computing the same type again by using this key to lookup
-/// the [IrTyId] in the [IrCtx].
+/// the [ReprTyId] in the [IrCtx].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TyCacheEntry {
     /// The key is a type ID.
@@ -130,17 +130,17 @@ impl From<TirIntrinsic> for TyCacheEntry {
     }
 }
 
-/// The type cache is used to store all of the [IrTyId]s that are created
+/// The type cache is used to store all of the [ReprTyId]s that are created
 /// from [TyId]s or [DataTy]s. This is used to avoid re-computing the
 /// same type again.
-pub type TyCache = RefCell<FxHashMap<TyCacheEntry, IrTyId>>;
+pub type TyCache = RefCell<FxHashMap<TyCacheEntry, ReprTyId>>;
 
 /// The [IrCtx] is used to store all interned information that
 /// IR [Body]s might use or reference. This includes IR types, place
 /// projections, etc.
 #[derive(Default)]
 pub struct IrCtx {
-    /// Cache for the [IrTyId]s that are created from [TyId]s.
+    /// Cache for the [ReprTyId]s that are created from [TyId]s.
     ty_cache: TyCache,
 
     /// A map of all "language" intrinsics that might need to be
@@ -155,8 +155,8 @@ pub struct IrCtx {
 stores!(
     IrStores;
     adts: AdtStore,
-    tys: IrTyStore,
-    ty_list: IrTyListStore,
+    tys: ReprTyStore,
+    ty_list: ReprTyListStore,
     instances: InstanceStore,
     allocations: Allocations
 );

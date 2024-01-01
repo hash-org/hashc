@@ -27,7 +27,7 @@ use hash_codegen::{
         misc::MiscBuilderMethods, ty::TypeBuilderMethods,
     },
 };
-use hash_ir::{ir::BodySource, IrStorage};
+use hash_ir::{ir::BodySource, ty::InstanceHelpers, IrStorage};
 use hash_pipeline::{
     interface::{CompilerOutputStream, CompilerResult, StageMetrics},
     settings::CompilerSettings,

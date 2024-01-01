@@ -10,7 +10,7 @@ use hash_ir::{
         self, AggregateKind, BasicBlock, Const, LogicalBinOp, Operand, Place, RValue, Statement,
         StatementKind, TerminatorKind,
     },
-    ty::{AdtId, IrTy, IrTyId, Mutability, RefKind, VariantIdx, COMMON_IR_TYS},
+    ty::{AdtId, Mutability, RefKind, ReprTy, ReprTyId, VariantIdx, COMMON_REPR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::Identifier;
@@ -129,7 +129,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             Term::Ctor(ref ctor) => {
                 let ty = self.ty_id_from_tir_term(term);
 
-                if ty == COMMON_IR_TYS.bool {
+                if ty == COMMON_REPR_TYS.bool {
                     // ##Hack: check which constructor is being called to determine whether
                     // it is a `true` or `false` value.
                     let constant =
@@ -385,7 +385,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // @@Todo: we need to deal with default arguments here, we compute the missing
         // arguments, and then insert a lowered copy of the default value for
         // the argument.
-        // if let IrTy::Fn { params, .. } = fn_ty {
+        // if let ReprTy::Fn { params, .. } = fn_ty {
         //     if args.len() != params.len() {
         //         panic_on_span!(
         //             origin.span(),
@@ -619,7 +619,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         destination: Place,
         mut block: BasicBlock,
-        ty: IrTyId,
+        ty: ReprTyId,
         aggregate_kind: AggregateKind,
         args: &[(Identifier, TermId)],
         origin: AstNodeId,
@@ -637,13 +637,13 @@ impl<'tcx> BodyBuilder<'tcx> {
         //
         // Make the call to `malloc`, and then assign the result to a
         // temporary.
-        let ptr = self.temp_place(COMMON_IR_TYS.raw_ptr);
+        let ptr = self.temp_place(COMMON_REPR_TYS.raw_ptr);
         unpack!(block = self.build_fn_call(ptr, block, subject, vec![size_op], origin));
 
         // we make a new temporary which is a pointer to the array and assign `ptr`
         // to it.
-        let ty = IrTy::make_ref(
-            IrTy::Array { ty: element_ty, length: args.len() },
+        let ty = ReprTy::make_ref(
+            ReprTy::Array { ty: element_ty, length: args.len() },
             Mutability::Immutable,
             RefKind::Normal,
         );

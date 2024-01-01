@@ -35,11 +35,6 @@ use hash_utils::{
 
 use crate::repr_stores;
 
-// use crate::{
-//     ir::{BodyInfo, Place, PlaceProjection},
-//     ir_stores,
-// };
-
 /// Mutability of a particular variable, reference, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mutability {
@@ -126,7 +121,7 @@ pub struct Instance {
     pub is_intrinsic: bool,
 
     /// If the function instance originates from a generic function.
-    generic_origin: bool,
+    polymoprhpic_origin: bool,
 }
 
 impl Instance {
@@ -144,19 +139,11 @@ impl Instance {
             params,
             source,
             ret_ty,
-            generic_origin: false,
+            polymoprhpic_origin: false,
             abi: Abi::Hash,
             attr_id,
         }
     }
-
-    /// Check if this instance has an attribute.
-    ///
-    ///
-    /// @@IntoIR
-    // pub fn has_attr(&self, attr: AttrId) -> bool {
-    //     attr_store().node_has_attr(self.attr_id, attr)
-    // }
 
     /// Get the name from the instance.
     pub fn name(&self) -> Identifier {
@@ -164,8 +151,8 @@ impl Instance {
     }
 
     /// Check if the instance is of a generic origin.
-    pub fn is_generic_origin(&self) -> bool {
-        self.generic_origin
+    pub fn is_origin_polymorphic(&self) -> bool {
+        self.polymoprhpic_origin
     }
 
     /// Check if the [Instance] is an intrinsic function.
@@ -286,7 +273,7 @@ impl ReprTy {
         ReprTy::create(ReprTy::tuple(tys))
     }
 
-    /// Create a reference type to the provided [IrTy].
+    /// Create a reference type to the provided [ReprTy].
     pub fn make_ref(ty: ReprTy, mutability: Mutability, kind: RefKind) -> ReprTyId {
         Self::create(Self::Ref(Self::create(ty), mutability, kind))
     }
@@ -296,35 +283,35 @@ impl ReprTy {
         matches!(self, Self::Ref(_, _, _))
     }
 
-    /// Check if the [IrTy] is an integral type.
+    /// Check if the [ReprTy] is an integral type.
     pub fn is_integral(&self) -> bool {
         matches!(self, Self::Int(_) | Self::UInt(_))
     }
 
-    /// Check whether the [IrTy] is "switchable", as in if
+    /// Check whether the [ReprTy] is "switchable", as in if
     /// it can be compared without any additional work. This
     /// is primarily used for generating code for `match` statements.
     pub fn is_switchable(&self) -> bool {
         matches!(self, Self::Int(_) | Self::UInt(_) | Self::Char | Self::Bool)
     }
 
-    /// Check if the [IrTy] is a floating point type.
+    /// Check if the [ReprTy] is a floating point type.
     pub fn is_float(&self) -> bool {
         matches!(self, Self::Float(_))
     }
 
-    /// Check if the [IrTy] is a signed integral type.
+    /// Check if the [ReprTy] is a signed integral type.
     pub fn is_signed(&self) -> bool {
         matches!(self, Self::Int(_))
     }
 
-    /// Check if a [IrTy] is a function type.
+    /// Check if a [ReprTy] is a function type.
     pub fn is_fn(&self) -> bool {
         matches!(self, Self::Fn { .. })
     }
 
     /// Check if a type is a scalar, i.e. it cannot be divided into
-    /// further components. [`IrTy::Ref(..)`] with non-[`RefKind::Rc`] is also
+    /// further components. [`ReprTy::Ref(..)`] with non-[`RefKind::Rc`] is also
     /// considered as a scalar since the components of the reference are
     /// *opaque* to the compiler because it isn't managed.
     pub fn is_scalar(&self) -> bool {
@@ -354,7 +341,7 @@ impl ReprTy {
         matches!(self, Self::Adt(_))
     }
 
-    /// Assuming that the [IrTy] is an ADT, return the [AdtId]
+    /// Assuming that the [ReprTy] is an ADT, return the [AdtId]
     /// of the underlying ADT.
     pub fn as_adt(&self) -> AdtId {
         match self {
@@ -363,7 +350,7 @@ impl ReprTy {
         }
     }
 
-    /// Assuming that the [IrTy] is an ADT, return the [AdtId]
+    /// Assuming that the [ReprTy] is an ADT, return the [AdtId]
     /// of the underlying ADT.
     pub fn as_instance(&self) -> InstanceId {
         match self {
@@ -372,7 +359,7 @@ impl ReprTy {
         }
     }
 
-    /// Get the type of this [IrTy] if a dereference is performed on it.
+    /// Get the type of this [ReprTy] if a dereference is performed on it.
     pub fn on_deref(&self) -> Option<ReprTyId> {
         match self {
             Self::Ref(ty, _, _) => Some(*ty),
@@ -380,7 +367,7 @@ impl ReprTy {
         }
     }
 
-    /// Get the type of this [IrTy] if an index operation
+    /// Get the type of this [ReprTy] if an index operation
     /// is performed on it.
     pub fn on_index(&self) -> Option<ReprTyId> {
         match self {
@@ -389,7 +376,7 @@ impl ReprTy {
         }
     }
 
-    /// Get the type of this [IrTy] if a field access is performed on it.
+    /// Get the type of this [ReprTy] if a field access is performed on it.
     /// Optionally, the function can be supplied a [VariantIdx] in order to
     /// access a particular variant of the ADT (for `enum`s and `union`s).
     pub fn on_field_access(&self, field: usize, variant: Option<VariantIdx>) -> Option<ReprTyId> {
@@ -406,7 +393,7 @@ impl ReprTy {
         }
     }
 
-    /// Compute the discriminant value for a particular [IrTy] and
+    /// Compute the discriminant value for a particular [ReprTy] and
     /// evaluate it to a raw value.
     pub fn discriminant_for_variant(&self, variant: VariantIdx) -> Option<(IntTy, u128)> {
         match self {
@@ -452,8 +439,8 @@ impl ReprTy {
         }
     }
 
-    /// Attempt to compute the type of an element from an [`IrTy::Slice`] or
-    /// [`IrTy::Array`]. If the type is not a slice or array, then `None` is
+    /// Attempt to compute the type of an element from an [`ReprTy::Slice`] or
+    /// [`ReprTy::Array`]. If the type is not a slice or array, then `None` is
     /// returned.
     pub fn element_ty(&self) -> Option<ReprTyId> {
         match self {
@@ -520,14 +507,14 @@ impl ReprTyListId {
 
 /// Macro that is used to create the "common" IR types. Each
 /// entry has an associated name, and then followed by the type
-/// expression that represents the [IrTy].
+/// expression that represents the [ReprTy].
 macro_rules! create_common_ty_table {
     ($($name:ident: $value:expr),* $(,)?) => {
 
         /// Defines a map of common types that might be used in the IR
         /// and general IR operations. When creating new types that refer
         /// to these common types, they should be created using the
-        /// using the associated [IrTyId]s of this map.
+        /// using the associated [ReprTyId]s of this map.
         pub struct CommonReprTys {
             $(pub $name: ReprTyId, )*
         }
@@ -657,11 +644,12 @@ impl fmt::Display for &ReprTy {
     }
 }
 
-// new_sequence_store_key_indirect!(pub IrTyListId, IrTyId, derives = Debug);
+// new_sequence_store_key_indirect!(pub ReprTyListId, ReprTyId, derives =
+// Debug);
 
-/// Define the [TyListStore], which is a sequence of [IrTy]s associated
-/// with a [IrTyListId].
-// pub type TyListStore = DefaultSequenceStore<IrTyListId, IrTyId>;
+/// Define the [TyListStore], which is a sequence of [ReprTy]s associated
+/// with a [ReprTyListId].
+// pub type TyListStore = DefaultSequenceStore<ReprTyListId, ReprTyId>;
 
 impl fmt::Display for ReprTyListId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -681,10 +669,10 @@ impl fmt::Display for ReprTyListId {
 }
 
 /// An auxiliary data structure that is used to compute the
-/// [IrTy] of a [Place].
+/// [ReprTy] of a [Place].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlaceTy {
-    /// The [IrTy] of the place.
+    /// The [ReprTy] of the place.
     pub ty: ReprTyId,
 
     /// If the place has been downcast, then this records
@@ -692,16 +680,16 @@ pub struct PlaceTy {
     pub index: Option<VariantIdx>,
 }
 
-/// This defines a trait that it used to create [IrTy]s from
+/// This defines a trait that it used to create [ReprTy]s from
 /// data types that aren't defined within the IR crate, but from
 /// places like the ABI where it is still useful to convert a
-/// value into a [IrTy].
+/// value into a [ReprTy].
 pub trait ToReprTy {
-    /// Convert the current type into an [IrTy].
+    /// Convert the current type into an [ReprTy].
     fn to_ir_ty(&self) -> ReprTyId;
 }
 
-// Convert from `IntTy` into an `IrTy`.
+// Convert from `IntTy` into an `ReprTy`.
 impl ToReprTy for IntTy {
     fn to_ir_ty(&self) -> ReprTyId {
         match self {
@@ -738,7 +726,7 @@ impl ToReprTy for FloatTy {
     }
 }
 
-// Convert from an ABI scalar kind into an `IrTy`.
+// Convert from an ABI scalar kind into an `ReprTy`.
 impl ToReprTy for ScalarKind {
     fn to_ir_ty(&self) -> ReprTyId {
         match *self {
@@ -824,22 +812,6 @@ impl Adt {
             substitutions: None,
             origin: None,
         }
-    }
-
-    /// Apply a given origin onto the ADT. This will update
-    /// any representation flags, or anything that can be
-    /// derived from attributes that were specified on the ADT.
-    pub fn apply_origin(&mut self, origin: ast::AstNodeId) {
-        self.origin = Some(origin);
-
-        // @@IntoIR
-        // attr_store().map_with_default(origin, |attrs| {
-        //     // If we have a representation hint, we update the repr flags
-        //     // on this ADT accordingly...
-        //     if let Some(repr_hint) = attrs.get_attr(attrs::REPR) {
-        //         self.metadata = AdtRepresentation::from_attr(repr_hint);
-        //     }
-        // })
     }
 
     /// Get the origin of the ADT, if it exists.
@@ -1026,28 +998,6 @@ pub struct AdtRepresentation {
 }
 
 impl AdtRepresentation {
-    /// Parse a [AdtRepresentation] from an [Attr].
-    ///
-    /// @@IntoIR
-    // fn from_attr(attr: &Attr) -> Self {
-    //     debug_assert!(attr.id == attrs::REPR);
-
-    //     let parsed = ReprAttr::parse(attr).unwrap();
-    //     let mut representation = AdtRepresentation::default();
-
-    //     match parsed {
-    //         ReprAttr::C => {
-    //             representation.add_flags(RepresentationFlags::C_LIKE);
-    //         }
-    //         ReprAttr::Int(value) => {
-    //             debug_assert!(!value.is_big()); // Discriminant cannot be a big int.
-    //             representation.discriminant = Some(value);
-    //         }
-    //     }
-
-    //     representation
-    // }
-
     /// Specify [RepresentationFlags] on the [AdtRepresentation].
     pub fn add_flags(&mut self, flags: RepresentationFlags) {
         self.representation |= flags;
