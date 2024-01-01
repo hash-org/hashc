@@ -60,9 +60,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         };
 
         // Now lookup the item in the libc module
-        let Some(fn_def) = libc_mod.borrow().get_mod_fn_member_by_ident(name) else {
-            return None;
-        };
+        let fn_def = libc_mod.borrow().get_mod_fn_member_by_ident(name)?;
 
         Some(self.ty_id_from_tir_fn_def(fn_def))
     }
@@ -73,9 +71,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// N.B. This assumes that the items have no type arguments.
     pub(crate) fn lookup_prelude_item(&mut self, name: &str) -> Option<ReprTyId> {
         // Now lookup the item in the libc module
-        let Some(member) = self.ctx.prelude.borrow().get_mod_member_by_ident(name) else {
-            return None;
-        };
+        let member = self.ctx.prelude.borrow().get_mod_member_by_ident(name)?;
 
         match member.value {
             ModMemberValue::Data(data_def) => {

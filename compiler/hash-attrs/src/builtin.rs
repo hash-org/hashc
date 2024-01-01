@@ -30,7 +30,7 @@ macro_rules! define_attr {
     ($table:expr, $name:ident, { ($($arg:ident : $ty:ident),*), $subject:expr }) => {
         let name: Identifier = stringify!($name).into();
 
-        let params = if ${count(arg)} == 0 {
+        let params = if ${count($arg)} == 0 {
             gen::params([])
         } else {
             gen::params([
