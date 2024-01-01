@@ -25,7 +25,7 @@ use hash_ir::{
         AggregateKind, AssertKind, BodyInfo, Operand, Place, PlaceProjection, RValue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
-    ty::{AdtFlags, IrTy, Mutability, VariantIdx, COMMON_IR_TYS},
+    ty::{AdtFlags, Mutability, ReprTy, VariantIdx, COMMON_REPR_TYS},
 };
 use hash_layout::compute::LayoutComputer;
 use hash_storage::store::statics::StoreId;
@@ -63,24 +63,24 @@ pub fn pretty_print_const(
     lc: LayoutComputer<'_>,
 ) -> io::Result<()> {
     match (constant.kind(), constant.ty().value()) {
-        (ConstKind::Pair { data, .. }, IrTy::Ref(inner, _, _)) => match inner.value() {
-            IrTy::Str => write!(f, "{:?}", data.value()),
+        (ConstKind::Pair { data, .. }, ReprTy::Ref(inner, _, _)) => match inner.value() {
+            ReprTy::Str => write!(f, "{:?}", data.value()),
             _ => Ok(()),
         },
 
         (ConstKind::Scalar(scalar), ty) => pretty_print_scalar(f, scalar, &ty, lc),
-        (ConstKind::Alloc { .. }, IrTy::Array { .. }) => {
+        (ConstKind::Alloc { .. }, ReprTy::Array { .. }) => {
             write!(f, "[{}]", 2)
         }
         // We put a `zero` for fndefs.
-        (ConstKind::Zero, IrTy::FnDef { .. }) => {
+        (ConstKind::Zero, ReprTy::FnDef { .. }) => {
             write!(f, "{}", constant.ty())
         }
         (ConstKind::Zero, _) => {
-            debug_assert!(constant.ty() == COMMON_IR_TYS.unit);
+            debug_assert!(constant.ty() == COMMON_REPR_TYS.unit);
             write!(f, "()")
         }
-        (_, IrTy::Adt(def)) => {
+        (_, ReprTy::Adt(def)) => {
             let utils = ConstUtils::new(lc, constant);
 
             if let Some(destructured) = utils.destructure_const() {
@@ -155,25 +155,25 @@ pub fn pretty_print_const(
 pub fn pretty_print_scalar(
     f: &mut impl Write,
     scalar: Scalar,
-    ty: &IrTy,
+    ty: &ReprTy,
     lc: LayoutComputer<'_>,
 ) -> io::Result<()> {
     match ty {
-        IrTy::Bool if scalar == Scalar::FALSE => write!(f, "false"),
-        IrTy::Bool if scalar == Scalar::TRUE => write!(f, "true"),
-        IrTy::Float(FloatTy::F32) => {
+        ReprTy::Bool if scalar == Scalar::FALSE => write!(f, "false"),
+        ReprTy::Bool if scalar == Scalar::TRUE => write!(f, "true"),
+        ReprTy::Float(FloatTy::F32) => {
             write!(f, "{:?}f32", f32::try_from(scalar).unwrap())
         }
-        IrTy::Float(FloatTy::F64) => {
+        ReprTy::Float(FloatTy::F64) => {
             write!(f, "{:?}f64", f64::try_from(scalar).unwrap())
         }
-        IrTy::Char => {
+        ReprTy::Char => {
             write!(f, "{:?}", char::try_from(scalar).unwrap())
         }
-        ty @ (IrTy::Int(_) | IrTy::UInt(_)) => {
+        ty @ (ReprTy::Int(_) | ReprTy::UInt(_)) => {
             write!(f, "{}", ScalarInt::new(scalar, IntTy::from(*ty)))
         }
-        IrTy::Ref(..) | IrTy::Fn { .. } => {
+        ReprTy::Ref(..) | ReprTy::Fn { .. } => {
             let data = scalar.assert_bits(lc.data_layout().pointer_size);
             write!(f, "0x{:x} as {ty}", data)
         }

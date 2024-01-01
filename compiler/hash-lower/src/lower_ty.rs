@@ -1,5 +1,5 @@
 //! Contains all of the logic that is used by the lowering process
-//! to convert types and [Ty]s into [IrTy]s.
+//! to convert types and [Ty]s into [ReprTy]s.
 
 use hash_ast::ast::AstNodeId;
 use hash_attrs::builtin::attrs;
@@ -7,8 +7,8 @@ use hash_ir::{
     intrinsics::Intrinsic,
     lang_items::LangItem,
     ty::{
-        self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, IrTy, IrTyId,
-        IrTyListId, Mutability, COMMON_IR_TYS,
+        self, Adt, AdtField, AdtFlags, AdtHelpers, AdtId, AdtVariant, AdtVariants, Instance,
+        InstanceHelpers, Mutability, ReprTy, ReprTyId, ReprTyListId, COMMON_REPR_TYS,
     },
     TyCacheEntry,
 };
@@ -52,7 +52,7 @@ impl<'ir> BuilderCtx<'ir> {
     /// Perform a type lowering operation whilst also caching the result of the
     /// lowering operation. This is used to avoid duplicated work when lowering
     /// types.
-    fn with_cache<T>(&self, item: T, f: impl FnOnce() -> (IrTyId, ShouldCache)) -> IrTyId
+    fn with_cache<T>(&self, item: T, f: impl FnOnce() -> (ReprTyId, ShouldCache)) -> ReprTyId
     where
         T: Copy + Into<TyCacheEntry>,
     {
@@ -75,10 +75,10 @@ impl<'ir> BuilderCtx<'ir> {
         ty
     }
 
-    /// Get the [IrTyId] from a given [TyId]. This function will internally
-    /// cache results of lowering a [TyId] into an [IrTyId] to avoid
+    /// Get the [ReprTyId] from a given [TyId]. This function will internally
+    /// cache results of lowering a [TyId] into an [ReprTyId] to avoid
     /// duplicate work.
-    pub(crate) fn ty_id_from_tir_ty(&self, id: TyId) -> IrTyId {
+    pub(crate) fn ty_id_from_tir_ty(&self, id: TyId) -> ReprTyId {
         self.with_cache(id, || {
             let ty = id.borrow();
             // We compute the "uncached" type, and then it will be added to the
@@ -90,7 +90,7 @@ impl<'ir> BuilderCtx<'ir> {
                 Ty::DataTy(data_ty) => self.ty_from_tir_data(*data_ty),
 
                 // Hot path for unit types.
-                Ty::TupleTy(tuple) if tuple.data.is_empty() => COMMON_IR_TYS.unit,
+                Ty::TupleTy(tuple) if tuple.data.is_empty() => COMMON_REPR_TYS.unit,
                 _ => self.uncached_ty_from_tir_ty(id, &ty),
             };
 
@@ -98,13 +98,13 @@ impl<'ir> BuilderCtx<'ir> {
         })
     }
 
-    /// Get the [IrTy] from the given [Ty].
-    fn uncached_ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> IrTyId {
+    /// Get the [ReprTy] from the given [Ty].
+    fn uncached_ty_from_tir_ty(&self, id: TyId, ty: &Ty) -> ReprTyId {
         let ty = match *ty {
             Ty::TupleTy(TupleTy { data }) => {
                 // Optimise, if this is a UNIT, then we can just return a unit type.
                 if data.is_empty() {
-                    return COMMON_IR_TYS.unit;
+                    return COMMON_REPR_TYS.unit;
                 }
 
                 let mut flags = AdtFlags::empty();
@@ -122,14 +122,14 @@ impl<'ir> BuilderCtx<'ir> {
                 let variant = AdtVariant::singleton("0".into(), fields);
 
                 let adt = Adt::new_with_flags("tuple".into(), index_vec![variant], flags);
-                IrTy::Adt(Adt::create(adt))
+                ReprTy::Adt(Adt::create(adt))
             }
             Ty::FnTy(FnTy { params, return_ty, .. }) => {
-                let params = IrTyListId::seq(
+                let params = ReprTyListId::seq(
                     params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
                 );
                 let return_ty = self.ty_id_from_tir_ty(return_ty);
-                IrTy::Fn { params, return_ty }
+                ReprTy::Fn { params, return_ty }
             }
             Ty::RefTy(RefTy { kind, mutable, ty }) => {
                 let ty = self.ty_id_from_tir_ty(ty);
@@ -140,7 +140,7 @@ impl<'ir> BuilderCtx<'ir> {
                     hash_tir::tir::RefKind::Local => ty::RefKind::Normal,
                 };
 
-                IrTy::Ref(ty, mutability, ref_kind)
+                ReprTy::Ref(ty, mutability, ref_kind)
             }
             Ty::DataTy(data_ty) => return self.ty_from_tir_data(data_ty),
 
@@ -153,8 +153,8 @@ impl<'ir> BuilderCtx<'ir> {
                     let ty = term.value();
                     return self.uncached_ty_from_tir_ty(id, &ty);
                 } else {
-                    return COMMON_IR_TYS.unit; // We just return the unit type
-                                               // for now.
+                    return COMMON_REPR_TYS.unit; // We just return the unit type
+                                                 // for now.
                 }
             }
             ty @ Ty::Hole(_) => {
@@ -168,19 +168,19 @@ impl<'ir> BuilderCtx<'ir> {
                 }
             }
 
-            _ => IrTy::Adt(AdtId::UNIT),
+            _ => ReprTy::Adt(AdtId::UNIT),
         };
 
-        IrTy::create(ty)
+        ReprTy::create(ty)
     }
 
-    /// Create a new [IrTyId] from the given intrinsic whilst
+    /// Create a new [ReprTyId] from the given intrinsic whilst
     /// caching the result.
     pub(crate) fn ty_id_from_tir_intrinsic(
         &self,
         intrinsic: TirIntrinsic,
         originating_node: AstNodeId,
-    ) -> IrTyId {
+    ) -> ReprTyId {
         self.with_cache(intrinsic, || {
             let instance = self.create_instance_from_intrinsic(intrinsic, originating_node);
 
@@ -190,7 +190,7 @@ impl<'ir> BuilderCtx<'ir> {
             // Check if the instance has the `lang` attribute, specifying that it is
             // the lang-item attribute.
             let instance = Instance::create(instance);
-            let ty = IrTy::create(IrTy::FnDef { instance });
+            let ty = ReprTy::create(ReprTy::FnDef { instance });
 
             if is_lang {
                 let item = LangItem::from_str_name(name.into());
@@ -205,9 +205,9 @@ impl<'ir> BuilderCtx<'ir> {
         })
     }
 
-    /// Create a new [IrTyId] from the given function definition whilst
+    /// Create a new [ReprTyId] from the given function definition whilst
     /// caching the result.
-    pub(crate) fn ty_id_from_tir_fn_def(&self, def: FnDefId) -> IrTyId {
+    pub(crate) fn ty_id_from_tir_fn_def(&self, def: FnDefId) -> ReprTyId {
         self.with_cache(def, || {
             let instance = self.create_instance_from_fn_def(def);
 
@@ -217,7 +217,7 @@ impl<'ir> BuilderCtx<'ir> {
             // Check if the instance has the `lang` attribute, specifying that it is
             // the lang-item attribute.
             let instance = Instance::create(instance);
-            let ty = IrTy::create(IrTy::FnDef { instance });
+            let ty = ReprTy::create(ReprTy::FnDef { instance });
 
             if is_lang {
                 let item = LangItem::from_str_name(name.into());
@@ -239,7 +239,7 @@ impl<'ir> BuilderCtx<'ir> {
     ) -> Instance {
         let FnTy { params, return_ty, .. } = intrinsic.ty();
 
-        let params = IrTyListId::seq(
+        let params = ReprTyListId::seq(
             params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
         );
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
@@ -268,7 +268,7 @@ impl<'ir> BuilderCtx<'ir> {
         let source = fn_def.span().map(|location| location.id);
         let FnTy { params, return_ty, .. } = ty;
 
-        let params = IrTyListId::seq(
+        let params = ReprTyListId::seq(
             params.elements().borrow().iter().map(|param| self.ty_id_from_tir_ty(param.ty)),
         );
         let ret_ty = self.ty_id_from_tir_ty(return_ty);
@@ -277,24 +277,24 @@ impl<'ir> BuilderCtx<'ir> {
         Instance::new(ident, source, params, ret_ty, attr_id)
     }
 
-    /// Convert the [DataTy] into an [`IrTy::Adt`]. The [DataTy] specifies a
+    /// Convert the [DataTy] into an [`ReprTy::Adt`]. The [DataTy] specifies a
     /// data definition and a collection of arguments to the data
     /// definition. The arguments correspond to generic parameters that the
     /// definition has.
-    pub(crate) fn ty_from_tir_data(&self, data_ty: DataTy) -> IrTyId {
+    pub(crate) fn ty_from_tir_data(&self, data_ty: DataTy) -> ReprTyId {
         self.with_cache(data_ty, || self.uncached_ty_from_tir_data(data_ty))
     }
 
-    /// Function to convert a data definition into a [`IrTy::Adt`].
+    /// Function to convert a data definition into a [`ReprTy::Adt`].
     ///
-    /// This function that will create a [IrTy] and save it into the
+    /// This function that will create a [ReprTy] and save it into the
     /// `reserved_ty` slot.
     fn adt_ty_from_data(
         &self,
         ty: DataTy,
         def: &DataDef,
         ctor_defs: CtorDefsId,
-    ) -> (IrTyId, ShouldCache) {
+    ) -> (ReprTyId, ShouldCache) {
         // If data_def has more than one constructor, then it is assumed that this
         // is a enum.
         let mut flags = AdtFlags::empty();
@@ -302,7 +302,7 @@ impl<'ir> BuilderCtx<'ir> {
         match ctor_defs.len() {
             // This must be the never type.
             0 => {
-                return (COMMON_IR_TYS.never, ShouldCache::No);
+                return (COMMON_REPR_TYS.never, ShouldCache::No);
             }
             1 => flags |= AdtFlags::STRUCT,
             _ => flags |= AdtFlags::ENUM,
@@ -312,7 +312,7 @@ impl<'ir> BuilderCtx<'ir> {
         // so that if any inner types are recursive, they can refer to
         // this type, and it will be updated once the type is fully defined.
         // Apply the arguments as the scope of the data type.
-        let reserved_ty = IrTy::create(IrTy::Never);
+        let reserved_ty = ReprTy::create(ReprTy::Never);
         self.lcx.ty_cache().borrow_mut().insert(ty.into(), reserved_ty);
 
         // We want to add the arguments to the ADT, so that we can print them
@@ -320,7 +320,7 @@ impl<'ir> BuilderCtx<'ir> {
         let subs = if ty.args.len() > 0 {
             // For each argument, we lookup the value of the argument, lower it as a
             // type and create a TyList for the subs.
-            Some(IrTyListId::seq(
+            Some(ReprTyListId::seq(
                 ty.args.elements().borrow().iter().map(|arg| self.ty_id_from_tir_ty(arg.value)),
             ))
         } else {
@@ -383,15 +383,15 @@ impl<'ir> BuilderCtx<'ir> {
         }
 
         // Update the type in the slot that was reserved for it.
-        reserved_ty.modify(|ty| *ty = IrTy::Adt(Adt::create(adt)));
+        reserved_ty.modify(|ty| *ty = ReprTy::Adt(Adt::create(adt)));
 
         // We created our own cache entry, so we don't need to update the
         // cache.
         (reserved_ty, ShouldCache::Yes)
     }
 
-    /// Function that converts a [DataTy] into the corresponding [IrTyId].
-    fn uncached_ty_from_tir_data(&self, ty: DataTy) -> (IrTyId, ShouldCache) {
+    /// Function that converts a [DataTy] into the corresponding [ReprTyId].
+    fn uncached_ty_from_tir_data(&self, ty: DataTy) -> (ReprTyId, ShouldCache) {
         let data_def = ty.data_def.value();
 
         match data_def.ctors {
@@ -399,7 +399,7 @@ impl<'ir> BuilderCtx<'ir> {
                 // Booleans are defined as a data type with two constructors,
                 // check here if we are dealing with a boolean.
                 if bool_def() == ty.data_def {
-                    return (COMMON_IR_TYS.bool, ShouldCache::Yes);
+                    return (COMMON_REPR_TYS.bool, ShouldCache::Yes);
                 }
 
                 self.context().enter_scope(ty.data_def.into(), || {
@@ -414,8 +414,8 @@ impl<'ir> BuilderCtx<'ir> {
                     PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, flags }) => {
                         if flags.is_float() {
                             match bits {
-                                NumericCtorBits::Bounded(32) => COMMON_IR_TYS.f32,
-                                NumericCtorBits::Bounded(64) => COMMON_IR_TYS.f64,
+                                NumericCtorBits::Bounded(32) => COMMON_REPR_TYS.f32,
+                                NumericCtorBits::Bounded(64) => COMMON_REPR_TYS.f64,
 
                                 // Other bits widths are not supported.
                                 _ => unreachable!(),
@@ -428,24 +428,24 @@ impl<'ir> BuilderCtx<'ir> {
                                     if flags.is_signed() {
                                         match size.bytes() {
                                             // If this is a platform type, return `isize`
-                                            _ if flags.is_platform() => COMMON_IR_TYS.isize,
-                                            1 => COMMON_IR_TYS.i8,
-                                            2 => COMMON_IR_TYS.i16,
-                                            4 => COMMON_IR_TYS.i32,
-                                            8 => COMMON_IR_TYS.i64,
-                                            16 => COMMON_IR_TYS.i128,
+                                            _ if flags.is_platform() => COMMON_REPR_TYS.isize,
+                                            1 => COMMON_REPR_TYS.i8,
+                                            2 => COMMON_REPR_TYS.i16,
+                                            4 => COMMON_REPR_TYS.i32,
+                                            8 => COMMON_REPR_TYS.i64,
+                                            16 => COMMON_REPR_TYS.i128,
                                             _ => unreachable!(), /* Other bits widths are not
                                                                   * supported. */
                                         }
                                     } else {
                                         match size.bytes() {
                                             // If this is a platform type, return `usize`
-                                            _ if flags.is_platform() => COMMON_IR_TYS.usize,
-                                            1 => COMMON_IR_TYS.u8,
-                                            2 => COMMON_IR_TYS.u16,
-                                            4 => COMMON_IR_TYS.u32,
-                                            8 => COMMON_IR_TYS.u64,
-                                            16 => COMMON_IR_TYS.u128,
+                                            _ if flags.is_platform() => COMMON_REPR_TYS.usize,
+                                            1 => COMMON_REPR_TYS.u8,
+                                            2 => COMMON_REPR_TYS.u16,
+                                            4 => COMMON_REPR_TYS.u32,
+                                            8 => COMMON_REPR_TYS.u64,
+                                            16 => COMMON_REPR_TYS.u128,
                                             _ => unreachable!(), /* Other bits widths are not
                                                                   * supported. */
                                         }
@@ -453,9 +453,9 @@ impl<'ir> BuilderCtx<'ir> {
                                 }
                                 NumericCtorBits::Unbounded => {
                                     if flags.is_signed() {
-                                        COMMON_IR_TYS.ibig
+                                        COMMON_REPR_TYS.ibig
                                     } else {
-                                        COMMON_IR_TYS.ubig
+                                        COMMON_REPR_TYS.ubig
                                     }
                                 }
                             }
@@ -463,8 +463,8 @@ impl<'ir> BuilderCtx<'ir> {
                     }
 
                     // @@Temporary: `str` implies that it is a `&str`
-                    PrimitiveCtorInfo::Str => COMMON_IR_TYS.str,
-                    PrimitiveCtorInfo::Char => COMMON_IR_TYS.char,
+                    PrimitiveCtorInfo::Str => COMMON_REPR_TYS.str,
+                    PrimitiveCtorInfo::Char => COMMON_REPR_TYS.char,
                     PrimitiveCtorInfo::Array(ArrayCtorInfo { element_ty, length }) => {
                         // Apply the arguments as the scope of the data type.
                         self.context().enter_scope(ty.data_def.into(), || {
@@ -473,22 +473,22 @@ impl<'ir> BuilderCtx<'ir> {
                             let ty = match length.and_then(|l| try_use_term_as_integer_lit(self, l))
                             {
                                 Some(length) => {
-                                    IrTy::Array { ty: self.ty_id_from_tir_ty(element_ty), length }
+                                    ReprTy::Array { ty: self.ty_id_from_tir_ty(element_ty), length }
                                 }
                                 // @@Temporary: `[]` implies that it is a `&[]`, and there is no
                                 // information about mutability and reference kind, so for now we
                                 // assume that it is immutable and a normal reference kind.
                                 None => {
-                                    let slice = IrTy::Slice(self.ty_id_from_tir_ty(element_ty));
-                                    IrTy::Ref(
-                                        IrTy::create(slice),
+                                    let slice = ReprTy::Slice(self.ty_id_from_tir_ty(element_ty));
+                                    ReprTy::Ref(
+                                        ReprTy::create(slice),
                                         Mutability::Immutable,
                                         ty::RefKind::Normal,
                                     )
                                 }
                             };
 
-                            IrTy::create(ty)
+                            ReprTy::create(ty)
                         })
                     }
                 };

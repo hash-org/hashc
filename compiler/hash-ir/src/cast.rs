@@ -6,7 +6,7 @@
 
 use hash_storage::store::statics::StoreId;
 
-use crate::ty::{IrTy, IrTyId};
+use crate::ty::{ReprTy, ReprTyId};
 
 /// A [CastKind] represents all of the different kind of casts that
 /// are permitted in the language. For now, this is just limited to
@@ -30,7 +30,7 @@ pub enum CastKind {
 
 impl CastKind {
     /// Classify the kind of cast between two types.
-    pub fn classify(src: IrTyId, dest: IrTyId) -> Self {
+    pub fn classify(src: ReprTyId, dest: ReprTyId) -> Self {
         let src_ty = CastTy::from_ty(src);
         let dest_ty = CastTy::from_ty(dest);
 
@@ -88,15 +88,15 @@ pub enum CastTy {
 }
 
 impl CastTy {
-    /// Convert a [IrTy] into a [CastTy] if it is a primitive type. The function
-    /// will return [`None`] if the conversion fails.
-    pub fn from_ty(ty: IrTyId) -> Option<Self> {
+    /// Convert a [ReprTy] into a [CastTy] if it is a primitive type. The
+    /// function will return [`None`] if the conversion fails.
+    pub fn from_ty(ty: ReprTyId) -> Option<Self> {
         ty.map(|ty| match ty {
-            IrTy::Int(_) => Some(Self::Int(IntCastKind::Int)),
-            IrTy::UInt(_) => Some(Self::Int(IntCastKind::UInt)),
-            IrTy::Char => Some(Self::Int(IntCastKind::Char)),
-            IrTy::Bool => Some(Self::Int(IntCastKind::Bool)),
-            IrTy::Float(_) => Some(Self::Float),
+            ReprTy::Int(_) => Some(Self::Int(IntCastKind::Int)),
+            ReprTy::UInt(_) => Some(Self::Int(IntCastKind::UInt)),
+            ReprTy::Char => Some(Self::Int(IntCastKind::Char)),
+            ReprTy::Bool => Some(Self::Int(IntCastKind::Bool)),
+            ReprTy::Float(_) => Some(Self::Float),
             _ => None,
         })
     }

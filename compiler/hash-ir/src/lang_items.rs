@@ -1,7 +1,7 @@
 //! Defines all of the intrinsics that are expected to be
 //! declared within the language prelude.
 
-use crate::ty::{InstanceId, IrTyId};
+use crate::ty::{InstanceId, ReprTyId};
 
 /// Defines all of the language items that are required for
 /// facilitating the feature's of the language.
@@ -37,7 +37,7 @@ pub struct LangItemData {
     instance: InstanceId,
 
     /// The type of the lang item.
-    ty: IrTyId,
+    ty: ReprTyId,
 }
 
 /// This struct is used to map the [Intrinsic] enum to the
@@ -56,8 +56,8 @@ impl LangItems {
         Self { items: [None; std::mem::variant_count::<LangItem>()] }
     }
 
-    /// Set the [IrTyId] for the specified intrinsic.
-    pub fn set(&mut self, item: LangItem, instance: InstanceId, ty: IrTyId) {
+    /// Set the [ReprTyId] for the specified intrinsic.
+    pub fn set(&mut self, item: LangItem, instance: InstanceId, ty: ReprTyId) {
         self.items[item as usize] = Some(LangItemData { instance, ty });
     }
 
@@ -66,8 +66,8 @@ impl LangItems {
         self.items[item as usize].map(|item| item.instance)
     }
 
-    /// Get the [IrTyId] for the specified intrinsic.
-    pub fn get_ty(&self, item: LangItem) -> Option<IrTyId> {
+    /// Get the [ReprTyId] for the specified intrinsic.
+    pub fn get_ty(&self, item: LangItem) -> Option<ReprTyId> {
         self.items[item as usize].map(|item| item.ty)
     }
 }

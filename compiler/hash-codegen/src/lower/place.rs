@@ -3,7 +3,7 @@
 
 use hash_ir::{
     ir::{self, ProjectionId},
-    ty::{IrTyId, PlaceTy, VariantIdx},
+    ty::{PlaceTy, ReprTyId, VariantIdx},
 };
 use hash_layout::{LayoutShape, Variants};
 use hash_reporting::macros::panic_on_span;
@@ -122,7 +122,7 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
     pub fn codegen_get_discriminant<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         self,
         builder: &mut Builder,
-        cast_to: IrTyId,
+        cast_to: ReprTyId,
     ) -> V {
         let cast_info = builder.layout_of(cast_to);
         let cast_to_ty = builder.immediate_backend_ty(cast_info);

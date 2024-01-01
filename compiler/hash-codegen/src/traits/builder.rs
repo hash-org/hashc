@@ -4,7 +4,7 @@
 //! from Hash IR.
 
 use hash_abi::FnAbiId;
-use hash_ir::ty::IrTyId;
+use hash_ir::ty::ReprTyId;
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ValidScalarRange},
@@ -221,7 +221,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
     fn checked_bin_op(
         &mut self,
         op: CheckedOp,
-        ty: IrTyId,
+        ty: ReprTyId,
         lhs: Self::Value,
         rhs: Self::Value,
     ) -> (Self::Value, Self::Value);

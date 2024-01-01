@@ -23,7 +23,7 @@ use hash_codegen::{
         HasCtxMethods,
     },
 };
-use hash_ir::ty::{IrTy, IrTyId};
+use hash_ir::ty::{ReprTy, ReprTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
 use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::rayon::iter::Either;
@@ -551,17 +551,17 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
     fn checked_bin_op(
         &mut self,
         op: CheckedOp,
-        ty: IrTyId,
+        ty: ReprTyId,
         lhs: Self::Value,
         rhs: Self::Value,
     ) -> (Self::Value, Self::Value) {
         let ptr_width = self.target().ptr_size();
 
         let int_ty = ty.map(|ty| match ty {
-            IrTy::Int(ty @ SIntTy::ISize) => IntTy::Int(ty.normalise(ptr_width)),
-            IrTy::Int(int_ty) => IntTy::Int(*int_ty),
-            IrTy::UInt(ty @ UIntTy::USize) => IntTy::UInt(ty.normalise(ptr_width)),
-            IrTy::UInt(int_ty) => IntTy::UInt(*int_ty),
+            ReprTy::Int(ty @ SIntTy::ISize) => IntTy::Int(ty.normalise(ptr_width)),
+            ReprTy::Int(int_ty) => IntTy::Int(*int_ty),
+            ReprTy::UInt(ty @ UIntTy::USize) => IntTy::UInt(ty.normalise(ptr_width)),
+            ReprTy::UInt(int_ty) => IntTy::UInt(*int_ty),
             _ => unreachable!("tried to perform a checked operation on a non-integer type"),
         });
 

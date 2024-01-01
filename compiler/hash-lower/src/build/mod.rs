@@ -18,7 +18,7 @@ use hash_ir::{
         BasicBlock, Body, BodyMetadata, BodySource, Local, LocalDecl, LocalDecls, Place,
         Projections, TerminatorKind, START_BLOCK,
     },
-    ty::{IrTy, Mutability},
+    ty::{Mutability, ReprTy},
 };
 use hash_source::identifier::Identifier;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
@@ -263,7 +263,7 @@ impl<'ctx> BodyBuilder<'ctx> {
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
         let return_ty = ty.map(|item_ty| match item_ty {
-            IrTy::FnDef { instance } => instance.borrow().ret_ty,
+            ReprTy::FnDef { instance } => instance.borrow().ret_ty,
             _ => ty,
         });
 

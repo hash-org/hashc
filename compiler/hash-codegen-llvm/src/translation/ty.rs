@@ -14,7 +14,7 @@ use hash_codegen::{
     },
     traits::{ty::TypeBuilderMethods, HasCtxMethods},
 };
-use hash_ir::ty::IrTy;
+use hash_ir::ty::ReprTy;
 use hash_storage::store::statics::StoreId;
 use hash_utils::smallvec::{smallvec, SmallVec};
 use inkwell as llvm;
@@ -271,7 +271,7 @@ pub(crate) struct TyMemoryRemap<'m> {
 /// for computing types as LLVM types, and various other related LLVM
 /// specific type utilities.
 pub(crate) trait ExtendedTyBuilderMethods<'m> {
-    /// Convert the [IrTyId] into the equivalent [llvm::types::AnyTypeEnum].
+    /// Convert the [ReprTyId] into the equivalent [llvm::types::AnyTypeEnum].
     fn llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m>;
 
     /// Create an immediate type.
@@ -332,7 +332,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
                         // @@Todo: make emitting names optional in order to improve speed
                         // of LLVM builds.
                         let name: Option<String> = match ty {
-                            IrTy::Adt(adt) => {
+                            ReprTy::Adt(adt) => {
                                 adt.map(|adt| {
                                     // We don't create a name for tuple types, they are just
                                     // regarded

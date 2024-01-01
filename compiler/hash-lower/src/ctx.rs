@@ -2,7 +2,7 @@
 //! information required to lower all the TIR into IR, among
 //! other operations.
 
-use hash_ir::{ty::IrTyId, IrCtx};
+use hash_ir::{ty::ReprTyId, IrCtx};
 use hash_layout::{
     compute::{LayoutComputer, LayoutError},
     write::{LayoutWriter, LayoutWriterConfig},
@@ -103,13 +103,13 @@ impl<'ir> BuilderCtx<'ir> {
         LayoutComputer::new(self.layouts)
     }
 
-    /// Compute the layout of a given [IrTyId].
-    pub fn layout_of(&self, ty: IrTyId) -> Result<LayoutId, LayoutError> {
+    /// Compute the layout of a given [ReprTyId].
+    pub fn layout_of(&self, ty: ReprTyId) -> Result<LayoutId, LayoutError> {
         self.layout_computer().layout_of_ty(ty)
     }
 
-    /// Compute the size of a given [IrTyId].
-    pub fn size_of(&self, ty: IrTyId) -> Result<usize, LayoutError> {
+    /// Compute the size of a given [ReprTyId].
+    pub fn size_of(&self, ty: ReprTyId) -> Result<usize, LayoutError> {
         Ok(self.layout_of(ty)?.size().bytes().try_into().unwrap())
     }
 

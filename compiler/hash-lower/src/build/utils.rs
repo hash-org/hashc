@@ -10,7 +10,7 @@ use hash_ir::{
         TerminatorKind,
     },
     lang_items::LangItem,
-    ty::{IrTyId, Mutability, COMMON_IR_TYS},
+    ty::{Mutability, ReprTyId, COMMON_REPR_TYS},
     IrCtx,
 };
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
@@ -53,7 +53,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ///
     /// @@Future: ideally, we can remove this and just use `#lang_item`
     /// declaration to find the appropriate items.
-    pub(crate) fn lookup_libc_fn(&mut self, name: &str) -> Option<IrTyId> {
+    pub(crate) fn lookup_libc_fn(&mut self, name: &str) -> Option<ReprTyId> {
         let libc_mod = match self.ctx.prelude.borrow().get_mod_member_by_ident("libc").map(|x| *x) {
             Some(ModMember { value: ModMemberValue::Mod(libc_mod), .. }) => libc_mod,
             _ => return None,
@@ -71,7 +71,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// to lookup items such as `SizedPointer`.
     ///
     /// N.B. This assumes that the items have no type arguments.
-    pub(crate) fn lookup_prelude_item(&mut self, name: &str) -> Option<IrTyId> {
+    pub(crate) fn lookup_prelude_item(&mut self, name: &str) -> Option<ReprTyId> {
         // Now lookup the item in the libc module
         let Some(member) = self.ctx.prelude.borrow().get_mod_member_by_ident(name) else {
             return None;
@@ -91,7 +91,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
     }
 
-    pub(crate) fn get_lang_item(&self, name: LangItem) -> IrTyId {
+    pub(crate) fn get_lang_item(&self, name: LangItem) -> ReprTyId {
         self.ctx.lcx.lang_items().get_ty(name).expect("lang item not found or not defined")
     }
 
@@ -99,7 +99,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// the prelude defined `SizedPointer` type.
     pub(crate) fn create_ptr_with_metadata(
         &mut self,
-        ty: IrTyId,
+        ty: ReprTyId,
         ptr: Operand,
         metadata: usize,
     ) -> RValue {
@@ -114,7 +114,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         match &self.tmp_place {
             Some(tmp) => *tmp,
             None => {
-                let local = LocalDecl::new_auxiliary(COMMON_IR_TYS.unit, Mutability::Immutable);
+                let local = LocalDecl::new_auxiliary(COMMON_REPR_TYS.unit, Mutability::Immutable);
                 let local_id = self.locals.push(local);
 
                 let place = Place::from_local(local_id);

@@ -8,7 +8,7 @@ use hash_codegen::{
     },
     traits::layout::LayoutMethods,
 };
-use hash_ir::ty::IrTyId;
+use hash_ir::ty::ReprTyId;
 use hash_storage::store::statics::StoreId;
 
 use super::{ty::TyMemoryRemap, LLVMBuilder};
@@ -56,7 +56,7 @@ impl HasDataLayout for LLVMBuilder<'_, '_, '_> {
 
 pub trait ExtendedLayoutMethods<'m> {
     /// Compute the field index from the backend specific type.
-    fn llvm_field_index(&self, cx: &CodeGenCtx<'_, 'm>, ty: IrTyId, index: usize) -> u64;
+    fn llvm_field_index(&self, cx: &CodeGenCtx<'_, 'm>, ty: ReprTyId, index: usize) -> u64;
 
     /// Check if this is type is represented as an immediate value.
     fn is_llvm_immediate(&self) -> bool;
@@ -79,7 +79,7 @@ impl<'m> ExtendedLayoutMethods<'m> for &Layout {
         matches!(self.abi, AbiRepresentation::Pair(..))
     }
 
-    fn llvm_field_index(&self, ctx: &CodeGenCtx<'_, 'm>, ty: IrTyId, index: usize) -> u64 {
+    fn llvm_field_index(&self, ctx: &CodeGenCtx<'_, 'm>, ty: ReprTyId, index: usize) -> u64 {
         // Field index of scalar and scalar pairs is not applicable since
         // it is handled else where.
         match self.abi {

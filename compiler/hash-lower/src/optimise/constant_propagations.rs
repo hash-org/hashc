@@ -4,7 +4,7 @@
 
 use hash_ir::{
     ir::{self, Const, ConstKind, Scalar},
-    ty::{IrTy, IrTyId},
+    ty::{ReprTy, ReprTyId},
 };
 use hash_layout::compute::LayoutComputer;
 use hash_storage::store::statics::StoreId;
@@ -32,22 +32,22 @@ impl<'ctx> ConstFolder<'ctx> {
         let (l_ty, r_ty) = (lhs.ty(), rhs.ty());
 
         match l_ty.value() {
-            IrTy::Int(_) | IrTy::UInt(_) => {
+            ReprTy::Int(_) | ReprTy::UInt(_) => {
                 let size = self.lc.size_of_ty(l_ty).ok()?;
                 let l_bits = left.to_bits(size).ok()?;
                 let r_bits = right.to_bits(size).ok()?;
                 self.binary_int_op(op, l_ty, l_bits, r_ty, r_bits)
             }
-            IrTy::Float(ty) => match ty {
+            ReprTy::Float(ty) => match ty {
                 FloatTy::F32 => Self::binary_float_op(op, left.to_f32(), left.to_f32()),
                 FloatTy::F64 => Self::binary_float_op(op, left.to_f64(), left.to_f64()),
             },
-            IrTy::Bool => {
+            ReprTy::Bool => {
                 let l: bool = left.try_into().ok()?;
                 let r: bool = right.try_into().ok()?;
                 Self::binary_bool_op(op, l, r)
             }
-            IrTy::Char => {
+            ReprTy::Char => {
                 let l: char = left.try_into().ok()?;
                 let r: char = right.try_into().ok()?;
                 Self::binary_char_op(op, l, r)
@@ -96,9 +96,9 @@ impl<'ctx> ConstFolder<'ctx> {
     fn binary_int_op(
         &self,
         bin_op: ir::BinOp,
-        lhs_ty: IrTyId,
+        lhs_ty: ReprTyId,
         lhs: u128,
-        rhs_ty: IrTyId,
+        rhs_ty: ReprTyId,
         rhs: u128,
     ) -> Option<Const> {
         use ir::BinOp::*;

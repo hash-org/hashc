@@ -20,7 +20,7 @@ use hash_utils::derive_more::Constructor;
 
 use crate::{
     ir_stores,
-    ty::{IrTy, IrTyId, Mutability, COMMON_IR_TYS},
+    ty::{Mutability, ReprTy, ReprTyId, COMMON_REPR_TYS},
 };
 
 /// A [Const] represents a constant value within the Hash IR. This can
@@ -36,7 +36,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Constructor, PartialEq, Eq, Hash)]
 pub struct Const {
     /// The type of the constant value.
-    ty: IrTyId,
+    ty: ReprTyId,
 
     /// The kind of constant that is stored.
     pub kind: ConstKind,
@@ -45,12 +45,12 @@ pub struct Const {
 impl Const {
     /// Create a ZST constant.
     pub fn zero() -> Self {
-        Self::new(COMMON_IR_TYS.unit, ConstKind::Zero)
+        Self::new(COMMON_REPR_TYS.unit, ConstKind::Zero)
     }
 
     /// Create a ZST constant which is of `zero` size with
     /// a type.
-    pub fn zst(ty: IrTyId) -> Self {
+    pub fn zst(ty: ReprTyId) -> Self {
         Self::new(ty, ConstKind::Zero)
     }
 
@@ -60,7 +60,7 @@ impl Const {
     }
 
     /// Get the type of the constant.
-    pub fn ty(&self) -> IrTyId {
+    pub fn ty(&self) -> ReprTyId {
         self.ty
     }
 
@@ -85,10 +85,10 @@ impl Const {
     }
 
     /// Create a new [Const] from a integer with the given type.
-    pub fn from_scalar_like<C: HasDataLayout>(value: u128, ty: IrTyId, ctx: &C) -> Self {
+    pub fn from_scalar_like<C: HasDataLayout>(value: u128, ty: ReprTyId, ctx: &C) -> Self {
         let kind = match ty.value() {
             // @@FixMe: we're converting from one to another... seems dumb!
-            IrTy::Bool => ConstKind::Scalar(Scalar::from_bool(value != 0)),
+            ReprTy::Bool => ConstKind::Scalar(Scalar::from_bool(value != 0)),
             _ => {
                 let size = IntTy::from(ty.value()).size(ctx.data_layout().pointer_size);
                 ConstKind::Scalar(Scalar::from_uint(value, size))
@@ -100,18 +100,18 @@ impl Const {
 
     /// Create a boolean constant.
     pub fn bool(value: bool) -> Self {
-        Self::new(COMMON_IR_TYS.bool, ConstKind::Scalar(Scalar::from_bool(value)))
+        Self::new(COMMON_REPR_TYS.bool, ConstKind::Scalar(Scalar::from_bool(value)))
     }
 
     /// Create a character constant.
     pub fn char(value: char) -> Self {
-        Self::new(COMMON_IR_TYS.char, ConstKind::Scalar(Scalar::from(value)))
+        Self::new(COMMON_REPR_TYS.char, ConstKind::Scalar(Scalar::from(value)))
     }
 
     /// Create a new [Const] which represents a `usize`.
     pub fn usize<C: HasDataLayout>(value: u64, ctx: &C) -> Self {
         let kind = ConstKind::Scalar(Scalar::from_usize(value, ctx));
-        Self::new(COMMON_IR_TYS.usize, kind)
+        Self::new(COMMON_REPR_TYS.usize, kind)
     }
 }
 
@@ -120,7 +120,7 @@ macro_rules! const_from_ty_impl {
         $(
             impl From<$ty> for Const {
                 fn from(value: $ty) -> Self {
-                    Const::new(COMMON_IR_TYS.$ty, ConstKind::Scalar(Scalar::from(value)))
+                    Const::new(COMMON_REPR_TYS.$ty, ConstKind::Scalar(Scalar::from(value)))
                 }
             }
         )*

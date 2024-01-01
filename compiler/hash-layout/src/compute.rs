@@ -1,11 +1,10 @@
-//! Contains all of the logic that computes the layout of an [IrTy].
+//! Contains all of the logic that computes the layout of an [ReprTy].
 //! This logic is also designed to avoid doing as much duplicate work
 //! as possible, thus using a [LayoutCache] in order to cache all the
 //! previously computed layouts, and re-use them as much as possible
 
 use std::{cmp, iter, num::NonZeroUsize};
 
-use hash_ir::ty::{Adt, AdtRepresentation, IrTy, IrTyId, Mutability, RefKind, VariantIdx};
 use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},
     Store,
@@ -20,8 +19,10 @@ use hash_target::{
 use hash_utils::{derive_more::Constructor, index_vec::IndexVec};
 
 use crate::{
-    repr_stores, CommonLayouts, FieldLayout, Layout, LayoutId, LayoutShape, LayoutStorage,
-    LayoutStore, PointeeInfo, PointerKind, TyInfo, Variants,
+    repr_stores,
+    ty::{Adt, AdtRepresentation, Mutability, RefKind, ReprTy, ReprTyId, VariantIdx},
+    CommonLayouts, FieldLayout, Layout, LayoutId, LayoutShape, LayoutStorage, LayoutStore,
+    PointeeInfo, PointerKind, TyInfo, Variants,
 };
 
 /// This describes the collection of errors that can occur
@@ -39,14 +40,14 @@ pub enum LayoutError {
     /// The layout of the type is unknown, this is used
     /// for when the type that is given does not have a well
     /// defined layout.
-    Unknown(IrTyId),
+    Unknown(ReprTyId),
 }
 
 /// This is an auxiliary implementation of computing the
 /// layouts of primitive types only, this does not handle ADTs
 /// or any more complex types. This function is used to populate
 /// [crate::CommonLayouts] table so that it can be used later.
-pub(crate) fn compute_primitive_ty_layout(ty: IrTy, dl: &TargetDataLayout) -> Layout {
+pub(crate) fn compute_primitive_ty_layout(ty: ReprTy, dl: &TargetDataLayout) -> Layout {
     let scalar_unit = |value: ScalarKind| {
         let size = value.size(dl);
         Scalar::Initialised { kind: value, valid_range: ValidScalarRange::full(size) }
@@ -55,34 +56,34 @@ pub(crate) fn compute_primitive_ty_layout(ty: IrTy, dl: &TargetDataLayout) -> La
     let scalar = |value: ScalarKind| Layout::scalar(dl, scalar_unit(value));
 
     match ty {
-        IrTy::Int(int_ty) => scalar(ScalarKind::from_signed_int_ty(int_ty, dl)),
-        IrTy::UInt(uint_ty) => scalar(ScalarKind::from_unsigned_int_ty(uint_ty, dl)),
-        IrTy::Float(float_ty) => scalar(float_ty.into()),
+        ReprTy::Int(int_ty) => scalar(ScalarKind::from_signed_int_ty(int_ty, dl)),
+        ReprTy::UInt(uint_ty) => scalar(ScalarKind::from_unsigned_int_ty(uint_ty, dl)),
+        ReprTy::Float(float_ty) => scalar(float_ty.into()),
 
-        // This is represented as an un-sized pointer to the actual data. In IrTys, the
+        // This is represented as an un-sized pointer to the actual data. In ReprTys, the
         // `str` type is always behind a pointer.
-        IrTy::Str => Layout {
+        ReprTy::Str => Layout {
             shape: LayoutShape::Array { stride: Size::from_bytes(1), elements: 0 },
             variants: Variants::Single { index: VariantIdx::new(0) },
             abi: AbiRepresentation::Aggregate,
             alignment: dl.i8_align,
             size: Size::ZERO,
         },
-        IrTy::Bool => Layout::scalar(
+        ReprTy::Bool => Layout::scalar(
             dl,
             Scalar::Initialised {
                 kind: ScalarKind::Int { kind: Integer::I8, signed: false },
                 valid_range: ValidScalarRange { start: 0, end: 1 },
             },
         ),
-        IrTy::Char => Layout::scalar(
+        ReprTy::Char => Layout::scalar(
             dl,
             Scalar::Initialised {
                 kind: ScalarKind::Int { kind: Integer::I32, signed: false },
                 valid_range: ValidScalarRange { start: 0, end: 0x10FFFF },
             },
         ),
-        IrTy::Never => Layout {
+        ReprTy::Never => Layout {
             shape: LayoutShape::Primitive,
             variants: Variants::Single { index: VariantIdx::new(0) },
             abi: AbiRepresentation::Uninhabited,
@@ -139,15 +140,15 @@ impl<'l> LayoutComputer<'l> {
         &self.ctx.common_layouts
     }
 
-    /// Compute the [Size] of a [IrTyId].
-    pub fn size_of_ty(&self, ty: IrTyId) -> Result<Size, LayoutError> {
+    /// Compute the [Size] of a [ReprTyId].
+    pub fn size_of_ty(&self, ty: ReprTyId) -> Result<Size, LayoutError> {
         Ok(self.layout_of_ty(ty)?.size())
     }
 
     /// This is the entry point of the layout computation engine. From
     /// here, the [Layout] of a type will be computed all the way recursively
     /// until all of the leaves of the type are also turned into [Layout]s.
-    pub fn layout_of_ty(&self, ty_id: IrTyId) -> Result<LayoutId, LayoutError> {
+    pub fn layout_of_ty(&self, ty_id: ReprTyId) -> Result<LayoutId, LayoutError> {
         let dl = self.data_layout();
 
         let scalar_unit = |value: ScalarKind| {
@@ -161,7 +162,7 @@ impl<'l> LayoutComputer<'l> {
         }
 
         let layout = ty_id.map(|ty| match ty {
-            IrTy::Int(ty) => match ty {
+            ReprTy::Int(ty) => match ty {
                 SIntTy::I8 => Ok(self.common_layouts().i8),
                 SIntTy::I16 => Ok(self.common_layouts().i16),
                 SIntTy::I32 => Ok(self.common_layouts().i32),
@@ -169,7 +170,7 @@ impl<'l> LayoutComputer<'l> {
                 SIntTy::I128 => Ok(self.common_layouts().i128),
                 SIntTy::ISize => Ok(self.common_layouts().isize),
             },
-            IrTy::UInt(ty) => match ty {
+            ReprTy::UInt(ty) => match ty {
                 UIntTy::U8 => Ok(self.common_layouts().u8),
                 UIntTy::U16 => Ok(self.common_layouts().u16),
                 UIntTy::U32 => Ok(self.common_layouts().u32),
@@ -177,14 +178,14 @@ impl<'l> LayoutComputer<'l> {
                 UIntTy::U128 => Ok(self.common_layouts().u128),
                 UIntTy::USize => Ok(self.common_layouts().usize),
             },
-            IrTy::Float(ty) => Ok(match ty {
+            ReprTy::Float(ty) => Ok(match ty {
                 FloatTy::F32 => self.common_layouts().f32,
                 FloatTy::F64 => self.common_layouts().f64,
             }),
-            IrTy::Bool => Ok(self.common_layouts().bool),
-            IrTy::Char => Ok(self.common_layouts().char),
-            IrTy::Never => Ok(self.common_layouts().never),
-            IrTy::Ref(pointee, _, kind @ (RefKind::Raw | RefKind::Normal)) => {
+            ReprTy::Bool => Ok(self.common_layouts().bool),
+            ReprTy::Char => Ok(self.common_layouts().char),
+            ReprTy::Never => Ok(self.common_layouts().never),
+            ReprTy::Ref(pointee, _, kind @ (RefKind::Raw | RefKind::Normal)) => {
                 let mut data_ptr = scalar_unit(ScalarKind::Pointer(AddressSpace::DATA));
 
                 // If the reference is raw, then we cannot assume that the pointer
@@ -195,7 +196,7 @@ impl<'l> LayoutComputer<'l> {
 
                 // Compute any metadata if we need to.
                 let maybe_metadata = pointee.map(|ty| match ty {
-                    IrTy::Str | IrTy::Slice(_) => Some(scalar_unit(ScalarKind::Int {
+                    ReprTy::Str | ReprTy::Slice(_) => Some(scalar_unit(ScalarKind::Int {
                         kind: dl.ptr_sized_integer(),
                         signed: false,
                     })),
@@ -214,13 +215,13 @@ impl<'l> LayoutComputer<'l> {
             // @@Todo: figure out how to handle rc pointers, probably the same
             // as normal ones, but the underlying type of the pointer may be
             // wrapped in some kind of `Rc` struct?
-            IrTy::Ref(_, _, RefKind::Rc) => Err(LayoutError::Unknown(ty_id)),
+            ReprTy::Ref(_, _, RefKind::Rc) => Err(LayoutError::Unknown(ty_id)),
 
             // Slices and strings are treated as "unsized" layouts since they
-            // are just pointers to the actual data. In terms of `IrTy`s `str
+            // are just pointers to the actual data. In terms of `ReprTy`s `str
             // and `[T]` are always behind a pointer.
-            IrTy::Str => Ok(self.common_layouts().str),
-            IrTy::Slice(ty) => {
+            ReprTy::Str => Ok(self.common_layouts().str),
+            ReprTy::Slice(ty) => {
                 let element = self.layout_of_ty(*ty)?;
                 let (size, alignment) = element.map(|element| (element.size, element.alignment));
 
@@ -232,8 +233,8 @@ impl<'l> LayoutComputer<'l> {
                     size: Size::ZERO,
                 }))
             }
-            IrTy::Array { ty, length: size } => self.compute_layout_of_array(*ty, *size as u64),
-            IrTy::Adt(adt) => adt.map(|adt| -> Result<_, LayoutError> {
+            ReprTy::Array { ty, length: size } => self.compute_layout_of_array(*ty, *size as u64),
+            ReprTy::Adt(adt) => adt.map(|adt| -> Result<_, LayoutError> {
                 // We have to compute the layouts of all of the variants
                 // and all of the fields of the variants
                 let field_layout_table = adt
@@ -327,7 +328,7 @@ impl<'l> LayoutComputer<'l> {
                 }
             }),
 
-            IrTy::FnDef { .. } => {
+            ReprTy::FnDef { .. } => {
                 let layout = self
                     .compute_layout_of_univariant(
                         VariantIdx::new(0),
@@ -339,7 +340,7 @@ impl<'l> LayoutComputer<'l> {
 
                 Ok(Layout::create(layout))
             }
-            IrTy::Fn { .. } => {
+            ReprTy::Fn { .. } => {
                 // Create a function pointer and specify that it cannot be null.
                 let mut data_ptr = scalar_unit(ScalarKind::Pointer(dl.instruction_address_space));
                 data_ptr.valid_range_mut().start = 1;
@@ -978,11 +979,11 @@ impl<'l> LayoutComputer<'l> {
         abi
     }
 
-    /// Compute the layout of a given [`IrTy::Array`]. This function returns
+    /// Compute the layout of a given [`ReprTy::Array`]. This function returns
     /// an optional
     fn compute_layout_of_array(
         &self,
-        element_ty: IrTyId,
+        element_ty: ReprTyId,
         element_count: u64,
     ) -> Result<LayoutId, LayoutError> {
         // first, we compute the layout of the element type
@@ -1028,12 +1029,12 @@ impl<'l> LayoutComputer<'l> {
         }
 
         let result = info.ty.map(|ty| match ty {
-            IrTy::Fn { .. } if offset == Size::ZERO => {
+            ReprTy::Fn { .. } if offset == Size::ZERO => {
                 let (size, alignment) =
                     info.layout.map(|layout| (layout.size, layout.alignment.abi));
                 Some(PointeeInfo { size, alignment, kind: None })
             }
-            IrTy::Ref(pointee, mutability, ref_kind) if offset.bytes() == 0 => {
+            ReprTy::Ref(pointee, mutability, ref_kind) if offset.bytes() == 0 => {
                 // @@Todo: be more sophisticated with different pointer kinds, and
                 // also deal with Rc specifics here..., and potentially disabling
                 // this optimisation if we are building in debug mode.

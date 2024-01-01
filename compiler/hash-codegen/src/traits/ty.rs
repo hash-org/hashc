@@ -1,7 +1,7 @@
 //! Trait methods to do with emitting types for the backend.
 
 use hash_abi::FnAbi;
-use hash_ir::ty::{IrTy, IrTyId};
+use hash_ir::ty::{ReprTy, ReprTyId};
 use hash_layout::TyInfo;
 use hash_source::constant::FloatTy;
 use hash_storage::store::statics::StoreId;
@@ -126,7 +126,7 @@ pub trait TypeBuilderMethods<'b>: BackendTypes + LayoutMethods<'b> {
 
     /// Check whether a given type has additional hidden metadata like the
     /// size of a slice or a string.
-    fn ty_has_hidden_metadata(&self, ty: IrTyId) -> bool {
-        ty.map(|ty| matches!(ty, IrTy::Slice(_) | IrTy::Str))
+    fn ty_has_hidden_metadata(&self, ty: ReprTyId) -> bool {
+        ty.map(|ty| matches!(ty, ReprTy::Slice(_) | ReprTy::Str))
     }
 }
