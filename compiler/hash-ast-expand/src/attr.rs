@@ -6,9 +6,10 @@ use hash_ast_utils::{
     dump::dump_ast,
 };
 use hash_attrs::{
-    attr::{attr_store, Attr, AttrArgIdx, AttrValue, AttrValueKind, Attrs},
+    attr::{attr_store, Attr, AttrArgIdx, AttrValue, Attrs},
     builtin::{attrs, ATTR_MAP},
 };
+use hash_layout::ty::COMMON_REPR_TYS;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     TrivialSequenceStoreKey,
@@ -17,8 +18,8 @@ use hash_target::HasTarget;
 use hash_tir::{
     intrinsics::definitions::Primitive,
     tir::{
-        validate_and_reorder_args_against_params, Arg, CharLit, FloatLit, IntLit, Lit, Node,
-        NodeOrigin, ParamIndex, StrLit, Term, Ty, TyId,
+        validate_and_reorder_args_against_params, Arg, Lit, Node, NodeOrigin, ParamIndex, Term, Ty,
+        TyId,
     },
 };
 
@@ -106,13 +107,11 @@ impl AstExpander<'_> {
         match *param_ty.value() {
             Ty::DataTy(data) => match Primitive::try_from_def(data.data_def) {
                 Some(I8 | I16 | I32 | I64 | I128 | U8 | U16 | U32 | U64 | U128) => {
-                    maybe_emit_err(matches!(value, AttrValueKind::Int(_)))
+                    maybe_emit_err(value.ty().is_integral())
                 }
-                Some(Primitive::F32 | Primitive::F64) => {
-                    maybe_emit_err(matches!(value, AttrValueKind::Float(_)))
-                }
-                Some(Primitive::Char) => maybe_emit_err(matches!(value, AttrValueKind::Char(_))),
-                Some(Primitive::Str) => maybe_emit_err(matches!(value, AttrValueKind::Str(_))),
+                Some(F32 | F64) => maybe_emit_err(value.ty().is_float()),
+                Some(Char) => maybe_emit_err(value.ty() == COMMON_REPR_TYS.char),
+                Some(Str) => maybe_emit_err(value.ty() == COMMON_REPR_TYS.str),
                 ty => panic!("unexpected attribute parameter type `{ty:?}`"),
             },
             _ => panic!("unexpected attribute parameter type"),
@@ -180,28 +179,17 @@ impl AstExpander<'_> {
                             }
                         };
 
-                    macro_rules! lit_prim {
-                        ($name:ident,$lit_name:ident, $contents:expr) => {
-                            Term::from(
-                                Term::Lit(Node::create_at(
-                                    Lit::$name($lit_name::from($contents)),
-                                    NodeOrigin::Given(arg.value.id()),
-                                )),
-                                NodeOrigin::Given(arg.value.id()),
-                            )
-                        };
-                    }
-
-                    let value = match attr_value {
-                        AttrValueKind::Str(lit) => lit_prim!(Str, StrLit, lit),
-                        AttrValueKind::Char(lit) => lit_prim!(Char, CharLit, lit),
-                        AttrValueKind::Int(lit) => lit_prim!(Int, IntLit, lit),
-                        AttrValueKind::Float(lit) => lit_prim!(Float, FloatLit, lit),
-                    };
-
                     attr.add_arg(
                         AttrArgIdx::from(target),
                         AttrValue { origin: arg.id(), value: attr_value },
+                    );
+
+                    let value = Term::from(
+                        Term::Lit(Node::create_at(
+                            Lit::Const(attr_value),
+                            NodeOrigin::Given(arg.value.id()),
+                        )),
+                        NodeOrigin::Given(arg.value.id()),
                     );
                     args.push(Node::at(Arg { target, value }, NodeOrigin::Given(arg.id())));
                 }

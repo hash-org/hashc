@@ -16,7 +16,7 @@ use hash_storage::store::{
 use hash_tir::{
     intrinsics::{
         definitions::{equal_ty, BinOp, CondBinOp, Intrinsic, ShortCircuitingBoolOp, UnOp},
-        utils::{bool_term, create_term_from_integer_lit},
+        utils::{bool_term, create_term_from_const},
     },
     tir::{
         blocks::{BlockStatement, BlockTerm, Decl},
@@ -997,7 +997,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             CallTerm {
                 subject: Term::from(intrinsic, origin),
                 args: Arg::seq_positional(
-                    [typeof_lhs, create_term_from_integer_lit(bin_op_num, origin), lhs, rhs],
+                    [typeof_lhs, create_term_from_const(bin_op_num, origin), lhs, rhs],
                     origin,
                 ),
                 implicit: false,
@@ -1026,7 +1026,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             CallTerm {
                 subject: Term::from(intrinsic, origin),
                 args: Arg::seq_positional(
-                    [typeof_a, create_term_from_integer_lit(op_num, origin), a],
+                    [typeof_a, create_term_from_const(op_num, origin), a],
                     NodeOrigin::Given(node.id()),
                 ),
                 implicit: false,

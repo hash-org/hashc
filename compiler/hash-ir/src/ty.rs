@@ -10,7 +10,6 @@ use hash_attrs::{
     builtin::attrs,
     ty::AttrId,
 };
-// Re-export everything from `hash-layout` types:
 pub use hash_layout::ty::*;
 use hash_storage::store::statics::{SingleStoreValue, StoreId};
 

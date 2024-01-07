@@ -17,7 +17,7 @@ pub trait HasSemanticDiagnostics: HasDiagnostics<Diagnostics = Self::SemanticDia
 }
 
 pub trait SemanticEnv:
-    HasNodeMap + HasMetrics + HasSemanticDiagnostics + HasCompilerSettings + HasTarget
+    HasNodeMap + HasMetrics + HasSemanticDiagnostics + HasCompilerSettings + HasTarget + HasLayout
 {
     fn storage(&self) -> &SemanticStorage;
     fn storage_mut(&mut self) -> &mut SemanticStorage;

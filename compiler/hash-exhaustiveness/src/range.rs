@@ -36,15 +36,14 @@ use std::{
 };
 
 use hash_ast::ast::RangeEnd;
+use hash_layout::{constant::Const, ty::ReprTyId};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_tir::{
-    intrinsics::utils::try_use_ty_as_int_ty,
-    tir::{PatId, RangePat, TyId},
-};
+use hash_storage::store::statics::StoreId;
+use hash_tir::tir::{PatId, RangePat};
 
 use crate::{
-    constant::Constant, diagnostics::ExhaustivenessWarning, storage::DeconstructedPatId,
-    ExhaustivenessChecker, ExhaustivenessEnv,
+    diagnostics::ExhaustivenessWarning, storage::DeconstructedPatId, ExhaustivenessChecker,
+    ExhaustivenessEnv,
 };
 
 /// The [IntRange] is used as a structure to represent `integral` types like
@@ -256,17 +255,26 @@ impl SplitIntRange {
 impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Attempt to build a [IntRange] from a provided constant.
     #[inline]
-    pub fn make_range_from_constant(&self, constant: Constant) -> IntRange {
-        let bias: u128 = self.signed_bias(constant.ty);
+    pub fn make_range_from_constant(&self, constant: Const) -> IntRange {
+        let bias: u128 = self.signed_bias(constant.ty());
 
         // read from the constant the actual bits and apply bias
-        let val = constant.data() ^ bias;
+        //
+        // @@Cowbunga: this isn't quite the right conversion, check rustc!
+        let size = constant.as_scalar().size();
+        let val = constant.as_scalar().to_bits(size).unwrap() ^ bias;
         IntRange { start: val, end: val }
     }
 
     /// Create an [IntRange] from two specified bounds, and assuming that the
     /// type is an integer (of the column)
-    pub(crate) fn make_int_range(&self, ty: TyId, lo: u128, hi: u128, end: &RangeEnd) -> IntRange {
+    pub(crate) fn make_int_range(
+        &self,
+        ty: ReprTyId,
+        lo: u128,
+        hi: u128,
+        end: &RangeEnd,
+    ) -> IntRange {
         let bias = self.signed_bias(ty);
 
         let (lo, hi) = (lo ^ bias, hi ^ bias);
@@ -282,8 +290,10 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// the bias is set to be just at the end of the signed boundary
     /// of the integer size, in other words at the position where the
     /// last byte is that identifies the sign.
-    pub(crate) fn signed_bias(&self, ty: TyId) -> u128 {
-        if let Some(ty) = try_use_ty_as_int_ty(ty) {
+    pub(crate) fn signed_bias(&self, ty: ReprTyId) -> u128 {
+        if ty.is_integral() {
+            let ty = ty.value().as_int();
+
             if ty.is_signed() && !ty.is_big() {
                 let size = ty.size(self.target().ptr_size());
                 let bits = size.bits() as u128;
@@ -324,7 +334,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
         range: IntRange,
         pats: impl Iterator<Item = DeconstructedPatId>,
         column_count: usize,
-        ty: TyId,
+        ty: ReprTyId,
     ) {
         // Don't lint literals... this is covered by useless match cases
         if range.is_singleton() {

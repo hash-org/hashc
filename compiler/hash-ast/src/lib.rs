@@ -3,7 +3,6 @@
 #![feature(box_into_inner, iter_intersperse, let_chains, lazy_cell)]
 
 pub mod ast;
-pub mod lit;
 pub mod node_map;
 pub mod origin;
 

@@ -2,6 +2,7 @@
 //! [Term]s.
 
 use hash_ast::ast::AstNodeId;
+use hash_const_eval::eval::ConstFolder;
 use hash_ir::{
     cast::CastKind,
     ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, Scalar, UnaryOp},
@@ -15,7 +16,7 @@ use hash_tir::tir::{HasAstNodeId, Term, TermId, Ty};
 use super::{
     category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
 };
-use crate::{build::category::RValueKind, optimise::constant_propagations::ConstFolder};
+use crate::build::category::RValueKind;
 
 impl<'tcx> BodyBuilder<'tcx> {
     /// Construct an [RValue] from the given [ast::Expr].

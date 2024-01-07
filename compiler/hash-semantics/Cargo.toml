@@ -13,6 +13,7 @@ once_cell = "1.17"
 
 hash-ast = { path = "../hash-ast" }
 hash-attrs = { path = "../hash-attrs" }
+hash-const-eval = { path = "../hash-const-eval" }
 hash-exhaustiveness = { path = "../hash-exhaustiveness" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }

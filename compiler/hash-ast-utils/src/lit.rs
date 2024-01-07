@@ -18,15 +18,17 @@
 
 use std::num;
 
+use hash_ast::ast::{AstNodeId, FloatLit, IntLit};
+use hash_layout::{
+    constant::{Const, ConstKind},
+    ty::ToReprTy,
+};
 use hash_reporting::{hash_error_codes::error_codes::HashErrorCode, reporter::Reporter};
 use hash_source::constant::{
-    BigIntTy, FloatConstant, FloatTy, IntConstant, IntTy, InternedFloat, InternedInt,
-    NormalisedIntTy, SIntTy, Size, UIntTy,
+    AllocId, BigIntTy, FloatTy, IntTy, NormalisedIntTy, SIntTy, Scalar, Size, UIntTy,
 };
 pub use hash_token::{FloatLitKind, IntLitKind};
 use num_bigint::BigInt;
-
-use crate::ast::{AstNodeId, FloatLit, IntLit};
 
 /// An error that occurred when parsing a literal.
 #[derive(Debug, Clone)]
@@ -149,26 +151,6 @@ impl From<IntError> for LitParseErrorKind {
 
 pub type LitParseResult<T> = Result<T, LitParseError>;
 
-pub enum IntValue {
-    /// A small constant, i.e. anything less than 128 bits.
-    Small(InternedInt),
-
-    /// A big constant, i.e. anything greater than 128 bits.
-    Big(Box<BigInt>),
-}
-
-impl IntValue {
-    /// Assert that the value is a small constant. This can be used
-    /// in combination with [`parse_int_const_from_lit()`] when `allow_big`
-    /// is set to `false`.
-    pub fn small(self) -> InternedInt {
-        match self {
-            Self::Small(value) => value,
-            Self::Big(_) => panic!("expected small constant"),
-        }
-    }
-}
-
 /// Parse a integer literal from the given [Hunk]. The integer must be
 /// in the form of a decimal, binary, octal or hexadecimal literal.
 ///
@@ -178,7 +160,7 @@ pub fn parse_int_const_from_lit(
     annotation: Option<IntTy>,
     ptr_size: Size,
     allow_big: bool,
-) -> LitParseResult<IntValue> {
+) -> LitParseResult<Const> {
     let ty = NormalisedIntTy::new(annotation.unwrap_or_default(), ptr_size);
     let base: u32 = lit.base.into();
 
@@ -187,27 +169,16 @@ pub fn parse_int_const_from_lit(
     hunk.retain(|c| c != '_');
 
     macro_rules! parse {
-        (@big) => {
-            if allow_big {
-                return Ok(IntValue::Big(Box::new(
-                    BigInt::parse_bytes(hunk.as_bytes(), base).unwrap(),
-                )));
-            } else {
-                return Err(LitParseError::new(
-                    lit.hunk,
-                    hunk,
-                    LitParseErrorKind::DisallowedBigLit,
-                ));
-            }
-        };
-        ($ty:ty) => {
-            <$ty>::from_str_radix(&hunk, base)
-                .map_err(|err| LitParseError::new(lit.hunk, hunk, IntError(ty, base, err).into()))?
-                .into()
-        };
+        ($ty:ty) => {{
+            let value = <$ty>::from_str_radix(&hunk, base).map_err(|err| {
+                LitParseError::new(lit.hunk, hunk, IntError(ty, base, err).into())
+            })?;
+
+            Scalar::from(value)
+        }};
     }
 
-    let mut lit: IntConstant = match ty.normalised {
+    let lit = match ty.normalised {
         IntTy::Int(ty) => match ty {
             SIntTy::I8 => parse!(i8),
             SIntTy::I16 => parse!(i16),
@@ -224,16 +195,22 @@ pub fn parse_int_const_from_lit(
             UIntTy::U128 => parse!(u128),
             UIntTy::USize => unreachable!(),
         },
-        IntTy::Big(_) => parse!(@big),
+        IntTy::Big(_) => {
+            if allow_big {
+                let alloc = AllocId::big_int(BigInt::parse_bytes(hunk.as_bytes(), base).unwrap());
+                let constant = Const::alloc(alloc, ty.normalised.to_ir_ty());
+                return Ok(constant);
+            } else {
+                return Err(LitParseError::new(
+                    lit.hunk,
+                    hunk,
+                    LitParseErrorKind::DisallowedBigLit,
+                ));
+            }
+        }
     };
 
-    // If the given type is a usize/isize, we need to adjust
-    // the type on the constant to reflect that.
-    if ty.original.is_platform_dependent() {
-        lit.suffix = Some(ty.original.into());
-    }
-
-    Ok(IntValue::Small(InternedInt::create(lit)))
+    Ok(Const::scalar(lit, ty.normalised.to_ir_ty()))
 }
 
 /// Parse a float literal from the given [Hunk]. The integer must be
@@ -243,7 +220,7 @@ pub fn parse_int_const_from_lit(
 pub fn parse_float_const_from_lit(
     lit: &FloatLit,
     annotation: Option<FloatTy>,
-) -> LitParseResult<InternedFloat> {
+) -> LitParseResult<Const> {
     let ty = annotation.unwrap_or_default();
 
     // We have to cleanup the hunk, remove any underscores
@@ -257,9 +234,8 @@ pub fn parse_float_const_from_lit(
     }
 
     let lit = match ty {
-        FloatTy::F32 => FloatConstant::from(parse!(f32)),
-        FloatTy::F64 => FloatConstant::from(parse!(f64)),
+        FloatTy::F32 => ConstKind::Scalar(parse!(f32).into()),
+        FloatTy::F64 => ConstKind::Scalar(parse!(f64).into()),
     };
-
-    Ok(InternedFloat::create(lit))
+    Ok(Const::new(ty.to_ir_ty(), lit))
 }

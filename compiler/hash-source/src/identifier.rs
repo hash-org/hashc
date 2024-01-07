@@ -9,6 +9,7 @@ use hash_storage::{
     arena::{Castle, Wall},
     string::BrickString,
 };
+use hash_target::primitives::*;
 use hash_utils::{
     counter, dashmap::DashMap, fnv::FnvBuildHasher, fxhash::FxBuildHasher,
     lazy_static::lazy_static, num_traits::PrimInt,
@@ -94,6 +95,96 @@ impl From<Identifier> for String {
 impl From<Identifier> for Cow<'static, str> {
     fn from(ident: Identifier) -> Self {
         Cow::from(IDENTIFIER_MAP.get_ident(ident))
+    }
+}
+
+impl From<UIntTy> for Identifier {
+    fn from(value: UIntTy) -> Self {
+        match value {
+            UIntTy::U8 => IDENTS.u8,
+            UIntTy::U16 => IDENTS.u16,
+            UIntTy::U32 => IDENTS.u32,
+            UIntTy::U64 => IDENTS.u64,
+            UIntTy::U128 => IDENTS.u128,
+            UIntTy::USize => IDENTS.usize,
+        }
+    }
+}
+
+impl From<SIntTy> for Identifier {
+    fn from(value: SIntTy) -> Self {
+        match value {
+            SIntTy::I8 => IDENTS.i8,
+            SIntTy::I16 => IDENTS.i16,
+            SIntTy::I32 => IDENTS.i32,
+            SIntTy::I64 => IDENTS.i64,
+            SIntTy::I128 => IDENTS.i128,
+            SIntTy::ISize => IDENTS.isize,
+        }
+    }
+}
+
+impl From<BigIntTy> for Identifier {
+    fn from(value: BigIntTy) -> Self {
+        match value {
+            BigIntTy::IBig => IDENTS.ibig,
+            BigIntTy::UBig => IDENTS.ubig,
+        }
+    }
+}
+
+impl From<IntTy> for Identifier {
+    fn from(value: IntTy) -> Self {
+        match value {
+            IntTy::Int(ty) => ty.into(),
+            IntTy::UInt(ty) => ty.into(),
+            IntTy::Big(ty) => ty.into(),
+        }
+    }
+}
+
+impl TryFrom<Identifier> for IntTy {
+    type Error = ();
+
+    fn try_from(value: Identifier) -> Result<Self, Self::Error> {
+        match value {
+            i if i == IDENTS.i8 => Ok(IntTy::Int(SIntTy::I8)),
+            i if i == IDENTS.i16 => Ok(IntTy::Int(SIntTy::I16)),
+            i if i == IDENTS.i32 => Ok(IntTy::Int(SIntTy::I32)),
+            i if i == IDENTS.i64 => Ok(IntTy::Int(SIntTy::I64)),
+            i if i == IDENTS.i128 => Ok(IntTy::Int(SIntTy::I128)),
+            i if i == IDENTS.isize => Ok(IntTy::Int(SIntTy::ISize)),
+            i if i == IDENTS.u8 => Ok(IntTy::UInt(UIntTy::U8)),
+            i if i == IDENTS.u16 => Ok(IntTy::UInt(UIntTy::U16)),
+            i if i == IDENTS.u32 => Ok(IntTy::UInt(UIntTy::U32)),
+            i if i == IDENTS.u64 => Ok(IntTy::UInt(UIntTy::U64)),
+            i if i == IDENTS.u128 => Ok(IntTy::UInt(UIntTy::U128)),
+            i if i == IDENTS.usize => Ok(IntTy::UInt(UIntTy::USize)),
+            i if i == IDENTS.ibig => Ok(IntTy::Big(BigIntTy::IBig)),
+            i if i == IDENTS.ubig => Ok(IntTy::Big(BigIntTy::UBig)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Identifier> for FloatTy {
+    type Error = ();
+
+    fn try_from(value: Identifier) -> Result<Self, Self::Error> {
+        match value {
+            i if i == IDENTS.f32 => Ok(FloatTy::F32),
+            i if i == IDENTS.f64 => Ok(FloatTy::F64),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<FloatTy> for Identifier {
+    fn from(value: FloatTy) -> Self {
+        match value {
+            FloatTy::F32 => IDENTS.f32,
+            FloatTy::F64 => IDENTS.f64,
+        }
     }
 }
 

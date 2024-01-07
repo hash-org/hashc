@@ -9,8 +9,9 @@
 
 use std::io;
 
-use hash_ir::ir::{BasicBlock, BasicBlockData, Body, BodySource, Const, TerminatorKind};
-use hash_layout::compute::LayoutComputer;
+use hash_ir::ir::{BasicBlock, BasicBlockData, Body, BodySource, TerminatorKind};
+use hash_layout::{compute::LayoutComputer, constant::Const};
+use hash_target::data_layout::HasDataLayout;
 use hash_utils::derive_more::Constructor;
 use html_escape::encode_text;
 
@@ -167,7 +168,11 @@ impl<'ir> IrGraphWriter<'ir> {
                         for (value, target) in targets.iter() {
                             // We want to create an a constant from this value
                             // with the type, and then print it.
-                            let value = Const::from_scalar_like(value, target_ty, &self.lc);
+                            let value = Const::from_scalar_like(
+                                value,
+                                target_ty,
+                                self.lc.data_layout().pointer_size,
+                            );
 
                             writeln!(w, r#"  {prefix}{id:?} -> {prefix}{target:?} [label=""#)?;
                             pretty_print_const(w, &value, self.lc).unwrap();

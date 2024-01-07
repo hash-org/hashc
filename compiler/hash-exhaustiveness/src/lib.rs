@@ -51,7 +51,6 @@
 // printed, and never shown as a span in any diagnostics. Therefore, all origins
 // are set to `NodeOrigin::Generated`.
 
-pub mod constant;
 pub mod construct;
 pub mod deconstruct;
 pub mod diagnostics;

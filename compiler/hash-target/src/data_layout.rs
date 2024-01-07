@@ -9,7 +9,7 @@ use std::num::ParseIntError;
 use crate::{
     abi::{AddressSpace, Integer},
     alignment::{Alignment, Alignments},
-    size::Size,
+    size::Size, HasPointerSize,
 };
 
 /// Interface to access information about the target layout.
@@ -21,6 +21,12 @@ impl HasDataLayout for TargetDataLayout {
     #[inline]
     fn data_layout(&self) -> &TargetDataLayout {
         self
+    }
+}
+
+impl<T: HasDataLayout> HasPointerSize for T {
+    default fn pointer_size(&self) -> Size {
+        self.data_layout().pointer_size
     }
 }
 

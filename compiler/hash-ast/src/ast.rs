@@ -8,7 +8,7 @@ use std::{
 };
 
 use hash_source::{
-    constant::InternedStr,
+    constant::AllocId,
     identifier::Identifier,
     location::{ByteRange, Span},
     SourceId,
@@ -884,7 +884,7 @@ define_tree! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
     pub struct StrLit {
-        pub data: InternedStr
+        pub data: AllocId
     }
 
     /// A character literal.
@@ -2023,7 +2023,7 @@ define_tree! {
     #[derive(Debug, PartialEq, Eq, Clone)]
     #[node]
     pub struct Import {
-        pub path: InternedStr,
+        pub path: AllocId,
         pub source: SourceId,
     }
 

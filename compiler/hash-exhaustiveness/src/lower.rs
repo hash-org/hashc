@@ -3,7 +3,10 @@
 use std::mem::size_of;
 
 use hash_ast::ast::RangeEnd;
-use hash_source::constant::InternedInt;
+use hash_layout::{
+    constant::Const,
+    ty::{ReprTy, ReprTyId, COMMON_REPR_TYS},
+};
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -12,27 +15,24 @@ use hash_target::HasTarget;
 use hash_tir::{
     intrinsics::utils::{
         numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
-        try_use_ty_as_int_ty, try_use_ty_as_lit_ty, LitTy,
+        try_use_ty_as_lit_ty, LitTy,
     },
     term_as_variant,
-    tir::{
-        pats::BindingPat, ArrayCtorInfo, ArrayPat, CharLit, CtorDefId, CtorPat, DataTy, IfPat,
-        IntLit, Lit, LitPat, Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId, Pat, PatArg,
-        PatArgsId, PatId, PatOrCapture, RangePat, Spread, StrLit, SymbolId, TuplePat, TupleTy, Ty,
-        TyId,
-    },
+    tir::*,
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
 use super::{
-    constant::Constant,
     construct::DeconstructedCtor,
     deconstruct::DeconstructedPat,
     fields::Fields,
     list::{Array, ArrayKind},
     range::IntRange,
 };
-use crate::{storage::DeconstructedPatId, usefulness::MatchArm, ExhaustivenessChecker};
+use crate::{
+    deconstruct::convert_repr_ty, storage::DeconstructedPatId, usefulness::MatchArm,
+    ExhaustivenessChecker,
+};
 
 /// Expand an `or` pattern into a passed [Vec], whilst also
 /// applying the same operation on children patterns.
@@ -94,17 +94,25 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                 (DeconstructedCtor::IntRange(range), vec![])
             }
             Pat::Lit(LitPat(lit)) => match *lit.value() {
-                Lit::Str(lit) => (DeconstructedCtor::Str(lit.interned_value()), vec![]),
-                Lit::Int(lit) => {
-                    let value = Constant::from_int(lit.interned_value(), ty_id);
-                    let range = self.make_range_from_constant(value);
-                    (DeconstructedCtor::IntRange(range), vec![])
-                }
-                Lit::Char(lit) => {
-                    let value = Constant::from_char(lit.value(), ty_id);
-                    let range = self.make_range_from_constant(value);
-                    (DeconstructedCtor::IntRange(range), vec![])
-                }
+                // Lit::Str(lit) => (DeconstructedCtor::Str(lit.interned_value()), vec![]),
+                // Lit::Int(lit) => {
+                //     let value = Constant::from_int(lit.value(), ty_id);
+                //     let range = self.make_range_from_constant(value);
+                //     (DeconstructedCtor::IntRange(range), vec![])
+                // }
+                // Lit::Char(lit) => {
+                //     let value = Constant::from_char(lit.value(), ty_id);
+                //     let range = self.make_range_from_constant(value);
+                //     (DeconstructedCtor::IntRange(range), vec![])
+                // }
+                Lit::Const(constant) => match constant.ty().value() {
+                    ty if ty.is_switchable() => {
+                        let range = self.make_range_from_constant(constant);
+                        (DeconstructedCtor::IntRange(range), vec![])
+                    }
+                    ReprTy::Str => (DeconstructedCtor::Str(constant.as_alloc()), vec![]),
+                    _ => unreachable!(),
+                },
                 _ => unreachable!(),
             },
             Pat::Tuple(TuplePat { data, .. }) => {
@@ -258,7 +266,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                         }
                     }
                     DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
-                    DeconstructedCtor::Str(str) => Pat::Lit(LitPat(Node::create_gen(Lit::Str(StrLit::from(*str))))),
+                    DeconstructedCtor::Str(str) => Pat::Lit(LitPat(Node::create_gen(Lit::Const(Const::alloc(*str, COMMON_REPR_TYS.str))))),
                     DeconstructedCtor::Array(Array { kind }) => {
                         let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
                         let pats = Node::create_at(PatOrCapture::seq(children), NodeOrigin::Generated);
@@ -330,8 +338,10 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             // `char` and `int` types
             match lit {
                 Some(LitPat(pat)) => match *pat.value() {
-                    Lit::Char(char) => char.value() as u128,
-                    Lit::Int(int) => Constant::from_int(int.interned_value(), ty).data(),
+                    Lit::Const(constant) => {
+                        let scalar = constant.as_scalar();
+                        scalar.to_bits(scalar.size()).unwrap()
+                    }
                     _ => unreachable!(),
                 },
                 None if at_end => numeric_max_val_of_lit(self.target(), ty).unwrap(),
@@ -342,6 +352,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
         let lo = lit_to_u128(lo, false);
         let hi = lit_to_u128(hi, true);
 
+        let ty = convert_repr_ty(ty); // @@Cowbunga
         self.make_int_range(ty, lo, hi, &end)
     }
 
@@ -355,21 +366,23 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             match try_use_ty_as_lit_ty(self.target(), ty).unwrap() {
                 int_ty if int_ty.is_int() => {
                     let (lo, _) = range.boundaries();
-                    let bias = self.signed_bias(ty);
+                    let repr_ty = convert_repr_ty(ty); // @@Cowbunga
+                    let bias = self.signed_bias(repr_ty);
                     let lo = lo ^ bias;
 
                     let ptr_size = self.target().ptr_size();
-                    let val = InternedInt::from_u128(lo, int_ty.into(), ptr_size);
-                    Pat::Lit(LitPat(Node::create_gen(Lit::Int(IntLit::from(val)))))
+                    let val = Const::from_scalar_like(lo, repr_ty, ptr_size);
+                    Pat::Lit(LitPat(Node::create_gen(Lit::Const(val))))
                 }
                 LitTy::Char => {
                     let (lo, _) = range.boundaries();
                     let val = unsafe { char::from_u32_unchecked(lo as u32) };
-                    Pat::Lit(LitPat(Node::create_gen(Lit::Char(CharLit::from(val)))))
+                    Pat::Lit(LitPat(Node::create_gen(Lit::Const(Const::char(val)))))
                 }
                 _ => unreachable!(),
             }
         } else {
+            let ty = convert_repr_ty(ty); // @@Cowbunga
             Pat::Range(self.construct_range_pat(range, ty))
         }
     }
@@ -380,33 +393,22 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
     /// which should yield a [Pat::Lit] instead of a [Pat::Range], if this
     /// is the desired behaviour, then you should use
     /// [`Self::construct_pat_from_range`].
-    pub(crate) fn construct_range_pat(&self, range: IntRange, ty: TyId) -> RangePat {
+    pub(crate) fn construct_range_pat(&self, range: IntRange, ty_id: ReprTyId) -> RangePat {
         let (lo, hi) = range.boundaries();
-        let bias = self.signed_bias(ty);
+        let bias = self.signed_bias(ty_id);
         let (lo, hi) = (lo ^ bias, hi ^ bias);
 
-        let (lo, hi) = match try_use_ty_as_lit_ty(self.target(), ty).unwrap() {
-            LitTy::I8
-            | LitTy::U8
-            | LitTy::I16
-            | LitTy::U16
-            | LitTy::I32
-            | LitTy::U32
-            | LitTy::I64
-            | LitTy::U64
-            | LitTy::U128
-            | LitTy::I128 => {
-                let kind = try_use_ty_as_int_ty(ty).unwrap();
-                let ptr_width = self.target().ptr_size();
-
-                let lo_val = InternedInt::from_u128(lo, kind, ptr_width);
-                let hi_val = InternedInt::from_u128(hi, kind, ptr_width);
-                let lo = LitPat(Node::create_gen(Lit::Int(IntLit::from(lo_val))));
-                let hi = LitPat(Node::create_gen(Lit::Int(IntLit::from(hi_val))));
+        let (lo, hi) = match ty_id.value() {
+            ty if ty.is_integral() => {
+                let ptr_size = self.env.target().ptr_size();
+                let lo_val = Const::from_scalar_like(lo, ty_id, ptr_size);
+                let hi_val = Const::from_scalar_like(hi, ty_id, ptr_size);
+                let lo = LitPat(Node::create_gen(Lit::Const(lo_val)));
+                let hi = LitPat(Node::create_gen(Lit::Const(hi_val)));
 
                 (lo, hi)
             }
-            LitTy::Char => {
+            ReprTy::Char => {
                 let size = size_of::<char>();
 
                 // This must be a `char` literal
@@ -421,8 +423,8 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                     (lo_val, hi_val)
                 };
 
-                let lo = LitPat(Node::create_gen(Lit::Char(lo_val.into())));
-                let hi = LitPat(Node::create_gen(Lit::Char(hi_val.into())));
+                let lo = LitPat(Node::create_gen(Lit::Const(lo_val.into())));
+                let hi = LitPat(Node::create_gen(Lit::Const(hi_val.into())));
 
                 (lo, hi)
             }

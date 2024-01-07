@@ -1,6 +1,7 @@
 //! Wrapper around the typechecker to provide an interface to
 //! intrinsic functions.
 
+use hash_layout::{HasLayout, compute::LayoutComputer};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_target::{HasTarget, Target};
 use hash_tir::{
@@ -31,6 +32,12 @@ impl<T: TcEnv> HasContext for IntrinsicAbilitiesImpl<'_, T> {
 impl<T: TcEnv> HasTarget for IntrinsicAbilitiesImpl<'_, T> {
     fn target(&self) -> &Target {
         self.tc.target()
+    }
+}
+
+impl<T: TcEnv> HasLayout for IntrinsicAbilitiesImpl<'_, T> {
+    fn layout_computer(&self) -> LayoutComputer {
+        self.tc.layout_computer()
     }
 }
 

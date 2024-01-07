@@ -13,7 +13,7 @@ use hash_target::{
     size::Size,
 };
 use hash_tir::{
-    intrinsics::utils::create_term_from_integer_lit,
+    intrinsics::utils::create_term_from_const,
     tir::{HasAstNodeId, Node, NodeOrigin, TermId},
 };
 use num_bigint::BigInt;
@@ -183,7 +183,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
 
             *prev_discr = Some(next_discr);
             discrs.push(Node::at(next_discr, origin));
-            Ok(create_term_from_integer_lit(const_val, origin))
+            Ok(create_term_from_const(const_val, origin))
         } else {
             let origin = NodeOrigin::Given(variant.id());
 
@@ -200,7 +200,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
 
             *prev_discr = Some(next_discr);
             discrs.push(Node::at(next_discr, origin));
-            Ok(create_term_from_integer_lit(constant.value, origin))
+            Ok(create_term_from_const(constant.value, origin))
         }
     }
 }

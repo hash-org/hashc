@@ -1,9 +1,10 @@
 //! Defines all logic regarding computing the layout of types, and
 //! representing the said layouts in a way that is usable by the
 //! code generation backends.
-#![feature(let_chains)]
+#![feature(let_chains, const_option)]
 
 pub mod compute;
+pub mod constant;
 pub mod ty;
 pub mod write;
 
@@ -614,4 +615,9 @@ impl LayoutId {
     pub fn offset_of(&self, index: usize) -> Size {
         self.borrow().shape.offset(index)
     }
+}
+
+/// Interface to access information about the representations and layout.
+pub trait HasLayout {
+    fn layout_computer(&self) -> LayoutComputer;
 }

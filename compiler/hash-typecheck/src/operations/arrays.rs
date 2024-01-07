@@ -171,7 +171,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         let inferred_len_term = match *array_term {
             ArrayTerm::Normal(elements) => {
                 self.check_unified_term_list(elements, inner_ty)?;
-                create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
+                create_term_from_usize_lit(self.env(), elements.len(), array_len_origin)
             }
             ArrayTerm::Repeated(term, repeat) => {
                 self.check_node(term, inner_ty)?;

@@ -11,7 +11,6 @@
 
 pub mod basic_blocks;
 pub mod cast;
-pub mod constant;
 pub mod intrinsics;
 pub mod ir;
 pub mod lang_items;
@@ -24,7 +23,6 @@ use std::{
     sync::OnceLock,
 };
 
-use constant::Allocations;
 use hash_source::entry_point::EntryPointState;
 use hash_storage::{store::SequenceStoreKey, stores};
 use hash_tir::{
@@ -158,7 +156,6 @@ stores!(
     tys: ReprTyStore,
     ty_list: ReprTyListStore,
     instances: InstanceStore,
-    allocations: Allocations
 );
 
 /// The global [`IrStores`] instance.

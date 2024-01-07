@@ -7,7 +7,6 @@ use std::{
 };
 
 use hash_reporting::report::{Report, ReportKind};
-use hash_source::constant::InternedStr;
 
 /// The location of a build directory of this package, this used to resolve
 /// where the standard library is located at.
@@ -50,7 +49,7 @@ impl Display for ImportErrorKind {
 #[derive(Debug, Clone)]
 pub struct ImportError {
     /// The path that was attempted to be imported.
-    pub path: InternedStr,
+    pub path: String,
 
     /// The kind of error that occurred.
     pub kind: ImportErrorKind,

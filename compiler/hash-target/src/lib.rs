@@ -1,5 +1,5 @@
 //! Definitions to describe the target of Hash compilation.
-#![feature(decl_macro)]
+#![feature(decl_macro, min_specialization)]
 
 pub mod abi;
 pub mod alignment;
@@ -387,3 +387,16 @@ impl HasTarget for Target {
         self
     }
 }
+
+
+/// Even more specific utility trait to just access the pointer size of the current 
+/// target machine.
+pub trait HasPointerSize {
+    fn pointer_size(&self) -> Size;
+}
+
+impl<T: HasTarget> HasPointerSize for T {
+    fn pointer_size(&self) -> Size {
+        Size::from_bits(self.target().pointer_bit_width as u64) 
+    }
+} 

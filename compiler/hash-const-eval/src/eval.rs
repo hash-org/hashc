@@ -1,29 +1,27 @@
-//! Module which contains implementation and utilities for constant
-//! propagation and constant folding optimisations that can occur on
-//! Hash IR.
-
-use hash_ir::{
-    ir::{self, Const, ConstKind, Scalar},
+use hash_layout::{
+    compute::LayoutComputer,
+    constant::{Const, ConstKind, Ty},
     ty::{ReprTy, ReprTyId},
 };
-use hash_layout::compute::LayoutComputer;
+use hash_source::{constant::Scalar, FloatTy};
 use hash_storage::store::statics::StoreId;
-use hash_target::primitives::FloatTy;
+use hash_target::data_layout::HasDataLayout;
 use hash_utils::derive_more::Constructor;
+
+use crate::op::BinOp;
 
 /// A constant folder which is used to fold constants into a single
 /// constant.
 #[derive(Constructor)]
 pub struct ConstFolder<'ctx> {
-    /// For computing layouts
     lc: LayoutComputer<'ctx>,
 }
 
 type OverflowingOp = fn(i128, i128) -> (i128, bool);
 
 impl<'ctx> ConstFolder<'ctx> {
-    /// Attempt to evaluate two [ir::Const]s and a binary operator.
-    pub fn try_fold_bin_op(&self, op: ir::BinOp, lhs: &Const, rhs: &Const) -> Option<Const> {
+    /// Attempt to evaluate two [Const]s and a binary operator.
+    pub fn try_fold_bin_op(&self, op: BinOp, lhs: &Const, rhs: &Const) -> Option<Const> {
         // If the two constants are non-scalar, then we abort the folding...
         let (ConstKind::Scalar(left), ConstKind::Scalar(right)) = (lhs.kind(), rhs.kind()) else {
             return None;
@@ -32,13 +30,13 @@ impl<'ctx> ConstFolder<'ctx> {
         let (l_ty, r_ty) = (lhs.ty(), rhs.ty());
 
         match l_ty.value() {
-            ReprTy::Int(_) | ReprTy::UInt(_) => {
-                let size = self.lc.size_of_ty(l_ty).ok()?;
+            ty if ty.is_integral() => {
+                let size = self.lc.size_of_ty(l_ty.into()).ok()?;
                 let l_bits = left.to_bits(size).ok()?;
                 let r_bits = right.to_bits(size).ok()?;
                 self.binary_int_op(op, l_ty, l_bits, r_ty, r_bits)
             }
-            ReprTy::Float(ty) => match ty {
+            ReprTy::Float(fl_ty) => match fl_ty {
                 FloatTy::F32 => Self::binary_float_op(op, left.to_f32(), left.to_f32()),
                 FloatTy::F64 => Self::binary_float_op(op, left.to_f64(), left.to_f64()),
             },
@@ -47,6 +45,7 @@ impl<'ctx> ConstFolder<'ctx> {
                 let r: bool = right.try_into().ok()?;
                 Self::binary_bool_op(op, l, r)
             }
+
             ReprTy::Char => {
                 let l: char = left.try_into().ok()?;
                 let r: char = right.try_into().ok()?;
@@ -56,8 +55,8 @@ impl<'ctx> ConstFolder<'ctx> {
         }
     }
 
-    fn binary_bool_op(bin_op: ir::BinOp, lhs: bool, rhs: bool) -> Option<Const> {
-        use ir::BinOp::*;
+    fn binary_bool_op(bin_op: BinOp, lhs: bool, rhs: bool) -> Option<Const> {
+        use crate::op::BinOp::*;
 
         Some(match bin_op {
             Gt => Const::bool(lhs & !rhs),
@@ -77,8 +76,8 @@ impl<'ctx> ConstFolder<'ctx> {
     ///
     /// ##Note: This only supports comparison operators, thus the output is always
     /// a boolean constant.
-    fn binary_char_op(bin_op: ir::BinOp, lhs: char, rhs: char) -> Option<Const> {
-        use ir::BinOp::*;
+    fn binary_char_op(bin_op: BinOp, lhs: char, rhs: char) -> Option<Const> {
+        use crate::op::BinOp::*;
 
         Some(match bin_op {
             Gt => Const::bool(lhs > rhs),
@@ -93,15 +92,15 @@ impl<'ctx> ConstFolder<'ctx> {
 
     /// Perform an operation on two integer constants. This accepts the raw bits
     /// of the integer, and the size of the integer.
-    fn binary_int_op(
+    fn binary_int_op<T: Ty>(
         &self,
-        bin_op: ir::BinOp,
-        lhs_ty: ReprTyId,
+        bin_op: BinOp,
+        lhs_ty: T,
         lhs: u128,
-        rhs_ty: ReprTyId,
+        rhs_ty: T,
         rhs: u128,
     ) -> Option<Const> {
-        use ir::BinOp::*;
+        use crate::op::BinOp::*;
 
         // We have to handle `shl` and `shr` differently since they have different
         // operand types.
@@ -110,6 +109,7 @@ impl<'ctx> ConstFolder<'ctx> {
         }
 
         debug_assert_eq!(lhs_ty, rhs_ty);
+        let lhs_ty: ReprTyId = lhs_ty.into();
         let size = self.lc.size_of_ty(lhs_ty).ok()?;
 
         // If the type is signed, we have to handle comparisons and arithmetic
@@ -172,10 +172,12 @@ impl<'ctx> ConstFolder<'ctx> {
 
                 return Some(Const::new(
                     lhs_ty,
-                    ir::ConstKind::Scalar(Scalar::from_uint(truncated, size)),
+                    ConstKind::Scalar(Scalar::from_uint(truncated, size)),
                 ));
             }
         }
+
+        let ptr_size = self.lc.data_layout().pointer_size;
 
         match bin_op {
             Eq => Some(Const::bool(lhs == rhs)),
@@ -184,9 +186,9 @@ impl<'ctx> ConstFolder<'ctx> {
             GtEq => Some(Const::bool(lhs >= rhs)),
             Lt => Some(Const::bool(lhs < rhs)),
             LtEq => Some(Const::bool(lhs <= rhs)),
-            BitOr => Some(Const::from_scalar_like(lhs | rhs, lhs_ty, &self.lc)),
-            BitAnd => Some(Const::from_scalar_like(lhs & rhs, lhs_ty, &self.lc)),
-            BitXor => Some(Const::from_scalar_like(lhs ^ rhs, lhs_ty, &self.lc)),
+            BitOr => Some(Const::from_scalar_like(lhs | rhs, lhs_ty, ptr_size)),
+            BitAnd => Some(Const::from_scalar_like(lhs & rhs, lhs_ty, ptr_size)),
+            BitXor => Some(Const::from_scalar_like(lhs ^ rhs, lhs_ty, ptr_size)),
             Add | Sub | Mul | Div | Mod => {
                 let op: fn(u128, u128) -> (u128, bool) = match bin_op {
                     Add => u128::overflowing_add,
@@ -212,7 +214,7 @@ impl<'ctx> ConstFolder<'ctx> {
                     return None;
                 }
 
-                Some(Const::new(lhs_ty, ir::ConstKind::Scalar(Scalar::from_uint(truncated, size))))
+                Some(Const::new(lhs_ty, ConstKind::Scalar(Scalar::from_uint(truncated, size))))
             }
             Exp => None,
             _ => panic!("invalid operator, `{bin_op}` should have been handled"),
@@ -220,27 +222,30 @@ impl<'ctx> ConstFolder<'ctx> {
     }
 
     /// Perform an operation on two floating point constants.
-    fn binary_float_op<T: num_traits::Float + Into<Const>>(
-        op: ir::BinOp,
-        lhs: T,
-        rhs: T,
+    fn binary_float_op<F: num_traits::Float + Into<Const>>(
+        op: BinOp,
+        lhs: F,
+        rhs: F,
     ) -> Option<Const> {
         Some(match op {
-            ir::BinOp::Gt => Const::bool(lhs > rhs),
-            ir::BinOp::GtEq => Const::bool(lhs >= rhs),
-            ir::BinOp::Lt => Const::bool(lhs < rhs),
-            ir::BinOp::LtEq => Const::bool(lhs <= rhs),
-            ir::BinOp::Eq => Const::bool(lhs == rhs),
-            ir::BinOp::Neq => Const::bool(lhs != rhs),
-            ir::BinOp::Add => (lhs + rhs).into(),
-            ir::BinOp::Sub => (lhs - rhs).into(),
-            ir::BinOp::Mul => (lhs * rhs).into(),
-            ir::BinOp::Div => (lhs / rhs).into(),
-            ir::BinOp::Mod => (lhs % rhs).into(),
-            ir::BinOp::Exp => (lhs.powf(rhs)).into(),
+            BinOp::Gt => Const::bool(lhs > rhs),
+            BinOp::GtEq => Const::bool(lhs >= rhs),
+            BinOp::Lt => Const::bool(lhs < rhs),
+            BinOp::LtEq => Const::bool(lhs <= rhs),
+            BinOp::Eq => Const::bool(lhs == rhs),
+            BinOp::Neq => Const::bool(lhs != rhs),
+            BinOp::Add => (lhs + rhs).into(),
+            BinOp::Sub => (lhs - rhs).into(),
+            BinOp::Mul => (lhs * rhs).into(),
+            BinOp::Div => (lhs / rhs).into(),
+            BinOp::Mod => (lhs % rhs).into(),
+            BinOp::Exp => (lhs.powf(rhs)).into(),
 
             // No other operations can be performed on floats
             _ => return None,
         })
     }
+
+    // @@Todo: implement folding unary operators in the same manner as binary
+    // operators.
 }

@@ -1,10 +1,12 @@
 use std::ops::Deref;
 
-use hash_ir::{
-    constant::{AllocRange, Const, ConstKind},
-    ty::{ReprTy, ToReprTy, VariantIdx},
+use hash_ir::ty::{ReprTy, ToReprTy, VariantIdx};
+use hash_layout::{
+    compute::LayoutComputer,
+    constant::{Const, ConstKind},
+    TyInfo, Variants,
 };
-use hash_layout::{compute::LayoutComputer, TyInfo, Variants};
+use hash_source::constant::AllocRange;
 use hash_storage::store::statics::StoreId;
 use hash_target::size::Size;
 use hash_utils::{derive_more::Constructor, itertools::Itertools};
@@ -68,7 +70,7 @@ impl ConstUtils<'_> {
             _ => false,
         };
 
-        let alloc = self.alloc();
+        let alloc = self.as_alloc();
 
         if try_as_scalar {
             let range = AllocRange::new(offset, field_info.layout.size());

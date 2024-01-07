@@ -5,313 +5,239 @@
 //! be interned, and accessed when needed.
 
 use std::{
-    cmp::Ordering,
+    borrow::Cow,
     collections::HashMap,
     fmt,
     io::{self, Read},
-    iter::repeat,
-    ops::{IndexMut, Neg},
+    num::NonZeroU8,
+    ops::{Deref, DerefMut},
+    sync::OnceLock,
 };
 
-use hash_target::data_layout::Endian;
+use hash_storage::{static_single_store, stores};
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
 pub use hash_target::primitives::*;
 pub use hash_target::size::Size;
-use hash_utils::{
-    counter,
-    fnv::FnvBuildHasher,
-    index_vec::{define_index_type, IndexVec},
-    lazy_static::lazy_static,
-    parking_lot::{RwLock, RwLockWriteGuard},
+use hash_target::{
+    alignment::Alignment,
+    data_layout::{Endian, HasDataLayout},
 };
-use num_bigint::{BigInt, Sign};
-use FloatConstantValue::*;
-use IntConstantValue::*;
+use hash_utils::{derive_more::Constructor, fnv::FnvBuildHasher};
+use num_bigint::BigInt;
 
-use crate::identifier::{Identifier, IDENTS};
+/// A scalar value. [Scalar]s are used to represent all integer, characters, and
+/// floating point values, as well as integers. The largest scalar value is
+/// 128bits, i.e. a `u128` or `i128`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[repr(packed)]
+pub struct Scalar {
+    /// The buffer of the scalar, up to 16bytes.
+    value: u128,
 
-impl From<UIntTy> for Identifier {
-    fn from(value: UIntTy) -> Self {
-        match value {
-            UIntTy::U8 => IDENTS.u8,
-            UIntTy::U16 => IDENTS.u16,
-            UIntTy::U32 => IDENTS.u32,
-            UIntTy::U64 => IDENTS.u64,
-            UIntTy::U128 => IDENTS.u128,
-            UIntTy::USize => IDENTS.usize,
+    /// The size of the buffer that is being used. It
+    /// cannot be zero.
+    size: NonZeroU8,
+}
+
+impl Scalar {
+    pub const TRUE: Scalar = Scalar { value: 1_u128, size: NonZeroU8::new(1).unwrap() };
+    pub const FALSE: Scalar = Scalar { value: 0_u128, size: NonZeroU8::new(1).unwrap() };
+
+    /// Compute the [Size] of the [Scalar].
+    pub fn size(&self) -> Size {
+        Size::from_bytes(self.size.get() as u64)
+    }
+
+    /// Create a new [Scalar] from a usize for the target
+    /// architecture.
+    pub fn from_usize<C: HasDataLayout>(value: u64, ctx: &C) -> Self {
+        Self::try_from_uint(value, ctx.data_layout().pointer_size)
+            .unwrap_or_else(|| panic!("usize is too large for the target architecture"))
+    }
+
+    /// Internal check to ensure that the [Scalar] is not in an invalid state.
+    ///
+    /// ##Note: this function will check whether the specified `size` of the
+    /// scalar is enough to hold the value.
+    #[inline(always)]
+    fn check(&self) {
+        debug_assert_eq!(
+            self.size().truncate(self.value),
+            { self.value },
+            "Scalar value is too large for the specified size"
+        )
+    }
+
+    #[inline]
+    pub fn to_bits(self, target_size: Size) -> Result<u128, Size> {
+        assert_ne!(target_size.bytes(), 0, "you should never look at the bits of a ZST");
+        if target_size.bytes() == u64::from(self.size.get()) {
+            self.check();
+            Ok(self.value)
+        } else {
+            Err(self.size())
+        }
+    }
+
+    pub fn assert_bits(self, target_size: Size) -> u128 {
+        self.to_bits(target_size)
+            .unwrap_or_else(|_| panic!("assertion failed: {self:?} fits {target_size:?}"))
+    }
+
+    /// Attempt to convert an un-signed integer value into a [Scalar].
+    pub fn try_from_uint(i: impl Into<u128>, size: Size) -> Option<Self> {
+        let value = i.into();
+
+        if size.truncate(value) == value {
+            Some(Self { value, size: NonZeroU8::new(size.bytes() as u8).unwrap() })
+        } else {
+            None
+        }
+    }
+
+    /// Convert an unsigned integer value into a [Scalar].
+    #[inline]
+    pub fn from_uint(i: impl Into<u128>, size: Size) -> Self {
+        Self::try_from_uint(i, size).unwrap_or_else(|| {
+            panic!("Integer value is too large for the specified size: {}", size.bytes())
+        })
+    }
+
+    /// Attempt to convert a signed integer value into a [Scalar].
+    pub fn try_from_int(i: impl Into<i128>, size: Size) -> Option<Self> {
+        let value = i.into();
+        let truncated = size.truncate(value as u128);
+
+        if size.sign_extend(truncated) as i128 == value {
+            Some(Self { value: truncated, size: NonZeroU8::new(size.bytes() as u8).unwrap() })
+        } else {
+            None
+        }
+    }
+
+    /// Convert an unsigned integer value into a [Scalar].
+    #[inline]
+    pub fn from_int(i: impl Into<i128>, size: Size) -> Self {
+        Self::try_from_int(i, size).unwrap_or_else(|| {
+            panic!("Integer value is too large for the specified size: {}", size.bytes())
+        })
+    }
+
+    /// Create a new [Scalar] from a boolean value.
+    #[inline]
+    pub fn from_bool(value: bool) -> Self {
+        if value {
+            Self::TRUE
+        } else {
+            Self::FALSE
+        }
+    }
+
+    /// Convert the [Scalar] into a [f32].
+    pub fn to_f32(&self) -> f32 {
+        f32::try_from(*self).unwrap()
+    }
+
+    /// Convert the [Scalar] into a [f64].
+    pub fn to_f64(&self) -> f64 {
+        f64::try_from(*self).unwrap()
+    }
+}
+
+impl TryFrom<Scalar> for bool {
+    type Error = Size;
+    #[inline]
+    fn try_from(value: Scalar) -> Result<Self, Self::Error> {
+        value.to_bits(Size::from_bytes(1)).and_then(|u| match u {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(Size::from_bytes(1)),
+        })
+    }
+}
+
+impl From<char> for Scalar {
+    fn from(value: char) -> Self {
+        Self {
+            value: value as u128,
+            size: NonZeroU8::new(std::mem::size_of::<char>() as u8).unwrap(),
         }
     }
 }
 
-impl From<SIntTy> for Identifier {
-    fn from(value: SIntTy) -> Self {
-        match value {
-            SIntTy::I8 => IDENTS.i8,
-            SIntTy::I16 => IDENTS.i16,
-            SIntTy::I32 => IDENTS.i32,
-            SIntTy::I64 => IDENTS.i64,
-            SIntTy::I128 => IDENTS.i128,
-            SIntTy::ISize => IDENTS.isize,
-        }
-    }
-}
-
-impl From<BigIntTy> for Identifier {
-    fn from(value: BigIntTy) -> Self {
-        match value {
-            BigIntTy::IBig => IDENTS.ibig,
-            BigIntTy::UBig => IDENTS.ubig,
-        }
-    }
-}
-
-impl From<IntTy> for Identifier {
-    fn from(value: IntTy) -> Self {
-        match value {
-            IntTy::Int(ty) => ty.into(),
-            IntTy::UInt(ty) => ty.into(),
-            IntTy::Big(ty) => ty.into(),
-        }
-    }
-}
-
-impl TryFrom<Identifier> for IntTy {
+impl TryFrom<Scalar> for char {
     type Error = ();
 
-    fn try_from(value: Identifier) -> Result<Self, Self::Error> {
-        match value {
-            i if i == IDENTS.i8 => Ok(IntTy::Int(SIntTy::I8)),
-            i if i == IDENTS.i16 => Ok(IntTy::Int(SIntTy::I16)),
-            i if i == IDENTS.i32 => Ok(IntTy::Int(SIntTy::I32)),
-            i if i == IDENTS.i64 => Ok(IntTy::Int(SIntTy::I64)),
-            i if i == IDENTS.i128 => Ok(IntTy::Int(SIntTy::I128)),
-            i if i == IDENTS.isize => Ok(IntTy::Int(SIntTy::ISize)),
-            i if i == IDENTS.u8 => Ok(IntTy::UInt(UIntTy::U8)),
-            i if i == IDENTS.u16 => Ok(IntTy::UInt(UIntTy::U16)),
-            i if i == IDENTS.u32 => Ok(IntTy::UInt(UIntTy::U32)),
-            i if i == IDENTS.u64 => Ok(IntTy::UInt(UIntTy::U64)),
-            i if i == IDENTS.u128 => Ok(IntTy::UInt(UIntTy::U128)),
-            i if i == IDENTS.usize => Ok(IntTy::UInt(UIntTy::USize)),
-            i if i == IDENTS.ibig => Ok(IntTy::Big(BigIntTy::IBig)),
-            i if i == IDENTS.ubig => Ok(IntTy::Big(BigIntTy::UBig)),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<Identifier> for FloatTy {
-    type Error = ();
-
-    fn try_from(value: Identifier) -> Result<Self, Self::Error> {
-        match value {
-            i if i == IDENTS.f32 => Ok(FloatTy::F32),
-            i if i == IDENTS.f64 => Ok(FloatTy::F64),
-            _ => Err(()),
-        }
-    }
-}
-
-impl From<FloatTy> for Identifier {
-    fn from(value: FloatTy) -> Self {
-        match value {
-            FloatTy::F32 => IDENTS.f32,
-            FloatTy::F64 => IDENTS.f64,
-        }
-    }
-}
-
-// -------------------- Floats --------------------
-
-/// The inner stored value of a [FloatConstant].
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub enum FloatConstantValue {
-    F64(f64),
-    F32(f32),
-}
-
-impl fmt::Display for FloatConstantValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            F64(inner) => write!(f, "{inner}"),
-            F32(inner) => write!(f, "{inner}"),
-        }
-    }
-}
-
-/// Interned float constant which stores the value of the float, and
-/// an optional `type ascription` which is a suffix on the literal
-/// describing which float kind it is, either being `f32` or `f64`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FloatConstant {
-    /// Raw value of the float
-    pub value: FloatConstantValue,
-
-    /// If the constant contains a type ascription, as specified
-    /// when the constant is declared, e.g. `32.4f64`
-    pub suffix: Option<Identifier>,
-}
-
-impl FloatConstant {
-    /// Create a new [FloatConstant] from the given value and suffix.
-    pub fn new(value: FloatConstantValue, suffix: Option<Identifier>) -> Self {
-        Self { value, suffix }
-    }
-
-    /// Get the value of the float constant as a [f64].
-    pub fn as_f64(self) -> f64 {
-        match self.value {
-            F64(inner) => inner,
-            F32(inner) => inner as f64,
-        }
-    }
-
-    /// Compute the [FloatTy] of the constant.
-    pub fn ty(self) -> FloatTy {
-        match self.value {
-            F64(_) => FloatTy::F64,
-            F32(_) => FloatTy::F32,
-        }
-    }
-}
-
-impl PartialOrd for FloatConstant {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (&self.value, &other.value) {
-            (F64(a), F64(b)) => a.partial_cmp(b),
-            (F32(a), F32(b)) => a.partial_cmp(b),
-            _ => None,
-        }
-    }
-}
-
-impl Neg for FloatConstant {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        let value = match self.value {
-            F64(inner) => F64(-inner),
-            F32(inner) => F32(-inner),
+    fn try_from(value: Scalar) -> Result<Self, Self::Error> {
+        let Ok(val) = value.to_bits(Size::from_bytes(std::mem::size_of::<char>())) else {
+            return Err(());
         };
 
-        Self { value, suffix: self.suffix }
-    }
-}
-
-impl fmt::Display for FloatConstant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            F64(val) => write!(f, "{val}_f64"),
-            F32(val) => write!(f, "{val}_f32"),
+        match char::from_u32(val.try_into().unwrap()) {
+            Some(c) => Ok(c),
+            None => Err(()),
         }
     }
 }
 
-/// Provide implementations for converting primitive floating point types into
-/// [FloatConstant]s.
-macro_rules! float_const_impl_into {
-    ($($ty:ident, $variant: ident);*) => {
+macro_rules! scalar_impl_from_uint_ty {
+    ($($ty:ty),*) => {
         $(
-            impl From<$ty> for FloatConstantValue {
-                fn from(value: $ty) -> Self {
-                    Self::$variant(value)
-                }
-            }
-
-            impl From<$ty> for FloatConstant {
-                fn from(value: $ty) -> Self {
+            impl From<$ty> for Scalar {
+                #[inline]
+                fn from(u: $ty) -> Self {
                     Self {
-                        value: value.into(),
-                        suffix: Some(IDENTS.$ty),
+                        value: u128::from(u),
+                        size: NonZeroU8::new(std::mem::size_of::<$ty>() as u8).unwrap(),
                     }
                 }
             }
         )*
-    };
+    }
 }
 
-float_const_impl_into!(f32, F32; f64, F64);
+scalar_impl_from_uint_ty!(u8, u16, u32, u64, u128, bool);
 
-/// A macro to derive `std::ops` on [FloatConstant].
-macro_rules! derive_float_ops {
-    ($($trt: ident, $op:ident);* $(;)?) => {
+macro_rules! scalar_impl_from_sint_ty {
+    ($($ty:ty),*) => {
         $(
-            impl std::ops::$trt for FloatConstant {
-                type Output = FloatConstant;
+            impl From<$ty> for Scalar {
+                #[inline]
+                fn from(u: $ty) -> Self {
+                    let value = i128::from(u);
+                    let size = NonZeroU8::new(std::mem::size_of::<$ty>() as u8).unwrap();
+                    let truncated = Size::from_bytes(size.get()).truncate(value as u128);
 
-                fn $op(self, rhs: Self) -> Self::Output {
-                    match (self.value, rhs.value) {
-                        (F32(lhs), F32(rhs)) => Self::new(F32(lhs.$op(rhs)), self.suffix),
-                        (F64(lhs), F64(rhs)) => Self::new(F64(lhs.$op(rhs)), self.suffix),
-                        _ => unreachable!()
+                    Self {
+                        value: truncated,
+                        size,
                     }
                 }
             }
         )*
-    };
-}
-
-derive_float_ops!(
-    Add, add;
-    Sub, sub;
-    Mul, mul;
-    Div, div;
-    Rem, rem;
-);
-
-define_index_type! {
-    /// Index for [InternedFloat] which is used to index into the [ConstantMap].
-    pub struct InternedFloat = u32;
-
-    MAX_INDEX = i32::max_value() as usize;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
-
-impl InternedFloat {
-    /// Create a [InternedFloat] from a given [FloatConstant].
-    pub fn create(constant: FloatConstant) -> InternedFloat {
-        let mut store = CONSTS.floats.write();
-        store.push(constant)
-    }
-
-    /// Get the underlying type of the interned float.
-    pub fn ty(self) -> FloatTy {
-        self.map(|constant| constant.ty())
-    }
-
-    /// Get the value of the interned float.
-    pub fn value(self) -> FloatConstant {
-        *CONSTS.floats.read().get(self).unwrap()
-    }
-
-    /// Negate the underlying value of the interned float.
-    pub fn negate(self) {
-        let mut store = CONSTS.floats.write();
-        let value = store.get_mut(self).unwrap();
-        *value = -*value;
-    }
-
-    /// Map the interned float.
-    pub fn map<T>(self, f: impl FnOnce(&FloatConstant) -> T) -> T {
-        let store = CONSTS.floats.read();
-        let constant = store.get(self).unwrap();
-        f(constant)
     }
 }
 
-impl From<FloatConstant> for InternedFloat {
-    fn from(value: FloatConstant) -> Self {
-        InternedFloat::create(value)
-    }
-}
+scalar_impl_from_sint_ty!(i8, i16, i32, i64, i128);
+// impl From<IntConstant> for Scalar {
+//     fn from(value: IntConstant) -> Self {
+//         let size = value.size();
 
-impl fmt::Display for InternedFloat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
-    }
-}
-
-// -------------------- Integers --------------------
+//         match value.value {
+//             IntConstantValue::I8(val) => Scalar::from_int(val, size),
+//             IntConstantValue::I16(val) => Scalar::from_int(val, size),
+//             IntConstantValue::I32(val) => Scalar::from_int(val, size),
+//             IntConstantValue::I64(val) => Scalar::from_int(val, size),
+//             IntConstantValue::I128(val) => Scalar::from_int(val, size),
+//             IntConstantValue::U8(val) => Scalar::from_uint(val, size),
+//             IntConstantValue::U16(val) => Scalar::from_uint(val, size),
+//             IntConstantValue::U32(val) => Scalar::from_uint(val, size),
+//             IntConstantValue::U64(val) => Scalar::from_uint(val, size),
+//             IntConstantValue::U128(val) => Scalar::from_uint(val, size),
+//         }
+//     }
+// }
 
 /// Read a unsigned integer from the given source buffer. This supports buffers
 /// of up to 16 bytes in length, and will automatically convert it into a
@@ -339,596 +265,204 @@ pub fn read_target_uint(endian: Endian, mut data: &[u8]) -> io::Result<u128> {
     Ok(uint)
 }
 
-/// Value of the [IntConstant], stores between an `u8` to `u128` value,
-/// including signed variants.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Copy)]
-pub enum IntConstantValue {
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    I128(i128),
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
-    U128(u128),
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Constructor)]
+pub struct ScalarInt {
+    /// The underlying scalar value.
+    data: Scalar,
+
+    /// Whether the integer is signed or not.
+    ty: IntTy,
 }
 
-impl IntConstantValue {
-    /// Convert the given value into a [u128] provided.
-    pub fn as_u128(&self) -> u128 {
-        match self {
-            Self::I8(inner) => {
-                let inner = inner.to_be_bytes();
-                let mut bytes = [0; 16];
-                bytes[15] = inner[0];
-                u128::from_be_bytes(bytes)
-            }
-            Self::I16(inner) => {
-                let inner = inner.to_be_bytes();
-                let mut bytes = [0; 16];
-                bytes[14..].copy_from_slice(&inner);
-                u128::from_be_bytes(bytes)
-            }
-            Self::I32(inner) => {
-                let inner = inner.to_be_bytes();
-                let mut bytes = [0; 16];
-                bytes[12..].copy_from_slice(&inner);
-                u128::from_be_bytes(bytes)
-            }
-            Self::I64(inner) => {
-                let inner = inner.to_be_bytes();
-                let mut bytes = [0; 16];
-                bytes[8..].copy_from_slice(&inner);
-                u128::from_be_bytes(bytes)
-            }
-            Self::I128(inner) => u128::from_be_bytes(inner.to_be_bytes()),
-
-            // For unsigned values, its fine to just cast them since we're
-            // zero extending them anyways...
-            Self::U8(inner) => *inner as u128,
-            Self::U16(inner) => *inner as u128,
-            Self::U32(inner) => *inner as u128,
-            Self::U64(inner) => *inner as u128,
-            Self::U128(inner) => *inner,
-        }
-    }
-
-    /// Create a new [IntConstantValue] from little endian ordered bytes.
-    pub fn from_le_bytes(bytes: &[u8], signed: bool) -> Self {
-        match bytes.len() {
-            1 if signed => {
-                let mut arr = [0u8; 1];
-                arr.copy_from_slice(bytes);
-
-                Self::I8(i8::from_le_bytes(arr))
-            }
-            1 => Self::U8(bytes[0]),
-            2 => {
-                let mut arr = [0u8; 2];
-                arr.copy_from_slice(bytes);
-                Self::I16(i16::from_le_bytes(arr))
-            }
-            4 => {
-                let mut arr = [0u8; 4];
-                arr.copy_from_slice(bytes);
-                Self::I32(i32::from_le_bytes(arr))
-            }
-            8 => {
-                let mut arr = [0u8; 8];
-                arr.copy_from_slice(bytes);
-                Self::I64(i64::from_le_bytes(arr))
-            }
-
-            16 => {
-                let mut arr = [0u8; 16];
-                arr.copy_from_slice(bytes);
-                Self::I128(i128::from_le_bytes(arr))
-            }
-            _ => unreachable!("primitive constant can't store values larger than 16 bytes"),
-        }
-    }
-
-    /// Create a new [IntConstantValue] from big endian ordered bytes.
-    ///
-    /// N.B. The kind of int constant value is determined by the length
-    /// of the byte array. If the provided `bytes` is for example 8 bytes
-    /// long no sign, then the returned value will be a
-    /// [`IntConstantValue::U64`].
-    pub fn from_be_bytes(bytes: &mut [u8], signed: bool) -> Self {
-        bytes.reverse();
-        IntConstantValue::from_le_bytes(bytes, signed)
-    }
-
-    pub fn size(&self) -> Size {
-        match self {
-            I8(_) => Size::from_bytes(1),
-            I16(_) => Size::from_bytes(2),
-            I32(_) => Size::from_bytes(4),
-            I64(_) => Size::from_bytes(8),
-            I128(_) => Size::from_bytes(16),
-            U8(_) => Size::from_bytes(1),
-            U16(_) => Size::from_bytes(2),
-            U32(_) => Size::from_bytes(4),
-            U64(_) => Size::from_bytes(8),
-            U128(_) => Size::from_bytes(16),
-        }
-    }
-}
-
-/// A macro to derive `std::ops` on [IntConstantValue].
-macro_rules! derive_int_ops {
-    ($($trt: ident, $op:ident);* $(;)?) => {
-        $(
-            impl std::ops::$trt for IntConstant {
-                type Output = IntConstant;
-
-                fn $op(self, rhs: Self) -> Self::Output {
-                    match (self.value, rhs.value) {
-                        (I8(lhs), I8(rhs)) => Self::new(I8(lhs.$op(rhs)), self.suffix),
-                        (I16(lhs), I16(rhs)) => Self::new(I16(lhs.$op(rhs)), self.suffix),
-                        (I32(lhs), I32(rhs)) => Self::new(I32(lhs.$op(rhs)), self.suffix),
-                        (I64(lhs), I64(rhs)) => Self::new(I64(lhs.$op(rhs)), self.suffix),
-                        (I128(lhs), I128(rhs)) => Self::new(I128(lhs.$op(rhs)), self.suffix),
-                        (U8(lhs), U8(rhs)) => Self::new(U8(lhs.$op(rhs)), self.suffix),
-                        (U16(lhs), U16(rhs)) => Self::new(U16(lhs.$op(rhs)), self.suffix),
-                        (U32(lhs), U32(rhs)) => Self::new(U32(lhs.$op(rhs)), self.suffix),
-                        (U64(lhs), U64(rhs)) => Self::new(U64(lhs.$op(rhs)), self.suffix),
-                        (U128(lhs), U128(rhs)) => Self::new(U128(lhs.$op(rhs)), self.suffix),
-                        _ => unreachable!()
-                    }
-                }
-            }
-        )*
-    };
-}
-
-derive_int_ops! {
-    Add, add;
-    Sub, sub;
-    Mul, mul;
-    Div, div;
-    Rem, rem;
-    BitAnd, bitand;
-    BitOr, bitor;
-    BitXor, bitxor;
-    Shl, shl;
-    Shr, shr
-}
-
-impl fmt::Display for IntConstantValue {
+impl fmt::Display for ScalarInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            I8(value) => write!(f, "{value}"),
-            I16(value) => write!(f, "{value}"),
-            I32(value) => write!(f, "{value}"),
-            I64(value) => write!(f, "{value}"),
-            I128(value) => write!(f, "{value}"),
-            U8(value) => write!(f, "{value}"),
-            U16(value) => write!(f, "{value}"),
-            U32(value) => write!(f, "{value}"),
-            U64(value) => write!(f, "{value}"),
-            U128(value) => write!(f, "{value}"),
+        let size = self.data.size();
+        let bits = self.data.to_bits(size).unwrap();
+
+        if self.ty.is_signed() {
+            let value = size.sign_extend(bits) as i128;
+            write!(f, "{}_{}", value, self.ty.normalise(size))
+        } else {
+            write!(f, "{}_{}", bits, self.ty.normalise(size))
         }
     }
 }
 
-/// Interned literal constant which stores the raw value of the
-/// integer and an optional `type ascription` which binds the
-/// defined literal value to some ascribed type.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct IntConstant {
-    /// Raw value of the integer.
-    pub value: IntConstantValue,
-
-    /// If the constant contains a type ascription, as specified
-    /// when the constant is declared, e.g. `32u64`
-    pub suffix: Option<Identifier>,
+impl From<f32> for Scalar {
+    fn from(value: f32) -> Self {
+        Self {
+            value: value.to_bits() as u128,
+            size: NonZeroU8::new(std::mem::size_of::<f32>() as u8).unwrap(),
+        }
+    }
 }
 
-impl IntConstant {
-    /// Create a new [IntConstant] from a given `value` and `ty`.
-    pub fn new(value: IntConstantValue, suffix: Option<Identifier>) -> Self {
-        Self { value, suffix }
+impl TryFrom<Scalar> for f32 {
+    type Error = Size;
+
+    fn try_from(value: Scalar) -> Result<Self, Self::Error> {
+        value
+            .to_bits(Size::from_bytes(std::mem::size_of::<f32>()))
+            .map(|u| f32::from_bits(u as u32))
     }
+}
 
-    /// Create a [IntConstant] from a given unsigned integer value and specified
-    /// unsigned integer type.
-    ///
-    /// N.B. This is meant for only converting **unsigned** integers into
-    /// constants.
-    pub fn from_uint(value: u128, ty: UIntTy) -> Self {
-        let value = match ty {
-            UIntTy::U8 => IntConstantValue::U8(value as u8),
-            UIntTy::U16 => IntConstantValue::U16(value as u16),
-            UIntTy::U32 => IntConstantValue::U32(value as u32),
-            UIntTy::U64 => IntConstantValue::U64(value as u64),
-            UIntTy::U128 => IntConstantValue::U128(value),
-            _ => unreachable!("un-normalised integer type"),
-        };
-
-        Self { value, suffix: None }
-    }
-
-    /// Create a [IntConstant] from a given signed integer type.
-    ///
-    /// N.B. This is meant for only converting **signed** integers into
-    /// constants.
-    pub fn from_sint(value: i128, ty: SIntTy) -> Self {
-        let value = match ty {
-            SIntTy::I8 => IntConstantValue::I8(value as i8),
-            SIntTy::I16 => IntConstantValue::I16(value as i16),
-            SIntTy::I32 => IntConstantValue::I32(value as i32),
-            SIntTy::I64 => IntConstantValue::I64(value as i64),
-            SIntTy::I128 => IntConstantValue::I128(value),
-            _ => unreachable!("un-normalised integer type"),
-        };
-
-        Self { value, suffix: None }
-    }
-
-    /// Create a new [IntConstant] from a given `value` and `ty`.
-    ///
-    /// N.B. The scalar value assumes that the values are in big
-    /// endian order.
-    pub fn from_scalar(value: u128, ty: IntTy, ptr_width: Size) -> Self {
-        let size = ty.size(ptr_width);
-        let value = value.to_be_bytes();
-
-        // compute the correct slice that we need to use in order to
-        // construct the correct integer value.
-        let index = (16 - size.bytes()) as usize;
-        let mut value = value;
-
-        let value = match ty {
-            IntTy::Int(_) => IntConstantValue::from_be_bytes(&mut value[index..], true),
-            IntTy::UInt(_) => IntConstantValue::from_be_bytes(&mut value[index..], false),
-            _ => unreachable!(),
-        };
-
-        Self { value, suffix: None }
-    }
-
-    /// Function that converts the currently stored [IntConstant]
-    /// into the corresponding [IntTy] type that is being used to
-    /// store the value.
-    fn to_int_ty(&self) -> IntTy {
-        use IntConstantValue::*;
-
-        match &self.value {
-            I8(_) => IntTy::Int(SIntTy::I8),
-            I16(_) => IntTy::Int(SIntTy::I16),
-            I32(_) => IntTy::Int(SIntTy::I32),
-            I64(_) => IntTy::Int(SIntTy::I64),
-            I128(_) => IntTy::Int(SIntTy::I128),
-            U8(_) => IntTy::UInt(UIntTy::U8),
-            U16(_) => IntTy::UInt(UIntTy::U16),
-            U32(_) => IntTy::UInt(UIntTy::U32),
-            U64(_) => IntTy::UInt(UIntTy::U64),
-            U128(_) => IntTy::UInt(UIntTy::U128),
+impl From<f64> for Scalar {
+    fn from(value: f64) -> Self {
+        Self {
+            value: value.to_bits() as u128,
+            size: NonZeroU8::new(std::mem::size_of::<f64>() as u8).unwrap(),
         }
     }
+}
 
-    /// Compute the normalised [IntTy] of the constant.
-    pub fn normalised_ty(&self) -> IntTy {
-        self.to_int_ty()
+impl TryFrom<Scalar> for f64 {
+    type Error = Size;
+
+    fn try_from(value: Scalar) -> Result<Self, Self::Error> {
+        value
+            .to_bits(Size::from_bytes(std::mem::size_of::<f64>()))
+            .map(|u| f64::from_bits(u as u64))
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Mutability {
+    Mutable,
+    Immutable,
+}
+
+/// An [Alloc] represents a single allocation slot which contains the actual
+/// data, alignment, and mutability of the allocation.
+#[derive(Clone, Debug)]
+pub struct Alloc<Buf = Box<[u8]>> {
+    /// The buffer that is being used to store the value.
+    buf: Buf,
+
+    /// The alignment of the buffer.
+    align: Alignment,
+
+    /// The mutability of the allocation.
+    ///
+    /// ##Note: this is still not entirely figured out in the language. Perhaps, variables
+    /// that are 'static' can be mutable, and everything else is immutable.
+    mutability: Mutability,
+}
+
+/// Used for indexing into an [Alloc] by specifying the
+/// offset and size of the range.
+#[derive(Clone, Copy, Constructor)]
+pub struct AllocRange {
+    /// The offset into the allocation.
+    pub start: Size,
+
+    /// The size of the range.
+    pub size: Size,
+}
+
+impl AllocRange {
+    /// Get the end of the [AllocRange].
+    pub fn end(&self) -> Size {
+        self.start + self.size
+    }
+}
+
+pub trait AllocBuf: Clone + fmt::Debug + Deref<Target = [u8]> + DerefMut<Target = [u8]> {
+    /// Create a new allocation buffer from the given bytes.
+    fn from_bytes<'a>(slice: impl Into<Cow<'a, [u8]>>, align: Alignment) -> Self;
+}
+
+impl AllocBuf for Box<[u8]> {
+    fn from_bytes<'a>(slice: impl Into<Cow<'a, [u8]>>, _align: Alignment) -> Self {
+        slice.into().into_owned().into_boxed_slice()
+    }
+}
+
+impl<Buf: AllocBuf> Alloc<Buf> {
+    /// Creates an [Alloc] initialized by the given bytes.
+    pub fn from_bytes<'a>(
+        slice: impl Into<Cow<'a, [u8]>>,
+        align: Alignment,
+        mutability: Mutability,
+    ) -> Self {
+        let buf = Buf::from_bytes(slice, align);
+        Self { buf, align, mutability }
     }
 
-    /// Compute the [IntTy] of the constant.
-    pub fn ty(&self) -> IntTy {
-        // If the suffix is specified, then we use it as that, this
-        // is only specific to the `usize` problem since we don't
-        // store specific `usize` variants in the constant since
-        // we want to make it platform independent.
-        if let Some(suffix) = self.suffix {
-            return suffix.try_into().unwrap();
-        }
-
-        self.to_int_ty()
+    /// Create an immutable [Alloc] initialized by the given bytes with
+    /// alignment of [`Alignment::ONE`].
+    pub fn from_bytes_immutable<'a>(slice: impl Into<Cow<'a, [u8]>>) -> Self {
+        Self::from_bytes(slice, Alignment::ONE, Mutability::Immutable)
     }
 
-    /// Get the size of the constant.
+    #[inline]
+    pub fn read_bytes(&self, range: AllocRange) -> &[u8] {
+        &self.buf[range.start.bytes_usize()..range.end().bytes_usize()]
+    }
+
+    /// Read a [Scalar] from the given [Alloc].
+    ///
+    /// @@FixMe: Add some kind of errors for this?
+    pub fn read_scalar<C: HasDataLayout>(&self, range: AllocRange, ctx: &C) -> Scalar {
+        let data = self.read_bytes(range);
+        let int = read_target_uint(ctx.data_layout().endian, data).unwrap();
+
+        // Finally, convert it into a scalar from the integer and size.
+        Scalar::from_uint(int, range.size)
+    }
+
+    /// Get the length of the [Alloc].
+    pub fn len(&self) -> usize {
+        self.buf.len()
+    }
+
+    /// Check if the allocation is empty.
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
+    /// Get the size of the [Alloc].
     pub fn size(&self) -> Size {
-        self.value.size()
+        Size::from_bytes(self.len() as u64)
     }
 
-    /// Check if the [IntConstant] is `signed` by checking if the specified
-    /// suffix matches one of the available signed integer suffixes. If no
-    /// suffix is specified, the assumed type of the integer constant is `i32`
-    /// and therefore this follows the same assumption.
-    pub fn is_signed(&self) -> bool {
-        use IntConstantValue::*;
-        matches!(self.value, I8(_) | I16(_) | I32(_) | I64(_) | I128(_))
+    /// Get the alignment of the [Alloc].
+    pub fn align(&self) -> Alignment {
+        self.align
     }
-}
 
-impl Neg for IntConstant {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        let value = match self.value {
-            I8(t) => I8(-t),
-            I16(t) => I16(-t),
-            I32(t) => I32(-t),
-            I64(t) => I64(-t),
-            I128(t) => I128(-t),
-            _ => unreachable!(),
-        };
-
-        Self { value, suffix: self.suffix }
+    /// Get the mutability of the [Alloc].
+    pub fn mutability(&self) -> Mutability {
+        self.mutability
     }
 }
 
-impl PartialOrd for IntConstant {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        use IntConstantValue::*;
-
-        // We need to get the value from the constant, and then
-        // perform a comparison on the two values.
-        match (&self.value, &other.value) {
-            (I8(left), I8(right)) => Some(left.cmp(right)),
-            (I16(left), I16(right)) => Some(left.cmp(right)),
-            (I32(left), I32(right)) => Some(left.cmp(right)),
-            (I64(left), I64(right)) => Some(left.cmp(right)),
-            (I128(left), I128(right)) => Some(left.cmp(right)),
-            (U8(left), U8(right)) => Some(left.cmp(right)),
-            (U16(left), U16(right)) => Some(left.cmp(right)),
-            (U32(left), U32(right)) => Some(left.cmp(right)),
-            (U64(left), U64(right)) => Some(left.cmp(right)),
-            (U128(left), U128(right)) => Some(left.cmp(right)),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for IntConstant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}_{}", self.value, self.to_int_ty())
-    }
-}
-
-/// Provide implementations for converting primitive integer types into
-/// [IntConstant]s.
-macro_rules! int_const_impl_from {
-    ($($ty:ty: $variant: ident),* $(,)?) => {
-        $(
-            impl From<$ty> for IntConstantValue {
-                fn from(value: $ty) -> Self {
-                    Self::$variant(value)
-                }
-            }
-
-            impl From<$ty> for IntConstant {
-                fn from(value: $ty) -> Self {
-                    Self {
-                        value: value.into(),
-                        suffix: None
-                    }
-                }
-            }
-        )*
-    };
-}
-
-int_const_impl_from!(
-    i8: I8,
-    i16: I16,
-    i32: I32,
-    i64: I64,
-    i128: I128,
-    u8: U8,
-    u16: U16,
-    u32: U32,
-    u64: U64,
-    u128: U128,
+static_single_store!(
+    store = pub Allocations,
+    id = pub AllocId,
+    value = Alloc,
+    store_name = allocations,
+    store_source = const_stores(),
+    derives = Debug
 );
 
-// /// Provide implementations for converting [IntConstant]s into primitive
-// /// integer types. This uses the system defined sizes for the primitive
-// /// integer types, and should not be used to reliably convert into target
-// /// sized integers.
-macro_rules! int_const_impl_into {
-    ($($ty:ident),* $(,)?) => {
-        $(
-            impl TryFrom<IntConstantValue> for $ty {
-                type Error = ();
-
-                fn try_from(constant: IntConstantValue) -> Result<Self, Self::Error> {
-                    match constant {
-                        I8(value) => value.try_into().map_err(|_| ()),
-                        I16(value) => value.try_into().map_err(|_| ()),
-                        I32(value) => value.try_into().map_err(|_| ()),
-                        I64(value) => value.try_into().map_err(|_| ()),
-                        I128(value) => value.try_into().map_err(|_| ()),
-                        U8(value) => value.try_into().map_err(|_| ()),
-                        U16(value) => value.try_into().map_err(|_| ()),
-                        U32(value) => value.try_into().map_err(|_| ()),
-                        U64(value) => value.try_into().map_err(|_| ()),
-                        U128(value) => value.try_into().map_err(|_| ()),
-                    }
-                }
-            }
-
-            impl TryFrom<&IntConstant> for $ty {
-                type Error = ();
-
-                fn try_from(constant: &IntConstant) -> Result<Self, Self::Error> {
-                    constant.value.try_into()
-                }
-            }
-        )*
-    };
-}
-
-int_const_impl_into!(i8, i16, i32, i64, isize, i128, u8, u16, u32, u64, usize, u128);
-
-define_index_type! {
-    /// Index for [InternedInt] which is used to index into the [ConstantMap].
-    pub struct InternedInt = u32;
-
-    MAX_INDEX = i32::max_value() as usize;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
-
-impl InternedInt {
-    /// Create a new [InternedInt] from a given [IntConstant].
-    pub fn create(constant: IntConstant) -> Self {
-        let mut store = CONSTS.ints.write();
-        store.push(constant)
-    }
-
-    /// Get the underlying type of the interned float.
-    pub fn ty(self) -> IntTy {
-        self.map(|constant| constant.ty())
-    }
-
-    /// Create a new usize value with the specified `value` and the
-    /// current target pointer size.
-    pub fn create_usize(value: usize, ptr_width: Size) -> Self {
-        let mut constant =
-            IntConstant::from_uint(value as u128, UIntTy::USize.normalise(ptr_width));
-        constant.suffix = Some(IDENTS.usize); // ##Hack: set the suffix to ensure the `ty` is usize.
-        constant.into()
-    }
-
-    /// Check if the integer is negative, if the int is unsigned, we
-    /// return false.
-    pub fn is_negative(self) -> bool {
-        self.map(
-            |constant| {
-                if constant.is_signed() {
-                    (constant.value.as_u128() as i128) < 0
-                } else {
-                    false
-                }
-            },
-        )
-    }
-
-    /// Get the value of the integer.
-    pub fn value(self) -> IntConstant {
-        let store = CONSTS.ints.read();
-        store[self].clone()
-    }
-
-    /// Get the big-int representation of the value, this is as a
-    /// convenience method.
+impl AllocId {
+    /// Attempt to convert a particular [AllocId] into a [String] value.
     ///
-    /// @@Future: remove this!
-    pub fn big_value(&self) -> BigInt {
-        let int_const = self.value();
-        let bytes = int_const.value.as_u128().to_be_bytes();
-
-        if int_const.is_signed() {
-            BigInt::from_signed_bytes_be(&bytes)
-        } else {
-            BigInt::from_bytes_be(Sign::NoSign, &bytes)
-        }
+    /// This method will just take the raw allocated bytes and "treat" them
+    /// as a standard utf8 string.
+    ///
+    ///##NOTE: If the bytes are not valid utf8 then this  method will panic.
+    pub fn coerce_into_str(&self) -> String {
+        todo!()
     }
 
-    /// Map a [InternedInt] to a value.
-    pub fn map<T>(self, f: impl FnOnce(&IntConstant) -> T) -> T {
-        let store = CONSTS.ints.read();
-        f(&store[self])
+    pub fn string(_value: String) -> Self {
+        todo!()
     }
 
-    /// Flip the sign of the underlying constant.
-    pub fn negate(self) {
-        let mut store = CONSTS.ints.write();
-        let value = store.index_mut(self);
-        *value = value.clone().neg();
-    }
-
-    /// Convert a bias encoded `u128` value with an associated [IntTy] and
-    /// convert it into an IntConstantValue.
-    pub fn from_u128(value: u128, kind: IntTy, ptr_size: Size) -> Self {
-        let size = kind.size(ptr_size).bytes() as usize;
-        let is_signed = kind.is_signed();
-        let value = IntConstantValue::from_le_bytes(&value.to_le_bytes()[0..size], is_signed);
-        Self::create(IntConstant { value, suffix: None })
-    }
-}
-
-impl From<IntConstant> for InternedInt {
-    fn from(value: IntConstant) -> Self {
-        InternedInt::create(value)
-    }
-}
-
-impl fmt::Display for InternedInt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
-    }
-}
-
-// -------------------- Strings --------------------
-
-counter! {
-    name: InternedStr,
-    counter_name: STR_LIT_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
-    derives: (Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd),
-}
-
-impl InternedStr {
-    /// Get the value of the interned string.
-    pub fn value(self) -> &'static str {
-        string_table().get(self)
-    }
-
-    /// Get the length of the interned string.
-    pub fn len(self) -> usize {
-        self.value().len()
-    }
-
-    /// Check if the interned string is empty.
-    pub fn is_empty(self) -> bool {
-        self.value().is_empty()
-    }
-}
-
-impl fmt::Display for InternedStr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value())
-    }
-}
-
-impl fmt::Debug for InternedStr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.value())
-    }
-}
-
-// // Utility methods for converting from a InternedString to an InternedStrLit
-// and // vice versa.
-
-impl From<&str> for InternedStr {
-    fn from(string: &str) -> Self {
-        let id = InternedStr::new();
-        string_table().add(id, string);
-        id
-    }
-}
-
-impl From<String> for InternedStr {
-    fn from(string: String) -> Self {
-        let id = InternedStr::new();
-        string_table().add(id, &string);
-        id
-    }
-}
-
-impl From<InternedStr> for &str {
-    fn from(string: InternedStr) -> Self {
-        string.value()
-    }
-}
-
-impl From<InternedStr> for String {
-    fn from(string: InternedStr) -> Self {
-        String::from(string.value())
+    pub fn big_int(_value: BigInt) -> Self {
+        todo!()
     }
 }
 
@@ -937,96 +471,51 @@ impl From<InternedStr> for String {
 #[derive(Default)]
 pub struct LocalStringTable {
     /// The table itself.
-    table: HashMap<String, InternedStr, FnvBuildHasher>,
+    table: HashMap<String, AllocId, FnvBuildHasher>,
 
     /// The largest key that was inserted into the table. This is used to know
     /// exactly how much to reserve in the global string table.
-    max_key: Option<InternedStr>,
+    max_key: Option<AllocId>,
 }
 
 impl LocalStringTable {
     /// Add an entry to the local string table.
     #[inline]
-    pub fn add(&mut self, value: String) -> InternedStr {
-        let key = *self.table.entry(value).or_insert_with(InternedStr::new);
+    pub fn add(&mut self, value: String) -> AllocId {
+        let key = *self.table.entry(value.clone()).or_insert_with(|| AllocId::string(value));
         self.max_key = std::cmp::max(self.max_key, Some(key));
         key
     }
 }
 
-type StringTableInner = Vec<Option<&'static str>>;
-/// Represents storage for all of the strings that the compiler is storing
-/// during the compilation process.
-///
-/// @@Todo: Switch over to using `Const`s for string allocations...
-#[derive(Debug, Default)]
-pub struct StringTable {
-    table: RwLock<StringTableInner>,
-}
+stores!(
+    ConstStores;
+    allocations: Allocations
+);
 
-impl StringTable {
-    /// Reserve enough capacity for a given number of strings.
-    #[inline(always)]
-    fn reserve(writer: &mut RwLockWriteGuard<StringTableInner>, key: usize) {
-        let len = (key + 1).saturating_sub(writer.len());
-        if len > 0 {
-            writer.extend(repeat(None).take(len));
-        }
-    }
-
-    /// Add a string to the map.
-    fn add(&self, key: InternedStr, value: &str) {
-        let mut writer = self.table.write();
-        let index = key.to_usize();
-        StringTable::reserve(&mut writer, index);
-        writer[index] = Some(Box::leak(value.to_string().into_boxed_str()));
-    }
-
+impl ConstStores {
     /// Add a collection of interned strings from a given map.
-    pub fn add_local_table(&self, local: LocalStringTable) {
-        if local.table.is_empty() {
-            return;
-        }
+    pub fn add_local_table(&self, _local: LocalStringTable) {
+        // if local.table.is_empty() {
+        //     return;
+        // }
 
-        // Acquire the writer and merge the table into the main one.
-        let mut writer = self.table.write();
-        let index = local.max_key.unwrap().to_usize();
-        StringTable::reserve(&mut writer, index);
+        // // Acquire the writer and merge the table into the main one.
+        // let mut writer = self.table.write();
+        // let index = local.max_key.unwrap().to_usize();
+        // StringTable::reserve(&mut writer, index);
 
-        for (key, value) in local.table {
-            writer[value.to_usize()] = Some(Box::leak(key.into_boxed_str()));
-        }
-    }
-
-    /// Get the string associated with the given key.
-    #[inline]
-    pub fn get(&self, key: InternedStr) -> &str {
-        self.table.read()[key.to_usize()].unwrap()
+        // for (key, value) in local.table {
+        //     writer[value.to_usize()] = Some(Box::leak(key.into_boxed_str()));
+        // }
+        todo!()
     }
 }
 
-/// A map containing identifiers that essentially point to a string literal that
-/// has been parsed during the tokenisation process. This is so that we don't
-/// have to unnecessarily allocate a string multiple times even if it occurs
-/// within the source.
-#[derive(Debug, Default)]
-pub struct ConstantMap {
-    /// Where the interned strings are stored.
-    strings: StringTable,
+/// The global [`ConstStores`] instance.
+static STORES: OnceLock<ConstStores> = OnceLock::new();
 
-    /// Float literals store
-    floats: RwLock<IndexVec<InternedFloat, FloatConstant>>,
-
-    /// Integer literal store, `char` constants are not stored here
-    ints: RwLock<IndexVec<InternedInt, IntConstant>>,
-}
-
-lazy_static! {
-    pub(super) static ref CONSTS: ConstantMap = ConstantMap::default();
-}
-
-/// Get the compiler global [StringTable].
-#[inline]
-pub fn string_table() -> &'static StringTable {
-    &CONSTS.strings
+/// Access the global [`ConstStores`] instance.
+pub fn const_stores() -> &'static ConstStores {
+    STORES.get_or_init(ConstStores::new)
 }

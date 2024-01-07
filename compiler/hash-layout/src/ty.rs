@@ -288,6 +288,15 @@ impl ReprTy {
         matches!(self, Self::Int(_) | Self::UInt(_))
     }
 
+    /// Assert that the type is an integral one.
+    pub fn as_int(&self) -> IntTy {
+        match self {
+            Self::Int(ty) => IntTy::Int(*ty),
+            Self::UInt(ty) => IntTy::UInt(*ty),
+            _ => unreachable!(), // @@Todo: handle big ints?
+        }
+    }
+
     /// Check whether the [ReprTy] is "switchable", as in if
     /// it can be compared without any additional work. This
     /// is primarily used for generating code for `match` statements.
@@ -458,6 +467,12 @@ impl From<ReprTy> for IntTy {
             ReprTy::UInt(ty) => Self::UInt(ty),
             _ => panic!("expected integral type, but got {ty:?}"),
         }
+    }
+}
+
+impl From<ReprTyId> for IntTy {
+    fn from(ty: ReprTyId) -> Self {
+        ty.value().into()
     }
 }
 

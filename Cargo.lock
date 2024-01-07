@@ -508,6 +508,7 @@ dependencies = [
  "hash-ast",
  "hash-ast-utils",
  "hash-attrs",
+ "hash-layout",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -523,9 +524,13 @@ name = "hash-ast-utils"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-const-eval",
+ "hash-layout",
+ "hash-reporting",
  "hash-source",
  "hash-token",
  "hash-utils",
+ "num-bigint",
 ]
 
 [[package]]
@@ -535,6 +540,7 @@ dependencies = [
  "hash-ast",
  "hash-ast-utils",
  "hash-error-codes",
+ "hash-layout",
  "hash-reporting",
  "hash-source",
  "hash-storage",
@@ -602,6 +608,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-const-eval"
+version = "0.1.0"
+dependencies = [
+ "hash-layout",
+ "hash-source",
+ "hash-storage",
+ "hash-target",
+ "hash-utils",
+ "num-bigint",
+ "num-traits",
+ "num_enum",
+ "paste",
+]
+
+[[package]]
 name = "hash-driver"
 version = "0.1.0"
 dependencies = [
@@ -635,6 +656,7 @@ name = "hash-exhaustiveness"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-layout",
  "hash-reporting",
  "hash-source",
  "hash-storage",
@@ -684,6 +706,7 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-utils",
+ "paste",
 ]
 
 [[package]]
@@ -720,6 +743,7 @@ dependencies = [
  "fixedbitset",
  "hash-ast",
  "hash-attrs",
+ "hash-const-eval",
  "hash-ir",
  "hash-ir-utils",
  "hash-layout",
@@ -783,6 +807,7 @@ version = "0.1.0"
 dependencies = [
  "hash-ast",
  "hash-attrs",
+ "hash-const-eval",
  "hash-exhaustiveness",
  "hash-pipeline",
  "hash-reporting",
@@ -808,6 +833,7 @@ dependencies = [
  "hash-utils",
  "num-bigint",
  "once_cell",
+ "paste",
 ]
 
 [[package]]
@@ -884,6 +910,9 @@ name = "hash-tir"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-ast-utils",
+ "hash-const-eval",
+ "hash-layout",
  "hash-reporting",
  "hash-source",
  "hash-storage",
@@ -924,8 +953,10 @@ name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-ast-utils",
  "hash-attrs",
  "hash-exhaustiveness",
+ "hash-layout",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",

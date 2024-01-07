@@ -15,6 +15,7 @@ use super::{
     stack::PatStack,
 };
 use crate::{
+    deconstruct::convert_repr_ty,
     storage::{DeconstructedCtorId, DeconstructedPatId},
     ExhaustivenessChecker, ExhaustivenessEnv, PatCtx,
 };
@@ -335,12 +336,14 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             // they're partially covered by other ranges.
             if let DeconstructedCtor::IntRange(range) = self.get_ctor(v_ctor) {
                 if let Some(pat) = head.id {
+                    let ty = convert_repr_ty(*ty); // @@Cowbunga
+
                     self.check_for_overlapping_endpoints(
                         pat,
                         *range,
                         matrix.heads(),
                         matrix.column_count().unwrap_or(0),
-                        *ty,
+                        ty,
                     );
                 }
             }

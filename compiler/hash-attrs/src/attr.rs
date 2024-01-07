@@ -2,16 +2,10 @@
 
 use std::{fmt, sync::OnceLock};
 
-use hash_ast::{
-    ast,
-    ast::AstNodeId,
-    lit::{parse_float_const_from_lit, parse_int_const_from_lit, LitParseResult},
-};
-use hash_source::{
-    constant::{InternedFloat, InternedInt, InternedStr},
-    identifier::Identifier,
-    location::Span,
-};
+use hash_ast::{ast, ast::AstNodeId};
+use hash_ast_utils::lit::{parse_float_const_from_lit, parse_int_const_from_lit, LitParseResult};
+use hash_layout::constant::Const;
+use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::{DefaultPartialStore, PartialStore};
 use hash_target::{primitives::IntTy, size::Size};
 use hash_tir::{
@@ -47,9 +41,9 @@ impl ReprAttr {
     /// Parse a [ReprAttr] from an [Attr].
     pub fn parse(attr: &Attr) -> AttrResult<Self> {
         let arg = attr.get_arg(0).unwrap();
-        let inner = arg.value.as_str_value();
+        let inner = arg.value.as_alloc().coerce_into_str();
 
-        match inner.value() {
+        match inner.as_str() {
             "c" => Ok(ReprAttr::C),
             kind => {
                 let Ok(ty) = IntTy::try_from(Identifier::from(kind)) else {
@@ -100,7 +94,7 @@ impl Attr {
     }
 
     /// Get argument [AttrValueKind] by positional index.
-    pub fn get_arg_value_at(&self, index: impl Into<AttrArgIdx>) -> Option<&AttrValueKind> {
+    pub fn get_arg_value_at(&self, index: impl Into<AttrArgIdx>) -> Option<&Const> {
         self.args.get(&index.into()).map(|arg| &arg.value)
     }
 
@@ -143,7 +137,7 @@ pub struct AttrValue {
     pub origin: AstNodeId,
 
     /// The kind of value that this attribute is.
-    pub value: AttrValueKind,
+    pub value: Const,
 }
 
 impl AttrValue {
@@ -152,90 +146,75 @@ impl AttrValue {
         self.origin.span()
     }
 
-    /// Get the value of the [AttrValue] as an integer.
-    ///
-    /// **Panics** if the value is not an integer.
-    pub fn as_int(&self) -> InternedInt {
-        match self.value {
-            AttrValueKind::Int(value) => value,
-            value => panic!("value is not an integer, but a {}", value.ty_name()),
-        }
-    }
+    // /// Get the value of the [AttrValue] as an integer.
+    // ///
+    // /// **Panics** if the value is not an integer.
+    // pub fn as_int(&self) -> InternedInt {
+    //     match self.value {
+    //         AttrValueKind::Int(value) => value,
+    //         value => panic!("value is not an integer, but a {}",
+    // value.ty_name()),     }
+    // }
 }
 
 impl fmt::Display for AttrValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.value {
-            AttrValueKind::Str(value) => write!(f, "{}", value),
-            AttrValueKind::Int(value) => write!(f, "{}", value),
-            AttrValueKind::Float(value) => write!(f, "{}", value),
-            AttrValueKind::Char(value) => write!(f, "'{}'", value),
-        }
+        write!(f, "{:?}", self.value)
+        // match self.value {
+        //     AttrValueKind::Str(value) => write!(f, "{}", value),
+        //     AttrValueKind::Int(value) => write!(f, "{}", value),
+        //     AttrValueKind::Float(value) => write!(f, "{}", value),
+        //     AttrValueKind::Char(value) => write!(f, "'{}'", value),
+        // }
     }
 }
 
-/// A literal value, represented as a token stream.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AttrValueKind {
-    /// A string literal.
-    Str(InternedStr),
+// impl AttrValueKind {
+//     /// Try to convert an [ast::Expr] into an [AttrValue].
+//     pub fn try_from_expr(
+//         expr: &ast::Expr,
+//         expected_ty: Option<TyId>,
+//         ptr_size: Size,
+//     ) -> LitParseResult<Option<Self>> {
+//         match expr {
+//             ast::Expr::Lit(ast::LitExpr { data }) => match data.body() {
+//                 ast::Lit::Str(ast::StrLit { data }) =>
+// Ok(Some(Self::Str(*data))),                 ast::Lit::Char(ast::CharLit {
+// data }) => Ok(Some(Self::Char(*data))),
+// ast::Lit::Int(int_lit) => {                     // Try to convert the
+// `expected_ty` into a `IntTy`                     let annotation =
+// expected_ty.and_then(try_use_ty_as_int_ty);                     let value =
+//                         parse_int_const_from_lit(int_lit, annotation,
+// ptr_size, false)?.small();                     Ok(Some(Self::Int(value)))
+//                 }
+//                 ast::Lit::Float(float_lit) => {
+//                     let annotation =
+// expected_ty.and_then(try_use_ty_as_float_ty);                     let value =
+// parse_float_const_from_lit(float_lit, annotation)?;
+// Ok(Some(Self::Float(value)))                 }
+//                 _ => Ok(None),
+//             },
+//             _ => Ok(None),
+//         }
+//     }
 
-    /// An integer constant.
-    Int(InternedInt),
+//     pub fn ty_name(&self) -> &'static str {
+//         match self {
+//             Self::Str(_) => "string",
+//             Self::Int(_) => "integer",
+//             Self::Float(_) => "float",
+//             Self::Char(_) => "character",
+//         }
+//     }
 
-    /// A float constant.
-    Float(InternedFloat),
-
-    /// A char literal.
-    Char(char),
-}
-
-impl AttrValueKind {
-    /// Try to convert an [ast::Expr] into an [AttrValue].
-    pub fn try_from_expr(
-        expr: &ast::Expr,
-        expected_ty: Option<TyId>,
-        ptr_size: Size,
-    ) -> LitParseResult<Option<Self>> {
-        match expr {
-            ast::Expr::Lit(ast::LitExpr { data }) => match data.body() {
-                ast::Lit::Str(ast::StrLit { data }) => Ok(Some(Self::Str(*data))),
-                ast::Lit::Char(ast::CharLit { data }) => Ok(Some(Self::Char(*data))),
-                ast::Lit::Int(int_lit) => {
-                    // Try to convert the `expected_ty` into a `IntTy`
-                    let annotation = expected_ty.and_then(try_use_ty_as_int_ty);
-                    let value =
-                        parse_int_const_from_lit(int_lit, annotation, ptr_size, false)?.small();
-                    Ok(Some(Self::Int(value)))
-                }
-                ast::Lit::Float(float_lit) => {
-                    let annotation = expected_ty.and_then(try_use_ty_as_float_ty);
-                    let value = parse_float_const_from_lit(float_lit, annotation)?;
-                    Ok(Some(Self::Float(value)))
-                }
-                _ => Ok(None),
-            },
-            _ => Ok(None),
-        }
-    }
-
-    pub fn ty_name(&self) -> &'static str {
-        match self {
-            Self::Str(_) => "string",
-            Self::Int(_) => "integer",
-            Self::Float(_) => "float",
-            Self::Char(_) => "character",
-        }
-    }
-
-    /// Ensure that the [AttrValueKind] is a string value, and return it.
-    pub fn as_str_value(&self) -> InternedStr {
-        match self {
-            Self::Str(value) => *value,
-            value => panic!("value is not a string, but a {}", value.ty_name()),
-        }
-    }
-}
+//     /// Ensure that the [AttrValueKind] is a string value, and return it.
+//     pub fn as_str_value(&self) -> InternedStr {
+//         match self {
+//             Self::Str(value) => *value,
+//             value => panic!("value is not a string, but a {}",
+// value.ty_name()),         }
+//     }
+// }
 
 /// A map of all of the attributes that exist on a particular [AstNodeId].
 #[derive(Default, Debug, Clone)]
