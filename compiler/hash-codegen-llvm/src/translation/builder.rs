@@ -424,7 +424,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
         // For some reason there is no function to get the width
         // of a float type, so we have to use raw fn call yet again...
-        let intrinsic = match { unsafe { llvm::LLVMGetTypeKind(ty.as_type_ref()) } } {
+        let intrinsic = match unsafe { llvm::LLVMGetTypeKind(ty.as_type_ref()) } {
             llvm_sys::LLVMTypeKind::LLVMHalfTypeKind
             | llvm_sys::LLVMTypeKind::LLVMFloatTypeKind => "llvm.pow.f32",
             llvm_sys::LLVMTypeKind::LLVMDoubleTypeKind => "llvm.pow.f64",
