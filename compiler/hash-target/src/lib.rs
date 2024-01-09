@@ -138,6 +138,10 @@ pub struct Target {
     /// The data layout of the architecture.
     pub data_layout: Cow<'static, str>,
 
+    /// The equivalent of `data_layout`, but parsed into a structural
+    /// format.
+    target_data_layout: Option<TargetDataLayout>,
+
     /// What endianess the target is.
     pub endian: Endian,
 
@@ -253,6 +257,20 @@ impl Target {
         load_target(triple)
     }
 
+    /// Get the [TargetDataLayout] that is associated with this [Target], if
+    /// there exists one.
+    ///
+    /// @@Ugh: this is a shit API, we need to figure out how to unify a the
+    /// target and target data layout items.
+    pub fn data_layout(&self) -> &TargetDataLayout {
+        self.target_data_layout.as_ref().unwrap()
+    }
+
+    /// Set the [TargetDataLayout] for the [Target].
+    pub fn set_data_layout(&mut self, dl: TargetDataLayout) {
+        self.target_data_layout = Some(dl);
+    }
+
     /// Produce a [TargetDataLayout] from the given [Target] layout
     /// string. If the layout contains any errors, this function will
     /// return the errors that were encountered.
@@ -336,6 +354,7 @@ impl Default for Target {
             // value will be overridden for the platform specific data layout
             // string.
             data_layout: "e-m:e-i64:64-f80:128-n8:16:32:64-S128".into(),
+            target_data_layout: Some(TargetDataLayout::default()),
             pointer_bit_width,
 
             // Entry point options
