@@ -17,7 +17,7 @@ use std::{
 };
 
 use abi::{Abi, Integer};
-use data_layout::{Endian, TargetDataLayout, TargetDataLayoutParseError};
+use data_layout::{Endian, HasDataLayout, TargetDataLayout, TargetDataLayoutParseError};
 use link::{
     link_env, Cc, CodeModel, FramePointer, LinkEnv, LinkageArgs, LinkerFlavour, Lld,
     RelocationModel,
@@ -138,6 +138,10 @@ pub struct Target {
     /// The data layout of the architecture.
     pub data_layout: Cow<'static, str>,
 
+    /// The equivalent of `data_layout`, but parsed into a structural
+    /// format.
+    target_data_layout: TargetDataLayout,
+
     /// What endianess the target is.
     pub endian: Endian,
 
@@ -253,6 +257,11 @@ impl Target {
         load_target(triple)
     }
 
+    /// Set the [TargetDataLayout] for the [Target].Ì
+    pub fn set_data_layout(&mut self, dl: TargetDataLayout) {
+        self.target_data_layout = dl;
+    }
+
     /// Produce a [TargetDataLayout] from the given [Target] layout
     /// string. If the layout contains any errors, this function will
     /// return the errors that were encountered.
@@ -336,6 +345,7 @@ impl Default for Target {
             // value will be overridden for the platform specific data layout
             // string.
             data_layout: "e-m:e-i64:64-f80:128-n8:16:32:64-S128".into(),
+            target_data_layout: TargetDataLayout::default(),
             pointer_bit_width,
 
             // Entry point options
@@ -388,15 +398,9 @@ impl HasTarget for Target {
     }
 }
 
-
-/// Even more specific utility trait to just access the pointer size of the current 
-/// target machine.
-pub trait HasPointerSize {
-    fn pointer_size(&self) -> Size;
-}
-
-impl<T: HasTarget> HasPointerSize for T {
-    fn pointer_size(&self) -> Size {
-        Size::from_bits(self.target().pointer_bit_width as u64) 
+impl<T: HasTarget> HasDataLayout for T {
+    #[inline]
+    fn data_layout(&self) -> &TargetDataLayout {
+        &self.target().target_data_layout
     }
-} 
+}

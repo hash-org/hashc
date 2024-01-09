@@ -917,6 +917,15 @@ define_tree! {
         pub kind: IntLitKind,
     }
 
+    impl IntLit {
+        /// Check whether that value is negative.
+        ///
+        /// **Note**: For raw values, we just check if the value starts with a `-`.
+        pub fn is_negative(&self) -> bool {
+            self.hunk.span().map_contents(|s| s.starts_with('-'))
+        }
+    }
+
     /// A float literal.
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]

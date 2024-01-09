@@ -93,6 +93,11 @@ impl Const {
         Self::new(ty, ConstKind::Alloc { alloc, offset: Size::ZERO })
     }
 
+    /// Create a new allocated string constant, from a given [AllocId].
+    pub fn str(alloc: AllocId) -> Self {
+        Self::new(COMMON_REPR_TYS.str, ConstKind::Alloc { alloc, offset: Size::ZERO })
+    }
+
     /// Create a new scalar [Const] from a given type and [Scalar] value.
     pub fn scalar(scalar: Scalar, ty: ReprTyId) -> Self {
         Self::new(ty, ConstKind::Scalar(scalar))

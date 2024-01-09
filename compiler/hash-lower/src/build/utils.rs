@@ -61,7 +61,6 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // Now lookup the item in the libc module
         let fn_def = libc_mod.borrow().get_mod_fn_member_by_ident(name)?;
-
         Some(self.ty_id_from_tir_fn_def(fn_def))
     }
 

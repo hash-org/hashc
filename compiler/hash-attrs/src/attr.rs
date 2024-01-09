@@ -146,75 +146,42 @@ impl AttrValue {
         self.origin.span()
     }
 
-    // /// Get the value of the [AttrValue] as an integer.
-    // ///
-    // /// **Panics** if the value is not an integer.
-    // pub fn as_int(&self) -> InternedInt {
-    //     match self.value {
-    //         AttrValueKind::Int(value) => value,
-    //         value => panic!("value is not an integer, but a {}",
-    // value.ty_name()),     }
-    // }
+    /// Try to convert an [ast::Expr] into an [AttrValue].
+    pub fn try_from_expr(
+        origin: AstNodeId,
+        expr: &ast::Expr,
+        expected_ty: Option<TyId>,
+        ptr_size: Size,
+    ) -> LitParseResult<Option<Self>> {
+        let constant = match expr {
+            ast::Expr::Lit(ast::LitExpr { data }) => match data.body() {
+                ast::Lit::Str(ast::StrLit { data }) => Const::str(*data),
+                ast::Lit::Char(ast::CharLit { data }) => (*data).into(),
+                ast::Lit::Int(int_lit) => {
+                    // Try to convert the `expected_ty` into a `IntTy`
+                    let annotation = expected_ty.and_then(try_use_ty_as_int_ty);
+                    let value = parse_int_const_from_lit(int_lit, annotation, ptr_size, false)?;
+                    value
+                }
+                ast::Lit::Float(float_lit) => {
+                    let annotation = expected_ty.and_then(try_use_ty_as_float_ty);
+                    let value = parse_float_const_from_lit(float_lit, annotation)?;
+                    value
+                }
+                _ => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+
+        Ok(Some(Self { origin, value: constant }))
+    }
 }
 
 impl fmt::Display for AttrValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self.value)
-        // match self.value {
-        //     AttrValueKind::Str(value) => write!(f, "{}", value),
-        //     AttrValueKind::Int(value) => write!(f, "{}", value),
-        //     AttrValueKind::Float(value) => write!(f, "{}", value),
-        //     AttrValueKind::Char(value) => write!(f, "'{}'", value),
-        // }
     }
 }
-
-// impl AttrValueKind {
-//     /// Try to convert an [ast::Expr] into an [AttrValue].
-//     pub fn try_from_expr(
-//         expr: &ast::Expr,
-//         expected_ty: Option<TyId>,
-//         ptr_size: Size,
-//     ) -> LitParseResult<Option<Self>> {
-//         match expr {
-//             ast::Expr::Lit(ast::LitExpr { data }) => match data.body() {
-//                 ast::Lit::Str(ast::StrLit { data }) =>
-// Ok(Some(Self::Str(*data))),                 ast::Lit::Char(ast::CharLit {
-// data }) => Ok(Some(Self::Char(*data))),
-// ast::Lit::Int(int_lit) => {                     // Try to convert the
-// `expected_ty` into a `IntTy`                     let annotation =
-// expected_ty.and_then(try_use_ty_as_int_ty);                     let value =
-//                         parse_int_const_from_lit(int_lit, annotation,
-// ptr_size, false)?.small();                     Ok(Some(Self::Int(value)))
-//                 }
-//                 ast::Lit::Float(float_lit) => {
-//                     let annotation =
-// expected_ty.and_then(try_use_ty_as_float_ty);                     let value =
-// parse_float_const_from_lit(float_lit, annotation)?;
-// Ok(Some(Self::Float(value)))                 }
-//                 _ => Ok(None),
-//             },
-//             _ => Ok(None),
-//         }
-//     }
-
-//     pub fn ty_name(&self) -> &'static str {
-//         match self {
-//             Self::Str(_) => "string",
-//             Self::Int(_) => "integer",
-//             Self::Float(_) => "float",
-//             Self::Char(_) => "character",
-//         }
-//     }
-
-//     /// Ensure that the [AttrValueKind] is a string value, and return it.
-//     pub fn as_str_value(&self) -> InternedStr {
-//         match self {
-//             Self::Str(value) => *value,
-//             value => panic!("value is not a string, but a {}",
-// value.ty_name()),         }
-//     }
-// }
 
 /// A map of all of the attributes that exist on a particular [AstNodeId].
 #[derive(Default, Debug, Clone)]

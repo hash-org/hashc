@@ -20,7 +20,7 @@ use itertools::Itertools;
 
 use crate::{
     diagnostics::{TcError, TcResult, WrongTermKind},
-    env::TcEnv,
+    env::{HasTcEnv, TcEnv},
     options::normalisation::{
         normalise_nested, normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },

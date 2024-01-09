@@ -154,39 +154,39 @@ impl AstExpander<'_> {
 
                     // If we can't convert this into an attribute value, then we
                     // can't properly check the invocation.
-                    let attr_value =
-                        match AttrValueKind::try_from_expr(arg.value.body(), expected_ty, ptr_size)
-                        {
-                            Ok(Some(value)) => value,
-                            Ok(None) => {
-                                let expr_kind = AttrTarget::classify_expr(arg.value.body());
-                                self.add_error(ExpansionError::new(
-                                    ExpansionErrorKind::InvalidAttributeArg(expr_kind),
-                                    arg.id(),
-                                ));
+                    let attr_value = match AttrValue::try_from_expr(
+                        arg.id(),
+                        arg.value.body(),
+                        expected_ty,
+                        ptr_size,
+                    ) {
+                        Ok(Some(value)) => value,
+                        Ok(None) => {
+                            let expr_kind = AttrTarget::classify_expr(arg.value.body());
+                            self.add_error(ExpansionError::new(
+                                ExpansionErrorKind::InvalidAttributeArg(expr_kind),
+                                arg.id(),
+                            ));
 
-                                is_valid = false;
-                                break;
-                            }
+                            is_valid = false;
+                            break;
+                        }
 
-                            // Literal parsing failed, we just push the error into the
-                            // expansion diagnostics and let it be handled later.
-                            Err(err) => {
-                                self.add_error(ExpansionError::new(err.into(), node.id));
+                        // Literal parsing failed, we just push the error into the
+                        // expansion diagnostics and let it be handled later.
+                        Err(err) => {
+                            self.add_error(ExpansionError::new(err.into(), node.id));
 
-                                is_valid = false;
-                                break;
-                            }
-                        };
+                            is_valid = false;
+                            break;
+                        }
+                    };
 
-                    attr.add_arg(
-                        AttrArgIdx::from(target),
-                        AttrValue { origin: arg.id(), value: attr_value },
-                    );
+                    attr.add_arg(AttrArgIdx::from(target), attr_value);
 
                     let value = Term::from(
                         Term::Lit(Node::create_at(
-                            Lit::Const(attr_value),
+                            Lit::Const(attr_value.value),
                             NodeOrigin::Given(arg.value.id()),
                         )),
                         NodeOrigin::Given(arg.value.id()),
